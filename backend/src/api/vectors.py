@@ -27,7 +27,7 @@ from ..models.vector import VectorCollectionType
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/vectors", tags=["vectors"])
+router = APIRouter(prefix="/vectors", tags=["vectors"])
 
 
 @router.post("/embeddings", response_model=EmbeddingResponse)

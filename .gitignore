@@ -161,3 +161,6 @@ dump.rdb
 
 # Profiling
 *.prof
+
+# GitHub Actions Runner
+actions-runner/
