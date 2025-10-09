@@ -1,0 +1,983 @@
+openapi: 3.0.3
+info:
+  title: Multimodal Enterprise RAG System API
+  description: API for uploading, processing, and searching multimodal content
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@multimodal-rag.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+  - url: https://api.multimodal-rag.com
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+paths:
+  # Authentication endpoints
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and return access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: User registration
+      description: Register new user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      description: Invalidate user session
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+        '401':
+          description: Unauthorized
+
+  # Document endpoints
+  /documents:
+    get:
+      tags:
+        - Documents
+      summary: List documents
+      description: Get paginated list of user's documents
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: file_type
+          in: query
+          schema:
+            type: string
+            enum: [pdf, txt, jpg, png, mp3, wav, mp4, avi, mov]
+        - name: modality
+          in: query
+          schema:
+            type: string
+            enum: [text, image, audio, video]
+      responses:
+        '200':
+          description: Documents retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentsResponse'
+
+    post:
+      tags:
+        - Documents
+      summary: Upload document
+      description: Upload and process a new document
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DocumentUploadRequest'
+      responses:
+        '201':
+          description: Document uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          description: Invalid file or upload failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: File too large
+
+  /documents/{document_id}:
+    get:
+      tags:
+        - Documents
+      summary: Get document details
+      description: Retrieve detailed information about a specific document
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Document details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDetailResponse'
+        '404':
+          description: Document not found
+        '403':
+          description: Access denied
+
+    delete:
+      tags:
+        - Documents
+      summary: Delete document
+      description: Delete a document and all associated data
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Document deleted successfully
+        '404':
+          description: Document not found
+        '403':
+          description: Access denied
+
+  /documents/{document_id}/entities:
+    get:
+      tags:
+        - Documents
+      summary: Get document entities
+      description: Retrieve entities extracted from a document
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: entity_type
+          in: query
+          schema:
+            type: string
+            enum: [person, organization, location, concept, product, date]
+      responses:
+        '200':
+          description: Entities retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntitiesResponse'
+
+  # Search endpoints
+  /search:
+    post:
+      tags:
+        - Search
+      summary: Search documents
+      description: Perform hybrid search across all document types
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          description: Invalid search query
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /search/suggestions:
+    get:
+      tags:
+        - Search
+      summary: Get search suggestions
+      description: Get query suggestions based on user history
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 5
+      responses:
+        '200':
+          description: Suggestions retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuggestionsResponse'
+
+  # Analytics endpoints
+  /analytics/dashboard:
+    get:
+      tags:
+        - Analytics
+      summary: Get dashboard analytics
+      description: Retrieve analytics data for dashboard
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month, year]
+            default: month
+      responses:
+        '200':
+          description: Analytics data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardAnalyticsResponse'
+
+  /analytics/quality:
+    get:
+      tags:
+        - Analytics
+      summary: Get quality metrics
+      description: Retrieve system quality and performance metrics
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Quality metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QualityMetricsResponse'
+
+  # User management endpoints
+  /users/profile:
+    get:
+      tags:
+        - Users
+      summary: Get user profile
+      description: Retrieve current user's profile information
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+
+    put:
+      tags:
+        - Users
+      summary: Update user profile
+      description: Update current user's profile information
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateRequest'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # Authentication schemas
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          example: securePassword123
+
+    LoginResponse:
+      type: object
+      required:
+        - access_token
+        - token_type
+        - user
+      properties:
+        access_token:
+          type: string
+          example: JWT_REDACTED
+        token_type:
+          type: string
+          example: bearer
+        expires_in:
+          type: integer
+          example: 3600
+        user:
+          $ref: '#/components/schemas/UserResponse'
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - first_name
+        - last_name
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: securePassword123
+        first_name:
+          type: string
+          example: John
+        last_name:
+          type: string
+          example: Doe
+
+    # User schemas
+    UserResponse:
+      type: object
+      required:
+        - id
+        - email
+        - first_name
+        - last_name
+        - role
+        - organization
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174000
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        first_name:
+          type: string
+          example: John
+        last_name:
+          type: string
+          example: Doe
+        role:
+          type: string
+          enum: [admin, content_manager, user, analyst]
+          example: user
+        organization:
+          $ref: '#/components/schemas/OrganizationResponse'
+        is_active:
+          type: boolean
+          example: true
+        last_login:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          example: 2023-01-01T00:00:00Z
+
+    UserProfileResponse:
+      type: object
+      required:
+        - user
+        - storage_usage
+        - search_history
+      properties:
+        user:
+          $ref: '#/components/schemas/UserResponse'
+        storage_usage:
+          type: object
+          properties:
+            used_bytes:
+              type: integer
+              example: 2147483648
+            limit_bytes:
+              type: integer
+              example: 10737418240
+            percentage:
+              type: number
+              example: 20.0
+        search_history:
+          type: array
+          items:
+            type: object
+            properties:
+              query:
+                type: string
+                example: machine learning algorithms
+              timestamp:
+                type: string
+                format: date-time
+              result_count:
+                type: integer
+                example: 15
+
+    ProfileUpdateRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          example: John
+        last_name:
+          type: string
+          example: Doe
+
+    # Organization schemas
+    OrganizationResponse:
+      type: object
+      required:
+        - id
+        - name
+        - storage_tier
+        - storage_used
+        - storage_limit
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174001
+        name:
+          type: string
+          example: Acme Corporation
+        storage_tier:
+          type: string
+          enum: [free, professional, enterprise]
+          example: professional
+        storage_used_bytes:
+          type: integer
+          example: 2147483648
+        storage_limit_bytes:
+          type: integer
+          example: 107374182400
+        is_active:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          example: 2023-01-01T00:00:00Z
+
+    # Document schemas
+    DocumentUploadRequest:
+      type: object
+      required:
+        - file
+      properties:
+        file:
+          type: string
+          format: binary
+        description:
+          type: string
+          maxLength: 1000
+          example: Annual report Q3 2023
+
+    DocumentResponse:
+      type: object
+      required:
+        - id
+        - filename
+        - file_type
+        - modality
+        - file_size_bytes
+        - processing_status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174002
+        filename:
+          type: string
+          example: document_2023_10_07.pdf
+        original_filename:
+          type: string
+          example: annual_report.pdf
+        file_type:
+          type: string
+          enum: [pdf, txt, jpg, png, mp3, wav, mp4, avi, mov]
+          example: pdf
+        modality:
+          type: string
+          enum: [text, image, audio, video]
+          example: text
+        file_size_bytes:
+          type: integer
+          example: 1048576
+        processing_status:
+          type: string
+          enum: [pending, processing, completed, failed]
+          example: completed
+        entity_count:
+          type: integer
+          example: 25
+        processing_started_at:
+          type: string
+          format: date-time
+          nullable: true
+        processing_completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          example: 2023-10-07T10:30:00Z
+
+    DocumentDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/DocumentResponse'
+        - type: object
+          properties:
+            extracted_text:
+              type: string
+              example: This document contains the annual financial report...
+            extracted_text_preview:
+              type: string
+              example: This document contains the annual financial report for Q3 2023...
+            entities:
+              type: array
+              items:
+                $ref: '#/components/schemas/EntityResponse'
+
+    DocumentsResponse:
+      type: object
+      required:
+        - documents
+        - pagination
+      properties:
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentResponse'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # Entity schemas
+    EntityResponse:
+      type: object
+      required:
+        - id
+        - name
+        - entity_type
+        - confidence_score
+        - source_modality
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174003
+        name:
+          type: string
+          example: John Smith
+        entity_type:
+          type: string
+          enum: [person, organization, location, concept, product, date]
+          example: person
+        confidence_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          example: 0.95
+        source_modality:
+          type: string
+          enum: [text, image, audio, video]
+          example: text
+        context_snippet:
+          type: string
+          example: ...according to John Smith, the CEO...
+        start_position:
+          type: integer
+          example: 150
+        end_position:
+          type: integer
+          example: 160
+
+    EntitiesResponse:
+      type: object
+      required:
+        - entities
+      properties:
+        entities:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityResponse'
+
+    # Search schemas
+    SearchRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          minLength: 2
+          maxLength: 1000
+          example: machine learning algorithms for document analysis
+        filters:
+          type: object
+          properties:
+            content_types:
+              type: array
+              items:
+                type: string
+                enum: [text, image, audio, video]
+              example: [text, image]
+            date_range:
+              type: object
+              properties:
+                start_date:
+                  type: string
+                  format: date
+                  example: 2023-01-01
+                end_date:
+                  type: string
+                  format: date
+                  example: 2023-12-31
+            file_types:
+              type: array
+              items:
+                type: string
+                enum: [pdf, txt, jpg, png, mp3, wav, mp4, avi, mov]
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 10
+          example: 20
+
+    SearchResponse:
+      type: object
+      required:
+        - query_id
+        - results
+        - query_info
+      properties:
+        query_id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174004
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResultResponse'
+        query_info:
+          type: object
+          properties:
+            query:
+              type: string
+              example: machine learning algorithms
+            execution_time_ms:
+              type: integer
+              example: 245
+            total_results:
+              type: integer
+              example: 47
+
+    SearchResultResponse:
+      type: object
+      required:
+        - document_id
+        - relevance_score
+        - result_summary
+        - rank_position
+      properties:
+        document_id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174005
+        document:
+          $ref: '#/components/schemas/DocumentResponse'
+        relevance_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          example: 0.87
+        result_summary:
+          type: string
+          maxLength: 300
+          example: This document discusses various machine learning algorithms including neural networks and decision trees...
+        result_modality:
+          type: string
+          enum: [text, image, audio, video]
+          example: text
+        rank_position:
+          type: integer
+          example: 1
+
+    SuggestionsResponse:
+      type: object
+      required:
+        - suggestions
+      properties:
+        suggestions:
+          type: array
+          items:
+            type: object
+            properties:
+              query:
+                type: string
+                example: machine learning algorithms
+              frequency:
+                type: integer
+                example: 5
+
+    # Analytics schemas
+    DashboardAnalyticsResponse:
+      type: object
+      required:
+        - overview
+        - usage_metrics
+        - content_distribution
+      properties:
+        overview:
+          type: object
+          properties:
+            total_documents:
+              type: integer
+              example: 1234
+            total_searches:
+              type: integer
+              example: 5678
+            avg_response_time_ms:
+              type: number
+              example: 245.5
+            storage_usage_percentage:
+              type: number
+              example: 65.2
+        usage_metrics:
+          type: object
+          properties:
+            daily_searches:
+              type: array
+              items:
+                type: object
+                properties:
+                  date:
+                    type: string
+                    format: date
+                    example: 2023-10-07
+                  count:
+                    type: integer
+                    example: 45
+            document_types:
+              type: array
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    example: pdf
+                  count:
+                    type: integer
+                    example: 123
+        content_distribution:
+          type: object
+          properties:
+            modalities:
+              type: array
+              items:
+                type: object
+                properties:
+                  modality:
+                    type: string
+                    example: text
+                  count:
+                    type: integer
+                    example: 890
+                  percentage:
+                    type: number
+                    example: 72.1
+
+    QualityMetricsResponse:
+      type: object
+      required:
+        - metrics
+        - trends
+      properties:
+        metrics:
+          type: object
+          properties:
+            answer_relevancy:
+              type: number
+              example: 0.85
+            factual_accuracy:
+              type: number
+              example: 0.92
+            contextual_precision:
+              type: number
+              example: 0.78
+            processing_success_rate:
+              type: number
+              example: 0.95
+        trends:
+          type: object
+          properties:
+            daily_scores:
+              type: array
+              items:
+                type: object
+                properties:
+                  date:
+                    type: string
+                    format: date
+                    example: 2023-10-07
+                  answer_relevancy:
+                    type: number
+                    example: 0.84
+                  factual_accuracy:
+                    type: number
+                    example: 0.91
+
+    # Common schemas
+    Pagination:
+      type: object
+      required:
+        - page
+        - limit
+        - total
+        - total_pages
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 123
+        total_pages:
+          type: integer
+          example: 7
+        has_next:
+          type: boolean
+          example: true
+        has_prev:
+          type: boolean
+          example: false
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          example: Invalid request
+        message:
+          type: string
+          example: The provided query is too short
+        details:
+          type: object
+          example:
+            field: query
+            constraint: minLength
+            value: "a"
