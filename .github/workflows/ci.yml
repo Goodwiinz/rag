@@ -22,28 +22,31 @@ jobs:
 
       - name: Set up Python environment
         run: |
-          # Use system Python 3 on macOS
-          python3 --version
-          python3 -m pip install --upgrade pip --user
-          python3 -m pip install flake8 black isort mypy --user
+          # Create virtual environment to avoid PEP 668 restrictions
+          python3 -m venv venv
+          source venv/bin/activate
+          python --version
+          pip install --upgrade pip
+          pip install flake8 black isort mypy
           if [ -f backend/requirements.dev.txt ]; then
-            python3 -m pip install -r backend/requirements.dev.txt --user
+            pip install -r backend/requirements.dev.txt
           fi
-          echo "$HOME/Library/Python/3.x/bin" >> $GITHUB_PATH
+          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/venv" >> $GITHUB_ENV
+          echo "$GITHUB_WORKSPACE/venv/bin" >> $GITHUB_PATH
 
       - name: Run flake8
         working-directory: backend
         run: |
-          python3 -m flake8 src --count --select=E9,F63,F7,F82 --show-source --statistics
-          python3 -m flake8 src --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          flake8 src --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 src --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Check black formatting
         working-directory: backend
-        run: python3 -m black --check src tests || echo "::warning::Code is not formatted with black"
+        run: black --check src tests || echo "::warning::Code is not formatted with black"
 
       - name: Check isort
         working-directory: backend
-        run: python3 -m isort --check-only src tests || echo "::warning::Imports are not sorted"
+        run: isort --check-only src tests || echo "::warning::Imports are not sorted"
 
   test:
     name: Run Tests
@@ -55,10 +58,13 @@ jobs:
 
       - name: Set up Python environment
         run: |
-          # Use system Python 3 on macOS
-          python3 --version
-          python3 -m pip install --upgrade pip --user
-          echo "$HOME/Library/Python/3.x/bin" >> $GITHUB_PATH
+          # Create virtual environment to avoid PEP 668 restrictions
+          python3 -m venv venv
+          source venv/bin/activate
+          python --version
+          pip install --upgrade pip
+          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/venv" >> $GITHUB_ENV
+          echo "$GITHUB_WORKSPACE/venv/bin" >> $GITHUB_PATH
 
       - name: Install system dependencies
         run: |
@@ -79,12 +85,12 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python3 -m pip install pytest pytest-cov pytest-asyncio --user
+          pip install pytest pytest-cov pytest-asyncio
           if [ -f backend/requirements.txt ]; then
-            python3 -m pip install -r backend/requirements.txt --user
+            pip install -r backend/requirements.txt
           fi
           if [ -f backend/requirements.dev.txt ]; then
-            python3 -m pip install -r backend/requirements.dev.txt --user
+            pip install -r backend/requirements.dev.txt
           fi
 
       - name: Run tests with coverage
@@ -94,7 +100,7 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test-secret-key-for-ci
           ALGORITHM: HS256
-        run: python3 -m pytest tests/ -v --cov=src --cov-report=xml --cov-report=term-missing
+        run: pytest tests/ -v --cov=src --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4
@@ -151,21 +157,24 @@ jobs:
 
       - name: Set up Python environment
         run: |
-          # Use system Python 3 on macOS
-          python3 --version
-          python3 -m pip install --upgrade pip --user
-          python3 -m pip install safety bandit --user
-          echo "$HOME/Library/Python/3.x/bin" >> $GITHUB_PATH
+          # Create virtual environment to avoid PEP 668 restrictions
+          python3 -m venv venv
+          source venv/bin/activate
+          python --version
+          pip install --upgrade pip
+          pip install safety bandit
+          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/venv" >> $GITHUB_ENV
+          echo "$GITHUB_WORKSPACE/venv/bin" >> $GITHUB_PATH
 
       - name: Run safety check
         working-directory: backend
-        run: python3 -m safety check --file requirements.txt --output text || true
+        run: safety check --file requirements.txt --output text || true
 
       - name: Run bandit security scan
         working-directory: backend
         run: |
-          python3 -m bandit -r src -f json -o bandit-report.json || true
-          python3 -m bandit -r src -f screen
+          bandit -r src -f json -o bandit-report.json || true
+          bandit -r src -f screen
 
       - name: Upload bandit report
         uses: actions/upload-artifact@v4
