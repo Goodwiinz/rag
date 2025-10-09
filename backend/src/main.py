@@ -17,6 +17,7 @@ from src.api.auth import router as auth_router
 from src.api.files import router as files_router
 from src.api.documents import router as documents_router
 from src.api.processing import router as processing_router
+from src.api.vectors import router as vectors_router
 
 # Configure logging
 logging.basicConfig(
@@ -110,6 +111,7 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(files_router, prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
 app.include_router(processing_router, prefix="/api/v1")
+app.include_router(vectors_router, prefix="/api/v1")
 
 # Health check endpoint
 @app.get("/health")
