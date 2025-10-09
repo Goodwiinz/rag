@@ -13,7 +13,7 @@ env:
 jobs:
   lint:
     name: Lint & Format Check
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64]
 
     steps:
       - name: Checkout code
@@ -49,32 +49,7 @@ jobs:
 
   test:
     name: Run Tests
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: testuser
-          POSTGRES_PASSWORD: testpass
-          POSTGRES_DB: testdb
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
+    runs-on: [self-hosted, macOS, ARM64]
 
     steps:
       - name: Checkout code
@@ -88,8 +63,20 @@ jobs:
 
       - name: Install system dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg libpq-dev
+          brew install postgresql redis ffmpeg
+
+      - name: Start PostgreSQL
+        run: |
+          brew services start postgresql
+          # Create test database
+          createdb testdb || true
+          # Create test user
+          createuser testuser || true
+          psql -d testdb -c "ALTER USER testuser WITH PASSWORD 'testpass';" || true
+
+      - name: Start Redis
+        run: |
+          brew services start redis
 
       - name: Install Python dependencies
         run: |
@@ -119,9 +106,15 @@ jobs:
           name: codecov-umbrella
           fail_ci_if_error: false
 
+      - name: Cleanup services
+        if: always()
+        run: |
+          brew services stop postgresql || true
+          brew services stop redis || true
+
   docker-build:
     name: Docker Build Test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64]
 
     steps:
       - name: Checkout code
@@ -152,7 +145,7 @@ jobs:
 
   security-scan:
     name: Security Scan
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64]
 
     steps:
       - name: Checkout code
