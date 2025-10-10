@@ -14,103 +14,87 @@ env:
 jobs:
   lint:
     name: Lint & Format Check
-    runs-on: [self-hosted, macOS, ARM64]
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python environment
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install linting tools
         run: |
-          # Create virtual environment to avoid PEP 668 restrictions
-          python3 -m venv venv
-          source venv/bin/activate
-          python --version
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install flake8 black isort mypy
           if [ -f backend/requirements.dev.txt ]; then
             pip install -r backend/requirements.dev.txt
           fi
-          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/venv" >> $GITHUB_ENV
-          echo "$GITHUB_WORKSPACE/venv/bin" >> $GITHUB_PATH
 
       - name: Run flake8
         working-directory: backend
         run: |
-          source $GITHUB_WORKSPACE/venv/bin/activate
           flake8 src --count --select=E9,F63,F7,F82 --show-source --statistics
           flake8 src --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Check black formatting
         working-directory: backend
-        run: |
-          source $GITHUB_WORKSPACE/venv/bin/activate
-          black --check src tests || echo "::warning::Code is not formatted with black"
+        run: black --check src tests || echo "::warning::Code is not formatted with black"
 
       - name: Check isort
         working-directory: backend
-        run: |
-          source $GITHUB_WORKSPACE/venv/bin/activate
-          isort --check-only src tests || echo "::warning::Imports are not sorted"
+        run: isort --check-only src tests || echo "::warning::Imports are not sorted"
 
   test:
     name: Run Tests
-    runs-on: [self-hosted, macOS, ARM64]
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python environment
-        run: |
-          # Create virtual environment to avoid PEP 668 restrictions
-          python3 -m venv venv
-          source venv/bin/activate
-          python --version
-          pip install --upgrade pip
-          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/venv" >> $GITHUB_ENV
-          echo "$GITHUB_WORKSPACE/venv/bin" >> $GITHUB_PATH
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
 
       - name: Install system dependencies
         run: |
-          brew install postgresql redis ffmpeg
-
-      - name: Start PostgreSQL
-        run: |
-          brew services start postgresql@14
-          # Wait for PostgreSQL to be ready
-          for i in {1..30}; do
-            if pg_isready -h localhost -p 5432 2>/dev/null; then
-              echo "PostgreSQL is ready"
-              break
-            fi
-            echo "Waiting for PostgreSQL... ($i/30)"
-            sleep 2
-          done
-          # Verify connection
-          pg_isready -h localhost -p 5432
-          # Create test database
-          createdb testdb || true
-          # Create test user
-          createuser testuser || true
-          psql -d testdb -c "ALTER USER testuser WITH PASSWORD 'testpass';" || true
-
-      - name: Start Redis
-        run: |
-          brew services start redis
-          # Wait for Redis to be ready
-          for i in {1..15}; do
-            if redis-cli ping 2>/dev/null | grep -q PONG; then
-              echo "Redis is ready"
-              break
-            fi
-            echo "Waiting for Redis... ($i/15)"
-            sleep 1
-          done
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg tesseract-ocr
 
       - name: Install Python dependencies
         run: |
-          source $GITHUB_WORKSPACE/venv/bin/activate
+          python -m pip install --upgrade pip
           pip install pytest pytest-cov pytest-asyncio
           if [ -f backend/requirements.txt ]; then
             pip install -r backend/requirements.txt
@@ -127,7 +111,6 @@ jobs:
           SECRET_KEY: test-secret-key-for-ci
           ALGORITHM: HS256
         run: |
-          source $GITHUB_WORKSPACE/venv/bin/activate
           pytest tests/ -v --cov=src --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage reports
@@ -138,15 +121,9 @@ jobs:
           name: codecov-umbrella
           fail_ci_if_error: false
 
-      - name: Cleanup services
-        if: always()
-        run: |
-          brew services stop postgresql || true
-          brew services stop redis || true
-
   docker-build:
     name: Docker Build Test
-    runs-on: [self-hosted, macOS, ARM64]
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -177,33 +154,30 @@ jobs:
 
   security-scan:
     name: Security Scan
-    runs-on: [self-hosted, macOS, ARM64]
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python environment
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install security tools
         run: |
-          # Create virtual environment to avoid PEP 668 restrictions
-          python3 -m venv venv
-          source venv/bin/activate
-          python --version
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install safety bandit
-          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/venv" >> $GITHUB_ENV
-          echo "$GITHUB_WORKSPACE/venv/bin" >> $GITHUB_PATH
 
       - name: Run safety check
         working-directory: backend
-        run: |
-          source $GITHUB_WORKSPACE/venv/bin/activate
-          safety check --file requirements.txt --output text || true
+        run: safety check --file requirements.txt --output text || true
 
       - name: Run bandit security scan
         working-directory: backend
         run: |
-          source $GITHUB_WORKSPACE/venv/bin/activate
           bandit -r src -f json -o bandit-report.json || true
           bandit -r src -f screen
 
