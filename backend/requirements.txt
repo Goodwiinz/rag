@@ -23,7 +23,8 @@ redis==5.0.1
 
 # Vector Database (Updated for Python 3.13 compatibility)
 qdrant-client==1.15.1
-sentence-transformers==2.2.2
+sentence-transformers==5.1.1
+huggingface-hub>=0.24.0
 
 # Knowledge Graph
 neo4j==5.15.0
