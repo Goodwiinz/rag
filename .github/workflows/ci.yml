@@ -37,16 +37,21 @@ jobs:
       - name: Run flake8
         working-directory: backend
         run: |
+          source $GITHUB_WORKSPACE/venv/bin/activate
           flake8 src --count --select=E9,F63,F7,F82 --show-source --statistics
           flake8 src --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Check black formatting
         working-directory: backend
-        run: black --check src tests || echo "::warning::Code is not formatted with black"
+        run: |
+          source $GITHUB_WORKSPACE/venv/bin/activate
+          black --check src tests || echo "::warning::Code is not formatted with black"
 
       - name: Check isort
         working-directory: backend
-        run: isort --check-only src tests || echo "::warning::Imports are not sorted"
+        run: |
+          source $GITHUB_WORKSPACE/venv/bin/activate
+          isort --check-only src tests || echo "::warning::Imports are not sorted"
 
   test:
     name: Run Tests
@@ -85,6 +90,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
+          source $GITHUB_WORKSPACE/venv/bin/activate
           pip install pytest pytest-cov pytest-asyncio
           if [ -f backend/requirements.txt ]; then
             pip install -r backend/requirements.txt
@@ -100,7 +106,9 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test-secret-key-for-ci
           ALGORITHM: HS256
-        run: pytest tests/ -v --cov=src --cov-report=xml --cov-report=term-missing
+        run: |
+          source $GITHUB_WORKSPACE/venv/bin/activate
+          pytest tests/ -v --cov=src --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4
@@ -168,11 +176,14 @@ jobs:
 
       - name: Run safety check
         working-directory: backend
-        run: safety check --file requirements.txt --output text || true
+        run: |
+          source $GITHUB_WORKSPACE/venv/bin/activate
+          safety check --file requirements.txt --output text || true
 
       - name: Run bandit security scan
         working-directory: backend
         run: |
+          source $GITHUB_WORKSPACE/venv/bin/activate
           bandit -r src -f json -o bandit-report.json || true
           bandit -r src -f screen
 
