@@ -1,0 +1,1768 @@
+"""
+OpenAPI/Swagger Documentation for RAG Analytics API
+
+This module provides comprehensive API documentation for all analytics endpoints
+including schemas, examples, authentication, and response formats.
+"""
+
+from typing import Dict, Any, List
+from datetime import datetime
+
+# OpenAPI Specification for RAG Analytics API
+OPENAPI_SPEC = {
+    "openapi": "3.0.2",
+    "info": {
+        "title": "RAG System Analytics API",
+        "description": """
+## Overview
+The RAG Analytics API provides comprehensive analytics and monitoring capabilities for the RAG system, including:
+
+- **Quality Metrics**: Document quality assessments and recommendations
+- **User Behavior Analytics**: User interaction patterns and engagement metrics
+- **Performance Monitoring**: System performance tracking and health indicators
+- **Custom Recommendations**: AI-powered recommendations for system optimization
+
+## Authentication
+All API endpoints require authentication using Bearer tokens. Include the token in the Authorization header:
+
+```
+Authorization: Bearer <your-jwt-token>
+```
+
+## Rate Limiting
+API requests are rate-limited based on user role:
+- **Admin**: 1000 requests per hour
+- **Premium**: 500 requests per hour
+- **Standard**: 100 requests per hour
+
+## Pagination
+List endpoints support pagination using these query parameters:
+- `page`: Page number (default: 1)
+- `size`: Items per page (default: 20, max: 100)
+- `sort`: Sort field (default: created_at)
+- `order`: Sort order (asc/desc, default: desc)
+
+## Error Handling
+The API uses standard HTTP status codes with detailed error responses:
+
+```json
+{
+  "error": {
+    "code": "ANALYTICS_ACCESS_DENIED",
+    "message": "Insufficient permissions for analytics access",
+    "details": "User role 'standard' requires 'analytics:read' permission"
+  }
+}
+```
+        """,
+        "version": "1.0.0",
+        "contact": {
+            "name": "RAG Analytics Support",
+            "email": "analytics-support@rag-system.com"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT"
+        }
+    },
+    "servers": [
+        {
+            "url": "http://localhost:8000",
+            "description": "Development server"
+        },
+        {
+            "url": "https://api.rag-system.com",
+            "description": "Production server"
+        }
+    ],
+    "paths": {
+        # Quality Metrics Endpoints
+        "/api/v1/analytics/quality/metrics": {
+            "get": {
+                "tags": ["Quality Metrics"],
+                "summary": "Get quality metrics for documents",
+                "description": "Retrieve comprehensive quality metrics for documents within an organization. Supports filtering by date ranges, document types, and quality thresholds.",
+                "operationId": "getQualityMetrics",
+                "security": [{"BearerAuth": []}],
+                "parameters": [
+                    {
+                        "name": "organization_id",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "format": "uuid"},
+                        "description": "Organization ID to filter metrics"
+                    },
+                    {
+                        "name": "start_date",
+                        "in": "query",
+                        "schema": {"type": "string", "format": "date-time"},
+                        "description": "Start date for filtering (ISO 8601 format)"
+                    },
+                    {
+                        "name": "end_date",
+                        "in": "query",
+                        "schema": {"type": "string", "format": "date-time"},
+                        "description": "End date for filtering (ISO 8601 format)"
+                    },
+                    {
+                        "name": "document_type",
+                        "in": "query",
+                        "schema": {"type": "string", "enum": ["pdf", "docx", "txt", "md"]},
+                        "description": "Filter by document type"
+                    },
+                    {
+                        "name": "min_quality_score",
+                        "in": "query",
+                        "schema": {"type": "number", "minimum": 0, "maximum": 1},
+                        "description": "Minimum quality score filter (0.0 - 1.0)"
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 1, "minimum": 1},
+                        "description": "Page number for pagination"
+                    },
+                    {
+                        "name": "size",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 20, "minimum": 1, "maximum": 100},
+                        "description": "Number of items per page"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Quality metrics retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/QualityMetricsResponse"},
+                                "examples": {
+                                    "success": {
+                                        "summary": "Successful response",
+                                        "value": {
+                                            "data": [
+                                                {
+                                                    "id": "550e8400-e29b-41d4-a716-446655440000",
+                                                    "document_id": "doc123",
+                                                    "organization_id": "org456",
+                                                    "overall_score": 0.85,
+                                                    "content_relevance": 0.90,
+                                                    "information_density": 0.75,
+                                                    "readability_score": 0.88,
+                                                    "technical_accuracy": 0.82,
+                                                    "source_credibility": 0.91,
+                                                    "recency_score": 0.70,
+                                                    "completeness_score": 0.89,
+                                                    "structured_data_score": 0.86,
+                                                    "metadata_quality_score": 0.92,
+                                                    "extraction_quality": 0.84,
+                                                    "language_quality": 0.89,
+                                                    "processing_errors": [],
+                                                    "quality_flags": ["high_relevance", "credible_source"],
+                                                    "recommendations": ["Add more recent references", "Improve technical diagrams"],
+                                                    "quality_tier": "high",
+                                                    "assessment_version": "v2.1",
+                                                    "assessment_metadata": {
+                                                        "model_version": "quality-v2.1",
+                                                        "confidence_score": 0.92,
+                                                        "processing_time_ms": 1500
+                                                    },
+                                                    "created_at": "2024-01-15T10:30:00Z",
+                                                    "updated_at": "2024-01-15T10:30:00Z"
+                                                }
+                                            ],
+                                            "pagination": {
+                                                "page": 1,
+                                                "size": 20,
+                                                "total": 156,
+                                                "pages": 8,
+                                                "has_next": True,
+                                                "has_prev": False
+                                            },
+                                            "summary": {
+                                                "avg_quality_score": 0.78,
+                                                "quality_distribution": {"high": 45, "medium": 89, "low": 22},
+                                                "total_documents": 156
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {"$ref": "#/components/responses/Unauthorized"},
+                    "403": {"$ref": "#/components/responses/Forbidden"},
+                    "422": {"$ref": "#/components/responses/ValidationError"}
+                }
+            }
+        },
+        "/api/v1/analytics/quality/recommendations": {
+            "get": {
+                "tags": ["Quality Metrics"],
+                "summary": "Get quality improvement recommendations",
+                "description": "Retrieve AI-powered recommendations to improve document quality based on quality metrics analysis.",
+                "operationId": "getQualityRecommendations",
+                "security": [{"BearerAuth": []}],
+                "parameters": [
+                    {
+                        "name": "organization_id",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "format": "uuid"},
+                        "description": "Organization ID"
+                    },
+                    {
+                        "name": "document_id",
+                        "in": "query",
+                        "schema": {"type": "string", "format": "uuid"},
+                        "description": "Optional document ID for specific recommendations"
+                    },
+                    {
+                        "name": "recommendation_type",
+                        "in": "query",
+                        "schema": {"type": "string", "enum": ["content", "metadata", "processing", "all"]},
+                        "description": "Type of recommendations to retrieve"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Recommendations retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/QualityRecommendationsResponse"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/analytics/quality/dashboard": {
+            "get": {
+                "tags": ["Quality Metrics"],
+                "summary": "Get quality metrics dashboard",
+                "description": "Retrieve aggregated quality metrics for dashboard display, including trends, distributions, and key insights.",
+                "operationId": "getQualityDashboard",
+                "security": [{"BearerAuth": []}],
+                "parameters": [
+                    {
+                        "name": "organization_id",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "format": "uuid"}
+                    },
+                    {
+                        "name": "time_range",
+                        "in": "query",
+                        "schema": {"type": "string", "enum": ["7d", "30d", "90d", "1y"]},
+                        "description": "Time range for dashboard data"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Dashboard data retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/QualityDashboardResponse"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+
+        # User Behavior Analytics Endpoints
+        "/api/v1/analytics/behavior/sessions": {
+            "get": {
+                "tags": ["User Behavior Analytics"],
+                "summary": "Get user session analytics",
+                "description": "Retrieve comprehensive user session data including engagement metrics, behavior patterns, and activity summaries.",
+                "operationId": "getUserSessions",
+                "security": [{"BearerAuth": []}],
+                "parameters": [
+                    {
+                        "name": "organization_id",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "format": "uuid"}
+                    },
+                    {
+                        "name": "user_id",
+                        "in": "query",
+                        "schema": {"type": "string", "format": "uuid"},
+                        "description": "Optional user ID for specific user sessions"
+                    },
+                    {
+                        "name": "start_date",
+                        "in": "query",
+                        "schema": {"type": "string", "format": "date-time"}
+                    },
+                    {
+                        "name": "end_date",
+                        "in": "query",
+                        "schema": {"type": "string", "format": "date-time"}
+                    },
+                    {
+                        "name": "min_engagement_score",
+                        "in": "query",
+                        "schema": {"type": "number", "minimum": 0, "maximum": 100}
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User sessions retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/UserSessionsResponse"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/analytics/behavior/events": {
+            "get": {
+                "tags": ["User Behavior Analytics"],
+                "summary": "Get user behavior events",
+                "description": "Retrieve detailed user behavior events including searches, clicks, downloads, and other interactions.",
+                "operationId": "getBehaviorEvents",
+                "security": [{"BearerAuth": []}],
+                "parameters": [
+                    {
+                        "name": "organization_id",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "format": "uuid"}
+                    },
+                    {
+                        "name": "event_type",
+                        "in": "query",
+                        "schema": {"type": "string", "enum": ["search", "click", "download", "view", "share"]},
+                        "description": "Filter by event type"
+                    },
+                    {
+                        "name": "session_id",
+                        "in": "query",
+                        "schema": {"type": "string", "format": "uuid"},
+                        "description": "Filter by session ID"
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 1, "minimum": 1}
+                    },
+                    {
+                        "name": "size",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Behavior events retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/BehaviorEventsResponse"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/analytics/behavior/dashboard": {
+            "get": {
+                "tags": ["User Behavior Analytics"],
+                "summary": "Get user behavior dashboard",
+                "description": "Retrieve aggregated user behavior analytics for dashboard display including engagement trends, popular content, and user insights.",
+                "operationId": "getBehaviorDashboard",
+                "security": [{"BearerAuth": []}],
+                "parameters": [
+                    {
+                        "name": "organization_id",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "format": "uuid"}
+                    },
+                    {
+                        "name": "time_range",
+                        "in": "query",
+                        "schema": {"type": "string", "enum": ["24h", "7d", "30d", "90d"]},
+                        "description": "Time range for dashboard data"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Behavior dashboard data retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/BehaviorDashboardResponse"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+
+        # Performance Monitoring Endpoints
+        "/api/v1/analytics/performance/metrics": {
+            "get": {
+                "tags": ["Performance Monitoring"],
+                "summary": "Get system performance metrics",
+                "description": "Retrieve comprehensive system performance metrics including response times, resource usage, and health indicators.",
+                "operationId": "getPerformanceMetrics",
+                "security": [{"BearerAuth": []}],
+                "parameters": [
+                    {
+                        "name": "organization_id",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "format": "uuid"}
+                    },
+                    {
+                        "name": "metric_name",
+                        "in": "query",
+                        "schema": {"type": "string"},
+                        "description": "Specific metric name to retrieve"
+                    },
+                    {
+                        "name": "component",
+                        "in": "query",
+                        "schema": {"type": "string", "enum": ["api", "database", "redis", "worker", "embedding"]},
+                        "description": "System component to filter by"
+                    },
+                    {
+                        "name": "performance_level",
+                        "in": "query",
+                        "schema": {"type": "string", "enum": ["optimal", "good", "fair", "poor"]},
+                        "description": "Performance level filter"
+                    },
+                    {
+                        "name": "start_time",
+                        "in": "query",
+                        "schema": {"type": "string", "format": "date-time"}
+                    },
+                    {
+                        "name": "end_time",
+                        "in": "query",
+                        "schema": {"type": "string", "format": "date-time"}
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Performance metrics retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/PerformanceMetricsResponse"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/analytics/performance/dashboard": {
+            "get": {
+                "tags": ["Performance Monitoring"],
+                "summary": "Get performance dashboard",
+                "description": "Retrieve system performance dashboard data including health status, trends, and alerts.",
+                "operationId": "getPerformanceDashboard",
+                "security": [{"BearerAuth": []}],
+                "parameters": [
+                    {
+                        "name": "organization_id",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "format": "uuid"}
+                    },
+                    {
+                        "name": "time_range",
+                        "in": "query",
+                        "schema": {"type": "string", "enum": ["1h", "6h", "24h", "7d"]},
+                        "description": "Time range for dashboard data"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Performance dashboard data retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/PerformanceDashboardResponse"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/analytics/performance/health": {
+            "get": {
+                "tags": ["Performance Monitoring"],
+                "summary": "Get system health status",
+                "description": "Retrieve overall system health status including component health checks and performance indicators.",
+                "operationId": "getSystemHealth",
+                "security": [{"BearerAuth": []}],
+                "parameters": [
+                    {
+                        "name": "organization_id",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "format": "uuid"}
+                    },
+                    {
+                        "name": "component",
+                        "in": "query",
+                        "schema": {"type": "string"},
+                        "description": "Specific component to check health for"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "System health status retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/SystemHealthResponse"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+
+        # Analytics Events Endpoints
+        "/api/v1/analytics/events": {
+            "post": {
+                "tags": ["Analytics Events"],
+                "summary": "Create analytics event",
+                "description": "Create a new analytics event to track user interactions, system events, or custom metrics.",
+                "operationId": "createAnalyticsEvent",
+                "security": [{"BearerAuth": []}],
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {"$ref": "#/components/schemas/CreateAnalyticsEventRequest"},
+                            "examples": {
+                                "search_event": {
+                                    "summary": "Search event",
+                                    "value": {
+                                        "event_type": "search",
+                                        "event_name": "document_search",
+                                        "event_data": {
+                                            "query": "machine learning algorithms",
+                                            "results_count": 25,
+                                            "search_time_ms": 150,
+                                            "filters_used": ["category:technical", "date:recent"]
+                                        },
+                                        "user_id": "user123",
+                                        "session_id": "session456",
+                                        "organization_id": "org789"
+                                    }
+                                },
+                                "document_view": {
+                                    "summary": "Document view event",
+                                    "value": {
+                                        "event_type": "view",
+                                        "event_name": "document_view",
+                                        "event_data": {
+                                            "document_id": "doc123",
+                                            "document_title": "Introduction to Machine Learning",
+                                            "view_duration_seconds": 300,
+                                            "scroll_percentage": 75
+                                        },
+                                        "user_id": "user123",
+                                        "session_id": "session456",
+                                        "organization_id": "org789"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Analytics event created successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/AnalyticsEventResponse"}
+                            }
+                        }
+                    },
+                    "400": {"$ref": "#/components/responses/BadRequest"},
+                    "401": {"$ref": "#/components/responses/Unauthorized"},
+                    "422": {"$ref": "#/components/responses/ValidationError"}
+                }
+            },
+            "get": {
+                "tags": ["Analytics Events"],
+                "summary": "Get analytics events",
+                "description": "Retrieve analytics events with filtering and pagination support.",
+                "operationId": "getAnalyticsEvents",
+                "security": [{"BearerAuth": []}],
+                "parameters": [
+                    {
+                        "name": "organization_id",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "format": "uuid"}
+                    },
+                    {
+                        "name": "event_type",
+                        "in": "query",
+                        "schema": {"type": "string"},
+                        "description": "Filter by event type"
+                    },
+                    {
+                        "name": "severity",
+                        "in": "query",
+                        "schema": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+                        "description": "Filter by severity level"
+                    },
+                    {
+                        "name": "start_time",
+                        "in": "query",
+                        "schema": {"type": "string", "format": "date-time"}
+                    },
+                    {
+                        "name": "end_time",
+                        "in": "query",
+                        "schema": {"type": "string", "format": "date-time"}
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 1, "minimum": 1}
+                    },
+                    {
+                        "name": "size",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Analytics events retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/AnalyticsEventsResponse"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+
+        # Background Jobs Endpoints
+        "/api/v1/analytics/jobs": {
+            "post": {
+                "tags": ["Background Jobs"],
+                "summary": "Create analytics job",
+                "description": "Create a new background analytics job for data processing, aggregation, or report generation.",
+                "operationId": "createAnalyticsJob",
+                "security": [{"BearerAuth": []}],
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {"$ref": "#/components/schemas/CreateAnalyticsJobRequest"},
+                            "examples": {
+                                "aggregation_job": {
+                                    "summary": "Data aggregation job",
+                                    "value": {
+                                        "job_type": "data_aggregation",
+                                        "job_name": "Daily quality metrics aggregation",
+                                        "parameters": {
+                                            "metric_type": "average",
+                                            "time_granularity": "day",
+                                            "start_date": "2024-01-01T00:00:00Z",
+                                            "end_date": "2024-01-31T23:59:59Z",
+                                            "data_source": "quality_metrics"
+                                        },
+                                        "config": {
+                                            "priority": "high",
+                                            "max_retries": 3,
+                                            "timeout_seconds": 3600
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Analytics job created successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/AnalyticsJobResponse"}
+                            }
+                        }
+                    }
+                }
+            },
+            "get": {
+                "tags": ["Background Jobs"],
+                "summary": "Get analytics jobs",
+                "description": "Retrieve analytics jobs with filtering and status tracking.",
+                "operationId": "getAnalyticsJobs",
+                "security": [{"BearerAuth": []}],
+                "parameters": [
+                    {
+                        "name": "organization_id",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "format": "uuid"}
+                    },
+                    {
+                        "name": "job_type",
+                        "in": "query",
+                        "schema": {"type": "string", "enum": ["data_aggregation", "daily_summary", "weekly_report", "metric_computation", "user_behavior_analysis", "performance_analysis", "quality_metrics_update", "cache_warming", "data_retention", "alert_processing"]},
+                        "description": "Filter by job type"
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {"type": "string", "enum": ["pending", "running", "completed", "failed", "cancelled"]},
+                        "description": "Filter by job status"
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 1, "minimum": 1}
+                    },
+                    {
+                        "name": "size",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 20, "minimum": 1, "maximum": 100}
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Analytics jobs retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/AnalyticsJobsResponse"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/analytics/jobs/{job_id}": {
+            "get": {
+                "tags": ["Background Jobs"],
+                "summary": "Get analytics job details",
+                "description": "Retrieve detailed information about a specific analytics job including status, progress, and results.",
+                "operationId": "getAnalyticsJob",
+                "security": [{"BearerAuth": []}],
+                "parameters": [
+                    {
+                        "name": "job_id",
+                        "in": "path",
+                        "required": True,
+                        "schema": {"type": "string", "format": "uuid"},
+                        "description": "Job ID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Job details retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/AnalyticsJobResponse"}
+                            }
+                        }
+                    },
+                    "404": {"$ref": "#/components/responses/NotFound"}
+                }
+            },
+            "delete": {
+                "tags": ["Background Jobs"],
+                "summary": "Cancel analytics job",
+                "description": "Cancel a running or pending analytics job.",
+                "operationId": "cancelAnalyticsJob",
+                "security": [{"BearerAuth": []}],
+                "parameters": [
+                    {
+                        "name": "job_id",
+                        "in": "path",
+                        "required": True,
+                        "schema": {"type": "string", "format": "uuid"}
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Job cancelled successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/CancelJobResponse"}
+                            }
+                        }
+                    },
+                    "404": {"$ref": "#/components/responses/NotFound"}
+                }
+            }
+        },
+
+        # Recommendations Endpoints
+        "/api/v1/analytics/recommendations": {
+            "get": {
+                "tags": ["Recommendations"],
+                "summary": "Get analytics recommendations",
+                "description": "Retrieve AI-powered recommendations based on analytics data analysis and patterns.",
+                "operationId": "getRecommendations",
+                "security": [{"BearerAuth": []}],
+                "parameters": [
+                    {
+                        "name": "organization_id",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "format": "uuid"}
+                    },
+                    {
+                        "name": "recommendation_type",
+                        "in": "query",
+                        "schema": {"type": "string", "enum": ["quality_improvement", "performance_optimization", "user_engagement", "content_gaps", "system_health"]},
+                        "description": "Filter by recommendation type"
+                    },
+                    {
+                        "name": "priority",
+                        "in": "query",
+                        "schema": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+                        "description": "Filter by priority level"
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {"type": "string", "enum": ["pending", "in_progress", "completed", "dismissed"]},
+                        "description": "Filter by implementation status"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Recommendations retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/RecommendationsResponse"}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+
+    "components": {
+        "securitySchemes": {
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "description": "JWT authentication token"
+            }
+        },
+
+        "schemas": {
+            # Quality Metrics Schemas
+            "QualityMetricsResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {"$ref": "#/components/schemas/QualityMetric"}
+                    },
+                    "pagination": {"$ref": "#/components/schemas/Pagination"},
+                    "summary": {
+                        "type": "object",
+                        "properties": {
+                            "avg_quality_score": {"type": "number"},
+                            "quality_distribution": {
+                                "type": "object",
+                                "properties": {
+                                    "high": {"type": "integer"},
+                                    "medium": {"type": "integer"},
+                                    "low": {"type": "integer"}
+                                }
+                            },
+                            "total_documents": {"type": "integer"}
+                        }
+                    }
+                }
+            },
+
+            "QualityMetric": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "format": "uuid"},
+                    "document_id": {"type": "string"},
+                    "organization_id": {"type": "string", "format": "uuid"},
+                    "overall_score": {"type": "number", "minimum": 0, "maximum": 1},
+                    "content_relevance": {"type": "number", "minimum": 0, "maximum": 1},
+                    "information_density": {"type": "number", "minimum": 0, "maximum": 1},
+                    "readability_score": {"type": "number", "minimum": 0, "maximum": 1},
+                    "technical_accuracy": {"type": "number", "minimum": 0, "maximum": 1},
+                    "source_credibility": {"type": "number", "minimum": 0, "maximum": 1},
+                    "recency_score": {"type": "number", "minimum": 0, "maximum": 1},
+                    "completeness_score": {"type": "number", "minimum": 0, "maximum": 1},
+                    "structured_data_score": {"type": "number", "minimum": 0, "maximum": 1},
+                    "metadata_quality_score": {"type": "number", "minimum": 0, "maximum": 1},
+                    "extraction_quality": {"type": "number", "minimum": 0, "maximum": 1},
+                    "language_quality": {"type": "number", "minimum": 0, "maximum": 1},
+                    "processing_errors": {
+                        "type": "array",
+                        "items": {"type": "string"}
+                    },
+                    "quality_flags": {
+                        "type": "array",
+                        "items": {"type": "string"}
+                    },
+                    "recommendations": {
+                        "type": "array",
+                        "items": {"type": "string"}
+                    },
+                    "quality_tier": {
+                        "type": "string",
+                        "enum": ["high", "medium", "low"]
+                    },
+                    "assessment_version": {"type": "string"},
+                    "assessment_metadata": {
+                        "type": "object",
+                        "properties": {
+                            "model_version": {"type": "string"},
+                            "confidence_score": {"type": "number"},
+                            "processing_time_ms": {"type": "integer"}
+                        }
+                    },
+                    "created_at": {"type": "string", "format": "date-time"},
+                    "updated_at": {"type": "string", "format": "date-time"}
+                }
+            },
+
+            "QualityRecommendationsResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {"$ref": "#/components/schemas/QualityRecommendation"}
+                    },
+                    "summary": {
+                        "type": "object",
+                        "properties": {
+                            "total_recommendations": {"type": "integer"},
+                            "by_priority": {
+                                "type": "object",
+                                "properties": {
+                                    "high": {"type": "integer"},
+                                    "medium": {"type": "integer"},
+                                    "low": {"type": "integer"}
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+
+            "QualityRecommendation": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "format": "uuid"},
+                    "document_id": {"type": "string", "format": "uuid"},
+                    "recommendation_type": {"type": "string"},
+                    "description": {"type": "string"},
+                    "priority": {"type": "string", "enum": ["high", "medium", "low"]},
+                    "estimated_impact": {"type": "number"},
+                    "implementation_effort": {"type": "string", "enum": ["low", "medium", "high"]},
+                    "auto_applicable": {"type": "boolean"},
+                    "status": {"type": "string", "enum": ["pending", "in_progress", "completed", "dismissed"]},
+                    "created_at": {"type": "string", "format": "date-time"},
+                    "updated_at": {"type": "string", "format": "date-time"}
+                }
+            },
+
+            "QualityDashboardResponse": {
+                "type": "object",
+                "properties": {
+                    "overview": {
+                        "type": "object",
+                        "properties": {
+                            "total_documents": {"type": "integer"},
+                            "avg_quality_score": {"type": "number"},
+                            "quality_trend": {"type": "string", "enum": ["improving", "stable", "declining"]},
+                            "health_score": {"type": "number"}
+                        }
+                    },
+                    "quality_distribution": {
+                        "type": "object",
+                        "properties": {
+                            "high": {"type": "integer"},
+                            "medium": {"type": "integer"},
+                            "low": {"type": "integer"}
+                        }
+                    },
+                    "trends": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "date": {"type": "string", "format": "date"},
+                                "avg_score": {"type": "number"},
+                                "document_count": {"type": "integer"}
+                            }
+                        }
+                    },
+                    "top_issues": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "issue": {"type": "string"},
+                                "frequency": {"type": "integer"},
+                                "impact": {"type": "string"}
+                            }
+                        }
+                    }
+                }
+            },
+
+            # User Behavior Schemas
+            "UserSessionsResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {"$ref": "#/components/schemas/UserSession"}
+                    },
+                    "pagination": {"$ref": "#/components/schemas/Pagination"},
+                    "analytics": {
+                        "type": "object",
+                        "properties": {
+                            "avg_session_duration": {"type": "number"},
+                            "avg_engagement_score": {"type": "number"},
+                            "total_sessions": {"type": "integer"},
+                            "bounce_rate": {"type": "number"}
+                        }
+                    }
+                }
+            },
+
+            "UserSession": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "format": "uuid"},
+                    "user_id": {"type": "string", "format": "uuid"},
+                    "organization_id": {"type": "string", "format": "uuid"},
+                    "session_start": {"type": "string", "format": "date-time"},
+                    "session_end": {"type": "string", "format": "date-time"},
+                    "duration_seconds": {"type": "integer"},
+                    "page_views": {"type": "integer"},
+                    "total_searches": {"type": "integer"},
+                    "total_documents_viewed": {"type": "integer"},
+                    "total_downloads": {"type": "integer"},
+                    "total_clicks": {"type": "integer"},
+                    "engagement_score": {"type": "number", "minimum": 0, "maximum": 100},
+                    "bounce_type": {"type": "string", "enum": ["none", "hard", "soft"]},
+                    "device_type": {"type": "string", "enum": ["desktop", "mobile", "tablet"]},
+                    "browser": {"type": "string"},
+                    "referrer": {"type": "string"},
+                    "user_agent": {"type": "string"},
+                    "ip_address": {"type": "string"},
+                    "geo_location": {"type": "object"},
+                    "conversion_events": {
+                        "type": "array",
+                        "items": {"type": "string"}
+                    },
+                    "created_at": {"type": "string", "format": "date-time"},
+                    "updated_at": {"type": "string", "format": "date-time"}
+                }
+            },
+
+            "BehaviorEventsResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {"$ref": "#/components/schemas/BehaviorEvent"}
+                    },
+                    "pagination": {"$ref": "#/components/schemas/Pagination"},
+                    "summary": {
+                        "type": "object",
+                        "properties": {
+                            "total_events": {"type": "integer"},
+                            "unique_users": {"type": "integer"},
+                            "top_events": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "event_type": {"type": "string"},
+                                        "count": {"type": "integer"}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+
+            "BehaviorEvent": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "format": "uuid"},
+                    "event_type": {"type": "string"},
+                    "event_name": {"type": "string"},
+                    "event_data": {"type": "object"},
+                    "user_id": {"type": "string", "format": "uuid"},
+                    "session_id": {"type": "string", "format": "uuid"},
+                    "organization_id": {"type": "string", "format": "uuid"},
+                    "document_id": {"type": "string", "format": "uuid"},
+                    "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+                    "source": {"type": "string"},
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"}
+                    },
+                    "timestamp": {"type": "string", "format": "date-time"},
+                    "created_at": {"type": "string", "format": "date-time"}
+                }
+            },
+
+            "BehaviorDashboardResponse": {
+                "type": "object",
+                "properties": {
+                    "overview": {
+                        "type": "object",
+                        "properties": {
+                            "total_sessions": {"type": "integer"},
+                            "active_users": {"type": "integer"},
+                            "avg_session_duration": {"type": "number"},
+                            "engagement_rate": {"type": "number"}
+                        }
+                    },
+                    "user_activity": {
+                        "type": "object",
+                        "properties": {
+                            "daily_active_users": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "date": {"type": "string", "format": "date"},
+                                        "users": {"type": "integer"}
+                                    }
+                                }
+                            },
+                            "hourly_activity": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "hour": {"type": "integer"},
+                                        "activity": {"type": "number"}
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "popular_content": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "document_id": {"type": "string"},
+                                "title": {"type": "string"},
+                                "views": {"type": "integer"},
+                                "unique_viewers": {"type": "integer"}
+                            }
+                        }
+                    },
+                    "search_analytics": {
+                        "type": "object",
+                        "properties": {
+                            "total_searches": {"type": "integer"},
+                            "avg_results_per_search": {"type": "number"},
+                            "no_result_rate": {"type": "number"},
+                            "top_queries": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "query": {"type": "string"},
+                                        "frequency": {"type": "integer"}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+
+            # Performance Monitoring Schemas
+            "PerformanceMetricsResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {"$ref": "#/components/schemas/PerformanceMetric"}
+                    },
+                    "pagination": {"$ref": "#/components/schemas/Pagination"},
+                    "summary": {
+                        "type": "object",
+                        "properties": {
+                            "avg_response_time": {"type": "number"},
+                            "p95_response_time": {"type": "number"},
+                            "p99_response_time": {"type": "number"},
+                            "error_rate": {"type": "number"},
+                            "throughput": {"type": "number"}
+                        }
+                    }
+                }
+            },
+
+            "PerformanceMetric": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "format": "uuid"},
+                    "metric_name": {"type": "string"},
+                    "metric_type": {"type": "string", "enum": ["counter", "gauge", "histogram", "timer"]},
+                    "value": {"type": "number"},
+                    "unit": {"type": "string"},
+                    "component": {"type": "string"},
+                    "host": {"type": "string"},
+                    "environment": {"type": "string"},
+                    "performance_level": {"type": "string", "enum": ["optimal", "good", "fair", "poor"]},
+                    "threshold": {"type": "object"},
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"}
+                    },
+                    "event_metadata": {"type": "object"},
+                    "timestamp": {"type": "string", "format": "date-time"},
+                    "created_at": {"type": "string", "format": "date-time"}
+                }
+            },
+
+            "PerformanceDashboardResponse": {
+                "type": "object",
+                "properties": {
+                    "system_health": {
+                        "type": "object",
+                        "properties": {
+                            "overall_status": {"type": "string", "enum": ["healthy", "degraded", "unhealthy"]},
+                            "health_score": {"type": "number", "minimum": 0, "maximum": 100},
+                            "active_alerts": {"type": "integer"},
+                            "last_check": {"type": "string", "format": "date-time"}
+                        }
+                    },
+                    "component_status": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "component": {"type": "string"},
+                                "status": {"type": "string", "enum": ["healthy", "degraded", "unhealthy"]},
+                                "response_time": {"type": "number"},
+                                "cpu_usage": {"type": "number"},
+                                "memory_usage": {"type": "number"},
+                                "error_rate": {"type": "number"}
+                            }
+                        }
+                    },
+                    "performance_trends": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "timestamp": {"type": "string", "format": "date-time"},
+                                "response_time": {"type": "number"},
+                                "throughput": {"type": "number"},
+                                "error_rate": {"type": "number"}
+                            }
+                        }
+                    },
+                    "resource_usage": {
+                        "type": "object",
+                        "properties": {
+                            "cpu_usage": {"type": "number"},
+                            "memory_usage": {"type": "number"},
+                            "disk_usage": {"type": "number"},
+                            "network_io": {"type": "object"}
+                        }
+                    }
+                }
+            },
+
+            "SystemHealthResponse": {
+                "type": "object",
+                "properties": {
+                    "status": {"type": "string", "enum": ["healthy", "degraded", "unhealthy"]},
+                    "health_score": {"type": "number", "minimum": 0, "maximum": 100},
+                    "checks": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "status": {"type": "string", "enum": ["pass", "fail", "warn"]},
+                                "response_time": {"type": "number"},
+                                "message": {"type": "string"},
+                                "last_check": {"type": "string", "format": "date-time"}
+                            }
+                        }
+                    },
+                    "alerts": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+                                "message": {"type": "string"},
+                                "component": {"type": "string"},
+                                "timestamp": {"type": "string", "format": "date-time"}
+                            }
+                        }
+                    },
+                    "summary": {
+                        "type": "object",
+                        "properties": {
+                            "total_checks": {"type": "integer"},
+                            "passed_checks": {"type": "integer"},
+                            "failed_checks": {"type": "integer"},
+                            "warnings": {"type": "integer"}
+                        }
+                    }
+                }
+            },
+
+            # Analytics Events Schemas
+            "CreateAnalyticsEventRequest": {
+                "type": "object",
+                "required": ["event_type", "event_name", "organization_id"],
+                "properties": {
+                    "event_type": {
+                        "type": "string",
+                        "description": "Type of event (search, click, download, view, share, custom)"
+                    },
+                    "event_name": {
+                        "type": "string",
+                        "description": "Specific name for the event"
+                    },
+                    "event_data": {
+                        "type": "object",
+                        "description": "Event-specific data and metadata"
+                    },
+                    "user_id": {"type": "string", "format": "uuid"},
+                    "session_id": {"type": "string", "format": "uuid"},
+                    "organization_id": {"type": "string", "format": "uuid"},
+                    "document_id": {"type": "string", "format": "uuid"},
+                    "severity": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high", "critical"],
+                        "default": "low"
+                    },
+                    "source": {"type": "string"},
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"}
+                    }
+                }
+            },
+
+            "AnalyticsEventResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "format": "uuid"},
+                    "event_type": {"type": "string"},
+                    "event_name": {"type": "string"},
+                    "event_data": {"type": "object"},
+                    "user_id": {"type": "string", "format": "uuid"},
+                    "session_id": {"type": "string", "format": "uuid"},
+                    "organization_id": {"type": "string", "format": "uuid"},
+                    "document_id": {"type": "string", "format": "uuid"},
+                    "severity": {"type": "string"},
+                    "source": {"type": "string"},
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"}
+                    },
+                    "timestamp": {"type": "string", "format": "date-time"},
+                    "created_at": {"type": "string", "format": "date-time"}
+                }
+            },
+
+            "AnalyticsEventsResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {"$ref": "#/components/schemas/AnalyticsEventResponse"}
+                    },
+                    "pagination": {"$ref": "#/components/schemas/Pagination"},
+                    "summary": {
+                        "type": "object",
+                        "properties": {
+                            "total_events": {"type": "integer"},
+                            "event_types": {
+                                "type": "object",
+                                "additionalProperties": {"type": "integer"}
+                            }
+                        }
+                    }
+                }
+            },
+
+            # Background Jobs Schemas
+            "CreateAnalyticsJobRequest": {
+                "type": "object",
+                "required": ["job_type", "job_name", "organization_id"],
+                "properties": {
+                    "job_type": {
+                        "type": "string",
+                        "enum": ["data_aggregation", "daily_summary", "weekly_report", "metric_computation", "user_behavior_analysis", "performance_analysis", "quality_metrics_update", "cache_warming", "data_retention", "alert_processing"]
+                    },
+                    "job_name": {"type": "string"},
+                    "description": {"type": "string"},
+                    "parameters": {"type": "object"},
+                    "config": {
+                        "type": "object",
+                        "properties": {
+                            "priority": {
+                                "type": "string",
+                                "enum": ["low", "normal", "high", "critical"],
+                                "default": "normal"
+                            },
+                            "max_retries": {"type": "integer", "default": 3},
+                            "timeout_seconds": {"type": "integer"},
+                            "queue_name": {"type": "string"}
+                        }
+                    },
+                    "organization_id": {"type": "string", "format": "uuid"},
+                    "document_id": {"type": "string", "format": "uuid"}
+                }
+            },
+
+            "AnalyticsJobResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "format": "uuid"},
+                    "job_type": {"type": "string"},
+                    "job_name": {"type": "string"},
+                    "description": {"type": "string"},
+                    "status": {
+                        "type": "string",
+                        "enum": ["pending", "running", "completed", "failed", "cancelled"]
+                    },
+                    "priority": {
+                        "type": "string",
+                        "enum": ["low", "normal", "high", "critical"]
+                    },
+                    "progress_percentage": {"type": "number", "minimum": 0, "maximum": 100},
+                    "current_step": {"type": "string"},
+                    "total_steps": {"type": "integer"},
+                    "completed_steps": {"type": "integer"},
+                    "parameters": {"type": "object"},
+                    "config": {"type": "object"},
+                    "result": {"type": "object"},
+                    "error_message": {"type": "string"},
+                    "error_type": {"type": "string"},
+                    "retry_count": {"type": "integer"},
+                    "max_retries": {"type": "integer"},
+                    "created_at": {"type": "string", "format": "date-time"},
+                    "started_at": {"type": "string", "format": "date-time"},
+                    "completed_at": {"type": "string", "format": "date-time"},
+                    "duration_seconds": {"type": "integer"},
+                    "organization_id": {"type": "string", "format": "uuid"},
+                    "document_id": {"type": "string", "format": "uuid"},
+                    "created_by_user_id": {"type": "string", "format": "uuid"}
+                }
+            },
+
+            "AnalyticsJobsResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {"$ref": "#/components/schemas/AnalyticsJobResponse"}
+                    },
+                    "pagination": {"$ref": "#/components/schemas/Pagination"},
+                    "summary": {
+                        "type": "object",
+                        "properties": {
+                            "total_jobs": {"type": "integer"},
+                            "by_status": {
+                                "type": "object",
+                                "additionalProperties": {"type": "integer"}
+                            },
+                            "by_type": {
+                                "type": "object",
+                                "additionalProperties": {"type": "integer"}
+                            }
+                        }
+                    }
+                }
+            },
+
+            "CancelJobResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {"type": "string"},
+                    "job_id": {"type": "string", "format": "uuid"},
+                    "status": {"type": "string"},
+                    "cancelled_at": {"type": "string", "format": "date-time"}
+                }
+            },
+
+            # Recommendations Schemas
+            "RecommendationsResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {"$ref": "#/components/schemas/Recommendation"}
+                    },
+                    "summary": {
+                        "type": "object",
+                        "properties": {
+                            "total_recommendations": {"type": "integer"},
+                            "by_priority": {
+                                "type": "object",
+                                "additionalProperties": {"type": "integer"}
+                            },
+                            "by_type": {
+                                "type": "object",
+                                "additionalProperties": {"type": "integer"}
+                            },
+                            "implementation_rate": {"type": "number"}
+                        }
+                    }
+                }
+            },
+
+            "Recommendation": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "format": "uuid"},
+                    "recommendation_type": {
+                        "type": "string",
+                        "enum": ["quality_improvement", "performance_optimization", "user_engagement", "content_gaps", "system_health"]
+                    },
+                    "title": {"type": "string"},
+                    "description": {"type": "string"},
+                    "priority": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high", "critical"]
+                    },
+                    "impact_score": {"type": "number", "minimum": 0, "maximum": 1},
+                    "confidence_score": {"type": "number", "minimum": 0, "maximum": 1},
+                    "effort_estimate": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high"]
+                    },
+                    "actionable_steps": {
+                        "type": "array",
+                        "items": {"type": "string"}
+                    },
+                    "evidence_data": {"type": "object"},
+                    "auto_applicable": {"type": "boolean"},
+                    "status": {
+                        "type": "string",
+                        "enum": ["pending", "in_progress", "completed", "dismissed"]
+                    },
+                    "expires_at": {"type": "string", "format": "date-time"},
+                    "created_at": {"type": "string", "format": "date-time"},
+                    "updated_at": {"type": "string", "format": "date-time"},
+                    "organization_id": {"type": "string", "format": "uuid"},
+                    "created_by_user_id": {"type": "string", "format": "uuid"}
+                }
+            },
+
+            # Common Schemas
+            "Pagination": {
+                "type": "object",
+                "properties": {
+                    "page": {"type": "integer"},
+                    "size": {"type": "integer"},
+                    "total": {"type": "integer"},
+                    "pages": {"type": "integer"},
+                    "has_next": {"type": "boolean"},
+                    "has_prev": {"type": "boolean"}
+                }
+            },
+
+            "ErrorResponse": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "object",
+                        "properties": {
+                            "code": {"type": "string"},
+                            "message": {"type": "string"},
+                            "details": {"type": "string"},
+                            "timestamp": {"type": "string", "format": "date-time"},
+                            "request_id": {"type": "string"}
+                        }
+                    }
+                }
+            }
+        },
+
+        "responses": {
+            "BadRequest": {
+                "description": "Bad request",
+                "content": {
+                    "application/json": {
+                        "schema": {"$ref": "#/components/schemas/ErrorResponse"},
+                        "example": {
+                            "error": {
+                                "code": "BAD_REQUEST",
+                                "message": "Invalid request parameters",
+                                "details": "organization_id is required",
+                                "timestamp": "2024-01-15T10:30:00Z",
+                                "request_id": "req_123456"
+                            }
+                        }
+                    }
+                }
+            },
+
+            "Unauthorized": {
+                "description": "Unauthorized access",
+                "content": {
+                    "application/json": {
+                        "schema": {"$ref": "#/components/schemas/ErrorResponse"},
+                        "example": {
+                            "error": {
+                                "code": "UNAUTHORIZED",
+                                "message": "Authentication required",
+                                "details": "Please provide a valid JWT token",
+                                "timestamp": "2024-01-15T10:30:00Z",
+                                "request_id": "req_123456"
+                            }
+                        }
+                    }
+                }
+            },
+
+            "Forbidden": {
+                "description": "Access forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {"$ref": "#/components/schemas/ErrorResponse"},
+                        "example": {
+                            "error": {
+                                "code": "ANALYTICS_ACCESS_DENIED",
+                                "message": "Insufficient permissions for analytics access",
+                                "details": "User role 'standard' requires 'analytics:read' permission",
+                                "timestamp": "2024-01-15T10:30:00Z",
+                                "request_id": "req_123456"
+                            }
+                        }
+                    }
+                }
+            },
+
+            "NotFound": {
+                "description": "Resource not found",
+                "content": {
+                    "application/json": {
+                        "schema": {"$ref": "#/components/schemas/ErrorResponse"},
+                        "example": {
+                            "error": {
+                                "code": "RESOURCE_NOT_FOUND",
+                                "message": "The requested resource was not found",
+                                "details": "Analytics job with ID '123' does not exist",
+                                "timestamp": "2024-01-15T10:30:00Z",
+                                "request_id": "req_123456"
+                            }
+                        }
+                    }
+                }
+            },
+
+            "ValidationError": {
+                "description": "Validation error",
+                "content": {
+                    "application/json": {
+                        "schema": {"$ref": "#/components/schemas/ErrorResponse"},
+                        "example": {
+                            "error": {
+                                "code": "VALIDATION_ERROR",
+                                "message": "Request validation failed",
+                                "details": "Invalid UUID format for organization_id",
+                                "timestamp": "2024-01-15T10:30:00Z",
+                                "request_id": "req_123456"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+# Export the OpenAPI specification
+def get_openapi_spec() -> Dict[str, Any]:
+    """Get the OpenAPI specification for the RAG Analytics API."""
+    return OPENAPI_SPEC
+
+# Utility function to generate examples for documentation
+def generate_request_examples() -> Dict[str, Any]:
+    """Generate request examples for API documentation."""
+    return {
+        "quality_metrics_request": {
+            "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+            "start_date": "2024-01-01T00:00:00Z",
+            "end_date": "2024-01-31T23:59:59Z",
+            "document_type": "pdf",
+            "min_quality_score": 0.75,
+            "page": 1,
+            "size": 20
+        },
+        "create_event_request": {
+            "event_type": "search",
+            "event_name": "document_search",
+            "event_data": {
+                "query": "machine learning algorithms",
+                "results_count": 25,
+                "search_time_ms": 150,
+                "filters_used": ["category:technical", "date:recent"]
+            },
+            "user_id": "550e8400-e29b-41d4-a716-446655440001",
+            "session_id": "550e8400-e29b-41d4-a716-446655440002",
+            "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+            "severity": "low"
+        },
+        "create_job_request": {
+            "job_type": "data_aggregation",
+            "job_name": "Daily quality metrics aggregation",
+            "description": "Aggregate quality metrics for the last 24 hours",
+            "parameters": {
+                "metric_type": "average",
+                "time_granularity": "day",
+                "start_date": "2024-01-01T00:00:00Z",
+                "end_date": "2024-01-31T23:59:59Z",
+                "data_source": "quality_metrics"
+            },
+            "config": {
+                "priority": "high",
+                "max_retries": 3,
+                "timeout_seconds": 3600
+            },
+            "organization_id": "550e8400-e29b-41d4-a716-446655440000"
+        }
+    }
+
+# Utility function to generate response examples
+def generate_response_examples() -> Dict[str, Any]:
+    """Generate response examples for API documentation."""
+    return {
+        "success_response": {
+            "message": "Operation completed successfully",
+            "data": {},
+            "timestamp": "2024-01-15T10:30:00Z",
+            "request_id": "req_123456"
+        },
+        "error_response": {
+            "error": {
+                "code": "ANALYTICS_ACCESS_DENIED",
+                "message": "Insufficient permissions for analytics access",
+                "details": "User role 'standard' requires 'analytics:read' permission",
+                "timestamp": "2024-01-15T10:30:00Z",
+                "request_id": "req_123456"
+            }
+        }
+    }

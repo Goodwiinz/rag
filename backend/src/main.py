@@ -18,6 +18,14 @@ from src.api.files import router as files_router
 from src.api.documents import router as documents_router
 from src.api.processing import router as processing_router
 from src.api.vectors import router as vectors_router
+from src.api.knowledge_graph import router as knowledge_graph_router
+from src.api.search import router as search_router
+from src.api.search_quality import router as search_quality_router
+from src.api.multi_agent_search import router as multi_agent_search_router
+from src.api.quality_metrics import router as quality_metrics_router
+from src.api.user_behavior import router as user_behavior_router
+from src.api.performance_dashboard import router as performance_dashboard_router
+from src.api.quality_recommendations import router as quality_recommendations_router
 
 # Configure logging
 logging.basicConfig(
@@ -112,6 +120,14 @@ app.include_router(files_router, prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
 app.include_router(processing_router, prefix="/api/v1")
 app.include_router(vectors_router, prefix="/api/v1")
+app.include_router(knowledge_graph_router, prefix="/api/v1")
+app.include_router(search_router, prefix="/api/v1")
+app.include_router(search_quality_router, prefix="/api/v1")
+app.include_router(multi_agent_search_router, prefix="/api/v1")
+app.include_router(quality_metrics_router, prefix="/api/v1/analytics/quality")
+app.include_router(user_behavior_router, prefix="/api/v1/analytics/behavior")
+app.include_router(performance_dashboard_router, prefix="/api/v1/analytics/performance")
+app.include_router(quality_recommendations_router, prefix="/api/v1/analytics/recommendations")
 
 # Health check endpoint
 @app.get("/health")
