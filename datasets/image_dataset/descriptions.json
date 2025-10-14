@@ -1,0 +1,110 @@
+[
+  {
+    "filename": "conference_room.jpg",
+    "description": "A modern conference room with a large wooden table in the center. Six people are seated around the table participating in a business meeting. The room has large windows on one wall allowing natural light to enter. There's a whiteboard on the wall with diagrams and notes. The atmosphere appears professional and collaborative with participants engaged in discussion. The lighting is bright and the decor is modern with neutral colors.",
+    "entities": [
+      {"name": "Conference Room", "type": "location"},
+      {"name": "Business Meeting", "type": "concept"},
+      {"name": "Whiteboard", "type": "object"},
+      {"name": "Table", "type": "object"},
+      {"name": "Participants", "type": "person"}
+    ],
+    "tags": ["meeting", "business", "conference", "professional", "collaboration"],
+    "image_size": "1920x1080",
+    "file_size": "245760",
+    "captured_at": "2024-03-15T14:30:00Z"
+  },
+  {
+    "filename": "laboratory.jpg",
+    "description": "A scientific laboratory with various research equipment and instruments. Multiple workstations with computers and microscopes are visible on long benches. Glass cabinets along the walls contain chemical reagents and lab supplies in organized rows. The lighting is bright and sterile, typical of a controlled research environment. Safety equipment including eye wash stations and fire extinguishers are strategically placed. The atmosphere appears professional and focused on scientific research.",
+    "entities": [
+      {"name": "Laboratory", "type": "location"},
+      {"name": "Research Equipment", "type": "object"},
+      {"name": "Microscope", "type": "object"},
+      {"name": "Workstation", "type": "object"},
+      {"name": "Chemical Reagents", "type": "object"},
+      {"name": "Eye Wash Station", "type": "object"}
+    ],
+    "tags": ["science", "research", "laboratory", "equipment", "sterile"],
+    "image_size": "2048x1536",
+    "file_size": "312450",
+    "captured_at": "2024-03-14T09:15:00Z"
+  },
+  {
+    "filename": "office_building.jpg",
+    "description": "A modern office building exterior with glass facade and contemporary architectural design. Multiple floors are visible with people working at their desks through the large windows. The building features clean lines and geometric patterns with a mix of glass panels and concrete elements. Green landscaping surrounds the building including trees and well-maintained lawns. The structure appears to be a commercial office complex with professional architecture and modern amenities.",
+    "entities": [
+      {"name": "Office Building", "type": "location"},
+      {"name": "Glass Facade", "type": "object"},
+      {"name": "Architecture", "type": "concept"},
+      {"name": "Commercial Complex", "type": "concept"},
+      {"name": "Landscaping", "type": "object"}
+    ],
+    "tags": ["office", "building", "architecture", "modern", "commercial"],
+    "image_size": "2560x1440",
+    "file_size": "389200",
+    "captured_at": "2024-03-13T16:45:00Z"
+  },
+  {
+    "filename": "university_library.jpg",
+    "description": "A spacious university library interior with multiple floors visible. Rows of bookshelves line the walls creating an impressive collection of academic resources. Students are studying at various tables and desks, some with laptops and books open. The lighting is warm and inviting with natural light from large windows. Study carrels provide private spaces for focused work. The atmosphere appears academic and conducive to learning and research activities.",
+    "entities": [
+      {"name": "University Library", "type": "location"},
+      {"name": "Bookshelves", "type": "object"},
+      {"name": "Study Area", "type": "concept"},
+      {"name": "Students", "type": "person"},
+      {"name": "Study Carrels", "type": "object"}
+    ],
+    "tags": ["education", "university", "library", "students", "academic"],
+    "image_size": "3072x2048",
+    "file_size": "456780",
+    "captured_at": "2024-03-12T11:20:00Z"
+  },
+  {
+    "filename": "hospital_room.jpg",
+    "description": "A modern hospital patient room with medical equipment and monitoring devices. The room is clean and well-lit with a hospital bed in the center and medical equipment on stands nearby. Monitoring displays show vital signs and patient information. The decor is minimalist and clinical with neutral colors. The room appears well-maintained and professional, designed for patient care and medical monitoring.",
+    "entities": [
+      {"name": "Hospital Room", "type": "location"},
+      {"name": "Medical Equipment", "type": "object"},
+      {"name": "Monitoring Devices", "type": "object"},
+      {"name": "Patient Care", "type": "concept"},
+      {"name": "Vital Signs", "type": "concept"}
+    ],
+    "tags": ["healthcare", "hospital", "medical", "patient care", "clinical"],
+    "image_size": "1920x1080",
+    "file_size": "287650",
+    "captured_at": "2024-03-16T13:10:00Z"
+  },
+  {
+    "filename": "classroom.jpg",
+    "description": "A modern classroom with smart board technology and flexible seating arrangements. Students are engaged in an interactive learning session with the teacher at the front of the room. The whiteboard displays educational content and the classroom is equipped with modern teaching technology including projectors and digital displays. Tables are arranged in groups to facilitate collaborative learning. The environment appears educational and student-centered with bright lighting and colorful decorations.",
+    "entities": [
+      {"name": "Classroom", "type": "location"},
+      {"name": "Smart Board", "type": "object"},
+      {"name": "Teacher", "type": "person"},
+      {"name": "Students", "type": "person"},
+      {"name": "Interactive Learning", "type": "concept"},
+      {"name": "Collaborative Learning", "type": "concept"}
+    ],
+    "tags": ["education", "classroom", "teaching", "technology", "students"],
+    "image_size": "2048x1536",
+    "file_size": "234890",
+    "captured_at": "2024-03-11T15:30:00Z"
+  },
+  {
+    "filename": "restaurant_dining.jpg",
+    "description": "An upscale restaurant dining room with elegant table settings and ambient lighting. Tables are set with white tablecloths and proper place settings including glassware and silverware. The decor features warm lighting and tasteful artwork on the walls. Patrons are enjoying their meals in a sophisticated atmosphere. The restaurant appears well-maintained with attention to detail in the presentation and service.",
+    "entities": [
+      {"name": "Restaurant", "type": "location"},
+      {"name": "Dining Room", "type": "location"},
+      {"name": "Table Settings", "type": "object"},
+      {"name": "Glassware", "type": "object"},
+      {"name": "Ambient Lighting", "type": "concept"},
+      {"name": "Service", "type": "concept"}
+    ],
+    "tags": ["restaurant", "dining", "upscale", "elegant", "hospitality"],
+    "image_size": "2560x1707",
+    "file_size": "412300",
+    "captured_at": "2024-03-14T19:45:00Z"
+  }
+]
