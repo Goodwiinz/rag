@@ -262,6 +262,59 @@ async def get_organization_behavior_trends(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/insights")
+async def get_behavioral_insights(
+    days_back: int = Query(30, ge=1, le=365, description="Days of history to analyze"),
+    current_user: User = Depends(get_current_user)
+):
+    """Get behavioral insights for the organization"""
+    try:
+        # Check permissions
+        from src.models.user import UserRole
+
+        if current_user.role not in [UserRole.ADMIN]:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+        # Get behavioral insights combining multiple data sources
+        insights = await user_behavior_service.get_behavioral_insights(
+            organization_id=str(current_user.organization_id),
+            days_back=days_back
+        )
+
+        # Format response to match notebook expectations
+        return {
+            "user_engagement": {
+                "active_users": insights.get("active_users", 0),
+                "total_sessions": insights.get("total_sessions", 0),
+                "avg_session_duration": insights.get("avg_session_duration", 0),
+                "engagement_trend": insights.get("engagement_trend", "stable"),
+                "retention_rate": insights.get("retention_rate", 0)
+            },
+            "search_patterns": {
+                "top_queries": insights.get("top_queries", []),
+                "search_types_distribution": insights.get("search_types_distribution", {}),
+                "peak_usage_hours": insights.get("peak_usage_hours", []),
+                "avg_queries_per_session": insights.get("avg_queries_per_session", 0)
+            },
+            "content_interactions": {
+                "most_accessed_documents": insights.get("most_accessed_documents", []),
+                "click_through_rates": insights.get("click_through_rates", {}),
+                "user_satisfaction": insights.get("user_satisfaction", 0),
+                "task_completion_rate": insights.get("task_completion_rate", 0)
+            },
+            "behavioral_segments": insights.get("behavioral_segments", []),
+            "recommendations": insights.get("recommendations", []),
+            "period_analyzed": f"Last {days_back} days",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get behavioral insights: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/organization/patterns")
 async def get_organization_behavior_patterns(
     min_sessions: int = Query(5, ge=1, description="Minimum sessions per user"),

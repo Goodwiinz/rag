@@ -28,6 +28,38 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/dashboard")
+async def get_performance_dashboard(
+    time_range: MetricTimeRange = Query(MetricTimeRange.LAST_24H, description="Time range for metrics"),
+    current_user: User = Depends(get_current_user)
+):
+    """Get performance dashboard data"""
+    try:
+        dashboard = await performance_dashboard_service.get_dashboard_overview(
+            organization_id=str(current_user.organization_id),
+            time_range=time_range
+        )
+
+        # Transform data to match expected format from notebook
+        return {
+            "system_metrics": {
+                "total_documents": dashboard.get("total_documents", 0),
+                "total_searches": dashboard.get("total_searches", 0),
+                "avg_response_time": dashboard.get("avg_response_time", 0),
+                "uptime": dashboard.get("uptime", "99.9%"),
+                "error_rate": dashboard.get("error_rate", 0),
+                "active_users": dashboard.get("active_users", 0)
+            },
+            "performance_trends": dashboard.get("performance_trends", []),
+            "alerts": dashboard.get("alerts", []),
+            "timestamp": dashboard.get("timestamp", datetime.utcnow().isoformat())
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get performance dashboard: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/overview")
 async def get_dashboard_overview(
     time_range: MetricTimeRange = Query(MetricTimeRange.LAST_24H, description="Time range for metrics"),

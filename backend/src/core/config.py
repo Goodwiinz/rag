@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     # Security
     BCRYPT_ROUNDS: int = 12
     RATE_LIMIT_PER_MINUTE: int = 60
+    AUTH_RATE_LIMIT_ATTEMPTS: int = 50  # Max auth attempts in window
+    AUTH_RATE_LIMIT_WINDOW_MINUTES: int = 15  # Time window for rate limiting
 
     # External APIs
     OPENAI_API_KEY: Optional[str] = None

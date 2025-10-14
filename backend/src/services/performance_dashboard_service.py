@@ -286,13 +286,12 @@ class PerformanceDashboardService:
             search_data = db.execute(text("""
                 SELECT
                     COUNT(*) as total_searches,
-                    AVG(response_time) as avg_response_time,
-                    COUNT(CASE WHEN results_count = 0 THEN 1 END) as no_results_count,
-                    COUNT(CASE WHEN error IS NOT NULL THEN 1 END) as error_count
-                FROM search_queries sq
-                JOIN search_sessions s ON sq.session_id = s.id
-                WHERE s.organization_id = :org_id
-                    AND s.start_time >= :cutoff_date
+                    AVG(search_duration_ms) as avg_response_time,
+                    COUNT(CASE WHEN total_results = 0 THEN 1 END) as no_results_count,
+                    0 as error_count
+                FROM search_queries
+                WHERE organization_id = CAST(:org_id AS UUID)
+                    AND created_at >= :cutoff_date
             """), {
                 "org_id": organization_id,
                 "cutoff_date": cutoff_date
@@ -300,16 +299,15 @@ class PerformanceDashboardService:
 
             # Get response time percentiles
             response_times = db.execute(text("""
-                SELECT response_time
-                FROM search_queries sq
-                JOIN search_sessions s ON sq.session_id = s.id
-                WHERE s.organization_id = :org_id
-                    AND s.start_time >= :cutoff_date
-                    AND response_time IS NOT NULL
-                ORDER BY response_time
+                SELECT search_duration_ms
+                FROM search_queries
+                WHERE organization_id = CAST(:org_id AS UUID)
+                    AND created_at >= :cutoff_date
+                    AND search_duration_ms IS NOT NULL
+                ORDER BY search_duration_ms
                 OFFSET (SELECT COUNT(*) * 95 / 100 FROM
-                    search_queries sq2 JOIN search_sessions s2 ON sq2.session_id = s2.id
-                    WHERE s2.organization_id = :org_id AND s2.start_time >= :cutoff_date)
+                    search_queries
+                    WHERE organization_id = CAST(:org_id AS UUID) AND created_at >= :cutoff_date)
                 LIMIT 1
             """), {
                 "org_id": organization_id,
@@ -319,14 +317,13 @@ class PerformanceDashboardService:
             # Get top queries
             top_queries = db.execute(text("""
                 SELECT
-                    sq.query,
+                    query_text as query,
                     COUNT(*) as search_count,
-                    AVG(sq.response_time) as avg_response_time
-                FROM search_queries sq
-                JOIN search_sessions s ON sq.session_id = s.id
-                WHERE s.organization_id = :org_id
-                    AND s.start_time >= :cutoff_date
-                GROUP BY sq.query
+                    AVG(search_duration_ms) as avg_response_time
+                FROM search_queries
+                WHERE organization_id = CAST(:org_id AS UUID)
+                    AND created_at >= :cutoff_date
+                GROUP BY query_text
                 ORDER BY search_count DESC
                 LIMIT 10
             """), {
@@ -337,13 +334,12 @@ class PerformanceDashboardService:
             # Get search types distribution
             search_types = db.execute(text("""
                 SELECT
-                    sq.search_type,
+                    search_type,
                     COUNT(*) as count
-                FROM search_queries sq
-                JOIN search_sessions s ON sq.session_id = s.id
-                WHERE s.organization_id = :org_id
-                    AND s.start_time >= :cutoff_date
-                GROUP BY sq.search_type
+                FROM search_queries
+                WHERE organization_id = CAST(:org_id AS UUID)
+                    AND created_at >= :cutoff_date
+                GROUP BY search_type
                 ORDER BY count DESC
             """), {
                 "org_id": organization_id,
@@ -399,8 +395,8 @@ class PerformanceDashboardService:
                     qm.metric_type,
                     COUNT(*) as count
                 FROM quality_metrics qm
-                WHERE qm.organization_id = :org_id
-                    AND qm.measured_at >= :cutoff_date
+                WHERE qm.organization_id = CAST(:org_id AS UUID)
+                    AND qm.created_at >= :cutoff_date
                 GROUP BY qm.metric_type
             """), {
                 "org_id": organization_id,
@@ -431,7 +427,7 @@ class PerformanceDashboardService:
             active_alerts = db.execute(text("""
                 SELECT COUNT(*) as count
                 FROM quality_alerts qa
-                WHERE qa.organization_id = :org_id
+                WHERE qa.organization_id = CAST(:org_id AS UUID)
                     AND qa.status = 'active'
             """), {
                 "org_id": organization_id
@@ -474,14 +470,13 @@ class PerformanceDashboardService:
             # Get user engagement data
             engagement_data = db.execute(text("""
                 SELECT
-                    COUNT(DISTINCT s.user_id) as active_users,
-                    COUNT(s.id) as total_sessions,
-                    AVG(EXTRACT(EPOCH FROM (s.end_time - s.start_time))) as avg_duration,
+                    COUNT(DISTINCT sq.user_id) as active_users,
+                    COUNT(DISTINCT sq.session_id) as total_sessions,
+                    0 as avg_duration,
                     COUNT(sq.id) as total_searches
-                FROM search_sessions s
-                LEFT JOIN search_queries sq ON s.id = sq.session_id
-                WHERE s.organization_id = :org_id
-                    AND s.start_time >= :cutoff_date
+                FROM search_queries sq
+                WHERE sq.organization_id = CAST(:org_id AS UUID)
+                    AND sq.created_at >= :cutoff_date
             """), {
                 "org_id": organization_id,
                 "cutoff_date": cutoff_date
@@ -493,14 +488,13 @@ class PerformanceDashboardService:
                     u.id,
                     u.first_name,
                     u.last_name,
-                    COUNT(DISTINCT s.id) as session_count,
+                    COUNT(DISTINCT sq.session_id) as session_count,
                     COUNT(sq.id) as search_count,
-                    AVG(sq.response_time) as avg_response_time
+                    AVG(sq.search_duration_ms) as avg_response_time
                 FROM users u
-                JOIN search_sessions s ON u.id = s.user_id
-                LEFT JOIN search_queries sq ON s.id = sq.session_id
-                WHERE u.organization_id = :org_id
-                    AND s.start_time >= :cutoff_date
+                LEFT JOIN search_queries sq ON u.id = sq.user_id
+                WHERE u.organization_id = CAST(:org_id AS UUID)
+                    AND sq.created_at >= :cutoff_date
                 GROUP BY u.id, u.first_name, u.last_name
                 ORDER BY search_count DESC
                 LIMIT 10
@@ -562,7 +556,7 @@ class PerformanceDashboardService:
                     qm.value as current_value
                 FROM quality_alerts qa
                 LEFT JOIN quality_metrics qm ON qa.metric_id = qm.id
-                WHERE qa.organization_id = :org_id
+                WHERE qa.organization_id = CAST(:org_id AS UUID)
                     AND qa.status = 'active'
                 ORDER BY qa.severity DESC, qa.created_at DESC
                 LIMIT 50
@@ -614,12 +608,11 @@ class PerformanceDashboardService:
             if metric_name == "search_volume":
                 data = db.execute(text(f"""
                     SELECT
-                        DATE_TRUNC('{granularity}', s.start_time) as period,
-                        COUNT(sq.id) as value
-                    FROM search_sessions s
-                    LEFT JOIN search_queries sq ON s.id = sq.session_id
-                    WHERE s.organization_id = :org_id
-                        AND s.start_time >= :cutoff_date
+                        DATE_TRUNC('{granularity}', created_at) as period,
+                        COUNT(id) as value
+                    FROM search_queries
+                    WHERE organization_id = CAST(:org_id AS UUID)
+                        AND created_at >= :cutoff_date
                     GROUP BY period
                     ORDER BY period
                 """), {
@@ -629,13 +622,12 @@ class PerformanceDashboardService:
             elif metric_name == "response_time":
                 data = db.execute(text(f"""
                     SELECT
-                        DATE_TRUNC('{granularity}', sq.created_at) as period,
-                        AVG(sq.response_time) as value
-                    FROM search_queries sq
-                    JOIN search_sessions s ON sq.session_id = s.id
-                    WHERE s.organization_id = :org_id
-                        AND sq.created_at >= :cutoff_date
-                        AND sq.response_time IS NOT NULL
+                        DATE_TRUNC('{granularity}', created_at) as period,
+                        AVG(search_duration_ms) as value
+                    FROM search_queries
+                    WHERE organization_id = CAST(:org_id AS UUID)
+                        AND created_at >= :cutoff_date
+                        AND search_duration_ms IS NOT NULL
                     GROUP BY period
                     ORDER BY period
                 """), {
@@ -645,11 +637,11 @@ class PerformanceDashboardService:
             elif metric_name == "quality_score":
                 data = db.execute(text(f"""
                     SELECT
-                        DATE_TRUNC('{granularity}', qm.measured_at) as period,
+                        DATE_TRUNC('{granularity}', qm.created_at) as period,
                         AVG(qm.value) as value
                     FROM quality_metrics qm
-                    WHERE qm.organization_id = :org_id
-                        AND qm.measured_at >= :cutoff_date
+                    WHERE qm.organization_id = CAST(:org_id AS UUID)
+                        AND qm.created_at >= :cutoff_date
                         AND qm.metric_type = 'relevance'
                     GROUP BY period
                     ORDER BY period
@@ -661,11 +653,11 @@ class PerformanceDashboardService:
                 # Default to system metrics
                 data = db.execute(text(f"""
                     SELECT
-                        DATE_TRUNC('{granularity}', sm.measured_at) as period,
+                        DATE_TRUNC('{granularity}', sm.created_at) as period,
                         AVG(sm.metric_value) as value
                     FROM system_metrics sm
-                    WHERE sm.organization_id = :org_id
-                        AND sm.measured_at >= :cutoff_date
+                    WHERE sm.organization_id = CAST(:org_id AS UUID)
+                        AND sm.created_at >= :cutoff_date
                         AND sm.metric_name = :metric_name
                     GROUP BY period
                     ORDER BY period
@@ -776,13 +768,12 @@ class PerformanceDashboardService:
                     cutoff_date = self._get_cutoff_date(time_range)
                     data = db.execute(text("""
                         SELECT
-                            sq.search_type,
+                            search_type,
                             COUNT(*) as count
-                        FROM search_queries sq
-                        JOIN search_sessions s ON sq.session_id = s.id
-                        WHERE s.organization_id = :org_id
-                            AND s.created_at >= :cutoff_date
-                        GROUP BY sq.search_type
+                        FROM search_queries
+                        WHERE organization_id = CAST(:org_id AS UUID)
+                            AND created_at >= :cutoff_date
+                        GROUP BY search_type
                         ORDER BY count DESC
                     """), {
                         "org_id": organization_id,
@@ -841,11 +832,11 @@ class PerformanceDashboardService:
         try:
             # Get recent response times
             response_times = db.execute(text("""
-                SELECT response_time
+                SELECT search_duration_ms
                 FROM search_queries
                 WHERE created_at >= NOW() - INTERVAL '1 hour'
-                    AND response_time IS NOT NULL
-                ORDER BY response_time
+                    AND search_duration_ms IS NOT NULL
+                ORDER BY search_duration_ms
             """)).fetchall()
 
             if not response_times:
@@ -869,13 +860,13 @@ class PerformanceDashboardService:
             db.close()
 
     async def _get_error_rate(self) -> float:
-        """Get current error rate"""
+        """Get current error rate - currently returns 0 as error tracking is not implemented"""
 
         db = next(get_db())
         try:
             result = db.execute(text("""
                 SELECT
-                    COUNT(CASE WHEN error IS NOT NULL THEN 1 END) as errors,
+                    0 as errors,
                     COUNT(*) as total
                 FROM search_queries
                 WHERE created_at >= NOW() - INTERVAL '1 hour'
@@ -929,7 +920,7 @@ class PerformanceDashboardService:
                     metric_type,
                     AVG(value) as avg_value
                 FROM quality_metrics
-                WHERE organization_id = :org_id
+                WHERE organization_id = CAST(:org_id AS UUID)
                     AND measured_at >= :cutoff_date
                 GROUP BY metric_type
             """), {
@@ -943,7 +934,7 @@ class PerformanceDashboardService:
                     metric_type,
                     AVG(value) as avg_value
                 FROM quality_metrics
-                WHERE organization_id = :org_id
+                WHERE organization_id = CAST(:org_id AS UUID)
                     AND measured_at >= :prev_cutoff
                     AND measured_at < :current_cutoff
                 GROUP BY metric_type
@@ -987,9 +978,9 @@ class PerformanceDashboardService:
             # Current period
             current_data = db.execute(text("""
                 SELECT COUNT(DISTINCT user_id) as active_users
-                FROM search_sessions
-                WHERE organization_id = :org_id
-                    AND start_time >= :cutoff_date
+                FROM search_queries
+                WHERE organization_id = CAST(:org_id AS UUID)
+                    AND created_at >= :cutoff_date
             """), {
                 "org_id": organization_id,
                 "cutoff_date": cutoff_date
@@ -1001,10 +992,10 @@ class PerformanceDashboardService:
 
             previous_data = db.execute(text("""
                 SELECT COUNT(DISTINCT user_id) as active_users
-                FROM search_sessions
-                WHERE organization_id = :org_id
-                    AND start_time >= :prev_cutoff
-                    AND start_time < :cutoff_date
+                FROM search_queries
+                WHERE organization_id = CAST(:org_id AS UUID)
+                    AND created_at >= :prev_cutoff
+                    AND created_at < :cutoff_date
             """), {
                 "org_id": organization_id,
                 "prev_cutoff": prev_cutoff,

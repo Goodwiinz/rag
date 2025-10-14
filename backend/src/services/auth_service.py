@@ -173,18 +173,29 @@ class AuthService:
                 raise RegistrationError("Organization not found")
 
         elif organization_name:
-            # Create new organization
-            organization = Organization(
-                name=organization_name,
-                storage_tier=StorageTier.FREE,
-                storage_limit_bytes=Organization.get_default_storage_limit(StorageTier.FREE),
-                is_active=True
-            )
-            self.db.add(organization)
-            self.db.flush()  # Get the organization ID
+            # Check if organization already exists
+            organization = self.db.query(Organization).filter(
+                and_(
+                    Organization.name == organization_name,
+                    Organization.is_active == True,
+                    Organization.is_deleted == False
+                )
+            ).first()
 
-            # First user in organization becomes admin
-            role = UserRole.ADMIN
+            if not organization:
+                # Create new organization
+                organization = Organization(
+                    name=organization_name,
+                    storage_tier=StorageTier.FREE,
+                    storage_limit_bytes=Organization.get_default_storage_limit(StorageTier.FREE),
+                    is_active=True
+                )
+                self.db.add(organization)
+                self.db.flush()  # Get the organization ID
+
+                # First user in organization becomes admin
+                role = UserRole.ADMIN
+            # If organization exists, use default USER role (don't make them admin)
 
         else:
             raise RegistrationError("Either organization_name or organization_id must be provided")

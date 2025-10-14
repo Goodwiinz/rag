@@ -304,13 +304,14 @@ async def get_search_analytics(
         raise HTTPException(status_code=500, detail="Failed to retrieve search analytics")
 
 
+@router.get("/dashboard")
 @router.get("/analytics/dashboard")
 async def get_dashboard_data(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get comprehensive dashboard data
+    Get comprehensive dashboard data (accessible via /dashboard or /analytics/dashboard)
     """
     try:
         # Time ranges for different views

@@ -384,6 +384,316 @@ class UserBehaviorService:
         finally:
             db.close()
 
+    async def get_behavioral_insights(
+        self,
+        organization_id: str,
+        days_back: int = 30
+    ) -> Dict[str, Any]:
+        """Get comprehensive behavioral insights for the organization"""
+
+        db = next(get_db())
+
+        try:
+            cutoff_date = datetime.utcnow() - timedelta(days=days_back)
+
+            # Get user engagement metrics
+            engagement_data = db.execute(text("""
+                SELECT
+                    COUNT(DISTINCT s.user_id) as active_users,
+                    COUNT(s.id) as total_sessions,
+                    AVG(EXTRACT(EPOCH FROM (s.end_time - s.start_time))) as avg_session_duration,
+                    COUNT(e.id) as total_searches,
+                    AVG(CASE WHEN e.clicked_results > 0 THEN 1 ELSE 0 END) as success_rate
+                FROM search_sessions s
+                LEFT JOIN search_events e ON s.id = e.session_id
+                WHERE s.organization_id = :org_id
+                    AND s.start_time >= :cutoff_date
+            """), {
+                "org_id": organization_id,
+                "cutoff_date": cutoff_date
+            }).fetchone()
+
+            # Get top queries
+            top_queries = db.execute(text("""
+                SELECT
+                    e.query,
+                    COUNT(*) as search_count,
+                    AVG(e.response_time) as avg_response_time,
+                    AVG(CASE WHEN e.clicked_results > 0 THEN 1 ELSE 0 END) as success_rate
+                FROM search_events e
+                JOIN search_sessions s ON e.session_id = s.id
+                WHERE s.organization_id = :org_id
+                    AND e.created_at >= :cutoff_date
+                GROUP BY e.query
+                ORDER BY search_count DESC
+                LIMIT 10
+            """), {
+                "org_id": organization_id,
+                "cutoff_date": cutoff_date
+            }).fetchall()
+
+            # Get search types distribution
+            search_types = db.execute(text("""
+                SELECT
+                    e.search_type,
+                    COUNT(*) as count,
+                    AVG(e.response_time) as avg_response_time
+                FROM search_events e
+                JOIN search_sessions s ON e.session_id = s.id
+                WHERE s.organization_id = :org_id
+                    AND e.created_at >= :cutoff_date
+                GROUP BY e.search_type
+                ORDER BY count DESC
+            """), {
+                "org_id": organization_id,
+                "cutoff_date": cutoff_date
+            }).fetchall()
+
+            # Get peak usage hours
+            peak_hours = db.execute(text("""
+                SELECT
+                    EXTRACT(HOUR FROM e.created_at) as hour,
+                    COUNT(*) as search_count
+                FROM search_events e
+                JOIN search_sessions s ON e.session_id = s.id
+                WHERE s.organization_id = :org_id
+                    AND e.created_at >= :cutoff_date
+                GROUP BY hour
+                ORDER BY search_count DESC
+                LIMIT 5
+            """), {
+                "org_id": organization_id,
+                "cutoff_date": cutoff_date
+            }).fetchall()
+
+            # Get most accessed documents
+            top_documents = db.execute(text("""
+                SELECT
+                    d.id,
+                    d.title,
+                    COUNT(DISTINCT s.user_id) as unique_users,
+                    COUNT(*) as access_count
+                FROM search_results sr
+                JOIN documents d ON sr.document_id = d.id
+                JOIN search_queries sq ON sr.search_query_id = sq.id
+                JOIN search_events e ON sq.id = e.search_query_id
+                JOIN search_sessions s ON e.session_id = s.id
+                WHERE d.organization_id = :org_id
+                    AND e.created_at >= :cutoff_date
+                GROUP BY d.id, d.title
+                ORDER BY unique_users DESC, access_count DESC
+                LIMIT 10
+            """), {
+                "org_id": organization_id,
+                "cutoff_date": cutoff_date
+            }).fetchall()
+
+            # Calculate engagement trend (compare with previous period)
+            prev_cutoff = cutoff_date - timedelta(days=days_back)
+            current_engagement = engagement_data.active_users if engagement_data else 0
+
+            prev_engagement = db.execute(text("""
+                SELECT COUNT(DISTINCT s.user_id) as active_users
+                FROM search_sessions s
+                WHERE s.organization_id = :org_id
+                    AND s.start_time BETWEEN :prev_cutoff AND :cutoff_date
+            """), {
+                "org_id": organization_id,
+                "prev_cutoff": prev_cutoff,
+                "cutoff_date": cutoff_date
+            }).fetchone()
+
+            engagement_trend = "stable"
+            if prev_engagement and prev_engagement.active_users > 0:
+                change_pct = ((current_engagement - prev_engagement.active_users) / prev_engagement.active_users) * 100
+                if change_pct > 10:
+                    engagement_trend = "increasing"
+                elif change_pct < -10:
+                    engagement_trend = "decreasing"
+
+            # Calculate retention rate (simplified)
+            retention_data = db.execute(text("""
+                WITH current_period_users AS (
+                    SELECT DISTINCT s.user_id
+                    FROM search_sessions s
+                    WHERE s.organization_id = :org_id
+                        AND s.start_time >= :cutoff_date
+                ),
+                previous_period_users AS (
+                    SELECT DISTINCT s.user_id
+                    FROM search_sessions s
+                    WHERE s.organization_id = :org_id
+                        AND s.start_time BETWEEN :prev_cutoff AND :cutoff_date
+                )
+                SELECT
+                    COUNT(DISTINCT CASE WHEN cp.user_id IS NOT NULL THEN cp.user_id END) as retained_users,
+                    COUNT(DISTINCT pp.user_id) as previous_total_users
+                FROM previous_period_users pp
+                LEFT JOIN current_period_users cp ON pp.user_id = cp.user_id
+            """), {
+                "org_id": organization_id,
+                "prev_cutoff": prev_cutoff,
+                "cutoff_date": cutoff_date
+            }).fetchone()
+
+            retention_rate = 0
+            if retention_data and retention_data.previous_total_users > 0:
+                retention_rate = (retention_data.retained_users / retention_data.previous_total_users) * 100
+
+            # Get user satisfaction metrics
+            satisfaction = db.execute(text("""
+                SELECT
+                    AVG(e.user_rating) as avg_rating,
+                    COUNT(e.user_rating) as rating_count
+                FROM search_events e
+                JOIN search_sessions s ON e.session_id = s.id
+                WHERE s.organization_id = :org_id
+                    AND e.created_at >= :cutoff_date
+                    AND e.user_rating IS NOT NULL
+            """), {
+                "org_id": organization_id,
+                "cutoff_date": cutoff_date
+            }).fetchone()
+
+            # Get task completion rate (simplified)
+            task_completion = db.execute(text("""
+                SELECT
+                    COUNT(CASE WHEN e.clicked_results > 0 THEN 1 END) as successful_searches,
+                    COUNT(*) as total_searches
+                FROM search_events e
+                JOIN search_sessions s ON e.session_id = s.id
+                WHERE s.organization_id = :org_id
+                    AND e.created_at >= :cutoff_date
+            """), {
+                "org_id": organization_id,
+                "cutoff_date": cutoff_date
+            }).fetchone()
+
+            completion_rate = 0
+            if task_completion and task_completion.total_searches > 0:
+                completion_rate = (task_completion.successful_searches / task_completion.total_searches) * 100
+
+            # Get behavioral segments
+            patterns = await self.identify_behavior_patterns(organization_id, min_sessions=1)
+            behavioral_segments = []
+            for pattern_name, users in patterns.items():
+                if users:
+                    behavioral_segments.append({
+                        "segment": pattern_name,
+                        "count": len(users),
+                        "percentage": (len(users) / sum(len(segment_users) for segment_users in patterns.values())) * 100 if patterns else 0,
+                        "characteristics": self._get_pattern_characteristics(pattern_name)
+                    })
+
+            # Generate recommendations
+            recommendations = self._generate_recommendations(
+                engagement_data, top_queries, search_types, satisfaction, task_completion
+            )
+
+            return {
+                "active_users": engagement_data.active_users if engagement_data else 0,
+                "total_sessions": engagement_data.total_sessions if engagement_data else 0,
+                "avg_session_duration": float(engagement_data.avg_session_duration or 0) if engagement_data else 0,
+                "engagement_trend": engagement_trend,
+                "retention_rate": retention_rate,
+                "top_queries": [
+                    {
+                        "query": query.query,
+                        "count": query.search_count,
+                        "success_rate": float(query.success_rate or 0)
+                    }
+                    for query in top_queries
+                ],
+                "search_types_distribution": {
+                    st.search_type: {
+                        "count": st.count,
+                        "avg_response_time": float(st.avg_response_time or 0)
+                    }
+                    for st in search_types
+                },
+                "peak_usage_hours": [int(hour.hour) for hour in peak_hours],
+                "most_accessed_documents": [
+                    {
+                        "document_id": str(doc.id),
+                        "title": doc.title,
+                        "unique_users": doc.unique_users,
+                        "access_count": doc.access_count
+                    }
+                    for doc in top_documents
+                ],
+                "click_through_rates": {
+                    "overall": float(engagement_data.success_rate or 0) if engagement_data else 0,
+                    "by_search_type": {
+                        st.search_type: float(st.avg_response_time or 0)  # Placeholder
+                        for st in search_types
+                    }
+                },
+                "user_satisfaction": float(satisfaction.avg_rating or 0) if satisfaction else 0,
+                "task_completion_rate": completion_rate,
+                "behavioral_segments": behavioral_segments,
+                "recommendations": recommendations
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get behavioral insights: {e}")
+            raise
+        finally:
+            db.close()
+
+    def _get_pattern_characteristics(self, pattern_name: str) -> List[str]:
+        """Get characteristics description for a behavior pattern"""
+        characteristics_map = {
+            "power_users": ["High search frequency", "Advanced feature usage", "Short sessions", "High success rates"],
+            "casual_users": ["Low search frequency", "Basic feature usage", "Long sessions", "Variable success rates"],
+            "researchers": ["Deep queries", "Long sessions", "High query diversity", "Moderate success rates"],
+            "efficient_users": ["Fast searches", "High success rates", "Focused queries", "Short sessions"],
+            "explorers": ["Diverse queries", "Moderate activity", "Browsing behavior", "Good engagement"],
+            "frustrated_users": ["Low success rates", "High retry attempts", "Poor satisfaction", "Long response times"]
+        }
+        return characteristics_map.get(pattern_name, ["Unknown pattern"])
+
+    def _generate_recommendations(
+        self,
+        engagement_data: Any,
+        top_queries: Any,
+        search_types: Any,
+        satisfaction: Any,
+        task_completion: Any
+    ) -> List[str]:
+        """Generate recommendations based on analytics data"""
+        recommendations = []
+
+        # Engagement recommendations
+        if engagement_data and engagement_data.avg_session_duration and engagement_data.avg_session_duration < 60:
+            recommendations.append("Consider improving search result relevance to increase session duration")
+
+        # Success rate recommendations
+        if task_completion and task_completion.total_searches > 0:
+            success_rate = (task_completion.successful_searches / task_completion.total_searches) * 100
+            if success_rate < 50:
+                recommendations.append("Search success rate is below 50%. Consider improving query understanding or result ranking")
+
+        # Satisfaction recommendations
+        if satisfaction and satisfaction.avg_rating and satisfaction.avg_rating < 3.0:
+            recommendations.append("User satisfaction is low. Consider implementing feedback mechanisms and improving result quality")
+
+        # Query diversity recommendations
+        if top_queries and len(top_queries) > 0:
+            top_query_ratio = (top_queries[0].search_count / sum(q.search_count for q in top_queries)) * 100
+            if top_query_ratio > 30:
+                recommendations.append("High concentration on few queries. Consider improving query suggestion or autocomplete features")
+
+        # Performance recommendations
+        if search_types:
+            slow_search_types = [st for st in search_types if st.avg_response_time and st.avg_response_time > 3000]
+            if slow_search_types:
+                recommendations.append(f"Some search types are slow (>3s). Consider optimizing performance for: {', '.join(st.search_type for st in slow_search_types)}")
+
+        if not recommendations:
+            recommendations.append("System performance is good. Continue monitoring metrics and user feedback.")
+
+        return recommendations
+
     async def identify_behavior_patterns(
         self,
         organization_id: str,

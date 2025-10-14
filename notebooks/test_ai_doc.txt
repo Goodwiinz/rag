@@ -1,0 +1,12 @@
+# Artificial Intelligence Overview
+
+## Introduction
+Artificial Intelligence (AI) is transforming how we interact with technology.
+
+### Machine Learning
+- Supervised learning algorithms
+- Deep neural networks
+
+### Applications
+- Natural language processing
+- Computer vision

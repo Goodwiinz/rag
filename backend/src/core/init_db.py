@@ -35,7 +35,7 @@ def create_database():
 
 def create_default_organization():
     """Create default organization if it doesn't exist"""
-    from sqlalchemy.orm import SessionLocal
+    from src.core.database import SessionLocal
 
     db = SessionLocal()
     try:
@@ -66,7 +66,7 @@ def create_default_organization():
 
 def create_admin_user(organization_id):
     """Create admin user if it doesn't exist"""
-    from sqlalchemy.orm import SessionLocal
+    from src.core.database import SessionLocal
 
     db = SessionLocal()
     try:
