@@ -110,8 +110,8 @@ def verify_token(token: str) -> Optional[TokenData]:
             settings.JWT_SECRET_KEY,
             algorithms=[settings.JWT_ALGORITHM]
         )
-        user_id: str = payload.get("user_id")
-        email: str = payload.get("sub")  # sub is the email in our token structure
+        user_id: str = payload.get("sub")  # sub contains the user ID
+        email: str = payload.get("email")  # email is a separate field
         organization_id: str = payload.get("organization_id")
         role: str = payload.get("role")
         exp: int = payload.get("exp")
@@ -297,5 +297,9 @@ class RateLimiter:
 
         return max(0, self.max_attempts - len(recent_attempts))
 
-# Global rate limiter instance
-auth_rate_limiter = RateLimiter()
+# Global rate limiter instance (will be initialized after settings import)
+# Use higher limits for development to avoid blocking during testing
+auth_rate_limiter = RateLimiter(
+    max_attempts=settings.AUTH_RATE_LIMIT_ATTEMPTS,
+    window_minutes=settings.AUTH_RATE_LIMIT_WINDOW_MINUTES
+)

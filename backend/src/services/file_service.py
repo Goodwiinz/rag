@@ -29,7 +29,7 @@ from src.core.config import settings
 from src.core.database import get_db
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.organization import Organization
-from src.models.user import User
+from src.models.user import User, UserRole
 from src.models.processing import ProcessingJob, JobType, JobStatus, JobPriority
 
 logger = logging.getLogger(__name__)

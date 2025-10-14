@@ -5,9 +5,17 @@ Text embedding generation service
 import time
 import logging
 from typing import List, Dict, Any, Optional, Union
-from sentence_transformers import SentenceTransformer
-import torch
 import numpy as np
+
+# Try to import sentence transformers, fall back gracefully if not available
+try:
+    from sentence_transformers import SentenceTransformer
+    import torch
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
+    SentenceTransformer = None
+    torch = None
 
 from ..core.config import settings
 from ..models.vector import (
@@ -26,12 +34,17 @@ class EmbeddingService:
     def __init__(self):
         self.model_name = settings.EMBEDDING_MODEL
         self.model = None
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = "cuda" if (torch and torch.cuda.is_available()) else "cpu"
         self.embedding_dimension = None
         self._load_model()
 
     def _load_model(self):
         """Load the embedding model"""
+        if not SENTENCE_TRANSFORMERS_AVAILABLE:
+            logger.warning("Sentence transformers not available. Loading simple fallback.")
+            self._load_simple_model()
+            return
+
         try:
             logger.info(f"Loading embedding model: {self.model_name}")
             self.model = SentenceTransformer(self.model_name, device=self.device)
@@ -49,7 +62,19 @@ class EmbeddingService:
                 logger.info(f"Fallback model loaded. Dimension: {self.embedding_dimension}")
             except Exception as fallback_error:
                 logger.error(f"Failed to load fallback model: {fallback_error}")
-                raise
+                self._load_simple_model()
+
+    def _load_simple_model(self):
+        """Load simple fallback model"""
+        try:
+            from .embedding_service_simple import SimpleEmbeddingService
+            self.simple_service = SimpleEmbeddingService()
+            self.embedding_dimension = self.simple_service.get_embedding_dimension()
+            self.use_simple_fallback = True
+            logger.info(f"Simple embedding service loaded. Dimension: {self.embedding_dimension}")
+        except Exception as e:
+            logger.error(f"Failed to load simple embedding service: {e}")
+            raise
 
     def generate_embedding(self, request: EmbeddingRequest) -> EmbeddingResponse:
         """Generate embedding for a single text"""
@@ -59,18 +84,25 @@ class EmbeddingService:
             # Use provided model or default model
             model_to_use = request.model if request.model else self.model_name
 
-            # If different model requested, load it
-            if model_to_use != self.model_name:
-                logger.info(f"Loading different model: {model_to_use}")
-                temp_model = SentenceTransformer(model_to_use, device=self.device)
-                embedding = temp_model.encode(request.text, convert_to_tensor=True)
-                embedding_dimension = temp_model.get_sentence_embedding_dimension()
-            else:
-                embedding = self.model.encode(request.text, convert_to_tensor=True)
+            # Check if we should use simple fallback
+            if hasattr(self, 'use_simple_fallback') and self.use_simple_fallback:
+                # Use simple fallback service
+                embedding = self.simple_service.encode([request.text])[0]
                 embedding_dimension = self.embedding_dimension
+                embedding_list = embedding.tolist()
+            else:
+                # If different model requested, load it
+                if model_to_use != self.model_name:
+                    logger.info(f"Loading different model: {model_to_use}")
+                    temp_model = SentenceTransformer(model_to_use, device=self.device)
+                    embedding = temp_model.encode(request.text, convert_to_tensor=True)
+                    embedding_dimension = temp_model.get_sentence_embedding_dimension()
+                else:
+                    embedding = self.model.encode(request.text, convert_to_tensor=True)
+                    embedding_dimension = self.embedding_dimension
 
-            # Convert to list for JSON serialization
-            embedding_list = embedding.cpu().numpy().tolist()
+                # Convert to list for JSON serialization
+                embedding_list = embedding.cpu().numpy().tolist()
 
             processing_time = time.time() - start_time
 
