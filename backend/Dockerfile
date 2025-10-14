@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y \
     libxrender-dev \
     libglib2.0-0 \
     libsndfile1 \
-    libgl1-mesa-glx \
+    libgl1 \
     libgtk-3-0 \
     libavcodec-dev \
     libavformat-dev \

@@ -7,7 +7,7 @@ import sys
 import logging
 import asyncio
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from celery import Task
 
 # Add src directory to Python path

@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_user, get_current_organization, require_admin
-from src.models.user import User
+from src.models.user import User, UserRole
 from src.models.organization import Organization
 from src.models.document import Document
 from src.models.processing import ProcessingJob, JobStatus

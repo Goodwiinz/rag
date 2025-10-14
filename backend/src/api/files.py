@@ -11,9 +11,9 @@ from pydantic import BaseModel
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_user, get_current_organization, can_upload_documents, has_storage_quota
-from src.models.user import User
+from src.models.user import User, UserRole
 from src.models.organization import Organization
-from src.models.document import Document, DocumentType
+from src.models.document import Document, DocumentType, ProcessingStatus
 from src.services.file_service import FileService, get_file_service
 
 router = APIRouter(prefix="/files", tags=["files"])

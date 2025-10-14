@@ -262,6 +262,7 @@ async def delete_document(
     document_id: str,
     cascade: bool = Query(True, description="Cascade delete related entities and jobs"),
     current_user: User = Depends(get_current_user),
+    organization: Organization = Depends(get_current_organization),
     db: Session = Depends(get_db),
     file_service: FileService = Depends(get_file_service)
 ):

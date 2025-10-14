@@ -36,6 +36,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --cov=src --cov-report=html --cov-report=term-missing"
 asyncio_mode = "auto"
+norecursedirs = ["actions-runner", "node_modules", ".git", ".venv", "venv", "dist", "build"]
 
 [tool.coverage.run]
 source = ["src"]
