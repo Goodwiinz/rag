@@ -27,10 +27,10 @@ from src.api.user_behavior import router as user_behavior_router
 from src.api.performance_dashboard import router as performance_dashboard_router
 from src.api.quality_recommendations import router as quality_recommendations_router
 from src.api.workers import router as workers_router
-# TODO: Fix security endpoint imports - temporarily disabled
-# from src.api.encryption import router as encryption_router
-# from src.api.compliance import router as compliance_router
-# from src.api.rbac_management import router as rbac_router
+from src.api.encryption import router as encryption_router
+from src.api.compliance import router as compliance_router
+from src.api.rbac_management import router as rbac_router
+from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 
 # Configure logging
 logging.basicConfig(
@@ -78,6 +78,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add rate limiting middleware for analytics endpoints
+app.add_middleware(AnalyticsRateLimitMiddleware)
 
 # Add trusted host middleware for production
 if not settings.DEBUG:
@@ -134,10 +137,9 @@ app.include_router(user_behavior_router, prefix="/api/v1/analytics/behavior")
 app.include_router(performance_dashboard_router, prefix="/api/v1/analytics/performance")
 app.include_router(quality_recommendations_router, prefix="/api/v1/analytics/recommendations")
 app.include_router(workers_router, prefix="/api/v1")
-# TODO: Fix security endpoints - temporarily disabled due to import/type issues
-# app.include_router(encryption_router, prefix="/api")
-# app.include_router(compliance_router, prefix="/api")
-# app.include_router(rbac_router, prefix="/api")
+app.include_router(encryption_router, prefix="/api/v1/security")
+app.include_router(compliance_router, prefix="/api/v1/security")
+app.include_router(rbac_router, prefix="/api/v1/rbac")
 
 # Health check endpoint
 @app.get("/health")
