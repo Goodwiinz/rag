@@ -8,6 +8,9 @@ from typing import List, Optional, Dict, Any, Set
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_, func, exists
+from fastapi import Depends
+
+from src.core.database import get_db
 
 from src.models.permission import (
     Permission, Role, UserRoleAssignment, PermissionCategory, PermissionScope,
@@ -537,7 +540,7 @@ class RBACService:
 
 # Utility functions
 
-def get_rbac_service(db: Session = None) -> RBACService:
+def get_rbac_service(db: Session = Depends(get_db)) -> RBACService:
     """Get RBAC service instance"""
     return RBACService(db)
 
