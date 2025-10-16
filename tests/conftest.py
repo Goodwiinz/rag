@@ -1,21 +1,53 @@
 """
-Pytest configuration and fixtures for T2 validation tests
+Comprehensive Pytest Configuration and Fixtures
+Provides shared test utilities, fixtures, and configuration for document upload testing
 """
 
 import pytest
 import asyncio
 import sys
 import os
+import tempfile
+import uuid
+import json
+import random
+from datetime import datetime
+from typing import Dict, Any, Generator, AsyncGenerator, List
+from unittest.mock import Mock, AsyncMock
 from pathlib import Path
 
 # Add the backend directory to the Python path
 backend_dir = Path(__file__).parent.parent / "backend"
 sys.path.insert(0, str(backend_dir))
 
+# Add src directory to Python path
+src_dir = Path(__file__).parent.parent / "backend" / "src"
+sys.path.insert(0, str(src_dir))
+
 # Set test environment variables
 os.environ["ENVIRONMENT"] = "testing"
 os.environ["DEBUG"] = "true"
 os.environ["LOG_LEVEL"] = "INFO"
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["REDIS_URL"] = "redis://localhost:6379/1"
+
+# Import after path setup
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import StaticPool
+from fastapi.testclient import TestClient
+from httpx import AsyncClient
+
+# Project imports
+from src.core.database import Base, get_db
+from src.main import app
+from src.models.user import User, UserRole
+from src.models.organization import Organization
+from src.models.document import Document, DocumentType, ProcessingStatus
+from src.models.processing import ProcessingJob, JobType, JobStatus, JobPriority
+
+# Test factory imports
+from tests.factories.document_factory import DocumentFactory, DocumentConfig
 
 
 @pytest.fixture(scope="session")

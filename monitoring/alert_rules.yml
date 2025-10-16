@@ -1,0 +1,273 @@
+groups:
+  - name: system.rules
+    rules:
+      # System Health Alerts
+      - alert: InstanceDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ $labels.instance }} is down"
+          description: "{{ $labels.instance }} has been down for more than 5 minutes."
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 80% for more than 10 minutes on {{ $labels.instance }}."
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 85% for more than 10 minutes on {{ $labels.instance }}."
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100 < 15
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk space is below 15% on {{ $labels.instance }}."
+
+  - name: application.rules
+    rules:
+      # Application Health Alerts
+      - alert: BackendDown
+        expr: up{job="backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backend service is down"
+          description: "Backend service has been down for more than 2 minutes."
+
+      - alert: FrontendDown
+        expr: up{job="frontend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Frontend service is down"
+          description: "Frontend service has been down for more than 2 minutes."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is above 5% for more than 5 minutes."
+
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is above 2 seconds for more than 5 minutes."
+
+      - alert: DatabaseConnectionFailure
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection failure"
+          description: "Cannot connect to PostgreSQL database."
+
+      - alert: RedisConnectionFailure
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis connection failure"
+          description: "Cannot connect to Redis cache."
+
+      - alert: Neo4jConnectionFailure
+        expr: up{job="neo4j"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Neo4j connection failure"
+          description: "Cannot connect to Neo4j knowledge graph."
+
+      - alert: QdrantConnectionFailure
+        expr: up{job="qdrant"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Qdrant connection failure"
+          description: "Cannot connect to Qdrant vector database."
+
+  - name: business.rules
+    rules:
+      # Business Metrics Alerts
+      - alert: LowDocumentProcessingRate
+        expr: rate(documents_processed_total[1h]) < 10
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low document processing rate"
+          description: "Document processing rate is below 10 documents per hour."
+
+      - alert: HighProcessingLatency
+        expr: histogram_quantile(0.95, rate(document_processing_duration_seconds_bucket[5m])) > 30
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High document processing latency"
+          description: "95th percentile processing time is above 30 seconds."
+
+      - alert: FailedProcessingRate
+        expr: rate(document_processing_failures_total[5m]) / rate(document_processing_attempts_total[5m]) * 100 > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High document processing failure rate"
+          description: "Document processing failure rate is above 10%."
+
+      - alert: VectorSearchLatencyHigh
+        expr: histogram_quantile(0.95, rate(vector_search_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High vector search latency"
+          description: "95th percentile vector search time is above 5 seconds."
+
+      - alert: KnowledgeGraphQueryFailure
+        expr: rate(knowledge_graph_query_failures_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Knowledge graph query failures"
+          description: "Knowledge graph query failure rate is elevated."
+
+  - name: celery.rules
+    rules:
+      # Celery Worker Alerts
+      - alert: CeleryWorkerDown
+        expr: celery_workers_active == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No active Celery workers"
+          description: "No active Celery workers detected for more than 5 minutes."
+
+      - alert: CeleryQueueBacklog
+        expr: celery_queue_length > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Celery queue backlog"
+          description: "Celery queue has more than 100 pending tasks."
+
+      - alert: CeleryTaskFailureRate
+        expr: rate(celery_task_failures_total[5m]) / rate(celery_task_total[5m]) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Celery task failure rate"
+          description: "Celery task failure rate is above 5%."
+
+  - name: security.rules
+    rules:
+      # Security Alerts
+      - alert: UnauthorizedAccessAttempts
+        expr: rate(unauthorized_access_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High rate of unauthorized access attempts"
+          description: "More than 10 unauthorized access attempts per minute."
+
+      - alert: SuspiciousFileUploads
+        expr: rate(suspicious_file_uploads_total[5m]) > 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Suspicious file uploads detected"
+          description: "Suspicious file uploads detected. Immediate investigation required."
+
+      - alert: VirusDetection
+        expr: increase(virus_detected_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Virus detected in uploaded file"
+          description: "Virus detected in uploaded file. Immediate action required."
+
+  - name: external.rules
+    rules:
+      # External Service Alerts
+      - alert: OpenAIAPIDown
+        expr: probe_success{instance="https://api.openai.com/v1/models"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OpenAI API is down"
+          description: "Cannot reach OpenAI API endpoint."
+
+      - alert: AnthropicAPIDown
+        expr: probe_success{instance="https://api.anthropic.com/v1/messages"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Anthropic API is down"
+          description: "Cannot reach Anthropic API endpoint."
+
+  - name: performance.rules
+    rules:
+      # Performance Alerts
+      - alert: DatabaseConnectionPoolExhausted
+        expr: database_connections_active / database_connections_max * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Database connection pool usage is above 90%."
+
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis memory usage is above 85%."
+
+      - alert: VectorDatabaseLatencyHigh
+        expr: histogram_quantile(0.95, rate(qdrant_request_duration_seconds_bucket[5m])) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Qdrant latency high"
+          description: "95th percentile Qdrant request time is above 3 seconds."

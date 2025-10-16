@@ -3,8 +3,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { Navigate, useNavigate, Link } from 'react-router-dom';
 import { RegisterRequest } from '@/types';
 
-interface RegisterFormData extends RegisterRequest {
+interface RegisterFormData {
+  email: string;
+  password: string;
   confirmPassword: string;
+  firstName: string;
+  lastName: string;
+  organization_name: string;
 }
 
 export const Register: React.FC = () => {
@@ -14,7 +19,8 @@ export const Register: React.FC = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    name: '',
+    firstName: '',
+    lastName: '',
     organization_name: '',
   });
   const [error, setError] = useState<string>('');
@@ -42,11 +48,18 @@ export const Register: React.FC = () => {
       errors.email = 'Please enter a valid email address';
     }
 
-    // Name validation
-    if (!formData.name) {
-      errors.name = 'Name is required';
-    } else if (formData.name.length < 2) {
-      errors.name = 'Name must be at least 2 characters';
+    // First name validation
+    if (!formData.firstName) {
+      errors.firstName = 'First name is required';
+    } else if (formData.firstName.length < 2) {
+      errors.firstName = 'First name must be at least 2 characters';
+    }
+
+    // Last name validation
+    if (!formData.lastName) {
+      errors.lastName = 'Last name is required';
+    } else if (formData.lastName.length < 2) {
+      errors.lastName = 'Last name must be at least 2 characters';
     }
 
     // Password validation
@@ -80,7 +93,17 @@ export const Register: React.FC = () => {
 
     try {
       const { confirmPassword, ...registerData } = formData;
-      await register(registerData);
+      // Transform firstName/lastName to backend format
+      const { firstName, lastName, organization_name, email, password } = registerData;
+      const backendData = {
+        first_name: firstName,
+        last_name: lastName,
+        organization_name: organization_name || undefined,
+        email,
+        password,
+      };
+
+      await register(backendData as any);
       navigate('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -126,26 +149,49 @@ export const Register: React.FC = () => {
           )}
 
           <div className="space-y-4">
-            {/* Name Field */}
+            {/* First Name Field */}
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                Full Name *
+              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
+                First Name *
               </label>
               <input
-                id="name"
-                name="name"
+                id="firstName"
+                name="firstName"
                 type="text"
-                autoComplete="name"
+                autoComplete="given-name"
                 required
                 className={`mt-1 appearance-none relative block w-full px-3 py-2 border ${
-                  validationErrors.name ? 'border-red-300' : 'border-gray-300'
+                  validationErrors.firstName ? 'border-red-300' : 'border-gray-300'
                 } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
-                placeholder="John Doe"
-                value={formData.name}
+                placeholder="John"
+                value={formData.firstName}
                 onChange={handleChange}
               />
-              {validationErrors.name && (
-                <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
+              {validationErrors.firstName && (
+                <p className="mt-1 text-sm text-red-600">{validationErrors.firstName}</p>
+              )}
+            </div>
+
+            {/* Last Name Field */}
+            <div>
+              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
+                Last Name *
+              </label>
+              <input
+                id="lastName"
+                name="lastName"
+                type="text"
+                autoComplete="family-name"
+                required
+                className={`mt-1 appearance-none relative block w-full px-3 py-2 border ${
+                  validationErrors.lastName ? 'border-red-300' : 'border-gray-300'
+                } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                placeholder="Doe"
+                value={formData.lastName}
+                onChange={handleChange}
+              />
+              {validationErrors.lastName && (
+                <p className="mt-1 text-sm text-red-600">{validationErrors.lastName}</p>
               )}
             </div>
 

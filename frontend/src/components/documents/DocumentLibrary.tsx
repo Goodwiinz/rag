@@ -446,6 +446,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                       handleDocumentDelete(document);
                     }
                   }}
+                  onRetry={handleDocumentRetry}
                 />
               ))}
             </div>

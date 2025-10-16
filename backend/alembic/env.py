@@ -24,6 +24,10 @@ from src.models.entity import Entity
 from src.models.search import SearchQuery, SearchResult
 from src.models.processing import ProcessingJob
 from src.models.quality import QualityMetric
+from src.models.document_processing import (
+    ProcessingHistory, DocumentVersion, MultimodalContent,
+    DocumentQualityMetrics, DocumentAccessLog
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

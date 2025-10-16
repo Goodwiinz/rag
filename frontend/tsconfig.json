@@ -42,6 +42,8 @@
   "exclude": [
     "node_modules",
     "build",
-    "dist"
+    "dist",
+    "**/*.stories.ts",
+    "**/*.stories.tsx"
   ]
 }
