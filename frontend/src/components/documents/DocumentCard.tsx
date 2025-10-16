@@ -270,14 +270,12 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       </div>
 
       {/* Processing Status (for processing documents) */}
-      {showProcessingStatus && (document.processing_status === 'processing' || document.processing_status === 'queued') && (
+      {showProcessingStatus && (document.processing_status === 'processing' || document.processing_status === 'queued' || document.processing_status === 'failed') && (
         <div className="mt-4 pt-4 border-t">
           <ProcessingStatus
             document={document}
             compact
-            onRetry={() => {
-              // Retry logic would be implemented here
-            }}
+            onRetry={onRetry ? () => onRetry(document.id) : undefined}
           />
         </div>
       )}
