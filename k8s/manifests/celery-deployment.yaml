@@ -1,0 +1,236 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker
+  namespace: rag-system
+  labels:
+    app.kubernetes.io/name: rag-system
+    app.kubernetes.io/component: celery-worker
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 4
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rag-system
+      app.kubernetes.io/component: celery-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rag-system
+        app.kubernetes.io/component: celery-worker
+        app.kubernetes.io/version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+      containers:
+      - name: celery-worker
+        image: rag-system/backend:latest
+        imagePullPolicy: Always
+        command: ["celery", "-A", "src.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: db-password
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: rag-config
+              key: REDIS_URL
+        - name: NEO4J_URI
+          valueFrom:
+            configMapKeyRef:
+              name: rag-config
+              key: NEO4J_URI
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: neo4j-password
+        - name: QDRANT_URL
+          valueFrom:
+            configMapKeyRef:
+              name: rag-config
+              key: QDRANT_URL
+        - name: QDRANT_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: qdrant-api-key
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: secret-key
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: openai-api-key
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: anthropic-api-key
+        envFrom:
+        - configMapRef:
+            name: rag-config
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        volumeMounts:
+        - name: uploads
+          mountPath: /app/uploads
+        - name: logs
+          mountPath: /app/logs
+        - name: models
+          mountPath: /app/models
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false  # Celery needs write access for temp files
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 1001
+      volumes:
+      - name: uploads
+        persistentVolumeClaim:
+          claimName: uploads-pvc
+      - name: logs
+        persistentVolumeClaim:
+          claimName: logs-pvc
+      - name: models
+        persistentVolumeClaim:
+          claimName: models-pvc
+      nodeSelector:
+        node-type: worker
+      tolerations:
+      - key: "worker"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-beat
+  namespace: rag-system
+  labels:
+    app.kubernetes.io/name: rag-system
+    app.kubernetes.io/component: celery-beat
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rag-system
+      app.kubernetes.io/component: celery-beat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rag-system
+        app.kubernetes.io/component: celery-beat
+        app.kubernetes.io/version: "1.0.0"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+      containers:
+      - name: celery-beat
+        image: rag-system/backend:latest
+        imagePullPolicy: Always
+        command: ["celery", "-A", "src.tasks.celery_app", "beat", "--loglevel=info"]
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: db-password
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: rag-config
+              key: REDIS_URL
+        - name: NEO4J_URI
+          valueFrom:
+            configMapKeyRef:
+              name: rag-config
+              key: NEO4J_URI
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: neo4j-password
+        - name: QDRANT_URL
+          valueFrom:
+            configMapKeyRef:
+              name: rag-config
+              key: QDRANT_URL
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: secret-key
+        envFrom:
+        - configMapRef:
+            name: rag-config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        volumeMounts:
+        - name: uploads
+          mountPath: /app/uploads
+        - name: logs
+          mountPath: /app/logs
+        - name: celerybeat-data
+          mountPath: /app/celerybeat-schedule
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 1001
+      volumes:
+      - name: uploads
+        persistentVolumeClaim:
+          claimName: uploads-pvc
+      - name: logs
+        persistentVolumeClaim:
+          claimName: logs-pvc
+      - name: celerybeat-data
+        persistentVolumeClaim:
+          claimName: celerybeat-pvc
+      nodeSelector:
+        node-type: worker
+      tolerations:
+      - key: "worker"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"

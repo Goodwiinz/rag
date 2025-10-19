@@ -6,6 +6,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a **Multimodal Enterprise RAG System** that processes text, images, audio, and video files. It follows an evaluation-first architecture with comprehensive testing and metrics tracking.
 
+### Documentation
+Comprehensive documentation is available in the [`docs/`](docs/) directory, organized by category:
+- **[Architecture](docs/architecture/)** - System design and component architecture
+- **[Deployment](docs/deployment/)** - Deployment strategies and CI/CD guides
+- **[Database](docs/database/)** - Database schema, setup, and migration guides
+- **[Security](docs/security/)** - Security audits and authentication strategies
+- **[Testing](docs/testing/)** - Testing guides, reports, and validation
+- **[Operations](docs/operations/)** - Monitoring, runbooks, and observability
+- **[Guides](docs/guides/)** - Quick start and usage guides
+- **[Fixes](docs/fixes/)** - Bug fix reports and implementation status
+
+See the [Documentation Index](docs/README.md) for a complete overview.
+
 ## Architecture
 
 The system is built with several key components:

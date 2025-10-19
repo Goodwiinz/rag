@@ -1,39 +1,50 @@
-import React from 'react';
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
-import Layout from '@/components/layout/Layout';
-import { Dashboard, Documents, Login, Register, Settings } from '@/pages';
+import React, { Suspense } from 'react';
+import { createBrowserRouter, RouterProvider, Navigate, Outlet } from 'react-router-dom';
+import { PageSkeleton } from '@/components/common/PageSkeleton';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import { ProtectedRoute } from '@/components/common/ProtectedRoute';
+import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 
-// Protected route wrapper component
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+// Lazy loaded page components
+const DashboardPage = React.lazy(() => import('@/pages/DashboardPage'));
+const DocumentsPage = React.lazy(() => import('@/pages/documents/DocumentsPage'));
+const DocumentDetailPage = React.lazy(() => import('@/pages/documents/DocumentDetailPage'));
+const SearchPage = React.lazy(() => import('@/pages/search/SearchPage'));
+const KnowledgeGraphPage = React.lazy(() => import('@/pages/graph/KnowledgeGraphPage'));
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+const AnalyticsOverviewPage = React.lazy(() => import('@/pages/analytics/AnalyticsOverviewPage'));
+const PerformanceAnalyticsPage = React.lazy(() => import('@/pages/analytics/PerformanceAnalyticsPage'));
+const UsageAnalyticsPage = React.lazy(() => import('@/pages/analytics/UsageAnalyticsPage'));
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
+const EvaluationManagementPage = React.lazy(() => import('@/pages/evaluation/EvaluationManagementPage'));
+const CreateEvaluationPage = React.lazy(() => import('@/pages/evaluation/CreateEvaluationPage'));
+const EvaluationDetailsPage = React.lazy(() => import('@/pages/evaluation/EvaluationDetailsPage'));
+const CompareEvaluationsPage = React.lazy(() => import('@/pages/evaluation/CompareEvaluationsPage'));
 
-  return <>{children}</>;
-};
+const ABTestingDashboardPage = React.lazy(() => import('@/pages/ab-testing/ABTestingDashboardPage'));
+const CreateExperimentPage = React.lazy(() => import('@/pages/ab-testing/CreateExperimentPage'));
+const ExperimentDetailsPage = React.lazy(() => import('@/pages/ab-testing/ExperimentDetailsPage'));
 
-// Public routes
-const publicRoutes = [
-  {
-    path: '/login',
-    element: <Login />,
-  },
-  {
-    path: '/register',
-    element: <Register />,
-  },
-];
+const SearchAnalyticsPage = React.lazy(() => import('@/pages/search-analytics/SearchAnalyticsPage'));
+
+const SystemMonitoringPage = React.lazy(() => import('@/pages/monitoring/SystemMonitoringPage'));
+const AlertManagementPage = React.lazy(() => import('@/pages/monitoring/AlertManagementPage'));
+
+const UserSettingsPage = React.lazy(() => import('@/pages/settings/UserSettingsPage'));
+const OrganizationSettingsPage = React.lazy(() => import('@/pages/settings/OrganizationSettingsPage'));
+const APIKeyManagementPage = React.lazy(() => import('@/pages/settings/APIKeyManagementPage'));
+
+const LoginPage = React.lazy(() => import('@/pages/auth/LoginPage'));
+const NotFoundPage = React.lazy(() => import('@/pages/error/NotFoundPage'));
+
+// Suspense wrapper for lazy loading
+const LazyWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <Suspense fallback={<PageSkeleton />}>
+    <ErrorBoundary>{children}</ErrorBoundary>
+  </Suspense>
+);
+
 
 // Root redirect component that checks auth
 const RootRedirect = () => {
@@ -47,13 +58,232 @@ const RootRedirect = () => {
     );
   }
 
-  return <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />;
+  return <Navigate to={isAuthenticated ? "/" : "/login"} replace />;
+};
+
+// Documents routes
+const documentRoutes = {
+  path: 'documents',
+  children: [
+    {
+      index: true,
+      element: (
+        <LazyWrapper>
+          <DocumentsPage />
+        </LazyWrapper>
+      ),
+    },
+    {
+      path: ':id',
+      element: (
+        <LazyWrapper>
+          <DocumentDetailPage />
+        </LazyWrapper>
+      ),
+    },
+  ],
+};
+
+// Search routes
+const searchRoutes = {
+  path: 'search',
+  children: [
+    {
+      index: true,
+      element: (
+        <LazyWrapper>
+          <SearchPage />
+        </LazyWrapper>
+      ),
+    },
+  ],
+};
+
+// Knowledge Graph routes
+const graphRoutes = {
+  path: 'graph',
+  children: [
+    {
+      index: true,
+      element: (
+        <LazyWrapper>
+          <KnowledgeGraphPage />
+        </LazyWrapper>
+      ),
+    },
+  ],
+};
+
+// Analytics routes
+const analyticsRoutes = {
+  path: 'analytics',
+  children: [
+    {
+      index: true,
+      element: <Navigate to="/analytics/overview" replace />,
+    },
+    {
+      path: 'overview',
+      element: (
+        <LazyWrapper>
+          <AnalyticsOverviewPage />
+        </LazyWrapper>
+      ),
+    },
+    {
+      path: 'performance',
+      element: (
+        <LazyWrapper>
+          <PerformanceAnalyticsPage />
+        </LazyWrapper>
+      ),
+    },
+    {
+      path: 'usage',
+      element: (
+        <LazyWrapper>
+          <UsageAnalyticsPage />
+        </LazyWrapper>
+      ),
+    },
+  ],
+};
+
+// Evaluation routes
+const evaluationRoutes = {
+  path: 'evaluation',
+  children: [
+    {
+      index: true,
+      element: (
+        <LazyWrapper>
+          <EvaluationManagementPage />
+        </LazyWrapper>
+      ),
+    },
+    {
+      path: 'create',
+      element: (
+        <LazyWrapper>
+          <CreateEvaluationPage />
+        </LazyWrapper>
+      ),
+    },
+    {
+      path: ':id',
+      element: (
+        <LazyWrapper>
+          <EvaluationDetailsPage />
+        </LazyWrapper>
+      ),
+    },
+    {
+      path: 'compare',
+      element: (
+        <LazyWrapper>
+          <CompareEvaluationsPage />
+        </LazyWrapper>
+      ),
+    },
+  ],
+};
+
+// A/B Testing routes
+const abTestingRoutes = {
+  path: 'ab-testing',
+  children: [
+    {
+      index: true,
+      element: (
+        <LazyWrapper>
+          <ABTestingDashboardPage />
+        </LazyWrapper>
+      ),
+    },
+    {
+      path: 'create',
+      element: (
+        <LazyWrapper>
+          <CreateExperimentPage />
+        </LazyWrapper>
+      ),
+    },
+    {
+      path: ':id',
+      element: (
+        <LazyWrapper>
+          <ExperimentDetailsPage />
+        </LazyWrapper>
+      ),
+    },
+  ],
+};
+
+// Monitoring routes
+const monitoringRoutes = {
+  path: 'monitoring',
+  children: [
+    {
+      index: true,
+      element: (
+        <LazyWrapper>
+          <SystemMonitoringPage />
+        </LazyWrapper>
+      ),
+    },
+    {
+      path: 'alerts',
+      element: (
+        <LazyWrapper>
+          <AlertManagementPage />
+        </LazyWrapper>
+      ),
+    },
+  ],
+};
+
+// Settings routes
+const settingsRoutes = {
+  path: 'settings',
+  children: [
+    {
+      index: true,
+      element: (
+        <LazyWrapper>
+          <UserSettingsPage />
+        </LazyWrapper>
+      ),
+    },
+    {
+      path: 'organization',
+      element: (
+        <LazyWrapper>
+          <OrganizationSettingsPage />
+        </LazyWrapper>
+      ),
+    },
+    {
+      path: 'api-keys',
+      element: (
+        <LazyWrapper>
+          <APIKeyManagementPage />
+        </LazyWrapper>
+      ),
+    },
+  ],
 };
 
 // Create router configuration
 const router = createBrowserRouter([
-  // Public routes first
-  ...publicRoutes,
+  // Public routes
+  {
+    path: '/login',
+    element: (
+      <LazyWrapper>
+        <LoginPage />
+      </LazyWrapper>
+    ),
+  },
   // Root redirect based on auth status
   {
     path: '/',
@@ -64,43 +294,185 @@ const router = createBrowserRouter([
     path: '/',
     element: (
       <ProtectedRoute>
-        <Layout />
+        <AppLayout />
       </ProtectedRoute>
     ),
     children: [
       {
-        path: 'dashboard',
-        element: <Dashboard />,
+        index: true,
+        element: (
+          <LazyWrapper>
+            <DashboardPage />
+          </LazyWrapper>
+        ),
       },
+      documentRoutes,
+      searchRoutes,
+      graphRoutes,
+      analyticsRoutes,
+      evaluationRoutes,
+      abTestingRoutes,
       {
-        path: 'documents',
-        element: <Documents />,
+        path: 'search-analytics',
+        element: (
+          <LazyWrapper>
+            <SearchAnalyticsPage />
+          </LazyWrapper>
+        ),
       },
-      {
-        path: 'settings',
-        element: <Settings />,
-      },
+      monitoringRoutes,
+      settingsRoutes,
     ],
+    errorElement: (
+      <LazyWrapper>
+        <NotFoundPage />
+      </LazyWrapper>
+    ),
   },
   // Catch-all route for 404
   {
     path: '*',
     element: (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
-          <p className="text-gray-600 mb-4">Page not found</p>
-          <a
-            href="/dashboard"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-          >
-            Go to Dashboard
-          </a>
-        </div>
-      </div>
+      <LazyWrapper>
+        <NotFoundPage />
+      </LazyWrapper>
     ),
   },
 ]);
+
+// Route definitions for navigation
+export const routeDefinitions = [
+  {
+    path: '/',
+    name: 'Dashboard',
+    icon: 'home',
+    description: 'Main dashboard with document upload and search interface',
+  },
+  {
+    path: '/documents',
+    name: 'Documents',
+    icon: 'upload',
+    description: 'Manage and view uploaded documents',
+  },
+  {
+    path: '/search',
+    name: 'Search',
+    icon: 'search',
+    description: 'Search through your documents with AI-powered answers',
+  },
+  {
+    path: '/graph',
+    name: 'Knowledge Graph',
+    icon: 'network',
+    description: 'Explore entity relationships in your documents',
+  },
+  {
+    path: '/analytics',
+    name: 'Analytics',
+    icon: 'bar-chart',
+    children: [
+      {
+        path: '/analytics/overview',
+        name: 'Overview',
+        description: 'General analytics and insights',
+      },
+      {
+        path: '/analytics/performance',
+        name: 'Performance',
+        description: 'Performance metrics and trends',
+      },
+      {
+        path: '/analytics/usage',
+        name: 'Usage Analytics',
+        description: 'User behavior and usage patterns',
+      },
+    ],
+  },
+  {
+    path: '/evaluation',
+    name: 'Evaluations',
+    icon: 'clipboard-list',
+    children: [
+      {
+        path: '/evaluation',
+        name: 'Management',
+        description: 'View and manage evaluations',
+      },
+      {
+        path: '/evaluation/create',
+        name: 'Create Evaluation',
+        description: 'Create new evaluation',
+      },
+      {
+        path: '/evaluation/compare',
+        name: 'Compare',
+        description: 'Compare multiple evaluations',
+      },
+    ],
+  },
+  {
+    path: '/ab-testing',
+    name: 'A/B Testing',
+    icon: 'flask',
+    children: [
+      {
+        path: '/ab-testing',
+        name: 'Experiments',
+        description: 'Manage A/B testing experiments',
+      },
+      {
+        path: '/ab-testing/create',
+        name: 'Create Experiment',
+        description: 'Create new A/B test',
+      },
+    ],
+  },
+  {
+    path: '/search-analytics',
+    name: 'Search Analytics',
+    icon: 'search',
+    description: 'Search patterns and query analysis',
+  },
+  {
+    path: '/monitoring',
+    name: 'Monitoring',
+    icon: 'monitor',
+    children: [
+      {
+        path: '/monitoring',
+        name: 'System Health',
+        description: 'System monitoring and health checks',
+      },
+      {
+        path: '/monitoring/alerts',
+        name: 'Alerts',
+        description: 'Manage system alerts and notifications',
+      },
+    ],
+  },
+  {
+    path: '/settings',
+    name: 'Settings',
+    icon: 'cog',
+    children: [
+      {
+        path: '/settings',
+        name: 'User Settings',
+        description: 'Personal preferences and profile',
+      },
+      {
+        path: '/settings/organization',
+        name: 'Organization',
+        description: 'Organization settings and configuration',
+      },
+      {
+        path: '/settings/api-keys',
+        name: 'API Keys',
+        description: 'Manage API keys and integrations',
+      },
+    ],
+  },
+];
 
 export const AppRouter: React.FC = () => {
   return <RouterProvider router={router} />;

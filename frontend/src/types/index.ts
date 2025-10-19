@@ -3,9 +3,14 @@ export * from './api';
 export * from './auth';
 export * from './document';
 export * from './search';
-export * from './knowledge-graph';
+export type {
+  KnowledgeGraphData,
+  GraphNodeInteraction,
+  EntityDetails
+} from './knowledge-graph';
 export * from './evaluation';
 export * from './ui';
+export * from './analytics';
 
 // Export constants with explicit names to avoid conflicts
 export {

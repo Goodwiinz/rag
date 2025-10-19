@@ -36,7 +36,7 @@ jobs:
           #!/bin/bash
           API_URL="$1"
 
-          response=$(curl -s -w "%{http_code}" "${API_URL}/health" || echo "000")
+          response=$(curl -s -w "%{http_code}" --max-time 30 "${API_URL}/health" || echo "000")
           http_code="${response: -3}"
 
           if [[ "$http_code" == "200" ]]; then
@@ -61,6 +61,10 @@ jobs:
         echo "Checking database connectivity"
 
         if [[ -n "$DATABASE_URL" ]]; then
+          # Install psycopg2-binary
+          python3 -m pip install --upgrade pip
+          python3 -m pip install psycopg2-binary
+          
           python3 -c "
 import psycopg2
 import os
@@ -96,6 +100,10 @@ except Exception as e:
         echo "Checking Redis connectivity"
 
         if [[ -n "$REDIS_URL" ]]; then
+          # Install redis package
+          python3 -m pip install --upgrade pip
+          python3 -m pip install redis
+          
           python3 -c "
 import redis
 import os
@@ -125,7 +133,8 @@ except Exception as e:
   performance-test:
     name: Performance Test
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule'
+    # Run on schedule or manual workflow dispatch
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
 
     steps:
     - name: Checkout code
@@ -138,7 +147,7 @@ except Exception as e:
         sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
         echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
         sudo apt-get update
-        sudo apt-get install k6
+        sudo apt-get install -y k6
 
     - name: Create performance test
       run: |
@@ -161,13 +170,17 @@ except Exception as e:
         export default function () {
           const API_URL = __ENV.API_URL || 'http://localhost:8000';
 
-          if (API_URL && API_URL !== 'http://localhost:8000') {
-            let response = http.get(`${API_URL}/health`);
-            check(response, {
-              'status is 200': (r) => r.status === 200,
-              'response time < 2s': (r) => r.timings.duration < 2000,
-            });
+          // Fail fast if API_URL is not configured
+          if (!API_URL || API_URL === 'http://localhost:8000') {
+            throw new Error('API_URL must be configured via environment variable. Please set STAGING_API_URL secret.');
           }
+
+          let response = http.get(`${API_URL}/health`);
+          check(response, {
+            'status is 200': (r) => r.status === 200,
+            'response time < 2s': (r) => r.timings.duration < 2000,
+          });
+
           sleep(1);
         }
         EOF

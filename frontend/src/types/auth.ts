@@ -11,6 +11,16 @@ export interface User {
   last_login: string;
 }
 
+export interface Organization {
+  id: string;
+  name: string;
+  plan: 'free' | 'pro' | 'enterprise';
+  storage_limit: number;
+  member_count: number;
+  created_at: string;
+  settings?: Record<string, any>;
+}
+
 export interface AuthState {
   user: User | null;
   token: string | null;

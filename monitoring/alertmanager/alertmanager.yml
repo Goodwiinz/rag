@@ -1,0 +1,301 @@
+global:
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'alerts@rag-system.com'
+  smtp_auth_username: 'alerts@rag-system.com'
+  smtp_auth_password: 'your-app-password'
+
+route:
+  group_by: ['alertname', 'cluster', 'environment']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'default'
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 0s
+      repeat_interval: 5m
+
+    # Warning alerts - notification every hour
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      repeat_interval: 30m
+
+    # Info alerts - daily digest
+    - match:
+        severity: info
+      receiver: 'info-alerts'
+      repeat_interval: 24h
+
+    # Database alerts - specific routing
+    - match:
+        service: database
+      receiver: 'database-alerts'
+      group_by: ['alertname', 'database', 'environment']
+
+    # Application alerts - specific routing
+    - match:
+        service: application
+      receiver: 'application-alerts'
+      group_by: ['alertname', 'application', 'environment']
+
+    # Infrastructure alerts - specific routing
+    - match:
+        service: infrastructure
+      receiver: 'infrastructure-alerts'
+      group_by: ['alertname', 'infrastructure', 'environment']
+
+inhibit_rules:
+  # Inhibit warning alerts if critical alert is firing
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ['alertname', 'cluster', 'environment']
+
+  # Inhibit info alerts if warning alert is firing
+  - source_match:
+      severity: warning
+    target_match:
+      severity: info
+    equal: ['alertname', 'cluster', 'environment']
+
+receivers:
+  - name: 'default'
+    email_configs:
+      - to: 'devops@rag-system.com'
+        subject: '[RAG System] Default Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          {{ end }}
+        headers:
+          X-Priority: '3'
+
+  - name: 'critical-alerts'
+    email_configs:
+      - to: 'devops@rag-system.com,team-leads@rag-system.com'
+        subject: '[CRITICAL] RAG System Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          🚨 CRITICAL ALERT 🚨
+
+          Cluster: {{ .GroupLabels.cluster }}
+          Environment: {{ .GroupLabels.environment }}
+
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Started at: {{ .StartsAt }}
+          {{ end }}
+
+          Immediate action required!
+        headers:
+          X-Priority: '1'
+          Importance: 'high'
+
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+        channel: '#rag-alerts-critical'
+        title: '🚨 Critical Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          Cluster: {{ .GroupLabels.cluster }}
+          Environment: {{ .GroupLabels.environment }}
+
+          {{ range .Alerts }}
+          {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+        color: 'danger'
+        send_resolved: true
+
+    webhook_configs:
+      - url: 'http://pagerduty-webhook:8080/v1/alerts'
+        send_resolved: true
+
+  - name: 'warning-alerts'
+    email_configs:
+      - to: 'devops@rag-system.com'
+        subject: '[WARNING] RAG System Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          ⚠️ WARNING ALERT
+
+          Cluster: {{ .GroupLabels.cluster }}
+          Environment: {{ .GroupLabels.environment }}
+
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Started at: {{ .StartsAt }}
+          {{ end }}
+        headers:
+          X-Priority: '2'
+
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+        channel: '#rag-alerts-warning'
+        title: '⚠️ Warning Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+        color: 'warning'
+        send_resolved: true
+
+  - name: 'info-alerts'
+    email_configs:
+      - to: 'devops@rag-system.com'
+        subject: '[INFO] RAG System Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          ℹ️ INFO ALERT
+
+          Cluster: {{ .GroupLabels.cluster }}
+          Environment: {{ .GroupLabels.environment }}
+
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Started at: {{ .StartsAt }}
+          {{ end }}
+
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+        channel: '#rag-alerts-info'
+        title: 'ℹ️ Info Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+        color: 'good'
+        send_resolved: true
+
+  - name: 'database-alerts'
+    email_configs:
+      - to: 'devops@rag-system.com,dba-team@rag-system.com'
+        subject: '[DATABASE] RAG System Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          🗄️ DATABASE ALERT
+
+          Cluster: {{ .GroupLabels.cluster }}
+          Environment: {{ .GroupLabels.environment }}
+          Database: {{ .GroupLabels.database }}
+
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Started at: {{ .StartsAt }}
+          {{ end }}
+
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+        channel: '#rag-database-alerts'
+        title: '🗄️ Database Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          Database: {{ .GroupLabels.database }}
+          {{ range .Alerts }}
+          {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+        color: '{{ if eq .Labels.severity "critical" }}danger{{ else if eq .Labels.severity "warning" }}warning{{ else }}good{{ end }}'
+        send_resolved: true
+
+  - name: 'application-alerts'
+    email_configs:
+      - to: 'devops@rag-system.com,app-team@rag-system.com'
+        subject: '[APPLICATION] RAG System Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          🚀 APPLICATION ALERT
+
+          Cluster: {{ .GroupLabels.cluster }}
+          Environment: {{ .GroupLabels.environment }}
+          Application: {{ .GroupLabels.application }}
+
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Started at: {{ .StartsAt }}
+          {{ end }}
+
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+        channel: '#rag-application-alerts'
+        title: '🚀 Application Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          Application: {{ .GroupLabels.application }}
+          {{ range .Alerts }}
+          {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+        color: '{{ if eq .Labels.severity "critical" }}danger{{ else if eq .Labels.severity "warning" }}warning{{ else }}good{{ end }}'
+        send_resolved: true
+
+  - name: 'infrastructure-alerts'
+    email_configs:
+      - to: 'devops@rag-system.com,infra-team@rag-system.com'
+        subject: '[INFRASTRUCTURE] RAG System Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          🏗️ INFRASTRUCTURE ALERT
+
+          Cluster: {{ .GroupLabels.cluster }}
+          Environment: {{ .GroupLabels.environment }}
+          Infrastructure: {{ .GroupLabels.infrastructure }}
+
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Started at: {{ .StartsAt }}
+          {{ end }}
+
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+        channel: '#rag-infrastructure-alerts'
+        title: '🏗️ Infrastructure Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          Infrastructure: {{ .GroupLabels.infrastructure }}
+          {{ range .Alerts }}
+          {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+        color: '{{ if eq .Labels.severity "critical" }}danger{{ else if eq .Labels.severity "warning" }}warning{{ else }}good{{ end }}'
+        send_resolved: true
+
+# Time intervals for different alert types
+time_intervals:
+  - name: 'business-hours'
+    time_intervals:
+      - times:
+          - start_time: '09:00'
+            end_time: '17:00'
+        weekdays: ['monday:friday']
+        location: 'UTC'
+
+  - name: 'after-hours'
+    time_intervals:
+      - times:
+          - start_time: '17:01'
+            end_time: '08:59'
+        weekdays: ['monday:friday']
+        weekdays: ['saturday', 'sunday']
+        location: 'UTC'
+
+  - name: 'weekends'
+    time_intervals:
+      - weekdays: ['saturday', 'sunday']
+        location: 'UTC'
+
+# Mute timing for maintenance windows
+mute_time_intervals:
+  - name: 'maintenance-window'
+    time_intervals:
+      - start_time: '2024-01-01T02:00:00Z'
+        end_time: '2024-01-01T04:00:00Z'

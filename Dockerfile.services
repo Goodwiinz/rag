@@ -1,0 +1,81 @@
+# Multimodal RAG System - Multi-service Dockerfile
+# This Dockerfile can be used to build any of the microservices
+# by setting the SERVICE_NAME build argument
+
+FROM python:3.11-slim
+
+# Set build arguments
+ARG SERVICE_NAME=api-gateway
+ARG VERSION=1.0.0
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    libpq-dev \
+    libmagic1 \
+    libmagic-dev \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libglib2.0-0 \
+    libsndfile1 \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user
+RUN groupadd -r raguser && useradd -r -g raguser raguser
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
+
+# Download spaCy models
+RUN python -m spacy download en_core_web_sm && \
+    python -m spacy download en_core_web_md
+
+# Download NLTK data
+RUN python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords'); nltk.download('wordnet')"
+
+# Copy application code
+COPY backend/src/ ./src/
+COPY backend/alembic.ini ./
+COPY backend/alembic/ ./alembic/
+
+# Create necessary directories
+RUN mkdir -p /app/uploads /app/logs /app/models && \
+    chown -R raguser:raguser /app
+
+# Copy service entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Switch to non-root user
+USER raguser
+
+# Expose port (will be overridden by docker-compose)
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
+
+# Set entrypoint
+ENTRYPOINT ["docker-entrypoint.sh"]
+
+# Default command (will be overridden by docker-compose)
+CMD ["python", "-m", "src.services.${SERVICE_NAME:-api_gateway}"]

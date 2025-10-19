@@ -1,5 +1,6 @@
 import React from 'react';
 import { AuthProvider } from '@/hooks';
+import { QueryProvider } from '@/hooks/QueryProvider';
 import { AppRouter } from '@/router';
 import '@/index.css';
 
@@ -8,13 +9,16 @@ import '@/index.css';
  *
  * Provides the application structure with:
  * - Authentication context provider
+ * - React Query provider for server state management
  * - Routing system
  * - Global styles
  */
 function App() {
   return (
     <AuthProvider>
-      <AppRouter />
+      <QueryProvider>
+        <AppRouter />
+      </QueryProvider>
     </AuthProvider>
   );
 }

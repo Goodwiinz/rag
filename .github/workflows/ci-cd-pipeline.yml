@@ -50,9 +50,24 @@ jobs:
 
     - name: Lint Python code
       run: |
+        echo "Running Python linting checks..."
         flake8 backend/ --max-line-length=100 --ignore=E203,W503
+        
+        echo "Checking black formatting..."
         black --check backend/
+        if [ $? -ne 0 ]; then
+          echo "::error::Code is not formatted with black. Run: black backend/"
+          exit 1
+        fi
+        
+        echo "Checking isort imports..."
         isort --check-only backend/
+        if [ $? -ne 0 ]; then
+          echo "::error::Imports are not sorted. Run: isort backend/"
+          exit 1
+        fi
+        
+        echo "All linting checks passed!"
 
     - name: Lint TypeScript code
       working-directory: ./frontend
@@ -63,8 +78,33 @@ jobs:
     - name: Run Python security scanning
       run: |
         pip install bandit safety
-        bandit -r backend/ -f json -o bandit-report.json || true
-        safety check --json --output safety-report.json || true
+        
+        echo "Running Bandit security scanner..."
+        bandit -r backend/ -f json -o bandit-report.json
+        
+        echo "Running Safety vulnerability check..."
+        safety check --json --output safety-report.json
+        
+        # Check for high/critical vulnerabilities in safety report
+        if [ -f safety-report.json ]; then
+          if jq -e '.vulnerabilities[] | select(.severity == "high" or .severity == "critical")' safety-report.json >/dev/null 2>&1; then
+            echo "::error::High or Critical vulnerabilities found in dependencies!"
+            jq '.vulnerabilities[] | select(.severity == "high" or .severity == "critical")' safety-report.json
+            exit 1
+          fi
+        fi
+        
+        # Check for high severity issues in bandit report
+        if [ -f bandit-report.json ]; then
+          high_severity=$(jq '[.results[] | select(.issue_severity == "HIGH" or .issue_severity == "CRITICAL")] | length' bandit-report.json)
+          if [ "$high_severity" -gt 0 ]; then
+            echo "::error::Found $high_severity high/critical severity security issues!"
+            jq '.results[] | select(.issue_severity == "HIGH" or .issue_severity == "CRITICAL")' bandit-report.json
+            exit 1
+          fi
+        fi
+        
+        echo "Security scans passed!"
 
     - name: Run Node.js security audit
       working-directory: ./frontend
@@ -153,7 +193,74 @@ jobs:
 
     - name: Wait for services
       run: |
-        sleep 20
+        echo "Waiting for services to be ready..."
+        
+        # Function to check service readiness with proper validation
+        check_service() {
+          local service=$1
+          local host=$2
+          local port=$3
+          local max_attempts=60
+          local attempt=0
+          
+          echo "Checking $service at $host:$port..."
+          while [ $attempt -lt $max_attempts ]; do
+            if nc -z $host $port 2>/dev/null; then
+              echo "$service port is open, verifying service health..."
+              
+              # Additional health checks for specific services
+              case $service in
+                "PostgreSQL")
+                  if PGPASSWORD=postgres psql -h localhost -U postgres -d test_multimodal_rag -c "SELECT 1" >/dev/null 2>&1; then
+                    echo "$service is healthy!"
+                    return 0
+                  fi
+                  ;;
+                "Redis")
+                  if redis-cli -h localhost ping | grep -q PONG; then
+                    echo "$service is healthy!"
+                    return 0
+                  fi
+                  ;;
+                "Neo4j")
+                  if cypher-shell -a bolt://localhost:7687 -u neo4j -p neo4jpassword "RETURN 1" >/dev/null 2>&1; then
+                    echo "$service is healthy!"
+                    return 0
+                  fi
+                  ;;
+                "Qdrant")
+                  if curl -f -s http://localhost:6333/health >/dev/null 2>&1; then
+                    echo "$service is healthy!"
+                    return 0
+                  fi
+                  ;;
+              esac
+            fi
+            attempt=$((attempt + 1))
+            echo "Attempt $attempt/$max_attempts for $service..."
+            sleep 5
+          done
+          echo "ERROR: $service failed to become ready within 300 seconds"
+          return 1
+        }
+        
+        # Install required tools for health checks
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq postgresql-client redis-tools curl netcat
+        
+        # Check PostgreSQL
+        check_service "PostgreSQL" "localhost" "5432" || exit 1
+        
+        # Check Redis
+        check_service "Redis" "localhost" "6379" || exit 1
+        
+        # Check Neo4j
+        check_service "Neo4j" "localhost" "7687" || exit 1
+        
+        # Check Qdrant
+        check_service "Qdrant" "localhost" "6333" || exit 1
+        
+        echo "All services are ready and healthy!"
 
     - name: Run unit tests
       env:
@@ -167,7 +274,17 @@ jobs:
         ENVIRONMENT: testing
       run: |
         cd backend
-        python -m pytest tests/unit/ -v --cov=src --cov-report=xml --cov-report=html
+        python -m pytest tests/unit/ -v \
+          --cov=src \
+          --cov-report=xml \
+          --cov-report=html \
+          --cov-report=term-missing \
+          --cov-fail-under=80
+        
+        if [ $? -ne 0 ]; then
+          echo "::error::Tests failed or coverage is below 80%"
+          exit 1
+        fi
 
     - name: Run integration tests
       env:
@@ -181,7 +298,16 @@ jobs:
         ENVIRONMENT: testing
       run: |
         cd backend
-        python -m pytest tests/integration/ -v --cov=src --cov-append --cov-report=xml
+        python -m pytest tests/integration/ -v \
+          --cov=src \
+          --cov-append \
+          --cov-report=xml \
+          --cov-fail-under=80
+        
+        if [ $? -ne 0 ]; then
+          echo "::error::Integration tests failed or coverage is below 80%"
+          exit 1
+        fi
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
@@ -357,15 +483,110 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Configure SSH access
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.STAGING_SSH_KEY }}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keyscan -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts
+
     - name: Deploy to staging
       run: |
         echo "Deploying to staging environment..."
-        # Add staging deployment logic here
+        ssh -i ~/.ssh/deploy_key ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} << 'EOF'
+          cd ${{ secrets.STAGING_DEPLOY_PATH }}
+          
+          # Pull latest images (feed password via stdin)
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login --username ${{ secrets.DOCKER_USERNAME }} --password-stdin
+          docker-compose pull backend frontend
+          
+          # Capture current DB migration revision before upgrade
+          CURRENT_REVISION=$(docker-compose run --rm backend alembic current 2>&1 | grep -oP '^[a-f0-9]+' | head -n 1)
+          echo "Current DB revision: ${CURRENT_REVISION:-none}"
+          
+          # Run database migrations
+          if ! docker-compose run --rm backend alembic upgrade head; then
+            echo "Migration failed, rolling back to revision: ${CURRENT_REVISION:-base}"
+            if [ -n "$CURRENT_REVISION" ]; then
+              docker-compose run --rm backend alembic downgrade "$CURRENT_REVISION" || {
+                echo "Rollback to $CURRENT_REVISION failed, attempting restore from backup..."
+                # Trigger backup restore path here
+                exit 1
+              }
+            else
+              echo "No previous revision found, cannot rollback"
+              exit 1
+            fi
+            exit 1
+          fi
+          
+          # Start services
+          docker-compose up -d backend frontend
+          
+          # Wait for services to be healthy
+          for i in {1..30}; do
+            if docker-compose ps | grep -q "Up (healthy)"; then
+              echo "Services are healthy"
+              break
+            fi
+            sleep 5
+          done
+        EOF
 
     - name: Run smoke tests
       run: |
         echo "Running smoke tests on staging..."
-        # Add smoke test commands here
+        max_retries=3
+        retry_count=0
+        
+        while [ $retry_count -lt $max_retries ]; do
+          # Health check
+          if curl -f -s ${{ secrets.STAGING_API_URL }}/health > /dev/null; then
+            echo "Health check passed"
+            
+            # Basic API test
+            response=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.STAGING_API_URL }}/api/v1/status)
+            if [ "$response" = "200" ]; then
+              echo "Smoke tests passed"
+              exit 0
+            fi
+          fi
+          
+          retry_count=$((retry_count + 1))
+          echo "Attempt $retry_count failed, retrying..."
+          sleep 10
+        done
+        
+        echo "Smoke tests failed after $max_retries attempts"
+        exit 1
+
+    - name: Rollback on failure
+      if: failure()
+      run: |
+        echo "Deployment failed, rolling back..."
+        ssh -i ~/.ssh/deploy_key ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} << 'EOF'
+          cd ${{ secrets.STAGING_DEPLOY_PATH }}
+          docker-compose down
+          
+          # Attempt to retrieve saved revision from deployment step or get current
+          SAVED_REVISION=$(docker-compose run --rm backend alembic current 2>&1 | grep -oP '^[a-f0-9]+' | head -n 1)
+          
+          if [ -n "$SAVED_REVISION" ]; then
+            echo "Rolling back to revision: $SAVED_REVISION"
+            docker-compose run --rm backend alembic downgrade "$SAVED_REVISION" || {
+              echo "Rollback failed, attempting restore from backup..."
+              # Add backup restore commands here
+              exit 1
+            }
+          else
+            echo "No revision to rollback to, attempting restore from backup..."
+            # Add backup restore commands here
+            exit 1
+          fi
+          
+          # Restart with previous version
+          docker-compose up -d
+        EOF
 
   # === Deploy to Production ===
   deploy-production:

@@ -1,0 +1,182 @@
+# Recording rules for RAG System metrics aggregation
+groups:
+  - name: rag_performance_rules
+    interval: 30s
+    rules:
+      # HTTP Performance Metrics
+      - record: rag:http_request_rate:5m
+        expr: rate(http_requests_total[5m])
+
+      - record: rag:http_request_error_rate:5m
+        expr: rate(http_requests_total{status_class=~"5xx"}[5m]) / rate(http_requests_total[5m])
+
+      - record: rag:http_request_latency:5m:p50
+        expr: histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))
+
+      - record: rag:http_request_latency:5m:p95
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+
+      - record: rag:http_request_latency:5m:p99
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))
+
+      # Search Performance Metrics
+      - record: rag:search_rate:5m
+        expr: rate(search_requests_total[5m])
+
+      - record: rag:search_success_rate:5m
+        expr: rate(search_requests_total{success="true"}[5m]) / rate(search_requests_total[5m])
+
+      - record: rag:search_latency:5m:p50
+        expr: histogram_quantile(0.50, rate(search_duration_seconds_bucket[5m]))
+
+      - record: rag:search_latency:5m:p95
+        expr: histogram_quantile(0.95, rate(search_duration_seconds_bucket[5m]))
+
+      - record: rag:search_results_avg:5m
+        expr: rate(search_results_count_sum[5m]) / rate(search_results_count_count[5m])
+
+      # File Processing Metrics
+      - record: rag:file_processing_rate:5m
+        expr: rate(file_processing_total[5m])
+
+      - record: rag:file_processing_success_rate:5m
+        expr: rate(file_processing_total{success="true"}[5m]) / rate(file_processing_total[5m])
+
+      - record: rag:file_processing_latency:5m:p95
+        expr: histogram_quantile(0.95, rate(file_processing_duration_seconds_bucket[5m]))
+
+  - name: rag_quality_rules
+    interval: 60s
+    rules:
+      # RAG Quality Metrics
+      - record: rag:answer_relevancy:10m:p50
+        expr: histogram_quantile(0.50, rate(rag_answer_relevancy_score_bucket[10m]))
+
+      - record: rag:answer_relevancy:10m:p90
+        expr: histogram_quantile(0.90, rate(rag_answer_relevancy_score_bucket[10m]))
+
+      - record: rag:answer_relevancy:10m:p95
+        expr: histogram_quantile(0.95, rate(rag_answer_relevancy_score_bucket[10m]))
+
+      - record: rag:faithfulness:10m:p50
+        expr: histogram_quantile(0.50, rate(rag_faithfulness_score_bucket[10m]))
+
+      - record: rag:faithfulness:10m:p90
+        expr: histogram_quantile(0.90, rate(rag_faithfulness_score_bucket[10m]))
+
+      - record: rag:faithfulness:10m:p95
+        expr: histogram_quantile(0.95, rate(rag_faithfulness_score_bucket[10m]))
+
+      - record: rag:contextual_relevancy:10m:p50
+        expr: histogram_quantile(0.50, rate(rag_contextual_relevancy_score_bucket[10m]))
+
+      - record: rag:contextual_relevancy:10m:p90
+        expr: histogram_quantile(0.90, rate(rag_contextual_relevancy_score_bucket[10m]))
+
+      - record: rag:contextual_relevancy:10m:p95
+        expr: histogram_quantile(0.95, rate(rag_contextual_relevancy_score_bucket[10m]))
+
+      # SLO Compliance Rates
+      - record: rag:slo_answer_relevancy_compliance:10m
+        expr: rate(rag_answer_relevancy_slo_total{slo_met="true"}[10m]) / rate(rag_answer_relevancy_slo_total[10m])
+
+      - record: rag:slo_faithfulness_compliance:10m
+        expr: rate(rag_faithfulness_slo_total{slo_met="true"}[10m]) / rate(rag_faithfulness_slo_total[10m])
+
+      - record: rag:slo_contextual_relevancy_compliance:10m
+        expr: rate(rag_contextual_relevancy_slo_total{slo_met="true"}[10m]) / rate(rag_contextual_relevancy_slo_total[10m])
+
+  - name: rag_infrastructure_rules
+    interval: 30s
+    rules:
+      # Database Metrics
+      - record: rag:database_query_rate:5m
+        expr: rate(database_queries_total[5m])
+
+      - record: rag:database_success_rate:5m
+        expr: rate(database_queries_total{success="true"}[5m]) / rate(database_queries_total[5m])
+
+      - record: rag:database_latency:5m:p95
+        expr: histogram_quantile(0.95, rate(database_query_duration_seconds_bucket[5m]))
+
+      - record: rag:database_connection_utilization
+        expr: database_connections_active / database_connections_max
+
+      # Redis Metrics
+      - record: rag:redis_command_rate:5m
+        expr: rate(redis_commands_total[5m])
+
+      - record: rag:redis_success_rate:5m
+        expr: rate(redis_commands_total{success="true"}[5m]) / rate(redis_commands_total[5m])
+
+      - record: rag:redis_latency:5m:p95
+        expr: histogram_quantile(0.95, rate(redis_command_duration_seconds_bucket[5m]))
+
+      # System Resource Metrics
+      - record: rag:cpu_utilization
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+
+      - record: rag:memory_utilization
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
+
+      - record: rag:disk_utilization
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100
+
+      - record: rag:network_receive_rate:5m
+        expr: rate(node_network_receive_bytes_total[5m])
+
+      - record: rag:network_transmit_rate:5m
+        expr: rate(node_network_transmit_bytes_total[5m])
+
+  - name: rag_business_rules
+    interval: 60s
+    rules:
+      # User Engagement Metrics
+      - record: rag:user_session_rate:1h
+        expr: rate(user_sessions_total[1h])
+
+      - record: rag:active_users:1h
+        expr: count by (tenant_id) (increase(user_sessions_total[1h]))
+
+      # Document Processing Metrics
+      - record: rag:document_upload_rate:5m
+        expr: rate(document_uploads_total[5m])
+
+      - record: rag:document_processing_success_rate:5m
+        expr: rate(document_uploads_total{success="true"}[5m]) / rate(document_uploads_total[5m])
+
+      - record: rag:documents_processed_total:1h
+        expr: increase(document_uploads_total[1h])
+
+      # Search Analytics
+      - record: rag:searches_per_user:1h
+        expr: rate(search_requests_total[1h]) / rate(user_sessions_total[1h])
+
+      - record: rag:popular_search_types:1h
+        expr: topk(5, sum by (search_type) (rate(search_requests_total[1h])))
+
+      - record: rag:average_query_length:5m
+        expr: avg by (search_type) (search_query_length)
+
+  - name: rag_security_rules
+    interval: 60s
+    rules:
+      # Authentication Metrics
+      - record: rag:authentication_rate:5m
+        expr: rate(authentication_attempts_total[5m])
+
+      - record: rag:authentication_failure_rate:5m
+        expr: rate(authentication_failures_total[5m]) / rate(authentication_attempts_total[5m])
+
+      - record: rag:unauthorized_access_rate:5m
+        expr: rate(unauthorized_access_attempts_total[5m])
+
+      - record: rag:suspicious_activity_rate:5m
+        expr: rate(suspicious_requests_total[5m])
+
+      # API Abuse Detection
+      - record: rag:api_rate_limit_violations:5m
+        expr: rate(rate_limit_violations_total[5m])
+
+      - record: rag:api_abuse_rate:5m
+        expr: rate(api_abuse_events_total[5m])

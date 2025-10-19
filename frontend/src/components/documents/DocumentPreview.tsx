@@ -14,11 +14,13 @@ import {
   XCircleIcon,
   PencilIcon,
 } from '@heroicons/react/24/outline';
+import toast from 'react-hot-toast';
 import { Document } from '@/types';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ProcessingStatus } from './ProcessingStatus';
+import { apiClient } from '@/services/api';
 
 interface DocumentPreviewProps {
   document: Document | null;
@@ -38,6 +40,42 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   onEditMetadata,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [localDocument, setLocalDocument] = useState<Document | null>(document);
+
+  // Update local document when prop changes
+  React.useEffect(() => {
+    setLocalDocument(document);
+  }, [document]);
+
+  const handleRetry = useCallback(async () => {
+    if (!localDocument || isRetrying) return;
+
+    setIsRetrying(true);
+    try {
+      // Call backend endpoint to requeue/reprocess the document
+      const response = await fetch(`/api/documents/${localDocument.id}/reprocess`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to queue document for reprocessing');
+      }
+
+      // Optimistic update: set status to queued
+      setLocalDocument(prev => prev ? { ...prev, processing_status: 'queued', processing_error: undefined } : null);
+
+      toast.success('Document queued for reprocessing');
+    } catch (error) {
+      console.error('Failed to reprocess document:', error);
+      toast.error('Failed to queue document for reprocessing. Please try again.');
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [localDocument, isRetrying]);
 
   const getFileIcon = () => {
     const iconClass = "h-8 w-8";
@@ -321,13 +359,11 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                         <p className="text-sm text-red-600">{document.processing_error}</p>
                       </div>
                     )}
-                    {(document.processing_status === 'processing' || document.processing_status === 'queued') && (
+                    {(document.processing_status === 'processing' || document.processing_status === 'queued' || document.processing_status === 'failed') && (
                       <ProcessingStatus
-                        document={document}
+                        document={localDocument || document}
                         compact
-                        onRetry={() => {
-                          // Retry logic would be implemented here
-                        }}
+                        onRetry={document.processing_status === 'failed' ? handleRetry : undefined}
                       />
                     )}
                   </div>

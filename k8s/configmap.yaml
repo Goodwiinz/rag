@@ -1,0 +1,199 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rag-config
+  namespace: rag-system
+  labels:
+    app.kubernetes.io/name: rag-system
+    app.kubernetes.io/component: config
+data:
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  DEBUG: "false"
+  NEO4J_URI: "bolt://neo4j:7687"
+  NEO4J_USER: "neo4j"
+  QDRANT_URL: "http://qdrant:6333"
+  REDIS_URL: "redis://redis:6379/0"
+  ENABLE_METRICS: "true"
+  ENABLE_CACHING: "true"
+  CACHE_TTL_SECONDS: "3600"
+  ENABLE_COMPRESSION: "true"
+  COMPRESSION_LEVEL: "6"
+  MAX_FILE_SIZE_MB: "500"
+  MAX_CONCURRENT_UPLOADS: "10"
+  WORKER_CONCURRENCY: "4"
+  ENABLE_MULTIMODAL_PROCESSING: "true"
+  ENABLE_ADVANCED_ANALYTICS: "true"
+  ENABLE_EVALUATION_METRICS: "true"
+  ENABLE_REAL_TIME_PROCESSING: "false"
+  JWT_ALGORITHM: "HS256"
+  JWT_EXPIRATION_HOURS: "24"
+  BCRYPT_ROUNDS: "12"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: rag-system
+  labels:
+    app.kubernetes.io/name: rag-system
+    app.kubernetes.io/component: nginx
+data:
+  nginx.conf: |
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        upstream backend {
+            server backend:8000;
+        }
+
+        upstream frontend {
+            server frontend:3000;
+        }
+
+        # Rate limiting
+        limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+        limit_req_zone $binary_remote_addr zone=upload:10m rate=2r/s;
+
+        server {
+            listen 80;
+            server_name _;
+
+            # Security headers
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+            # Frontend
+            location / {
+                proxy_pass http://frontend;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+
+            # Backend API with rate limiting
+            location /api/ {
+                limit_req zone=api burst=20 nodelay;
+                proxy_pass http://backend;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+
+                # Increase timeout for large file uploads
+                proxy_read_timeout 300s;
+                proxy_connect_timeout 75s;
+            }
+
+            # File upload endpoints with stricter rate limiting
+            location /api/v1/files/upload {
+                limit_req zone=upload burst=5 nodelay;
+                proxy_pass http://backend;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+
+                # Large file upload settings
+                client_max_body_size 500M;
+                proxy_read_timeout 600s;
+                proxy_connect_timeout 75s;
+                proxy_send_timeout 600s;
+            }
+
+            # Health check endpoint
+            location /health {
+                proxy_pass http://backend;
+                access_log off;
+            }
+        }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: rag-system-monitoring
+  labels:
+    app.kubernetes.io/name: rag-system
+    app.kubernetes.io/component: prometheus
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    rule_files:
+      - "/etc/prometheus/rules/*.yml"
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093
+
+    scrape_configs:
+      - job_name: 'kubernetes-apiservers'
+        kubernetes_sd_configs:
+          - role: endpoints
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: default;kubernetes;https
+
+      - job_name: 'rag-backend'
+        kubernetes_sd_configs:
+          - role: endpoints
+          namespaces:
+            names:
+              - rag-system
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: backend
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+
+      - job_name: 'rag-frontend'
+        kubernetes_sd_configs:
+          - role: endpoints
+          namespaces:
+            names:
+              - rag-system
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: frontend
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+
+      - job_name: 'postgres'
+        static_configs:
+          - targets: ['postgres-exporter:9187']
+
+      - job_name: 'redis'
+        static_configs:
+          - targets: ['redis-exporter:9121']
+
+      - job_name: 'neo4j'
+        static_configs:
+          - targets: ['neo4j:2004']
+
+      - job_name: 'qdrant'
+        static_configs:
+          - targets: ['qdrant:6333']
+        metrics_path: /metrics
+        scrape_interval: 30s

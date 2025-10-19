@@ -6,8 +6,9 @@ import time
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from enum import Enum
+from urllib.parse import urlparse
 import asyncpg
-import aioredis
+import redis.asyncio as aioredis
 from neo4j import GraphDatabase
 import httpx
 from qdrant_client import QdrantClient
@@ -149,38 +150,42 @@ class HealthChecker:
                     response_time=0.0
                 )
 
-            # Parse Redis URL and create connection
-            if redis_url.startswith('redis://'):
-                redis_url = redis_url.replace('redis://', '')
+            # Parse Redis URL properly using urlparse
+            if not redis_url.startswith('redis://'):
+                redis_url = f'redis://{redis_url}'
+            
+            # Use aioredis.from_url with the full URL to handle all URL components
+            redis = await aioredis.from_url(
+                redis_url,
+                encoding="utf-8",
+                decode_responses=True
+            )
 
-            host, port = redis_url.split(':') if ':' in redis_url else (redis_url, '6379')
+            try:
+                # Test ping
+                result = await redis.ping()
+                response_time = time.time() - start_time
 
-            redis = aioredis.from_url(f'redis://{host}:{port}')
-
-            # Test ping
-            result = await redis.ping()
-            await redis.close()
-
-            response_time = time.time() - start_time
-
-            if result:
-                HEALTH_CHECK_TOTAL.labels(component=component, status='healthy').inc()
-                COMPONENT_STATUS.labels(component=component).set(1)
-                return HealthCheckResult(
-                    component=component,
-                    status=HealthStatus.HEALTHY,
-                    message="Redis connection successful",
-                    response_time=response_time
-                )
-            else:
-                HEALTH_CHECK_TOTAL.labels(component=component, status='unhealthy').inc()
-                COMPONENT_STATUS.labels(component=component).set(0)
-                return HealthCheckResult(
-                    component=component,
-                    status=HealthStatus.UNHEALTHY,
-                    message="Redis ping failed",
-                    response_time=response_time
-                )
+                if result:
+                    HEALTH_CHECK_TOTAL.labels(component=component, status='healthy').inc()
+                    COMPONENT_STATUS.labels(component=component).set(1)
+                    return HealthCheckResult(
+                        component=component,
+                        status=HealthStatus.HEALTHY,
+                        message="Redis connection successful",
+                        response_time=response_time
+                    )
+                else:
+                    HEALTH_CHECK_TOTAL.labels(component=component, status='unhealthy').inc()
+                    COMPONENT_STATUS.labels(component=component).set(0)
+                    return HealthCheckResult(
+                        component=component,
+                        status=HealthStatus.UNHEALTHY,
+                        message="Redis ping failed",
+                        response_time=response_time
+                    )
+            finally:
+                await redis.close()
 
         except Exception as e:
             response_time = time.time() - start_time
@@ -211,14 +216,19 @@ class HealthChecker:
                     response_time=0.0
                 )
 
-            driver = GraphDatabase.driver(uri, auth=(user, password))
+            def sync_neo4j_check():
+                """Synchronous Neo4j operations to run in thread."""
+                driver = GraphDatabase.driver(uri, auth=(user, password))
+                try:
+                    with driver.session() as session:
+                        result = session.run("RETURN 1")
+                        value = result.single()[0]
+                    return value
+                finally:
+                    driver.close()
 
-            # Test basic query
-            with driver.session() as session:
-                result = session.run("RETURN 1")
-                value = result.single()[0]
-
-            driver.close()
+            # Run blocking Neo4j operations in thread pool
+            value = await asyncio.to_thread(sync_neo4j_check)
 
             response_time = time.time() - start_time
 
@@ -519,31 +529,47 @@ class HealthChecker:
         component = "virus_scanner"
 
         try:
-            import subprocess
-
-            # Check if ClamAV is running
-            result = subprocess.run(['clamscan', '--version'],
-                                  capture_output=True, text=True, timeout=10)
-
-            response_time = time.time() - start_time
-
-            if result.returncode == 0:
-                version = result.stdout.strip()
-                HEALTH_CHECK_TOTAL.labels(component=component, status='healthy').inc()
-                COMPONENT_STATUS.labels(component=component).set(1)
-                return HealthCheckResult(
-                    component=component,
-                    status=HealthStatus.HEALTHY,
-                    message=f"ClamAV is running: {version}",
-                    response_time=response_time
+            # Use asyncio.create_subprocess_exec for non-blocking subprocess execution
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    'clamscan', '--version',
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
                 )
-            else:
+                
+                # Wait for completion with timeout
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10.0)
+                returncode = proc.returncode
+                
+                response_time = time.time() - start_time
+
+                if returncode == 0:
+                    version = stdout.decode().strip()
+                    HEALTH_CHECK_TOTAL.labels(component=component, status='healthy').inc()
+                    COMPONENT_STATUS.labels(component=component).set(1)
+                    return HealthCheckResult(
+                        component=component,
+                        status=HealthStatus.HEALTHY,
+                        message=f"ClamAV is running: {version}",
+                        response_time=response_time
+                    )
+                else:
+                    HEALTH_CHECK_TOTAL.labels(component=component, status='unhealthy').inc()
+                    COMPONENT_STATUS.labels(component=component).set(0)
+                    return HealthCheckResult(
+                        component=component,
+                        status=HealthStatus.UNHEALTHY,
+                        message="ClamAV is not responding",
+                        response_time=response_time
+                    )
+            except asyncio.TimeoutError:
+                response_time = time.time() - start_time
                 HEALTH_CHECK_TOTAL.labels(component=component, status='unhealthy').inc()
                 COMPONENT_STATUS.labels(component=component).set(0)
                 return HealthCheckResult(
                     component=component,
                     status=HealthStatus.UNHEALTHY,
-                    message="ClamAV is not responding",
+                    message="ClamAV health check timed out",
                     response_time=response_time
                 )
 
