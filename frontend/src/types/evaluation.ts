@@ -26,49 +26,6 @@ export interface EvaluationMetrics {
   created_at: string;
 }
 
-export interface PerformanceAnalytics {
-  time_range: {
-    start: string;
-    end: string;
-  };
-  total_queries: number;
-  average_latency_ms: number;
-  success_rate: number;
-  quality_scores: {
-    answer_relevancy_avg: number;
-    faithfulness_avg: number;
-    contextual_relevancy_avg: number;
-  };
-  modalities_processed: Record<string, number>;
-  error_rates: Record<string, number>;
-  user_satisfaction: {
-    average_rating: number;
-    total_feedback: number;
-  };
-}
-
-export interface UsageAnalytics {
-  user_id: string;
-  time_range: {
-    start: string;
-    end: string;
-  };
-  documents_uploaded: number;
-  queries_performed: number;
-  storage_used_mb: number;
-  processing_time_total_ms: number;
-  top_queries: Array<{
-    query: string;
-    frequency: number;
-  }>;
-  file_type_distribution: Record<import('./document').Document['file_type'], number>;
-  search_patterns: {
-    average_query_length: number;
-    peak_usage_hours: number[];
-    session_duration_avg_ms: number;
-  };
-}
-
 export interface UserFeedback {
   query_id: string;
   helpfulness: number; // 1-5
@@ -77,3 +34,44 @@ export interface UserFeedback {
   comment?: string;
 }
 
+export interface Evaluation {
+  id: string;
+  name: string;
+  description?: string;
+  evaluation_type: 'offline' | 'online' | 'ab_test' | 'manual';
+  created_at: string;
+  updated_at: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'draft';
+  last_run?: {
+    started_at: string;
+    results_summary?: {
+      average_score: number;
+      pass_rate: number;
+    };
+  };
+}
+
+export interface EvaluationConfig {
+  dataset_id?: string;
+  metrics: string[];
+  thresholds: Record<string, number>;
+  sample_size?: number;
+  parallel_execution?: boolean;
+  timeout_seconds?: number;
+}
+
+export interface EvaluationResults {
+  id: string;
+  evaluation_id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  started_at: string;
+  completed_at?: string;
+  metrics: Record<string, number>;
+  details?: any;
+}
+
+export interface ComparisonData {
+  evaluations: Evaluation[];
+  comparison_metrics: Record<string, number[]>;
+  winner?: string;
+}

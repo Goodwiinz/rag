@@ -169,7 +169,7 @@ async def check_component(component: str, request: Request):
         record_request_duration(f'health_check_{component}', duration)
 
         status_code = 200
-        if result.status == HealthStatus.UNHEALTHY.value:
+        if result.status == HealthStatus.UNHEALTHY:
             status_code = 503
 
         return JSONResponse(

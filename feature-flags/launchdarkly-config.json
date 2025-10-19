@@ -1,0 +1,246 @@
+{
+  "projectKey": "multimodal-rag-system",
+  "environment": {
+    "development": "dev",
+    "staging": "staging",
+    "production": "prod"
+  },
+  "flags": {
+    "multimodal_processing": {
+      "key": "multimodal-processing",
+      "name": "Multimodal Processing",
+      "description": "Enable processing of text, images, audio, and video files",
+      "variations": [
+        {
+          "value": true,
+          "name": "Enabled"
+        },
+        {
+          "value": false,
+          "name": "Disabled"
+        }
+      ],
+      "defaultRule": {
+        "variation": 1
+      },
+      "targeting": {
+        "rules": [
+          {
+            "name": "Enable for internal users",
+            "clauses": [
+              {
+                "attribute": "email",
+                "op": "endsWith",
+                "values": ["yourcompany.com"]
+              }
+            ],
+            "variation": 0
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
+        }
+      },
+      "tags": ["core", "processing", "multimodal"]
+    },
+    "advanced_analytics": {
+      "key": "advanced-analytics",
+      "name": "Advanced Analytics",
+      "description": "Enable advanced analytics dashboards and metrics",
+      "variations": [
+        {
+          "value": true,
+          "name": "Enabled"
+        },
+        {
+          "value": false,
+          "name": "Disabled"
+        }
+      ],
+      "defaultRule": {
+        "variation": 0
+      },
+      "temporary": false,
+      "tags": ["analytics", "dashboard", "metrics"]
+    },
+    "evaluation_metrics": {
+      "key": "evaluation-metrics",
+      "name": "Evaluation Metrics",
+      "description": "Enable RAG evaluation metrics and quality tracking",
+      "variations": [
+        {
+          "value": true,
+          "name": "Enabled"
+        },
+        {
+          "value": false,
+          "name": "Disabled"
+        }
+      ],
+      "defaultRule": {
+        "variation": 0
+      },
+      "tags": ["evaluation", "quality", "metrics", "rag"]
+    },
+    "real_time_processing": {
+      "key": "real-time-processing",
+      "name": "Real-time Processing",
+      "description": "Enable real-time document processing and indexing",
+      "variations": [
+        {
+          "value": true,
+          "name": "Enabled"
+        },
+        {
+          "value": false,
+          "name": "Disabled"
+        }
+      ],
+      "defaultRule": {
+        "variation": 1
+      },
+      "tags": ["performance", "real-time", "experimental"]
+    },
+    "experimental_ui": {
+      "key": "experimental-ui",
+      "name": "Experimental UI Features",
+      "description": "Enable experimental user interface features",
+      "variations": [
+        {
+          "value": true,
+          "name": "Enabled"
+        },
+        {
+          "value": false,
+          "name": "Disabled"
+        }
+      ],
+      "defaultRule": {
+        "variation": 1
+      },
+      "tags": ["ui", "frontend", "experimental"]
+    },
+    "ai_model_optimization": {
+      "key": "ai-model-optimization",
+      "name": "AI Model Optimization",
+      "description": "Enable optimized AI models for better performance",
+      "variations": [
+        {
+          "value": "optimized",
+          "name": "Optimized Models"
+        },
+        {
+          "value": "standard",
+          "name": "Standard Models"
+        },
+        {
+          "value": "experimental",
+          "name": "Experimental Models"
+        }
+      ],
+      "defaultRule": {
+        "variation": 1
+      },
+      "tags": ["ai", "models", "optimization", "performance"]
+    },
+    "file_upload_limits": {
+      "key": "file-upload-limits",
+      "name": "File Upload Limits",
+      "description": "Control file upload size limits",
+      "variations": [
+        {
+          "value": 100,
+          "name": "100MB Limit"
+        },
+        {
+          "value": 500,
+          "name": "500MB Limit"
+        },
+        {
+          "value": 1000,
+          "name": "1GB Limit"
+        }
+      ],
+      "defaultRule": {
+        "variation": 0
+      },
+      "tags": ["limits", "upload", "files"]
+    },
+    "search_result_count": {
+      "key": "search-result-count",
+      "name": "Search Result Count",
+      "description": "Number of search results to return",
+      "variations": [
+        {
+          "value": 10,
+          "name": "10 Results"
+        },
+        {
+          "value": 20,
+          "name": "20 Results"
+        },
+        {
+          "value": 50,
+          "name": "50 Results"
+        }
+      ],
+      "defaultRule": {
+        "variation": 0
+      },
+      "tags": ["search", "results", "pagination"]
+    }
+  },
+  "segments": {
+    "internal_users": {
+      "key": "internal-users",
+      "name": "Internal Users",
+      "description": "Users from yourcompany.com domain",
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "email",
+              "op": "endsWith",
+              "values": ["yourcompany.com"]
+            }
+          ]
+        }
+      ],
+      "tags": ["internal", "employees"]
+    },
+    "beta_testers": {
+      "key": "beta-testers",
+      "name": "Beta Testers",
+      "description": "Users in beta testing program",
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "custom",
+              "op": "in",
+              "values": ["beta-tester"]
+            }
+          ]
+        }
+      ],
+      "tags": ["beta", "testers"]
+    },
+    "power_users": {
+      "key": "power-users",
+      "name": "Power Users",
+      "description": "Users with high usage patterns",
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "custom",
+              "op": "in",
+              "values": ["power-user"]
+            }
+          ]
+        }
+      ],
+      "tags": ["power", "users"]
+    }
+  }
+}

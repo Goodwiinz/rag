@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { CloudArrowUpIcon, PauseIcon, PlayIcon, XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 import { DocumentUploader } from './DocumentUploader';
 import { CompactUploadProgress } from './UploadProgress';
 import { FileValidationError } from '@/utils/fileValidation';
 import { Document, DocumentUpload } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface BatchUploadManagerProps {
   onUploadComplete?: (documents: Document[]) => void;
@@ -38,6 +39,7 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
   maxConcurrentUploads = MAX_CONCURRENT_UPLOADS,
   className,
 }) => {
+  const { user } = useAuth();
   const [uploadState, setUploadState] = useState<BatchUploadState>({
     jobs: [],
     isUploading: false,
@@ -47,9 +49,16 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
     totalProgress: 0,
   });
 
-  const [validationErrors, setValidationErrors] = useState<FileValidationError[]>([]);
+  // Store validation errors for display (currently unused but kept for future enhancement)
+  const [, setValidationErrors] = useState<FileValidationError[]>([]);
   const activeUploads = useRef<Map<string, AbortController>>(new Map());
   const uploadQueue = useRef<string[]>([]);
+  const isPausedRef = useRef<boolean>(false);
+
+  // Sync isPausedRef with uploadState.isPaused
+  useEffect(() => {
+    isPausedRef.current = uploadState.isPaused;
+  }, [uploadState.isPaused]);
 
   const calculateTotalProgress = useCallback((jobs: UploadJob[]): number => {
     if (jobs.length === 0) return 0;
@@ -77,7 +86,7 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
     });
   }, [calculateTotalProgress]);
 
-  const simulateUploadProgress = useCallback(async (jobId: string, file: File) => {
+  const simulateUploadProgress = useCallback(async (jobId: string, _file: File) => {
     const duration = 2000 + Math.random() * 3000; // 2-5 seconds
     const steps = 20;
     const stepDuration = duration / steps;
@@ -105,7 +114,7 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
     }
   }, [calculateTotalProgress]);
 
-  const simulateProcessing = useCallback(async (jobId: string) => {
+  const simulateProcessing = useCallback(async (_jobId: string) => {
     // Simulate processing stages
     const stages = [
       { name: 'Validating file format', duration: 500 },
@@ -117,10 +126,10 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
     for (const stage of stages) {
       await new Promise(resolve => setTimeout(resolve, stage.duration));
 
-      if (uploadState.isPaused) {
+      if (isPausedRef.current) {
         await new Promise(resolve => {
           const checkInterval = setInterval(() => {
-            if (!uploadState.isPaused) {
+            if (!isPausedRef.current) {
               clearInterval(checkInterval);
               resolve(undefined);
             }
@@ -128,7 +137,7 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
         });
       }
     }
-  }, [uploadState.isPaused]);
+  }, []); // Removed uploadState.isPaused from dependencies
 
   const processUpload = useCallback(async (job: UploadJob): Promise<void> => {
     const controller = new AbortController();
@@ -140,10 +149,11 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
       await simulateUploadProgress(job.id, job.file);
 
       // Simulate processing
+      const generatedJobId = `job-${job.id}`;
       updateJobStatus(job.id, {
         status: 'processing',
         progress: 100,
-        jobId: `job-${job.id}`,
+        jobId: generatedJobId,
         documentId: `doc-${job.id}`
       });
       await simulateProcessing(job.id);
@@ -207,10 +217,16 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
           setUploadState(prev => ({ ...prev, isUploading: false }));
 
           if (completedJobs.length > 0) {
+            // Validate auth info before creating documents
+            if (!user || !user.id || !user.organization_id) {
+              onUploadError?.('Unable to complete upload: User authentication information is missing');
+              return;
+            }
+
             const documents: Document[] = completedJobs.map(job => ({
               id: job.documentId || `doc-${job.id}`,
-              user_id: 'user-1', // Would come from auth context
-              organization_id: 'org-1', // Would come from auth context
+              user_id: user.id,
+              organization_id: user.organization_id,
               title: job.file.name,
               filename: job.file.name,
               file_type: job.file.name.split('.').pop()?.toLowerCase() as Document['file_type'],
@@ -228,7 +244,7 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
         processNext();
       }
     }, 100);
-  }, [uploadState.jobs, uploadState.isPaused, maxConcurrentUploads, processUpload, onUploadComplete]);
+  }, [uploadState.jobs, uploadState.isPaused, maxConcurrentUploads, processUpload, onUploadComplete, onUploadError, user]);
 
   const handleFilesSelected = useCallback((files: File[]) => {
     const newJobs: UploadJob[] = files.map(file => ({

@@ -1,0 +1,434 @@
+name: Production-Ready CI/CD Pipeline for Multimodal RAG System
+
+on:
+  push:
+    branches: [ main, develop, "002-multimodal-enterprise-rag" ]
+  pull_request:
+    branches: [ main, develop, "002-multimodal-enterprise-rag" ]
+  release:
+    types: [ published ]
+
+env:
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.11'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Frontend Tests
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install dependencies
+      run: |
+        cd frontend
+        npm ci
+
+    - name: Run linting
+      run: |
+        cd frontend
+        npm run lint
+
+    - name: Run type checking
+      run: |
+        cd frontend
+        npm run type-check
+
+    - name: Run unit tests
+      run: |
+        cd frontend
+        npm run test:unit
+
+    - name: Run component tests
+      run: |
+        cd frontend
+        npm run test:component
+
+    - name: Build application
+      run: |
+        cd frontend
+        npm run build
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: frontend-build
+        path: frontend/build/
+        retention-days: 30
+
+  # Backend Tests
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rag_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      neo4j:
+        image: neo4j:5.15
+        env:
+          NEO4J_AUTH: neo4j/password
+          NEO4J_PLUGINS: '["apoc"]'
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p password 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 7474:7474
+          - 7687:7687
+
+      qdrant:
+        image: qdrant/qdrant:v1.7.4
+        ports:
+          - 6333:6333
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-asyncio
+
+    - name: Run linting
+      run: |
+        flake8 src tests --max-line-length=100 --ignore=E203,W503
+        black --check src tests
+
+    - name: Run type checking
+      run: |
+        mypy src --ignore-missing-imports
+
+    - name: Run unit tests
+      run: |
+        pytest tests/unit/ -v --cov=src --cov-report=xml --cov-report=html
+
+    - name: Run integration tests
+      run: |
+        pytest tests/integration/ -v --cov=src --cov-append --cov-report=xml
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rag_test
+        NEO4J_URI: bolt://localhost:7687
+        NEO4J_USER: neo4j
+        NEO4J_PASSWORD: password
+        QDRANT_URL: http://localhost:6333
+        REDIS_URL: redis://localhost:6379
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  # End-to-End Tests
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Start services
+      run: |
+        docker-compose up -d
+        sleep 30
+
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+
+    - name: Install backend dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Wait for services to be ready
+      run: |
+        timeout 60 bash -c 'until curl -f http://localhost:8000/health; do sleep 2; done'
+
+    - name: Run Cypress tests
+      run: |
+        cd frontend
+        npm run test:e2e:ci
+
+    - name: Upload Cypress videos
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: cypress-videos
+        path: frontend/cypress/videos/
+        retention-days: 7
+
+    - name: Cleanup
+      run: |
+        docker-compose down -v
+
+  # Security Scanning
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+    - name: Run npm audit
+      run: |
+        cd frontend
+        npm audit --audit-level high
+
+    - name: Run pip audit
+      run: |
+        pip install pip-audit
+        pip-audit --requirement requirements.txt
+
+  # Accessibility Tests
+  accessibility-tests:
+    name: Accessibility Tests
+    runs-on: ubuntu-latest
+    needs: frontend-tests
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install dependencies
+      run: |
+        cd frontend
+        npm ci
+
+    - name: Run accessibility tests
+      run: |
+        cd frontend
+        npm run test:a11y
+
+    - name: Upload accessibility report
+      uses: actions/upload-artifact@v4
+      with:
+        name: accessibility-report
+        path: frontend/accessibility-report/
+        retention-days: 30
+
+  # Performance Tests
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests]
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install locust
+
+    - name: Start services
+      run: |
+        docker-compose up -d
+        sleep 30
+
+    - name: Run performance tests
+      run: |
+        locust --headless --users 10 --spawn-rate 2 --run-time 60s --host http://localhost:8000 tests/performance/locustfile.py
+
+    - name: Upload performance report
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-report
+        path: performance-report.html
+        retention-days: 30
+
+    - name: Cleanup
+      run: |
+        docker-compose down -v
+
+  # Build and Deploy (only on main branch)
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests, e2e-tests, security-scan, accessibility-tests]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Deploy to staging
+      run: |
+        echo "Deploying to staging environment..."
+        # Add deployment commands here
+
+  # Quality Gates
+  quality-gates:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests, security-scan]
+    if: always()
+
+    steps:
+    - name: Quality Gate Check
+      run: |
+        echo "Checking quality gates..."
+
+        # Check if any critical job failed
+        if [[ "${{ needs.frontend-tests.result }}" == "failure" ]]; then
+          echo "❌ Frontend tests failed - blocking merge"
+          exit 1
+        fi
+
+        if [[ "${{ needs.backend-tests.result }}" == "failure" ]]; then
+          echo "❌ Backend tests failed - blocking merge"
+          exit 1
+        fi
+
+        if [[ "${{ needs.security-scan.result }}" == "failure" ]]; then
+          echo "❌ Security scan found critical vulnerabilities - blocking merge"
+          exit 1
+        fi
+
+        echo "✅ All quality gates passed"
+
+  # Notify Results (simplified without external integrations)
+  notify:
+    name: Notify Results
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests, e2e-tests, security-scan, accessibility-tests, performance-tests]
+    if: always()
+
+    steps:
+    - name: Summary
+      run: |
+        echo "## Pipeline Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Frontend Tests | ${{ needs.frontend-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Backend Tests | ${{ needs.backend-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| E2E Tests | ${{ needs.e2e-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Security Scan | ${{ needs.security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Accessibility Tests | ${{ needs.accessibility-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Performance Tests | ${{ needs.performance-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        
+        # Only include build-and-deploy status if on main branch
+        if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          echo "| Build and Deploy | ${{ needs.build-and-deploy.result }} |" >> $GITHUB_STEP_SUMMARY
+        fi

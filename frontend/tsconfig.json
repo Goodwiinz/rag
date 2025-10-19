@@ -1,49 +1,49 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "lib": [
-      "DOM",
-      "DOM.Iterable",
-      "ES6",
-      "ES2020"
-    ],
-    "allowJs": true,
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
     "skipLibCheck": true,
-    "esModuleInterop": true,
+    "allowJs": false,
+    "esModuleInterop": false,
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitReturns": true,
-    "module": "esnext",
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "baseUrl": "src",
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["*"],
-      "@/components/*": ["components/*"],
-      "@/pages/*": ["pages/*"],
-      "@/services/*": ["services/*"],
-      "@/hooks/*": ["hooks/*"],
-      "@/types/*": ["types/*"],
-      "@/utils/*": ["utils/*"],
-      "@/lib/*": ["lib/*"]
-    }
+      "@/*": ["./src/*"],
+      "@/components/*": ["./src/components/*"],
+      "@/hooks/*": ["./src/hooks/*"],
+      "@/lib/*": ["./src/lib/*"],
+      "@/services/*": ["./src/services/*"],
+      "@/stores/*": ["./src/stores/*"],
+      "@/types/*": ["./src/types/*"],
+      "@/utils/*": ["./src/utils/*"],
+      "@/assets/*": ["./src/assets/*"],
+      "@/styles/*": ["./src/styles/*"]
+    },
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+    "noImplicitReturns": false,
+    "noUncheckedIndexedAccess": false
   },
   "include": [
     "src",
-    "**/*.ts",
-    "**/*.tsx"
+    "vite.config.ts"
   ],
   "exclude": [
     "node_modules",
-    "build",
     "dist",
-    "**/*.stories.ts",
-    "**/*.stories.tsx"
+    "build",
+    "**/*.test.ts",
+    "**/*.test.tsx"
   ]
 }

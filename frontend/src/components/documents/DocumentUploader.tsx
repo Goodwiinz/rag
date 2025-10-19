@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { PaperClipIcon, XMarkIcon, CloudArrowUpIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { v4 as uuidv4 } from 'uuid';
 import { cn } from '@/lib/utils';
 import { validateFileBatch, ValidationResult, FileValidationError } from '@/utils/fileValidation';
 import { UPLOAD_LIMITS } from '@/types';
@@ -47,6 +48,17 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Cleanup object URLs on unmount and when files change
+  useEffect(() => {
+    return () => {
+      selectedFiles.forEach(file => {
+        if (file.preview) {
+          URL.revokeObjectURL(file.preview);
+        }
+      });
+    };
+  }, [selectedFiles]);
+
   const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
     // Clear previous validation errors
     setValidationErrors([]);
@@ -83,7 +95,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
     // Process valid files
     const filesWithPreview: FileWithPreview[] = validFiles.map(file => ({
       ...file,
-      id: Math.random().toString(36).substr(2, 9),
+      id: uuidv4(),
       preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
     }));
 
@@ -253,7 +265,6 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
                       src={file.preview}
                       alt={file.name}
                       className="h-10 w-10 object-cover rounded"
-                      onLoad={() => { URL.revokeObjectURL(file.preview!); }}
                     />
                   ) : (
                     <div className="h-10 w-10 bg-muted rounded flex items-center justify-center text-lg">

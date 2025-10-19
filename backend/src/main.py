@@ -30,14 +30,19 @@ from src.api.workers import router as workers_router
 from src.api.encryption import router as encryption_router
 from src.api.compliance import router as compliance_router
 from src.api.rbac_management import router as rbac_router
+from src.api.evaluation import router as evaluation_router
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
-
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL.upper()),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+from src.observability import (
+    configure_tracing, configure_metrics, configure_logging,
+    instrument_app, instrument_services
 )
-logger = logging.getLogger(__name__)
+from src.core.database import engine
+from src.services.file_service import redis_client
+
+# Configure observability
+configure_logging()
+configure_tracing()
+configure_metrics()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -68,6 +73,15 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
+)
+
+# Instrument application with observability
+instrument_app(app)
+
+# Instrument additional services
+instrument_services(
+    sql_engine=engine,
+    redis_client=redis_client
 )
 
 # Add CORS middleware
@@ -140,6 +154,7 @@ app.include_router(workers_router, prefix="/api/v1")
 app.include_router(encryption_router, prefix="/api/v1/security")
 app.include_router(compliance_router, prefix="/api/v1/security")
 app.include_router(rbac_router, prefix="/api/v1/rbac")
+app.include_router(evaluation_router, prefix="/api/v1")
 
 # Health check endpoint
 @app.get("/health")

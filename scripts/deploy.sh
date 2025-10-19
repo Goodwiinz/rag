@@ -11,6 +11,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 ENVIRONMENT="${ENVIRONMENT:-staging}"
 COMPOSE_FILE="docker-compose.${ENVIRONMENT}.yml"
 BLUE_GREEN_COMPOSE_FILE="docker-compose.${ENVIRONMENT}-blue-green.yml"
+BLUE_GREEN_STATE_FILE="${PROJECT_ROOT}/.blue-green-state-${ENVIRONMENT}"
 HEALTH_CHECK_URL="${HEALTH_CHECK_URL:-http://localhost:8000/health}"
 MAX_RETRIES="${MAX_RETRIES:-30}"
 RETRY_DELAY="${RETRY_DELAY:-10}"
@@ -189,12 +190,26 @@ deploy_blue_green() {
 
     cd "$PROJECT_ROOT"
 
-    # Determine current active environment
-    local current_active="blue"
-    if docker-compose -f "${COMPOSE_FILE}" ps -q backend | grep -q .; then
-        current_active="blue"
+    # Determine current active environment from persisted state
+    local current_active="blue"  # Safe default
+    
+    if [[ -f "$BLUE_GREEN_STATE_FILE" ]]; then
+        local stored_state=$(cat "$BLUE_GREEN_STATE_FILE" 2>/dev/null | tr -d '[:space:]')
+        
+        # Validate stored state
+        if [[ "$stored_state" == "blue" ]] || [[ "$stored_state" == "green" ]]; then
+            current_active="$stored_state"
+            log "Read current active state from file: $current_active"
+        else
+            warning "Invalid state in $BLUE_GREEN_STATE_FILE: '$stored_state', using default: $current_active"
+        fi
     else
-        current_active="green"
+        log "No state file found at $BLUE_GREEN_STATE_FILE, using default: $current_active"
+    fi
+    
+    # Secondary validation: check if compose file exists (optional safety check)
+    if [[ ! -f "$BLUE_GREEN_COMPOSE_FILE" ]]; then
+        log "Blue-green compose file not found, will create it"
     fi
 
     local new_active=$([ "$current_active" = "blue" ] && echo "green" || echo "blue")
@@ -231,6 +246,12 @@ deploy_blue_green() {
     COMPOSE_FILE="$BLUE_GREEN_COMPOSE_FILE" \
         ACTIVE_COLOR="$current_active" \
         docker-compose -f "$BLUE_GREEN_COMPOSE_FILE" down
+
+    # Persist new active state atomically
+    log "Persisting new active state: $new_active"
+    echo "$new_active" > "${BLUE_GREEN_STATE_FILE}.tmp" || error_exit "Failed to write state file"
+    mv "${BLUE_GREEN_STATE_FILE}.tmp" "$BLUE_GREEN_STATE_FILE" || error_exit "Failed to update state file"
+    success "Active state persisted to $BLUE_GREEN_STATE_FILE"
 
     success "Blue-green deployment completed successfully"
 }

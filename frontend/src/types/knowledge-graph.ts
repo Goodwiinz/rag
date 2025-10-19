@@ -1,5 +1,5 @@
 // Knowledge Graph Types
-export interface GraphData {
+export interface KnowledgeGraphData {
   nodes: import('./search').Entity[];
   edges: import('./search').Relationship[];
   layout: 'force' | 'hierarchical' | 'circular';

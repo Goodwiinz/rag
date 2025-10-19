@@ -13,8 +13,8 @@ from alembic import context
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 # Import models and database configuration
-from src.core.config import settings
 from src.models.base import Base
+from src.models import *  # Import all models to ensure they are registered
 
 # Import all models to ensure they are registered with Base.metadata
 from src.models.user import User
@@ -28,6 +28,14 @@ from src.models.document_processing import (
     ProcessingHistory, DocumentVersion, MultimodalContent,
     DocumentQualityMetrics, DocumentAccessLog
 )
+from src.models.vector import VectorEmbedding
+from src.models.graph import KnowledgeGraph
+from src.models.user_session import UserSession, SearchSession, SearchEvent
+from src.models.analytics_event import AnalyticsEvent
+from src.models.performance_log import PerformanceLog
+from src.models.encrypted_user import EncryptedUserProfile, EncryptedOrganizationProfile
+from src.models.quality_metrics import QualityMetrics, EvaluationMetrics
+from src.models.utils import StringArray
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -49,8 +57,19 @@ target_metadata = Base.metadata
 
 
 def get_url():
-    """Get database URL from settings"""
-    return settings.DATABASE_URL
+    """Get database URL from environment or settings"""
+    # Try to get from environment first (for setup scripts)
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        return database_url
+
+    # Fallback to settings (for runtime)
+    try:
+        from src.core.config import settings
+        return settings.DATABASE_URL
+    except ImportError:
+        # Final fallback to default
+        return "postgresql://raguser:rag_password_123@localhost:5432/ragdb"
 
 
 def run_migrations_offline() -> None:

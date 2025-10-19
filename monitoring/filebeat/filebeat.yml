@@ -1,0 +1,82 @@
+# Filebeat configuration for RAG System
+filebeat.inputs:
+  # Monitor application logs
+  - type: log
+    enabled: true
+    paths:
+      - /app/logs/*.log
+      - /app/logs/**/*.log
+    fields:
+      logtype: application
+      service: rag-system
+      environment: production
+    fields_under_root: true
+    multiline.pattern: '^\d{4}-\d{2}-\d{2}'
+    multiline.negate: true
+    multiline.match: after
+    json.keys_under_root: true
+    json.add_error_key: true
+
+  # Monitor container logs
+  - type: container
+    enabled: true
+    paths:
+      - '/var/lib/docker/containers/*/*.log'
+    processors:
+      - add_docker_metadata:
+          host: "unix:///var/run/docker.sock"
+    fields:
+      logtype: container
+      service: rag-system
+    fields_under_root: true
+
+# Processors for log enrichment
+processors:
+  # Add host information
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+
+  # Add cloud metadata if available
+  - add_cloud_metadata: ~
+
+  # Add Docker metadata
+  - add_docker_metadata: ~
+
+  # Parse JSON logs
+  - decode_json_fields:
+      fields: ["message"]
+      target: "json"
+      overwrite_keys: true
+
+  # Add timestamp if missing
+  - timestamp:
+      field: json.timestamp
+      layouts:
+        - '2006-01-02T15:04:05.000Z'
+        - '2006-01-02T15:04:05Z'
+        - '2006-01-02 15:04:05'
+      test:
+        - '2019-06-22T16:33:51.000Z'
+
+  # Drop unnecessary fields
+  - drop_fields:
+      fields: ["agent", "ecs", "host.architecture", "host.os.family"]
+      ignore_missing: true
+
+# Output configuration
+output.logstash:
+  hosts: ["logstash:5044"]
+  compression_level: 3
+  escape_html: false
+
+# Logging configuration
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+
+# Monitoring
+monitoring.enabled: true

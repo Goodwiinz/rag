@@ -1,9 +1,14 @@
+# Prometheus Configuration for Multimodal Enterprise RAG System
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    cluster: 'rag-production'
+    environment: 'production'
 
 rule_files:
   - "alert_rules.yml"
+  - "recording_rules.yml"
 
 alerting:
   alertmanagers:
@@ -17,103 +22,84 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # Backend Application Metrics
-  - job_name: 'backend'
+  # Node Exporter for system metrics
+  - job_name: 'node-exporter'
     static_configs:
-      - targets: ['backend:8000']
-    metrics_path: '/metrics'
-    scrape_interval: 15s
-    scrape_timeout: 10s
+      - targets: ['node-exporter:9100']
 
-  # Frontend Application Metrics
-  - job_name: 'frontend'
-    static_configs:
-      - targets: ['frontend:80']
-    metrics_path: '/metrics'
-    scrape_interval: 30s
-
-  # PostgreSQL Metrics
-  - job_name: 'postgres'
-    static_configs:
-      - targets: ['postgres-exporter:9187']
-
-  # Redis Metrics
-  - job_name: 'redis'
-    static_configs:
-      - targets: ['redis-exporter:9121']
-
-  # Neo4j Metrics
-  - job_name: 'neo4j'
-    static_configs:
-      - targets: ['neo4j:2004']
-    metrics_path: '/metrics'
-
-  # Qdrant Metrics
-  - job_name: 'qdrant'
-    static_configs:
-      - targets: ['qdrant:6333']
-    metrics_path: '/metrics'
-
-  # Celery Workers
-  - job_name: 'celery'
-    static_configs:
-      - targets: ['flower:5555']
-    metrics_path: '/metrics'
-
-  # Nginx Metrics
-  - job_name: 'nginx'
-    static_configs:
-      - targets: ['nginx-exporter:9113']
-
-  # Docker Container Metrics
+  # cAdvisor for container metrics
   - job_name: 'cadvisor'
     static_configs:
       - targets: ['cadvisor:8080']
 
-  # Node Exporter (System Metrics)
-  - job_name: 'node'
+  # Backend Application Metrics
+  - job_name: 'rag-backend'
     static_configs:
-      - targets: ['node-exporter:9100']
+      - targets: ['backend:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 25s
 
-  # Blackbox Exporter (Endpoint Monitoring)
-  - job_name: 'blackbox'
-    metrics_path: /probe
-    params:
-      module: [http_2xx]
+  # Frontend Application Metrics
+  - job_name: 'rag-frontend'
     static_configs:
-      - targets:
-        - http://backend:8000/health
-        - http://frontend:80/health
-        - http://postgres:5432
-        - http://redis:6379
-    relabel_configs:
-      - source_labels: [__address__]
-        target_label: __param_target
-      - source_labels: [__param_target]
-        target_label: instance
-      - target_label: __address__
-        replacement: blackbox-exporter:9115
+      - targets: ['frontend:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # PostgreSQL Metrics
+  - job_name: 'postgres-exporter'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # Neo4j Metrics
+  - job_name: 'neo4j-exporter'
+    static_configs:
+      - targets: ['neo4j-exporter:2004']
+
+  # Qdrant Vector Database Metrics
+  - job_name: 'qdrant-exporter'
+    static_configs:
+      - targets: ['qdrant:6333']
+    metrics_path: '/metrics'
+
+  # Redis Metrics
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  # Nginx Metrics
+  - job_name: 'nginx-exporter'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+
+  # Docker Metrics
+  - job_name: 'docker-exporter'
+    static_configs:
+      - targets: ['docker-exporter:9323']
 
   # Custom Business Metrics
   - job_name: 'business-metrics'
     static_configs:
       - targets: ['backend:8000']
-    metrics_path: '/api/metrics/business'
+    metrics_path: '/business-metrics'
     scrape_interval: 60s
 
-  # External Service Monitoring
-  - job_name: 'external-services'
-    static_configs:
-      - targets:
-        - https://api.openai.com/v1/models
-        - https://api.anthropic.com/v1/messages
-    metrics_path: /probe
-    params:
-      module: [http_2xx]
-    relabel_configs:
-      - source_labels: [__address__]
-        target_label: __param_target
-      - source_labels: [__param_target]
-        target_label: instance
-      - target_label: __address__
-        replacement: blackbox-exporter:9115
+# Remote write configuration for long-term storage
+# SECURITY NOTE: Credentials must be provided via environment variables
+# Set PROMETHEUS_REMOTE_WRITE_USERNAME and PROMETHEUS_REMOTE_WRITE_PASSWORD
+# before starting Prometheus, or use basic_auth_file for file-based auth
+remote_write:
+  - url: "https://prometheus-remote-write.example.com/api/v1/write"
+    basic_auth:
+      username: ${PROMETHEUS_REMOTE_WRITE_USERNAME}
+      password: ${PROMETHEUS_REMOTE_WRITE_PASSWORD}
+    # Alternative: Use basic_auth_file for file-based authentication
+    # Uncomment the line below and comment out username/password above
+    # basic_auth_file: /etc/prometheus/remote_write_auth
+    # Ensure the auth file has strict permissions (chmod 600) and contains:
+    # username:password
+    write_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'go_.*|process_.*'
+        action: drop

@@ -18,7 +18,14 @@ interface DocumentMetadataEditorProps {
   document: Document | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (documentId: string, metadata: Partial<Document>) => Promise<void>;
+  onSave: (documentId: string, metadata: DocumentMetadataPayload) => Promise<void>;
+}
+
+interface DocumentMetadataPayload {
+  title?: string;
+  description?: string;
+  tags?: string[];
+  custom_fields?: Record<string, string | number | boolean>;
 }
 
 interface CustomField {
@@ -82,7 +89,10 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
     }
   }, [document]);
 
-  const handleInputChange = useCallback((field: keyof MetadataFormData, value: any) => {
+  const handleInputChange = useCallback(<K extends keyof MetadataFormData>(
+    field: K,
+    value: MetadataFormData[K]
+  ) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     setHasChanges(true);
   }, []);

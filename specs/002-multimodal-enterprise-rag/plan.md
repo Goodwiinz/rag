@@ -9,13 +9,15 @@
 
 The Multimodal Enterprise RAG UI is a modern web-based interface that provides users with a two-panel layout for document management and intelligent search. The system supports drag-and-drop file uploads for PDF, TXT, JPG, PNG, MP3, and MP4 files, processes them in real-time, and enables natural language querying with comprehensive answers, source citations, knowledge graph exploration, and performance evaluation metrics.
 
-**Technical Approach**: React 18 + TypeScript frontend consuming existing FastAPI backend services with WebSocket real-time updates, responsive design for desktop/tablet/mobile, and comprehensive error handling.
+**Technical Approach**: React 18 + TypeScript frontend consuming comprehensive FastAPI backend microservices with API-first design, WebSocket real-time updates, responsive design for desktop/tablet/mobile, and comprehensive error handling.
+
+**Backend Architecture**: Microservices-based architecture with 9 core services (API Gateway, Document Management, Search, Knowledge Graph, Evaluation, Processing Pipeline, Analytics, User Management, Real-time Communications) supporting multi-modal file processing, hybrid search, and RAG evaluation.
 
 ## Technical Context
 
 **Language/Version**: TypeScript 5.0+ with React 18.2+
 **Primary Dependencies**: React 18, TypeScript, Tailwind CSS, shadcn/ui, react-dropzone, vis-network, framer-motion, Axios
-**Storage**: Existing backend PostgreSQL, Qdrant (vector), Neo4j (graph), Redis (cache)
+**Storage**: Comprehensive microservices backend with PostgreSQL (metadata & user data), Neo4j (knowledge graph), Qdrant (vector store), Redis (cache & message queues), and multi-modal file storage
 **Testing**: Jest + React Testing Library + Cypress for E2E
 **Target Platform**: Web application (desktop, tablet, mobile browsers)
 **Project Type**: Single-page web application with real-time features
@@ -86,18 +88,33 @@ specs/002-multimodal-enterprise-rag/
 **Structure Decision**: Web application with existing backend and new frontend
 
 ```
-backend/                 # ✅ EXISTING - Fully implemented
+backend/                 # ✅ EXISTING - Comprehensive microservices
 ├── src/
-│   ├── api/             # FastAPI endpoints (all implemented)
-│   ├── models/          # SQLAlchemy models
-│   ├── services/        # Business logic
+│   ├── api/             # FastAPI endpoints (microservice APIs)
+│   │   ├── auth.py      # Authentication & authorization
+│   │   ├── documents.py # Document management
+│   │   ├── search.py    # Hybrid search orchestration
+│   │   ├── knowledge_graph.py # Knowledge graph APIs
+│   │   ├── evaluation.py # RAG evaluation & metrics
+│   │   ├── processing.py # Document processing pipeline
+│   │   ├── analytics.py # System & user analytics
+│   │   └── websocket.py # Real-time communications
+│   ├── services/        # Business logic microservices
+│   │   ├── auth_service.py
+│   │   ├── document_service.py
+│   │   ├── search_service.py
+│   │   ├── graph_service.py
+│   │   ├── evaluation_service.py
+│   │   ├── processing_service.py
+│   │   └── analytics_service.py
+│   ├── models/          # SQLAlchemy & data models
 │   ├── agents/          # CrewAI multi-agent system
 │   ├── ingestion/       # Multimodal file processing
-│   ├── search/          # Hybrid search implementation
-│   ├── knowledge_graph/ # Neo4j integration
-│   ├── vector_store/    # Qdrant integration
-│   └── evaluation/      # DeepEval metrics
-└── tests/               # Backend test suite
+│   ├── knowledge_graph/ # Neo4j integration & algorithms
+│   ├── vector_store/    # Qdrant vector store
+│   ├── middleware/      # API gateway, auth, rate limiting
+│   └── cache/           # Redis caching strategies
+└── tests/               # Comprehensive backend test suite
 
 frontend/                # 🆕 TO BE CREATED - React application
 ├── src/
@@ -129,7 +146,25 @@ frontend/                # 🆕 TO BE CREATED - React application
 └── tests/               # Frontend test suite
 ```
 
-**Rationale**: This structure maintains the existing fully-implemented backend while adding a modern React frontend. The separation allows independent development and deployment while ensuring clear integration points through well-defined APIs.
+**Rationale**: This structure maintains the existing comprehensive microservices backend while adding a modern React frontend. The API-first design ensures clear separation of concerns: backend handles all business logic, data processing, and algorithms; frontend focuses on user experience and visualization. This enables independent development, testing, and deployment while ensuring robust integration through well-defined OpenAPI specifications and real-time WebSocket communications.
+
+## Critical Architecture Corrections
+
+**Issue Identified**: The original task list incorrectly categorized backend graph algorithms and Neo4j operations as frontend tasks (Tasks 3.1.1-3.3.5). This has been corrected with proper API-first design.
+
+**Resolution**:
+- All graph processing, entity extraction, and Neo4j operations remain backend responsibilities
+- Frontend consumes graph data through REST APIs and WebSocket updates
+- Knowledge Graph Service (Port 8003) handles all backend graph algorithms
+- Real-time graph visualization data provided via dedicated APIs
+
+**Comprehensive Architecture Documentation**:
+- Full backend service architecture specifications available at `/docs/backend-service-architecture.md`
+- Complete OpenAPI 3.0 specifications for all 9 microservices
+- Event-driven architecture with Redis Streams and message queues
+- Authentication & authorization with JWT + RBAC
+- Performance optimization and caching strategies
+- Security, monitoring, and deployment patterns
 
 ## Complexity Tracking
 
@@ -147,3 +182,209 @@ frontend/                # 🆕 TO BE CREATED - React application
 | Testing | MEDIUM | Unit tests, integration tests, and E2E tests required |
 
 **Overall Assessment**: **MEDIUM COMPLEXITY** - Appropriate for enterprise application with real-time features and multimodal capabilities. All complexity is justified by user requirements and no simpler alternatives would meet the specification.
+
+## Frontend Component Architecture
+
+### Comprehensive Component Design
+
+The frontend architecture has been comprehensively designed with proper API-first principles, correcting the original misconception about frontend graph processing. The complete architecture documentation is available at:
+
+- **Frontend Component Architecture**: `/docs/frontend-component-architecture.md`
+- **Component Tree Diagram**: `/docs/component-tree-diagram.md`
+
+### Core Architecture Principles
+
+1. **API-First Frontend**: All data consumed through backend microservices APIs
+2. **Component-Driven Design**: Reusable, testable components with clear boundaries
+3. **Progressive Enhancement**: Core functionality works without JavaScript
+4. **Mobile-First Responsive**: Seamless experience across all devices
+5. **Accessibility First**: WCAG 2.1 AA compliance with semantic HTML
+6. **Performance Optimized**: Lazy loading, code splitting, efficient rendering
+7. **Error Resilient**: Graceful degradation with comprehensive error boundaries
+
+### Component Hierarchy
+
+```
+App
+├── AuthProvider
+├── Router
+├── ErrorBoundary
+└── Protected Routes
+    └── AppLayout
+        ├── Header (UserMenu, NotificationCenter)
+        ├── Sidebar (Navigation, QuickActions)
+        └── MainContent
+            └── Dashboard (Two-Panel Layout)
+                ├── LeftPanel
+                │   ├── DocumentUploadZone
+                │   │   ├── DropzoneArea
+                │   │   ├── FileList
+                │   │   ├── UploadProgress
+                │   │   └── ProcessingStatus
+                │   └── DocumentLibrary
+                │       ├── DocumentGrid
+                │       └── DocumentCard
+                └── RightPanel
+                    ├── QueryInterface
+                    │   ├── SearchInput
+                    │   ├── AdvancedSearchBuilder
+                    │   └── SearchFilters
+                    └── ResultsDisplay
+                        ├── TabNavigation
+                        ├── AnswersTab (GeneratedAnswer, SourceCitations)
+                        ├── SourcesTab (SourceList, MultimodalViewer)
+                        ├── GraphTab (KnowledgeGraphViewer, EntityDetailsPanel)
+                        └── EvalTab (RAGTriadMetrics, PerformanceCharts)
+```
+
+### State Management Architecture
+
+**Global State Structure**:
+- **AuthState**: User authentication and permissions
+- **DocumentState**: Document management and processing status
+- **SearchState**: Query execution and results management
+- **GraphState**: Knowledge graph data and interaction state
+- **EvaluationState**: RAG metrics and performance analytics
+- **UIState**: Theme, layout, and modal management
+
+**Context Providers**:
+- AuthContext, DocumentContext, SearchContext
+- GraphContext, EvaluationContext, UIContext
+- WebSocketContext for real-time updates
+
+### API Integration Layer
+
+**Service Architecture**:
+```typescript
+services/
+├── apiClient.ts          // Base API client with auth
+├── documentService.ts    // Document management APIs
+├── searchService.ts      // Search and query APIs
+├── graphService.ts       // Knowledge graph APIs
+├── evaluationService.ts  // RAG evaluation APIs
+├── websocketService.ts   // Real-time connections
+└── uploadService.ts      // File upload handling
+```
+
+**Key API Endpoints Consumed**:
+- `/api/v1/documents` - Document upload and management
+- `/api/v1/search` - Hybrid search execution
+- `/api/v1/knowledge-graph/*` - Graph data consumption
+- `/api/v1/evaluation/metrics` - RAG Triad metrics
+- WebSocket for real-time processing updates
+
+### Critical Architecture Corrections
+
+**Issue Resolved**: Original tasks incorrectly placed graph algorithms in frontend
+
+**Resolution Applied**:
+- ✅ **Frontend Responsibility**: UI visualization, user interaction, data presentation
+- ✅ **Backend Responsibility**: All graph processing, entity extraction, Neo4j operations
+- ✅ **API Consumption**: Frontend consumes processed graph data via REST APIs
+- ✅ **Real-time Updates**: WebSocket provides live processing status
+
+**Graph Visualization Flow**:
+1. Backend processes entities and relationships
+2. Frontend requests graph data via `/api/v1/knowledge-graph/graph`
+3. Cytoscape.js renders the visualization
+4. User interactions trigger API calls for entity details
+
+### Performance Optimization Strategy
+
+**Code Splitting**:
+- Route-based lazy loading with React.lazy
+- Component-level splitting for large features
+- Dynamic imports for third-party libraries
+
+**Rendering Optimization**:
+- React.memo for component memoization
+- useMemo for expensive calculations
+- useCallback for stable function references
+- Virtual scrolling for large lists
+
+**Caching Strategy**:
+- React Query for API response caching
+- Local storage for user preferences
+- Image optimization with lazy loading
+
+### Accessibility Implementation
+
+**WCAG 2.1 AA Compliance**:
+- Semantic HTML5 structure with proper ARIA labels
+- Keyboard navigation support for all interactive elements
+- Screen reader support with live regions
+- Focus management for modals and dynamic content
+- High contrast mode support and text resizing
+
+**Key Accessibility Features**:
+- Custom focus indicators and skip navigation
+- ARIA live regions for dynamic content updates
+- Keyboard shortcuts for common actions
+- Screen reader announcements for status changes
+
+### Routing Structure
+
+**Core User Story Routes**:
+- `/` - Dashboard with two-panel layout
+- `/documents` - Document library management
+- `/search` - Main search interface
+- `/analytics` - Performance and usage analytics
+- `/evaluation` - RAG metrics and benchmarking
+- `/settings` - User and organization settings
+
+**Route Guards**:
+- Authentication protection for all routes
+- Role-based access control for admin features
+- Permission checks for sensitive operations
+
+### Testing Strategy
+
+**Multi-Layer Testing**:
+- Unit tests with Jest + React Testing Library
+- Integration tests for component interactions
+- E2E tests with Cypress for user workflows
+- Visual regression testing for UI consistency
+
+**Test Coverage Areas**:
+- Component rendering and user interactions
+- API integration and error handling
+- Accessibility compliance verification
+- Performance benchmarking
+
+### Technology Stack Summary
+
+**Core Framework**: React 18.2+ with TypeScript 5.0+
+**UI Framework**: Tailwind CSS + shadcn/ui components
+**State Management**: React Context API + useReducer
+**Data Fetching**: TanStack Query with caching
+**Routing**: React Router v6 with lazy loading
+**Forms**: React Hook Form with Zod validation
+**Graph Visualization**: Cytoscape.js
+**Charts**: Recharts for metrics visualization
+**File Upload**: react-dropzone with progress tracking
+**Real-time**: WebSocket connections
+**Build Tool**: Vite for fast development
+**Testing**: Jest + React Testing Library + Cypress
+
+### Implementation Roadmap
+
+**Phase 1 (2 weeks)**: Core foundation with document management
+**Phase 2 (2 weeks)**: Search interface and results display
+**Phase 3 (2 weeks)**: Knowledge graph visualization
+**Phase 4 (2 weeks)**: Evaluation dashboard and analytics
+**Phase 5 (1 week)**: Polish, testing, and optimization
+
+### Success Metrics
+
+**Technical Targets**:
+- Page load time <2 seconds
+- Lighthouse performance score >90
+- Bundle size <500KB (gzipped)
+- 100% accessibility score
+
+**User Experience Targets**:
+- Task completion rate >95%
+- User satisfaction >4.5/5
+- Error rate <1% of interactions
+
+This comprehensive frontend architecture provides a solid foundation for the Multimodal Enterprise RAG system, ensuring proper separation of concerns, optimal performance, and excellent user experience while consuming the robust backend microservices architecture.
