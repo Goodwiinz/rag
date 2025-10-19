@@ -1,0 +1,395 @@
+# Performance alerting rules for the Multimodal Enterprise RAG System
+# These rules define when to trigger alerts based on performance metrics
+
+groups:
+  - name: rag_performance_alerts
+    rules:
+      # High Response Time Alerts
+      - alert: HighResponseTimeP95
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+          service: rag-api
+          component: performance
+        annotations:
+          summary: "High P95 response time detected"
+          description: "P95 response time is {{ $value }}s, which is above the 2s target for more than 2 minutes"
+          runbook_url: "https://docs.rag-system.com/runbooks/high-response-time"
+
+      - alert: CriticalResponseTimeP99
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m])) > 5
+        for: 1m
+        labels:
+          severity: critical
+          service: rag-api
+          component: performance
+        annotations:
+          summary: "Critical P99 response time detected"
+          description: "P99 response time is {{ $value }}s, which is above the 5s critical threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/critical-response-time"
+
+      # Error Rate Alerts
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 5
+        for: 1m
+        labels:
+          severity: warning
+          service: rag-api
+          component: reliability
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }}%, which is above the 5% threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/high-error-rate"
+
+      - alert: CriticalErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 10
+        for: 30s
+        labels:
+          severity: critical
+          service: rag-api
+          component: reliability
+        annotations:
+          summary: "Critical error rate detected"
+          description: "Error rate is {{ $value }}%, which is above the 10% critical threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/critical-error-rate"
+
+      # Throughput Alerts
+      - alert: LowThroughput
+        expr: rate(http_requests_total[5m]) < 10
+        for: 5m
+        labels:
+          severity: warning
+          service: rag-api
+          component: throughput
+        annotations:
+          summary: "Low request throughput detected"
+          description: "Request throughput is {{ $value }} req/s, which is below the 10 req/s minimum"
+          runbook_url: "https://docs.rag-system.com/runbooks/low-throughput"
+
+      # Memory Usage Alerts
+      - alert: HighMemoryUsage
+        expr: (memory_usage_bytes / (1024*1024*1024)) > 4
+        for: 5m
+        labels:
+          severity: warning
+          service: rag-api
+          component: memory
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}GB, which is above the 4GB threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/high-memory-usage"
+
+      - alert: CriticalMemoryUsage
+        expr: (memory_usage_bytes / (1024*1024*1024)) > 6
+        for: 2m
+        labels:
+          severity: critical
+          service: rag-api
+          component: memory
+        annotations:
+          summary: "Critical memory usage detected"
+          description: "Memory usage is {{ $value }}GB, which is above the 6GB critical threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/critical-memory-usage"
+
+      # CPU Usage Alerts
+      - alert: HighCPUUsage
+        expr: cpu_usage_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: rag-api
+          component: cpu
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}%, which is above the 80% threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/high-cpu-usage"
+
+      - alert: CriticalCPUUsage
+        expr: cpu_usage_percent > 95
+        for: 2m
+        labels:
+          severity: critical
+          service: rag-api
+          component: cpu
+        annotations:
+          summary: "Critical CPU usage detected"
+          description: "CPU usage is {{ $value }}%, which is above the 95% critical threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/critical-cpu-usage"
+
+      # Concurrent Requests Alerts
+      - alert: HighConcurrentRequests
+        expr: concurrent_requests > 100
+        for: 3m
+        labels:
+          severity: warning
+          service: rag-api
+          component: concurrency
+        annotations:
+          summary: "High concurrent requests detected"
+          description: "Concurrent requests is {{ $value }}, which is above the 100 threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/high-concurrent-requests"
+
+      # Database Performance Alerts
+      - alert: DatabaseConnectionPoolExhaustion
+        expr: pg_stat_activity_count > 90
+        for: 2m
+        labels:
+          severity: critical
+          service: postgresql
+          component: database
+        annotations:
+          summary: "Database connection pool exhaustion"
+          description: "PostgreSQL has {{ $value }} active connections, approaching the limit"
+          runbook_url: "https://docs.rag-system.com/runbooks/db-connection-exhaustion"
+
+      - alert: SlowDatabaseQueries
+        expr: pg_stat_statements_mean_time > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: postgresql
+          component: database
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Average query time is {{ $value }}ms, which is above the 1000ms threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/slow-db-queries"
+
+      # Cache Performance Alerts
+      - alert: LowCacheHitRate
+        expr: rate(redis_keyspace_hits_total[5m]) / (rate(redis_keyspace_hits_total[5m]) + rate(redis_keyspace_misses_total[5m])) * 100 < 70
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+          component: cache
+        annotations:
+          summary: "Low cache hit rate detected"
+          description: "Redis cache hit rate is {{ $value }}%, which is below the 70% threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/low-cache-hit-rate"
+
+      - alert: RedisMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+          component: cache
+        annotations:
+          summary: "High Redis memory usage detected"
+          description: "Redis memory usage is {{ $value }}%, which is above the 85% threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/redis-memory-usage"
+
+      # Vector Database Alerts
+      - alert: QdrantHighResponseTime
+        expr: qdrant_request_duration_seconds > 1
+        for: 3m
+        labels:
+          severity: warning
+          service: qdrant
+          component: vector-db
+        annotations:
+          summary: "High Qdrant response time detected"
+          description: "Qdrant response time is {{ $value }}s, which is above the 1s threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/qdrant-high-response-time"
+
+      - alert: QdrantMemoryUsage
+        expr: qdrant_memory_usage_bytes / (1024*1024*1024) > 8
+        for: 5m
+        labels:
+          severity: warning
+          service: qdrant
+          component: vector-db
+        annotations:
+          summary: "High Qdrant memory usage detected"
+          description: "Qdrant memory usage is {{ $value }}GB, which is above the 8GB threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/qdrant-memory-usage"
+
+      # Knowledge Graph Alerts
+      - alert: Neo4jHighResponseTime
+        expr: neo4j_database_transaction_total_time_seconds / neo4j_database_transaction_total > 0.5
+        for: 3m
+        labels:
+          severity: warning
+          service: neo4j
+          component: graph-db
+        annotations:
+          summary: "High Neo4j response time detected"
+          description: "Neo4j average transaction time is {{ $value }}s, which is above the 0.5s threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/neo4j-high-response-time"
+
+      - alert: Neo4jMemoryUsage
+        expr: neo4j_database_memory_usage_bytes / (1024*1024*1024) > 12
+        for: 5m
+        labels:
+          severity: warning
+          service: neo4j
+          component: graph-db
+        annotations:
+          summary: "High Neo4j memory usage detected"
+          description: "Neo4j memory usage is {{ $value }}GB, which is above the 12GB threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/neo4j-memory-usage"
+
+      # File Processing Alerts
+      - alert: FileProcessingBacklog
+        expr: file_processing_queue_size > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: rag-worker
+          component: file-processing
+        annotations:
+          summary: "File processing backlog detected"
+          description: "File processing queue has {{ $value }} items, which is above the 100 threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/file-processing-backlog"
+
+      - alert: SlowFileProcessing
+        expr: file_processing_duration_seconds > 300
+        for: 5m
+        labels:
+          severity: warning
+          service: rag-worker
+          component: file-processing
+        annotations:
+          summary: "Slow file processing detected"
+          description: "File processing time is {{ $value }}s, which is above the 5 minute threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/slow-file-processing"
+
+      # Search Performance Alerts
+      - alert: SlowSearchQueries
+        expr: search_query_duration_seconds > 2
+        for: 3m
+        labels:
+          severity: warning
+          service: rag-search
+          component: search
+        annotations:
+          summary: "Slow search queries detected"
+          description: "Search query time is {{ $value }}s, which is above the 2s threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/slow-search-queries"
+
+      - alert: LowSearchRelevance
+        expr: search_relevance_score < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          service: rag-search
+          component: quality
+        annotations:
+          summary: "Low search relevance detected"
+          description: "Average search relevance score is {{ $value }}, which is below the 0.7 threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/low-search-relevance"
+
+      # System Health Alerts
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: "{{ $labels.job }}"
+          component: availability
+        annotations:
+          summary: "Service is down"
+          description: "Service {{ $labels.job }} on {{ $labels.instance }} has been down for more than 1 minute"
+          runbook_url: "https://docs.rag-system.com/runbooks/service-down"
+
+      - alert: DiskSpaceUsage
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+          service: system
+          component: storage
+        annotations:
+          summary: "Low disk space detected"
+          description: "Disk space is {{ $value }}%, which is below the 10% threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/low-disk-space"
+
+  - name: rag_business_metrics
+    rules:
+      # User Experience Alerts
+      - alert: LowUserSatisfaction
+        expr: user_satisfaction_score < 0.8
+        for: 15m
+        labels:
+          severity: warning
+          service: rag-system
+          component: user-experience
+        annotations:
+          summary: "Low user satisfaction detected"
+          description: "User satisfaction score is {{ $value }}, which is below the 0.8 threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/low-user-satisfaction"
+
+      - alert: HighBounceRate
+        expr: bounce_rate > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          service: rag-system
+          component: user-experience
+        annotations:
+          summary: "High bounce rate detected"
+          description: "Bounce rate is {{ $value }}, which is above the 50% threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/high-bounce-rate"
+
+      # Quality Metrics Alerts
+      - alert: LowAnswerRelevancy
+        expr: answer_relevancy_score < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          service: rag-quality
+          component: ai-quality
+        annotations:
+          summary: "Low answer relevancy detected"
+          description: "Answer relevancy score is {{ $value }}, which is below the 0.7 threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/low-answer-relevancy"
+
+      - alert: LowFaithfulnessScore
+        expr: faithfulness_score < 0.9
+        for: 10m
+        labels:
+          severity: warning
+          service: rag-quality
+          component: ai-quality
+        annotations:
+          summary: "Low faithfulness score detected"
+          description: "Faithfulness score is {{ $value }}, which is below the 0.9 threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/low-faithfulness"
+
+      - alert: HighHallucinationRate
+        expr: hallucination_rate > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          service: rag-quality
+          component: ai-quality
+        annotations:
+          summary: "High hallucination rate detected"
+          description: "Hallucination rate is {{ $value }}, which is above the 10% threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/high-hallucination-rate"
+
+      # Load Testing Alerts
+      - alert: LoadTestFailed
+        expr: load_test_success_rate < 0.95
+        for: 0m
+        labels:
+          severity: critical
+          service: rag-testing
+          component: load-testing
+        annotations:
+          summary: "Load test failure detected"
+          description: "Load test success rate is {{ $value }}, which is below the 95% threshold"
+          runbook_url: "https://docs.rag-system.com/runbooks/load-test-failed"
+
+      - alert: PerformanceRegression
+        expr: performance_regression_detected == 1
+        for: 0m
+        labels:
+          severity: warning
+          service: rag-testing
+          component: performance-regression
+        annotations:
+          summary: "Performance regression detected"
+          description: "Performance regression has been detected in recent tests"
+          runbook_url: "https://docs.rag-system.com/runbooks/performance-regression"
