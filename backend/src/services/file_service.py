@@ -15,7 +15,7 @@ import aiofiles
 import logging
 import magic
 from PIL import Image
-import PyPDF2
+from pypdf import PdfReader
 
 # Optional pandas import for spreadsheet processing
 try:
@@ -340,7 +340,7 @@ class FileService:
                 # PDF file
                 text = []
                 with open(file_path, 'rb') as file:
-                    pdf_reader = PyPDF2.PdfReader(file)
+                    pdf_reader = PdfReader(file)
                     for page in pdf_reader.pages:
                         text.append(page.extract_text())
                 return '\n'.join(text)
@@ -404,7 +404,7 @@ class FileService:
             elif document.document_type == DocumentType.PDF:
                 # PDF metadata
                 with open(file_path, 'rb') as file:
-                    pdf_reader = PyPDF2.PdfReader(file)
+                    pdf_reader = PdfReader(file)
                     if pdf_reader.metadata:
                         metadata.update({
                             "title": pdf_reader.metadata.get('/Title', ''),

@@ -36,17 +36,15 @@ export const useRAGTriadMetrics = (timeRange?: TimeRange) => {
   const storeTimeRange = useTimeRange();
   const selectedTimeRange = timeRange || storeTimeRange;
 
-  return useQuery(
-    ['rag-triad-metrics', selectedTimeRange],
-    () => analyticsService.getRAGTriadMetrics(selectedTimeRange),
-    {
-      select: (data) => data.metrics,
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      cacheTime: 10 * 60 * 1000, // 10 minutes
-      refetchInterval: 2 * 60 * 1000, // 2 minutes
-      enabled: isValidTimeRange(selectedTimeRange),
-    }
-  );
+  return useQuery({
+    queryKey: ['rag-triad-metrics', selectedTimeRange],
+    queryFn: () => analyticsService.getRAGTriadMetrics(selectedTimeRange),
+    select: (data) => data.metrics,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    refetchInterval: 2 * 60 * 1000, // 2 minutes
+    enabled: isValidTimeRange(selectedTimeRange),
+  });
 };
 
 // Performance Analytics Hook
@@ -55,21 +53,19 @@ export const usePerformanceAnalytics = (filters?: Partial<AnalyticsFilters>) => 
   const timeRange = useTimeRange();
   const selectedFilters = { ...storeFilters, ...filters };
 
-  return useQuery(
-    ['performance-analytics', selectedFilters, timeRange],
-    () => analyticsService.getPerformanceAnalytics(selectedFilters, timeRange),
-    {
-      select: (data) => ({
-        ...data,
-        chartData: transformDataForCharts(data),
-        trendData: calculateTrends(data),
-      }),
-      staleTime: 5 * 60 * 1000,
-      cacheTime: 15 * 60 * 1000,
-      refetchInterval: 5 * 60 * 1000, // 5 minutes
-      enabled: isValidTimeRange(timeRange),
-    }
-  );
+  return useQuery({
+    queryKey: ['performance-analytics', selectedFilters, timeRange],
+    queryFn: () => analyticsService.getPerformanceAnalytics(selectedFilters, timeRange),
+    select: (data) => ({
+      ...data,
+      chartData: transformDataForCharts(data),
+      trendData: calculateTrends(data),
+    }),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000, // 5 minutes
+    enabled: isValidTimeRange(timeRange),
+  });
 };
 
 // Usage Analytics Hook
@@ -77,20 +73,18 @@ export const useUsageAnalytics = (timeRange?: TimeRange) => {
   const storeTimeRange = useTimeRange();
   const selectedTimeRange = timeRange || storeTimeRange;
 
-  return useQuery(
-    ['usage-analytics', selectedTimeRange],
-    () => analyticsService.getUsageAnalytics(selectedTimeRange),
-    {
-      select: (data) => ({
-        ...data,
-        queryPatterns: analyzeQueryPatterns(data.popular_queries || []),
-        usageHeatmap: generateUsageHeatmap(data.user_behavior),
-      }),
-      staleTime: 10 * 60 * 1000,
-      cacheTime: 30 * 60 * 1000,
-      refetchInterval: 10 * 60 * 1000, // 10 minutes
-    }
-  );
+  return useQuery({
+    queryKey: ['usage-analytics', selectedTimeRange],
+    queryFn: () => analyticsService.getUsageAnalytics(selectedTimeRange),
+    select: (data) => ({
+      ...data,
+      queryPatterns: analyzeQueryPatterns(data.popular_queries || []),
+      usageHeatmap: generateUsageHeatmap(data.user_behavior),
+    }),
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000, // 10 minutes
+  });
 };
 
 // Real-time Metrics Hook
@@ -98,23 +92,25 @@ export const useRealTimeMetrics = () => {
   const queryClient = useQueryClient();
   const { setRealTimeMetrics, setRealTimeConnection } = useAnalyticsStore();
 
-  useQuery(
-    ['real-time-metrics'],
-    () => analyticsService.getRealTimeMetrics(),
-    {
-      select: (data) => data.metrics,
-      staleTime: 30 * 1000, // 30 seconds
-      cacheTime: 2 * 60 * 1000, // 2 minutes
-      refetchInterval: 30 * 1000, // 30 seconds
-      onSuccess: (data) => {
-        setRealTimeMetrics(data);
-        setRealTimeConnection(true);
-      },
-      onError: () => {
-        setRealTimeConnection(false);
-      },
+  const query = useQuery({
+    queryKey: ['real-time-metrics'],
+    queryFn: () => analyticsService.getRealTimeMetrics(),
+    select: (data) => data.metrics,
+    staleTime: 30 * 1000, // 30 seconds
+    gcTime: 2 * 60 * 1000, // 2 minutes
+    refetchInterval: 30 * 1000, // 30 seconds
+  });
+
+  // Handle success/error with useEffect
+  React.useEffect(() => {
+    if (query.data) {
+      setRealTimeMetrics(query.data);
+      setRealTimeConnection(true);
     }
-  );
+    if (query.error) {
+      setRealTimeConnection(false);
+    }
+  }, [query.data, query.error, setRealTimeMetrics, setRealTimeConnection]);
 
   // WebSocket for real-time updates
   React.useEffect(() => {
@@ -149,58 +145,52 @@ export const useRealTimeMetrics = () => {
 
 // Historical Trends Hook
 export const useHistoricalTrends = (metric: string, timeRange: TimeRange) => {
-  return useQuery(
-    ['historical-trends', metric, timeRange],
-    () => analyticsService.getHistoricalTrends(metric, timeRange),
-    {
-      select: (data) => ({
-        ...data,
-        chartData: formatTrendData(data),
-        summary: calculateTrendSummary(data),
-      }),
-      staleTime: 30 * 60 * 1000, // 30 minutes
-      cacheTime: 60 * 60 * 1000, // 1 hour
-      enabled: !!metric && isValidTimeRange(timeRange),
-    }
-  );
+  return useQuery({
+    queryKey: ['historical-trends', metric, timeRange],
+    queryFn: () => analyticsService.getHistoricalTrends(metric, timeRange),
+    select: (data) => ({
+      ...data,
+      chartData: formatTrendData(data),
+      summary: calculateTrendSummary(data),
+    }),
+    staleTime: 30 * 60 * 1000, // 30 minutes
+    gcTime: 60 * 60 * 1000, // 1 hour
+    enabled: !!metric && isValidTimeRange(timeRange),
+  });
 };
 
 // Comparison Hook
 export const useComparisonData = (timeRanges: TimeRange[]) => {
-  return useQuery(
-    ['comparison-data', timeRanges],
-    () => analyticsService.getComparisonData(timeRanges),
-    {
-      select: (data) => ({
-        ...data,
-        comparisonChart: formatComparisonData(data),
-        insights: generateComparisonInsights(data),
-      }),
-      staleTime: 15 * 60 * 1000,
-      cacheTime: 45 * 60 * 1000,
-      enabled: timeRanges.length >= 2,
-    }
-  );
+  return useQuery({
+    queryKey: ['comparison-data', timeRanges],
+    queryFn: () => analyticsService.getComparisonData(timeRanges),
+    select: (data) => ({
+      ...data,
+      comparisonChart: formatComparisonData(data),
+      insights: generateComparisonInsights(data),
+    }),
+    staleTime: 15 * 60 * 1000,
+    gcTime: 45 * 60 * 1000,
+    enabled: timeRanges.length >= 2,
+  });
 };
 
 // Export Data Hook
 export const useExportAnalytics = () => {
   const queryClient = useQueryClient();
 
-  return useMutation(
-    ({ format, filters, timeRange }: {
+  return useMutation({
+    mutationFn: ({ format, filters, timeRange }: {
       format: 'csv' | 'json' | 'pdf';
       filters: AnalyticsFilters;
       timeRange: TimeRange;
     }) => analyticsService.exportAnalytics(format, filters, timeRange),
-    {
-      onSuccess: () => {
-        // Invalidate relevant queries
-        queryClient.invalidateQueries(['performance-analytics']);
-        queryClient.invalidateQueries(['usage-analytics']);
-      },
-    }
-  );
+    onSuccess: () => {
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['performance-analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['usage-analytics'] });
+    },
+  });
 };
 
 // Custom Analytics Actions Hook
@@ -211,22 +201,22 @@ export const useAnalyticsActions = () => {
   const updateTimeRange = React.useCallback((newTimeRange: TimeRange) => {
     setTimeRange(newTimeRange);
     // Invalidate relevant queries when time range changes
-    queryClient.invalidateQueries(['rag-triad-metrics']);
-    queryClient.invalidateQueries(['performance-analytics']);
-    queryClient.invalidateQueries(['usage-analytics']);
+    queryClient.invalidateQueries({ queryKey: ['rag-triad-metrics'] });
+    queryClient.invalidateQueries({ queryKey: ['performance-analytics'] });
+    queryClient.invalidateQueries({ queryKey: ['usage-analytics'] });
   }, [setTimeRange, queryClient]);
 
   const updateFilters = React.useCallback((newFilters: Partial<AnalyticsFilters>) => {
     setFilters(newFilters);
     // Invalidate relevant queries when filters change
-    queryClient.invalidateQueries(['performance-analytics']);
+    queryClient.invalidateQueries({ queryKey: ['performance-analytics'] });
   }, [setFilters, queryClient]);
 
   const refreshAllAnalytics = React.useCallback(() => {
-    queryClient.invalidateQueries(['rag-triad-metrics']);
-    queryClient.invalidateQueries(['performance-analytics']);
-    queryClient.invalidateQueries(['usage-analytics']);
-    queryClient.invalidateQueries(['real-time-metrics']);
+    queryClient.invalidateQueries({ queryKey: ['rag-triad-metrics'] });
+    queryClient.invalidateQueries({ queryKey: ['performance-analytics'] });
+    queryClient.invalidateQueries({ queryKey: ['usage-analytics'] });
+    queryClient.invalidateQueries({ queryKey: ['real-time-metrics'] });
   }, [queryClient]);
 
   return {

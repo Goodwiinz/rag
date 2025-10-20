@@ -292,7 +292,7 @@ const QualityMetricsDashboardMUI: React.FC = () => {
       {/* Metrics Grid */}
       <Grid container spacing={3}>
         {metrics.map((metric) => (
-          <Grid item xs={12} md={6} lg={4} key={metric.id}>
+          <Grid size={{ xs: 12, md: 6, lg: 4 }} key={metric.id}>
             <Card
               sx={{
                 height: '100%',
@@ -365,7 +365,7 @@ const QualityMetricsDashboardMUI: React.FC = () => {
           Quality Summary
         </Typography>
         <Grid container spacing={3}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6 }} md={3}>
             <Box textAlign="center">
               <Typography variant="h3" color="success.main">
                 {metrics.filter(m => m.status === 'good').length}
@@ -375,7 +375,7 @@ const QualityMetricsDashboardMUI: React.FC = () => {
               </Typography>
             </Box>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6 }} md={3}>
             <Box textAlign="center">
               <Typography variant="h3" color="warning.main">
                 {metrics.filter(m => m.status === 'warning').length}
@@ -385,7 +385,7 @@ const QualityMetricsDashboardMUI: React.FC = () => {
               </Typography>
             </Box>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6 }} md={3}>
             <Box textAlign="center">
               <Typography variant="h3" color="error.main">
                 {metrics.filter(m => m.status === 'critical').length}
@@ -395,7 +395,7 @@ const QualityMetricsDashboardMUI: React.FC = () => {
               </Typography>
             </Box>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6 }} md={3}>
             <Box textAlign="center">
               <Typography variant="h3" color="primary.main">
                 {Math.round(metrics.reduce((acc, m) => acc + m.current_value, 0) / metrics.length)}%

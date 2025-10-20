@@ -156,36 +156,33 @@ const evaluationApi = {
 
 // Get all evaluations
 export const useEvaluations = () => {
-  return useQuery(
-    ['evaluations'],
-    evaluationApi.getEvaluations,
-    {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      cacheTime: 10 * 60 * 1000, // 10 minutes
-    }
-  );
+  return useQuery({
+    queryKey: ['evaluations'],
+    queryFn: evaluationApi.getEvaluations,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes (renamed from cacheTime in v5)
+  });
 };
 
 // Get single evaluation
 export const useEvaluation = (id: string) => {
-  return useQuery(
-    ['evaluation', id],
-    () => evaluationApi.getEvaluation(id),
-    {
-      enabled: !!id,
-      staleTime: 5 * 60 * 1000,
-      cacheTime: 10 * 60 * 1000,
-    }
-  );
+  return useQuery({
+    queryKey: ['evaluation', id],
+    queryFn: () => evaluationApi.getEvaluation(id),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 };
 
 // Create evaluation
 export const useCreateEvaluation = () => {
   const queryClient = useQueryClient();
 
-  return useMutation(evaluationApi.createEvaluation, {
+  return useMutation({
+    mutationFn: evaluationApi.createEvaluation,
     onSuccess: () => {
-      queryClient.invalidateQueries(['evaluations']);
+      queryClient.invalidateQueries({ queryKey: ['evaluations'] });
     },
   });
 };
@@ -194,25 +191,24 @@ export const useCreateEvaluation = () => {
 export const useUpdateEvaluation = () => {
   const queryClient = useQueryClient();
 
-  return useMutation(
-    ({ id, data }: { id: string; data: Partial<Evaluation> }) =>
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Evaluation> }) =>
       evaluationApi.updateEvaluation(id, data),
-    {
-      onSuccess: (_, { id }) => {
-        queryClient.invalidateQueries(['evaluations']);
-        queryClient.invalidateQueries(['evaluation', id]);
-      },
-    }
-  );
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['evaluations'] });
+      queryClient.invalidateQueries({ queryKey: ['evaluation', id] });
+    },
+  });
 };
 
 // Delete evaluation
 export const useDeleteEvaluation = () => {
   const queryClient = useQueryClient();
 
-  return useMutation(evaluationApi.deleteEvaluation, {
+  return useMutation({
+    mutationFn: evaluationApi.deleteEvaluation,
     onSuccess: () => {
-      queryClient.invalidateQueries(['evaluations']);
+      queryClient.invalidateQueries({ queryKey: ['evaluations'] });
     },
   });
 };
@@ -221,135 +217,122 @@ export const useDeleteEvaluation = () => {
 export const useRunEvaluation = () => {
   const queryClient = useQueryClient();
 
-  return useMutation(
-    (evaluationId: string) => evaluationApi.runEvaluation(evaluationId),
-    {
-      onSuccess: (_, evaluationId) => {
-        queryClient.invalidateQueries(['evaluations']);
-        queryClient.invalidateQueries(['evaluation', evaluationId]);
-        queryClient.invalidateQueries(['evaluation-runs', evaluationId]);
-      },
-    }
-  );
+  return useMutation({
+    mutationFn: (evaluationId: string) => evaluationApi.runEvaluation(evaluationId),
+    onSuccess: (_, evaluationId) => {
+      queryClient.invalidateQueries({ queryKey: ['evaluations'] });
+      queryClient.invalidateQueries({ queryKey: ['evaluation', evaluationId] });
+      queryClient.invalidateQueries({ queryKey: ['evaluation-runs', evaluationId] });
+    },
+  });
 };
 
 // Get evaluation runs
 export const useEvaluationRuns = (evaluationId: string) => {
-  return useQuery(
-    ['evaluation-runs', evaluationId],
-    () => evaluationApi.getEvaluationRuns(evaluationId),
-    {
-      enabled: !!evaluationId,
-      staleTime: 30 * 1000, // 30 seconds
-      cacheTime: 5 * 60 * 1000, // 5 minutes
-      refetchInterval: 30 * 1000, // 30 seconds for real-time updates
-    }
-  );
+  return useQuery({
+    queryKey: ['evaluation-runs', evaluationId],
+    queryFn: () => evaluationApi.getEvaluationRuns(evaluationId),
+    enabled: !!evaluationId,
+    staleTime: 30 * 1000, // 30 seconds
+    gcTime: 5 * 60 * 1000, // 5 minutes
+    refetchInterval: 30 * 1000, // 30 seconds for real-time updates
+  });
 };
 
 // Get single evaluation run
 export const useEvaluationRun = (evaluationId: string, runId: string) => {
-  return useQuery(
-    ['evaluation-run', evaluationId, runId],
-    () => evaluationApi.getEvaluationRun(evaluationId, runId),
-    {
-      enabled: !!evaluationId && !!runId,
-      staleTime: 30 * 1000,
-      cacheTime: 5 * 60 * 1000,
-      refetchInterval: (data) => {
-        // Refetch more frequently when running
-        return data?.status === 'running' ? 5 * 1000 : 30 * 1000;
-      },
-    }
-  );
+  return useQuery({
+    queryKey: ['evaluation-run', evaluationId, runId],
+    queryFn: () => evaluationApi.getEvaluationRun(evaluationId, runId),
+    enabled: !!evaluationId && !!runId,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchInterval: (query) => {
+      // Refetch more frequently when running
+      return query.state.data?.status === 'running' ? 5 * 1000 : 30 * 1000;
+    },
+  });
 };
 
 // Get evaluation results
 export const useEvaluationResults = (evaluationId: string, runId: string) => {
-  return useQuery(
-    ['evaluation-results', evaluationId, runId],
-    () => evaluationApi.getEvaluationResults(evaluationId, runId),
-    {
-      enabled: !!evaluationId && !!runId,
-      staleTime: 5 * 60 * 1000,
-      cacheTime: 15 * 60 * 1000,
-      select: (data) => {
-        // Process results for easier consumption
-        return {
-          raw: data,
-          summary: calculateResultsSummary(data),
-          ragTriadSummary: calculateRAGTriadSummary(data),
-          performanceSummary: calculatePerformanceSummary(data),
-          qualitySummary: calculateQualitySummary(data),
-        };
-      },
-    }
-  );
+  return useQuery({
+    queryKey: ['evaluation-results', evaluationId, runId],
+    queryFn: () => evaluationApi.getEvaluationResults(evaluationId, runId),
+    enabled: !!evaluationId && !!runId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    select: (data) => {
+      // Process results for easier consumption
+      return {
+        raw: data,
+        summary: calculateResultsSummary(data),
+        ragTriadSummary: calculateRAGTriadSummary(data),
+        performanceSummary: calculatePerformanceSummary(data),
+        qualitySummary: calculateQualitySummary(data),
+      };
+    },
+  });
 };
 
 // Export evaluation results
 export const useExportEvaluationResults = () => {
-  return useMutation(
-    ({ evaluationId, runId, format }: {
+  return useMutation({
+    mutationFn: ({ evaluationId, runId, format }: {
       evaluationId: string;
       runId: string;
       format: 'csv' | 'json' | 'pdf';
     }) => evaluationApi.exportEvaluationResults(evaluationId, runId, format),
-    {
-      onSuccess: (blob, { format }) => {
-        // Create download link
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `evaluation-results.${format}`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      },
-    }
-  );
+    onSuccess: (blob, { format }) => {
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `evaluation-results.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    },
+  });
 };
 
 // Get comparisons
 export const useComparisons = () => {
-  return useQuery(
-    ['evaluation-comparisons'],
-    evaluationApi.getComparisons,
-    {
-      staleTime: 5 * 60 * 1000,
-      cacheTime: 15 * 60 * 1000,
-    }
-  );
+  return useQuery({
+    queryKey: ['evaluation-comparisons'],
+    queryFn: evaluationApi.getComparisons,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  });
 };
 
 // Get single comparison
 export const useComparison = (id: string) => {
-  return useQuery(
-    ['evaluation-comparison', id],
-    () => evaluationApi.getComparison(id),
-    {
-      enabled: !!id,
-      staleTime: 5 * 60 * 1000,
-      cacheTime: 15 * 60 * 1000,
-      select: (data) => {
-        return {
-          ...data,
-          chartData: formatComparisonData(data),
-          insights: generateComparisonInsights(data),
-        };
-      },
-    }
-  );
+  return useQuery({
+    queryKey: ['evaluation-comparison', id],
+    queryFn: () => evaluationApi.getComparison(id),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    select: (data) => {
+      return {
+        ...data,
+        chartData: formatComparisonData(data),
+        insights: generateComparisonInsights(data),
+      };
+    },
+  });
 };
 
 // Create comparison
 export const useCreateComparison = () => {
   const queryClient = useQueryClient();
 
-  return useMutation(evaluationApi.createComparison, {
+  return useMutation({
+    mutationFn: evaluationApi.createComparison,
     onSuccess: () => {
-      queryClient.invalidateQueries(['evaluation-comparisons']);
+      queryClient.invalidateQueries({ queryKey: ['evaluation-comparisons'] });
     },
   });
 };

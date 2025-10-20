@@ -264,7 +264,7 @@ const AnalyticsDashboardMUI: React.FC = () => {
       {/* Key Metrics */}
       <Grid container spacing={3} mb={4}>
         {metrics.map((metric) => (
-          <Grid item xs={12} sm={6} md={3} key={metric.id}>
+          <Grid size={{ xs: 12, sm: 6 }} md={3} key={metric.id}>
             <Card>
               <CardContent>
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -290,7 +290,7 @@ const AnalyticsDashboardMUI: React.FC = () => {
       {/* Main Content Grid */}
       <Grid container spacing={3}>
         {/* Quality Recommendations */}
-        <Grid item xs={12} lg={8}>
+        <Grid size={{ xs: 12 }} lg={8}>
           <Paper sx={{ p: 3 }}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
               <Typography variant="h5">Quality Recommendations</Typography>
@@ -355,7 +355,7 @@ const AnalyticsDashboardMUI: React.FC = () => {
         </Grid>
 
         {/* User Behavior Stats */}
-        <Grid item xs={12} lg={4}>
+        <Grid size={{ xs: 12 }} lg={4}>
           <Stack spacing={3}>
             <Paper sx={{ p: 3, mb: 3 }}>
               <Typography variant="h5" mb={2}>
@@ -441,7 +441,7 @@ const AnalyticsDashboardMUI: React.FC = () => {
         </Typography>
         <Grid container spacing={3}>
           {qualityInsights.map((insight) => (
-            <Grid item xs={12} sm={6} md={4} key={insight.metric_name}>
+            <Grid size={{ xs: 12, sm: 6 }} md={4} key={insight.metric_name}>
               <Card variant="outlined">
                 <CardContent>
                   <Typography variant="h6" gutterBottom>

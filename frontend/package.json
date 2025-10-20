@@ -22,6 +22,7 @@
     "cytoscape": "^3.28.1",
     "cytoscape-cose-bilkent": "^4.1.0",
     "date-fns": "^3.0.6",
+    "lodash-es": "^4.17.21",
     "lucide-react": "^0.303.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -37,6 +38,7 @@
     "uuid": "^10.0.0",
     "vis-network": "^9.1.6",
     "vite": "^5.0.10",
+    "web-vitals": "^5.1.0",
     "zod": "^3.22.4",
     "zustand": "^5.0.8"
   },
@@ -47,6 +49,7 @@
     "@testing-library/react": "^14.1.2",
     "@testing-library/user-event": "^14.5.1",
     "@types/jest": "^29.5.11",
+    "@types/lodash-es": "^4.17.12",
     "@types/react-window": "^1.8.8",
     "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.15.0",

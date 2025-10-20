@@ -11,6 +11,9 @@ import logging
 import time
 import os
 
+# Setup basic logging
+logger = logging.getLogger(__name__)
+
 from src.core.config import settings
 from src.core.database import engine, Base
 from src.api.auth import router as auth_router
@@ -32,17 +35,27 @@ from src.api.compliance import router as compliance_router
 from src.api.rbac_management import router as rbac_router
 from src.api.evaluation import router as evaluation_router
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
-from src.observability import (
-    configure_tracing, configure_metrics, configure_logging,
-    instrument_app, instrument_services
-)
 from src.core.database import engine
-from src.services.file_service import redis_client
+# from src.services.file_service import redis_client  # Not exported, not needed here
 
-# Configure observability
-configure_logging()
-configure_tracing()
-configure_metrics()
+# Configure observability (optional)
+try:
+    from src.observability import (
+        configure_tracing, configure_metrics, configure_logging,
+        instrument_app, instrument_services
+    )
+    configure_logging()
+    configure_tracing()
+    configure_metrics()
+    OBSERVABILITY_ENABLED = True
+except ImportError as e:
+    print(f"Warning: Observability not available: {e}")
+    OBSERVABILITY_ENABLED = False
+    # Create dummy functions
+    def instrument_app(app):
+        return app
+    def instrument_services():
+        pass
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -79,10 +92,15 @@ app = FastAPI(
 instrument_app(app)
 
 # Instrument additional services
-instrument_services(
-    sql_engine=engine,
-    redis_client=redis_client
-)
+if OBSERVABILITY_ENABLED:
+    try:
+        from src.services.file_service import redis_client
+        instrument_services(
+            sql_engine=engine,
+            redis_client=redis_client
+        )
+    except ImportError:
+        instrument_services(sql_engine=engine)
 
 # Add CORS middleware
 app.add_middleware(

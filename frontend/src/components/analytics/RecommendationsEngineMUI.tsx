@@ -416,7 +416,7 @@ const RecommendationsEngineMUI: React.FC = () => {
 
       {/* Summary Stats */}
       <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6 }} md={3}>
           <Card>
             <CardContent>
               <Box textAlign="center">
@@ -430,7 +430,7 @@ const RecommendationsEngineMUI: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6 }} md={3}>
           <Card>
             <CardContent>
               <Box textAlign="center">
@@ -444,7 +444,7 @@ const RecommendationsEngineMUI: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6 }} md={3}>
           <Card>
             <CardContent>
               <Box textAlign="center">
@@ -458,7 +458,7 @@ const RecommendationsEngineMUI: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6 }} md={3}>
           <Card>
             <CardContent>
               <Box textAlign="center">
@@ -681,7 +681,7 @@ const RecommendationsEngineMUI: React.FC = () => {
       <TabPanel value={tabValue} index={2}>
         <Grid container spacing={3}>
           {improvements.map((improvement, index) => (
-            <Grid item xs={12} md={4} key={index}>
+            <Grid size={{ xs: 12, md: 4 }} key={index}>
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
@@ -718,7 +718,7 @@ const RecommendationsEngineMUI: React.FC = () => {
       {/* Analytics Tab */}
       <TabPanel value={tabValue} index={3}>
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Paper sx={{ p: 3 }}>
               <Typography variant="h5" mb={3}>
                 Recommendation Performance
@@ -749,7 +749,7 @@ const RecommendationsEngineMUI: React.FC = () => {
               </List>
             </Paper>
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Paper sx={{ p: 3 }}>
               <Typography variant="h5" mb={3}>
                 Category Distribution

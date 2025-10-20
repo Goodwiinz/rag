@@ -1,9 +1,9 @@
 /**
- * Mock server for API testing using MSW (Mock Service Worker)
+ * Mock server for API testing using MSW (Mock Service Worker) v2
  */
 
 import { setupServer } from 'msw/node';
-import { rest } from 'msw';
+import { http, HttpResponse, delay } from 'msw';
 
 // Mock data generators
 const createMockDocument = (id: string) => ({
@@ -53,27 +53,27 @@ const createMockEvaluationMetric = (name: string) => ({
 
 export const handlers = [
   // Document upload endpoints
-  rest.post('/api/documents/upload', (req, res, ctx) => {
-    const { files } = req.body as any;
+  http.post('/api/documents/upload', async ({ request }) => {
+    const body = await request.json() as { files: any[] };
+    const { files } = body;
 
     // Simulate processing delay
-    return res(
-      ctx.delay(1000),
-      ctx.status(200),
-      ctx.json({
-        success: true,
-        documents: files.map((file: any, index: number) => ({
-          id: `doc-${Date.now()}-${index}`,
-          name: file.name,
-          status: 'processing',
-          uploadDate: new Date().toISOString(),
-        }))
-      })
-    );
+    await delay(1000);
+
+    return HttpResponse.json({
+      success: true,
+      documents: files.map((file: any, index: number) => ({
+        id: `doc-${Date.now()}-${index}`,
+        name: file.name,
+        status: 'processing',
+        uploadDate: new Date().toISOString(),
+      }))
+    });
   }),
 
-  rest.post('/api/documents/validate', (req, res, ctx) => {
-    const { file } = req.body as any;
+  http.post('/api/documents/validate', async ({ request }) => {
+    const body = await request.json() as { file: { name: string; size: number } };
+    const { file } = body;
 
     // Simulate validation logic
     const isValidFile =
@@ -86,36 +86,34 @@ export const handlers = [
       file.name.endsWith('.mp4');
 
     if (!isValidFile) {
-      return res(
-        ctx.status(400),
-        ctx.json({
+      return HttpResponse.json(
+        {
           valid: false,
           message: 'Invalid file type',
-        })
+        },
+        { status: 400 }
       );
     }
 
     if (file.size > 50 * 1024 * 1024) { // 50MB limit
-      return res(
-        ctx.status(400),
-        ctx.json({
+      return HttpResponse.json(
+        {
           valid: false,
           message: 'File too large',
-        })
+        },
+        { status: 400 }
       );
     }
 
-    return res(
-      ctx.delay(500),
-      ctx.json({
-        valid: true,
-        message: 'File is valid',
-      })
-    );
+    await delay(500);
+    return HttpResponse.json({
+      valid: true,
+      message: 'File is valid',
+    });
   }),
 
-  rest.get('/api/documents/:id/status', (req, res, ctx) => {
-    const { id } = req.params;
+  http.get('/api/documents/:id/status', async ({ params }) => {
+    const { id } = params;
 
     // Simulate different statuses based on ID
     const statusMap: Record<string, string> = {
@@ -129,30 +127,29 @@ export const handlers = [
     const status = statusMap[idParts[1]] || 'processing';
 
     if (status === 'failed') {
-      return res(
-        ctx.status(500),
-        ctx.json({
+      return HttpResponse.json(
+        {
           status: 'failed',
           error: 'Processing failed',
-        })
+        },
+        { status: 500 }
       );
     }
 
-    return res(
-      ctx.delay(2000),
-      ctx.json({
-        status,
-        progress: status === 'completed' ? 100 : Math.floor(Math.random() * 100),
-        stage: status === 'processing' ? 'ocr' : null,
-      })
-    );
+    await delay(2000);
+    return HttpResponse.json({
+      status,
+      progress: status === 'completed' ? 100 : Math.floor(Math.random() * 100),
+      stage: status === 'processing' ? 'ocr' : null,
+    });
   }),
 
-  rest.get('/api/documents', (req, res, ctx) => {
-    const page = Number(req.url.searchParams.get('page')) || 1;
-    const limit = Number(req.url.searchParams.get('limit')) || 10;
-    const search = req.url.searchParams.get('search');
-    const type = req.url.searchParams.get('type');
+  http.get('/api/documents', ({ request }) => {
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get('page')) || 1;
+    const limit = Number(url.searchParams.get('limit')) || 10;
+    const search = url.searchParams.get('search');
+    const type = url.searchParams.get('type');
 
     // Generate mock documents
     const documents = Array.from({ length: 20 }, (_, i) => createMockDocument(`doc-${i + 1}`));
@@ -174,46 +171,41 @@ export const handlers = [
     const startIndex = (Number(page) - 1) * Number(limit);
     const paginatedDocuments = filteredDocuments.slice(startIndex, startIndex + Number(limit));
 
-    return res(
-      ctx.json({
-        documents: paginatedDocuments,
-        total: filteredDocuments.length,
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(filteredDocuments.length / Number(limit)),
-      })
-    );
+    return HttpResponse.json({
+      documents: paginatedDocuments,
+      total: filteredDocuments.length,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(filteredDocuments.length / Number(limit)),
+    });
   }),
 
-  rest.get('/api/documents/:id', (req, res, ctx) => {
-    const { id } = req.params;
+  http.get('/api/documents/:id', ({ params }) => {
+    const { id } = params;
     const idString = Array.isArray(id) ? id[0] : id || '';
-    return res(
-      ctx.json(createMockDocument(idString))
-    );
+    return HttpResponse.json(createMockDocument(idString));
   }),
 
-  rest.delete('/api/documents/:id', (req, res, ctx) => {
-    const { id } = req.params;
+  http.delete('/api/documents/:id', ({ params }) => {
+    const { id } = params;
     const idString = Array.isArray(id) ? id[0] : id || '';
-    return res(
-      ctx.json({
-        success: true,
-        message: `Document ${idString} deleted successfully`,
-      })
-    );
+    return HttpResponse.json({
+      success: true,
+      message: `Document ${idString} deleted successfully`,
+    });
   }),
 
   // Search endpoints
-  rest.post('/api/search', (req, res, ctx) => {
-    const { query, filters = {}, limit = 10, offset = 0 } = req.body as any;
+  http.post('/api/search', async ({ request }) => {
+    const body = await request.json() as { query: string; filters?: any; limit?: number; offset?: number };
+    const { query, filters = {}, limit = 10, offset = 0 } = body;
 
     if (!query || query.trim().length === 0) {
-      return res(
-        ctx.status(400),
-        ctx.json({
+      return HttpResponse.json(
+        {
           error: 'Query is required',
-        })
+        },
+        { status: 400 }
       );
     }
 
@@ -234,23 +226,22 @@ export const handlers = [
       filteredResults = filteredResults.slice(0, 3);
     }
 
-    return res(
-      ctx.delay(800),
-      ctx.json({
-        results: filteredResults.slice(Number(offset), Number(offset) + Number(limit)),
-        total: filteredResults.length,
-        query,
-        filters,
-        processingTime: Math.random() * 1000 + 500,
-      })
-    );
+    await delay(800);
+    return HttpResponse.json({
+      results: filteredResults.slice(Number(offset), Number(offset) + Number(limit)),
+      total: filteredResults.length,
+      query,
+      filters,
+      processingTime: Math.random() * 1000 + 500,
+    });
   }),
 
-  rest.get('/api/search/suggestions', (req, res, ctx) => {
-    const q = req.url.searchParams.get('q');
+  http.get('/api/search/suggestions', ({ request }) => {
+    const url = new URL(request.url);
+    const q = url.searchParams.get('q');
 
     if (!q) {
-      return res(ctx.json([]));
+      return HttpResponse.json([]);
     }
 
     const suggestions = [
@@ -260,26 +251,25 @@ export const handlers = [
       `${q} tutorial`,
     ];
 
-    return res(
-      ctx.json(suggestions)
-    );
+    return HttpResponse.json(suggestions);
   }),
 
-  rest.get('/api/search/history', (req, res, ctx) => {
+  http.get('/api/search/history', () => {
     const history = [
       { id: 'hist-1', query: 'previous search 1', timestamp: '2025-01-17T10:30:00Z', results: 15 },
       { id: 'hist-2', query: 'previous search 2', timestamp: '2025-01-16T15:45:00Z', results: 8 },
       { id: 'hist-3', query: 'previous search 3', timestamp: '2025-01-15T09:20:00Z', results: 12 },
     ];
 
-    return res(ctx.json(history));
+    return HttpResponse.json(history);
   }),
 
   // Knowledge Graph endpoints
-  rest.get('/api/graph/nodes', (req, res, ctx) => {
-    const search = req.url.searchParams.get('search');
-    const type = req.url.searchParams.get('type');
-    const limit = Number(req.url.searchParams.get('limit')) || 50;
+  http.get('/api/graph/nodes', ({ request }) => {
+    const url = new URL(request.url);
+    const search = url.searchParams.get('search');
+    const type = url.searchParams.get('type');
+    const limit = Number(url.searchParams.get('limit')) || 50;
 
     const nodes = Array.from({ length: 20 }, (_, i) => ({
       id: `node-${i + 1}`,
@@ -300,16 +290,15 @@ export const handlers = [
       );
     }
 
-    return res(
-      ctx.json({
-        nodes: filteredNodes.slice(0, Number(limit)),
-        total: filteredNodes.length,
-      })
-    );
+    return HttpResponse.json({
+      nodes: filteredNodes.slice(0, Number(limit)),
+      total: filteredNodes.length,
+    });
   }),
 
-  rest.get('/api/graph/relationships', (req, res, ctx) => {
-    const nodeId = req.url.searchParams.get('nodeId');
+  http.get('/api/graph/relationships', ({ request }) => {
+    const url = new URL(request.url);
+    const nodeId = url.searchParams.get('nodeId');
 
     const relationships = Array.from({ length: 5 }, (_, i) => ({
       id: `rel-${i + 1}`,
@@ -324,35 +313,33 @@ export const handlers = [
       },
     }));
 
-    return res(ctx.json({ relationships }));
+    return HttpResponse.json({ relationships });
   }),
 
-  rest.get('/api/graph/metrics', (req, res, ctx) => {
-    return res(
-      ctx.json({
-        totalNodes: 1250,
-        totalRelationships: 3400,
-        nodeTypes: {
-          Person: 450,
-          Organization: 200,
-          Location: 300,
-          Event: 200,
-          Other: 100,
-        },
-        relationshipTypes: {
-          RELATED_TO: 1200,
-          WORKS_AT: 800,
-          LOCATED_IN: 600,
-          PARTICIPATED_IN: 800,
-        },
-        avgNodeDegree: 5.4,
-        graphDensity: 0.0043,
-      })
-    );
+  http.get('/api/graph/metrics', () => {
+    return HttpResponse.json({
+      totalNodes: 1250,
+      totalRelationships: 3400,
+      nodeTypes: {
+        Person: 450,
+        Organization: 200,
+        Location: 300,
+        Event: 200,
+        Other: 100,
+      },
+      relationshipTypes: {
+        RELATED_TO: 1200,
+        WORKS_AT: 800,
+        LOCATED_IN: 600,
+        PARTICIPATED_IN: 800,
+      },
+      avgNodeDegree: 5.4,
+      graphDensity: 0.0043,
+    });
   }),
 
   // Evaluation endpoints
-  rest.get('/api/evaluation/metrics', (req, res, ctx) => {
+  http.get('/api/evaluation/metrics', () => {
     const metrics = [
       createMockEvaluationMetric('answer_relevancy'),
       createMockEvaluationMetric('faithfulness'),
@@ -361,18 +348,17 @@ export const handlers = [
       createMockEvaluationMetric('user_satisfaction'),
     ];
 
-    return res(
-      ctx.json({
-        metrics,
-        overallScore: 0.82,
-        lastUpdated: new Date().toISOString(),
-      })
-    );
+    return HttpResponse.json({
+      metrics,
+      overallScore: 0.82,
+      lastUpdated: new Date().toISOString(),
+    });
   }),
 
-  rest.get('/api/evaluation/trends', (req, res, ctx) => {
-    const metric = req.url.searchParams.get('metric');
-    const period = req.url.searchParams.get('period') || '7d';
+  http.get('/api/evaluation/trends', ({ request }) => {
+    const url = new URL(request.url);
+    const metric = url.searchParams.get('metric');
+    const period = url.searchParams.get('period') || '7d';
 
     const trends = {
       answer_relevancy: Array.from({ length: 7 }, (_, i) => ({
@@ -385,35 +371,34 @@ export const handlers = [
       })),
     };
 
-    return res(ctx.json(metric && trends[metric as keyof typeof trends] ? trends[metric as keyof typeof trends] : trends.answer_relevancy));
+    return HttpResponse.json(metric && trends[metric as keyof typeof trends] ? trends[metric as keyof typeof trends] : trends.answer_relevancy);
   }),
 
-  rest.post('/api/evaluation/run', (req, res, ctx) => {
-    const { testSuite, config } = req.body as any;
+  http.post('/api/evaluation/run', async ({ request }) => {
+    const body = await request.json() as { testSuite: string; config: any };
+    const { testSuite, config } = body;
 
     // Simulate evaluation run
-    return res(
-      ctx.delay(3000),
-      ctx.json({
-        status: 'completed',
-        testSuite,
-        results: {
-          overallScore: 0.85,
-          metrics: [
-            { name: 'answer_relevancy', score: 0.87, improvement: 0.03 },
-            { name: 'faithfulness', score: 0.92, improvement: 0.02 },
-          ],
-          recommendations: [
-            'Improve contextual relevancy by enhancing entity extraction',
-            'Consider adding more diverse test cases',
-          ],
-          timestamp: new Date().toISOString(),
-        }
-      })
-    );
+    await delay(3000);
+    return HttpResponse.json({
+      status: 'completed',
+      testSuite,
+      results: {
+        overallScore: 0.85,
+        metrics: [
+          { name: 'answer_relevancy', score: 0.87, improvement: 0.03 },
+          { name: 'faithfulness', score: 0.92, improvement: 0.02 },
+        ],
+        recommendations: [
+          'Improve contextual relevancy by enhancing entity extraction',
+          'Consider adding more diverse test cases',
+        ],
+        timestamp: new Date().toISOString(),
+      }
+    });
   }),
 
-  rest.get('/api/evaluation/test-suites', (req, res, ctx) => {
+  http.get('/api/evaluation/test-suites', () => {
     const testSuites = [
       {
         id: 'suite-1',
@@ -444,104 +429,96 @@ export const handlers = [
       },
     ];
 
-    return res(ctx.json({ testSuites }));
+    return HttpResponse.json({ testSuites });
   }),
 
-  rest.post('/api/evaluation/export', (req, res, ctx) => {
-    const { format = 'csv', dateRange } = req.body as any;
+  http.post('/api/evaluation/export', async ({ request }) => {
+    const body = await request.json() as { format?: string; dateRange?: any };
+    const { format = 'csv', dateRange } = body;
 
-    return res(
-      ctx.delay(1000),
-      ctx.json({
-        downloadUrl: `/downloads/evaluation-report-${new Date().toISOString().split('T')[0]}.${format}`,
-        format,
-        dateRange,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      })
-    );
+    await delay(1000);
+    return HttpResponse.json({
+      downloadUrl: `/downloads/evaluation-report-${new Date().toISOString().split('T')[0]}.${format}`,
+      format,
+      dateRange,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    });
   }),
 
   // User authentication endpoints
-  rest.post('/api/auth/login', (req, res, ctx) => {
-    const { username, password } = req.body as any;
+  http.post('/api/auth/login', async ({ request }) => {
+    const body = await request.json() as { username: string; password: string };
+    const { username, password } = body;
 
     if (username === 'test@example.com' && password === 'password') {
-      return res(
-        ctx.json({
-          success: true,
-          user: {
-            id: 'user-1',
-            username: 'test@example.com',
-            email: 'test@example.com',
-            role: 'user',
-            permissions: ['read', 'write'],
-          },
-          token: 'mock-jwt-token',
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        })
-      );
-    }
-
-    return res(
-      ctx.status(401),
-      ctx.json({
-        success: false,
-        error: 'Invalid credentials',
-      })
-    );
-  }),
-
-  rest.post('/api/auth/logout', (req, res, ctx) => {
-    return res(
-      ctx.json({
+      return HttpResponse.json({
         success: true,
-        message: 'Logged out successfully',
-      })
-    );
-  }),
-
-  rest.get('/api/auth/user', (req, res, ctx) => {
-    const token = req.headers.get('authorization')?.replace('Bearer ', '');
-
-    if (token === 'mock-jwt-token') {
-      return res(
-        ctx.json({
+        user: {
           id: 'user-1',
           username: 'test@example.com',
           email: 'test@example.com',
           role: 'user',
           permissions: ['read', 'write'],
-        })
-      );
+        },
+        token: 'mock-jwt-token',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      });
     }
 
-    return res(
-      ctx.status(401),
-      ctx.json({
+    return HttpResponse.json(
+      {
+        success: false,
+        error: 'Invalid credentials',
+      },
+      { status: 401 }
+    );
+  }),
+
+  http.post('/api/auth/logout', () => {
+    return HttpResponse.json({
+      success: true,
+      message: 'Logged out successfully',
+    });
+  }),
+
+  http.get('/api/auth/user', ({ request }) => {
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+
+    if (token === 'mock-jwt-token') {
+      return HttpResponse.json({
+        id: 'user-1',
+        username: 'test@example.com',
+        email: 'test@example.com',
+        role: 'user',
+        permissions: ['read', 'write'],
+      });
+    }
+
+    return HttpResponse.json(
+      {
         error: 'Invalid token',
-      })
+      },
+      { status: 401 }
     );
   }),
 
   // WebSocket connection mock (for real-time updates)
-  rest.get('/api/ws', (req, res, ctx) => {
-    return res(
-      ctx.status(200),
-      ctx.json({
-        message: 'WebSocket connection endpoint',
-        connected: true,
-      })
-    );
+  http.get('/api/ws', () => {
+    return HttpResponse.json({
+      message: 'WebSocket connection endpoint',
+      connected: true,
+    });
   }),
 
-  // Error handling
-  rest.all('/api/*', (req, res, ctx) => {
-    return res(
-      ctx.status(404),
-      ctx.json({
+  // Error handling - catch-all for unhandled routes
+  http.all('/api/*', ({ request }) => {
+    const url = new URL(request.url);
+    return HttpResponse.json(
+      {
         error: 'Endpoint not found',
-        path: req.url.pathname,
-      })
+        path: url.pathname,
+      },
+      { status: 404 }
     );
   }),
 ];
