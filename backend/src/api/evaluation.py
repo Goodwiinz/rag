@@ -2,7 +2,7 @@
 Evaluation API endpoints for RAG Triad metrics and evaluation workflows
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks, Body
+from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks, Body, Path
 from fastapi.responses import JSONResponse
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
@@ -482,7 +482,7 @@ async def list_evaluation_comparisons(
 @router.post("/jobs/{job_id}/reports/{report_type}", response_model=Dict[str, Any])
 async def generate_evaluation_report(
     job_id: str,
-    report_type: str = Query("summary", pattern="^(summary|detailed)$"),
+    report_type: str,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db = Depends(get_db)

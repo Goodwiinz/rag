@@ -304,13 +304,13 @@ const UserBehaviorAnalyticsMUI: React.FC = () => {
         {stats && (
           <Grid container spacing={3}>
             {/* User Metrics */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Paper sx={{ p: 3 }}>
                 <Typography variant="h5" mb={3} display="flex" alignItems="center" gap={1}>
                   <Group /> User Metrics
                 </Typography>
                 <Grid container spacing={2}>
-                  <Grid item xs={6}>
+                  <Grid size={{ xs: 6 }}>
                     <Box textAlign="center">
                       <Typography variant="h3" color="primary.main">
                         {stats.total_users.toLocaleString()}
@@ -320,7 +320,7 @@ const UserBehaviorAnalyticsMUI: React.FC = () => {
                       </Typography>
                     </Box>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={{ xs: 6 }}>
                     <Box textAlign="center">
                       <Typography variant="h3" color="success.main">
                         {stats.active_users_today}
@@ -330,7 +330,7 @@ const UserBehaviorAnalyticsMUI: React.FC = () => {
                       </Typography>
                     </Box>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={{ xs: 6 }}>
                     <Box textAlign="center">
                       <Typography variant="h3" color="info.main">
                         {stats.active_users_week}
@@ -340,7 +340,7 @@ const UserBehaviorAnalyticsMUI: React.FC = () => {
                       </Typography>
                     </Box>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={{ xs: 6 }}>
                     <Box textAlign="center">
                       <Typography variant="h3" color="warning.main">
                         {stats.new_users}
@@ -355,7 +355,7 @@ const UserBehaviorAnalyticsMUI: React.FC = () => {
             </Grid>
 
             {/* Engagement Metrics */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Paper sx={{ p: 3 }}>
                 <Typography variant="h5" mb={3} display="flex" alignItems="center" gap={1}>
                   <Timeline /> Engagement Metrics
@@ -390,13 +390,13 @@ const UserBehaviorAnalyticsMUI: React.FC = () => {
             </Grid>
 
             {/* Search Volume */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Paper sx={{ p: 3 }}>
                 <Typography variant="h5" mb={3} display="flex" alignItems="center" gap={1}>
                   <Search /> Search Volume
                 </Typography>
                 <Grid container spacing={2}>
-                  <Grid item xs={6}>
+                  <Grid size={{ xs: 6 }}>
                     <Box textAlign="center">
                       <Typography variant="h3" color="primary.main">
                         {stats.search_volume_today.toLocaleString()}
@@ -406,7 +406,7 @@ const UserBehaviorAnalyticsMUI: React.FC = () => {
                       </Typography>
                     </Box>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={{ xs: 6 }}>
                     <Box textAlign="center">
                       <Typography variant="h3" color="info.main">
                         {stats.search_volume_week.toLocaleString()}
@@ -431,7 +431,7 @@ const UserBehaviorAnalyticsMUI: React.FC = () => {
             </Grid>
 
             {/* Satisfaction Score */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Paper sx={{ p: 3 }}>
                 <Typography variant="h5" mb={3} display="flex" alignItems="center" gap={1}>
                   <ThumbUp /> User Satisfaction
@@ -565,7 +565,7 @@ const UserBehaviorAnalyticsMUI: React.FC = () => {
       {/* Satisfaction Analysis Tab */}
       <TabPanel value={tabValue} index={3}>
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Paper sx={{ p: 3 }}>
               <Typography variant="h5" mb={3}>
                 Rating Distribution
@@ -595,7 +595,7 @@ const UserBehaviorAnalyticsMUI: React.FC = () => {
               </Box>
             </Paper>
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Paper sx={{ p: 3 }}>
               <Typography variant="h5" mb={3}>
                 Satisfaction Trends

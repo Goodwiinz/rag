@@ -17,13 +17,21 @@ from typing import Optional, Dict, Any, Callable
 from functools import wraps
 from contextlib import contextmanager, asynccontextmanager
 
-from opentelemetry import trace, baggage, context
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION, DEPLOYMENT_ENVIRONMENT
-from opentelemetry.propagators.b3 import B3MultiFormat
+try:
+    from opentelemetry import trace, baggage, context
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION, DEPLOYMENT_ENVIRONMENT
+    from opentelemetry.propagators.b3 import B3MultiFormat
+    OPENTELEMETRY_AVAILABLE = True
+except ImportError:
+    OPENTELEMETRY_AVAILABLE = False
+    # Create dummy objects for when opentelemetry is not available
+    trace = None
+    baggage = None
+    context = None
 from opentelemetry.propagators.jaeger import JaegerPropagator
 from opentelemetry.trace import Status, StatusCode, SpanKind
 from opentelemetry.trace.propagation import get_current_span

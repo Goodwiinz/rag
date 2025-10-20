@@ -126,7 +126,7 @@ const AnalyticsChartsMUI: React.FC<AnalyticsChartsMUIProps> = ({
 
       <Grid container spacing={3}>
         {/* Quality Metrics Trend */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -155,7 +155,7 @@ const AnalyticsChartsMUI: React.FC<AnalyticsChartsMUIProps> = ({
         </Grid>
 
         {/* User Behavior */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -178,7 +178,7 @@ const AnalyticsChartsMUI: React.FC<AnalyticsChartsMUIProps> = ({
         </Grid>
 
         {/* System Performance */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -201,7 +201,7 @@ const AnalyticsChartsMUI: React.FC<AnalyticsChartsMUIProps> = ({
         </Grid>
 
         {/* Search Volume Pattern */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -230,7 +230,7 @@ const AnalyticsChartsMUI: React.FC<AnalyticsChartsMUIProps> = ({
         </Grid>
 
         {/* Response Time Improvement */}
-        <Grid item xs={12} md={8}>
+        <Grid size={{ xs: 12, md: 8 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -259,7 +259,7 @@ const AnalyticsChartsMUI: React.FC<AnalyticsChartsMUIProps> = ({
         </Grid>
 
         {/* Content Distribution */}
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>

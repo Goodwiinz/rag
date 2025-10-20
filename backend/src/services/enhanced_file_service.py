@@ -21,7 +21,7 @@ import struct
 import zipfile
 import tarfile
 from PIL import Image
-import PyPDF2
+from pypdf import PdfReader
 
 # ClamAV integration - only available if properly configured
 try:
@@ -457,7 +457,7 @@ class EnhancedFileService:
 
         try:
             with open(file_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
+                pdf_reader = PdfReader(file)
 
                 if pdf_reader.metadata:
                     # Check for suspicious metadata
@@ -589,7 +589,7 @@ class EnhancedFileService:
 
                 # Try to read with PyPDF2
                 file.seek(0)
-                pdf_reader = PyPDF2.PdfReader(file)
+                pdf_reader = PdfReader(file)
 
                 # Check if we can read pages
                 if len(pdf_reader.pages) == 0:
@@ -664,7 +664,7 @@ class EnhancedFileService:
         """Check if PDF is corrupted"""
         try:
             with open(file_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
+                pdf_reader = PdfReader(file)
                 # Try to extract text from first page
                 if len(pdf_reader.pages) > 0:
                     pdf_reader.pages[0].extract_text()

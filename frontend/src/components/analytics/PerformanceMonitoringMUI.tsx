@@ -401,7 +401,7 @@ const PerformanceMonitoringMUI: React.FC = () => {
       {/* Overview Cards */}
       {metrics && (
         <Grid container spacing={3} mb={4}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6 }} md={3}>
             <Card>
               <CardContent>
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -420,7 +420,7 @@ const PerformanceMonitoringMUI: React.FC = () => {
             </Card>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6 }} md={3}>
             <Card>
               <CardContent>
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -439,7 +439,7 @@ const PerformanceMonitoringMUI: React.FC = () => {
             </Card>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6 }} md={3}>
             <Card>
               <CardContent>
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -456,7 +456,7 @@ const PerformanceMonitoringMUI: React.FC = () => {
             </Card>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6 }} md={3}>
             <Card>
               <CardContent>
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -547,7 +547,7 @@ const PerformanceMonitoringMUI: React.FC = () => {
       <TabPanel value={tabValue} index={1}>
         <Grid container spacing={3}>
           {resourceUsage.map((resource) => (
-            <Grid item xs={12} md={6} key={resource.resource}>
+            <Grid size={{ xs: 12, md: 6 }} key={resource.resource}>
               <Paper sx={{ p: 3 }}>
                 <Typography variant="h6" mb={2}>
                   {resource.resource} Usage
@@ -587,7 +587,7 @@ const PerformanceMonitoringMUI: React.FC = () => {
       <TabPanel value={tabValue} index={2}>
         {metrics && (
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Paper sx={{ p: 3 }}>
                 <Typography variant="h5" mb={3}>
                   Network Traffic
@@ -620,7 +620,7 @@ const PerformanceMonitoringMUI: React.FC = () => {
                 </List>
               </Paper>
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Paper sx={{ p: 3 }}>
                 <Typography variant="h5" mb={3}>
                   Performance Summary
