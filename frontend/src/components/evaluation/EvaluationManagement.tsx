@@ -357,7 +357,7 @@ export const EvaluationManagement: React.FC = () => {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleRunEvaluation(evaluation.id)}
-                            disabled={runEvaluationMutation.isLoading}
+                            disabled={runEvaluationMutation.isPending}
                           >
                             <PlayIcon className="h-4 w-4" />
                           </Button>
@@ -366,7 +366,7 @@ export const EvaluationManagement: React.FC = () => {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDeleteEvaluation(evaluation.id)}
-                          disabled={deleteEvaluationMutation.isLoading}
+                          disabled={deleteEvaluationMutation.isPending}
                         >
                           <TrashIcon className="h-4 w-4" />
                         </Button>

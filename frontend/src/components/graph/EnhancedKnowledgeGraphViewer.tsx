@@ -28,7 +28,7 @@ import {
   GraphFilters,
   GraphVisualizationState,
   WebSocketGraphUpdate,
-  GraphAnalyticsData
+  GraphAnalyticsDashboard as GraphAnalyticsData
 } from '../../types/knowledge-graph';
 
 // Enhanced component props
@@ -140,16 +140,9 @@ export const EnhancedKnowledgeGraphViewer: React.FC<EnhancedKnowledgeGraphViewer
       }
     }),
     staleTime: 5 * 60 * 1000, // 5 minutes
-    cacheTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
     retry: 3,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    onSuccess: (data) => {
-      setGraphData(data);
-      setError(null);
-    },
-    onError: (error) => {
-      setError((error as Error).message);
-    }
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
   });
 
   // WebSocket integration with enhanced error handling

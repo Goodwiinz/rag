@@ -241,7 +241,8 @@ async function loginAsUser(page: Page, user: TestData['users'][UserType]) {
       console.log(`ℹ️ Already logged in as ${user.email}`);
       return;
     }
-    throw new Error(`Failed to login as ${user.email}: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to login as ${user.email}: ${errorMessage}`);
   }
 }
 
@@ -255,7 +256,8 @@ export async function logout(page: Page) {
     await page.waitForURL('/login');
     console.log('✅ Logged out successfully');
   } catch (error) {
-    console.warn('⚠️ Could not logout:', error.message);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.warn('⚠️ Could not logout:', errorMessage);
   }
 }
 
