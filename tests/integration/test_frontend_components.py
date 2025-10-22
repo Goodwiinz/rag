@@ -5,6 +5,7 @@ Tests React components, user interactions, state management, and accessibility
 
 import pytest
 import asyncio
+import re
 from typing import Dict, Any, List
 from unittest.mock import Mock, AsyncMock, patch
 import json
@@ -604,8 +605,8 @@ class TestDocumentLibraryComponent:
             expect(screen.get_by_text("Page 2 of 3")).to_be_in_document()
 
             # Test navigation
-            next_button = screen.get_by_role("button", {"name": /next/i})
-            prev_button = screen.get_by_role("button", {"name": /previous/i})
+            next_button = screen.get_by_role("button", name=re.compile(r"next", re.IGNORECASE))
+            prev_button = screen.get_by_role("button", name=re.compile(r"previous", re.IGNORECASE))
 
             fireEvent.click(next_button)
             expect(mock_update_page).to_have_been_called_with(3)
@@ -672,10 +673,13 @@ class TestDocumentUploaderComponent:
             dropzone = component.container.querySelector('[data-testid="dropzone"]')
 
             # Simulate file drop
-            file = new File(["test content"], "test.pdf", { type: "application/pdf" })
+            from io import BytesIO
+            file_data = BytesIO(b"test content")
+            file_data.name = "test.pdf"
+            file_data.type = "application/pdf"
             fireEvent.drop(dropzone, {
                 dataTransfer: {
-                    files: [file]
+                    files: [file_data]
                 }
             })
 
@@ -738,13 +742,15 @@ class TestDocumentUploaderComponent:
             component = render(DocumentUploader)
 
             # Test unsupported file type
-            unsupported_file = new File(["malicious content"], "virus.exe", { type: "application/x-executable" })
+            malicious_file_data = BytesIO(b"malicious content")
+            malicious_file_data.name = "virus.exe"
+            malicious_file_data.type = "application/x-executable"
 
             input = component.container.querySelector('input[type="file"]')
-            fireEvent.change(input, { target: { files: [unsupported_file] } })
+            fireEvent.change(input, { target: { files: [malicious_file_data] } })
 
             # Verify validation error is displayed
-            expect(screen.get_by_text(/unsupported file type/i)).to_be_in_document()
+            expect(screen.get_by_text(re.compile(r"unsupported file type", re.IGNORECASE))).to_be_in_document()
 
 
 class TestProcessingStatusComponent:
