@@ -1,0 +1,204 @@
+# =============================================================================
+# Production-Ready Multi-Stage Dockerfile for Backend
+# =============================================================================
+# This Dockerfile implements security best practices including:
+# - Multi-stage builds for minimal image size
+# - Non-root user execution
+# - Security scanning compatibility
+# - Health checks
+# - Proper layer caching
+# =============================================================================
+
+# =============================================================================
+# Stage 1: Base Image Builder
+# =============================================================================
+FROM python:3.11-slim as base
+
+# Set environment variables for better pip performance and security
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONHASHSEED=random \
+    PIP_DEFAULT_TIMEOUT=60
+
+# Install system dependencies with security updates
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    make \
+    libpq-dev \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    libtesseract-dev \
+    libmagic1 \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libglib2.0-0 \
+    libsndfile1 \
+    libgl1 \
+    libgtk-3-0 \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    pkg-config \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create app directory with proper permissions
+WORKDIR /app
+
+# =============================================================================
+# Stage 2: Dependency Builder
+# =============================================================================
+FROM base as dependencies
+
+# Copy requirements files for dependency installation
+COPY requirements.txt requirements-dev.txt ./
+
+# Upgrade pip and install build tools
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Install problematic packages first with specific flags to avoid build issues
+RUN pip install --no-cache-dir --prefer-binary \
+    grpcio==1.59.3 \
+    grpcio-tools==1.59.3 || \
+    pip install --no-cache-dir --no-build-isolation \
+    grpcio==1.59.3 \
+    grpcio-tools==1.59.3 || \
+    pip install --no-cache-dir grpcio grpcio-tools
+
+# Install heavy AI/ML packages separately to isolate build issues
+RUN pip install --no-cache-dir --prefer-binary \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu || \
+    pip install --no-cache-dir torch torchvision torchaudio
+
+RUN pip install --no-cache-dir --prefer-binary \
+    sentence-transformers || \
+    pip install --no-cache-dir sentence-transformers
+
+RUN pip install --no-cache-dir --prefer-binary \
+    transformers || \
+    pip install --no-cache-dir transformers
+
+RUN pip install --no-cache-dir --prefer-binary \
+    qdrant-client || \
+    pip install --no-cache-dir qdrant-client
+
+# Install remaining Python packages
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Download spaCy model
+RUN python -m spacy download en_core_web_sm
+
+# =============================================================================
+# Stage 3: Development and Testing
+# =============================================================================
+FROM dependencies as development
+
+# Install development dependencies
+RUN pip install --no-cache-dir -r requirements-dev.txt
+
+# Copy application code
+COPY . .
+
+# Set permissions for development
+RUN chmod +x scripts/*.sh 2>/dev/null || true
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Start development server
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# =============================================================================
+# Stage 4: Production Security Hardening
+# =============================================================================
+FROM base as production
+
+# Install only production runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    libtesseract-dev \
+    libmagic1 \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libglib2.0-0 \
+    libsndfile1 \
+    libgl1 \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy Python dependencies from builder stage
+COPY --from=dependencies /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=dependencies /usr/local/bin /usr/local/bin
+
+# Copy spaCy model data
+COPY --from=dependencies /root/.local/lib/python3.11/site-packages /root/.local/lib/python3.11/site-packages
+
+# Copy application code
+COPY --chown=app:app . .
+
+# Create non-root user for security
+RUN groupadd --gid 1001 app && \
+    useradd --uid 1001 --gid 1001 --create-home --shell /bin/bash app && \
+    mkdir -p /app/uploads/documents \
+    /app/uploads/images \
+    /app/uploads/audio \
+    /app/uploads/video \
+    /app/uploads/temp \
+    /app/uploads/processed \
+    /app/logs \
+    /app/models \
+    && chown -R app:app /app
+
+# Set proper ownership and permissions
+RUN chmod -R 755 /app/uploads && \
+    chmod -R 755 /app/logs && \
+    chmod -R 755 /app/models
+
+# Switch to non-root user
+USER app
+
+# Create Python path for the app user
+ENV PYTHONPATH=/app:$PYTHONPATH
+
+# Verify installation
+RUN python -c "import src; print('Application module imported successfully')" && \
+    python -c "import spacy; nlp = spacy.load('en_core_web_sm'); print('spaCy model loaded successfully')" && \
+    python -c "import sentence_transformers; print('Sentence transformers imported successfully')"
+
+# Health check with proper timeout and retry logic
+HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Expose port
+EXPOSE 8000
+
+# Set security-related labels
+LABEL maintainer="DevOps Team <devops@yourcompany.com>" \
+      version="1.0.0" \
+      description="Production backend for Knowledge Graph Analytics Dashboard" \
+      security.scan="enabled" \
+      org.opencontainers.image.source="https://github.com/your-org/multimodal-rag-system" \
+      org.opencontainers.image.licenses="MIT"
+
+# Production startup command
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
