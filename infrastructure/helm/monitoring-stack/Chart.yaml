@@ -1,0 +1,47 @@
+# =============================================================================
+# Monitoring Stack Helm Chart
+# =============================================================================
+# Comprehensive monitoring solution including Prometheus, Grafana, AlertManager,
+# Loki, and Promtail for log aggregation and visualization
+
+apiVersion: v2
+name: monitoring-stack
+description: Complete monitoring stack for Knowledge Graph Analytics Dashboard
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+home: https://github.com/your-org/knowledge-graph-analytics
+sources:
+  - https://github.com/your-org/knowledge-graph-analytics
+maintainers:
+  - name: DevOps Team
+    email: devops@yourcompany.com
+keywords:
+  - monitoring
+  - prometheus
+  - grafana
+  - alertmanager
+  - loki
+  - logging
+  - observability
+dependencies:
+  - name: prometheus
+    version: 23.1.0
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: prometheus.enabled
+  - name: grafana
+    version: 6.58.9
+    repository: https://grafana.github.io/helm-charts
+    condition: grafana.enabled
+  - name: loki
+    version: 4.8.0
+    repository: https://grafana.github.io/helm-charts
+    condition: loki.enabled
+  - name: promtail
+    version: 6.15.3
+    repository: https://grafana.github.io/helm-charts
+    condition: promtail.enabled
+  - name: alertmanager
+    version: 0.25.0
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: alertmanager.enabled

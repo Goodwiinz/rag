@@ -1,0 +1,336 @@
+# Prometheus Alerting Rules for Knowledge Graph Analytics Dashboard
+# Comprehensive monitoring with severity-based escalation
+
+groups:
+  - name: system_health
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: "{{ $labels.job }}"
+          instance: "{{ $labels.instance }}"
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} on {{ $labels.instance }} has been down for more than 1 minute."
+          runbook_url: "https://docs.knowledge-graph.dev/runbooks/service-down"
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          instance: "{{ $labels.instance }}"
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 80% for more than 5 minutes on {{ $labels.instance }}. Current value: {{ $value }}%"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          instance: "{{ $labels.instance }}"
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 85% for more than 5 minutes on {{ $labels.instance }}. Current value: {{ $value }}%"
+
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 90
+        for: 2m
+        labels:
+          severity: critical
+          instance: "{{ $labels.instance }}"
+          mountpoint: "{{ $labels.mountpoint }}"
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk usage is above 90% on {{ $labels.mountpoint }} of {{ $labels.instance }}. Current value: {{ $value }}%"
+
+  - name: application_performance
+    rules:
+      - alert: HighErrorRate
+        expr: rate(app_requests_total{status=~"5.."}[5m]) / rate(app_requests_total[5m]) > 0.05
+        for: 3m
+        labels:
+          severity: critical
+          service: "{{ $labels.service }}"
+        annotations:
+          summary: "High error rate for {{ $labels.service }}"
+          description: "Error rate is above 5% for {{ $labels.service }}. Current value: {{ $value | humanizePercentage }}"
+
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(app_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: "{{ $labels.service }}"
+        annotations:
+          summary: "High response time for {{ $labels.service }}"
+          description: "95th percentile response time is above 2 seconds for {{ $labels.service }}. Current value: {{ $value }}s"
+
+      - alert: ActiveRequestsTooHigh
+        expr: sum(app_active_requests) > 1000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of active requests"
+          description: "Number of active requests is above 1000. Current value: {{ $value }}"
+
+      - alert: RequestRateAnomaly
+        expr: rate(app_requests_total[5m]) < 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low request rate detected"
+          description: "Request rate is unusually low. Current value: {{ $value }} req/s"
+
+  - name: database_performance
+    rules:
+      - alert: DatabaseConnectionHigh
+        expr: db_connections_active > 80
+        for: 5m
+        labels:
+          severity: warning
+          database: "{{ $labels.database }}"
+        annotations:
+          summary: "High database connections"
+          description: "Active database connections are above 80 for {{ $labels.database }}. Current value: {{ $value }}"
+
+      - alert: DatabaseQuerySlow
+        expr: histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+          database: "{{ $labels.database }}"
+        annotations:
+          summary: "Slow database queries"
+          description: "95th percentile query time is above 5 seconds. Current value: {{ $value }}s"
+
+      - alert: DatabaseErrorRate
+        expr: rate(db_queries_total{status="error"}[5m]) / rate(db_queries_total[5m]) > 0.02
+        for: 2m
+        labels:
+          severity: critical
+          database: "{{ $labels.database }}"
+        annotations:
+          summary: "High database error rate"
+          description: "Database error rate is above 2%. Current value: {{ $value | humanizePercentage }}"
+
+  - name: knowledge_graph_metrics
+    rules:
+      - alert: GraphQuerySlow
+        expr: histogram_quantile(0.95, rate(graph_query_duration_seconds_bucket[5m])) > 10
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow graph queries"
+          description: "95th percentile graph query time is above 10 seconds. Current value: {{ $value }}s"
+
+      - alert: GraphGrowthStalled
+        expr: increase(nodes_total[1h]) < 10
+        for: 2h
+        labels:
+          severity: info
+        annotations:
+          summary: "Graph growth has stalled"
+          description: "Less than 10 new nodes have been added in the last hour. Current growth: {{ $value }} nodes/hour"
+
+      - alert: HighQueryComplexity
+        expr: histogram_quantile(0.90, rate(graph_query_complexity_score_bucket[5m])) > 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High query complexity detected"
+          description: "90th percentile query complexity is above 20. Current value: {{ $value }}"
+
+  - name: search_performance
+    rules:
+      - alert: SearchLatencyHigh
+        expr: histogram_quantile(0.95, rate(search_query_duration_seconds_bucket[5m])) > 3
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High search latency"
+          description: "95th percentile search latency is above 3 seconds. Current value: {{ $value }}s"
+
+      - alert: SearchQualityLow
+        expr: avg(search_precision_score) < 0.7
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low search quality"
+          description: "Search precision score is below 0.7. Current value: {{ $value }}"
+
+      - alert: NoSearchResults
+        expr: rate(search_queries_total[5m]) > 0 and rate(search_results_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Search queries returning no results"
+          description: "Search queries are being executed but returning no results"
+
+  - name: ml_model_performance
+    rules:
+      - alert: ModelInferenceSlow
+        expr: histogram_quantile(0.95, rate(ml_model_inference_duration_seconds_bucket[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+          model: "{{ $labels.model_name }}"
+        annotations:
+          summary: "Slow model inference for {{ $labels.model_name }}"
+          description: "95th percentile inference time is above 5 seconds. Current value: {{ $value }}s"
+
+      - alert: ModelAccuracyLow
+        expr: ml_model_accuracy_score < 0.8
+        for: 15m
+        labels:
+          severity: warning
+          model: "{{ $labels.model_name }}"
+        annotations:
+          summary: "Low model accuracy for {{ $labels.model_name }}"
+          description: "Model accuracy is below 0.8. Current value: {{ $value }}"
+
+      - alert: ModelErrorRateHigh
+        expr: rate(ml_model_errors_total[5m]) / rate(ml_model_predictions_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          model: "{{ $labels.model_name }}"
+        annotations:
+          summary: "High model error rate for {{ $labels.model_name }}"
+          description: "Model error rate is above 10%. Current value: {{ $value | humanizePercentage }}"
+
+  - name: cache_performance
+    rules:
+      - alert: CacheHitRateLow
+        expr: rate(cache_operations_total{operation="hit"}[5m]) / rate(cache_operations_total[5m]) < 0.7
+        for: 5m
+        labels:
+          severity: warning
+          cache: "{{ $labels.cache }}"
+        annotations:
+          summary: "Low cache hit rate for {{ $labels.cache }}"
+          description: "Cache hit rate is below 70%. Current value: {{ $value | humanizePercentage }}"
+
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis memory usage is above 90%. Current value: {{ $value | humanizePercentage }}"
+
+  - name: document_processing
+    rules:
+      - alert: DocumentProcessingSlow
+        expr: histogram_quantile(0.95, rate(document_processing_duration_seconds_bucket[5m])) > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow document processing"
+          description: "95th percentile document processing time is above 5 minutes. Current value: {{ $value }}s"
+
+      - alert: DocumentProcessingBacklog
+        expr: sum(rate(documents_processed_total[5m])) < sum(rate(document_upload_requests_total[5m])) * 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Document processing backlog detected"
+          description: "Document processing rate is below upload rate, creating a backlog"
+
+  - name: business_metrics
+    rules:
+      - alert: UserActivityLow
+        expr: rate(user_sessions_total[1h]) < 1
+        for: 2h
+        labels:
+          severity: info
+        annotations:
+          summary: "Low user activity"
+          description: "User session rate is below 1 per hour. Current value: {{ $value }} sessions/hour"
+
+      - alert: SearchUsageAnomaly
+        expr: rate(search_queries_total[1h]) < 10
+        for: 2h
+        labels:
+          severity: info
+        annotations:
+          summary: "Unusually low search usage"
+          description: "Search query rate is below 10 per hour. Current value: {{ $value }} queries/hour"
+
+      - alert: FeatureUsageDrop
+        expr: rate(feature_usage_total{feature="analytics"}[1h]) < 5
+        for: 4h
+        labels:
+          severity: info
+          feature: "{{ $labels.feature }}"
+        annotations:
+          summary: "Drop in {{ $labels.feature }} feature usage"
+          description: "Usage of {{ $labels.feature }} feature has dropped below 5 per hour"
+
+  - name: availability_sla
+    rules:
+      - alert: SLAViolation
+        expr: (sum(rate(app_requests_total{status!~"5.."}[5m])) / sum(rate(app_requests_total[5m]))) < 0.999
+        for: 5m
+        labels:
+          severity: critical
+          sla: "99.9%"
+        annotations:
+          summary: "SLA violation detected"
+          description: "Availability is below 99.9% SLA. Current value: {{ $value | humanizePercentage }}"
+
+      - alert: SLAWarning
+        expr: (sum(rate(app_requests_total{status!~"5.."}[5m])) / sum(rate(app_requests_total[5m]))) < 0.995
+        for: 3m
+        labels:
+          severity: warning
+          sla: "99.5%"
+        annotations:
+          summary: "SLA approaching violation"
+          description: "Availability is below 99.5% threshold. Current value: {{ $value | humanizePercentage }}"
+
+  - name: security
+    rules:
+      - alert: HighErrorRateAuth
+        expr: rate(app_requests_total{endpoint="/api/auth",status=~"4.."}[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          security: "authentication"
+        annotations:
+          summary: "High authentication error rate"
+          description: "Authentication endpoint error rate is above 10 requests/minute. Current value: {{ $value }} req/min"
+
+      - alert: SuspiciousActivity
+        expr: rate(app_requests_total{user_id!=""}[5m]) > 100
+        for: 1m
+        labels:
+          severity: warning
+          user: "{{ $labels.user_id }}"
+          security: "rate-limiting"
+        annotations:
+          summary: "High activity from user {{ $labels.user_id }}"
+          description: "User {{ $labels.user_id }} is making more than 100 requests per minute"
+
+      - alert: UnauthorizedAccess
+        expr: rate(app_requests_total{status="401"}[5m]) > 5
+        for: 1m
+        labels:
+          severity: critical
+          security: "authorization"
+        annotations:
+          summary: "High unauthorized access attempts"
+          description: "Unauthorized access attempts are above 5 per minute. Current value: {{ $value }} req/min"
