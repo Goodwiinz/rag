@@ -137,8 +137,7 @@ async function verifyBackendServices(baseURL: string) {
   for (const service of services) {
     try {
       const response = await fetch(service.url, {
-        method: 'GET',
-        timeout: 5000
+        method: 'GET'
       });
 
       if (response.ok) {
