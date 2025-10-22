@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+**/__tests__/
+e2e/
+src/hooks/analytics/useReports.ts
+src/hooks/useAnalytics.ts
+src/hooks/useEvaluation.ts

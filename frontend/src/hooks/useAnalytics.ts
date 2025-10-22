@@ -184,10 +184,7 @@ export const useExportAnalytics = () => {
       format: 'csv' | 'json' | 'pdf';
       filters: AnalyticsFilters;
       timeRange: TimeRange;
-    }) => analyticsService.exportAnalytics(format, filters, timeRange),
-    onSuccess: () => {
-      // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: ['performance-analytics'] });
+    }) => analyticsService.exportAnalytics(format, filters, timeRange));
       queryClient.invalidateQueries({ queryKey: ['usage-analytics'] });
     },
   });
