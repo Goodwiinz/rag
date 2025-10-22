@@ -180,9 +180,7 @@ export const useCreateEvaluation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: evaluationApi.createEvaluation,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['evaluations'] });
+    mutationFn: evaluationApi.createEvaluation);
     },
   });
 };
@@ -193,9 +191,7 @@ export const useUpdateEvaluation = () => {
 
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Evaluation> }) =>
-      evaluationApi.updateEvaluation(id, data),
-    onSuccess: (_, { id }) => {
-      queryClient.invalidateQueries({ queryKey: ['evaluations'] });
+      evaluationApi.updateEvaluation(id, data));
       queryClient.invalidateQueries({ queryKey: ['evaluation', id] });
     },
   });
@@ -206,9 +202,7 @@ export const useDeleteEvaluation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: evaluationApi.deleteEvaluation,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['evaluations'] });
+    mutationFn: evaluationApi.deleteEvaluation);
     },
   });
 };
@@ -218,9 +212,7 @@ export const useRunEvaluation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (evaluationId: string) => evaluationApi.runEvaluation(evaluationId),
-    onSuccess: (_, evaluationId) => {
-      queryClient.invalidateQueries({ queryKey: ['evaluations'] });
+    mutationFn: (evaluationId: string) => evaluationApi.runEvaluation(evaluationId));
       queryClient.invalidateQueries({ queryKey: ['evaluation', evaluationId] });
       queryClient.invalidateQueries({ queryKey: ['evaluation-runs', evaluationId] });
     },
@@ -282,13 +274,7 @@ export const useExportEvaluationResults = () => {
       evaluationId: string;
       runId: string;
       format: 'csv' | 'json' | 'pdf';
-    }) => evaluationApi.exportEvaluationResults(evaluationId, runId, format),
-    onSuccess: (blob, { format }) => {
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `evaluation-results.${format}`;
+    }) => evaluationApi.exportEvaluationResults(evaluationId, runId, format)`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -330,9 +316,7 @@ export const useCreateComparison = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: evaluationApi.createComparison,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['evaluation-comparisons'] });
+    mutationFn: evaluationApi.createComparison);
     },
   });
 };
