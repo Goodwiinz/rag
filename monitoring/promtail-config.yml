@@ -1,0 +1,417 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    tenant_id: "knowledge-graph"
+
+scrape_configs:
+  # Application logs
+  - job_name: application-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: application
+          __path__: /var/log/application/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            message: message
+            timestamp: timestamp
+            service: service
+            trace_id: trace_id
+            span_id: span_id
+            user_id: user_id
+            request_id: request_id
+            component: component
+            error: error
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      - labels:
+          level:
+          service:
+          component:
+          user_id:
+          request_id:
+          trace_id:
+          span_id:
+      - output:
+          source: message
+
+  # System logs
+  - job_name: system-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: system
+          __path__: /var/log/syslog
+    pipeline_stages:
+      - regex:
+          expression: '(?P<timestamp>\w+\s+\d+\s+\d+:\d+:\d+)\s+(?P<hostname>\w+)\s+(?P<process>\w+)(\[(?P<pid>\d+)\])?\s*:\s*(?P<message>.*)'
+      - timestamp:
+          source: timestamp
+          format: Jan 2 15:04:05
+          location: UTC
+      - labels:
+          hostname:
+          process:
+          pid:
+      - output:
+          source: message
+
+  # Docker container logs
+  - job_name: docker-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: docker
+          __path__: /var/lib/docker/containers/*/*log
+    pipeline_stages:
+      - json:
+          expressions:
+            log: log
+            stream: stream
+            attrs: attrs
+            time: time
+      - timestamp:
+          source: time
+          format: RFC3339Nano
+      - json:
+          expressions:
+            container_name: attrs.container_name
+            image_name: attrs.image_name
+            container_id: attrs.container_id
+      - labels:
+          container_name:
+          image_name:
+          container_id:
+          stream:
+      - output:
+          source: log
+
+  # Knowledge Graph Analytics specific logs
+  - job_name: knowledge-graph-api
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: knowledge-graph-api
+          __path__: /var/log/knowledge-graph/api/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            message: message
+            timestamp: timestamp
+            method: method
+            path: path
+            status: status
+            duration: duration
+            user_id: user_id
+            query: query
+            error: error
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      - labels:
+          level:
+          method:
+          path:
+          status:
+          user_id:
+      - metrics:
+          api_requests_total:
+            type: counter
+            description: Total number of API requests
+            config:
+              match_all: true
+              source_labels:
+                - method
+                - path
+                - status
+          api_request_duration_seconds:
+            type: histogram
+            description: API request duration
+            config:
+              match_all: true
+              source_labels:
+                - method
+                - path
+              source_value: duration
+      - output:
+          source: message
+
+  - job_name: knowledge-graph-search
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: knowledge-graph-search
+          __path__: /var/log/knowledge-graph/search/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            message: message
+            timestamp: timestamp
+            query: query
+            results_count: results_count
+            duration: duration
+            precision: precision
+            recall: recall
+            user_id: user_id
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      - labels:
+          level:
+          user_id:
+      - metrics:
+          search_queries_total:
+            type: counter
+            description: Total number of search queries
+            config:
+              match_all: true
+              source_labels:
+                - user_id
+          search_query_duration_seconds:
+            type: histogram
+            description: Search query duration
+            config:
+              match_all: true
+              source_value: duration
+          search_results_count:
+            type: histogram
+            description: Number of search results
+            config:
+              match_all: true
+              source_value: results_count
+      - output:
+          source: message
+
+  - job_name: knowledge-graph-graph
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: knowledge-graph-graph
+          __path__: /var/log/knowledge-graph/graph/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            message: message
+            timestamp: timestamp
+            operation: operation
+            nodes_count: nodes_count
+            edges_count: edges_count
+            complexity: complexity
+            duration: duration
+            query_type: query_type
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      - labels:
+          level:
+          operation:
+          query_type:
+      - metrics:
+          graph_operations_total:
+            type: counter
+            description: Total number of graph operations
+            config:
+              match_all: true
+              source_labels:
+                - operation
+                - query_type
+          graph_query_duration_seconds:
+            type: histogram
+            description: Graph query duration
+            config:
+              match_all: true
+              source_value: duration
+          graph_query_complexity_score:
+            type: histogram
+            description: Graph query complexity
+            config:
+              match_all: true
+              source_value: complexity
+      - output:
+          source: message
+
+  - job_name: knowledge-graph-ml
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: knowledge-graph-ml
+          __path__: /var/log/knowledge-graph/ml/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            message: message
+            timestamp: timestamp
+            model_name: model_name
+            model_version: model_version
+            inference_time: inference_time
+            accuracy: accuracy
+            prediction: prediction
+            error: error
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      - labels:
+          level:
+          model_name:
+          model_version:
+      - metrics:
+          ml_model_predictions_total:
+            type: counter
+            description: Total number of ML model predictions
+            config:
+              match_all: true
+              source_labels:
+                - model_name
+                - model_version
+          ml_model_inference_duration_seconds:
+            type: histogram
+            description: ML model inference duration
+            config:
+              match_all: true
+              source_value: inference_time
+          ml_model_accuracy_score:
+            type: gauge
+            description: ML model accuracy
+            config:
+              match_all: true
+              source_value: accuracy
+      - output:
+          source: message
+
+  # Database logs
+  - job_name: database-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: database
+          __path__: /var/log/postgresql/*.log
+    pipeline_stages:
+      - regex:
+          expression: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+)\s+\w+\s+\[(?P<pid>\d+)\]\s+(?P<level>\w+):\s+(?P<message>.*)'
+      - timestamp:
+          source: timestamp
+          format: 2006-01-02 15:04:05.000
+      - labels:
+          level:
+          pid:
+      - output:
+          source: message
+
+  # Redis logs
+  - job_name: redis-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: redis
+          __path__: /var/log/redis/*.log
+    pipeline_stages:
+      - regex:
+          expression: '(?P<timestamp>\d+:\d+:\d+)\s+(?P<pid>\d+)\s+(?P<role>\w+)\s+(?P<message>.*)'
+      - timestamp:
+          source: timestamp
+          format: 15:04:05
+          location: UTC
+      - labels:
+          role:
+          pid:
+      - output:
+          source: message
+
+  # Security and audit logs
+  - job_name: security-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: security
+          __path__: /var/log/security/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            timestamp: timestamp
+            event_type: event_type
+            severity: severity
+            source_ip: source_ip
+            user_id: user_id
+            action: action
+            resource: resource
+            message: message
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      - labels:
+          event_type:
+          severity:
+          source_ip:
+          user_id:
+          action:
+          resource:
+      - metrics:
+          security_events_total:
+            type: counter
+            description: Total number of security events
+            config:
+              match_all: true
+              source_labels:
+                - event_type
+                - severity
+                - action
+      - output:
+          source: message
+
+  # Performance monitoring logs
+  - job_name: performance-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: performance
+          __path__: /var/log/performance/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            timestamp: timestamp
+            metric_name: metric_name
+            metric_value: metric_value
+            metric_unit: metric_unit
+            component: component
+            tags: tags
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      - labels:
+          metric_name:
+          component:
+      - metrics:
+          custom_metrics_total:
+            type: counter
+            description: Total number of custom metrics
+            config:
+              match_all: true
+              source_labels:
+                - metric_name
+                - component
+      - output:
+          source: message
