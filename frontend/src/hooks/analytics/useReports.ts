@@ -39,7 +39,8 @@ export const useCreateReport = () => {
   const { setError, createReport } = useAnalyticsStore();
 
   return useMutation({
-    mutationFn: (report: Omit<Report, 'id'>) => reportApi.createReport(report));
+    mutationFn: (report: Omit<Report, 'id'>) => reportApi.createReport(report),
+    onSuccess: (data) => {
       createReport(data);
       queryClient.setQueryData(['report', data.id], data);
     },
@@ -53,9 +54,10 @@ export const useUpdateReport = () => {
 
   return useMutation({
     mutationFn: ({ reportId, updates }: { reportId: string; updates: Partial<Report> }) =>
-      reportApi.updateReport(reportId, updates));
-      queryClient.setQueryData(['report', variables.reportId], data);
-      updateReport(variables.reportId, variables.updates);
+      reportApi.updateReport(reportId, updates),
+    onSuccess: (data) => {
+      updateReport(data);
+      queryClient.setQueryData(['report', data.id], data);
     },
   });
 };
@@ -66,7 +68,8 @@ export const useDeleteReport = () => {
   const { setError, deleteReport } = useAnalyticsStore();
 
   return useMutation({
-    mutationFn: (reportId: string) => reportApi.deleteReport(reportId));
+    mutationFn: (reportId: string) => reportApi.deleteReport(reportId),
+    onSuccess: () => {
       queryClient.removeQueries({ queryKey: ['report', reportId] });
       deleteReport(reportId);
     },
@@ -113,7 +116,8 @@ export const useScheduleReport = () => {
 
   return useMutation({
     mutationFn: ({ reportId, schedule }: { reportId: string; schedule: { frequency: 'daily' | 'weekly' | 'monthly'; time: string; enabled: boolean } }) =>
-      reportApi.scheduleReport(reportId, schedule));
+      reportApi.scheduleReport(reportId, schedule),
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['report', variables.reportId] });
     },
   });

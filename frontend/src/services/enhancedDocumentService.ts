@@ -137,7 +137,7 @@ export interface WebSocketProgressUpdate {
 }
 
 export class EnhancedDocumentService {
-  private readonly basePath = '/api/v2/documents/upload';
+  private readonly basePath = '/api/v1/files';  // Using v1 API for now
   private websocketConnections: Map<string, WebSocket> = new Map();
 
   /**
@@ -158,23 +158,24 @@ export class EnhancedDocumentService {
     if (request.description) formData.append('description', request.description);
     if (request.tags) formData.append('tags', request.tags.join(','));
     if (request.is_public !== undefined) formData.append('is_public', request.is_public.toString());
-    if (request.processing_priority) formData.append('processing_priority', request.processing_priority);
+
+    // Ensure processing_priority is always sent (backend requires it)
+    formData.append('processing_priority', request.processing_priority || 'normal');
+
     if (request.enable_quality_check !== undefined) formData.append('enable_quality_check', request.enable_quality_check.toString());
     if (request.custom_metadata) formData.append('custom_metadata', JSON.stringify(request.custom_metadata));
 
-    // Make the upload request
-    const response = await apiClient.post<DocumentUploadResponse>(`${this.basePath}/single`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    // Make the upload request using the correct v1 endpoint
+    // DON'T set Content-Type header manually - Axios will set it correctly for FormData
+    const response = await apiClient.post<DocumentUploadResponse>('/api/v1/files/upload', formData);
 
-    // Connect to WebSocket for progress updates
-    const websocket = await this.connectProgressWebSocket(response.upload_id, onProgress);
+    // Note: WebSocket progress tracking not yet implemented in backend
+    // Return null websocket for now
+    // TODO: Implement WebSocket progress tracking when backend supports it
 
     return {
       response: response,
-      websocket
+      websocket: null as any // Placeholder until WebSocket is implemented
     };
   }
 
@@ -221,9 +222,12 @@ export class EnhancedDocumentService {
 
   /**
    * Get upload progress via HTTP (fallback)
+   * Note: v1 API doesn't have progress tracking, so we'll use the document status endpoint
    */
   async getUploadProgress(uploadId: string): Promise<APIResponse<UploadProgressResponse>> {
-    return apiClient.get(`${this.basePath}/progress/${uploadId}`);
+    // For v1 API, we need to get document status instead of upload progress
+    // This is a limitation of the v1 API
+    return apiClient.get(`/api/v1/documents/status`);
   }
 
   /**
@@ -237,7 +241,7 @@ export class EnhancedDocumentService {
       this.websocketConnections.delete(uploadId);
     }
 
-    return apiClient.delete(`${this.basePath}/cancel/${uploadId}`);
+    return apiClient.delete(`/api/v1/files/cancel/${uploadId}`);
   }
 
   /**
@@ -314,11 +318,7 @@ export class EnhancedDocumentService {
     // Add metadata for each file
     formData.append('upload_requests', JSON.stringify(requests));
 
-    const response = await apiClient.post<{ responses: DocumentUploadResponse[] }>(`${this.basePath}/batch`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const response = await apiClient.post<{ responses: DocumentUploadResponse[] }>(`${this.basePath}/batch`, formData);
 
     // Connect to WebSocket for each upload
     const websockets: WebSocket[] = [];

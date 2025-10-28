@@ -12,19 +12,29 @@ import logging
 import numpy as np
 
 # Text processing libraries
-try:
-    import spacy
-    SPACY_AVAILABLE = True
-    # Load spaCy model
-    try:
-        nlp = spacy.load("en_core_web_sm")
-    except OSError:
-        logger.warning("spaCy English model not found. Using basic text analysis.")
-        nlp = None
-        SPACY_AVAILABLE = False
-except ImportError:
-    SPACY_AVAILABLE = False
-    nlp = None
+SPACY_AVAILABLE = False
+nlp = None
+
+def load_spacy_if_available():
+    """Load spaCy model if available"""
+    global SPACY_AVAILABLE, nlp
+    # Only try to load once - use a flag to track if we've attempted loading
+    if not hasattr(load_spacy_if_available, '_attempted'):
+        try:
+            import spacy
+            nlp = spacy.load("en_core_web_sm")
+            SPACY_AVAILABLE = True
+            logger.info("spaCy model loaded successfully")
+        except (ImportError, OSError) as e:
+            logger.warning(f"spaCy not available or model not found: {e}. Using basic text analysis.")
+            SPACY_AVAILABLE = False
+            nlp = None
+
+        # Mark that we've attempted loading
+        load_spacy_if_available._attempted = True
+
+# Initialize spaCy availability status
+load_spacy_if_available()
 
 # AI processing for quality assessment
 try:

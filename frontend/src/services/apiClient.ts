@@ -19,14 +19,46 @@ class ApiClient {
     // Request interceptor
     this.client.interceptors.request.use(
       (config) => {
-        // Add auth headers if available
-        const token = useAuthStore.getState().token;
-        const organizationId = useAuthStore.getState().organization?.id;
+        // Check if we're sending FormData - if so, delete Content-Type to let browser set it
+        if (config.data instanceof FormData) {
+          console.debug('📤 FormData detected, removing Content-Type header');
+          delete config.headers['Content-Type'];
+        }
 
-        if (token && organizationId) {
-          const authHeaders = getAuthHeaders(token, organizationId);
+        // Add auth headers if available
+        const authState = useAuthStore.getState();
+        const token = authState.token;
+        const organizationId = authState.organization?.id;
+        const isAuthenticated = authState.isAuthenticated;
+
+        // Debug logging
+        console.debug('🔐 Auth Debug:', {
+          url: config.url,
+          method: config.method,
+          hasToken: !!token,
+          hasOrganizationId: !!organizationId,
+          isAuthenticated,
+          tokenPreview: token ? `${token.substring(0, 20)}...` : null,
+          organizationId,
+          currentHeaders: config.headers,
+          authStateLoading: authState.isLoading,
+          fullAuthState: authState
+        });
+
+        if (token) {
+          const authHeaders = getAuthHeaders(token, organizationId || 'default');
           Object.entries(authHeaders).forEach(([key, value]) => {
             config.headers.set(key, value);
+          });
+          console.debug('✅ Auth headers added:', authHeaders, {
+            hasOrganizationId: !!organizationId
+          });
+        } else {
+          console.warn('⚠️ Missing auth data:', {
+            hasToken: !!token,
+            hasOrganizationId: !!organizationId,
+            isAuthenticated,
+            isLoading: authState.isLoading
           });
         }
 
@@ -53,8 +85,11 @@ class ApiClient {
       async (error) => {
         const originalRequest = error.config;
 
+        // Don't retry if this IS the refresh token request itself
+        const isRefreshRequest = originalRequest.url?.includes('/auth/refresh');
+
         // Handle 401 Unauthorized
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest) {
           originalRequest._retry = true;
 
           try {
@@ -75,9 +110,16 @@ class ApiClient {
             return this.client(originalRequest);
           } catch (refreshError) {
             // Refresh failed, logout user
+            console.warn('Token refresh failed, logging out');
             useAuthStore.getState().logout();
             return Promise.reject(refreshError);
           }
+        }
+
+        // If this is the refresh endpoint failing, logout immediately
+        if (isRefreshRequest && error.response?.status === 401) {
+          console.warn('Refresh token expired, logging out');
+          useAuthStore.getState().logout();
         }
 
         // Convert to APIErrorClass
@@ -122,9 +164,7 @@ class ApiClient {
     formData.append('file', file);
 
     const config: AxiosRequestConfig = {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      // Don't set Content-Type header manually - Axios will set it correctly for FormData
       onUploadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);

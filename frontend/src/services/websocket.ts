@@ -72,7 +72,10 @@ export class WebSocketManager {
         };
 
         this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
+          // Only log detailed error on first attempt to reduce console spam
+          if (this.reconnectAttempts === 0) {
+            console.warn('WebSocket connection failed - real-time updates unavailable');
+          }
           this.isConnecting = false;
           this.emit('error', { error, timestamp: new Date().toISOString() });
           reject(new Error('WebSocket connection failed'));
@@ -173,12 +176,18 @@ export class WebSocketManager {
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
 
-    console.log(`WebSocket reconnect attempt ${this.reconnectAttempts} in ${delay}ms`);
+    // Only log first and last attempts to reduce console spam
+    if (this.reconnectAttempts === 1 || this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.log(`WebSocket reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+    }
 
     setTimeout(() => {
       if (this.reconnectAttempts <= this.maxReconnectAttempts) {
         this.connect().catch((error) => {
-          console.error('WebSocket reconnect failed:', error);
+          // Only log on last attempt to reduce console spam
+          if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.info('WebSocket unavailable - real-time updates disabled (this is expected for v1 API)');
+          }
         });
       }
     }, delay);

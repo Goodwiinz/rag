@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
 import { AuthState, User, LoginRequest, RegisterRequest } from '@/types';
 import { apiClient, setAuth, clearAuth } from '@/services/api';
+import { useAuthStore } from '@/stores/authStore';
 import { cleanupWebSocket } from '@/services/websocket';
 
 interface AuthContextType extends AuthState {
@@ -8,6 +9,7 @@ interface AuthContextType extends AuthState {
   register: (userData: RegisterRequest) => Promise<void>;
   logout: () => void;
   refreshToken: () => Promise<void>;
+  handleAuthError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -17,6 +19,19 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const {
+    user,
+    token,
+    isAuthenticated,
+    isLoading,
+    error,
+    login: storeLogin,
+    register: storeRegister,
+    logout: storeLogout,
+    refreshToken,
+    initializeFromStorage,
+  } = useAuthStore();
+
   const [authState, setAuthState] = useState<AuthState>({
     user: null,
     token: null,
@@ -24,47 +39,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading: true,
     error: null,
   });
-
-  // Initialize auth state from localStorage
-  useEffect(() => {
-    const initializeAuth = () => {
-      try {
-        const token = localStorage.getItem('access_token');
-        const userData = localStorage.getItem('user_data');
-
-        if (token && userData) {
-          const user = JSON.parse(userData);
-          setAuthState({
-            user,
-            token,
-            isAuthenticated: true,
-            isLoading: false,
-            error: null,
-          });
-          setAuth(token, user.organization_id);
-        } else {
-          setAuthState(prev => ({ ...prev, isLoading: false }));
-        }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        clearStoredAuth();
-        setAuthState(prev => ({ ...prev, isLoading: false }));
-      }
-    };
-
-    initializeAuth();
-  }, []);
-
-  // Store auth data in localStorage
-  const storeAuthData = useCallback((token: string, user: User) => {
-    try {
-      localStorage.setItem('access_token', token);
-      localStorage.setItem('user_data', JSON.stringify(user));
-      setAuth(token, user.organization_id);
-    } catch (error) {
-      console.error('Error storing auth data:', error);
-    }
-  }, []);
 
   // Clear stored auth data
   const clearStoredAuth = useCallback(() => {
@@ -80,105 +54,96 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Logout function (defined first to avoid circular dependency)
   const logout = useCallback(() => {
-    clearStoredAuth();
     cleanupWebSocket();
+    storeLogout();
+  }, [storeLogout]);
+
+  // Handle authentication errors (401 responses)
+  const handleAuthError = useCallback(() => {
+    console.warn('Authentication error detected, logging out...');
+    cleanupWebSocket();
+    storeLogout();
+  }, [storeLogout]);
+
+  // Store auth data in localStorage
+  const storeAuthData = useCallback((token: string, user: User) => {
+    try {
+      localStorage.setItem('access_token', token);
+      localStorage.setItem('user_data', JSON.stringify(user));
+      setAuth(token, user.organization_id);
+    } catch (error) {
+      console.error('Error storing auth data:', error);
+    }
+  }, []);
+
+  // Sync auth state with store
+  useEffect(() => {
     setAuthState({
-      user: null,
-      token: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null,
+      user,
+      token,
+      isAuthenticated,
+      isLoading,
+      error,
     });
-  }, [clearStoredAuth]);
+
+    // Keep the old API client in sync for now
+    if (token && user?.organization_id) {
+      setAuth(token, user.organization_id);
+    } else {
+      clearAuth();
+    }
+  }, [user, token, isAuthenticated, isLoading, error, setAuth, clearAuth]);
+
+  // Initialize auth store from localStorage on mount
+  useEffect(() => {
+    initializeFromStorage();
+  }, [initializeFromStorage]);
+
+  // Keep localStorage in sync with store (for compatibility with old system)
+  useEffect(() => {
+    try {
+      if (token && user) {
+        localStorage.setItem('access_token', token);
+        localStorage.setItem('user_data', JSON.stringify(user));
+        setAuth(token, user.organization_id);
+      } else {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('user_data');
+        clearAuth();
+      }
+    } catch (error) {
+      console.error('Error syncing auth data to localStorage:', error);
+    }
+  }, [token, user, setAuth, clearAuth]);
 
   // Login function
   const login = useCallback(async (email: string, password: string) => {
-    setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
-
-    try {
-      const response = await apiClient.login({ email, password });
-      const { access_token, user } = response;
-
-      storeAuthData(access_token, user);
-
-      setAuthState({
-        user,
-        token: access_token,
-        isAuthenticated: true,
-        isLoading: false,
-        error: null,
-      });
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Login failed';
-      setAuthState({
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: errorMessage,
-      });
-      throw new Error(errorMessage);
-    }
-  }, [storeAuthData]);
+    await storeLogin(email, password);
+  }, [storeLogin]);
 
   // Register function
   const register = useCallback(async (userData: RegisterRequest) => {
-    setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
-
-    try {
-      const response = await apiClient.register(userData);
-      const { access_token, user } = response;
-
-      storeAuthData(access_token, user);
-
-      setAuthState({
-        user,
-        token: access_token,
-        isAuthenticated: true,
-        isLoading: false,
-        error: null,
-      });
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Registration failed';
-      setAuthState({
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: errorMessage,
-      });
-      throw new Error(errorMessage);
-    }
-  }, [storeAuthData]);
+    await storeRegister(userData);
+  }, [storeRegister]);
 
   // Refresh token function
-  const refreshToken = useCallback(async () => {
+  const refreshTokenCallback = useCallback(async () => {
     try {
-      const response = await apiClient.refreshToken();
-      const { access_token, user } = response;
-
-      storeAuthData(access_token, user);
-
-      setAuthState(prev => ({
-        ...prev,
-        token: access_token,
-        user,
-        error: null,
-      }));
+      await refreshToken();
     } catch (error) {
       console.error('Token refresh failed:', error);
-      logout();
+      cleanupWebSocket();
+      storeLogout();
     }
-  }, [storeAuthData, logout]);
+  }, [refreshToken, storeLogout]);
 
   const contextValue: AuthContextType = {
     ...authState,
     login,
     register,
     logout,
-    refreshToken,
+    refreshToken: refreshTokenCallback,
+    handleAuthError,
   };
 
   return React.createElement(

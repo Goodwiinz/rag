@@ -1,6 +1,32 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Document, DocumentListResponse, DocumentFilters } from '@/types';
-import { RAGAPIClient } from '@/services/api';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Document, DocumentFilters, APIErrorClass } from '@/types';
+import { apiClient } from '@/services/apiClient';
+import { useAuth } from '@/hooks/useAuth';
+
+// Transform backend document response to frontend Document type
+const transformDocument = (backendDoc: any): Document => {
+  return {
+    id: backendDoc.id,
+    user_id: backendDoc.uploaded_by_user_id || backendDoc.user_id,
+    organization_id: backendDoc.organization_id,
+    title: backendDoc.title,
+    filename: backendDoc.filename,
+    file_type: backendDoc.document_type || backendDoc.file_type,
+    file_size: backendDoc.file_size_bytes || backendDoc.file_size,
+    processing_status: backendDoc.processing_status?.toLowerCase() || 'queued',
+    processing_error: backendDoc.processing_error,
+    upload_timestamp: backendDoc.created_at || backendDoc.upload_timestamp,
+    processing_completed_at: backendDoc.processing_completed_at,
+    thumbnail_url: backendDoc.thumbnail_url,
+    page_count: backendDoc.page_count,
+    duration_seconds: backendDoc.duration_seconds,
+    extracted_text_preview: backendDoc.extracted_text_preview,
+    metadata: backendDoc.metadata || backendDoc.document_metadata || {},
+    description: backendDoc.description,
+    tags: backendDoc.tags,
+    custom_fields: backendDoc.custom_fields || backendDoc.custom_metadata
+  };
+};
 
 interface UseDocumentsState {
   documents: Document[];
@@ -29,6 +55,8 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
     autoFetch = true,
   } = options;
 
+  const { isAuthenticated, isLoading: authLoading, handleAuthError } = useAuth();
+
   const [state, setState] = useState<UseDocumentsState>({
     documents: [],
     loading: false,
@@ -45,41 +73,110 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
     selectedDocuments: new Set(),
   });
 
-  const apiClient = new RAGAPIClient();
+  // Track if component is mounted to prevent state updates after unmount
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const fetchDocuments = useCallback(async (
-    page: number = state.pagination.page,
-    pageSize: number = state.pagination.pageSize,
-    filters: DocumentFilters = state.filters
+    page?: number,
+    pageSize?: number,
+    filters?: DocumentFilters
   ) => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
+    // Check if user is authenticated before making API call
+    console.log('🔍 Authentication check in fetchDocuments:', {
+      isAuthenticated,
+      authLoading,
+    });
+
+    if (!isAuthenticated) {
+      console.warn('🚫 Cannot fetch documents: User not authenticated');
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: null, // Don't show error for unauthenticated users
+      }));
+      return;
+    }
+
+    console.log('Fetching documents with params:', {
+      page,
+      pageSize,
+      filters,
+      isAuthenticated,
+      authLoading
+    });
+
+    let actualPage: number;
+    let actualPageSize: number;
+    let actualFilters: DocumentFilters;
+
+    // Get current values and set loading state atomically
+    setState(prev => {
+      actualPage = page ?? prev.pagination.page;
+      actualPageSize = pageSize ?? prev.pagination.pageSize;
+      actualFilters = filters ?? prev.filters;
+      return { ...prev, loading: true, error: null };
+    });
 
     try {
       const params: Record<string, any> = {
-        page,
-        page_size: pageSize,
+        page: actualPage,
+        page_size: actualPageSize,
       };
 
-      // Add filters to params
-      if (filters.file_types && filters.file_types.length > 0) {
-        params.file_type = filters.file_types.join(',');
+      // Add filters to params with proper null checks
+      if (actualFilters?.file_types && actualFilters.file_types.length > 0) {
+        params.file_type = actualFilters.file_types.join(',');
       }
-      if (filters.status && filters.status.length > 0) {
-        params.status = filters.status.join(',');
+      if (actualFilters?.status && actualFilters.status.length > 0) {
+        params.status = actualFilters.status.join(',');
       }
-      if (filters.search_term) {
-        params.search = filters.search_term;
+      if (actualFilters?.search_term) {
+        params.search = actualFilters.search_term;
       }
-      if (filters.date_range) {
-        params.date_from = filters.date_range.start;
-        params.date_to = filters.date_range.end;
+      if (actualFilters?.date_range) {
+        params.date_from = actualFilters.date_range.start;
+        params.date_to = actualFilters.date_range.end;
       }
 
-      const response = await apiClient.getDocuments(params);
+      console.log('Making API call to getDocuments with params:', params);
+      const response = await apiClient.get('/api/v1/documents/', { params });  // Added trailing slash to avoid 307 redirect
+      console.log('API response received:', response);
+
+      // Check if response has the expected structure
+      if (!response) {
+        console.error('Empty API response:', response);
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          error: 'No response from server',
+        }));
+        return;
+      }
+
+  
+      if (!response.pagination) {
+        console.error('Invalid API response structure:', response);
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          error: 'Invalid response format from server',
+        }));
+        return;
+      }
+
+      // Transform backend documents to frontend format
+      const transformedDocuments = (response.documents || []).map(transformDocument);
 
       setState(prev => ({
         ...prev,
-        documents: response.documents,
+        documents: transformedDocuments,
         pagination: {
           page: response.pagination.page,
           pageSize: response.pagination.page_size,
@@ -92,13 +189,62 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
         error: null,
       }));
     } catch (error) {
+      console.error('Error fetching documents:', error);
+
+      // Handle APIErrorClass instances (from API client)
+      if (error instanceof APIErrorClass) {
+        console.log('APIErrorClass caught:', error.error);
+
+        // Check if it's an authentication error (401/403)
+        if (error.error.status_code === 401 || error.error.status_code === 403) {
+          console.log('Authentication error detected in APIErrorClass, triggering logout');
+          handleAuthError();
+          setState(prev => ({
+            ...prev,
+            loading: false,
+            error: error.error.message || 'Your session has expired. Please log in again.',
+          }));
+          return;
+        }
+
+        // Handle other API errors
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          error: error.error.message || 'Request failed',
+        }));
+        return;
+      }
+
+      // Handle other error types (network errors, etc.)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      // Check for various authentication error patterns in error messages
+      const isAuthError =
+        errorMessage.includes('Could not validate credentials') ||
+        errorMessage.includes('Authentication failed') ||
+        errorMessage.includes('Unauthorized') ||
+        errorMessage.includes('Invalid token') ||
+        errorMessage.includes('Session expired');
+
+      if (isAuthError) {
+        console.log('Authentication error detected in error message, triggering logout');
+        handleAuthError();
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          error: 'Your session has expired. Please log in again.',
+        }));
+        return;
+      }
+
       setState(prev => ({
         ...prev,
         loading: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch documents',
+        error: errorMessage,
       }));
     }
-  }, [state.pagination.page, state.pagination.pageSize, state.filters, apiClient]);
+  }, [apiClient, handleAuthError, isAuthenticated, authLoading]);
 
   const updateFilters = useCallback((newFilters: Partial<DocumentFilters>) => {
     setState(prev => ({
@@ -149,8 +295,12 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
   }, []);
 
   const deleteDocument = useCallback(async (documentId: string) => {
+    if (!isAuthenticated) {
+      throw new Error('Authentication required to delete documents');
+    }
+
     try {
-      await apiClient.deleteDocument(documentId);
+      await apiClient.delete(`/api/v1/documents/${documentId}`);
 
       // Refresh documents list
       await fetchDocuments();
@@ -162,20 +312,56 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
         return { ...prev, selectedDocuments: newSelected };
       });
     } catch (error) {
-      throw new Error(error instanceof Error ? error.message : 'Failed to delete document');
+      // Handle APIErrorClass instances (from API client)
+      if (error instanceof APIErrorClass) {
+        // Check if it's an authentication error (401/403)
+        if (error.error.status_code === 401 || error.error.status_code === 403) {
+          console.log('Authentication error detected in deleteDocument, triggering logout');
+          handleAuthError();
+          throw new Error('Your session has expired. Please log in again.');
+        }
+        throw new Error(error.error.message || 'Request failed');
+      }
+
+      // Handle other error types (network errors, etc.)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      // Check for various authentication error patterns in error messages
+      const isAuthError =
+        errorMessage.includes('Could not validate credentials') ||
+        errorMessage.includes('Authentication failed') ||
+        errorMessage.includes('Unauthorized') ||
+        errorMessage.includes('Invalid token') ||
+        errorMessage.includes('Session expired');
+
+      if (isAuthError) {
+        console.log('Authentication error detected in deleteDocument error message, triggering logout');
+        handleAuthError();
+        throw new Error('Your session has expired. Please log in again.');
+      }
+      throw new Error(errorMessage);
     }
-  }, [apiClient, fetchDocuments]);
+  }, [apiClient, fetchDocuments, isAuthenticated, handleAuthError]);
 
   const deleteSelectedDocuments = useCallback(async () => {
-    const promises = Array.from(state.selectedDocuments).map(id =>
-      deleteDocument(id)
+    const documentIds = Array.from(state.selectedDocuments);
+
+    // Use Promise.allSettled to handle partial failures
+    const results = await Promise.allSettled(
+      documentIds.map(id => deleteDocument(id))
     );
 
-    try {
-      await Promise.all(promises);
-      clearSelection();
-    } catch (error) {
-      throw new Error('Failed to delete some documents');
+    // Count successes and failures
+    const failures = results.filter(r => r.status === 'rejected');
+    const successes = results.filter(r => r.status === 'fulfilled');
+
+    // Clear selection for successfully deleted documents
+    clearSelection();
+
+    // If there were any failures, throw an error with details
+    if (failures.length > 0) {
+      const errorMessage = `Failed to delete ${failures.length} of ${documentIds.length} documents. ${successes.length} documents were deleted successfully.`;
+      throw new Error(errorMessage);
     }
   }, [state.selectedDocuments, deleteDocument, clearSelection]);
 
@@ -184,31 +370,88 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
   }, [fetchDocuments]);
 
   const retryDocument = useCallback(async (documentId: string) => {
+    if (!isAuthenticated) {
+      throw new Error('Authentication required to retry document processing');
+    }
+
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      const result = await apiClient.retryDocumentProcessing(documentId);
+      const result = await apiClient.post(`/api/v1/documents/${documentId}/retry`);
 
       // Refresh documents list to get updated status
       await fetchDocuments();
 
       return result;
     } catch (error) {
+      // Handle APIErrorClass instances (from API client)
+      if (error instanceof APIErrorClass) {
+        // Check if it's an authentication error (401/403)
+        if (error.error.status_code === 401 || error.error.status_code === 403) {
+          console.log('Authentication error detected in retryDocument, triggering logout');
+          handleAuthError();
+          setState(prev => ({
+            ...prev,
+            loading: false,
+            error: error.error.message || 'Your session has expired. Please log in again.',
+          }));
+          return;
+        }
+
+        // Handle other API errors
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          error: error.error.message || 'Request failed',
+        }));
+        throw new Error(error.error.message || 'Request failed');
+      }
+
+      // Handle other error types (network errors, etc.)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      // Check for various authentication error patterns in error messages
+      const isAuthError =
+        errorMessage.includes('Could not validate credentials') ||
+        errorMessage.includes('Authentication failed') ||
+        errorMessage.includes('Unauthorized') ||
+        errorMessage.includes('Invalid token') ||
+        errorMessage.includes('Session expired');
+
+      if (isAuthError) {
+        console.log('Authentication error detected in retryDocument error message, triggering logout');
+        handleAuthError();
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          error: 'Your session has expired. Please log in again.',
+        }));
+        return;
+      }
+
       setState(prev => ({
         ...prev,
         loading: false,
-        error: error instanceof Error ? error.message : 'Failed to retry document processing',
+        error: errorMessage,
       }));
-      throw new Error(error instanceof Error ? error.message : 'Failed to retry document processing');
+      throw new Error(errorMessage);
     }
-  }, [apiClient, fetchDocuments]);
+  }, [apiClient, fetchDocuments, isAuthenticated, handleAuthError]);
 
   // Auto-fetch on mount and when dependencies change
   useEffect(() => {
-    if (autoFetch) {
+    console.log('Auto-fetch effect triggered:', {
+      autoFetch,
+      isAuthenticated,
+      authLoading,
+      shouldFetch: autoFetch && isAuthenticated && !authLoading
+    });
+
+    if (autoFetch && isAuthenticated && !authLoading) {
+      console.log('Auto-fetching documents...');
       fetchDocuments();
     }
-  }, [autoFetch, fetchDocuments]);
+  }, [autoFetch, fetchDocuments, isAuthenticated, authLoading]);
 
   return {
     // State

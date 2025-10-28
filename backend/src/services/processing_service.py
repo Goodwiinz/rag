@@ -20,7 +20,7 @@ from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.processing import ProcessingJob, JobType, JobStatus, JobPriority
 from src.models.entity import Entity, EntityType, ExtractionMethod
 from src.services.file_service import FileService
-from src.services.entity_extraction_service import EntityExtractionService
+from src.services.services.entity_extraction_service import EntityExtractionService
 from src.services.image_processing_service import ImageProcessingService
 from src.services.audio_processing_service import AudioProcessingService
 from src.services.video_processing_service import VideoProcessingService

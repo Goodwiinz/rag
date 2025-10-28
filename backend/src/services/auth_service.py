@@ -46,7 +46,11 @@ class AuthService:
                 "Too many login attempts. Please try again later."
             )
 
-        user = self.db.query(User).filter(
+        # Eager load organization relationship
+        from sqlalchemy.orm import joinedload
+        user = self.db.query(User).options(
+            joinedload(User.organization)
+        ).filter(
             and_(
                 User.email == email.lower(),
                 User.is_active == True,
@@ -66,6 +70,12 @@ class AuthService:
     def login_user(self, email: str, password: str) -> Dict[str, Any]:
         """Login user and return tokens"""
         user = self.authenticate_user(email, password)
+
+        # Load organization relationship
+        if user.organization:
+            organization_data = user.organization.to_dict()
+        else:
+            organization_data = None
 
         # Create access token
         access_token_expires = timedelta(
@@ -91,7 +101,8 @@ class AuthService:
             "refresh_token": refresh_token,
             "token_type": "bearer",
             "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "user": user.to_dict(exclude_sensitive=True)
+            "user": user.to_dict(exclude_sensitive=True),
+            "organization": organization_data
         }
 
     def refresh_access_token(self, refresh_token: str) -> Dict[str, Any]:

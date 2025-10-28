@@ -74,9 +74,7 @@ export const useCreateMetric = () => {
   const { setError } = useAnalyticsStore();
 
   return useMutation({
-    mutationFn: (metric: Omit<AnalyticsMetric, 'id'>) => metricsApi.createMetric(metric));
-      queryClient.setQueryData(['metric', data.id], data);
-    },
+    mutationFn: (metric: Omit<AnalyticsMetric, 'id'>) => metricsApi.createMetric(metric),
   });
 };
 
@@ -87,9 +85,7 @@ export const useUpdateMetric = () => {
 
   return useMutation({
     mutationFn: ({ metricId, updates }: { metricId: string; updates: Partial<AnalyticsMetric> }) =>
-      metricsApi.updateMetric(metricId, updates));
-      queryClient.setQueryData(['metric', variables.metricId], data);
-    },
+      metricsApi.updateMetric(metricId, updates),
   });
 };
 
@@ -99,10 +95,7 @@ export const useDeleteMetric = () => {
   const { setError } = useAnalyticsStore();
 
   return useMutation({
-    mutationFn: (metricId: string) => metricsApi.deleteMetric(metricId));
-      queryClient.removeQueries({ queryKey: ['metric', metricId] });
-      queryClient.removeQueries({ queryKey: ['timeseries', metricId] });
-    },
+    mutationFn: (metricId: string) => metricsApi.deleteMetric(metricId),
   });
 };
 
