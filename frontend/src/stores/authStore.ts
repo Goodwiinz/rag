@@ -1,6 +1,29 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User, Organization } from '@/types';
+import { apiClient } from '@/services/apiClient';
+
+// API Response Types
+interface LoginResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+  user: User;
+  organization?: Organization;
+}
+
+interface RefreshResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+  user?: User;
+}
+
+interface SwitchOrganizationResponse {
+  organization: Organization;
+}
 
 interface AuthState {
   // State
@@ -12,7 +35,9 @@ interface AuthState {
   error: string | null;
 
   // Actions
+  initializeFromStorage: () => void;
   login: (email: string, password: string) => Promise<void>;
+  register: (userData: { email: string; password: string; full_name?: string }) => Promise<void>;
   logout: () => void;
   refreshToken: () => Promise<void>;
   updateUser: (user: Partial<User>) => void;
@@ -32,33 +57,94 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       error: null,
 
+      // Initialize auth state from localStorage (for synchronization with useAuth)
+      initializeFromStorage: () => {
+        console.log('🔄 AuthStore: Initializing from localStorage');
+
+        try {
+          const token = localStorage.getItem('access_token');
+          const userData = localStorage.getItem('user_data');
+
+          if (token && userData) {
+            const user = JSON.parse(userData);
+            console.log('🔄 AuthStore: Found auth data in localStorage', {
+              hasToken: !!token,
+              hasUser: !!user,
+              userId: user.id,
+              orgId: user.organization_id
+            });
+
+            // Create organization object from user data
+            const organization = user.organization_id ? {
+              id: user.organization_id,
+              name: user.organization_name || 'Default Organization',
+              plan: 'free' as const,
+              storage_limit: 1000000000, // 1GB default
+              member_count: 1,
+              created_at: user.created_at || new Date().toISOString(),
+            } : null;
+
+            set({
+              user,
+              organization,
+              token,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+            });
+
+            console.log('✅ AuthStore: State synchronized with localStorage');
+          } else {
+            console.log('ℹ️ AuthStore: No auth data found in localStorage');
+            set({ isLoading: false });
+          }
+        } catch (error) {
+          console.error('❌ AuthStore: Failed to initialize from localStorage:', error);
+          set({ isLoading: false, error: 'Failed to initialize auth state' });
+        }
+      },
+
       // Actions
       login: async (email: string, password: string) => {
         set({ isLoading: true, error: null });
 
         try {
-          const response = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
+          const data: LoginResponse = await apiClient.post('/api/v1/auth/login', {
+            email,
+            password,
           });
-
-          if (!response.ok) {
-            throw new Error('Login failed');
-          }
-
-          const data = await response.json();
 
           set({
             user: data.user,
             organization: data.organization,
-            token: data.token,
+            token: data.access_token, // Backend returns access_token
             isAuthenticated: true,
             isLoading: false,
           });
         } catch (error) {
           set({
             error: error instanceof Error ? error.message : 'Login failed',
+            isLoading: false,
+          });
+        }
+      },
+
+      register: async (userData: { email: string; password: string; full_name?: string }) => {
+        set({ isLoading: true, error: null });
+
+        try {
+          const data: LoginResponse = await apiClient.post('/api/v1/auth/register', userData);
+
+          set({
+            user: data.user,
+            organization: data.organization,
+            token: data.access_token,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Registration failed',
             isLoading: false,
           });
         }
@@ -79,20 +165,11 @@ export const useAuthStore = create<AuthState>()(
         if (!token) return;
 
         try {
-          const response = await fetch('/api/auth/refresh', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
+          const data: RefreshResponse = await apiClient.post('/api/v1/auth/refresh', {
+            refresh_token: token, // Backend expects refresh_token in body
           });
 
-          if (!response.ok) {
-            get().logout();
-            return;
-          }
-
-          const data = await response.json();
-          set({ token: data.token });
+          set({ token: data.access_token });
         } catch (error) {
           get().logout();
         }
@@ -109,21 +186,10 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const { token } = get();
-          const response = await fetch('/api/auth/switch-organization', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({ organizationId }),
+          const data: SwitchOrganizationResponse = await apiClient.post('/api/v1/auth/switch-organization', {
+            organizationId,
           });
 
-          if (!response.ok) {
-            throw new Error('Failed to switch organization');
-          }
-
-          const data = await response.json();
           set({
             organization: data.organization,
             isLoading: false,

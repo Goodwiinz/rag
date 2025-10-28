@@ -4,6 +4,7 @@ File upload and management API endpoints
 
 from typing import Optional, List
 import os
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -20,13 +21,20 @@ router = APIRouter(prefix="/files", tags=["files"])
 
 # Request/Response Models
 class FileUploadResponse(BaseModel):
-    id: str
+    document_id: str
+    upload_id: str  # Same as document_id for v1 API compatibility
+    id: str  # Deprecated, use document_id
     title: str
     filename: str
     document_type: str
     file_size_bytes: int
+    file_size_mb: float
+    mime_type: str
     processing_status: str
     upload_timestamp: str
+    created_at: str
+    message: str
+    upload_progress: int = 100  # v1 API doesn't support progress tracking
 
 class FileListResponse(BaseModel):
     files: List[dict]
@@ -42,17 +50,49 @@ class FileStatsResponse(BaseModel):
 async def upload_file(
     file: UploadFile = File(...),
     title: str = Form(...),
+    description: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),
     is_public: bool = Form(False),
-    current_user: User = Depends(can_upload_documents),
+    processing_priority: Optional[str] = Form('normal'),
+    enable_quality_check: bool = Form(True),
+    custom_metadata: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user),  # Temporarily reduced permission check
     db: Session = Depends(get_db),
     file_service: FileService = Depends(get_file_service)
 ):
     """Upload a file to the system"""
+
+    # Debug logging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"📤 Upload Request Debug:")
+    logger.info(f"  - User ID: {current_user.id}")
+    logger.info(f"  - User Email: {current_user.email}")
+    logger.info(f"  - User Role: {current_user.role.value if current_user.role else 'None'}")
+    logger.info(f"  - User Active: {current_user.is_active}")
+    logger.info(f"  - Can Upload: {current_user.can_upload_documents()}")
+    logger.info(f"  - Title: {title}")
+    logger.info(f"  - Description: {description}")
+    logger.info(f"  - Tags: {tags}")
+    logger.info(f"  - Processing Priority: {processing_priority}")
+    logger.info(f"  - Enable Quality Check: {enable_quality_check}")
+
     try:
         # Get user's organization
         from src.core.dependencies import get_current_organization
         organization = get_current_organization(current_user)
+        logger.info(f"  - Organization ID: {organization.id if organization else 'None'}")
+        logger.info(f"  - Organization Name: {organization.name if organization else 'None'}")
+
+        # Manual permission check for debugging
+        if not current_user.can_upload_documents():
+            logger.error(f"❌ Permission check failed! User {current_user.email} cannot upload documents")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Insufficient permissions. User role: {current_user.role.value if current_user.role else 'None'}, Required: USER or higher"
+            )
+
+        logger.info(f"✅ Permission check passed!")
 
         # Get file size for quota check
         if hasattr(file, 'size') and file.size:
@@ -85,14 +125,30 @@ async def upload_file(
             is_public=is_public
         )
 
+        # Map backend status to frontend expected status
+        status_mapping = {
+            'PENDING': 'queued',
+            'PROCESSING': 'processing',
+            'COMPLETED': 'indexed',
+            'FAILED': 'failed'
+        }
+        frontend_status = status_mapping.get(document.processing_status.value, 'queued')
+
         return FileUploadResponse(
-            id=str(document.id),
+            document_id=str(document.id),
+            upload_id=str(document.id),  # Same as document_id for v1 API
+            id=str(document.id),  # Deprecated, maintain compatibility
             title=document.title,
             filename=document.filename,
             document_type=document.document_type.value,
             file_size_bytes=document.file_size_bytes,
-            processing_status=document.processing_status.value,
-            upload_timestamp=document.created_at.isoformat()
+            file_size_mb=document.file_size_mb,
+            mime_type=document.mime_type or "application/octet-stream",
+            processing_status=frontend_status,  # Use frontend-compatible lowercase status
+            upload_timestamp=document.created_at.isoformat(),
+            created_at=document.created_at.isoformat(),
+            message="File uploaded successfully",
+            upload_progress=100
         )
 
     except Exception as e:
@@ -386,6 +442,124 @@ async def get_file_metadata(
             "is_public": document.is_public,
             "created_at": document.created_at,
             "updated_at": document.updated_at
+        }
+    }
+
+@router.delete("/cancel/{upload_id}")
+async def cancel_upload(
+    upload_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Cancel an ongoing upload or delete a recently uploaded document"""
+    try:
+        # Validate upload_id format
+        import uuid
+        try:
+            uuid.UUID(upload_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid upload ID format. Must be a valid UUID."
+            )
+
+        # First, check if upload_id exists in processing jobs
+        from src.models.processing import ProcessingJob
+
+        processing_job = db.query(ProcessingJob).filter(
+            ProcessingJob.celery_task_id == upload_id,
+            ProcessingJob.is_deleted == False
+        ).first()
+
+        if processing_job:
+            # Handle processing job cancellation
+            # Check if user owns this job
+            if processing_job.created_by_user_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You can only cancel your own uploads"
+                )
+
+            # Check if job can be cancelled (only pending or running jobs)
+            if processing_job.status not in ["pending", "running"]:
+                return {
+                    "message": f"Cannot cancel job in {processing_job.status} state",
+                    "upload_id": upload_id,
+                    "job_status": processing_job.status
+                }
+
+            # Update job status to cancelled
+            processing_job.status = "cancelled"
+            processing_job.completed_at = datetime.utcnow()
+            processing_job.error_message = "Upload cancelled by user"
+            db.commit()
+
+            return {
+                "message": "Upload cancelled successfully",
+                "upload_id": upload_id,
+                "job_id": processing_job.id
+            }
+
+        # If no processing job found, check if it's a document ID
+        document = db.query(Document).filter(
+            Document.id == upload_id,
+            Document.uploaded_by_user_id == current_user.id,
+            Document.is_deleted == False
+        ).first()
+
+        if document:
+            # Handle document deletion (for recently uploaded documents)
+            # Allow cancellation/deletion of documents that are still in processing state
+            if document.processing_status.value in ["pending", "processing"]:
+                document.soft_delete()
+                db.commit()
+
+                return {
+                    "message": "Document upload cancelled successfully",
+                    "upload_id": upload_id,
+                    "document_id": document.id
+                }
+            else:
+                return {
+                    "message": f"Cannot cancel document in {document.processing_status.value} state",
+                    "upload_id": upload_id,
+                    "document_status": document.processing_status.value
+                }
+
+        # If neither processing job nor document found
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Upload job or document not found"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to cancel upload: {str(e)}"
+        )
+
+@router.get("/debug-auth")
+async def debug_auth(
+    current_user: User = Depends(get_current_user),
+    organization: Organization = Depends(get_current_organization)
+):
+    """Debug endpoint to check authentication state"""
+    return {
+        "user_id": str(current_user.id),
+        "user_email": current_user.email,
+        "user_role": current_user.role.value if current_user.role else None,
+        "user_active": current_user.is_active,
+        "organization_id": str(organization.id) if organization else None,
+        "organization_name": organization.name if organization else None,
+        "can_upload_documents": current_user.can_upload_documents(),
+        "user_permissions": {
+            "has_user_role": current_user.has_permission(UserRole.USER),
+            "has_admin_role": current_user.has_permission(UserRole.ADMIN),
+            "has_content_manager_role": current_user.has_permission(UserRole.CONTENT_MANAGER),
+            "has_analyst_role": current_user.has_permission(UserRole.ANALYST),
         }
     }
 

@@ -47,12 +47,17 @@ class DocumentDetailResponse(DocumentResponse):
     processing_error: Optional[str] = None
     processing_retry_count: int = 0
 
+class PaginationInfo(BaseModel):
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
 class DocumentListResponse(BaseModel):
     documents: List[DocumentResponse]
-    total: int
-    page: int
-    size: int
-    total_pages: int
+    pagination: PaginationInfo
 
 class DocumentEntityResponse(BaseModel):
     id: str
@@ -69,9 +74,7 @@ class DocumentEntitiesResponse(BaseModel):
 
 class DocumentSearchResponse(BaseModel):
     documents: List[DocumentResponse]
-    total: int
-    page: int
-    size: int
+    pagination: PaginationInfo
     search_query: str
     search_filters: dict
 
@@ -187,13 +190,19 @@ async def list_documents(
             ))
 
         total_pages = (total + size - 1) // size
+        has_next = page < total_pages
+        has_prev = page > 1
 
         return DocumentListResponse(
             documents=document_responses,
-            total=total,
-            page=page,
-            size=size,
-            total_pages=total_pages
+            pagination=PaginationInfo(
+                page=page,
+                page_size=size,
+                total=total,
+                total_pages=total_pages,
+                has_next=has_next,
+                has_prev=has_prev
+            )
         )
 
     except Exception as e:
@@ -557,12 +566,19 @@ async def search_documents(
             ))
 
         total_pages = (total + size - 1) // size
+        has_next = page < total_pages
+        has_prev = page > 1
 
         return DocumentSearchResponse(
             documents=document_responses,
-            total=total,
-            page=page,
-            size=size,
+            pagination=PaginationInfo(
+                page=page,
+                page_size=size,
+                total=total,
+                total_pages=total_pages,
+                has_next=has_next,
+                has_prev=has_prev
+            ),
             search_query=query,
             search_filters={
                 "document_types": [dt.value for dt in document_types] if document_types else None,

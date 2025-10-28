@@ -180,7 +180,9 @@ export const useCreateEvaluation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: evaluationApi.createEvaluation);
+    mutationFn: evaluationApi.createEvaluation,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['evaluations'] });
     },
   });
 };
@@ -191,7 +193,8 @@ export const useUpdateEvaluation = () => {
 
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Evaluation> }) =>
-      evaluationApi.updateEvaluation(id, data));
+      evaluationApi.updateEvaluation(id, data),
+    onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['evaluation', id] });
     },
   });
@@ -202,7 +205,9 @@ export const useDeleteEvaluation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: evaluationApi.deleteEvaluation);
+    mutationFn: evaluationApi.deleteEvaluation,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['evaluations'] });
     },
   });
 };
@@ -212,10 +217,7 @@ export const useRunEvaluation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (evaluationId: string) => evaluationApi.runEvaluation(evaluationId));
-      queryClient.invalidateQueries({ queryKey: ['evaluation', evaluationId] });
-      queryClient.invalidateQueries({ queryKey: ['evaluation-runs', evaluationId] });
-    },
+    mutationFn: (evaluationId: string) => evaluationApi.runEvaluation(evaluationId),
   });
 };
 
@@ -274,7 +276,12 @@ export const useExportEvaluationResults = () => {
       evaluationId: string;
       runId: string;
       format: 'csv' | 'json' | 'pdf';
-    }) => evaluationApi.exportEvaluationResults(evaluationId, runId, format)`;
+    }) => evaluationApi.exportEvaluationResults(evaluationId, runId, format),
+    onSuccess: (data) => {
+      const url = window.URL.createObjectURL(new Blob([data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'evaluation_results_' + evaluationId + '_' + runId + '.' + format;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -316,7 +323,9 @@ export const useCreateComparison = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: evaluationApi.createComparison);
+    mutationFn: evaluationApi.createComparison,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['comparisons'] });
     },
   });
 };
@@ -484,7 +493,7 @@ const calculateDistribution = (values: number[]): Array<{ range: string; count: 
 
 const formatComparisonData = (comparison: EvaluationComparison) => {
   return {
-    labels: comparison.results.map(r => `Evaluation ${r.evaluation_id.slice(0, 8)}`),
+    labels: comparison.results.map(r => 'Evaluation ' + r.evaluation_id.slice(0, 8)),
     datasets: [
       {
         label: 'Average Answer Relevancy',
@@ -510,13 +519,13 @@ const generateComparisonInsights = (comparison: EvaluationComparison) => {
     insights.push({
       type: 'performance',
       title: 'Best Performing Evaluation',
-      description: `Evaluation ${best.evaluation_id.slice(0, 8)} achieved the highest average score of ${best.summary.average_score.toFixed(1)}%`,
+      description: 'Evaluation ' + best.evaluation_id.slice(0, 8) + ' achieved the highest average score of ' + best.summary.average_score.toFixed(1) + '%',
     });
 
     insights.push({
       type: 'improvement',
       title: 'Improvement Opportunity',
-      description: `There is a ${(best.summary.average_score - worst.summary.average_score).toFixed(1)}% difference between best and worst performing evaluations`,
+      description: 'There is a ' + (best.summary.average_score - worst.summary.average_score).toFixed(1) + '% difference between best and worst performing evaluations',
     });
   }
 

@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 import logging
 import time
@@ -34,6 +35,7 @@ from src.api.encryption import router as encryption_router
 from src.api.compliance import router as compliance_router
 from src.api.rbac_management import router as rbac_router
 from src.api.evaluation import router as evaluation_router
+from src.api.websocket import router as websocket_router
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.core.database import engine
 # from src.services.file_service import redis_client  # Not exported, not needed here
@@ -173,6 +175,7 @@ app.include_router(encryption_router, prefix="/api/v1/security")
 app.include_router(compliance_router, prefix="/api/v1/security")
 app.include_router(rbac_router, prefix="/api/v1/rbac")
 app.include_router(evaluation_router, prefix="/api/v1")
+app.include_router(websocket_router)  # WebSocket routes don't need /api/v1 prefix
 
 # Health check endpoint
 @app.get("/health")
@@ -197,9 +200,26 @@ async def root():
     }
 
 # Global exception handlers
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle validation errors"""
+    logger.error(f"Validation error on {request.url.path}: {exc.errors()}")
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "error": {
+                "message": "Validation error",
+                "status_code": 422,
+                "type": "validation_error",
+                "details": exc.errors()
+            }
+        }
+    )
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions"""
+    logger.error(f"HTTP {exc.status_code} error on {request.url.path}: {exc.detail}")
     return JSONResponse(
         status_code=exc.status_code,
         content={

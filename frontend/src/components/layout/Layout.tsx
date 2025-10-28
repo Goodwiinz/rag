@@ -1,9 +1,36 @@
-import React, { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 
 export const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+
+    if (showUserMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showUserMenu]);
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: '🏠' },
@@ -80,9 +107,50 @@ export const Layout: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-4">
-            {/* User menu will be implemented in later tasks */}
-            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium">
-              U
+            {/* User Menu */}
+            <div className="relative" ref={userMenuRef}>
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center space-x-2 hover:bg-gray-50 rounded-lg px-3 py-2 transition-colors"
+              >
+                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium">
+                  {user?.username?.[0]?.toUpperCase() || 'U'}
+                </div>
+                <span className="text-sm font-medium text-gray-700">
+                  {user?.username || 'User'}
+                </span>
+                <svg
+                  className={`w-4 h-4 text-gray-500 transition-transform ${showUserMenu ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Dropdown Menu */}
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 border border-gray-200">
+                  <div className="px-4 py-2 border-b border-gray-100">
+                    <p className="text-sm font-medium text-gray-900">{user?.username}</p>
+                    <p className="text-xs text-gray-500">{user?.email}</p>
+                  </div>
+                  <Link
+                    to="/settings"
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    onClick={() => setShowUserMenu(false)}
+                  >
+                    Settings
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>

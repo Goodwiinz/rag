@@ -58,7 +58,7 @@ from src.core.config import settings
 from src.core.database import get_db
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.processing import ProcessingJob, JobType, JobStatus
-from src.services.entity_extraction_service import EntityExtractionService
+from src.services.services.entity_extraction_service import EntityExtractionService
 from src.services.embedding_service import EmbeddingService
 
 logger = logging.getLogger(__name__)

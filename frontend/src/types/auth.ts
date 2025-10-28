@@ -37,8 +37,10 @@ export interface LoginRequest {
 export interface RegisterRequest {
   email: string;
   password: string;
-  name: string;
+  first_name: string;
+  last_name: string;
   organization_name?: string;
+  organization_id?: string;
 }
 
 export interface AuthResponse {

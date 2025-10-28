@@ -184,7 +184,8 @@ export const useExportAnalytics = () => {
       format: 'csv' | 'json' | 'pdf';
       filters: AnalyticsFilters;
       timeRange: TimeRange;
-    }) => analyticsService.exportAnalytics(format, filters, timeRange));
+    }) => analyticsService.exportAnalytics(format, filters, timeRange),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['usage-analytics'] });
     },
   });

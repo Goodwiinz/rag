@@ -40,10 +40,7 @@ export const useCreateDashboard = () => {
 
   return useMutation({
     mutationFn: (dashboard: Omit<Dashboard, 'id' | 'createdAt' | 'updatedAt'>) =>
-      dashboardApi.createDashboard(dashboard));
-      createDashboard(data);
-      queryClient.setQueryData(['dashboard', data.id], data);
-    },
+      dashboardApi.createDashboard(dashboard),
   });
 };
 
@@ -54,10 +51,7 @@ export const useUpdateDashboard = () => {
 
   return useMutation({
     mutationFn: ({ dashboardId, updates }: { dashboardId: string; updates: Partial<Dashboard> }) =>
-      dashboardApi.updateDashboard(dashboardId, updates));
-      queryClient.setQueryData(['dashboard', variables.dashboardId], data);
-      updateDashboard(variables.dashboardId, variables.updates);
-    },
+      dashboardApi.updateDashboard(dashboardId, updates),
   });
 };
 
@@ -67,10 +61,7 @@ export const useDeleteDashboard = () => {
   const { setError, deleteDashboard } = useAnalyticsStore();
 
   return useMutation({
-    mutationFn: (dashboardId: string) => dashboardApi.deleteDashboard(dashboardId));
-      queryClient.removeQueries({ queryKey: ['dashboard', dashboardId] });
-      deleteDashboard(dashboardId);
-    },
+    mutationFn: (dashboardId: string) => dashboardApi.deleteDashboard(dashboardId),
   });
 };
 
@@ -81,8 +72,7 @@ export const useDuplicateDashboard = () => {
 
   return useMutation({
     mutationFn: ({ dashboardId, name }: { dashboardId: string; name: string }) =>
-      dashboardApi.duplicateDashboard(dashboardId, name));
-    },
+      dashboardApi.duplicateDashboard(dashboardId, name),
   });
 };
 

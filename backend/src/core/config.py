@@ -51,6 +51,24 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
 
+    # Azure OpenAI Configuration
+    AZURE_OPENAI_API_KEY: Optional[str] = None
+    AZURE_OPENAI_ENDPOINT: Optional[str] = None
+    AZURE_OPENAI_API_VERSION: str = "2024-02-15-preview"
+    AZURE_OPENAI_DEPLOYMENT_NAME: Optional[str] = None
+    AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME: Optional[str] = None
+    AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: Optional[str] = None
+
+    # Multiple Endpoints Support
+    AZURE_OPENAI_CHAT_ENDPOINT: Optional[str] = None
+    AZURE_OPENAI_EMBEDDING_ENDPOINT: Optional[str] = None
+    AZURE_OPENAI_CHAT_API_VERSION: str = "2024-06-01"
+    AZURE_OPENAI_EMBEDDING_API_VERSION: str = "2023-05-15"
+
+    # Separate API Keys Support
+    AZURE_OPENAI_CHAT_API_KEY: Optional[str] = None
+    AZURE_OPENAI_EMBEDDING_API_KEY: Optional[str] = None
+
     # Processing Configuration
     MAX_CONCURRENT_JOBS: int = 5
     JOB_RETRY_MAX: int = 3
@@ -61,6 +79,9 @@ class Settings(BaseSettings):
     MAX_SEARCH_LIMIT: int = 50
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
 
+    # Embedding Provider Configuration
+    EMBEDDING_PROVIDER: str = "sentence_transformers"  # sentence_transformers, azure_openai, auto
+
     # Monitoring
     ENABLE_METRICS: bool = True
     LOG_LEVEL: str = "INFO"
@@ -70,6 +91,14 @@ class Settings(BaseSettings):
     def validate_neo4j_uri(cls, v):
         if not v.startswith(("bolt://", "neo4j://", "bolt+s://", "neo4j+s://")):
             raise ValueError("Neo4j URI must start with bolt://, neo4j://, bolt+s://, or neo4j+s://")
+        return v
+
+    @field_validator("QDRANT_API_KEY")
+    @classmethod
+    def validate_qdrant_api_key(cls, v):
+        # Allow None or empty string for local development, but validate format if provided
+        if v is not None and v != "" and len(v) < 10:
+            raise ValueError("Qdrant API key must be at least 10 characters long")
         return v
 
     @field_validator("QDRANT_URL")

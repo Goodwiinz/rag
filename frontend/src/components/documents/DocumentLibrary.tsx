@@ -12,6 +12,7 @@ import {
   FolderArrowDownIcon,
 } from '@heroicons/react/24/outline';
 import { useDocuments } from '@/hooks/useDocuments';
+import { useAuthStore } from '@/stores/authStore';
 import { DocumentCard } from './DocumentCard';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
 }) => {
   const bulkActionsMenuRef = useRef<HTMLDivElement>(null);
 
+  const { isAuthenticated } = useAuthStore();
   const {
     documents,
     loading,
@@ -335,25 +337,35 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                 size="sm"
                 onClick={() => setShowBulkActionsMenu(!showBulkActionsMenu)}
                 className="flex items-center space-x-2"
+                aria-expanded={showBulkActionsMenu}
+                aria-haspopup="menu"
+                aria-label="Bulk actions menu"
+                id="bulk-actions-button"
               >
                 <span>Actions</span>
                 <ArrowDownIcon className="h-4 w-4" />
               </Button>
 
               {showBulkActionsMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-10">
+                <div
+                  className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-10"
+                  role="menu"
+                  aria-labelledby="bulk-actions-button"
+                >
                   <div className="py-1">
                     <button
+                      role="menuitem"
                       onClick={() => {
                         handleExportSelected();
                         setShowBulkActionsMenu(false);
                       }}
                       className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     >
-                      <FolderArrowDownIcon className="h-4 w-4 mr-2" />
+                      <FolderArrowDownIcon className="h-4 w-4 mr-2" aria-hidden="true" />
                       Export
                     </button>
                     <button
+                      role="menuitem"
                       onClick={() => {
                         // TODO: Open tag selection dialog
                         handleTagSelected('important');
@@ -361,18 +373,19 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                       }}
                       className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     >
-                      <TagIcon className="h-4 w-4 mr-2" />
+                      <TagIcon className="h-4 w-4 mr-2" aria-hidden="true" />
                       Add Tags
                     </button>
-                    <hr className="my-1" />
+                    <hr className="my-1" aria-hidden="true" />
                     <button
+                      role="menuitem"
                       onClick={() => {
                         handleDeleteSelected();
                         setShowBulkActionsMenu(false);
                       }}
                       className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                     >
-                      <TrashIcon className="h-4 w-4 mr-2" />
+                      <TrashIcon className="h-4 w-4 mr-2" aria-hidden="true" />
                       Delete Selected
                     </button>
                   </div>
@@ -420,13 +433,23 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
           <div className="text-center py-12">
             <DocumentPlusIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-medium text-foreground mb-2">
-              No documents found
+              {!isAuthenticated ? 'Please log in' : 'No documents found'}
             </h3>
             <p className="text-muted-foreground">
-              {searchQuery || selectedFileType !== 'all' || selectedStatus !== 'all'
+              {!isAuthenticated
+                ? 'You need to log in to view and upload documents'
+                : searchQuery || selectedFileType !== 'all' || selectedStatus !== 'all'
                 ? 'Try adjusting your filters or search terms'
                 : 'Upload your first document to get started'}
             </p>
+            {!isAuthenticated && (
+              <Button
+                onClick={() => window.location.href = '/login'}
+                className="mt-4"
+              >
+                Go to Login
+              </Button>
+            )}
           </div>
         )}
 

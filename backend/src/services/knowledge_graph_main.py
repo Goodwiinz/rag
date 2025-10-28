@@ -29,7 +29,7 @@ from .core.database import get_async_db
 from .core.auth import get_current_user, verify_websocket_token
 from .core.cache import cache_get, cache_set, cache_delete
 from .services.websocket_manager import WebSocketManager
-from .services.entity_extraction_service import EntityExtractionService
+from .services.services.entity_extraction_service import EntityExtractionService
 from .services.tenant_service import TenantService
 
 logger = logging.getLogger(__name__)
