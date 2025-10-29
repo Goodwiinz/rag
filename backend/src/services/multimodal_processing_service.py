@@ -54,6 +54,8 @@ try:
 except ImportError:
     AI_PROCESSING_AVAILABLE = False
 
+from fastapi import Depends
+
 from src.core.config import settings
 from src.core.database import get_db
 from src.models.document import Document, DocumentType, ProcessingStatus
@@ -209,6 +211,7 @@ class MultimodalProcessingService:
         common_steps = [
             ProcessingStep("Text Extraction", self.extract_text_content),
             ProcessingStep("Entity Extraction", self.extract_entities),
+            ProcessingStep("Knowledge Graph Storage", self.store_entities_in_knowledge_graph, required=False),
             ProcessingStep("Embedding Generation", self.generate_embeddings),
             ProcessingStep("AI Analysis", self.perform_ai_analysis, required=False),
             ProcessingStep("Quality Assessment", self.assess_quality, required=False)
@@ -785,6 +788,93 @@ class MultimodalProcessingService:
         except Exception as e:
             logger.error(f"Entity extraction failed: {str(e)}")
             raise
+
+    async def store_entities_in_knowledge_graph(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+        """Store extracted entities and relationships in the knowledge graph"""
+        try:
+            from src.services.knowledge_graph_service import knowledge_graph_service
+            from src.models.graph import CreateEntityRequest, CreateRelationshipRequest, EntityType as GraphEntityType, ExtractionMethod as GraphExtractionMethod
+            from src.services.entity_extraction_service import EntityExtractionService as SpacyEntityService
+
+            text_content = document.content_text or ""
+            if not text_content:
+                return {"entities_stored": 0, "relationships_stored": 0, "reason": "No text content"}
+
+            results = {
+                "entities_stored": 0,
+                "relationships_stored": 0,
+                "processing_time": 0,
+                "errors": []
+            }
+
+            start_time = time.time()
+
+            # Initialize entity extraction service
+            entity_service = SpacyEntityService()
+
+            # Extract entities from text
+            entities = entity_service.extract_entities_from_text(document, text_content)
+
+            if not entities:
+                return {
+                    **results,
+                    "processing_time": time.time() - start_time,
+                    "reason": "No entities extracted"
+                }
+
+            # Store entities in knowledge graph
+            entity_map = {}  # Map local entity IDs to graph entity IDs
+
+            for entity in entities:
+                try:
+                    # Map entity types
+                    entity_type_str = entity.entity_type.value if hasattr(entity.entity_type, 'value') else str(entity.entity_type)
+
+                    # Create entity request
+                    entity_request = CreateEntityRequest(
+                        name=entity.name,
+                        entity_type=GraphEntityType(entity_type_str.upper()),
+                        confidence_score=entity.confidence_score,
+                        extraction_method=GraphExtractionMethod.SPACY_NER,
+                        context=entity.context or text_content[:200],
+                        metadata={
+                            "document_id": str(document.id),
+                            "document_title": document.title,
+                            "extraction_date": datetime.utcnow().isoformat(),
+                            "source": "document_processing"
+                        },
+                        source_document_id=str(document.id)
+                    )
+
+                    # Store in knowledge graph
+                    graph_entity = knowledge_graph_service.create_entity(entity_request)
+                    entity_map[entity.id] = graph_entity.id
+                    results["entities_stored"] += 1
+
+                    logger.info(f"Stored entity in knowledge graph: {entity.name} ({entity_type_str})")
+
+                except Exception as e:
+                    error_msg = f"Failed to store entity {entity.name}: {str(e)}"
+                    logger.warning(error_msg)
+                    results["errors"].append(error_msg)
+
+            # TODO: Store relationships if they are extracted
+            # This would require relationship extraction to be implemented in entity_service
+
+            results["processing_time"] = time.time() - start_time
+
+            logger.info(f"Stored {results['entities_stored']} entities in knowledge graph for document {document.id}")
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Failed to store entities in knowledge graph: {str(e)}")
+            return {
+                "entities_stored": 0,
+                "relationships_stored": 0,
+                "processing_time": 0,
+                "errors": [str(e)]
+            }
 
     async def generate_embeddings(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
         """Generate embeddings for document"""

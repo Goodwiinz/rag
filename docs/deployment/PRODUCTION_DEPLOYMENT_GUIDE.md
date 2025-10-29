@@ -1,5 +1,5 @@
 # Production Deployment Guide
-## Knowledge Graph Analytics Dashboard
+## Multimodal Enterprise RAG System
 
 ### Table of Contents
 1. [Overview](#overview)
@@ -15,18 +15,20 @@
 
 ## Overview
 
-This guide provides step-by-step instructions for deploying the Knowledge Graph Analytics Dashboard to a production environment using AWS EKS, Terraform, and Helm.
+This guide provides step-by-step instructions for deploying the **Multimodal Enterprise RAG System** to a production environment using modern cloud-native technologies. The system is built with Next.js 15 and supports multimodal document processing, knowledge graph management, and AI-powered search capabilities.
 
 ### Architecture Components
 
-- **Frontend**: Next.js application served via Nginx
-- **Backend**: FastAPI Python application with WebSocket support
-- **Database**: PostgreSQL for relational data
+- **Frontend**: Next.js 15 application with TypeScript and Tailwind CSS
+- **Backend Services**: FastAPI Python application with multi-agent orchestration
+- **Knowledge Graph**: Neo4j for entity and relationship management
+- **Vector Store**: Qdrant for semantic similarity search
 - **Cache**: Redis for caching and session management
-- **Graph Database**: Neo4j for knowledge graph storage
-- **Vector Database**: Qdrant for semantic search
-- **Monitoring**: Prometheus, Grafana, Loki, and Promtail
-- **Infrastructure**: AWS EKS, RDS, ElastiCache, S3
+- **Database**: PostgreSQL for structured metadata
+- **Processing**: Celery workers for background document processing
+- **Monitoring**: Prometheus, Grafana, Loki, and application-specific metrics
+- **Infrastructure**: AWS EKS, RDS, ElastiCache, S3, CloudFront
+- **Security**: JWT authentication, RBAC, SSL/TLS encryption
 
 ---
 
@@ -42,31 +44,36 @@ This guide provides step-by-step instructions for deploying the Knowledge Graph 
 | helm | >= 3.10 | [Download](https://helm.sh/docs/intro/install/) |
 | Docker | >= 24.0 | [Download](https://docs.docker.com/get-docker/) |
 | Python | >= 3.11 | [Download](https://www.python.org/downloads/) |
-| Node.js | >= 18.0 | [Download](https://nodejs.org/) |
+| Node.js | >= 18.17 | [Download](https://nodejs.org/) |
+| npm | >= 9.6.7 | Included with Node.js |
 
 ### AWS Permissions
 
 Ensure your AWS account has the following permissions:
 - EKS cluster management
-- RDS instance management
-- ElastiCache management
-- S3 bucket operations
+- RDS instance management (PostgreSQL)
+- ElastiCache management (Redis)
+- S3 bucket operations (for file storage)
 - IAM role and policy management
 - CloudWatch and CloudWatch Logs
 - Route 53 (for DNS management)
+- Certificate Manager (SSL/TLS)
+- CloudFront (CDN distribution)
 
 ### Environment Setup
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/knowledge-graph-analytics.git
-cd knowledge-graph-analytics
+git clone https://github.com/your-org/multimodal-rag-system.git
+cd multimodal-rag-system
 
 # Install Python dependencies
 pip install -r requirements.txt
 
 # Install Node.js dependencies
-cd frontend && npm install && cd ..
+cd frontend
+npm install
+cd ..
 
 # Configure AWS CLI
 aws configure
@@ -75,7 +82,12 @@ aws configure
 export AWS_REGION=us-west-2
 export TF_VAR_aws_region=us-west-2
 export TF_VAR_environment=production
-export NAMESPACE=knowledge-graph-analytics
+export NAMESPACE=multimodal-rag-system
+
+# Build and test locally
+docker-compose build
+docker-compose up -d
+npm run test
 ```
 
 ---
@@ -87,12 +99,17 @@ export NAMESPACE=knowledge-graph-analytics
 ```bash
 # Create S3 bucket for Terraform state
 aws s3api create-bucket \
-    --bucket knowledge-graph-analytics-terraform-state \
+    --bucket multimodal-rag-terraform-state \
     --region us-west-2
+
+# Enable versioning
+aws s3api put-bucket-versioning \
+    --bucket multimodal-rag-terraform-state \
+    --versioning-configuration Status=Enabled
 
 # Create DynamoDB table for state locking
 aws dynamodb create-table \
-    --table-name knowledge-graph-analytics-terraform-locks \
+    --table-name multimodal-rag-terraform-locks \
     --attribute-definitions AttributeName=LockID,AttributeType=S \
     --key-schema AttributeName=LockID,KeyType=HASH \
     --provisioned-throughput ReadCapacityUnits=1,WriteCapacityUnits=1 \
@@ -105,13 +122,17 @@ aws dynamodb create-table \
 cd infrastructure/terraform
 
 # Initialize Terraform
-terraform init
+terraform init \
+    -backend-config="bucket=multimodal-rag-terraform-state" \
+    -backend-config="key=terraform.tfstate" \
+    -backend-config="dynamodb_table=multimodal-rag-terraform-locks" \
+    -backend-config="region=us-west-2"
 
 # Review the execution plan
-terraform plan
+terraform plan -var-file="production.tfvars"
 
 # Apply the configuration
-terraform apply
+terraform apply -var-file="production.tfvars" -auto-approve
 
 # Save the outputs for later use
 terraform output -json > ../terraform-outputs.json
@@ -121,10 +142,30 @@ terraform output -json > ../terraform-outputs.json
 
 ```bash
 # Update kubeconfig with EKS cluster details
-aws eks update-kubeconfig --name knowledge-graph-analytics-cluster --region us-west-2
+aws eks update-kubeconfig --name multimodal-rag-cluster --region us-west-2
 
 # Verify cluster access
 kubectl get nodes
+kubectl get pods --all-namespaces
+```
+
+### 4. Setup S3 Buckets for File Storage
+
+```bash
+# Create S3 bucket for document storage
+aws s3api create-bucket \
+    --bucket multimodal-rag-documents \
+    --region us-west-2
+
+# Create S3 bucket for model storage
+aws s3api create-bucket \
+    --bucket multimodal-rag-models \
+    --region us-west-2
+
+# Configure bucket policies (optional, based on security requirements)
+aws s3api put-bucket-policy \
+    --bucket multimodal-rag-documents \
+    --policy file://infrastructure/s3-bucket-policy.json
 ```
 
 ---
@@ -168,18 +209,60 @@ helm install monitoring-stack . \
 ### 3. Deploy Application
 
 ```bash
-cd ../knowledge-graph-analytics
+cd ../helm/multimodal-rag-system
+
+# Build and push Docker images
+cd ../../frontend
+docker build -t your-registry/multimodal-rag-frontend:latest .
+docker push your-registry/multimodal-rag-frontend:latest
+
+cd ../backend
+docker build -t your-registry/multimodal-rag-backend:latest .
+docker push your-registry/multimodal-rag-backend:latest
+
+cd ../helm/multimodal-rag-system
 
 # Deploy the application
-helm upgrade --install knowledge-graph-analytics . \
-    --namespace knowledge-graph-analytics \
+helm upgrade --install multimodal-rag-system . \
+    --namespace multimodal-rag-system \
     --create-namespace \
     --values values-prod.yaml \
+    --set frontend.image.repository=your-registry/multimodal-rag-frontend \
+    --set frontend.image.tag=latest \
+    --set backend.image.repository=your-registry/multimodal-rag-backend \
+    --set backend.image.tag=latest \
     --wait
 
 # Verify deployment
-kubectl get pods -n knowledge-graph-analytics
-kubectl get services -n knowledge-graph-analytics
+kubectl get pods -n multimodal-rag-system
+kubectl get services -n multimodal-rag-system
+kubectl get deployments -n multimodal-rag-system
+
+# Check pod logs
+kubectl logs -n multimodal-rag-system -l app=multimodal-rag-frontend
+kubectl logs -n multimodal-rag-system -l app=multimodal-rag-backend
+```
+
+### 3.1 Deploy Additional Services
+
+```bash
+# Deploy Neo4j
+helm repo add neo4j https://helm.neo4j.com/neo4j
+helm install neo4j neo4j/neo4j-enterprise \
+    --namespace multimodal-rag-system \
+    --set neo4j.password=$(openssl rand -base64 32) \
+    --set acceptLicenseAgreement=yes
+
+# Deploy Qdrant
+helm repo add qdrant https://qdrant.github.io/qdrant-helm
+helm install qdrant qdrant/qdrant \
+    --namespace multimodal-rag-system
+
+# Deploy Redis
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm install redis bitnami/redis \
+    --namespace multimodal-rag-system \
+    --set auth.password=$(openssl rand -base64 32)
 ```
 
 ### 4. Configure Ingress and SSL
@@ -214,17 +297,33 @@ EOF
 
 ```bash
 # Check pod status
-kubectl get pods -n knowledge-graph-analytics
+kubectl get pods -n multimodal-rag-system
 
 # Check services
-kubectl get services -n knowledge-graph-analytics
+kubectl get services -n multimodal-rag-system
 
 # Check ingress
-kubectl get ingress -n knowledge-graph-analytics
+kubectl get ingress -n multimodal-rag-system
 
 # Test application endpoints
-curl -I https://analytics.yourdomain.com
-curl -I https://api.yourdomain.com/health
+curl -I https://rag.yourdomain.com
+curl -I https://api.rag.yourdomain.com/health
+
+# Check database connectivity
+kubectl exec -n multimodal-rag-system deployment/neo4j -- cypher-shell -u neo4j -p $NEO4J_PASSWORD "RETURN 1"
+kubectl exec -n multimodal-rag-system deployment/qdrant -- curl http://localhost:6333/health
+kubectl exec -n multimodal-rag-system deployment/redis -- redis-cli ping
+
+# Test file upload functionality
+curl -X POST https://rag.yourdomain.com/api/upload \
+    -H "Authorization: Bearer <token>" \
+    -F "file=@test-document.pdf"
+
+# Verify search functionality
+curl -X POST https://api.rag.yourdomain.com/api/search \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer <token>" \
+    -d '{"query": "test search"}'
 ```
 
 ---

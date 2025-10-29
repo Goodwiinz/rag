@@ -1,632 +1,654 @@
-# Data Models: Multimodal Enterprise RAG UI
+# Data Model: Multimodal Enterprise RAG UI
 
-**Feature**: Multimodal Enterprise RAG UI
-**Date**: 2025-10-14
-**Purpose**: Frontend data models and type definitions
-**Status**: ✅ COMPLETED
+**Generated**: 2025-10-27
+**Based on**: Feature specification and backend architecture analysis
+**Storage**: PostgreSQL (primary), Neo4j (knowledge graph), Qdrant (vectors), Redis (cache)
 
-## Overview
+## Entity Relationship Overview
 
-This document defines the TypeScript data models and interfaces required for the frontend implementation of the Multimodal Enterprise RAG UI. These models align with the existing backend API responses and provide type safety for the entire application.
+```mermaid
+erDiagram
+    User ||--o{ Document : uploads
+    User ||--o{ RAGQuery : submits
+    User ||--|| UserQuota : has
+    User ||--o{ WebSocketConnection : maintains
 
----
+    Document ||--o{ ProcessingJob : requires
+    Document ||--o{ DocumentEntity : contains
+    Document ||--|| VectorEmbedding : has
 
-## Core Data Models
+    RAGQuery ||--o{ QueryAnswer : generates
+    RAGQuery ||--o{ EvaluationMetric : measured_by
+    RAGQuery ||--o{ QuerySource : references
 
-### User and Authentication
+    Entity ||--o{ EntityRelationship : related_to
+    Entity ||--o{ DocumentEntity : appears_in
+    Entity ||--o{ EntityMention : mentioned_as
 
-```typescript
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  organization_id: string;
-  role: 'admin' | 'user' | 'viewer';
-  storage_quota_used: number; // bytes
-  storage_quota_limit: number; // bytes
-  created_at: string;
-  last_login: string;
-}
+    ProcessingJob ||--o{ ProcessingStatus : tracks
+    ProcessingJob ||--o{ WebSocketStatus : updates_via
+```
 
-interface AuthState {
-  user: User | null;
-  token: string | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  error: string | null;
-}
+## Core Entities
 
-interface LoginRequest {
-  email: string;
-  password: string;
-}
+### 1. User Management
 
-interface AuthResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
-  user: User;
+#### User
+```sql
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    organization_id UUID NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    role VARCHAR(50) DEFAULT 'user',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_login TIMESTAMP WITH TIME ZONE,
+
+    CONSTRAINT users_email_check CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
+    CONSTRAINT users_role_check CHECK (role IN ('admin', 'user', 'viewer'))
+);
+```
+
+#### UserQuota
+```sql
+CREATE TABLE user_quotas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    storage_quota_mb INTEGER DEFAULT 5120, -- 5GB in MB
+    storage_used_mb INTEGER DEFAULT 0,
+    max_file_size_mb INTEGER DEFAULT 50,
+    document_count_limit INTEGER DEFAULT 1000,
+    grace_period_expires_at TIMESTAMP WITH TIME ZONE,
+    quota_warnings_sent INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    CONSTRAINT user_quotas_storage_check CHECK (storage_quota_mb > 0),
+    CONSTRAINT user_quotas_usage_check CHECK (storage_used_mb >= 0),
+    CONSTRAINT user_quotas_file_size_check CHECK (max_file_size_mb > 0)
+);
+```
+
+### 2. Document Management
+
+#### Document
+```sql
+CREATE TABLE documents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(500) NOT NULL,
+    original_filename VARCHAR(255) NOT NULL,
+    file_type VARCHAR(10) NOT NULL,
+    file_size_bytes BIGINT NOT NULL,
+    mime_type VARCHAR(100),
+    storage_path VARCHAR(1000) NOT NULL,
+    checksum_md5 VARCHAR(32),
+    processing_status VARCHAR(20) DEFAULT 'queued',
+    processing_error TEXT,
+    processing_started_at TIMESTAMP WITH TIME ZONE,
+    processing_completed_at TIMESTAMP WITH TIME ZONE,
+    retry_count INTEGER DEFAULT 0,
+    quality_score DECIMAL(3,2), -- 0.00 to 1.00
+    extracted_text_length INTEGER,
+    extracted_metadata JSONB,
+    is_public BOOLEAN DEFAULT false,
+    tags TEXT[],
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    CONSTRAINT documents_file_type_check CHECK (file_type IN ('pdf', 'txt', 'jpg', 'jpeg', 'png', 'mp3', 'mp4')),
+    CONSTRAINT documents_status_check CHECK (processing_status IN ('queued', 'processing', 'completed', 'failed', 'retrying')),
+    CONSTRAINT documents_file_size_check CHECK (file_size_bytes > 0 AND file_size_bytes <= 52428800), -- 50MB
+    CONSTRAINT documents_quality_score_check CHECK (quality_score >= 0.00 AND quality_score <= 1.00)
+);
+```
+
+#### ProcessingJob
+```sql
+CREATE TABLE processing_jobs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    job_type VARCHAR(50) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    progress_percentage INTEGER DEFAULT 0,
+    current_stage VARCHAR(100),
+    error_message TEXT,
+    started_at TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    retry_count INTEGER DEFAULT 0,
+    max_retries INTEGER DEFAULT 3,
+    next_retry_at TIMESTAMP WITH TIME ZONE,
+    worker_id VARCHAR(100),
+    metadata JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    CONSTRAINT processing_jobs_type_check CHECK (job_type IN ('ocr', 'transcription', 'embedding', 'entity_extraction', 'thumbnail')),
+    CONSTRAINT processing_jobs_status_check CHECK (status IN ('pending', 'running', 'completed', 'failed', 'retrying')),
+    CONSTRAINT processing_jobs_progress_check CHECK (progress_percentage >= 0 AND progress_percentage <= 100),
+    CONSTRAINT processing_jobs_retry_check CHECK (retry_count >= 0 AND retry_count <= max_retries)
+);
+```
+
+### 3. Search and Query System
+
+#### RAGQuery
+```sql
+CREATE TABLE rag_queries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    query_text TEXT NOT NULL,
+    query_type VARCHAR(50) DEFAULT 'semantic',
+    answer_text TEXT,
+    answer_confidence DECIMAL(3,2),
+    total_execution_time_ms INTEGER,
+    vector_search_time_ms INTEGER,
+    graph_search_time_ms INTEGER,
+    llm_generation_time_ms INTEGER,
+    sources_count INTEGER DEFAULT 0,
+    entities_found INTEGER DEFAULT 0,
+    feedback_rating INTEGER, -- 1-5 stars
+    feedback_comment TEXT,
+    is_bookmarked BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    CONSTRAINT rag_queries_type_check CHECK (query_type IN ('semantic', 'keyword', 'hybrid', 'graph_lookup', 'reasoning')),
+    CONSTRAINT rag_queries_confidence_check CHECK (answer_confidence >= 0.00 AND answer_confidence <= 1.00),
+    CONSTRAINT rag_queries_feedback_check CHECK (feedback_rating >= 1 AND feedback_rating <= 5)
+);
+
+-- Automatic cleanup of queries older than 30 days
+CREATE INDEX idx_rag_queries_created_at ON rag_queries(created_at);
+```
+
+#### QuerySource
+```sql
+CREATE TABLE query_sources (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    query_id UUID NOT NULL REFERENCES rag_queries(id) ON DELETE CASCADE,
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    relevance_score DECIMAL(3,2) NOT NULL,
+    text_snippet TEXT NOT NULL,
+    page_number INTEGER,
+    start_char INTEGER,
+    end_char INTEGER,
+    source_type VARCHAR(50),
+    media_timestamp INTEGER, -- For audio/video
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    CONSTRAINT query_sources_relevance_check CHECK (relevance_score >= 0.00 AND relevance_score <= 1.00)
+);
+```
+
+### 4. Knowledge Graph Entities
+
+#### Entity
+```sql
+CREATE TABLE entities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(500) NOT NULL,
+    entity_type VARCHAR(100) NOT NULL,
+    canonical_form VARCHAR(500),
+    description TEXT,
+    confidence_score DECIMAL(3,2),
+    source_count INTEGER DEFAULT 1,
+    first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    metadata JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    CONSTRAINT entities_type_check CHECK (entity_type IN ('PERSON', 'ORGANIZATION', 'LOCATION', 'CONCEPT', 'PRODUCT', 'EVENT', 'DATE', 'MONEY', 'PHONE', 'EMAIL', 'URL', 'CUSTOM')),
+    CONSTRAINT entities_confidence_check CHECK (confidence_score >= 0.00 AND confidence_score <= 1.00)
+);
+```
+
+#### EntityRelationship
+```sql
+CREATE TABLE entity_relationships (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+    target_entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+    relationship_type VARCHAR(100) NOT NULL,
+    confidence_score DECIMAL(3,2) NOT NULL,
+    context TEXT,
+    document_count INTEGER DEFAULT 1,
+    first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    metadata JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    CONSTRAINT entity_relationships_type_check CHECK (relationship_type IN ('WORKS_FOR', 'LOCATED_IN', 'RELATED_TO', 'PART_OF', 'KNOWN_FOR', 'MEMBER_OF', 'FOUNDED', 'COLLABORATES_WITH', 'REPORTS_TO', 'OWNS', 'CUSTOM')),
+    CONSTRAINT entity_relationships_confidence_check CHECK (confidence_score >= 0.00 AND confidence_score <= 1.00),
+    CONSTRAINT entity_relationships_no_self_ref CHECK (source_entity_id != target_entity_id)
+);
+```
+
+#### DocumentEntity
+```sql
+CREATE TABLE document_entities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+    mention_count INTEGER DEFAULT 1,
+    confidence_score DECIMAL(3,2) NOT NULL,
+    first_mention_char INTEGER,
+    last_mention_char INTEGER,
+    mentions JSONB, -- Array of mention objects with position and context
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    CONSTRAINT document_entities_confidence_check CHECK (confidence_score >= 0.00 AND confidence_score <= 1.00),
+    CONSTRAINT document_entities_unique_document_entity UNIQUE (document_id, entity_id)
+);
+```
+
+### 5. Evaluation and Metrics
+
+#### EvaluationMetric
+```sql
+CREATE TABLE evaluation_metrics (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    query_id UUID NOT NULL REFERENCES rag_queries(id) ON DELETE CASCADE,
+    metric_type VARCHAR(50) NOT NULL,
+    metric_value DECIMAL(5,2) NOT NULL,
+    threshold_value DECIMAL(5,2),
+    passed_threshold BOOLEAN,
+    measurement_details JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    CONSTRAINT evaluation_metrics_type_check CHECK (metric_type IN ('answer_relevancy', 'faithfulness', 'contextual_relevancy', 'precision', 'recall', 'f1_score', 'response_time', 'user_satisfaction')),
+    CONSTRAINT evaluation_metrics_value_check CHECK (metric_value >= 0.00 AND metric_value <= 100.00)
+);
+```
+
+### 6. Real-time Communications
+
+#### WebSocketConnection
+```sql
+CREATE TABLE websocket_connections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    connection_id VARCHAR(255) UNIQUE NOT NULL,
+    connection_status VARCHAR(20) DEFAULT 'connected',
+    client_info JSONB,
+    connected_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_activity TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    disconnected_at TIMESTAMP WITH TIME ZONE,
+
+    CONSTRAINT websocket_connections_status_check CHECK (connection_status IN ('connected', 'disconnected', 'error', 'timeout'))
+);
+```
+
+#### WebSocketStatus
+```sql
+CREATE TABLE websocket_status_updates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    connection_id UUID NOT NULL,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    update_type VARCHAR(100) NOT NULL,
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id UUID NOT NULL,
+    status_data JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    CONSTRAINT websocket_status_type_check CHECK (update_type IN ('processing_update', 'query_completed', 'error_occurred', 'notification')),
+    CONSTRAINT websocket_status_entity_type_check CHECK (entity_type IN ('document', 'query', 'job', 'system'))
+);
+```
+
+## Indexing Strategy
+
+### Primary Performance Indexes
+
+```sql
+-- User and Authentication
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_organization_id ON users(organization_id);
+CREATE INDEX idx_users_active ON users(is_active);
+
+-- Document Management
+CREATE INDEX idx_documents_user_id ON documents(user_id);
+CREATE INDEX idx_documents_status ON documents(processing_status);
+CREATE INDEX idx_documents_file_type ON documents(file_type);
+CREATE INDEX idx_documents_created_at ON documents(created_at);
+CREATE INDEX idx_documents_user_status ON documents(user_id, processing_status);
+CREATE INDEX idx_documents_composite ON documents(user_id, file_type, processing_status);
+
+-- Processing Jobs
+CREATE INDEX idx_processing_jobs_document_id ON processing_jobs(document_id);
+CREATE INDEX idx_processing_jobs_status ON processing_jobs(status);
+CREATE INDEX idx_processing_jobs_retry_at ON processing_jobs(next_retry_at) WHERE next_retry_at IS NOT NULL;
+
+-- Search and Queries
+CREATE INDEX idx_rag_queries_user_id ON rag_queries(user_id);
+CREATE INDEX idx_rag_queries_created_at ON rag_queries(created_at);
+CREATE INDEX idx_query_sources_query_id ON query_sources(query_id);
+CREATE INDEX idx_query_sources_document_id ON query_sources(document_id);
+CREATE INDEX idx_query_sources_relevance ON query_sources(relevance_score DESC);
+
+-- Knowledge Graph
+CREATE INDEX idx_entities_name ON documents USING gin(to_tsvector('english', name));
+CREATE INDEX idx_entities_type ON entities(entity_type);
+CREATE INDEX idx_entities_confidence ON entities(confidence_score DESC);
+CREATE INDEX idx_entity_relationships_source ON entity_relationships(source_entity_id);
+CREATE INDEX idx_entity_relationships_target ON entity_relationships(target_entity_id);
+CREATE INDEX idx_document_entities_document_id ON document_entities(document_id);
+CREATE INDEX idx_document_entities_entity_id ON document_entities(entity_id);
+
+-- Evaluation Metrics
+CREATE INDEX idx_evaluation_metrics_query_id ON evaluation_metrics(query_id);
+CREATE INDEX idx_evaluation_metrics_type ON evaluation_metrics(metric_type);
+
+-- WebSocket and Real-time
+CREATE INDEX idx_websocket_connections_user_id ON websocket_connections(user_id);
+CREATE INDEX idx_websocket_connections_status ON websocket_connections(connection_status);
+CREATE INDEX idx_websocket_status_user_id ON websocket_status_updates(user_id);
+CREATE INDEX idx_websocket_status_created_at ON websocket_status_updates(created_at);
+```
+
+### Time-based Partitioning
+
+```sql
+-- Partition rag_queries by month for 30-day retention management
+CREATE TABLE rag_queries_y2024m01 PARTITION OF rag_queries
+    FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
+
+-- Partition evaluation_metrics by quarter
+CREATE TABLE evaluation_metrics_y2024q1 PARTITION OF evaluation_metrics
+    FOR VALUES FROM ('2024-01-01') TO ('2024-04-01');
+```
+
+## Data Validation Rules
+
+### Application-Level Validation
+
+```python
+from pydantic import BaseModel, validator
+from typing import Optional, List, Dict, Any
+from datetime import datetime, timedelta
+from enum import Enum
+
+class FileType(str, Enum):
+    PDF = "pdf"
+    TXT = "txt"
+    JPG = "jpg"
+    JPEG = "jpeg"
+    PNG = "png"
+    MP3 = "mp3"
+    MP4 = "mp4"
+
+class ProcessingStatus(str, Enum):
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    RETRYING = "retrying"
+
+class DocumentCreate(BaseModel):
+    title: str
+    original_filename: str
+    file_type: FileType
+    file_size_bytes: int
+    mime_type: Optional[str]
+
+    @validator('title')
+    def title_must_not_be_empty(cls, v):
+        if not v.strip():
+            raise ValueError('Title cannot be empty')
+        return v.strip()
+
+    @validator('file_size_bytes')
+    def file_size_within_limits(cls, v):
+        if v <= 0:
+            raise ValueError('File size must be positive')
+        if v > 52428800:  # 50MB
+            raise ValueError('File size exceeds 50MB limit')
+        return v
+
+    @validator('original_filename')
+    def filename_must_be_valid(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('Filename cannot be empty')
+        # Check for invalid characters
+        invalid_chars = ['<', '>', ':', '"', '|', '?', '*']
+        if any(char in v for char in invalid_chars):
+            raise ValueError('Filename contains invalid characters')
+        return v.strip()
+
+class QueryCreate(BaseModel):
+    query_text: str
+    query_type: str = "semantic"
+
+    @validator('query_text')
+    def query_must_not_be_empty(cls, v):
+        if not v.strip():
+            raise ValueError('Query text cannot be empty')
+        if len(v.strip()) < 3:
+            raise ValueError('Query too short (minimum 3 characters)')
+        if len(v) > 1000:
+            raise ValueError('Query too long (maximum 1000 characters)')
+        return v.strip()
+
+    @validator('query_type')
+    def query_type_must_be_valid(cls, v):
+        valid_types = ['semantic', 'keyword', 'hybrid', 'graph_lookup', 'reasoning']
+        if v not in valid_types:
+            raise ValueError(f'Query type must be one of: {valid_types}')
+        return v
+
+class UserQuotaUpdate(BaseModel):
+    storage_quota_mb: Optional[int] = None
+    max_file_size_mb: Optional[int] = None
+
+    @validator('storage_quota_mb')
+    def storage_quota_must_be_positive(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError('Storage quota must be positive')
+        return v
+
+    @validator('max_file_size_mb')
+    def max_file_size_must_be_positive(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError('Max file size must be positive')
+        return v
+```
+
+### Database Constraints and Triggers
+
+```sql
+-- Trigger to update user's storage usage when document is added/updated
+CREATE OR REPLACE FUNCTION update_user_storage_usage()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        UPDATE user_quotas
+        SET storage_used_mb = storage_used_mb + (NEW.file_size_bytes / 1024 / 1024)::INTEGER,
+            updated_at = NOW()
+        WHERE user_id = NEW.user_id;
+        RETURN NEW;
+    ELSIF TG_OP = 'UPDATE' THEN
+        IF OLD.file_size_bytes != NEW.file_size_bytes THEN
+            UPDATE user_quotas
+            SET storage_used_mb = storage_used_mb + ((NEW.file_size_bytes - OLD.file_size_bytes) / 1024 / 1024)::INTEGER,
+                updated_at = NOW()
+            WHERE user_id = NEW.user_id;
+        END IF;
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE user_quotas
+        SET storage_used_mb = storage_used_mb - (OLD.file_size_bytes / 1024 / 1024)::INTEGER,
+            updated_at = NOW()
+        WHERE user_id = OLD.user_id;
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_update_user_storage_usage
+    AFTER INSERT OR UPDATE OR DELETE ON documents
+    FOR EACH ROW EXECUTE FUNCTION update_user_storage_usage();
+
+-- Trigger to enforce 30-day query retention
+CREATE OR REPLACE FUNCTION cleanup_old_queries()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM rag_queries
+    WHERE created_at < NOW() - INTERVAL '30 days';
+
+    DELETE FROM evaluation_metrics
+    WHERE query_id NOT IN (SELECT id FROM rag_queries);
+
+    DELETE FROM query_sources
+    WHERE query_id NOT IN (SELECT id FROM rag_queries);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Schedule to run daily (requires pg_cron extension)
+SELECT cron.schedule('cleanup-old-queries', '0 2 * * *', 'SELECT cleanup_old_queries();');
+```
+
+## Security and Privacy
+
+### Row-Level Security
+
+```sql
+-- Enable row-level security
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rag_queries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_quotas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE websocket_connections ENABLE ROW LEVEL SECURITY;
+
+-- Users can only access their own documents
+CREATE POLICY user_documents_policy ON documents
+    FOR ALL TO authenticated_users
+    USING (user_id = current_setting('app.current_user_id')::UUID);
+
+-- Users can only access their own queries
+CREATE POLICY user_queries_policy ON rag_queries
+    FOR ALL TO authenticated_users
+    USING (user_id = current_setting('app.current_user_id')::UUID);
+
+-- Users can only access their own quota information
+CREATE POLICY user_quota_policy ON user_quotas
+    FOR ALL TO authenticated_users
+    USING (user_id = current_setting('app.current_user_id')::UUID);
+```
+
+### Data Encryption
+
+```sql
+-- Extension for data encryption
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Encrypt sensitive data at rest
+CREATE OR REPLACE FUNCTION encrypt_sensitive_data(data TEXT)
+RETURNS TEXT AS $$
+BEGIN
+    RETURN encode(encrypt(data::bytea, current_setting('app.encryption_key'), 'aes'), 'base64');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION decrypt_sensitive_data(encrypted_data TEXT)
+RETURNS TEXT AS $$
+BEGIN
+    RETURN convert_from(decrypt(decode(encrypted_data, 'base64'), current_setting('app.encryption_key'), 'aes'), 'UTF8');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+## Performance Considerations
+
+### Connection Pooling
+
+```python
+# Database connection configuration
+DATABASE_CONFIG = {
+    "pool_size": 20,
+    "max_overflow": 30,
+    "pool_timeout": 30,
+    "pool_recycle": 3600,
+    "pool_pre_ping": True
 }
 ```
 
-### Document Management
+### Caching Strategy
 
-```typescript
-interface Document {
-  id: string;
-  user_id: string;
-  organization_id: string;
-  title: string;
-  filename: string;
-  file_type: 'pdf' | 'txt' | 'jpg' | 'png' | 'mp3' | 'mp4';
-  file_size: number; // bytes
-  processing_status: 'queued' | 'processing' | 'indexed' | 'failed';
-  processing_error?: string;
-  upload_timestamp: string;
-  processing_completed_at?: string;
-  thumbnail_url?: string;
-  page_count?: number;
-  duration_seconds?: number;
-  extracted_text_preview?: string;
-  metadata: Record<string, any>;
-}
+```sql
+-- Materialized views for analytics
+CREATE MATERIALIZED VIEW user_document_stats AS
+SELECT
+    u.id as user_id,
+    u.email,
+    COUNT(d.id) as total_documents,
+    SUM(d.file_size_bytes) as total_storage_used,
+    COUNT(CASE WHEN d.processing_status = 'completed' THEN 1 END) as processed_documents,
+    COUNT(CASE WHEN d.processing_status = 'failed' THEN 1 END) as failed_documents,
+    AVG(d.quality_score) as avg_quality_score
+FROM users u
+LEFT JOIN documents d ON u.id = d.user_id
+GROUP BY u.id, u.email;
 
-interface DocumentUpload {
-  file: File;
-  id: string;
-  progress: number; // 0-100
-  status: 'pending' | 'uploading' | 'processing' | 'completed' | 'error';
-  error?: string;
-  jobId?: string;
-  documentId?: string;
-}
+CREATE UNIQUE INDEX idx_user_document_stats_user_id ON user_document_stats(user_id);
 
-interface DocumentListResponse {
-  documents: Document[];
-  total: number;
-  page: number;
-  page_size: number;
-  has_next: boolean;
-  has_prev: boolean;
-}
+-- Refresh strategy
+CREATE OR REPLACE FUNCTION refresh_user_document_stats()
+RETURNS void AS $$
+BEGIN
+    REFRESH MATERIALIZED VIEW CONCURRENTLY user_document_stats;
+END;
+$$ LANGUAGE plpgsql;
 
-interface DocumentFilters {
-  file_types?: Document['file_type'][];
-  status?: Document['processing_status'][];
-  date_range?: {
-    start: string;
-    end: string;
-  };
-  search_term?: string;
-}
+-- Schedule refresh every hour
+SELECT cron.schedule('refresh-user-stats', '0 * * * *', 'SELECT refresh_user_document_stats();');
 ```
 
-### Search and Query
+## Monitoring and Maintenance
 
-```typescript
-interface SearchRequest {
-  query: string;
-  filters?: {
-    modalities?: ('text' | 'image' | 'audio' | 'video')[];
-    document_ids?: string[];
-    date_range?: {
-      start: string;
-      end: string;
-    };
-    file_types?: Document['file_type'][];
-  };
-  limit?: number;
-  offset?: number;
-}
+### Performance Monitoring Queries
 
-interface SourceReference {
-  document_id: string;
-  document_title: string;
-  snippet: string;
-  confidence: number;
-  page_number?: number;
-  timestamp?: string;
-  file_type: Document['file_type'];
-  url?: string; // For direct document access
-}
+```sql
+-- Monitor storage usage by user
+SELECT
+    u.email,
+    uq.storage_used_mb,
+    uq.storage_quota_mb,
+    ROUND((uq.storage_used_mb::FLOAT / uq.storage_quota_mb) * 100, 2) as usage_percentage,
+    COUNT(d.id) as document_count
+FROM users u
+JOIN user_quotas uq ON u.id = uq.user_id
+JOIN documents d ON u.id = d.user_id
+GROUP BY u.id, u.email, uq.storage_used_mb, uq.storage_quota_mb
+ORDER BY usage_percentage DESC;
 
-interface SearchAnswer {
-  text: string;
-  sources: SourceReference[];
-  confidence: number;
-  answer_type: 'factual' | 'reasoning' | 'summarization' | 'comparison';
-  language_detected: string;
-}
+-- Monitor processing performance
+SELECT
+    DATE_TRUNC('hour', created_at) as hour,
+    job_type,
+    COUNT(*) as total_jobs,
+    COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_jobs,
+    COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_jobs,
+    AVG(EXTRACT(EPOCH FROM (completed_at - started_at))) as avg_duration_seconds
+FROM processing_jobs
+WHERE created_at >= NOW() - INTERVAL '24 hours'
+GROUP BY DATE_TRUNC('hour', created_at), job_type
+ORDER BY hour DESC;
 
-interface SearchResult {
-  id: string;
-  query: string;
-  answer: SearchAnswer;
-  entities: Entity[];
-  relationships: Relationship[];
-  metrics: SearchMetrics;
-  processing_time_ms: number;
-  created_at: string;
-  user_id: string;
-}
-
-interface SearchMetrics {
-  latency_ms: number;
-  retrieval_quality: number; // 0-100
-  faithfulness_score: number; // 0-100
-  contextual_relevancy: number; // 0-100
-  hallucination_score: number; // 0-100
-  answer_relevancy: number; // 0-100
-  documents_retrieved: number;
-  entities_found: number;
-  relationships_found: number;
-}
-
-interface QueryHistory {
-  id: string;
-  query: string;
-  created_at: string;
-  answer_preview: string; // First 100 characters
-  has_answer: boolean;
-  metrics: {
-    latency_ms: number;
-    quality_score: number;
-  };
-}
-
-interface QuerySuggestions {
-  suggestions: string[];
-  related_queries: Array<{
-    query: string;
-    similarity: number;
-  }>;
-  auto_complete: string[];
-}
+-- Monitor query performance
+SELECT
+    DATE_TRUNC('day', created_at) as day,
+    COUNT(*) as total_queries,
+    AVG(total_execution_time_ms) as avg_execution_time_ms,
+    AVG(answer_confidence) as avg_confidence,
+    COUNT(CASE WHEN feedback_rating >= 4 THEN 1 END) as satisfied_users
+FROM rag_queries
+WHERE created_at >= NOW() - INTERVAL '7 days'
+GROUP BY DATE_TRUNC('day', created_at)
+ORDER BY day DESC;
 ```
 
-### Knowledge Graph
-
-```typescript
-interface Entity {
-  id: string;
-  name: string;
-  type: 'person' | 'organization' | 'location' | 'concept' | 'date' | 'product';
-  confidence: number;
-  description?: string;
-  aliases: string[];
-  mentions: number;
-  first_seen: string;
-  last_seen: string;
-  document_ids: string[];
-  metadata: Record<string, any>;
-  position?: {
-    x: number;
-    y: number;
-  };
-  color?: string;
-  size?: number;
-}
-
-interface Relationship {
-  id: string;
-  source_entity_id: string;
-  target_entity_id: string;
-  relationship_type: string;
-  confidence: number;
-  context: string;
-  document_ids: string[];
-  first_seen: string;
-  last_seen: string;
-  weight: number;
-  metadata: Record<string, any>;
-}
-
-interface GraphData {
-  nodes: Entity[];
-  edges: Relationship[];
-  layout: 'force' | 'hierarchical' | 'circular';
-  filters: {
-    entity_types?: Entity['type'][];
-    min_confidence?: number;
-    date_range?: {
-      start: string;
-      end: string;
-    };
-  };
-}
-
-interface GraphNodeInteraction {
-  node_id: string;
-  action: 'click' | 'hover' | 'select';
-  timestamp: string;
-  related_nodes: string[];
-  context: {
-    query_id?: string;
-    search_context?: string;
-  };
-}
-
-interface GraphFilters {
-  entity_types: Entity['type'][];
-  relationship_types: string[];
-  min_confidence: number;
-  date_range?: {
-    start: string;
-    end: string;
-  };
-  document_ids?: string[];
-}
-```
-
-### Evaluation and Analytics
-
-```typescript
-interface EvaluationMetrics {
-  query_id: string;
-  rag_triad: {
-    answer_relevancy: number; // 0-100
-    faithfulness: number; // 0-100
-    contextual_relevancy: number; // 0-100
-  };
-  performance: {
-    latency_ms: number;
-    documents_processed: number;
-    tokens_processed: number;
-    cache_hit_rate: number;
-  };
-  quality: {
-    hallucination_score: number; // 0-100
-    factual_accuracy: number; // 0-100
-    coherence_score: number; // 0-100
-  };
-  user_feedback?: {
-    helpfulness: number; // 1-5
-    accuracy: number; // 1-5
-    completeness: number; // 1-5
-    comment?: string;
-  };
-  created_at: string;
-}
-
-interface PerformanceAnalytics {
-  time_range: {
-    start: string;
-    end: string;
-  };
-  total_queries: number;
-  average_latency_ms: number;
-  success_rate: number;
-  quality_scores: {
-    answer_relevancy_avg: number;
-    faithfulness_avg: number;
-    contextual_relevancy_avg: number;
-  };
-  modalities_processed: Record<string, number>;
-  error_rates: Record<string, number>;
-  user_satisfaction: {
-    average_rating: number;
-    total_feedback: number;
-  };
-}
-
-interface UsageAnalytics {
-  user_id: string;
-  time_range: {
-    start: string;
-    end: string;
-  };
-  documents_uploaded: number;
-  queries_performed: number;
-  storage_used_mb: number;
-  processing_time_total_ms: number;
-  top_queries: Array<{
-    query: string;
-    frequency: number;
-  }>;
-  file_type_distribution: Record<Document['file_type'], number>;
-  search_patterns: {
-    average_query_length: number;
-    peak_usage_hours: number[];
-    session_duration_avg_ms: number;
-  };
-}
-```
-
-### UI State and Layout
-
-```typescript
-interface UIState {
-  activeTab: 'answers' | 'graph' | 'eval';
-  sidebarOpen: boolean;
-  uploadZoneActive: boolean;
-  currentQuery: string;
-  isProcessing: boolean;
-  searchResults: SearchResult | null;
-  selectedDocument: Document | null;
-  selectedEntity: Entity | null;
-  filters: {
-    documents: DocumentFilters;
-    search: SearchRequest['filters'];
-    graph: GraphFilters;
-  };
-  viewSettings: {
-    theme: 'light' | 'dark' | 'auto';
-    language: string;
-    results_per_page: number;
-    auto_refresh: boolean;
-  };
-}
-
-interface LayoutConfig {
-  panels: {
-    left: {
-      width: number; // pixels or percentage
-      collapsible: boolean;
-      components: string[];
-    };
-    right: {
-      width: number;
-      collapsible: boolean;
-      components: string[];
-    };
-  };
-  responsive: {
-    mobile: boolean;
-    tablet: boolean;
-    desktop: boolean;
-  };
-}
-
-interface ComponentState {
-  isLoading: boolean;
-  error: string | null;
-  data: any;
-  lastUpdated: string;
-}
-```
-
----
-
-## API Response Wrappers
-
-```typescript
-interface APIResponse<T> {
-  data: T;
-  success: boolean;
-  message?: string;
-  errors?: string[];
-  pagination?: {
-    page: number;
-    page_size: number;
-    total: number;
-    has_next: boolean;
-    has_prev: boolean;
-  };
-}
-
-interface APIError {
-  error: {
-    message: string;
-    status_code: number;
-    type: 'validation_error' | 'processing_error' | 'auth_error' | 'rate_limit' | 'internal_error';
-    details?: Record<string, any>;
-    timestamp: string;
-  };
-}
-
-interface UploadProgress {
-  job_id: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
-  progress: number; // 0-100
-  current_step: string;
-  estimated_remaining_seconds?: number;
-  error_message?: string;
-}
-```
-
----
-
-## WebSocket Message Types
-
-```typescript
-interface WebSocketMessage {
-  type: string;
-  payload: any;
-  timestamp: string;
-  user_id?: string;
-  organization_id?: string;
-}
-
-// Document processing updates
-interface DocumentProcessingUpdate extends WebSocketMessage {
-  type: 'document_processing_update';
-  payload: {
-    job_id: string;
-    document_id: string;
-    status: Document['processing_status'];
-    progress: number;
-    current_step: string;
-    estimated_remaining_seconds?: number;
-    error_message?: string;
-  };
-}
-
-// Query status updates
-interface QueryStatusUpdate extends WebSocketMessage {
-  type: 'query_status_update';
-  payload: {
-    query_id: string;
-    status: 'processing' | 'completed' | 'failed';
-    progress: number;
-    current_step: string;
-    result?: SearchResult;
-    error_message?: string;
-  };
-}
-
-// System notifications
-interface SystemNotification extends WebSocketMessage {
-  type: 'system_notification';
-  payload: {
-    level: 'info' | 'warning' | 'error';
-    title: string;
-    message: string;
-    action_url?: string;
-    persistent: boolean;
-  };
-}
-```
-
----
-
-## Configuration and Constants
-
-```typescript
-// File upload constraints
-export const UPLOAD_LIMITS = {
-  MAX_FILE_SIZE_MB: 50,
-  MAX_FILES_PER_UPLOAD: 10,
-  SUPPORTED_FORMATS: ['pdf', 'txt', 'jpg', 'png', 'mp3', 'mp4'],
-  CHUNK_SIZE_BYTES: 1024 * 1024, // 1MB chunks for large files
-} as const;
-
-// UI configuration
-export const UI_CONFIG = {
-  DEBOUNCE_DELAY_MS: 300,
-  AUTO_SAVE_INTERVAL_MS: 5000,
-  WEBSOCKET_RETRY_DELAY_MS: 2000,
-  MAX_WEBSOCKET_RETRIES: 5,
-  RESULTS_PER_PAGE: 10,
-  MAX_GRAPH_NODES: 500,
-  QUERY_HISTORY_LIMIT: 50,
-} as const;
-
-// Performance thresholds
-export const PERFORMANCE_THRESHOLDS = {
-  MAX_ACCEPTABLE_LATENCY_MS: 2000,
-  MIN_ANSWER_QUALITY_SCORE: 70,
-  MIN_FAITHFULNESS_SCORE: 90,
-  MAX_HALLUCINATION_SCORE: 10,
-  UPLOAD_PROCESSING_TIMEOUT_MS: 300000, // 5 minutes
-} as const;
-
-// Color schemes for visualization
-export const ENTITY_TYPE_COLORS = {
-  person: '#4F46E5',
-  organization: '#059669',
-  location: '#DC2626',
-  concept: '#7C3AED',
-  date: '#EA580C',
-  product: '#0891B2',
-} as const;
-
-// Status indicators
-export const STATUS_COLORS = {
-  queued: '#F59E0B',
-  processing: '#3B82F6',
-  indexed: '#10B981',
-  failed: '#EF4444',
-} as const;
-```
-
----
-
-## Utility Types
-
-```typescript
-// Deep partial for nested updates
-type DeepPartial<T> = {
-  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
-};
-
-// ID-based entity lookup
-type EntityById<T extends { id: string }> = Record<string, T>;
-
-// Status union types
-type ProcessingStatus = Document['processing_status'];
-type FileType = Document['file_type'];
-type EntityType = Entity['type'];
-type TabType = UIState['activeTab'];
-
-// API endpoint parameters
-type DocumentListParams = {
-  page?: number;
-  page_size?: number;
-  file_type?: FileType;
-  status?: ProcessingStatus;
-  search?: string;
-};
-
-type SearchParams = {
-  query: string;
-  modalities?: ('text' | 'image' | 'audio' | 'video')[];
-  document_ids?: string[];
-  limit?: number;
-  offset?: number;
-};
-
-// Event handlers
-type EventHandler<T = void> = (event: T) => void;
-type AsyncEventHandler<T = void> = (event: T) => Promise<void>;
-
-// Form data
-interface UploadFormData {
-  files: File[];
-  metadata?: Record<string, string>;
-}
-
-interface QueryFormData {
-  query: string;
-  filters?: SearchRequest['filters'];
-}
-```
-
----
-
-## Validation Schemas
-
-```typescript
-// Runtime validation for API responses (using zod or similar)
-export const DocumentSchema = {
-  id: 'string',
-  user_id: 'string',
-  title: 'string',
-  file_type: ['pdf', 'txt', 'jpg', 'png', 'mp3', 'mp4'],
-  file_size: 'number',
-  processing_status: ['queued', 'processing', 'indexed', 'failed'],
-  upload_timestamp: 'string',
-};
-
-export const SearchRequestSchema = {
-  query: 'string',
-  filters: {
-    modalities: ['text', 'image', 'audio', 'video'],
-    document_ids: ['string'],
-    limit: 'number',
-    offset: 'number',
-  },
-};
-
-export const EntitySchema = {
-  id: 'string',
-  name: 'string',
-  type: ['person', 'organization', 'location', 'concept', 'date', 'product'],
-  confidence: 'number',
-  aliases: ['string'],
-  mentions: 'number',
-};
-```
-
----
-
-## Conclusion
-
-These data models provide a comprehensive type-safe foundation for the frontend implementation. They align with the existing backend API structure and include all necessary interfaces for the user stories defined in the specification:
-
-1. **Document Ingestion**: `Document`, `DocumentUpload`, `UploadProgress` models
-2. **Natural Language Query**: `SearchRequest`, `SearchResult`, `SourceReference` models
-3. **Knowledge Graph**: `Entity`, `Relationship`, `GraphData` models
-4. **Query Evaluation**: `EvaluationMetrics`, `PerformanceAnalytics` models
-
-The models support real-time updates, error handling, and responsive design patterns required for the enterprise RAG interface.
+This comprehensive data model provides the foundation for a scalable, secure, and performant Multimodal Enterprise RAG System with proper multi-tenant isolation, real-time capabilities, and enterprise-grade features.

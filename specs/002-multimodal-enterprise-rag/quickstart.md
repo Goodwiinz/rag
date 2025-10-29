@@ -1,647 +1,817 @@
-# Quickstart Guide: Multimodal Enterprise RAG UI
+# Quick Start Guide: Multimodal Enterprise RAG UI
 
-**Feature**: Multimodal Enterprise RAG UI
-**Date**: 2025-10-14
-**Purpose**: Developer onboarding and setup guide
-**Status**: ✅ COMPLETED
+**Generated**: 2025-10-27
+**Target**: Frontend Development Team
+**Purpose**: Rapid setup and development environment configuration
 
 ## Overview
 
-This guide helps developers quickly set up and start working on the Multimodal Enterprise RAG UI. The frontend is a React 18 + TypeScript application that integrates with an existing FastAPI backend.
+This guide provides step-by-step instructions for setting up the development environment for the Multimodal Enterprise RAG System UI. The frontend is a React 18 + TypeScript application that consumes the existing FastAPI backend microservices.
 
-**Prerequisites**: Node.js 18+, Docker, Git
-**Estimated Setup Time**: 15-30 minutes
+## Prerequisites
 
----
+### System Requirements
 
-## 1. System Requirements
+- **Node.js**: 18.x or higher (LTS recommended)
+- **npm**: 9.x or higher or **yarn**: 1.22.x or higher
+- **Git**: Latest version
+- **Docker**: Latest version (for backend services)
+- **IDE**: VS Code with recommended extensions
 
-### Development Environment
-```bash
-# Node.js version check
-node --version  # Should be 18.0.0 or higher
+### Backend Services
 
-# npm version check
-npm --version   # Should be 8.0.0 or higher
+Ensure the following backend services are running:
+- **FastAPI Backend**: `http://localhost:8000`
+- **PostgreSQL**: `localhost:5432`
+- **Neo4j**: `localhost:7474` (HTTP), `localhost:7687` (Bolt)
+- **Qdrant**: `http://localhost:6333`
+- **Redis**: `localhost:6379`
 
-# Docker version check
-docker --version
-docker-compose --version
+## Quick Setup (5 Minutes)
 
-# Git version check
-git --version
-```
+### 1. Project Setup
 
-### Required Ports
-Ensure these ports are available:
-- **3000**: Frontend development server
-- **8000**: Backend API server
-- **5432**: PostgreSQL database
-- **7474/7687**: Neo4j database
-- **6333/6334**: Qdrant vector database
-- **6379**: Redis cache
-
----
-
-## 2. Project Setup
-
-### Clone and Install
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd rag
-
-# Start backend services (if not already running)
-docker-compose up -d
-
-# Wait for services to be ready (20-30 seconds)
-docker-compose ps
-
-# Navigate to frontend directory
-cd frontend
+cd rag/frontend
 
 # Install dependencies
 npm install
 
-# Copy environment configuration
+# Copy environment template
 cp .env.example .env.local
+
+# Start development server
+npm run dev
 ```
 
-### Environment Configuration
-Create `.env.local` in the frontend directory:
+### 2. Environment Configuration
 
-```bash
+Edit `.env.local` with your configuration:
+
+```env
 # API Configuration
 REACT_APP_API_BASE_URL=http://localhost:8000
-REACT_APP_WS_URL=ws://localhost:8000/ws
-
-# Application Settings
-REACT_APP_APP_NAME="Multimodal RAG System"
-REACT_APP_VERSION=1.0.0
-REACT_APP_ENVIRONMENT=development
+REACT_APP_API_VERSION=v1
+REACT_APP_WS_URL=ws://localhost:8000
 
 # Feature Flags
 REACT_APP_ENABLE_ANALYTICS=true
-REACT_APP_ENABLE_GRAPH_VISUALIZATION=true
+REACT_APP_ENABLE_GRAPH_EXPLORER=true
 REACT_APP_ENABLE_EVALUATION_METRICS=true
 
-# Upload Limits
-REACT_APP_MAX_FILE_SIZE_MB=50
-REACT_APP_MAX_FILES_PER_UPLOAD=10
-
-# Performance Settings
-REACT_APP_DEBOUNCE_DELAY_MS=300
-REACT_APP_WEBSOCKET_RETRY_ATTEMPTS=5
-REACT_APP_CACHE_DURATION_MS=300000
-
 # Development Settings
-REACT_APP_DEBUG_MODE=true
+REACT_APP_DEV_MODE=true
 REACT_APP_LOG_LEVEL=debug
 ```
 
----
+### 3. Verify Setup
 
-## 3. Backend Services Setup
+Open `http://localhost:3000` in your browser:
 
-### Start Docker Services
-```bash
-# From the project root directory
-docker-compose up -d
+1. **Login Screen**: Should show authentication interface
+2. **Dashboard**: Main two-panel layout should be visible
+3. **API Connection**: Should successfully connect to backend
+4. **WebSocket**: Real-time updates should be working
 
-# Check service status
-docker-compose ps
-
-# View logs if needed
-docker-compose logs -f
-```
-
-### Verify Services
-```bash
-# Test backend health
-curl http://localhost:8000/health
-
-# Test API documentation
-curl http://localhost:8000/docs
-
-# Test database connections
-curl http://localhost:8000/debug/info  # Development only
-```
-
-### Initialize Database (First Time Only)
-```bash
-# Run database migrations
-docker-compose exec backend python -m alembic upgrade head
-
-# Create test user (optional)
-docker-compose exec backend python -m scripts.create_test_user
-```
-
-### Verify ML Models
-```bash
-# Check if models are downloaded
-docker-compose exec backend python -c "
-from src.services.ml_models import ModelManager
-models = ModelManager()
-print('Models status:', models.check_models_loaded())
-"
-```
-
-**Expected Output**: All models (sentence-transformers, Whisper, spaCy) should be loaded.
-
----
-
-## 4. Frontend Development Setup
-
-### Start Development Server
-```bash
-# From the frontend directory
-npm start
-
-# The application should open at http://localhost:3000
-```
-
-### Verify Frontend Setup
-Open http://localhost:3000 in your browser and verify:
-
-1. ✅ Application loads without errors
-2. ✅ Login page is displayed
-3. ✅ Can connect to backend API
-4. ✅ WebSocket connection establishes
-5. ✅ No TypeScript errors in console
-
-### Test API Integration
-```bash
-# In browser console, test API connectivity
-fetch('http://localhost:8000/health')
-  .then(r => r.json())
-  .then(console.log);
-
-# Test WebSocket connection
-const ws = new WebSocket('ws://localhost:8000/ws');
-ws.onopen = () => console.log('WebSocket connected');
-ws.onerror = (e) => console.error('WebSocket error:', e);
-```
-
----
-
-## 5. Development Workflow
+## Development Workflow
 
 ### Project Structure
+
 ```
 frontend/
+├── public/                 # Static assets
 ├── src/
-│   ├── components/          # Reusable UI components
+│   ├── components/         # Reusable UI components
 │   │   ├── common/         # Generic components
 │   │   ├── upload/         # File upload components
-│   │   ├── search/         # Search and query components
-│   │   ├── graph/          # Knowledge graph components
-│   │   └── evaluation/     # Metrics and analytics components
+│   │   ├── search/         # Search interface
+│   │   ├── graph/          # Knowledge graph
+│   │   └── evaluation/     # Metrics dashboard
 │   ├── pages/              # Main application pages
-│   │   ├── Dashboard.tsx   # Main dashboard
-│   │   ├── Login.tsx       # Authentication
-│   │   └── Settings.tsx    # User settings
-│   ├── services/           # API service layers
-│   │   ├── api.ts          # API client
-│   │   ├── websocket.ts    # WebSocket manager
-│   │   └── auth.ts         # Authentication service
+│   ├── services/           # API client services
 │   ├── hooks/              # Custom React hooks
-│   │   ├── useAuth.ts      # Authentication state
-│   │   ├── useWebSocket.ts # WebSocket connection
-│   │   └── useDocuments.ts # Document management
-│   ├── types/              # TypeScript type definitions
-│   │   ├── api.ts          # API response types
-│   │   ├── document.ts     # Document types
-│   │   └── search.ts       # Search result types
+│   ├── types/              # TypeScript definitions
 │   ├── utils/              # Utility functions
-│   │   ├── validation.ts   # Form validation
-│   │   ├── formatting.ts   # Data formatting
-│   │   └── constants.ts    # Application constants
-│   └── styles/             # CSS and styling
-│       ├── globals.css     # Global styles
-│       └── components/     # Component-specific styles
-├── public/                 # Static assets
+│   └── styles/             # CSS/styling
 ├── tests/                  # Test files
-└── package.json
+└── docs/                   # Component documentation
 ```
 
-### Common Development Tasks
+### Component Development
 
 #### Creating a New Component
-```bash
-# Create component directory
-mkdir src/components/NewFeature
 
-# Create component files
-touch src/components/NewFeature/NewFeature.tsx
-touch src/components/NewFeature/NewFeature.test.tsx
-touch src/components/NewFeature/NewFeature.module.css
-```
-
-**Component Template**:
 ```typescript
-// src/components/NewFeature/NewFeature.tsx
-import React from 'react';
-import styles from './NewFeature.module.css';
+// src/components/search/SearchInput.tsx
+import React, { useState, useCallback } from 'react';
+import { SearchRequest, SearchResponse } from '../../types/search';
+import { useSearch } from '../../hooks/useSearch';
 
-interface NewFeatureProps {
-  // Define component props
+interface SearchInputProps {
+  onSearchComplete: (results: SearchResponse) => void;
+  placeholder?: string;
+  disabled?: boolean;
 }
 
-export const NewFeature: React.FC<NewFeatureProps> = (props) => {
+export const SearchInput: React.FC<SearchInputProps> = ({
+  onSearchComplete,
+  placeholder = "Ask a question...",
+  disabled = false
+}) => {
+  const [query, setQuery] = useState('');
+  const { search, isLoading, error } = useSearch();
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+
+    try {
+      const results = await search({ query });
+      onSearchComplete(results);
+    } catch (err) {
+      console.error('Search failed:', err);
+    }
+  }, [query, search, onSearchComplete]);
+
   return (
-    <div className={styles.container}>
-      {/* Component JSX */}
-    </div>
+    <form onSubmit={handleSubmit} className="search-input">
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled || isLoading}
+        className="search-field"
+      />
+      <button
+        type="submit"
+        disabled={disabled || isLoading || !query.trim()}
+        className="search-button"
+      >
+        {isLoading ? 'Searching...' : 'Search'}
+      </button>
+      {error && <div className="error-message">{error.message}</div>}
+    </form>
   );
 };
-
-export default NewFeature;
 ```
 
-#### Adding API Integration
+#### Custom Hook Example
+
 ```typescript
-// src/services/api.ts
-export class APIClient {
-  // Add new method
-  async newFeature(params: NewFeatureParams): Promise<NewFeatureResponse> {
-    return this.request<NewFeatureResponse>('/new-feature', {
-      method: 'POST',
-      body: JSON.stringify(params),
+// src/hooks/useSearch.ts
+import { useState, useCallback } from 'react';
+import { searchService } from '../services/searchService';
+import { SearchRequest, SearchResponse } from '../types/search';
+
+export const useSearch = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const search = useCallback(async (request: SearchRequest): Promise<SearchResponse> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await searchService.executeSearch(request);
+      return response;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Search failed');
+      setError(error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  return {
+    search,
+    isLoading,
+    error
+  };
+};
+```
+
+### API Integration
+
+#### Service Layer
+
+```typescript
+// src/services/searchService.ts
+import { APIClient } from './apiClient';
+import { SearchRequest, SearchResponse } from '../types/search';
+
+class SearchService {
+  constructor(private apiClient: APIClient) {}
+
+  async executeSearch(request: SearchRequest): Promise<SearchResponse> {
+    return this.apiClient.post<SearchResponse>('/search', request);
+  }
+
+  async getSearchHistory(params?: {
+    page?: number;
+    limit?: number;
+  }): Promise<{ queries: SearchResponse[]; pagination: any }> {
+    const queryParams = new URLSearchParams(params as any).toString();
+    return this.apiClient.get(`/search/history?${queryParams}`);
+  }
+
+  async submitFeedback(queryId: string, feedback: {
+    helpfulness: number;
+    accuracy: number;
+    completeness: number;
+    comment?: string;
+  }): Promise<void> {
+    return this.apiClient.post(`/analytics/quality/feedback`, {
+      query_id: queryId,
+      ...feedback
     });
   }
 }
 
-// src/types/api.ts
-export interface NewFeatureParams {
-  // Request parameters
-}
-
-export interface NewFeatureResponse {
-  // Response structure
-}
+export const searchService = new SearchService(new APIClient());
 ```
 
-#### Testing API Integration
+#### API Client Base
+
 ```typescript
-// src/components/NewFeature/NewFeature.test.tsx
-import { render, screen } from '@testing-library/react';
-import { NewFeature } from './NewFeature';
+// src/services/apiClient.ts
+export class APIClient {
+  private baseURL: string;
+  private token: string | null = null;
+  private organizationId: string | null = null;
 
-describe('NewFeature', () => {
-  test('renders component', () => {
-    render(<NewFeature />);
-    expect(screen.getByTestId('new-feature')).toBeInTheDocument();
-  });
-});
+  constructor() {
+    this.baseURL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+  }
+
+  setAuth(token: string, organizationId: string) {
+    this.token = token;
+    this.organizationId = organizationId;
+  }
+
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+
+    if (this.token && this.organizationId) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+      headers['X-Organization-ID'] = this.organizationId;
+    }
+
+    return headers;
+  }
+
+  async post<T>(endpoint: string, data?: any): Promise<T> {
+    const response = await fetch(`${this.baseURL}/api/v1${endpoint}`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: data ? JSON.stringify(data) : undefined,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'API request failed');
+    }
+
+    return response.json();
+  }
+
+  async get<T>(endpoint: string): Promise<T> {
+    const response = await fetch(`${this.baseURL}/api/v1${endpoint}`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'API request failed');
+    }
+
+    return response.json();
+  }
+}
 ```
 
-### Code Quality Tools
+### State Management
 
-#### Linting and Formatting
-```bash
-# Run ESLint
-npm run lint
+#### Context Provider
 
-# Fix linting issues
-npm run lint:fix
+```typescript
+// src/contexts/AppContext.tsx
+import React, { createContext, useContext, useReducer, ReactNode } from 'react';
+import { User, Document, SearchResponse } from '../types';
 
-# Run Prettier
-npm run format
+interface AppState {
+  user: User | null;
+  documents: Document[];
+  currentSearch: SearchResponse | null;
+  isLoading: boolean;
+  error: string | null;
+}
 
-# Run type checking
-npm run type-check
+type AppAction =
+  | { type: 'SET_USER'; payload: User | null }
+  | { type: 'SET_DOCUMENTS'; payload: Document[] }
+  | { type: 'SET_SEARCH_RESULT'; payload: SearchResponse }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null };
+
+const AppContext = createContext<{
+  state: AppState;
+  dispatch: React.Dispatch<AppAction>;
+} | null>(null);
+
+export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [state, dispatch] = useReducer(appReducer, initialState);
+
+  return (
+    <AppContext.Provider value={{ state, dispatch }}>
+      {children}
+    </AppContext.Provider>
+  );
+};
+
+export const useAppContext = () => {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('useAppContext must be used within AppProvider');
+  }
+  return context;
+};
+
+function appReducer(state: AppState, action: AppAction): AppState {
+  switch (action.type) {
+    case 'SET_USER':
+      return { ...state, user: action.payload };
+    case 'SET_DOCUMENTS':
+      return { ...state, documents: action.payload };
+    case 'SET_SEARCH_RESULT':
+      return { ...state, currentSearch: action.payload };
+    case 'SET_LOADING':
+      return { ...state, isLoading: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload };
+    default:
+      return state;
+  }
+}
+
+const initialState: AppState = {
+  user: null,
+  documents: [],
+  currentSearch: null,
+  isLoading: false,
+  error: null,
+};
 ```
 
-#### Testing
+## Testing
+
+### Running Tests
+
 ```bash
 # Run all tests
 npm test
 
+# Run tests in watch mode
+npm run test:watch
+
 # Run tests with coverage
 npm run test:coverage
 
-# Run tests in watch mode
-npm run test:watch
+# Run E2E tests
+npm run test:e2e
 ```
 
-#### Building
-```bash
-# Build for development
-npm run build:dev
+### Test Example
 
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
-```
-
----
-
-## 6. Authentication Flow
-
-### Development User Setup
-For development, create a test user:
-
-```bash
-# Using the backend API directly
-curl -X POST http://localhost:8000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "dev@example.com",
-    "password": "devpassword123",
-    "name": "Development User",
-    "organization_name": "Dev Org"
-  }'
-
-# Or use the provided script
-docker-compose exec backend python scripts/create_test_user.py
-```
-
-### Testing Authentication
 ```typescript
-// In browser console or test file
-const testAuth = async () => {
-  try {
-    const response = await fetch('http://localhost:8000/api/v1/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: 'dev@example.com',
-        password: 'devpassword123'
-      })
-    });
+// src/components/search/__tests__/SearchInput.test.tsx
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { SearchInput } from '../SearchInput';
+import { searchService } from '../../../services/searchService';
 
-    const data = await response.json();
-    console.log('Auth successful:', data);
-    localStorage.setItem('access_token', data.access_token);
-  } catch (error) {
-    console.error('Auth failed:', error);
+// Mock the search service
+jest.mock('../../../services/searchService');
+const mockSearchService = searchService as jest.Mocked<typeof searchService>;
+
+describe('SearchInput', () => {
+  const mockOnSearchComplete = jest.fn();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('renders search input and button', () => {
+    render(<SearchInput onSearchComplete={mockOnSearchComplete} />);
+
+    expect(screen.getByPlaceholderText('Ask a question...')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
+  });
+
+  test('submits search on form submission', async () => {
+    const mockResponse = {
+      query_id: 'test-id',
+      answer: { text: 'Test answer', confidence: 0.9 }
+    };
+    mockSearchService.executeSearch.mockResolvedValue(mockResponse);
+
+    render(<SearchInput onSearchComplete={mockOnSearchComplete} />);
+
+    const input = screen.getByPlaceholderText('Ask a question...');
+    const button = screen.getByRole('button', { name: 'Search' });
+
+    fireEvent.change(input, { target: { value: 'test query' } });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(mockSearchService.executeSearch).toHaveBeenCalledWith({
+        query: 'test query'
+      });
+      expect(mockOnSearchComplete).toHaveBeenCalledWith(mockResponse);
+    });
+  });
+
+  test('disables button while loading', async () => {
+    mockSearchService.executeSearch.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 1000)));
+
+    render(<SearchInput onSearchComplete={mockOnSearchComplete} />);
+
+    const input = screen.getByPlaceholderText('Ask a question...');
+    const button = screen.getByRole('button', { name: 'Search' });
+
+    fireEvent.change(input, { target: { value: 'test query' } });
+    fireEvent.click(button);
+
+    expect(screen.getByText('Searching...')).toBeInTheDocument();
+    expect(button).toBeDisabled();
+  });
+});
+```
+
+## Styling
+
+### Tailwind CSS Configuration
+
+The project uses Tailwind CSS for styling. Key configuration in `tailwind.config.js`:
+
+```javascript
+module.exports = {
+  content: [
+    "./src/**/*.{js,jsx,ts,tsx}",
+  ],
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          50: '#eff6ff',
+          500: '#3b82f6',
+          600: '#2563eb',
+          700: '#1d4ed8',
+        },
+        gray: {
+          50: '#f9fafb',
+          900: '#111827',
+        }
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      }
+    },
+  },
+  plugins: [
+    require('@tailwindcss/forms'),
+    require('@tailwindcss/typography'),
+  ],
+}
+```
+
+### Component Styling Example
+
+```typescript
+// src/components/common/Button.tsx
+import React from 'react';
+import { cva, type VariantProps } from 'class-variance-authority';
+
+const buttonVariants = cva(
+  'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background',
+  {
+    variants: {
+      variant: {
+        default: 'bg-primary-600 text-white hover:bg-primary-700',
+        destructive: 'bg-red-500 text-white hover:bg-red-600',
+        outline: 'border border-gray-300 bg-white hover:bg-gray-50',
+        secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200',
+        ghost: 'hover:bg-gray-100',
+        link: 'underline-offset-4 hover:underline text-primary-600',
+      },
+      size: {
+        default: 'h-10 py-2 px-4',
+        sm: 'h-9 px-3 rounded-md',
+        lg: 'h-11 px-8 rounded-md',
+        icon: 'h-10 w-10',
+      },
+    },
+    defaultVariants: {
+      variant: 'default',
+      size: 'default',
+    },
   }
+);
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+}
+
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    return (
+      <button
+        className={buttonVariants({ variant, size, className })}
+        ref={ref}
+        {...props}
+      />
+    );
+  }
+);
+Button.displayName = 'Button';
+```
+
+## Real-time Features
+
+### WebSocket Integration
+
+```typescript
+// src/services/websocketService.ts
+export class WebSocketService {
+  private ws: WebSocket | null = null;
+  private listeners: Map<string, Function[]> = new Map();
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+
+  connect(token: string, organizationId: string) {
+    const wsUrl = `${process.env.REACT_APP_WS_URL}/ws?token=${token}&organization_id=${organizationId}`;
+
+    this.ws = new WebSocket(wsUrl);
+
+    this.ws.onopen = () => {
+      console.log('WebSocket connected');
+      this.reconnectAttempts = 0;
+    };
+
+    this.ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      this.emit(message.type, message.payload);
+    };
+
+    this.ws.onclose = () => {
+      console.log('WebSocket disconnected');
+      this.attemptReconnect(token, organizationId);
+    };
+  }
+
+  on(event: string, callback: Function) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, []);
+    }
+    this.listeners.get(event)!.push(callback);
+  }
+
+  private emit(event: string, data: any) {
+    const callbacks = this.listeners.get(event) || [];
+    callbacks.forEach(callback => callback(data));
+  }
+
+  disconnect() {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+  }
+}
+```
+
+### Using WebSocket in Components
+
+```typescript
+// src/components/upload/UploadProgress.tsx
+import React, { useEffect, useState } from 'react';
+import { websocketService } from '../../services/websocketService';
+
+interface UploadProgressProps {
+  documentId: string;
+}
+
+export const UploadProgress: React.FC<UploadProgressProps> = ({ documentId }) => {
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState('processing');
+
+  useEffect(() => {
+    const handleProcessingUpdate = (data: any) => {
+      if (data.document_id === documentId) {
+        setProgress(data.progress);
+        setStatus(data.status);
+      }
+    };
+
+    websocketService.on('document_processing_update', handleProcessingUpdate);
+
+    return () => {
+      // Cleanup listener
+    };
+  }, [documentId]);
+
+  return (
+    <div className="upload-progress">
+      <div className="progress-bar">
+        <div
+          className="progress-fill"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <div className="status">{status}</div>
+    </div>
+  );
 };
 ```
 
----
+## Performance Optimization
 
-## 7. File Upload Testing
+### Code Splitting
 
-### Prepare Test Files
-Create sample files for testing:
+```typescript
+// src/pages/LazyPages.tsx
+import { lazy } from 'react';
 
-```bash
-# Create test directory
-mkdir test-files
+export const Dashboard = lazy(() => import('./Dashboard'));
+export const KnowledgeGraph = lazy(() => import('./KnowledgeGraph'));
+export const Evaluation = lazy(() => import('./Evaluation'));
 
-# Create sample text file
-echo "This is a test document for the RAG system." > test-files/sample.txt
-
-# Create sample PDF (if you have pandoc)
-echo "Sample PDF content" | pandoc -o test-files/sample.pdf
-
-# Download sample images (optional)
-curl -o test-files/sample.jpg "https://via.placeholder.com/300x200"
-curl -o test-files/sample.png "https://via.placeholder.com/300x200.png"
+// Usage in routing
+<Suspense fallback={<div>Loading...</div>}>
+  <Route path="/graph" element={<KnowledgeGraph />} />
+</Suspense>
 ```
 
-### Test Upload via API
-```javascript
-// Test file upload
-const testFile = new File(['test content'], 'test.txt', { type: 'text/plain' });
-const formData = new FormData();
-formData.append('file', testFile);
+### Virtualization for Large Lists
 
-fetch('http://localhost:8000/api/v1/files/upload', {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-    'X-Organization-ID': 'test-org-id'
-  },
-  body: formData
-})
-.then(r => r.json())
-.then(console.log)
-.catch(console.error);
+```typescript
+// src/components/common/VirtualizedList.tsx
+import { FixedSizeList as List } from 'react-window';
+
+interface VirtualizedListProps {
+  items: any[];
+  itemHeight: number;
+  height: number;
+  renderItem: ({ index, style }: any) => React.ReactNode;
+}
+
+export const VirtualizedList: React.FC<VirtualizedListProps> = ({
+  items,
+  itemHeight,
+  height,
+  renderItem
+}) => {
+  const Row = ({ index, style }) => (
+    <div style={style}>
+      {renderItem({ index, style, item: items[index] })}
+    </div>
+  );
+
+  return (
+    <List
+      height={height}
+      itemCount={items.length}
+      itemSize={itemHeight}
+      width="100%"
+    >
+      {Row}
+    </List>
+  );
+};
 ```
 
----
+## Troubleshooting
 
-## 8. Common Issues and Solutions
+### Common Issues
 
-### Backend Services Not Starting
+#### Backend Connection Failed
 ```bash
-# Check Docker status
-docker-compose ps
+# Check if backend is running
+curl http://localhost:8000/health
 
-# View specific service logs
-docker-compose logs backend
-docker-compose logs postgres
-docker-compose logs neo4j
-
-# Restart specific service
-docker-compose restart backend
-
-# Rebuild if needed
-docker-compose up -d --build
-```
-
-### Port Conflicts
-```bash
-# Check what's using ports
-lsof -i :3000  # Frontend
-lsof -i :8000  # Backend
-lsof -i :5432  # PostgreSQL
-
-# Kill processes if needed
-kill -9 <PID>
-
-# Or change ports in docker-compose.yml
-```
-
-### Permission Issues
-```bash
-# Fix Docker permissions
-sudo chown -R $USER:$USER .
-
-# Fix Node modules permissions
-rm -rf node_modules package-lock.json
-npm install
-```
-
-### API Connection Issues
-```bash
-# Test backend connectivity
-curl -v http://localhost:8000/health
-
-# Check CORS settings
-# In development, CORS should allow http://localhost:3000
-
-# Verify API base URL in .env.local
+# Check environment variables
 echo $REACT_APP_API_BASE_URL
 ```
 
-### WebSocket Connection Issues
-```bash
-# Test WebSocket connection
-wscat -c ws://localhost:8000/ws
-
-# Check firewall settings
-# Ensure WebSocket connections are allowed
-```
-
-### Memory Issues
-```bash
-# Increase Node.js memory limit
-export NODE_OPTIONS="--max-old-space-size=4096"
-
-# Clear Docker cache
-docker system prune -a
-
-# Monitor resource usage
-docker stats
-```
-
----
-
-## 9. Performance Monitoring
-
-### Frontend Performance
+#### WebSocket Connection Issues
 ```javascript
-// Add performance monitoring
-const measurePerformance = (name: string, fn: () => void) => {
-  const start = performance.now();
-  fn();
-  const end = performance.now();
-  console.log(`${name} took ${end - start} milliseconds`);
-};
+// Add debug logging to WebSocket
+console.log('WebSocket URL:', wsUrl);
+console.log('Token available:', !!token);
 
-// Monitor API calls
-const wrappedFetch = async (url: string, options?: RequestInit) => {
-  const start = performance.now();
-  const response = await fetch(url, options);
-  const end = performance.now();
-  console.log(`API call to ${url} took ${end - start}ms`);
-  return response;
-};
+// Check browser developer tools Network tab for WebSocket connection
 ```
 
-### Backend Performance
+#### Build Errors
 ```bash
-# Monitor backend performance
-curl http://localhost:8000/api/v1/analytics/performance/dashboard
+# Clear cache and reinstall
+rm -rf node_modules package-lock.json
+npm install
 
-# Check query performance
-docker-compose logs backend | grep "slow query"
+# Check TypeScript errors
+npm run type-check
 ```
 
----
+### Performance Issues
 
-## 10. Development Tips
+1. **Large Bundle Size**: Use `npm run analyze` to check bundle size
+2. **Slow Initial Load**: Implement code splitting for heavy components
+3. **Memory Leaks**: Check for unmounted components with lingering subscriptions
+4. **Slow Renders**: Use React.memo and useMemo for expensive computations
 
-### Hot Reloading
-- React components hot reload automatically
-- CSS changes apply immediately
-- API changes may require browser refresh
+## Deployment
 
-### Debugging
-```typescript
-// Add debug logging
-const DEBUG = process.env.REACT_APP_DEBUG_MODE === 'true';
-const debug = DEBUG ? console.log : () => {};
+### Build for Production
 
-// React DevTools
-// Install React DevTools browser extension for component inspection
+```bash
+# Create production build
+npm run build
 
-// Redux DevTools (if using Redux)
-// Install Redux DevTools browser extension
+# Test build locally
+npm run serve
+
+# Build with analysis
+npm run build -- --analyze
 ```
 
-### Environment Variables
-```typescript
-// Access environment variables
-const apiUrl = process.env.REACT_APP_API_BASE_URL;
-const isDev = process.env.REACT_APP_ENVIRONMENT === 'development';
+### Environment Variables for Production
 
-// Type-safe environment variables
-const env = {
-  apiUrl: process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000',
-  wsUrl: process.env.REACT_APP_WS_URL || 'ws://localhost:8000/ws',
-  maxFileSize: parseInt(process.env.REACT_APP_MAX_FILE_SIZE_MB || '50'),
-} as const;
+```env
+# Production settings
+REACT_APP_API_BASE_URL=https://api.ragsystem.com
+REACT_APP_WS_URL=wss://api.ragsystem.com
+REACT_APP_ENABLE_ANALYTICS=true
+REACT_APP_DEV_MODE=false
 ```
 
-### Component Development
-```typescript
-// Use React.memo for performance optimization
-const ExpensiveComponent = React.memo(({ data }) => {
-  return <div>{/* Expensive rendering */}</div>;
-});
+### Docker Deployment
 
-// Use useMemo for expensive calculations
-const expensiveValue = useMemo(() => {
-  return data.reduce(/* expensive computation */);
-}, [data]);
+```dockerfile
+# Dockerfile
+FROM node:18-alpine as builder
 
-// Use useCallback for stable function references
-const handleClick = useCallback((id: string) => {
-  onItemClick(id);
-}, [onItemClick]);
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=builder /app/build /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/nginx.conf
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
 ```
 
----
-
-## 11. Next Steps
-
-### Feature Development
-1. **File Upload Component**: Start with drag-and-drop functionality
-2. **Search Interface**: Build query input and results display
-3. **Document Management**: Create document list and status indicators
-4. **Knowledge Graph**: Implement interactive graph visualization
-5. **Evaluation Dashboard**: Build metrics display and analytics
-
-### Testing Strategy
-1. **Unit Tests**: Test individual components and utilities
-2. **Integration Tests**: Test API integration and data flow
-3. **E2E Tests**: Test complete user workflows
-4. **Performance Tests**: Test with large datasets and concurrent users
-
-### Deployment Preparation
-1. **Build Optimization**: Configure production build settings
-2. **Environment Configuration**: Set up production environment variables
-3. **Security**: Implement proper authentication and data validation
-4. **Monitoring**: Set up error tracking and performance monitoring
-
----
-
-## 12. Support and Resources
+## Resources
 
 ### Documentation
-- [React Documentation](https://react.dev/)
+- [React Documentation](https://react.dev)
 - [TypeScript Handbook](https://www.typescriptlang.org/docs/)
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Docker Documentation](https://docs.docker.com/)
+- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
+- [API Contracts](./contracts/api-contracts.md)
 
-### Tools and Extensions
+### Tools & Extensions
 - **VS Code Extensions**:
   - ES7+ React/Redux/React-Native snippets
   - TypeScript Importer
+  - Tailwind CSS IntelliSense
   - Prettier - Code formatter
-  - ESLint
-  - Thunder Client (for API testing)
 
-- **Browser Extensions**:
-  - React Developer Tools
-  - Redux DevTools (if applicable)
-  - JSON Viewer
+### Development Commands
 
-### Getting Help
-- Check the console for error messages
-- Review the browser network tab for API issues
-- Consult the API documentation at http://localhost:8000/docs
-- Check backend logs: `docker-compose logs backend`
-- Verify environment variables and configuration
+```bash
+# Development
+npm run dev              # Start development server
+npm run build            # Build for production
+npm run test             # Run tests
+npm run lint             # Run ESLint
+npm run type-check       # Run TypeScript check
 
----
+# Analysis
+npm run analyze          # Analyze bundle size
+npm run serve            # Serve production build
+```
 
-**Happy coding!** 🚀
-
-If you encounter any issues not covered in this guide, please check the project documentation or reach out to the development team.
+This quick start guide provides everything needed to get up and running quickly with the Multimodal Enterprise RAG System UI development. For more detailed information, refer to the component documentation and API contracts.
