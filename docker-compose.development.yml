@@ -35,6 +35,9 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
 
+      # DeepEval / Confident AI Configuration
+      - CONFIDENT_API_KEY=${CONFIDENT_API_KEY:-}
+
       # Azure OpenAI Configuration
       - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY:-}
       - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT:-}
@@ -225,6 +228,9 @@ services:
       # AI Service Configuration
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+
+      # DeepEval / Confident AI Configuration
+      - CONFIDENT_API_KEY=${CONFIDENT_API_KEY:-}
 
       # Azure OpenAI Configuration
       - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY:-}

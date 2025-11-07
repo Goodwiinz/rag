@@ -36,7 +36,7 @@ from opentelemetry.propagators.jaeger import JaegerPropagator
 from opentelemetry.trace import Status, StatusCode, SpanKind
 from opentelemetry.trace.propagation import get_current_span
 
-from ..core.config import settings
+from .config import config
 
 
 # Global tracer instance
@@ -49,38 +49,37 @@ def configure_tracing() -> trace.Tracer:
 
     # Set up trace provider with resource attributes
     resource = Resource.create({
-        SERVICE_NAME: "rag-system-backend",
-        SERVICE_VERSION: settings.VERSION,
-        DEPLOYMENT_ENVIRONMENT: settings.ENVIRONMENT,
+        SERVICE_NAME: config.otel_service_name,
+        SERVICE_VERSION: config.otel_service_version,
+        DEPLOYMENT_ENVIRONMENT: config.otel_environment,
         "service.instance.id": os.environ.get("HOSTNAME", "unknown"),
-        "service.namespace": "rag-system",
+        "service.namespace": "multimodal-rag",
     })
 
     # Create tracer provider
     trace_provider = TracerProvider(resource=resource)
 
     # Configure Jaeger exporter
-    jaeger_endpoint = os.environ.get("JAEGER_ENDPOINT", "http://jaeger:14268/api/traces")
     jaeger_exporter = JaegerExporter(
-        endpoint=jaeger_endpoint,
-        collector_endpoint=jaeger_endpoint,
-        agent_host_name=os.environ.get("JAEGER_AGENT_HOST", "jaeger"),
-        agent_port=int(os.environ.get("JAEGER_AGENT_PORT", "6831")),
+        **config.get_jaeger_config()
     )
 
-    # Configure OTLP exporter (for Grafana Tempo or other OTLP-compatible backends)
-    otlp_endpoint = os.environ.get("OTLP_ENDPOINT", "http://tempo:4317")
+    # Configure OTLP exporter
     otlp_exporter = OTLPSpanExporter(
-        endpoint=otlp_endpoint,
-        insecure=True,  # Set to False with proper certificates in production
+        endpoint=config.otel_exporter_otlp_endpoint,
+        insecure=True,
     )
 
     # Add exporters with batch processing
     trace_provider.add_span_processor(
-        BatchSpanProcessor(jaeger_exporter, max_export_batch_size=512, export_timeout_millis=30000)
+        BatchSpanProcessor(jaeger_exporter,
+                          max_export_batch_size=config.otel_max_export_batch_size,
+                          export_timeout_millis=config.otel_batch_timeout)
     )
     trace_provider.add_span_processor(
-        BatchSpanProcessor(otlp_exporter, max_export_batch_size=512, export_timeout_millis=30000)
+        BatchSpanProcessor(otlp_exporter,
+                          max_export_batch_size=config.otel_max_export_batch_size,
+                          export_timeout_millis=config.otel_batch_timeout)
     )
 
     # Set as global tracer provider

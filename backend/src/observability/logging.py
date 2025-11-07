@@ -25,7 +25,7 @@ import structlog
 from opentelemetry import trace, baggage
 from opentelemetry.trace import get_current_span
 
-from ..core.config import settings
+from .config import config
 
 
 # Context variables for correlation
@@ -55,9 +55,9 @@ class StructuredFormatter(logging.Formatter):
             "module": record.module,
             "function": record.funcName,
             "line": record.lineno,
-            "environment": settings.ENVIRONMENT,
-            "service": "rag-system-backend",
-            "version": settings.VERSION,
+            "environment": config.otel_environment,
+            "service": config.otel_service_name,
+            "version": config.otel_service_version,
         }
 
         # Add correlation information
@@ -164,7 +164,7 @@ def configure_logging() -> None:
     root_logger.handlers.clear()
 
     # Set log level
-    log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+    log_level = getattr(logging, config.log_level.upper(), logging.INFO)
     root_logger.setLevel(log_level)
 
     # Create console handler
@@ -297,8 +297,8 @@ def log_security_event(
         "event_type": event_type,
         "severity": severity,
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "service": "rag-system-backend",
-        "environment": settings.ENVIRONMENT,
+        "service": config.otel_service_name,
+        "environment": config.otel_environment,
     }
 
     if details:
@@ -358,7 +358,7 @@ def log_business_event(
         "entity_id": entity_id,
         "action": action,
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "service": "rag-system-backend",
+        "service": config.otel_service_name,
     }
 
     if details:
@@ -382,7 +382,7 @@ def log_error_with_context(
         "error_type": type(error).__name__,
         "error_message": str(error),
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "service": "rag-system-backend",
+        "service": config.otel_service_name,
     }
 
     if context:
