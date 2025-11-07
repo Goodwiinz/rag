@@ -1,0 +1,4 @@
+{{- if .Values.apiServer.enabled }}
+{{- include "rag-system.labels" . | set "app" "rag-api-server" | set "version" "v1.0.0" | nindent 0 }}
+{{- include "rag-system.deployment" . | set "Values" (dict "apiServer" .Values.apiServer "container" (dict "repository" .Values.apiServer.image.repository "tag" .Values.apiServer.image.tag "port" .Values.apiServer.service.targetPort)) | nindent 0 }}
+{{- end }}

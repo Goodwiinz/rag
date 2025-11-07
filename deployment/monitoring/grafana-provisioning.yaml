@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+  namespace: rag-monitoring
+  labels:
+    app: grafana
+    component: monitoring
+data:
+  provisioning-datasources.yaml: |
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      access: proxy
+      url: http://prometheus:9090
+      isDefault: true
+      editable: false
+      jsonData:
+        httpMethod: POST
+        queryTimeout: 60s
+        timeInterval: 15s
+      version: 1
+      uid: prometheus-datasource
+
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki:3100
+      editable: false
+      jsonData:
+        maxLines: 1000
+        maxUniqueLabels: 1000
+        maxUniqueTimeSeries: 1000
+        timeout: 60
+      version: 1
+      uid: loki-datasource
+
+    - name: Jaeger
+      type: jaeger
+      access: proxy
+      url: http://jaeger:16686
+      editable: false
+      jsonData:
+        useTraceQuery: true
+      version: 1
+      uid: jaeger-datasource
+
+  provisioning-dashboards.yaml: |
+    apiVersion: 1
+    providers:
+    - name: 'default'
+      orgId: 1
+      folder: ''
+      type: file
+      disableDeletion: false
+      updateIntervalSeconds: 10
+      allowUiUpdates: true
+      options:
+        path: /var/lib/grafana/dashboards
+        foldersFromFilesStructure: true
+
+  provisioning-alerting.yaml: |
+    apiVersion: 1
+    alerting:
+      notifiers:
+        - name: critical-slack
+          type: webhook
+          uid: critical-slack-notifier
+          isDefault: true
+          sendReminder: true
+          frequency: 1h
+          settings:
+            url: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+            title: '🚨 Critical Alert - RAG System'
+            text: |
+              {{ range .Alerts }}
+              *Alert:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Severity:* {{ .Labels.severity }}
+              *Timestamp:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+              *Labels:* {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
+              {{ end }}
+            httpMethod: POST
+            timeout: 30
+            method: POST
+            usePostedData: true
+            maxAlerts: 10
+        - name: warning-slack
+          type: webhook
+          uid: warning-slack-notifier
+          isDefault: false
+          sendReminder: true
+          frequency: 1h
+          settings:
+            url: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+            title: '⚠️ Warning Alert - RAG System'
+            text: |
+              {{ range .Alerts }}
+              *Alert:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Severity:* {{ .Labels.severity }}
+              *Timestamp:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+              *Labels:* {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
+              {{ end }}
+            httpMethod: POST
+            timeout: 30
+            method: POST
+            usePostedData: true
+            maxAlerts: 10
+
+      templates:
+      - name: 'slack-template'
+        template: |
+          {{ define "slack.message" }}
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Timestamp:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          *Labels:* {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
+          {{ end }}
+          {{ end }}
+        type: file

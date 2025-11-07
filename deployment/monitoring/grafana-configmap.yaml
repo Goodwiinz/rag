@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+  namespace: rag-monitoring
+  labels:
+    app: grafana
+    component: monitoring
+data:
+  grafana.ini: |
+    [analytics]
+    reporting_enabled = false
+    check_for_updates = false
+
+    [log]
+    mode = console
+    level = info
+    filters = rendering:debug
+
+    [paths]
+    data = /var/lib/grafana
+    logs = /var/log/grafana
+    plugins = /var/lib/grafana/plugins
+    provisioning = /etc/grafana/provisioning
+
+    [database]
+    type = sqlite3
+    path = /var/lib/grafana/grafana.db
+
+    [security]
+    admin_password = REDACTED
+    admin_user = admin
+    disable_initial_admin_creation = true
+    secret_key = GF_SECRET_KEY
+
+    [server]
+    http_port = 3000
+    enable_gzip = true
+
+    [dataproxy]
+    logging = true
+    timeout = 30
+
+    [users]
+    auto_assign_org = true
+    auto_assign_org_role = Admin
+
+    [dashboards]
+    default_home_dashboard_path = dashboards/home.json
+
+    [alerting]
+    enabled = true
+    execute_alerts = true
+
+    [unified_alerting]
+    enabled = true

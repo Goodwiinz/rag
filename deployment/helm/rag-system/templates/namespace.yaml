@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.global.namespace }}
+  labels:
+    name: {{ .Values.global.namespace }}
+    environment: {{ .Values.global.environment }}
+    istio-injection: enabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rag-monitoring
+  labels:
+    name: rag-monitoring
+    environment: monitoring
+    istio-injection: enabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rag-logging
+  labels:
+    name: rag-logging
+    environment: logging
+    istio-injection: enabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rag-security
+  labels:
+    name: rag-security
+    environment: security
+    istio-injection: enabled
+---

@@ -1,0 +1,16 @@
+{{- if and .Values.redis.enabled .Values.redis.persistence.enabled }}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ include "rag-system.fullname" . }}-redis-pvc
+  namespace: {{ include "rag-system.namespace" . }}
+  labels:
+    {{- include "rag-system.labels" . | set "app" "redis" | set "version" "v1.0.0" | nindent 4 }}
+spec:
+  accessModes:
+  - {{ .Values.redis.persistence.accessMode | default "ReadWriteOnce" }}
+  storageClassName: {{ .Values.redis.persistence.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.redis.persistence.size }}
+{{- end }}

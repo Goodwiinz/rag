@@ -793,8 +793,9 @@ class MultimodalProcessingService:
         """Store extracted entities and relationships in the knowledge graph"""
         try:
             from src.services.knowledge_graph_service import knowledge_graph_service
-            from src.models.graph import CreateEntityRequest, CreateRelationshipRequest, EntityType as GraphEntityType, ExtractionMethod as GraphExtractionMethod
+            from src.models.graph import CreateEntityRequest, CreateRelationshipRequest, EntityType as GraphEntityType, ExtractionMethod as GraphExtractionMethod, RelationshipType as GraphRelationshipType
             from src.services.entity_extraction_service import EntityExtractionService as SpacyEntityService
+            import spacy
 
             text_content = document.content_text or ""
             if not text_content:
@@ -812,6 +813,9 @@ class MultimodalProcessingService:
             # Initialize entity extraction service
             entity_service = SpacyEntityService()
 
+            # Process text with spaCy to get the doc object for relationship extraction
+            spacy_doc = entity_service.nlp(text_content)
+
             # Extract entities from text
             entities = entity_service.extract_entities_from_text(document, text_content)
 
@@ -824,19 +828,38 @@ class MultimodalProcessingService:
 
             # Store entities in knowledge graph
             entity_map = {}  # Map local entity IDs to graph entity IDs
+            local_entity_map = {}  # Map local entity names to entity objects
 
             for entity in entities:
                 try:
                     # Map entity types
                     entity_type_str = entity.entity_type.value if hasattr(entity.entity_type, 'value') else str(entity.entity_type)
 
+                    # Get confidence score - handle different attribute names
+                    confidence = 0.8
+                    if hasattr(entity, 'confidence_score'):
+                        confidence = entity.confidence_score
+                    elif hasattr(entity, 'confidence'):
+                        confidence = entity.confidence
+                    elif hasattr(entity, 'relevance_score'):
+                        confidence = entity.relevance_score
+
+                    # Get context
+                    context = None
+                    if hasattr(entity, 'context') and entity.context:
+                        context = entity.context
+                    elif hasattr(entity, 'properties') and entity.properties and 'context_window' in entity.properties:
+                        context = entity.properties['context_window']
+                    else:
+                        context = text_content[:200]
+
                     # Create entity request
                     entity_request = CreateEntityRequest(
                         name=entity.name,
                         entity_type=GraphEntityType(entity_type_str.upper()),
-                        confidence_score=entity.confidence_score,
+                        confidence_score=confidence,
                         extraction_method=GraphExtractionMethod.SPACY_NER,
-                        context=entity.context or text_content[:200],
+                        context=context,
                         metadata={
                             "document_id": str(document.id),
                             "document_title": document.title,
@@ -849,6 +872,7 @@ class MultimodalProcessingService:
                     # Store in knowledge graph
                     graph_entity = knowledge_graph_service.create_entity(entity_request)
                     entity_map[entity.id] = graph_entity.id
+                    local_entity_map[entity.name.lower()] = (entity, graph_entity.id)
                     results["entities_stored"] += 1
 
                     logger.info(f"Stored entity in knowledge graph: {entity.name} ({entity_type_str})")
@@ -858,12 +882,79 @@ class MultimodalProcessingService:
                     logger.warning(error_msg)
                     results["errors"].append(error_msg)
 
-            # TODO: Store relationships if they are extracted
-            # This would require relationship extraction to be implemented in entity_service
+            # Extract and store relationships
+            try:
+                relationships = entity_service._extract_relationships(spacy_doc, entities)
+
+                logger.info(f"Extracted {len(relationships)} relationships from document")
+
+                for rel in relationships:
+                    try:
+                        source_entity = rel.get('source_entity')
+                        target_entity = rel.get('target_entity')
+                        relationship_type = rel.get('relationship_type', 'related_to')
+
+                        # Get graph IDs for source and target entities
+                        source_graph_id = entity_map.get(source_entity.id)
+                        target_graph_id = entity_map.get(target_entity.id)
+
+                        if not source_graph_id or not target_graph_id:
+                            continue
+
+                        # Map relationship type to GraphRelationshipType
+                        relationship_type_mapping = {
+                            'works_for': GraphRelationshipType.WORKS_FOR,
+                            'located_in': GraphRelationshipType.LOCATED_IN,
+                            'part_of': GraphRelationshipType.PART_OF,
+                            'related_to': GraphRelationshipType.RELATED_TO,
+                            'owns': GraphRelationshipType.OWNS,
+                            'created_by': GraphRelationshipType.CREATED_BY,
+                            'manages': GraphRelationshipType.MANAGES,
+                            'knows': GraphRelationshipType.KNOWS,
+                            'collaborates_with': GraphRelationshipType.COLLABORATES_WITH
+                        }
+
+                        graph_rel_type = relationship_type_mapping.get(
+                            relationship_type.lower(),
+                            GraphRelationshipType.RELATED_TO
+                        )
+
+                        # Create relationship request
+                        rel_request = CreateRelationshipRequest(
+                            source_entity_id=source_graph_id,
+                            target_entity_id=target_graph_id,
+                            relationship_type=graph_rel_type,
+                            confidence_score=rel.get('confidence', 0.7),
+                            context=rel.get('evidence', ''),
+                            evidence=[rel.get('evidence', '')] if rel.get('evidence') else [],
+                            metadata={
+                                "document_id": str(document.id),
+                                "pattern_matched": rel.get('pattern_matched', ''),
+                                "extraction_date": datetime.utcnow().isoformat(),
+                                "source": "document_processing"
+                            },
+                            source_document_id=str(document.id)
+                        )
+
+                        # Store relationship in knowledge graph
+                        knowledge_graph_service.create_relationship(rel_request)
+                        results["relationships_stored"] += 1
+
+                        logger.info(f"Stored relationship: {source_entity.name} --[{graph_rel_type.value}]--> {target_entity.name}")
+
+                    except Exception as e:
+                        error_msg = f"Failed to store relationship: {str(e)}"
+                        logger.warning(error_msg)
+                        results["errors"].append(error_msg)
+
+            except Exception as e:
+                error_msg = f"Failed to extract relationships: {str(e)}"
+                logger.warning(error_msg)
+                results["errors"].append(error_msg)
 
             results["processing_time"] = time.time() - start_time
 
-            logger.info(f"Stored {results['entities_stored']} entities in knowledge graph for document {document.id}")
+            logger.info(f"Stored {results['entities_stored']} entities and {results['relationships_stored']} relationships in knowledge graph for document {document.id}")
 
             return results
 

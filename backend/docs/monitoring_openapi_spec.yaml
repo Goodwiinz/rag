@@ -1,0 +1,2193 @@
+openapi: 3.0.3
+info:
+  title: Multimodal RAG System - Monitoring & Observability API
+  description: |
+    Comprehensive monitoring and observability API for the Multimodal Enterprise RAG System.
+
+    This API provides:
+    - Real-time metrics collection and querying
+    - Distributed tracing capabilities
+    - Log aggregation and search
+    - Health monitoring and SLI/SLO tracking
+    - Alert management and notifications
+    - Performance analytics and reporting
+
+    ## Authentication
+
+    All monitoring endpoints require authentication using:
+    - OAuth 2.0 Bearer tokens for service-to-service access
+    - API keys for external monitoring tools
+    - Role-based access control (RBAC) for user access
+
+    ## Rate Limiting
+
+    Monitoring endpoints have rate limits to ensure system stability:
+    - Metrics queries: 100 requests/minute
+    - Log searches: 50 requests/minute
+    - Alert management: 20 requests/minute
+
+  version: 1.0.0
+  contact:
+    name: RAG System Monitoring Team
+    email: monitoring@multimodal-rag.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.multimodal-rag.com/monitoring/v1
+    description: Production monitoring API
+  - url: https://staging-api.multimodal-rag.com/monitoring/v1
+    description: Staging monitoring API
+  - url: http://localhost:8000/monitoring/v1
+    description: Development monitoring API
+
+security:
+  - OAuth2: []
+  - ApiKeyAuth: []
+
+paths:
+  # Metrics Management
+  /metrics:
+    get:
+      summary: Query system and business metrics
+      description: |
+        Retrieve metrics data with flexible filtering and aggregation options.
+        Supports time-series queries, SLI calculations, and custom metric definitions.
+      tags:
+        - Metrics
+      parameters:
+        - name: metric_names
+          in: query
+          description: Comma-separated list of metric names to query
+          schema:
+            type: string
+            example: "cpu_usage,memory_usage,api_response_time"
+        - name: services
+          in: query
+          description: Filter by service names
+          schema:
+            type: string
+            example: "api-gateway,search-service"
+        - name: start_time
+          in: query
+          description: Start time for metrics query (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+            example: "2024-01-01T00:00:00Z"
+        - name: end_time
+          in: query
+          description: End time for metrics query (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+            example: "2024-01-01T23:59:59Z"
+        - name: aggregation
+          in: query
+          description: Aggregation function (avg, sum, min, max, percentile)
+          schema:
+            type: string
+            enum: [avg, sum, min, max, p50, p90, p95, p99]
+            default: avg
+        - name: interval
+          in: query
+          description: Time interval for aggregation (1m, 5m, 15m, 1h, 1d)
+          schema:
+            type: string
+            pattern: '^\d+[mhd]$'
+            default: 5m
+        - name: organization_id
+          in: query
+          description: Filter by organization (for multi-tenant monitoring)
+          schema:
+            type: string
+            format: uuid
+        - name: filters
+          in: query
+          description: Additional filters in JSON format
+          schema:
+            type: string
+            example: '{"environment": "production", "region": "us-east-1"}'
+      responses:
+        '200':
+          description: Metrics data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Push custom metrics
+      description: |
+        Submit custom metrics to the monitoring system.
+        Supports both individual metrics and batch submissions.
+      tags:
+        - Metrics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MetricSubmission'
+      responses:
+        '201':
+          description: Metrics submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricSubmissionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /metrics/services:
+    get:
+      summary: Get available services for monitoring
+      description: Retrieve list of services that are currently being monitored
+      tags:
+        - Metrics
+      parameters:
+        - name: organization_id
+          in: query
+          description: Filter by organization
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Services list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicesListResponse'
+
+  /metrics/definitions:
+    get:
+      summary: Get metric definitions
+      description: Retrieve definitions and metadata for available metrics
+      tags:
+        - Metrics
+      parameters:
+        - name: category
+          in: query
+          description: Filter by metric category
+          schema:
+            type: string
+            enum: [system, application, business, custom]
+      responses:
+        '200':
+          description: Metric definitions retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricDefinitionsResponse'
+
+  # SLI/SLO Management
+  /sli:
+    get:
+      summary: Query Service Level Indicators
+      description: Retrieve calculated SLI values for specified services and time periods
+      tags:
+        - SLI/SLO
+      parameters:
+        - name: slo_name
+          in: query
+          description: SLO identifier
+          required: true
+          schema:
+            type: string
+            example: "api_availability"
+        - name: service_name
+          in: query
+          description: Service name
+          required: true
+          schema:
+            type: string
+            example: "search-service"
+        - name: time_window
+          in: query
+          description: Time window for SLI calculation
+          schema:
+            type: string
+            enum: [1h, 24h, 7d, 30d]
+            default: 24h
+        - name: organization_id
+          in: query
+          description: Organization ID for multi-tenant context
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: SLI data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SLIResponse'
+
+  /slo:
+    get:
+      summary: Get Service Level Objectives
+      description: Retrieve SLO definitions and current status
+      tags:
+        - SLI/SLO
+      parameters:
+        - name: active_only
+          in: query
+          description: Filter only active SLOs
+          schema:
+            type: boolean
+            default: true
+        - name: organization_id
+          in: query
+          description: Filter by organization
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: SLO data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SLOListResponse'
+
+    post:
+      summary: Create or update SLO
+      description: Define new Service Level Objective or update existing one
+      tags:
+        - SLI/SLO
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SLODefinition'
+      responses:
+        '201':
+          description: SLO created successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /slo/{slo_id}/status:
+    get:
+      summary: Get SLO status and error budget
+      description: Retrieve current SLO status, compliance percentage, and remaining error budget
+      tags:
+        - SLI/SLO
+      parameters:
+        - name: slo_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: SLO status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SLOStatusResponse'
+
+  # Health Monitoring
+  /health/services:
+    get:
+      summary: Get health status of all services
+      description: Retrieve comprehensive health status across all monitored services
+      tags:
+        - Health
+      parameters:
+        - name: include_dependencies
+          in: query
+          description: Include dependency health checks
+          schema:
+            type: boolean
+            default: true
+        - name: service_type
+          in: query
+          description: Filter by service type
+          schema:
+            type: string
+            enum: [api, database, cache, queue, external]
+      responses:
+        '200':
+          description: Health status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/services/HealthStatusResponse'
+
+  /health/services/{service_name}:
+    get:
+      summary: Get detailed health status for specific service
+      description: Retrieve detailed health information including metrics, dependencies, and recent issues
+      tags:
+        - Health
+      parameters:
+        - name: service_name
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "search-service"
+        - name: include_history
+          in: query
+          description: Include recent health history
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Service health status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceHealthResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /health/dependencies:
+    get:
+      summary: Get health status of external dependencies
+      description: Monitor health of external services and dependencies
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Dependency health status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DependencyHealthResponse'
+
+  # Tracing
+  /traces/search:
+    get:
+      summary: Search distributed traces
+      description: Search and retrieve distributed traces with filtering options
+      tags:
+        - Tracing
+      parameters:
+        - name: service_name
+          in: query
+          description: Filter by service name
+          schema:
+            type: string
+        - name: trace_id
+          in: query
+          description: Specific trace ID
+          schema:
+            type: string
+        - name: start_time
+          in: query
+          description: Start time for trace search
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          description: End time for trace search
+          schema:
+            type: string
+            format: date-time
+        - name: min_duration
+          in: query
+          description: Minimum trace duration in milliseconds
+          schema:
+            type: integer
+            minimum: 0
+        - name: max_duration
+          in: query
+          description: Maximum trace duration in milliseconds
+          schema:
+            type: integer
+            minimum: 0
+        - name: status_code
+          in: query
+          description: Filter by HTTP status code
+          schema:
+            type: string
+            pattern: '^[1-5][0-9]{2}$'
+      responses:
+        '200':
+          description: Traces found successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TracesSearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /traces/{trace_id}:
+    get:
+      summary: Get detailed trace information
+      description: Retrieve detailed information for a specific trace including all spans
+      tags:
+        - Tracing
+      parameters:
+        - name: trace_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "a1b2c3d4e5f6"
+      responses:
+        '200':
+          description: Trace details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraceDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Logs
+  /logs/search:
+    get:
+      summary: Search logs
+      description: Search through structured logs with advanced filtering
+      tags:
+        - Logs
+      parameters:
+        - name: query
+          in: query
+          description: Search query (supports Lucene syntax)
+          schema:
+            type: string
+            example: "level:ERROR AND service:api-gateway"
+        - name: start_time
+          in: query
+          description: Start time for log search
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          description: End time for log search
+          schema:
+            type: string
+            format: date-time
+        - name: service_name
+          in: query
+          description: Filter by service name
+          schema:
+            type: string
+        - name: log_level
+          in: query
+          description: Filter by log level
+          schema:
+            type: string
+            enum: [DEBUG, INFO, WARN, ERROR, FATAL]
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: sort
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogsSearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /logs/aggregate:
+    post:
+      summary: Aggregate logs
+      description: Perform aggregation operations on log data
+      tags:
+        - Logs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogAggregationRequest'
+      responses:
+        '200':
+          description: Log aggregation completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogAggregationResponse'
+
+  # Alerts
+  /alerts:
+    get:
+      summary: Get active alerts
+      description: Retrieve list of currently active alerts
+      tags:
+        - Alerts
+      parameters:
+        - name: severity
+          in: query
+          description: Filter by alert severity
+          schema:
+            type: string
+            enum: [info, warning, error, critical]
+        - name: status
+          in: query
+          description: Filter by alert status
+          schema:
+            type: string
+            enum: [firing, resolved, acknowledged]
+        - name: service_name
+          in: query
+          description: Filter by service name
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of alerts to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Alerts retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertsResponse'
+
+    post:
+      summary: Create alert rule
+      description: Create new alert rule for monitoring
+      tags:
+        - Alerts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertRuleDefinition'
+      responses:
+        '201':
+          description: Alert rule created successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /alerts/{alert_id}/acknowledge:
+    post:
+      summary: Acknowledge alert
+      description: Acknowledge an active alert to suppress notifications
+      tags:
+        - Alerts
+      parameters:
+        - name: alert_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comment:
+                  type: string
+                  description: Acknowledgment comment
+              required: []
+      responses:
+        '200':
+          description: Alert acknowledged successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /alerts/rules:
+    get:
+      summary: Get alert rules
+      description: Retrieve list of configured alert rules
+      tags:
+        - Alerts
+      parameters:
+        - name: active_only
+          in: query
+          description: Filter only active rules
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Alert rules retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertRulesResponse'
+
+  # Dashboards
+  /dashboards:
+    get:
+      summary: Get monitoring dashboards
+      description: Retrieve list of available monitoring dashboards
+      tags:
+        - Dashboards
+      parameters:
+        - name: category
+          in: query
+          description: Filter by dashboard category
+          schema:
+            type: string
+            enum: [overview, performance, errors, business, custom]
+      responses:
+        '200':
+          description: Dashboards retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardsResponse'
+
+    post:
+      summary: Create custom dashboard
+      description: Create new custom monitoring dashboard
+      tags:
+        - Dashboards
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DashboardDefinition'
+      responses:
+        '201':
+          description: Dashboard created successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /dashboards/{dashboard_id}/data:
+    get:
+      summary: Get dashboard data
+      description: Retrieve data for a specific dashboard
+      tags:
+        - Dashboards
+      parameters:
+        - name: dashboard_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: time_range
+          in: query
+          description: Time range for dashboard data
+          schema:
+            type: string
+            enum: [1h, 6h, 24h, 7d, 30d]
+            default: 24h
+      responses:
+        '200':
+          description: Dashboard data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardDataResponse'
+
+components:
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: /oauth/token
+          scopes:
+            monitoring:read: Read monitoring data
+            monitoring:write: Write monitoring data
+            alerts:manage: Manage alert rules
+            slos:manage: Manage SLOs
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    # Core Schemas
+    MetricsResponse:
+      type: object
+      properties:
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricSeries'
+        query_info:
+          $ref: '#/components/schemas/QueryInfo'
+        total_series:
+          type: integer
+          example: 5
+      required: [metrics, query_info, total_series]
+
+    MetricSeries:
+      type: object
+      properties:
+        metric_name:
+          type: string
+          example: "cpu_usage"
+        service_name:
+          type: string
+          example: "api-gateway"
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            environment: production
+            region: us-east-1
+        data_points:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataPoint'
+        aggregation:
+          type: string
+          example: "avg"
+        unit:
+          type: string
+          example: "percent"
+      required: [metric_name, data_points]
+
+    DataPoint:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+        value:
+          type: number
+          example: 75.5
+      required: [timestamp, value]
+
+    QueryInfo:
+      type: object
+      properties:
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        interval:
+          type: string
+          example: "5m"
+        filters_applied:
+          type: array
+          items:
+            type: string
+      required: [start_time, end_time, interval]
+
+    MetricSubmission:
+      type: object
+      properties:
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricData'
+        batch_id:
+          type: string
+          description: Optional batch identifier
+      required: [metrics]
+
+    MetricData:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "custom_processing_time"
+        value:
+          type: number
+          example: 150.5
+        unit:
+          type: string
+          example: "milliseconds"
+        timestamp:
+          type: string
+          format: date-time
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            service: document-processor
+            operation: pdf_ingestion
+      required: [name, value, timestamp]
+
+    MetricSubmissionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        accepted_metrics:
+          type: integer
+          example: 5
+        batch_id:
+          type: string
+        errors:
+          type: array
+          items:
+            type: string
+          example: []
+
+    ServicesListResponse:
+      type: object
+      properties:
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceInfo'
+        total_count:
+          type: integer
+          example: 8
+
+    ServiceInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "search-service"
+        display_name:
+          type: string
+          example: "Search Service"
+        type:
+          type: string
+          enum: [api, database, cache, queue, worker]
+          example: "api"
+        status:
+          type: string
+          enum: [healthy, unhealthy, degraded, unknown]
+          example: "healthy"
+        last_seen:
+          type: string
+          format: date-time
+        version:
+          type: string
+          example: "1.2.3"
+
+    MetricDefinitionsResponse:
+      type: object
+      properties:
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricDefinition'
+        categories:
+          type: array
+          items:
+            type: string
+          example: ["system", "application", "business"]
+
+    MetricDefinition:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "api_response_time"
+        display_name:
+          type: string
+          example: "API Response Time"
+        description:
+          type: string
+          example: "Time taken to process API requests"
+        category:
+          type: string
+          example: "application"
+        unit:
+          type: string
+          example: "milliseconds"
+        type:
+          type: string
+          enum: [counter, gauge, histogram, summary]
+          example: "histogram"
+        labels:
+          type: array
+          items:
+            type: string
+          example: ["endpoint", "method", "status_code"]
+
+    # SLI/SLO Schemas
+    SLIResponse:
+      type: object
+      properties:
+        slo_name:
+          type: string
+          example: "api_availability"
+        service_name:
+          type: string
+          example: "api-gateway"
+        time_window:
+          type: string
+          example: "24h"
+        sli_value:
+          type: number
+          format: float
+          example: 99.85
+        sli_target:
+          type: number
+          format: float
+          example: 99.5
+        good_events:
+          type: integer
+          example: 99850
+        total_events:
+          type: integer
+          example: 100000
+        error_budget_remaining:
+          type: number
+          format: float
+          example: 0.35
+        status:
+          type: string
+          enum: [healthy, warning, critical]
+          example: "healthy"
+        calculated_at:
+          type: string
+          format: date-time
+      required: [slo_name, service_name, sli_value, status]
+
+    SLOListResponse:
+      type: object
+      properties:
+        slos:
+          type: array
+          items:
+            $ref: '#/components/schemas/SLOInfo'
+        total_count:
+          type: integer
+
+    SLOInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "api_availability"
+        display_name:
+          type: string
+          example: "API Availability"
+        description:
+          type: string
+        service_name:
+          type: string
+        target:
+          type: number
+          format: float
+          example: 99.5
+        time_window:
+          type: string
+          example: "30d"
+        alerting_enabled:
+          type: boolean
+        current_status:
+          type: string
+          enum: [healthy, warning, critical, unknown]
+        last_updated:
+          type: string
+          format: date-time
+
+    SLODefinition:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "api_availability"
+        display_name:
+          type: string
+          example: "API Availability"
+        description:
+          type: string
+        service_name:
+          type: string
+        target:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+          example: 99.5
+        time_window:
+          type: string
+          enum: [1h, 24h, 7d, 30d]
+          example: "30d"
+        sli_query:
+          type: string
+          description: Query or metric configuration for SLI calculation
+        alerting:
+          $ref: '#/components/schemas/SLOAlertingConfig'
+      required: [name, service_name, target, time_window, sli_query]
+
+    SLOAlertingConfig:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          default: true
+        burn_rate_thresholds:
+          type: array
+          items:
+            type: object
+            properties:
+              threshold:
+                type: number
+              severity:
+                type: string
+                enum: [warning, critical]
+              lookback_window:
+                type: string
+          example:
+            - threshold: 2.0
+              severity: warning
+              lookback_window: 1h
+            - threshold: 14.0
+              severity: critical
+              lookback_window: 5m
+        notification_channels:
+          type: array
+          items:
+            type: string
+          example: ["email", "slack"]
+
+    SLOStatusResponse:
+      type: object
+      properties:
+        slo_info:
+          $ref: '#/components/schemas/SLOInfo'
+        current_sli:
+          type: number
+          format: float
+        compliance_percentage:
+          type: number
+          format: float
+        error_budget:
+          $ref: '#/components/schemas/ErrorBudget'
+        recent_burn_rates:
+          type: array
+          items:
+            $ref: '#/components/schemas/BurnRate'
+        status_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/SLAStatusHistory'
+        recommendations:
+          type: array
+          items:
+            type: string
+
+    ErrorBudget:
+      type: object
+      properties:
+        total_budget:
+          type: number
+          format: float
+        remaining_budget:
+          type: number
+          format: float
+        consumed_budget:
+          type: number
+          format: float
+        time_remaining:
+          type: string
+          example: "15d 8h 23m"
+
+    BurnRate:
+      type: object
+      properties:
+        window:
+          type: string
+          example: "1h"
+        rate:
+          type: number
+          format: float
+        status:
+          type: string
+          enum: [normal, elevated, critical]
+
+    SLAStatusHistory:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: string
+          sli_value:
+          type: number
+          format: float
+
+    # Health Schemas
+    HealthStatusResponse:
+      type: object
+      properties:
+        overall_status:
+          type: string
+          enum: [healthy, unhealthy, degraded, unknown]
+          example: "healthy"
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceHealthSummary'
+        dependency_status:
+          $ref: '#/components/schemas/DependencyHealthSummary'
+        last_updated:
+          type: string
+          format: date-time
+
+    ServiceHealthSummary:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [healthy, unhealthy, degraded, unknown]
+        response_time_ms:
+          type: integer
+        uptime_percentage:
+          type: number
+          format: float
+        last_check:
+          type: string
+          format: date-time
+        critical_issues:
+          type: integer
+          default: 0
+
+    ServiceHealthResponse:
+      type: object
+      properties:
+        service_info:
+          $ref: '#/components/schemas/ServiceInfo'
+        current_status:
+          type: string
+          enum: [healthy, unhealthy, degraded, unknown]
+        health_checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthCheck'
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthMetric'
+        dependencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceDependency'
+        recent_issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthIssue'
+        uptime_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/UptimeDataPoint'
+      required: [service_info, current_status, health_checks]
+
+    HealthCheck:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "database_connection"
+        status:
+          type: string
+          enum: [pass, fail, warn]
+        response_time_ms:
+          type: integer
+        last_execution:
+          type: string
+          format: date-time
+        details:
+          type: object
+          additionalProperties: true
+
+    HealthMetric:
+      type: object
+      properties:
+        name:
+          type: string
+        value:
+          type: number
+        unit:
+          type: string
+        status:
+          type: string
+          enum: [normal, warning, critical]
+        threshold:
+          type: object
+          properties:
+            warning:
+              type: number
+            critical:
+              type: number
+
+    ServiceDependency:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [database, cache, queue, api, external]
+        status:
+          type: string
+          enum: [healthy, unhealthy, degraded, unknown]
+        connection_status:
+          type: string
+          enum: [connected, disconnected, slow]
+        last_check:
+          type: string
+          format: date-time
+
+    HealthIssue:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        severity:
+          type: string
+          enum: [info, warning, error, critical]
+        title:
+          type: string
+        description:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+          nullable: true
+        affected_components:
+          type: array
+          items:
+            type: string
+        resolution:
+          type: string
+          nullable: true
+
+    UptimeDataPoint:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [up, down, degraded]
+        response_time_ms:
+          type: integer
+
+    DependencyHealthSummary:
+      type: object
+      properties:
+        overall_status:
+          type: string
+          enum: [healthy, unhealthy, degraded, unknown]
+        dependencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependencyInfo'
+        critical_issues:
+          type: integer
+
+    DependencyInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+        connection_latency_ms:
+          type: integer
+
+    DependencyHealthResponse:
+      type: object
+      properties:
+        dependencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependencyDetails'
+        overall_health_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+
+    DependencyDetails:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        endpoint:
+          type: string
+        status:
+          type: string
+        metrics:
+          type: object
+          properties:
+            response_time_ms:
+              type: number
+            success_rate:
+              type: number
+            error_count:
+              type: integer
+        last_check:
+          type: string
+          format: date-time
+        configuration:
+          type: object
+
+    # Tracing Schemas
+    TracesSearchResponse:
+      type: object
+      properties:
+        traces:
+          type: array
+          items:
+            $ref: '#/components/schemas/TraceSummary'
+        total_count:
+          type: integer
+        search_metadata:
+          $ref: '#/components/schemas/SearchMetadata'
+
+    TraceSummary:
+      type: object
+      properties:
+        trace_id:
+          type: string
+        trace_name:
+          type: string
+        service_name:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+        duration_ms:
+          type: integer
+        span_count:
+          type: integer
+        status_code:
+          type: string
+        has_error:
+          type: boolean
+        tags:
+          type: object
+          additionalProperties:
+            type: string
+
+    TraceDetailResponse:
+      type: object
+      properties:
+        trace_info:
+          $ref: '#/components/schemas/TraceSummary'
+        spans:
+          type: array
+          items:
+            $ref: '#/components/schemas/Span'
+        service_map:
+          $ref: '#/components/schemas/ServiceMap'
+        performance_metrics:
+          $ref: '#/components/schemas/TracePerformanceMetrics'
+
+    Span:
+      type: object
+      properties:
+        span_id:
+          type: string
+        parent_span_id:
+          type: string
+          nullable: true
+        operation_name:
+          type: string
+        service_name:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+        duration_ms:
+          type: integer
+        status:
+          type: object
+          properties:
+            code:
+              type: integer
+            message:
+              type: string
+        tags:
+          type: object
+          additionalProperties:
+            type: string
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpanLog'
+
+    SpanLog:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        level:
+          type: string
+        message:
+          type: string
+        fields:
+          type: object
+          additionalProperties: true
+
+    ServiceMap:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceNode'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceEdge'
+
+    ServiceNode:
+      type: object
+      properties:
+        service_name:
+          type: string
+        span_count:
+          type: integer
+        total_duration_ms:
+          type: integer
+        has_error:
+          type: boolean
+
+    ServiceEdge:
+      type: object
+      properties:
+        from_service:
+          type: string
+        to_service:
+          type: string
+        call_count:
+          type: integer
+        avg_latency_ms:
+          type: number
+
+    TracePerformanceMetrics:
+      type: object
+      properties:
+        critical_path_duration_ms:
+          type: integer
+        parallelism_factor:
+          type: number
+        error_spans:
+          type: integer
+        hot_spots:
+          type: array
+          items:
+            type: object
+            properties:
+              operation:
+                type: string
+              duration_ms:
+                type: integer
+              span_count:
+                type: integer
+
+    SearchMetadata:
+      type: object
+      properties:
+        query_time_ms:
+          type: integer
+        results_limit:
+          type: integer
+        results_offset:
+          type: integer
+        total_available:
+          type: integer
+
+    # Logs Schemas
+    LogsSearchResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogEntry'
+        total_count:
+          type: integer
+        search_metadata:
+          $ref: '#/components/schemas/SearchMetadata'
+        aggregations:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: object
+
+    LogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        level:
+          type: string
+          enum: [DEBUG, INFO, WARN, ERROR, FATAL]
+        service_name:
+          type: string
+        message:
+          type: string
+        structured_data:
+          type: object
+          additionalProperties: true
+        trace_id:
+          type: string
+          nullable: true
+        span_id:
+          type: string
+          nullable: true
+        user_id:
+          type: string
+          nullable: true
+        request_id:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+
+    LogAggregationRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Base query for aggregation
+        aggregations:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogAggregation'
+        time_range:
+          type: object
+          properties:
+            start_time:
+              type: string
+              format: date-time
+            end_time:
+              type: string
+              format: date-time
+      required: [query, aggregations, time_range]
+
+    LogAggregation:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [terms, date_histogram, avg, sum, min, max, cardinality]
+        field:
+          type: string
+        interval:
+          type: string
+          description: For date_histogram aggregations
+        size:
+          type: integer
+          description: For terms aggregations
+
+    LogAggregationResponse:
+      type: object
+      properties:
+        aggregations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              buckets:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    key:
+                      type: string
+                    doc_count:
+                      type: integer
+                    sub_aggregations:
+                      type: object
+        total_documents:
+          type: integer
+        query_time_ms:
+          type: integer
+
+    # Alert Schemas
+    AlertsResponse:
+      type: object
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alert'
+        total_count:
+          type: integer
+        metadata:
+          type: object
+          properties:
+            severities:
+              type: object
+              additionalProperties:
+                type: integer
+            statuses:
+              type: object
+              additionalProperties:
+                type: integer
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        rule_name:
+          type: string
+        severity:
+          type: string
+          enum: [info, warning, error, critical]
+        status:
+          type: string
+          enum: [firing, resolved, acknowledged]
+        summary:
+          type: string
+        description:
+          type: string
+        service_name:
+          type: string
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+          nullable: true
+        acknowledged_at:
+          type: string
+          format: date-time
+          nullable: true
+        acknowledged_by:
+          type: string
+          nullable: true
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        annotations:
+          type: object
+          additionalProperties:
+            type: string
+        fingerprint:
+          type: string
+
+    AlertRuleDefinition:
+      type: object
+      properties:
+        name:
+          type: string
+        display_name:
+          type: string
+        description:
+          type: string
+        query:
+          type: string
+          description: Query expression for alert condition
+        condition:
+          $ref: '#/components/schemas/AlertCondition'
+        severity:
+          type: string
+          enum: [info, warning, error, critical]
+        for_duration:
+          type: string
+          description: Duration condition must be true before alerting
+          example: "5m"
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        annotations:
+          type: object
+          additionalProperties:
+            type: string
+        notification_channels:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+          default: true
+      required: [name, query, condition, severity]
+
+    AlertCondition:
+      type: object
+      properties:
+        operator:
+          type: string
+          enum: [gt, lt, eq, ne, gte, lte]
+        threshold:
+          type: number
+        metric:
+          type: string
+      required: [operator, threshold, metric]
+
+    AlertRulesResponse:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertRule'
+        total_count:
+          type: integer
+
+    AlertRule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        display_name:
+          type: string
+        description:
+          type: string
+        query:
+          type: string
+        condition:
+          $ref: '#/components/schemas/AlertCondition'
+        severity:
+          type: string
+        for_duration:
+          type: string
+        labels:
+          type: object
+        annotations:
+          type: object
+        notification_channels:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        last_triggered:
+          type: string
+          format: date-time
+          nullable: true
+
+    # Dashboard Schemas
+    DashboardsResponse:
+      type: object
+      properties:
+        dashboards:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardInfo'
+        total_count:
+          type: integer
+
+    DashboardInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        owner:
+          type: string
+        is_public:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    DashboardDefinition:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+          enum: [overview, performance, errors, business, custom]
+        tags:
+          type: array
+          items:
+            type: string
+        layout:
+          $ref: '#/components/schemas/DashboardLayout'
+        time_range:
+          type: string
+          enum: [1h, 6h, 24h, 7d, 30d]
+          default: 24h
+        refresh_interval:
+          type: string
+          enum: [30s, 1m, 5m, 15m, 30m, 1h]
+          default: 5m
+        variables:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardVariable'
+      required: [name, layout]
+
+    DashboardLayout:
+      type: object
+      properties:
+        panels:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardPanel'
+        grid:
+          type: object
+          properties:
+            rows:
+              type: integer
+            columns:
+              type: integer
+
+    DashboardPanel:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+          enum: [graph, singlestat, table, heatmap, gauge, logs]
+        position:
+          $ref: '#/components/schemas/PanelPosition'
+        query:
+          type: string
+        visualization:
+          type: object
+          properties:
+            chart_type:
+              type: string
+            axes:
+              type: object
+            legend:
+              type: object
+        thresholds:
+          type: array
+          items:
+            type: object
+            properties:
+              value:
+                type: number
+              color:
+                type: string
+              operator:
+                type: string
+
+    PanelPosition:
+      type: object
+      properties:
+        x:
+          type: integer
+        y:
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+
+    DashboardVariable:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [query, constant, interval, custom]
+        query:
+          type: string
+        default_value:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+
+    DashboardDataResponse:
+      type: object
+      properties:
+        dashboard_info:
+          $ref: '#/components/schemas/DashboardInfo'
+        panels_data:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/PanelData'
+        time_range:
+          $ref: '#/components/schemas/TimeRange'
+        refresh_time:
+          type: string
+          format: date-time
+
+    PanelData:
+      type: object
+      properties:
+        panel_id:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+        query_time_ms:
+          type: integer
+        error:
+          type: string
+          nullable: true
+
+    TimeRange:
+      type: object
+      properties:
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        relative:
+          type: string
+          example: "24h"
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid parameters
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  status_code:
+                    type: integer
+                    example: 400
+                  type:
+                    type: string
+                    example: "bad_request"
+                  details:
+                    type: array
+                    items:
+                      type: object
+
+    Unauthorized:
+      description: Unauthorized - authentication required
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Authentication required"
+                  status_code:
+                    type: integer
+                    example: 401
+                  type:
+                    type: string
+                    example: "unauthorized"
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Insufficient permissions"
+                  status_code:
+                    type: integer
+                    example: 403
+                  type:
+                    type: string
+                    example: "forbidden"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Resource not found"
+                  status_code:
+                    type: integer
+                    example: 404
+                  type:
+                    type: string
+                    example: "not_found"
+
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Rate limit exceeded"
+                  status_code:
+                    type: integer
+                    example: 429
+                  type:
+                    type: string
+                    example: "rate_limit_exceeded"
+                  retry_after:
+                    type: integer
+                    example: 60
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Validation failed"
+                  status_code:
+                    type: integer
+                    example: 422
+                  type:
+                    type: string
+                    example: "validation_error"
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Internal server error"
+                  status_code:
+                    type: integer
+                    example: 500
+                  type:
+                    type: string
+                    example: "internal_error"
+                  request_id:
+                    type: string
+                    example: "req_123456789"
+
+tags:
+  - name: Metrics
+    description: System and business metrics collection and querying
+  - name: SLI/SLO
+    description: Service Level Indicators and Objectives management
+  - name: Health
+    description: Service health monitoring and status checks
+  - name: Tracing
+    description: Distributed tracing and performance analysis
+  - name: Logs
+    description: Log aggregation, search, and analysis
+  - name: Alerts
+    description: Alert rule management and notifications
+  - name: Dashboards
+    description: Monitoring dashboards and visualization

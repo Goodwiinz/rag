@@ -1,0 +1,1208 @@
+# Global values for the RAG System
+global:
+  name: rag-system
+  namespace: rag-system
+  environment: production
+  domain: rag-system.example.com
+  imageRegistry: "registry.example.com/rag-system"
+  imagePullSecrets: "regcred"
+
+# Configuration for backend service
+backend:
+  name: rag-backend
+  replicas: 3
+  image:
+    repository: backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8000"
+      prometheus.io/path: "/metrics"
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 8000
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 2
+  env:
+    ENVIRONMENT: "production"
+    PYTHONPATH: "/app"
+    LOG_LEVEL: "INFO"
+    WORKERS: "4"
+    TIMEOUT: "300"
+  scaling:
+    minReplicas: 3
+    maxReplicas: 15
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+
+# Configuration for UI service
+ui:
+  name: rag-ui
+  replicas: 2
+  image:
+    repository: ui
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8501
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8501"
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 8501
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 8501
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 2
+  env:
+    ENVIRONMENT: "production"
+    BACKEND_URL: "http://rag-backend:80"
+    LOG_LEVEL: "INFO"
+  scaling:
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+
+# Configuration for API server service
+apiServer:
+  name: rag-api-server
+  replicas: 2
+  image:
+    repository: api-server
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8000"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "125m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /docs
+      port: 8000
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 2
+  env:
+    ENVIRONMENT: "production"
+    BACKEND_URL: "http://rag-backend:80"
+    CORS_ORIGINS: "https://ui.rag-system.example.com,http://localhost:3000"
+    LOG_LEVEL: "INFO"
+  scaling:
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+
+# Configuration for ingestion service
+ingestionService:
+  name: rag-ingestion-service
+  replicas: 2
+  image:
+    repository: ingestion-service
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8000"
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 8000
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 2
+  env:
+    ENVIRONMENT: "production"
+    LOG_LEVEL: "INFO"
+    MAX_WORKERS: "8"
+    BATCH_SIZE: "100"
+  scaling:
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+
+# Database configurations
+neo4j:
+  name: neo4j
+  replicas: 3
+  image:
+    repository: neo4j
+    tag: "5.15"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 7474
+    targetPort: 7474
+    portName: http
+    boltPort: 7687
+    targetBoltPort: 7687
+    portNameBolt: bolt
+  resources:
+    requests:
+      memory: "4Gi"
+      cpu: "2000m"
+    limits:
+      memory: "8Gi"
+      cpu: "4000m"
+  env:
+    NEO4J_AUTH: "neo4j/password"
+    NEO4J_PLUGINS: "apoc"
+    NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+    NEO4J_dbms_memory_pagecache_size: "2G"
+    NEO4J_dbms_memory_heap_max__size: "4G"
+    NEO4J_dbms_default__listen__address: "0.0.0.0"
+    NEO4J_dbms_connector_bolt_advertised__address: "neo4j:7687"
+    NEO4J_dbms_connector_http_advertised__address: "neo4j:7474"
+  persistence:
+    enabled: true
+    size: "50Gi"
+    storageClass: "fast-ssd"
+  serviceAccount:
+    name: rag-neo4j-sa
+  scaling:
+    minReplicas: 3
+    maxReplicas: 5
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+
+qdrant:
+  name: qdrant
+  replicas: 3
+  image:
+    repository: qdrant/qdrant
+    tag: "v1.7.3"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 6333
+    targetPort: 6333
+    portName: http
+    apiPort: 6333
+    targetApiPort: 6333
+    portNameApi: api
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+  env:
+    QDRANT__SERVICE__HTTP_PORT: "6333"
+    QDRANT__SERVICE__API_KEY: "qdrant-secret-key"
+    QDRANT__SERVICE__ENABLE_CORS: "true"
+    QDRANT__LOG_LEVEL: "info"
+    QDRANT__STORAGE__STORAGE_PATH: "/qdrant/storage"
+    QDRANT__STORAGE__SNAPSHOTS_PATH: "/qdrant/snapshots"
+  persistence:
+    enabled: true
+    size: "100Gi"
+    storageClass: "fast-ssd"
+  serviceAccount:
+    name: rag-qdrant-sa
+  scaling:
+    minReplicas: 3
+    maxReplicas: 8
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+
+redis:
+  name: redis
+  replicas: 3
+  image:
+    repository: redis
+    tag: "7.2"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 6379
+    targetPort: 6379
+    portName: redis
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  env:
+    REDIS_PASSWORD: "redis-password"
+    REDIS_REPLICATION_MODE: "replica"
+  persistence:
+    enabled: true
+    size: "20Gi"
+    storageClass: "fast-ssd"
+  serviceAccount:
+    name: rag-redis-sa
+  scaling:
+    minReplicas: 3
+    maxReplicas: 6
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+
+# Monitoring stack
+prometheus:
+  name: prometheus
+  replicas: 1
+  image:
+    repository: prom/prometheus
+    tag: "v2.45.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 9090
+    targetPort: 9090
+    portName: http
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  serviceAccount:
+    name: rag-prometheus-sa
+  persistence:
+    enabled: true
+    size: "10Gi"
+    storageClass: "fast-ssd"
+    retain: true
+  config:
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    rule_files:
+      - "alert_rules.yml"
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+      - job_name: 'rag-backend'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+
+grafana:
+  name: grafana
+  replicas: 1
+  image:
+    repository: grafana/grafana
+    tag: "10.2.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+    portName: http
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  env:
+    GF_SECURITY_ADMIN_PASSWORD: "admin"
+    GF_SECURITY_ADMIN_USER: "admin"
+    GF_AUTH_ANONYMOUS_ENABLED: "false"
+    GF_AUTH_BASIC_ENABLED: "true"
+    GF_USERS_ALLOW_SIGN_UP: "false"
+  persistence:
+    enabled: true
+    size: "5Gi"
+    storageClass: "fast-ssd"
+    retain: true
+  serviceAccount:
+    name: rag-grafana-sa
+  dashboards:
+    enabled: true
+    sidecar:
+      enabled: true
+      dashboards:
+        default:
+          gcs:
+            bucket: "rag-grafana-dashboards"
+          prefix: "/dashboards/"
+      datasources:
+        enabled: true
+        gcs:
+          bucket: "rag-grafana-datasources"
+          prefix: "/datasources/"
+
+alertmanager:
+  name: alertmanager
+  replicas: 1
+  image:
+    repository: prom/alertmanager
+    tag: "v0.26.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 9093
+    targetPort: 9093
+    portName: http
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "125m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  serviceAccount:
+    name: alertmanager-sa
+  persistence:
+    enabled: true
+    size: "5Gi"
+    storageClass: "fast-ssd"
+    retain: true
+  config:
+    global:
+      smtp_smarthost: 'localhost:587'
+      smtp_from: 'alertmanager@example.com'
+      smtp_auth_username: 'alertmanager@example.com'
+      smtp_auth_password: 'password'
+    route:
+      group_by: ['alertname']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 1h
+      receiver: 'web.hook'
+    receivers:
+      - name: 'web.hook'
+        webhook_configs:
+          - url: 'http://webhook/'
+
+# Logging stack (ELK)
+elasticsearch:
+  name: elasticsearch
+  replicas: 3
+  image:
+    repository: docker.elastic.co/elasticsearch/elasticsearch
+    tag: "8.10.4"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 9200
+    targetPort: 9200
+    portName: http
+    transportPort: 9300
+    targetTransportPort: 9300
+    portNameTransport: transport
+  resources:
+    requests:
+      memory: "4Gi"
+      cpu: "2000m"
+    limits:
+      memory: "8Gi"
+      cpu: "4000m"
+  env:
+    discovery.type: "discovery"
+    discovery.seed_hosts: "elasticsearch-master"
+    cluster.name: "rag-cluster"
+    network.host: "0.0.0.0"
+    http.port: "9200"
+    transport.port: "9300"
+    ES_JAVA_OPTS: "-Xms4g -Xmx4g"
+    xpack.security.enabled: "false"
+    xpack.security.http.ssl.enabled: "false"
+    xpack.security.transport.ssl.enabled: "false"
+  persistence:
+    enabled: true
+    size: "100Gi"
+    storageClass: "fast-ssd"
+    retain: true
+  serviceAccount:
+    name: rag-elasticsearch-sa
+  scaling:
+    minReplicas: 3
+    maxReplicas: 8
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+
+logstash:
+  name: logstash
+  replicas: 2
+  image:
+    repository: docker.elastic.co/logstash/logstash
+    tag: "8.10.4"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5044
+    targetPort: 5044
+    portName: beats
+    httpPort: 9600
+    targetHttpPort: 9600
+    portNameHttp: http
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  env:
+    LS_JAVA_OPTS: "-Xms1g -Xmx1g"
+  config:
+    logstash.yml: |
+      http.host: "0.0.0.0"
+      pipeline.workers: 4
+      pipeline.output.workers: 4
+      pipeline.batch.size: 125
+      pipeline.batch.delay: 50
+    pipelines.yml: |
+      - pipeline.id: main
+        path.config: "/usr/share/logstash/pipeline"
+  serviceAccount:
+    name: logstash-sa
+  persistence:
+    enabled: true
+    size: "10Gi"
+    storageClass: "fast-ssd"
+    retain: true
+
+kibana:
+  name: kibana
+  replicas: 2
+  image:
+    repository: docker.elastic.co/kibana/kibana
+    tag: "8.10.4"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5601
+    targetPort: 5601
+    portName: http
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  env:
+    ELASTICSEARCH_HOSTS: "http://elasticsearch:9200"
+    SERVER_HOST: "0.0.0.0"
+    SERVER_PORT: "5601"
+    XPACK_SECURITY_ENABLED: "false"
+  serviceAccount:
+    name: rag-kibana-sa
+  persistence:
+    enabled: true
+    size: "5Gi"
+    storageClass: "fast-ssd"
+    retain: true
+
+# Ingress configuration
+ingress:
+  name: rag-ingress
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "false"
+    nginx.ingress.kubernetes.io/proxy-buffering: "on"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "500"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/connection-proxy-header: "keep-alive"
+    nginx.ingress.kubernetes.io/load-balance: "least_conn"
+    nginx.ingress.kubernetes.io/healthcheck-interval: "10s"
+    nginx.ingress.kubernetes.io/healthcheck-timeout: "5s"
+    nginx.ingress.kubernetes.io/healthcheck-status-codes: "200-399"
+    nginx.ingress.kubernetes.io/healthcheck-failure-threshold: "3"
+    nginx.ingress.kubernetes.io/healthcheck-success-threshold: "1"
+    nginx.ingress.kubernetes.io/upstream-max-fails: "3"
+    nginx.ingress.kubernetes.io/upstream-fail-timeout: "30"
+    nginx.ingress.kubernetes.io/service-critical-timeout: "300"
+    nginx.ingress.kubernetes.io/service-upstream: "true"
+    nginx.ingress.kubernetes.io/service-backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/service-backend-name: "rag-backend"
+    nginx.ingress.kubernetes.io/service-backend-port: "80"
+  hosts:
+    - name: "api.rag-system.example.com"
+      service: "rag-api-server"
+      port: 80
+      paths:
+        - path: "/"
+          pathType: "Prefix"
+        - path: "/backend"
+          pathType: "Prefix"
+          service: "rag-backend"
+          port: 80
+        - path: "/ingestion"
+          pathType: "Prefix"
+          service: "rag-ingestion-service"
+          port: 80
+    - name: "ui.rag-system.example.com"
+      service: "rag-ui"
+      port: 80
+      paths:
+        - path: "/"
+          pathType: "Prefix"
+    - name: "dashboard.rag-system.example.com"
+      service: "grafana"
+      port: 3000
+      paths:
+        - path: "/"
+          pathType: "Prefix"
+        - path: "/prometheus"
+          pathType: "Prefix"
+          service: "prometheus"
+          port: 9090
+  tls:
+    - secretName: "rag-api-tls"
+      hosts:
+        - "api.rag-system.example.com"
+    - secretName: "rag-ui-tls"
+      hosts:
+        - "ui.rag-system.example.com"
+    - secretName: "rag-dashboard-tls"
+      hosts:
+        - "dashboard.rag-system.example.com"
+
+# Network policies
+networkPolicies:
+  enabled: true
+  backend:
+    ingress:
+      - from:
+        - namespaceSelector:
+            matchLabels:
+              name: rag-system
+        podSelector: null
+        namespaceSelector:
+          matchLabels:
+            name: rag-system
+      ports:
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 8001
+  ui:
+    ingress:
+      - from:
+        - namespaceSelector:
+            matchLabels:
+              name: rag-system
+        podSelector: null
+        namespaceSelector:
+          matchLabels:
+            name: rag-system
+      ports:
+        - protocol: TCP
+          port: 8501
+  apiServer:
+    ingress:
+      - from:
+        - namespaceSelector:
+            matchLabels:
+              name: rag-system
+        podSelector: null
+        namespaceSelector:
+          matchLabels:
+            name: rag-system
+      ports:
+        - protocol: TCP
+          port: 8000
+
+# Resource limits and requests
+resourceLimits:
+  backend:
+    cpu: "2000m"
+    memory: "4Gi"
+  ui:
+    cpu: "500m"
+    memory: "1Gi"
+  apiServer:
+    cpu: "250m"
+    memory: "512Mi"
+  ingestionService:
+    cpu: "1000m"
+    memory: "2Gi"
+  neo4j:
+    cpu: "4000m"
+    memory: "8Gi"
+  qdrant:
+    cpu: "2000m"
+    memory: "4Gi"
+  redis:
+    cpu: "1000m"
+    memory: "2Gi"
+  prometheus:
+    cpu: "1000m"
+    memory: "2Gi"
+  grafana:
+    cpu: "1000m"
+    memory: "2Gi"
+  alertmanager:
+    cpu: "250m"
+    memory: "512Mi"
+  elasticsearch:
+    cpu: "4000m"
+    memory: "8Gi"
+  logstash:
+    cpu: "1000m"
+    memory: "2Gi"
+  kibana:
+    cpu: "1000m"
+    memory: "2Gi"
+
+# Pod disruption budgets
+podDisruptionBudgets:
+  backend:
+    minAvailable: 2
+    maxUnavailable: 1
+  ui:
+    minAvailable: 1
+    maxUnavailable: 1
+  apiServer:
+    minAvailable: 1
+    maxUnavailable: 1
+  ingestionService:
+    minAvailable: 1
+    maxUnavailable: 1
+  neo4j:
+    minAvailable: 2
+    maxUnavailable: 1
+  qdrant:
+    minAvailable: 2
+    maxUnavailable: 1
+  redis:
+    minAvailable: 2
+    maxUnavailable: 1
+  prometheus:
+    minAvailable: 1
+    maxUnavailable: 0
+  grafana:
+    minAvailable: 1
+    maxUnavailable: 0
+  alertmanager:
+    minAvailable: 1
+    maxUnavailable: 0
+  elasticsearch:
+    minAvailable: 2
+    maxUnavailable: 1
+  logstash:
+    minAvailable: 1
+    maxUnavailable: 1
+  kibana:
+    minAvailable: 1
+    maxUnavailable: 1
+
+# Node affinity and tolerations
+nodeAffinity:
+  backend:
+    matchExpressions:
+      - key: "node-role"
+        operator: "In"
+        values: ["worker"]
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "rag"
+        effect: "NoSchedule"
+  ui:
+    matchExpressions:
+      - key: "node-role"
+        operator: "In"
+        values: ["worker"]
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "rag"
+        effect: "NoSchedule"
+  apiServer:
+    matchExpressions:
+      - key: "node-role"
+        operator: "In"
+        values: ["worker"]
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "rag"
+        effect: "NoSchedule"
+  ingestionService:
+    matchExpressions:
+      - key: "node-role"
+        operator: "In"
+        values: ["worker"]
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "rag"
+        effect: "NoSchedule"
+  neo4j:
+    matchExpressions:
+      - key: "node-role"
+        operator: "In"
+        values: ["database"]
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "database"
+        effect: "NoSchedule"
+  qdrant:
+    matchExpressions:
+      - key: "node-role"
+        operator: "In"
+        values: ["database"]
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "database"
+        effect: "NoSchedule"
+  redis:
+    matchExpressions:
+      - key: "node-role"
+        operator: "In"
+        values: ["database"]
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "database"
+        effect: "NoSchedule"
+  prometheus:
+    matchExpressions:
+      - key: "node-role"
+        operator: "In"
+        values: ["monitoring"]
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "monitoring"
+        effect: "NoSchedule"
+  grafana:
+    matchExpressions:
+      - key: "node-role"
+        operator: "In"
+        values: ["monitoring"]
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "monitoring"
+        effect: "NoSchedule"
+  alertmanager:
+    matchExpressions:
+      - key: "node-role"
+        operator: "In"
+        values: ["monitoring"]
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "monitoring"
+        effect: "NoSchedule"
+  elasticsearch:
+    matchExpressions:
+      - key: "node-role"
+        operator: "In"
+        values: ["logging"]
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "logging"
+        effect: "NoSchedule"
+  logstash:
+    matchExpressions:
+      - key: "node-role"
+        operator: "In"
+        values: ["logging"]
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "logging"
+        effect: "NoSchedule"
+  kibana:
+    matchExpressions:
+      - key: "node-role"
+        operator: "In"
+        values: ["logging"]
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "logging"
+        effect: "NoSchedule"
+
+# Pod anti-affinity for high availability
+podAntiAffinity:
+  backend:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [rag-backend]
+          topologyKey: "kubernetes.io/hostname"
+  ui:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [rag-ui]
+          topologyKey: "kubernetes.io/hostname"
+  apiServer:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [rag-api-server]
+          topologyKey: "kubernetes.io/hostname"
+  ingestionService:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [rag-ingestion-service]
+          topologyKey: "kubernetes.io/hostname"
+  neo4j:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [neo4j]
+          topologyKey: "kubernetes.io/hostname"
+  qdrant:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [qdrant]
+          topologyKey: "kubernetes.io/hostname"
+  redis:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [redis]
+          topologyKey: "kubernetes.io/hostname"
+  prometheus:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [prometheus]
+          topologyKey: "kubernetes.io/hostname"
+  grafana:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [grafana]
+          topologyKey: "kubernetes.io/hostname"
+  alertmanager:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [alertmanager]
+          topologyKey: "kubernetes.io/hostname"
+  elasticsearch:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [elasticsearch]
+          topologyKey: "kubernetes.io/hostname"
+  logstash:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [logstash]
+          topologyKey: "kubernetes.io/hostname"
+  kibana:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [kibana]
+          topologyKey: "kubernetes.io/hostname"
+
+# Priority classes
+priorityClasses:
+  high:
+    name: high-priority
+    value: 1000000
+    description: "High priority workloads"
+  medium:
+    name: medium-priority
+    value: 500000
+    description: "Medium priority workloads"
+  low:
+    name: low-priority
+    value: 100000
+    description: "Low priority workloads"
+
+# Feature flags
+featureFlags:
+  enableCanaryDeployments: false
+  enableAIBackend: true
+  enableMultimodalProcessing: true
+  enableKnowledgeGraph: true
+  enableVectorSearch: true
+  enableHybridSearch: true
+  enableEvaluationMetrics: true
+  enableMonitoring: true
+  enableLogging: true
+  enableSecurityScanning: true
+  enableAutoScaling: true
+  enableBackup: true
+  enableDisasterRecovery: true
+
+# Backup and disaster recovery
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: "30d"
+  destination: "s3://rag-backups/"
+  encryption: true
+  compression: true
+  databases:
+    - neo4j
+    - qdrant
+    - redis
+    - elasticsearch
+  applications:
+    - rag-backend
+    - rag-ui
+    - rag-api-server
+    - rag-ingestion-service
+
+disasterRecovery:
+  enabled: true
+  drSite: "secondary-region"
+  replication:
+    enabled: true
+    interval: "5m"
+    rto: "1h"
+    rpo: "15m"
+  failover:
+    enabled: true
+    automatic: false
+    manualApproval: true
+  backup:
+    enabled: true
+    interval: "1h"
+    retention: "7d"
+    destination: "s3://rag-dr-backups/"
+
+# Security configurations
+security:
+  enabled: true
+  tls:
+    enabled: true
+    auto: true
+    issuer: "letsencrypt-prod"
+  network:
+    enabled: true
+    firewalls: true
+    waf: true
+    ddosProtection: true
+  secrets:
+    enabled: true
+    vault: true
+    rotation: "30d"
+  compliance:
+    enabled: true
+    standards: ["SOC2", "ISO27001", "GDPR"]
+    scanning: true
+    monitoring: true
+
+# Observability
+observability:
+  enabled: true
+  tracing:
+    enabled: true
+    jaeger: true
+    sampleRate: "0.1"
+  metrics:
+    enabled: true
+    prometheus: true
+    grafana: true
+    alerting: true
+  logging:
+    enabled: true
+    elasticsearch: true
+    kibana: true
+    retention: "30d"
+  dashboards:
+    enabled: true
+    grafana: true
+    prometheus: true
+    alerts: true
+
+# Storage classes
+storageClasses:
+  fast-ssd:
+    provisioner: "kubernetes.io/aws-ebs"
+    parameters:
+      type: "gp3"
+      iops: "3000"
+      throughput: "125"
+    reclaimPolicy: "Delete"
+    volumeBindingMode: "WaitForFirstConsumer"
+    allowVolumeExpansion: true
+    mountOptions:
+      - debug
+  standard-hdd:
+    provisioner: "kubernetes.io/aws-ebs"
+    parameters:
+      type: "gp2"
+    reclaimPolicy: "Delete"
+    volumeBindingMode: "WaitForFirstConsumer"
+    allowVolumeExpansion: true
+  cold-storage:
+    provisioner: "kubernetes.io/aws-ebs"
+    parameters:
+      type: "sc1"
+    reclaimPolicy: "Delete"
+    volumeBindingMode: "WaitForFirstConsumer"
+    allowVolumeExpansion: true

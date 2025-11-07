@@ -10,6 +10,7 @@ Provides comprehensive metrics collection including:
 - Custom SLI/SLO tracking
 """
 
+import os
 import time
 import threading
 from typing import Dict, Any, Optional, List
@@ -24,7 +25,7 @@ from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExp
 from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION, DEPLOYMENT_ENVIRONMENT
 from opentelemetry.metrics import Histogram, Counter, UpDownCounter, ObservableGauge
 
-from ..core.config import settings
+from .config import config
 
 
 # Global meter and metrics instances
@@ -103,9 +104,9 @@ def configure_metrics() -> metrics.Meter:
 
     # Set up resource attributes
     resource = Resource.create({
-        SERVICE_NAME: "rag-system-backend",
-        SERVICE_VERSION: settings.VERSION,
-        DEPLOYMENT_ENVIRONMENT: settings.ENVIRONMENT,
+        SERVICE_NAME: config.otel_service_name,
+        SERVICE_VERSION: config.otel_service_version,
+        DEPLOYMENT_ENVIRONMENT: config.otel_environment,
         "service.instance.id": os.environ.get("HOSTNAME", "unknown"),
     })
 
@@ -113,9 +114,8 @@ def configure_metrics() -> metrics.Meter:
     prometheus_reader = PrometheusMetricReader()
 
     # Configure OTLP exporter for remote monitoring
-    otlp_endpoint = os.environ.get("OTLP_METRICS_ENDPOINT", "http://tempo:4317")
     otlp_exporter = OTLPMetricExporter(
-        endpoint=otlp_endpoint,
+        endpoint=config.otel_exporter_otlp_endpoint,
         insecure=True,
     )
 

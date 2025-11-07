@@ -71,6 +71,10 @@ class EntityExtractionService:
     def _create_entity_from_spacy(self, document: Document, spacy_entity) -> Optional[Entity]:
         """Create an Entity object from spaCy entity"""
         try:
+            # Filter out low-quality entities early
+            if not self._is_quality_entity(spacy_entity):
+                return None
+
             # Map spaCy entity types to our entity types
             entity_type_mapping = {
                 'PERSON': EntityType.PERSON,
@@ -338,6 +342,92 @@ class EntityExtractionService:
         end = min(len(sentence.text), entity_end + window_size)
 
         return sentence.text[start:end]
+
+    def _is_quality_entity(self, spacy_entity) -> bool:
+        """Filter out low-quality entities that shouldn't be stored in knowledge graph"""
+        text = spacy_entity.text.strip()
+        entity_type = spacy_entity.label_
+
+        # Whitelist of legitimate short names (universities, companies, acronyms)
+        legitimate_short_names = {
+            # Universities
+            'MIT', 'UCLA', 'USC', 'NYU', 'UCL', 'ETH', 'EPFL', 'CMU', 'RIT',
+            'Yale', 'Duke', 'Rice', 'Case', 'Drew',
+            'GTech', 'GaTech', 'Caltech', 'Pitt',
+            # Tech companies
+            'IBM', 'SAP', 'AMD', 'ARM', 'AWS', 'GCP', 'API',
+            'Meta', 'Uber', 'Lyft', 'Snap', 'Zoom',
+            # Research/Standards
+            'IEEE', 'ACM', 'ISO', 'NIST', 'DARPA', 'NASA', 'ESA',
+            'WHO', 'FDA', 'CDC', 'NIH', 'NSF',
+            # Common abbreviations
+            'USA', 'UK', 'EU', 'UN', 'NATO', 'ASEAN',
+            'CEO', 'CTO', 'CFO', 'COO', 'VP', 'SVP', 'EVP',
+            'AI', 'ML', 'NLP', 'CV', 'IoT', 'API', 'GPU', 'CPU',
+            'PhD', 'MSc', 'BSc', 'MBA', 'MD',
+            # Cities with short names
+            'LA', 'NY', 'SF', 'DC',
+        }
+
+        # Check if it's a known legitimate short name (case-insensitive)
+        if text.upper() in legitimate_short_names:
+            return True
+
+        # Check if it looks like a legitimate abbreviation (all uppercase, 2-5 chars, alphabetic)
+        if entity_type == 'ORG' and 2 <= len(text) <= 5:
+            if text.isupper() and text.isalpha():
+                # Likely a legitimate abbreviation
+                return True
+
+        # Skip entities that are too short
+        if len(text) < 2:
+            return False
+
+        # Skip standalone numbers for CARDINAL/ORDINAL types
+        if entity_type in ['CARDINAL', 'ORDINAL']:
+            # Allow numbers only if they're part of meaningful context
+            if text.isdigit() and len(text) <= 4:
+                return False
+            # Skip things like "l", "2)", "3.", etc.
+            if re.match(r'^[\d\W]+$', text):
+                return False
+
+        # Skip meaningless single characters
+        if len(text) == 1 and text.lower() in ['l', 'i', 'o', 'a', 's', 'x', 'y', 'z']:
+            return False
+
+        # Skip entities that are just punctuation or symbols
+        if re.match(r'^[\W_]+$', text):
+            return False
+
+        # Skip entities that look like OCR errors (common in scanned documents)
+        # e.g., "l20" (should be "120"), "l4" (should be "14")
+        if re.match(r'^[l|I][0-9]+$', text, re.IGNORECASE):
+            return False
+
+        # Skip very short ORG entities (likely OCR errors) - but allow acronyms
+        if entity_type == 'ORG' and len(text) <= 3:
+            # Allow if it's all uppercase letters (likely acronym)
+            if text.isupper() and text.isalpha():
+                return True
+            # Otherwise probably garbage
+            return False
+
+        # Skip very generic DATE entities
+        if entity_type == 'DATE' and text.lower() in ['l', 'i', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']:
+            return False
+
+        # Skip NORP (nationalities/religious/political groups) that are too short
+        if entity_type == 'NORP' and len(text) <= 2:
+            return False
+
+        # For PERSON entities, require at least 2 words or a longer single word
+        if entity_type == 'PERSON':
+            words = text.split()
+            if len(words) == 1 and len(text) < 4:
+                return False
+
+        return True
 
     def _deduplicate_entities(self, entities: List[Entity]) -> List[Entity]:
         """Deduplicate entities based on name and type"""
