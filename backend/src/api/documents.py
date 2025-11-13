@@ -30,7 +30,7 @@ class DocumentResponse(BaseModel):
     file_size_mb: float
     mime_type: str
     processing_status: str
-    tags: List[str]
+    tags: Optional[List[str]] = Field(default_factory=list)
     is_public: bool
     content_preview: Optional[str] = None
     content_summary: Optional[str] = None
@@ -178,7 +178,7 @@ async def list_documents(
                 file_size_bytes=doc.file_size_bytes,
                 file_size_mb=doc.file_size_mb,
                 mime_type=doc.mime_type,
-                processing_status=doc.processing_status.value,
+                processing_status=doc.get_mapped_status(),
                 tags=doc.tags,
                 is_public=doc.is_public,
                 content_preview=doc.get_content_preview(200),
@@ -249,7 +249,7 @@ async def get_document(
         file_size_bytes=document.file_size_bytes,
         file_size_mb=document.file_size_mb,
         mime_type=document.mime_type,
-        processing_status=document.processing_status.value,
+        processing_status=document.to_dict()['processing_status'],
         tags=document.tags,
         is_public=document.is_public,
         content_preview=document.get_content_preview(500),
@@ -469,7 +469,7 @@ async def get_document_status(
 
     return DocumentStatusResponse(
         document_id=document_id,
-        processing_status=document.processing_status.value,
+        processing_status=document.to_dict()['processing_status'],
         progress_percentage=processing_job.progress_percentage if processing_job else 0.0,
         current_step=processing_job.current_step if processing_job else None,
         processing_started_at=document.processing_started_at,
@@ -554,7 +554,7 @@ async def search_documents(
                 file_size_bytes=doc.file_size_bytes,
                 file_size_mb=doc.file_size_mb,
                 mime_type=doc.mime_type,
-                processing_status=doc.processing_status.value,
+                processing_status=doc.get_mapped_status(),
                 tags=doc.tags,
                 is_public=doc.is_public,
                 content_preview=doc.get_content_preview(200),

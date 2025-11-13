@@ -34,8 +34,8 @@ The system is built with several key components:
 
 ### Environment Setup
 ```bash
-# Start Docker services
-docker-compose up -d
+# Start Docker services (use development compose file)
+docker-compose -f docker-compose.development.yml up -d
 
 # Install dependencies
 pip install -r requirements.txt
@@ -62,11 +62,17 @@ python -m src.evaluation.deepeval_runner
 
 ### Running the Application
 ```bash
-# Streamlit UI
+# FastAPI backend (development)
+docker-compose -f docker-compose.development.yml up --build backend
+
+# Frontend (development)
+docker-compose -f docker-compose.development.yml up --build frontend
+
+# Streamlit UI (alternative)
 streamlit run src/ui/streamlit_app.py
 
-# FastAPI server
-uvicorn src.ui.api_server:app --host 0.0.0.0 --port 8000
+# FastAPI server (local)
+uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Interactive notebook
 jupyter notebook notebooks/demo.ipynb
@@ -98,9 +104,15 @@ jupyter notebook notebooks/demo.ipynb
 - `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`: LLM providers
 
 ### Database Connections
+- PostgreSQL: `postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev` (development)
 - Neo4j: `bolt://localhost:7687` (default)
 - Qdrant: `http://localhost:6333` (default)
 - Redis: `redis://localhost:6379` (default)
+
+### Default Users (Development)
+- Admin: `admin@multimodal-rag.com` / `REDACTED`
+- Demo: `demo@multimodal-rag.com` / `demo123`
+- Lab Admin: `lab-admin@multimodal-rag.com` / `lab123`
 
 ## File Processing
 
@@ -132,16 +144,33 @@ The system tracks:
 ## Common Issues
 
 ### Docker Services Not Starting
-- Check port conflicts (Neo4j: 7474/7687, Qdrant: 6333/6334, Redis: 6379)
+- Check port conflicts (Neo4j: 7474/7687, Qdrant: 6333/6334, Redis: 6379, PostgreSQL: 5432)
 - Ensure Docker is running and has sufficient resources
+- Use development compose file: `docker-compose -f docker-compose.development.yml`
+
+### Backend Issues
+- If backend fails to start, check if gunicorn is installed in requirements.txt
+- Backend runs on port 8000, ensure it's not occupied
+- Check logs: `docker-compose -f docker-compose.development.yml logs backend`
+
+### Frontend Issues
+- Frontend runs on port 3000, ensure it's not occupied
+- Check API connectivity to backend at http://localhost:8000
+- Authentication tokens expire after 24 hours - re-login if needed
+
+### Database Connection Issues
+- Database name is `multimodal_rag_dev` in development environment
+- PostgreSQL runs on port 5432 with default credentials: `postgres/postgres`
+- Container name is `rag-postgres-1` (not `rag-db-dev`)
+
+### Document Processing Status Issues
+- If documents show incorrect status on frontend, check the `get_mapped_status()` method in `src/models/document.py`
+- Status mapping uses lowercase enum values: 'pending' → 'queued', 'failed' → 'failed', 'completed' → 'indexed'
+- Backend API endpoint is `/api/v1/documents/` (not `/documents` or `/api/documents`)
 
 ### Model Downloads
 - First run may take time to download models (sentence-transformers, Whisper)
 - Models are cached in `models/` directory
-
-### Database Initialization
-- Wait 20 seconds after `docker-compose up -d` before running initialization
-- Check logs: `docker-compose logs neo4j`, `docker-compose logs qdrant`
 
 ## Development Workflow
 
@@ -151,3 +180,30 @@ The system tracks:
 4. Test with `pytest tests/specs/`
 5. Run full evaluation suite
 6. Update documentation if API changes
+
+## Recent Fixes and Improvements
+
+### Document Status Mapping Fix (2025-11-09)
+- **Issue**: All documents showing "queued" or "Unknown status" on frontend regardless of actual processing status
+- **Root Cause**: Status mapping in `get_mapped_status()` method used uppercase keys but enum values are lowercase
+- **Solution**: Updated status mapping to use lowercase keys: 'pending' → 'queued', 'failed' → 'failed', 'completed' → 'indexed'
+- **Files Modified**: `src/models/document.py`
+- **Impact**: Documents now display correct status on frontend (queued, processing, indexed, failed)
+
+### Backend Container Issues (2025-11-09)
+- **Issue**: Backend container failing with "gunicorn: executable file not found in $PATH"
+- **Root Cause**: Missing gunicorn dependency in requirements.txt
+- **Solution**: Added `gunicorn==21.2.0` to backend/requirements.txt
+- **Files Modified**: `backend/requirements.txt`
+
+### Frontend API Error Handling (2025-11-09)
+- **Issue**: APIErrorClass constructor failing due to missing timestamp field
+- **Root Cause**: APIError interface expected required timestamp field
+- **Solution**: Made timestamp optional and auto-generated in constructor
+- **Files Modified**: `frontend/src/types/api.ts`
+
+### Pydantic Validation Fix (2025-11-09)
+- **Issue**: Documents API returning 500 error for None tags field
+- **Root Cause**: DocumentResponse model expected List[str] but received None from database
+- **Solution**: Made tags field optional with default factory
+- **Files Modified**: `backend/src/shared/schemas.py`, `backend/src/api/documents.py`

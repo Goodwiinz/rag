@@ -1,8 +1,6 @@
 # Complete Monitoring Stack for Knowledge Graph Analytics Dashboard
 # Production-ready observability and monitoring infrastructure
 
-version: '3.8'
-
 services:
   # OpenTelemetry Collector - Central telemetry data collection
   otel-collector:
@@ -93,7 +91,6 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus-rules:/etc/prometheus/rules:ro
       - ./data/prometheus:/prometheus
-    command: ['--config.file=/etc/prometheus/prometheus.yml', '--storage.tsdb.path=/prometheus', '--web.console.libraries=/etc/prometheus/console_libraries', '--web.console.templates=/etc/prometheus/consoles', '--storage.tsdb.retention.time=15d', '--web.enable-lifecycle']
     networks:
       - monitoring
     restart: unless-stopped

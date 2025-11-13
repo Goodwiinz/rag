@@ -174,7 +174,7 @@ services:
       - multimodal-rag-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "neo4jpassword", "RETURN 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -193,12 +193,13 @@ services:
     networks:
       - multimodal-rag-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "timeout 10s bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 40s
+    # healthcheck:
+  #   test: ["CMD-SHELL", "timeout 10s bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+  #   interval: 10s
+  #   timeout: 5s
+  #   retries: 3
+  #   start_period: 40s
+  # Note: Health check disabled due to minimal container tools
 
   # Celery Worker
   celery-worker:
