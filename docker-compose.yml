@@ -1,5 +1,4 @@
 # Production-ready Docker Compose configuration for Multimodal Enterprise RAG System
-version: '3.8'
 
 services:
   # Frontend Service
@@ -86,7 +85,6 @@ services:
       context: .
       target: worker
       dockerfile: Dockerfile
-    container_name: rag-celery-worker
     environment:
       - DATABASE_URL=postgresql://raguser:${DB_PASSWORD}@postgres:5432/ragdb
       - REDIS_URL=redis://redis:6379/0

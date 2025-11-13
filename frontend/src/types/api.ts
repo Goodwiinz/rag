@@ -17,9 +17,9 @@ export interface APIError {
   error: {
     message: string;
     status_code: number;
-    type: 'validation_error' | 'processing_error' | 'auth_error' | 'rate_limit' | 'internal_error';
+    type: 'validation_error' | 'processing_error' | 'auth_error' | 'rate_limit' | 'internal_error' | 'http_error';
     details?: Record<string, any>;
-    timestamp: string;
+    timestamp?: string;
   };
 }
 
@@ -29,13 +29,17 @@ export class APIErrorClass extends Error {
   constructor(error: APIError['error']) {
     super(error.message);
     this.name = 'APIError';
-    this.error = error;
+    // Add timestamp if missing
+    this.error = {
+      ...error,
+      timestamp: error.timestamp || new Date().toISOString(),
+    };
   }
 }
 
 // Base Configuration
 export const API_CONFIG = {
-  BASE_URL: process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000',
+  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000',
   API_VERSION: 'v1',
   TIMEOUT_MS: 30000,
   RETRY_ATTEMPTS: 3,

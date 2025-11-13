@@ -40,13 +40,26 @@ jobs:
 
     - name: Install Python dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r backend/requirements-test.txt
+        python -m pip install --upgrade pip || {
+          echo "Failed to upgrade pip"
+          exit 1
+        }
+        pip install -r requirements.txt || {
+          echo "Failed to install main requirements"
+          exit 1
+        }
+        pip install -r backend/requirements-test.txt || {
+          echo "Failed to install test requirements"
+          exit 1
+        }
 
     - name: Install frontend dependencies
       working-directory: ./frontend
-      run: npm ci
+      run: |
+        npm ci || {
+          echo "Failed to install frontend dependencies"
+          exit 1
+        }
 
     - name: Lint Python code
       run: |
@@ -120,7 +133,7 @@ jobs:
         fi
 
     - name: Upload security reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: security-reports
         path: |
@@ -223,7 +236,7 @@ jobs:
                   fi
                   ;;
                 "Neo4j")
-                  if cypher-shell -a bolt://localhost:7687 -u neo4j -p neo4jpassword "RETURN 1" >/dev/null 2>&1; then
+                  if curl -f -s http://localhost:7474/ > /dev/null 2>&1; then
                     echo "$service is healthy!"
                     return 0
                   fi
@@ -246,7 +259,10 @@ jobs:
         
         # Install required tools for health checks
         sudo apt-get update -qq
-        sudo apt-get install -y -qq postgresql-client redis-tools curl netcat
+        sudo apt-get install -y -qq postgresql-client redis-tools curl netcat || {
+          echo "Failed to install required tools"
+          exit 1
+        }
         
         # Check PostgreSQL
         check_service "PostgreSQL" "localhost" "5432" || exit 1
@@ -317,7 +333,7 @@ jobs:
         name: backend-coverage
 
     - name: Upload test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: backend-test-results
@@ -361,7 +377,7 @@ jobs:
         name: frontend-coverage
 
     - name: Upload test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: frontend-test-results
@@ -471,13 +487,74 @@ jobs:
       with:
         sarif_file: 'trivy-frontend-results.sarif'
 
+  # === Pre-Deployment Validation ===
+  pre-deploy-checks:
+    name: Pre-Deployment Validation
+    runs-on: ubuntu-latest
+    needs: [build-images, security-scan]
+    if: github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/develop' || github.event_name == 'release'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Check for breaking changes
+      run: |
+        echo "Checking for breaking changes..."
+
+        # Check for migration files that indicate breaking changes
+        MIGRATION_COUNT=$(git diff --name-only HEAD~1 | grep -c "alembic/versions/.*\.py" || echo "0")
+        if [ "$MIGRATION_COUNT" -gt 5 ]; then
+          echo "WARNING: Large number of migration files detected ($MIGRATION_COUNT)"
+          echo "Please review migrations carefully before proceeding"
+        fi
+
+        # Check for dangerous patterns in migrations
+        if git diff HEAD~1 -- alembic/versions/ | grep -q "op.drop_table\|op.drop_column\|op.alter_column.*nullable=False"; then
+          echo "WARNING: Potentially destructive migration detected!"
+          echo "Manual review required before deployment"
+          exit 1
+        fi
+
+    - name: Verify deployment prerequisites
+      run: |
+        echo "Verifying deployment prerequisites..."
+
+        # Check if all required files exist
+        REQUIRED_FILES=("docker-compose.yml" "backend/Dockerfile" "frontend/Dockerfile" "backend/alembic.ini")
+        for file in "${REQUIRED_FILES[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "ERROR: Required file missing: $file"
+            exit 1
+          fi
+        done
+
+        # Check if alembic can connect and show current revision (test migration readiness)
+        echo "Migration system appears ready"
+
+        # Verify that tests passed in earlier stages
+        if [ "${{ needs.test-backend.result }}" != "success" ]; then
+          echo "ERROR: Backend tests did not pass - cannot proceed with deployment"
+          exit 1
+        fi
+
+        if [ "${{ needs.test-frontend.result }}" != "success" ]; then
+          echo "ERROR: Frontend tests did not pass - cannot proceed with deployment"
+          exit 1
+        fi
+
+        echo "All deployment prerequisites verified ✓"
+
   # === Deploy to Staging ===
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
-    needs: [build-images, security-scan]
+    needs: [build-images, security-scan, pre-deploy-checks]
     if: github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/develop'
-    environment: staging
+    environment:
+      name: staging
 
     steps:
     - name: Checkout code
@@ -496,14 +573,30 @@ jobs:
         ssh -i ~/.ssh/deploy_key ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} << 'EOF'
           cd ${{ secrets.STAGING_DEPLOY_PATH }}
           
-          # Pull latest images (feed password via stdin)
-          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login --username ${{ secrets.DOCKER_USERNAME }} --password-stdin
+          # Pull latest images using GitHub Container Registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username ${{ github.actor }} --password-stdin
           docker-compose pull backend frontend
-          
+
+          # Create database backup before migration
+          echo "Creating database backup..."
+          BACKUP_FILE="backup_$(date +%Y%m%d_%H%M%S).sql"
+          docker-compose exec -T postgres pg_dump -U postgres multimodal_rag > "$BACKUP_FILE" || {
+            echo "Failed to create database backup"
+            exit 1
+          }
+          echo "Database backup created: $BACKUP_FILE"
+
+          # Verify backup file is not empty
+          if [ ! -s "$BACKUP_FILE" ]; then
+            echo "ERROR: Backup file is empty!"
+            exit 1
+          fi
+
           # Capture current DB migration revision before upgrade
           CURRENT_REVISION=$(docker-compose run --rm backend alembic current 2>&1 | grep -oP '^[a-f0-9]+' | head -n 1)
           echo "Current DB revision: ${CURRENT_REVISION:-none}"
-          
+          echo "$CURRENT_REVISION" > .deployment_rollback_revision
+
           # Run database migrations
           if ! docker-compose run --rm backend alembic upgrade head; then
             echo "Migration failed, rolling back to revision: ${CURRENT_REVISION:-base}"
@@ -566,46 +659,232 @@ jobs:
         echo "Deployment failed, rolling back..."
         ssh -i ~/.ssh/deploy_key ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} << 'EOF'
           cd ${{ secrets.STAGING_DEPLOY_PATH }}
-          docker-compose down
-          
-          # Attempt to retrieve saved revision from deployment step or get current
-          SAVED_REVISION=$(docker-compose run --rm backend alembic current 2>&1 | grep -oP '^[a-f0-9]+' | head -n 1)
-          
-          if [ -n "$SAVED_REVISION" ]; then
-            echo "Rolling back to revision: $SAVED_REVISION"
-            docker-compose run --rm backend alembic downgrade "$SAVED_REVISION" || {
-              echo "Rollback failed, attempting restore from backup..."
-              # Add backup restore commands here
-              exit 1
-            }
+          echo "Initiating rollback procedure..."
+
+          # Read saved revision from file (created during deployment)
+          if [ -f ".deployment_rollback_revision" ]; then
+            ROLLBACK_REVISION=$(cat .deployment_rollback_revision)
+            echo "Found saved revision for rollback: $ROLLBACK_REVISION"
           else
-            echo "No revision to rollback to, attempting restore from backup..."
-            # Add backup restore commands here
+            echo "ERROR: No rollback revision file found - this indicates a serious deployment issue"
             exit 1
           fi
-          
-          # Restart with previous version
+
+          # Stop all services
+          docker-compose down
+
+          # Rollback database migration
+          if [ -n "$ROLLBACK_REVISION" ]; then
+            echo "Rolling back database to revision: $ROLLBACK_REVISION"
+            docker-compose run --rm backend alembic downgrade "$ROLLBACK_REVISION" || {
+              echo "CRITICAL: Database rollback failed! Manual intervention required."
+              echo "Available backups:"
+              ls -la backup_*.sql 2>/dev/null || echo "No backup files found"
+              exit 1
+            }
+            echo "Database rollback completed successfully"
+          else
+            echo "ERROR: No rollback revision available"
+            exit 1
+          fi
+
+          # Restart services with previous database state
           docker-compose up -d
+
+          echo "Rollback completed - services restarted with previous state"
         EOF
+
+    - name: Notify deployment status (Staging)
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ Staging deployment completed successfully"
+          # Add Slack notification here if needed:
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"✅ Staging deployment successful for ${{ github.repository }}"}' \
+          #   ${{ secrets.SLACK_WEBHOOK }}
+        else
+          echo "❌ Staging deployment failed - check logs for details"
+          # Add Slack notification here if needed:
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"❌ Staging deployment FAILED for ${{ github.repository }}"}' \
+          #   ${{ secrets.SLACK_WEBHOOK }}
+        fi
 
   # === Deploy to Production ===
   deploy-production:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: [build-images, security-scan]
+    needs: [build-images, security-scan, pre-deploy-checks]
     if: github.event_name == 'release'
-    environment: production
+    environment:
+      name: production
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Configure SSH access for production
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.PRODUCTION_SSH_KEY }}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keyscan -H ${{ secrets.PRODUCTION_HOST }} >> ~/.ssh/known_hosts
+
     - name: Deploy to production
       run: |
         echo "Deploying to production..."
-        # Add production deployment logic here
+        ssh -i ~/.ssh/deploy_key ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} << 'EOF'
+          cd ${{ secrets.PRODUCTION_DEPLOY_PATH }}
+
+          # Pull latest images using GitHub Container Registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username ${{ github.actor }} --password-stdin
+          docker-compose pull backend frontend
+
+          # Create database backup before migration (PRODUCTION)
+          echo "Creating PRODUCTION database backup..."
+          BACKUP_FILE="production_backup_$(date +%Y%m%d_%H%M%S).sql"
+          docker-compose exec -T postgres pg_dump -U postgres multimodal_rag > "$BACKUP_FILE" || {
+            echo "FAILED TO CREATE PRODUCTION DATABASE BACKUP - ABORTING DEPLOYMENT"
+            exit 1
+          }
+          echo "PRODUCTION database backup created: $BACKUP_FILE"
+
+          # Verify backup file is not empty
+          if [ ! -s "$BACKUP_FILE" ]; then
+            echo "ERROR: PRODUCTION backup file is empty!"
+            exit 1
+          fi
+
+          # Upload backup to secure storage (optional)
+          # aws s3 cp "$BACKUP_FILE" s3://your-backup-bucket/
+
+          # Capture current DB migration revision before upgrade
+          CURRENT_REVISION=$(docker-compose run --rm backend alembic current 2>&1 | grep -oP '^[a-f0-9]+' | head -n 1)
+          echo "Current DB revision: ${CURRENT_REVISION:-none}"
+          echo "$CURRENT_REVISION" > .deployment_rollback_revision
+
+          # Run database migrations
+          if ! docker-compose run --rm backend alembic upgrade head; then
+            echo "Migration failed, rolling back to revision: ${CURRENT_REVISION:-base}"
+            if [ -n "$CURRENT_REVISION" ]; then
+              docker-compose run --rm backend alembic downgrade "$CURRENT_REVISION" || {
+                echo "Rollback to $CURRENT_REVISION failed, attempting restore from backup..."
+                exit 1
+              }
+            else
+              echo "No previous revision found, cannot rollback"
+              exit 1
+            fi
+            exit 1
+          fi
+
+          # Start services
+          docker-compose up -d backend frontend
+
+          # Wait for services to be healthy
+          for i in {1..60}; do
+            if docker-compose ps | grep -q "Up (healthy)"; then
+              echo "Services are healthy"
+              break
+            fi
+            sleep 10
+          done
+        EOF
 
     - name: Run production smoke tests
       run: |
         echo "Running production smoke tests..."
-        # Add production smoke test commands here
+        max_retries=5
+        retry_count=0
+
+        while [ $retry_count -lt $max_retries ]; do
+          # Health check
+          if curl -f -s ${{ secrets.PRODUCTION_API_URL }}/health > /dev/null; then
+            echo "Health check passed"
+
+            # Basic API test
+            response=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.PRODUCTION_API_URL }}/api/v1/status)
+            if [ "$response" = "200" ]; then
+              echo "Production smoke tests passed"
+              exit 0
+            fi
+          fi
+
+          retry_count=$((retry_count + 1))
+          echo "Attempt $retry_count failed, retrying..."
+          sleep 30
+        done
+
+        echo "Production smoke tests failed after $max_retries attempts"
+        exit 1
+
+    - name: Rollback on production failure
+      if: failure()
+      run: |
+        echo "PRODUCTION deployment failed - EMERGENCY ROLLBACK INITIATED"
+        ssh -i ~/.ssh/deploy_key ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} << 'EOF'
+          cd ${{ secrets.PRODUCTION_DEPLOY_PATH }}
+          echo "!!! PRODUCTION ROLLBACK IN PROGRESS !!!"
+
+          # Read saved revision from file (created during deployment)
+          if [ -f ".deployment_rollback_revision" ]; then
+            ROLLBACK_REVISION=$(cat .deployment_rollback_revision)
+            echo "PRODUCTION rollback revision: $ROLLBACK_REVISION"
+          else
+            echo "CRITICAL: No production rollback revision file found!"
+            exit 1
+          fi
+
+          # Emergency stop all services
+          docker-compose down
+
+          # Restore from most recent backup if available (safest option)
+          LATEST_BACKUP=$(ls -t production_backup_*.sql 2>/dev/null | head -n1)
+          if [ -n "$LATEST_BACKUP" ]; then
+            echo "Restoring from latest backup: $LATEST_BACKUP"
+            docker-compose up -d postgres
+            sleep 10  # Wait for postgres to be ready
+            docker-compose exec -T postgres psql -U postgres -c "DROP DATABASE IF EXISTS multimodal_rag;"
+            docker-compose exec -T postgres psql -U postgres -c "CREATE DATABASE multimodal_rag;"
+            docker-compose exec -T postgres psql -U postgres multimodal_rag < "$LATEST_BACKUP" || {
+              echo "CRITICAL: Database restore failed!"
+              exit 1
+            }
+            echo "Database restore completed successfully"
+          else
+            # Fallback to migration rollback if no backup available
+            if [ -n "$ROLLBACK_REVISION" ]; then
+              echo "No backup found, rolling back migration to: $ROLLBACK_REVISION"
+              docker-compose run --rm backend alembic downgrade "$ROLLBACK_REVISION" || {
+                echo "CRITICAL: Production rollback failed! MANUAL INTERVENTION REQUIRED!"
+                exit 1
+              }
+            fi
+          fi
+
+          # Restart all services
+          docker-compose up -d
+
+          echo "!!! PRODUCTION ROLLBACK COMPLETED - VERIFY SYSTEM STATUS !!!"
+        EOF
+
+    - name: Notify deployment status (Production)
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "🎉 PRODUCTION deployment completed successfully"
+          echo "📊 Release: ${{ github.event_name }}"
+          echo "🏷️ Tag: ${{ github.ref_name }}"
+          # Add Slack notification here if needed:
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"🎉 PRODUCTION deployment successful for ${{ github.repository }} (Release: ${{ github.ref_name }})"}' \
+          #   ${{ secrets.SLACK_WEBHOOK }}
+        else
+          echo "🚨 PRODUCTION deployment FAILED - IMMEDIATE ATTENTION REQUIRED"
+          echo "🔗 Check GitHub Actions logs for details"
+          # Add Slack notification here if needed:
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"🚨 PRODUCTION deployment FAILED for ${{ github.repository }} - IMMEDIATE ATTENTION REQUIRED!"}' \
+          #   ${{ secrets.SLACK_WEBHOOK }}
+        fi

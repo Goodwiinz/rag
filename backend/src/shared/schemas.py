@@ -138,7 +138,7 @@ class DocumentResponse(BaseModel):
     file_size_mb: float
     mime_type: str
     processing_status: ProcessingStatus
-    tags: List[str]
+    tags: Optional[List[str]] = Field(default_factory=list)
     is_public: bool
     created_at: datetime
     updated_at: datetime

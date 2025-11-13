@@ -1,12 +1,11 @@
 # Multi-stage production-ready Dockerfile for the Multimodal RAG System Backend
 # Stage 1: Python base with system dependencies
-FROM python:3.11-slim as base
+FROM python:3.11-slim AS base
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    software-properties-common \
     git \
     libpq-dev \
     libffi-dev \
@@ -18,7 +17,7 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender-dev \
     libgomp1 \
-    libgl1-mesa-glx \
+    libgl1-mesa-dri \
     && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables
@@ -32,7 +31,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 # Stage 2: Dependencies builder
-FROM base as dependencies
+FROM base AS dependencies
 
 WORKDIR /app
 
@@ -45,7 +44,7 @@ RUN pip install --upgrade pip setuptools wheel && \
     pip install -r requirements-minimal.txt
 
 # Stage 3: Development
-FROM base as development
+FROM base AS development
 
 WORKDIR /app
 
@@ -75,7 +74,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # Stage 4: Production
-FROM base as production
+FROM base AS production
 
 WORKDIR /app
 
@@ -106,7 +105,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 CMD ["gunicorn", "src.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--access-logfile", "-", "--error-logfile", "-"]
 
 # Stage 5: Celery Worker
-FROM base as worker
+FROM base AS worker
 
 WORKDIR /app
 
