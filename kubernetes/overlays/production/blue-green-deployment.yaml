@@ -1,0 +1,141 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blue-green-config
+  namespace: multimodal-rag-system
+  labels:
+    app: multimodal-rag
+    environment: production
+    version: 1.0.0
+data:
+  # Blue-green deployment configuration
+  current_color: "blue"
+  rollout_percentage: 100
+  canary_percentage: 10
+  health_check_interval: "30s"
+  health_check_timeout: "10s"
+  health_check_retries: 3
+  rollback_on_failure: "true"
+  min_healthy_percentage: 80
+
+  # Traffic splitting configuration
+  blue_service_weight: "50"
+  green_service_weight: "50"
+
+  # Feature flag configuration
+  feature_flag_polling_interval: "60s"
+  feature_flag_cache_ttl: "300s"
+
+  # WebSocket configuration
+  websocket_blue_service: "backend-blue"
+  websocket_green_service: "backend-green"
+  websocket_traffic_split: "50-50"
+
+  # Health check endpoints
+  health_check_endpoint: "/health"
+  readiness_check_endpoint: "/ready"
+  websocket_health_endpoint: "/ws/health"
+
+  # Metrics configuration
+  metrics_enabled: "true"
+  metrics_port: "9090"
+  metrics_path: "/metrics"
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Service
+metadata:
+  name: backend-service-blue
+  namespace: multimodal-rag-system
+  labels:
+    app: backend
+    color: blue
+    component: main
+    version: 1.0.0
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+    protocol: TCP
+    appProtocol: http
+  - name: websocket
+    port: 8001
+    targetPort: 8001
+    protocol: TCP
+    appProtocol: ws
+  selector:
+    app: backend
+    color: blue
+---
+apiVersion: networking.k8s.io/v1
+kind: Service
+metadata:
+  name: backend-service-green
+  namespace: multimodal-rag-system
+  labels:
+    app: backend
+    color: green
+    component: main
+    version: 1.0.0
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+    protocol: TCP
+    appProtocol: http
+  - name: websocket
+    port: 8001
+    targetPort: 8001
+    protocol: TCP
+    appProtocol: ws
+  selector:
+    app: backend
+    color: green
+---
+apiVersion: networking.k8s.io/v1
+kind: Service
+metadata:
+  name: frontend-service-blue
+  namespace: multimodal-rag-system
+  labels:
+    app: frontend
+    color: blue
+    component: main
+    version: 1.0.0
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: 3000
+    protocol: TCP
+    appProtocol: http
+  selector:
+    app: frontend
+    color: blue
+---
+apiVersion: networking.k8s.io/v1
+kind: Service
+metadata:
+  name: frontend-service-green
+  namespace: multimodal-rag-system
+  labels:
+    app: frontend
+    color: green
+    component: main
+    version: 1.0.0
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: 3000
+    protocol: TCP
+    appProtocol: http
+  selector:
+    app: frontend
+    color: green

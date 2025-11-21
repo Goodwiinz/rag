@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: multimodal-rag-system
+  labels:
+    app: backend
+    component: config
+data:
+  # Application Configuration
+  config.json: |
+    {
+      "environment": "production",
+      "debug": false,
+      "log_level": "INFO",
+      "max_file_size": "100MB",
+      "upload_dir": "/app/uploads",
+      "enable_virus_scanning": false,
+      "enable_ai_processing": true,
+      "max_concurrent_jobs": 10,
+      "worker_concurrency": 8,
+      "enable_caching": true,
+      "cache_ttl_seconds": 3600
+    }
+
+  # Database Configuration
+  database.json: |
+    {
+      "url": "postgresql://postgres:postgres@postgres:5432/multimodal_rag_prod",
+      "pool_size": 20,
+      "max_overflow": 10,
+      "pool_recycle": 3600,
+      "echo": false
+    }
+
+  # Redis Configuration
+  redis.json: |
+    {
+      "url": "redis://redis:6379/0",
+      "max_connections": 50,
+      "decode_responses": true,
+      "health_check_interval": 30,
+      "retry_on_timeout": true
+    }
+
+  # Neo4j Configuration
+  neo4j.json: |
+    {
+      "uri": "bolt://neo4j:7687",
+      "username": "neo4j",
+      "password": "neo4jpassword",
+      "database": "neo4j",
+      "max_pool_size": 20,
+      "connection_timeout": 30
+    }
+
+  # Vector Database Configuration
+  qdrant.json: |
+    {
+      "url": "http://qdrant:6333",
+      "api_key": "",
+      "timeout": 30,
+      "max_retries": 3,
+      "prefer_grpc": false
+    }
+
+  # WebSocket Configuration
+  websocket.json: |
+    {
+      "host": "0.0.0.0",
+      "port": 8001,
+      "max_connections": 1000,
+      "message_size_limit": 10485760,
+      "heartbeat_interval": 30,
+      "ping_timeout": 60,
+      "allowed_origins": ["http://frontend:3000", "https://multimodal-rag.example.com"],
+      "enable_compression": true
+    }
+
+  # AI Service Configuration
+  ai_services.json: |
+    {
+      "openai": {
+        "api_key": "${OPENAI_API_KEY}",
+        "base_url": "${OPENAI_API_BASE_URL:-https://api.openai.com/v1}",
+        "timeout": 30,
+        "max_retries": 3
+      },
+      "anthropic": {
+        "api_key": "${ANTHROPIC_API_KEY}",
+        "base_url": "${ANTHROPIC_API_BASE_URL:-https://api.anthropic.com}",
+        "timeout": 30,
+        "max_retries": 3
+      },
+      "azure_openai": {
+        "api_key": "${AZURE_OPENAI_API_KEY}",
+        "endpoint": "${AZURE_OPENAI_ENDPOINT}",
+        "chat_deployment": "${AZURE_OPENAI_CHAT_DEPLOYMENT_NAME}",
+        "embedding_deployment": "${AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME}",
+        "api_version": "${AZURE_OPENAI_API_VERSION:-2024-02-15-preview}",
+        "timeout": 30,
+        "max_retries": 3
+      }
+    }

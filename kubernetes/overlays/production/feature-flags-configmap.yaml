@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: feature-flags
+  namespace: multimodal-rag-system
+  labels:
+    app: multimodal-rag
+    environment: production
+    version: 1.0.0
+data:
+  # Feature flags for production
+  websocket_enabled: "true"
+  advanced_search: "true"
+  real_time_updates: "true"
+  ai_processing: "true"
+  vector_search: "true"
+  graph_search: "true"
+  hybrid_search: "true"
+  document_processing: "true"
+  multimodal_support: "true"
+  experimental_features: "false"
+  monitoring_enabled: "true"
+  security_scanning: "true"
+  caching_enabled: "true"
+  compression_enabled: "true"
+
+  # Feature flags for specific components
+  enhanced_rag_pipeline: "false"
+  smart_retry_logic: "true"
+  performance_optimization: "true"
+  user_analytics: "false"
+  experimental_models: "false"
+
+  # Environment-specific flags
+  production_readiness: "true"
+  stress_testing: "false"
+  load_balancing: "true"
+  auto_scaling: "true"
+
+  # WebSocket-specific flags
+  websocket_compression: "true"
+  websocket_heartbeat: "true"
+  websocket_logging: "true"
+  websocket_metrics: "true"
+
+  # AI/ML specific flags
+  batch_processing: "true"
+  model_optimization: "true"
+  parallel_processing: "true"
+  result_caching: "true"

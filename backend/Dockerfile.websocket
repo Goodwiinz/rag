@@ -1,0 +1,70 @@
+# WebSocket Service Dockerfile
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    WS_PORT=8001 \
+    WS_HOST=0.0.0.0
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    wget \
+    jq \
+    netcat-openbsd \
+    libpq-dev \
+    libffi-dev \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user
+RUN groupadd -r websocket && useradd -r -g websocket websocket
+
+# Set working directory
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    # WebSocket-specific dependencies
+    pip install --no-cache-dir \
+    websockets==12.0 \
+    redis==5.0.1 \
+    redis-py-cluster==2.1.3 \
+    aioredis==2.0.1 \
+    uvicorn[standard]==0.24.0 \
+    python-multipart==0.0.6 \
+    orjson==3.9.10 \
+    msgspec==0.18.6
+
+# Copy application code
+COPY . .
+
+# Create necessary directories
+RUN mkdir -p /app/uploads /app/models /app/logs && \
+    chown -R websocket:websocket /app
+
+# Set ownership and permissions
+RUN chown -R websocket:websocket /app && \
+    chmod +x /app/scripts/*.sh
+
+# Switch to app user
+USER websocket
+
+# Expose WebSocket port
+EXPOSE 8001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8001/health || exit 1
+
+# Startup script
+COPY scripts/start_websocket.sh /app/scripts/start_websocket.sh
+RUN chmod +x /app/scripts/start_websocket.sh
+
+# Default command
+CMD ["/app/scripts/start_websocket.sh"]

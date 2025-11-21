@@ -1,97 +1,129 @@
-FROM python:3.11-slim
-
-# Set environment variables for better pip performance
-ENV PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
-
-# Set working directory
-WORKDIR /app
+# Multi-stage production-ready Dockerfile for the Multimodal RAG System Backend
+# Stage 1: Python base with system dependencies
+FROM python:3.11-slim AS base
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    make \
+    build-essential \
+    curl \
+    git \
     libpq-dev \
+    libffi-dev \
+    libssl-dev \
     tesseract-ocr \
     tesseract-ocr-eng \
-    libtesseract-dev \
-    libmagic1 \
-    ffmpeg \
+    libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender-dev \
-    libglib2.0-0 \
-    libsndfile1 \
-    libgl1 \
-    libgtk-3-0 \
-    libavcodec-dev \
-    libavformat-dev \
-    libswscale-dev \
-    pkg-config \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    libgomp1 \
+    libgl1-mesa-dri \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
-COPY requirements.txt .
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONHASHSEED=random \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Upgrade pip and install build tools
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+# Create app user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# Install problematic packages first with specific flags
-RUN pip install --no-cache-dir --prefer-binary grpcio==1.59.3 grpcio-tools==1.59.3 || \
-    pip install --no-cache-dir --no-build-isolation grpcio==1.59.3 grpcio-tools==1.59.3 || \
-    pip install --no-cache-dir grpcio grpcio-tools
+# Stage 2: Dependencies builder
+FROM base AS dependencies
 
-# Install other heavy packages separately to isolate build issues
-RUN pip install --no-cache-dir --prefer-binary torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu || \
-    pip install --no-cache-dir torch torchvision torchaudio
+WORKDIR /app
 
-RUN pip install --no-cache-dir --prefer-binary sentence-transformers || \
-    pip install --no-cache-dir sentence-transformers
+# Copy requirements files
+COPY backend/requirements.txt backend/requirements-minimal.txt backend/requirements.dev.txt ./
 
-RUN pip install --no-cache-dir --prefer-binary transformers || \
-    pip install --no-cache-dir transformers
+# Install Python dependencies
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install -r requirements.txt && \
+    pip install -r requirements-minimal.txt
 
-RUN pip install --no-cache-dir --prefer-binary qdrant-client || \
-    pip install --no-cache-dir qdrant-client
+# Stage 3: Development
+FROM base AS development
 
-# Install remaining packages
-RUN pip install --no-cache-dir -r requirements.txt
+WORKDIR /app
 
-# Download spaCy model with retry and fallback
-RUN python -m spacy download en_core_web_sm || \
-    (echo "Retrying spaCy download..." && \
-     python -m spacy download en_core_web_sm --user) || \
-    (echo "Installing spacy model manually..." && \
-     pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz)
+# Copy Python dependencies
+COPY --from=dependencies /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=dependencies /usr/local/bin /usr/local/bin
 
-# Copy application code
-COPY . .
+# Install additional development dependencies
+COPY backend/requirements.dev.txt ./
+RUN pip install -r requirements.dev.txt
 
-# Create uploads directory with proper permissions
-RUN mkdir -p /app/uploads/documents \
-    /app/uploads/images \
-    /app/uploads/audio \
-    /app/uploads/video \
-    /app/uploads/temp \
-    /app/uploads/processed \
-    && chmod 755 /app/uploads
+# Copy source code
+COPY backend/ ./
 
-# Create non-root user for security
-RUN useradd --create-home --shell /bin/bash app && \
-    chown -R app:app /app
-USER app
+# Set permissions
+RUN chown -R appuser:appuser /app
+USER appuser
+
+# Expose port
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
+# Run development server
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# Stage 4: Production
+FROM base AS production
+
+WORKDIR /app
+
+# Copy Python dependencies only
+COPY --from=dependencies /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=dependencies /usr/local/bin /usr/local/bin
+
+# Copy source code
+COPY backend/ ./
+
+# Download spaCy model
+RUN python -m spacy download en_core_web_sm
+
+# Create necessary directories
+RUN mkdir -p uploads logs && \
+    chown -R appuser:appuser /app
+
+USER appuser
+
 # Expose port
 EXPOSE 8000
 
-# Run the application
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Run production server with Gunicorn
+CMD ["gunicorn", "src.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--access-logfile", "-", "--error-logfile", "-"]
+
+# Stage 5: Celery Worker
+FROM base AS worker
+
+WORKDIR /app
+
+# Copy Python dependencies
+COPY --from=dependencies /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=dependencies /usr/local/bin /usr/local/bin
+
+# Copy source code
+COPY backend/ ./
+
+# Download spaCy model
+RUN python -m spacy download en_core_web_sm
+
+# Create necessary directories
+RUN mkdir -p uploads logs && \
+    chown -R appuser:appuser /app
+
+USER appuser
+
+# Run Celery worker
+CMD ["celery", "-A", "src.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
