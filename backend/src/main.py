@@ -36,6 +36,7 @@ from src.api.compliance import router as compliance_router
 from src.api.rbac_management import router as rbac_router
 from src.api.evaluation import router as evaluation_router
 from src.api.websocket import router as websocket_router
+from src.api.websocket_v2 import router as websocket_v2_router
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.core.database import engine
 # from src.services.file_service import redis_client  # Not exported, not needed here
@@ -73,12 +74,29 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to create database tables: {e}")
         raise
 
+    # Initialize WebSocket services
+    try:
+        from src.services.websocket_service_initializer import websocket_service_initializer
+        await websocket_service_initializer.initialize()
+        logger.info("WebSocket services initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize WebSocket services: {e}")
+        # Continue startup even if WebSocket services fail
+
     logger.info("Application startup complete")
 
     yield
 
     # Shutdown
     logger.info("Shutting down Multimodal RAG System...")
+
+    # Shutdown WebSocket services
+    try:
+        from src.services.websocket_service_initializer import websocket_service_initializer
+        await websocket_service_initializer.shutdown()
+        logger.info("WebSocket services shutdown successfully")
+    except Exception as e:
+        logger.error(f"Error shutting down WebSocket services: {e}")
 
 # Create FastAPI application
 app = FastAPI(
@@ -175,7 +193,8 @@ app.include_router(encryption_router, prefix="/api/v1/security")
 app.include_router(compliance_router, prefix="/api/v1/security")
 app.include_router(rbac_router, prefix="/api/v1/rbac")
 app.include_router(evaluation_router, prefix="/api/v1")
-app.include_router(websocket_router)  # WebSocket routes don't need /api/v1 prefix
+app.include_router(websocket_router)  # Legacy WebSocket routes
+app.include_router(websocket_v2_router)  # Enhanced WebSocket v2 routes
 
 # Health check endpoint
 @app.get("/health")

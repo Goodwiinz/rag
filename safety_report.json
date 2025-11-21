@@ -1,0 +1,2402 @@
+
+
++===========================================================================================================================================================================================+
+
+
+DEPRECATED: this command (`check`) has been DEPRECATED, and will be unsupported beyond 01 June 2024.
+
+
+We highly encourage switching to the new `scan` command which is easier to use, more powerful, and can be set up to mimic the deprecated command if required.
+
+
++===========================================================================================================================================================================================+
+
+
+{
+    "report_meta": {
+        "scan_target": "environment",
+        "scanned": [
+            "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages"
+        ],
+        "scanned_full_path": [
+            "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages"
+        ],
+        "target_languages": [
+            "python"
+        ],
+        "policy_file": null,
+        "policy_file_source": "local",
+        "audit_and_monitor": false,
+        "api_key": false,
+        "account": "",
+        "local_database_path": null,
+        "safety_version": "3.7.0",
+        "timestamp": "2025-11-20 19:30:13",
+        "packages_found": 154,
+        "vulnerabilities_found": 0,
+        "vulnerabilities_ignored": 0,
+        "remediations_recommended": 0,
+        "telemetry": {
+            "safety_options": {
+                "json": {
+                    "--json": 1
+                }
+            },
+            "safety_version": "3.7.0",
+            "safety_source": "cli",
+            "os_type": "Darwin",
+            "os_release": "25.1.0",
+            "os_description": "macOS-26.1-arm64-arm-64bit-Mach-O",
+            "python_version": "3.13.7",
+            "safety_command": "check"
+        },
+        "git": {
+            "branch": "002-multimodal-enterprise-rag",
+            "tag": "",
+            "commit": "045c0ef9670677676f90d398d9b9af102199e117",
+            "dirty": "True",
+            "origin": "https://github.com/goodwiins/rag.git"
+        },
+        "project": null,
+        "json_version": "1.1",
+        "remediations_attempted": 0,
+        "remediations_completed": 0,
+        "remediation_mode": "NON_INTERACTIVE"
+    },
+    "scanned_packages": {
+        "shellingham": {
+            "name": "shellingham",
+            "version": "1.5.4",
+            "requirements": [
+                {
+                    "raw": "shellingham==1.5.4",
+                    "extras": [],
+                    "marker": null,
+                    "name": "shellingham",
+                    "specifier": "==1.5.4",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/shellingham-1.5.4.dist-info"
+                }
+            ]
+        },
+        "pycodestyle": {
+            "name": "pycodestyle",
+            "version": "2.14.0",
+            "requirements": [
+                {
+                    "raw": "pycodestyle==2.14.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pycodestyle",
+                    "specifier": "==2.14.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pycodestyle-2.14.0.dist-info"
+                }
+            ]
+        },
+        "isort": {
+            "name": "isort",
+            "version": "6.1.0",
+            "requirements": [
+                {
+                    "raw": "isort==6.1.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "isort",
+                    "specifier": "==6.1.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/isort-6.1.0.dist-info"
+                }
+            ]
+        },
+        "tomli": {
+            "name": "tomli",
+            "version": "2.0.2",
+            "requirements": [
+                {
+                    "raw": "tomli==2.0.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "tomli",
+                    "specifier": "==2.0.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/tomli-2.0.2.dist-info"
+                }
+            ]
+        },
+        "threadpoolctl": {
+            "name": "threadpoolctl",
+            "version": "3.6.0",
+            "requirements": [
+                {
+                    "raw": "threadpoolctl==3.6.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "threadpoolctl",
+                    "specifier": "==3.6.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/threadpoolctl-3.6.0.dist-info"
+                }
+            ]
+        },
+        "glom": {
+            "name": "glom",
+            "version": "22.1.0",
+            "requirements": [
+                {
+                    "raw": "glom==22.1.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "glom",
+                    "specifier": "==22.1.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/glom-22.1.0.dist-info"
+                }
+            ]
+        },
+        "pexpect": {
+            "name": "pexpect",
+            "version": "4.9.0",
+            "requirements": [
+                {
+                    "raw": "pexpect==4.9.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pexpect",
+                    "specifier": "==4.9.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pexpect-4.9.0.dist-info"
+                }
+            ]
+        },
+        "uvicorn": {
+            "name": "uvicorn",
+            "version": "0.38.0",
+            "requirements": [
+                {
+                    "raw": "uvicorn==0.38.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "uvicorn",
+                    "specifier": "==0.38.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/uvicorn-0.38.0.dist-info"
+                }
+            ]
+        },
+        "pip": {
+            "name": "pip",
+            "version": "25.2",
+            "requirements": [
+                {
+                    "raw": "pip==25.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pip",
+                    "specifier": "==25.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pip-25.2.dist-info"
+                }
+            ]
+        },
+        "jupyter_core": {
+            "name": "jupyter_core",
+            "version": "5.8.1",
+            "requirements": [
+                {
+                    "raw": "jupyter_core==5.8.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "jupyter_core",
+                    "specifier": "==5.8.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/jupyter_core-5.8.1.dist-info"
+                }
+            ]
+        },
+        "requests": {
+            "name": "requests",
+            "version": "2.32.5",
+            "requirements": [
+                {
+                    "raw": "requests==2.32.5",
+                    "extras": [],
+                    "marker": null,
+                    "name": "requests",
+                    "specifier": "==2.32.5",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/requests-2.32.5.dist-info"
+                }
+            ]
+        },
+        "idna": {
+            "name": "idna",
+            "version": "3.10",
+            "requirements": [
+                {
+                    "raw": "idna==3.10",
+                    "extras": [],
+                    "marker": null,
+                    "name": "idna",
+                    "specifier": "==3.10",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/idna-3.10.dist-info"
+                }
+            ]
+        },
+        "traitlets": {
+            "name": "traitlets",
+            "version": "5.14.3",
+            "requirements": [
+                {
+                    "raw": "traitlets==5.14.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "traitlets",
+                    "specifier": "==5.14.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/traitlets-5.14.3.dist-info"
+                }
+            ]
+        },
+        "urllib3": {
+            "name": "urllib3",
+            "version": "2.5.0",
+            "requirements": [
+                {
+                    "raw": "urllib3==2.5.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "urllib3",
+                    "specifier": "==2.5.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/urllib3-2.5.0.dist-info"
+                }
+            ]
+        },
+        "charset-normalizer": {
+            "name": "charset-normalizer",
+            "version": "3.4.3",
+            "requirements": [
+                {
+                    "raw": "charset-normalizer==3.4.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "charset-normalizer",
+                    "specifier": "==3.4.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/charset_normalizer-3.4.3.dist-info"
+                }
+            ]
+        },
+        "nest-asyncio": {
+            "name": "nest-asyncio",
+            "version": "1.6.0",
+            "requirements": [
+                {
+                    "raw": "nest-asyncio==1.6.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "nest-asyncio",
+                    "specifier": "==1.6.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/nest_asyncio-1.6.0.dist-info"
+                }
+            ]
+        },
+        "rich": {
+            "name": "rich",
+            "version": "13.5.3",
+            "requirements": [
+                {
+                    "raw": "rich==13.5.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "rich",
+                    "specifier": "==13.5.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/rich-13.5.3.dist-info"
+                }
+            ]
+        },
+        "dparse": {
+            "name": "dparse",
+            "version": "0.6.4",
+            "requirements": [
+                {
+                    "raw": "dparse==0.6.4",
+                    "extras": [],
+                    "marker": null,
+                    "name": "dparse",
+                    "specifier": "==0.6.4",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/dparse-0.6.4.dist-info"
+                }
+            ]
+        },
+        "ptyprocess": {
+            "name": "ptyprocess",
+            "version": "0.7.0",
+            "requirements": [
+                {
+                    "raw": "ptyprocess==0.7.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "ptyprocess",
+                    "specifier": "==0.7.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/ptyprocess-0.7.0.dist-info"
+                }
+            ]
+        },
+        "pytz": {
+            "name": "pytz",
+            "version": "2025.2",
+            "requirements": [
+                {
+                    "raw": "pytz==2025.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pytz",
+                    "specifier": "==2025.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pytz-2025.2.dist-info"
+                }
+            ]
+        },
+        "sse-starlette": {
+            "name": "sse-starlette",
+            "version": "3.0.3",
+            "requirements": [
+                {
+                    "raw": "sse-starlette==3.0.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "sse-starlette",
+                    "specifier": "==3.0.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/sse_starlette-3.0.3.dist-info"
+                }
+            ]
+        },
+        "click-option-group": {
+            "name": "click-option-group",
+            "version": "0.5.9",
+            "requirements": [
+                {
+                    "raw": "click-option-group==0.5.9",
+                    "extras": [],
+                    "marker": null,
+                    "name": "click-option-group",
+                    "specifier": "==0.5.9",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/click_option_group-0.5.9.dist-info"
+                }
+            ]
+        },
+        "scikit-learn": {
+            "name": "scikit-learn",
+            "version": "1.7.2",
+            "requirements": [
+                {
+                    "raw": "scikit-learn==1.7.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "scikit-learn",
+                    "specifier": "==1.7.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/scikit_learn-1.7.2.dist-info"
+                }
+            ]
+        },
+        "boltons": {
+            "name": "boltons",
+            "version": "21.0.0",
+            "requirements": [
+                {
+                    "raw": "boltons==21.0.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "boltons",
+                    "specifier": "==21.0.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/boltons-21.0.0.dist-info"
+                }
+            ]
+        },
+        "colorama": {
+            "name": "colorama",
+            "version": "0.4.6",
+            "requirements": [
+                {
+                    "raw": "colorama==0.4.6",
+                    "extras": [],
+                    "marker": null,
+                    "name": "colorama",
+                    "specifier": "==0.4.6",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/colorama-0.4.6.dist-info"
+                }
+            ]
+        },
+        "safety": {
+            "name": "safety",
+            "version": "3.7.0",
+            "requirements": [
+                {
+                    "raw": "safety==3.7.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "safety",
+                    "specifier": "==3.7.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/safety-3.7.0.dist-info"
+                }
+            ]
+        },
+        "psutil": {
+            "name": "psutil",
+            "version": "7.1.0",
+            "requirements": [
+                {
+                    "raw": "psutil==7.1.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "psutil",
+                    "specifier": "==7.1.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/psutil-7.1.0.dist-info"
+                }
+            ]
+        },
+        "jsonschema-specifications": {
+            "name": "jsonschema-specifications",
+            "version": "2025.9.1",
+            "requirements": [
+                {
+                    "raw": "jsonschema-specifications==2025.9.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "jsonschema-specifications",
+                    "specifier": "==2025.9.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/jsonschema_specifications-2025.9.1.dist-info"
+                }
+            ]
+        },
+        "bracex": {
+            "name": "bracex",
+            "version": "2.6",
+            "requirements": [
+                {
+                    "raw": "bracex==2.6",
+                    "extras": [],
+                    "marker": null,
+                    "name": "bracex",
+                    "specifier": "==2.6",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/bracex-2.6.dist-info"
+                }
+            ]
+        },
+        "executing": {
+            "name": "executing",
+            "version": "2.2.1",
+            "requirements": [
+                {
+                    "raw": "executing==2.2.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "executing",
+                    "specifier": "==2.2.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/executing-2.2.1.dist-info"
+                }
+            ]
+        },
+        "python-magic": {
+            "name": "python-magic",
+            "version": "0.4.27",
+            "requirements": [
+                {
+                    "raw": "python-magic==0.4.27",
+                    "extras": [],
+                    "marker": null,
+                    "name": "python-magic",
+                    "specifier": "==0.4.27",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/python_magic-0.4.27.dist-info"
+                }
+            ]
+        },
+        "anyio": {
+            "name": "anyio",
+            "version": "4.11.0",
+            "requirements": [
+                {
+                    "raw": "anyio==4.11.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "anyio",
+                    "specifier": "==4.11.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/anyio-4.11.0.dist-info"
+                }
+            ]
+        },
+        "propcache": {
+            "name": "propcache",
+            "version": "0.4.1",
+            "requirements": [
+                {
+                    "raw": "propcache==0.4.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "propcache",
+                    "specifier": "==0.4.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/propcache-0.4.1.dist-info"
+                }
+            ]
+        },
+        "opentelemetry-exporter-otlp-proto-http": {
+            "name": "opentelemetry-exporter-otlp-proto-http",
+            "version": "1.37.0",
+            "requirements": [
+                {
+                    "raw": "opentelemetry-exporter-otlp-proto-http==1.37.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "opentelemetry-exporter-otlp-proto-http",
+                    "specifier": "==1.37.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/opentelemetry_exporter_otlp_proto_http-1.37.0.dist-info"
+                }
+            ]
+        },
+        "ipywidgets": {
+            "name": "ipywidgets",
+            "version": "8.1.7",
+            "requirements": [
+                {
+                    "raw": "ipywidgets==8.1.7",
+                    "extras": [],
+                    "marker": null,
+                    "name": "ipywidgets",
+                    "specifier": "==8.1.7",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/ipywidgets-8.1.7.dist-info"
+                }
+            ]
+        },
+        "python-dotenv": {
+            "name": "python-dotenv",
+            "version": "1.2.1",
+            "requirements": [
+                {
+                    "raw": "python-dotenv==1.2.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "python-dotenv",
+                    "specifier": "==1.2.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/python_dotenv-1.2.1.dist-info"
+                }
+            ]
+        },
+        "tenacity": {
+            "name": "tenacity",
+            "version": "9.1.2",
+            "requirements": [
+                {
+                    "raw": "tenacity==9.1.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "tenacity",
+                    "specifier": "==9.1.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/tenacity-9.1.2.dist-info"
+                }
+            ]
+        },
+        "contourpy": {
+            "name": "contourpy",
+            "version": "1.3.3",
+            "requirements": [
+                {
+                    "raw": "contourpy==1.3.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "contourpy",
+                    "specifier": "==1.3.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/contourpy-1.3.3.dist-info"
+                }
+            ]
+        },
+        "bandit": {
+            "name": "bandit",
+            "version": "1.9.1",
+            "requirements": [
+                {
+                    "raw": "bandit==1.9.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "bandit",
+                    "specifier": "==1.9.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/bandit-1.9.1.dist-info"
+                }
+            ]
+        },
+        "opentelemetry-instrumentation-requests": {
+            "name": "opentelemetry-instrumentation-requests",
+            "version": "0.58b0",
+            "requirements": [
+                {
+                    "raw": "opentelemetry-instrumentation-requests==0.58b0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "opentelemetry-instrumentation-requests",
+                    "specifier": "==0.58b0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/opentelemetry_instrumentation_requests-0.58b0.dist-info"
+                }
+            ]
+        },
+        "seaborn": {
+            "name": "seaborn",
+            "version": "0.13.2",
+            "requirements": [
+                {
+                    "raw": "seaborn==0.13.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "seaborn",
+                    "specifier": "==0.13.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/seaborn-0.13.2.dist-info"
+                }
+            ]
+        },
+        "numpy": {
+            "name": "numpy",
+            "version": "2.3.3",
+            "requirements": [
+                {
+                    "raw": "numpy==2.3.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "numpy",
+                    "specifier": "==2.3.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/numpy-2.3.3.dist-info"
+                }
+            ]
+        },
+        "safety-schemas": {
+            "name": "safety-schemas",
+            "version": "0.0.16",
+            "requirements": [
+                {
+                    "raw": "safety-schemas==0.0.16",
+                    "extras": [],
+                    "marker": null,
+                    "name": "safety-schemas",
+                    "specifier": "==0.0.16",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/safety_schemas-0.0.16.dist-info"
+                }
+            ]
+        },
+        "face": {
+            "name": "face",
+            "version": "24.0.0",
+            "requirements": [
+                {
+                    "raw": "face==24.0.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "face",
+                    "specifier": "==24.0.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/face-24.0.0.dist-info"
+                }
+            ]
+        },
+        "jedi": {
+            "name": "jedi",
+            "version": "0.19.2",
+            "requirements": [
+                {
+                    "raw": "jedi==0.19.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "jedi",
+                    "specifier": "==0.19.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/jedi-0.19.2.dist-info"
+                }
+            ]
+        },
+        "black": {
+            "name": "black",
+            "version": "25.9.0",
+            "requirements": [
+                {
+                    "raw": "black==25.9.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "black",
+                    "specifier": "==25.9.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/black-25.9.0.dist-info"
+                }
+            ]
+        },
+        "multidict": {
+            "name": "multidict",
+            "version": "6.7.0",
+            "requirements": [
+                {
+                    "raw": "multidict==6.7.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "multidict",
+                    "specifier": "==6.7.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/multidict-6.7.0.dist-info"
+                }
+            ]
+        },
+        "plotly": {
+            "name": "plotly",
+            "version": "6.3.1",
+            "requirements": [
+                {
+                    "raw": "plotly==6.3.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "plotly",
+                    "specifier": "==6.3.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/plotly-6.3.1.dist-info"
+                }
+            ]
+        },
+        "regex": {
+            "name": "regex",
+            "version": "2025.11.3",
+            "requirements": [
+                {
+                    "raw": "regex==2025.11.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "regex",
+                    "specifier": "==2025.11.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/regex-2025.11.3.dist-info"
+                }
+            ]
+        },
+        "fonttools": {
+            "name": "fonttools",
+            "version": "4.60.1",
+            "requirements": [
+                {
+                    "raw": "fonttools==4.60.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "fonttools",
+                    "specifier": "==4.60.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/fonttools-4.60.1.dist-info"
+                }
+            ]
+        },
+        "certifi": {
+            "name": "certifi",
+            "version": "2025.10.5",
+            "requirements": [
+                {
+                    "raw": "certifi==2025.10.5",
+                    "extras": [],
+                    "marker": null,
+                    "name": "certifi",
+                    "specifier": "==2025.10.5",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/certifi-2025.10.5.dist-info"
+                }
+            ]
+        },
+        "cffi": {
+            "name": "cffi",
+            "version": "2.0.0",
+            "requirements": [
+                {
+                    "raw": "cffi==2.0.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "cffi",
+                    "specifier": "==2.0.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/cffi-2.0.0.dist-info"
+                }
+            ]
+        },
+        "jupyter_client": {
+            "name": "jupyter_client",
+            "version": "8.6.3",
+            "requirements": [
+                {
+                    "raw": "jupyter_client==8.6.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "jupyter_client",
+                    "specifier": "==8.6.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/jupyter_client-8.6.3.dist-info"
+                }
+            ]
+        },
+        "asttokens": {
+            "name": "asttokens",
+            "version": "3.0.0",
+            "requirements": [
+                {
+                    "raw": "asttokens==3.0.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "asttokens",
+                    "specifier": "==3.0.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/asttokens-3.0.0.dist-info"
+                }
+            ]
+        },
+        "kiwisolver": {
+            "name": "kiwisolver",
+            "version": "1.4.9",
+            "requirements": [
+                {
+                    "raw": "kiwisolver==1.4.9",
+                    "extras": [],
+                    "marker": null,
+                    "name": "kiwisolver",
+                    "specifier": "==1.4.9",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/kiwisolver-1.4.9.dist-info"
+                }
+            ]
+        },
+        "tqdm": {
+            "name": "tqdm",
+            "version": "4.67.1",
+            "requirements": [
+                {
+                    "raw": "tqdm==4.67.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "tqdm",
+                    "specifier": "==4.67.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/tqdm-4.67.1.dist-info"
+                }
+            ]
+        },
+        "opentelemetry-exporter-otlp-proto-common": {
+            "name": "opentelemetry-exporter-otlp-proto-common",
+            "version": "1.37.0",
+            "requirements": [
+                {
+                    "raw": "opentelemetry-exporter-otlp-proto-common==1.37.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "opentelemetry-exporter-otlp-proto-common",
+                    "specifier": "==1.37.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/opentelemetry_exporter_otlp_proto_common-1.37.0.dist-info"
+                }
+            ]
+        },
+        "pyparsing": {
+            "name": "pyparsing",
+            "version": "3.2.5",
+            "requirements": [
+                {
+                    "raw": "pyparsing==3.2.5",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pyparsing",
+                    "specifier": "==3.2.5",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pyparsing-3.2.5.dist-info"
+                }
+            ]
+        },
+        "exceptiongroup": {
+            "name": "exceptiongroup",
+            "version": "1.2.2",
+            "requirements": [
+                {
+                    "raw": "exceptiongroup==1.2.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "exceptiongroup",
+                    "specifier": "==1.2.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/exceptiongroup-1.2.2.dist-info"
+                }
+            ]
+        },
+        "click": {
+            "name": "click",
+            "version": "8.1.8",
+            "requirements": [
+                {
+                    "raw": "click==8.1.8",
+                    "extras": [],
+                    "marker": null,
+                    "name": "click",
+                    "specifier": "==8.1.8",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/click-8.1.8.dist-info"
+                }
+            ]
+        },
+        "tzdata": {
+            "name": "tzdata",
+            "version": "2025.2",
+            "requirements": [
+                {
+                    "raw": "tzdata==2025.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "tzdata",
+                    "specifier": "==2025.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/tzdata-2025.2.dist-info"
+                }
+            ]
+        },
+        "ipython_pygments_lexers": {
+            "name": "ipython_pygments_lexers",
+            "version": "1.1.1",
+            "requirements": [
+                {
+                    "raw": "ipython_pygments_lexers==1.1.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "ipython_pygments_lexers",
+                    "specifier": "==1.1.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/ipython_pygments_lexers-1.1.1.dist-info"
+                }
+            ]
+        },
+        "appnope": {
+            "name": "appnope",
+            "version": "0.1.4",
+            "requirements": [
+                {
+                    "raw": "appnope==0.1.4",
+                    "extras": [],
+                    "marker": null,
+                    "name": "appnope",
+                    "specifier": "==0.1.4",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/appnope-0.1.4.dist-info"
+                }
+            ]
+        },
+        "prompt_toolkit": {
+            "name": "prompt_toolkit",
+            "version": "3.0.52",
+            "requirements": [
+                {
+                    "raw": "prompt_toolkit==3.0.52",
+                    "extras": [],
+                    "marker": null,
+                    "name": "prompt_toolkit",
+                    "specifier": "==3.0.52",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/prompt_toolkit-3.0.52.dist-info"
+                }
+            ]
+        },
+        "parso": {
+            "name": "parso",
+            "version": "0.8.5",
+            "requirements": [
+                {
+                    "raw": "parso==0.8.5",
+                    "extras": [],
+                    "marker": null,
+                    "name": "parso",
+                    "specifier": "==0.8.5",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/parso-0.8.5.dist-info"
+                }
+            ]
+        },
+        "httpcore": {
+            "name": "httpcore",
+            "version": "1.0.9",
+            "requirements": [
+                {
+                    "raw": "httpcore==1.0.9",
+                    "extras": [],
+                    "marker": null,
+                    "name": "httpcore",
+                    "specifier": "==1.0.9",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/httpcore-1.0.9.dist-info"
+                }
+            ]
+        },
+        "decorator": {
+            "name": "decorator",
+            "version": "5.2.1",
+            "requirements": [
+                {
+                    "raw": "decorator==5.2.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "decorator",
+                    "specifier": "==5.2.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/decorator-5.2.1.dist-info"
+                }
+            ]
+        },
+        "rpds-py": {
+            "name": "rpds-py",
+            "version": "0.27.1",
+            "requirements": [
+                {
+                    "raw": "rpds-py==0.27.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "rpds-py",
+                    "specifier": "==0.27.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/rpds_py-0.27.1.dist-info"
+                }
+            ]
+        },
+        "ruamel.yaml.clib": {
+            "name": "ruamel.yaml.clib",
+            "version": "0.2.14",
+            "requirements": [
+                {
+                    "raw": "ruamel.yaml.clib==0.2.14",
+                    "extras": [],
+                    "marker": null,
+                    "name": "ruamel.yaml.clib",
+                    "specifier": "==0.2.14",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/ruamel.yaml.clib-0.2.14.dist-info"
+                }
+            ]
+        },
+        "pydantic": {
+            "name": "pydantic",
+            "version": "2.12.4",
+            "requirements": [
+                {
+                    "raw": "pydantic==2.12.4",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pydantic",
+                    "specifier": "==2.12.4",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pydantic-2.12.4.dist-info"
+                }
+            ]
+        },
+        "ipykernel": {
+            "name": "ipykernel",
+            "version": "6.30.1",
+            "requirements": [
+                {
+                    "raw": "ipykernel==6.30.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "ipykernel",
+                    "specifier": "==6.30.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/ipykernel-6.30.1.dist-info"
+                }
+            ]
+        },
+        "nbformat": {
+            "name": "nbformat",
+            "version": "5.10.4",
+            "requirements": [
+                {
+                    "raw": "nbformat==5.10.4",
+                    "extras": [],
+                    "marker": null,
+                    "name": "nbformat",
+                    "specifier": "==5.10.4",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/nbformat-5.10.4.dist-info"
+                }
+            ]
+        },
+        "jupyterlab_widgets": {
+            "name": "jupyterlab_widgets",
+            "version": "3.0.15",
+            "requirements": [
+                {
+                    "raw": "jupyterlab_widgets==3.0.15",
+                    "extras": [],
+                    "marker": null,
+                    "name": "jupyterlab_widgets",
+                    "specifier": "==3.0.15",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/jupyterlab_widgets-3.0.15.dist-info"
+                }
+            ]
+        },
+        "stack-data": {
+            "name": "stack-data",
+            "version": "0.6.3",
+            "requirements": [
+                {
+                    "raw": "stack-data==0.6.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "stack-data",
+                    "specifier": "==0.6.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/stack_data-0.6.3.dist-info"
+                }
+            ]
+        },
+        "tomlkit": {
+            "name": "tomlkit",
+            "version": "0.13.3",
+            "requirements": [
+                {
+                    "raw": "tomlkit==0.13.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "tomlkit",
+                    "specifier": "==0.13.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/tomlkit-0.13.3.dist-info"
+                }
+            ]
+        },
+        "tornado": {
+            "name": "tornado",
+            "version": "6.5.2",
+            "requirements": [
+                {
+                    "raw": "tornado==6.5.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "tornado",
+                    "specifier": "==6.5.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/tornado-6.5.2.dist-info"
+                }
+            ]
+        },
+        "jsonschema": {
+            "name": "jsonschema",
+            "version": "4.25.1",
+            "requirements": [
+                {
+                    "raw": "jsonschema==4.25.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "jsonschema",
+                    "specifier": "==4.25.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/jsonschema-4.25.1.dist-info"
+                }
+            ]
+        },
+        "pathspec": {
+            "name": "pathspec",
+            "version": "0.12.1",
+            "requirements": [
+                {
+                    "raw": "pathspec==0.12.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pathspec",
+                    "specifier": "==0.12.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pathspec-0.12.1.dist-info"
+                }
+            ]
+        },
+        "stevedore": {
+            "name": "stevedore",
+            "version": "5.6.0",
+            "requirements": [
+                {
+                    "raw": "stevedore==5.6.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "stevedore",
+                    "specifier": "==5.6.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/stevedore-5.6.0.dist-info"
+                }
+            ]
+        },
+        "pydantic-settings": {
+            "name": "pydantic-settings",
+            "version": "2.12.0",
+            "requirements": [
+                {
+                    "raw": "pydantic-settings==2.12.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pydantic-settings",
+                    "specifier": "==2.12.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pydantic_settings-2.12.0.dist-info"
+                }
+            ]
+        },
+        "markdown-it-py": {
+            "name": "markdown-it-py",
+            "version": "4.0.0",
+            "requirements": [
+                {
+                    "raw": "markdown-it-py==4.0.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "markdown-it-py",
+                    "specifier": "==4.0.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/markdown_it_py-4.0.0.dist-info"
+                }
+            ]
+        },
+        "wcmatch": {
+            "name": "wcmatch",
+            "version": "8.5.2",
+            "requirements": [
+                {
+                    "raw": "wcmatch==8.5.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "wcmatch",
+                    "specifier": "==8.5.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/wcmatch-8.5.2.dist-info"
+                }
+            ]
+        },
+        "opentelemetry-util-http": {
+            "name": "opentelemetry-util-http",
+            "version": "0.58b0",
+            "requirements": [
+                {
+                    "raw": "opentelemetry-util-http==0.58b0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "opentelemetry-util-http",
+                    "specifier": "==0.58b0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/opentelemetry_util_http-0.58b0.dist-info"
+                }
+            ]
+        },
+        "opentelemetry-sdk": {
+            "name": "opentelemetry-sdk",
+            "version": "1.37.0",
+            "requirements": [
+                {
+                    "raw": "opentelemetry-sdk==1.37.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "opentelemetry-sdk",
+                    "specifier": "==1.37.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/opentelemetry_sdk-1.37.0.dist-info"
+                }
+            ]
+        },
+        "Authlib": {
+            "name": "Authlib",
+            "version": "1.6.5",
+            "requirements": [
+                {
+                    "raw": "Authlib==1.6.5",
+                    "extras": [],
+                    "marker": null,
+                    "name": "Authlib",
+                    "specifier": "==1.6.5",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/authlib-1.6.5.dist-info"
+                }
+            ]
+        },
+        "wrapt": {
+            "name": "wrapt",
+            "version": "1.17.3",
+            "requirements": [
+                {
+                    "raw": "wrapt==1.17.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "wrapt",
+                    "specifier": "==1.17.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/wrapt-1.17.3.dist-info"
+                }
+            ]
+        },
+        "platformdirs": {
+            "name": "platformdirs",
+            "version": "4.5.0",
+            "requirements": [
+                {
+                    "raw": "platformdirs==4.5.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "platformdirs",
+                    "specifier": "==4.5.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/platformdirs-4.5.0.dist-info"
+                }
+            ]
+        },
+        "h11": {
+            "name": "h11",
+            "version": "0.16.0",
+            "requirements": [
+                {
+                    "raw": "h11==0.16.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "h11",
+                    "specifier": "==0.16.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/h11-0.16.0.dist-info"
+                }
+            ]
+        },
+        "sniffio": {
+            "name": "sniffio",
+            "version": "1.3.1",
+            "requirements": [
+                {
+                    "raw": "sniffio==1.3.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "sniffio",
+                    "specifier": "==1.3.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/sniffio-1.3.1.dist-info"
+                }
+            ]
+        },
+        "googleapis-common-protos": {
+            "name": "googleapis-common-protos",
+            "version": "1.72.0",
+            "requirements": [
+                {
+                    "raw": "googleapis-common-protos==1.72.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "googleapis-common-protos",
+                    "specifier": "==1.72.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/googleapis_common_protos-1.72.0.dist-info"
+                }
+            ]
+        },
+        "typer": {
+            "name": "typer",
+            "version": "0.20.0",
+            "requirements": [
+                {
+                    "raw": "typer==0.20.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "typer",
+                    "specifier": "==0.20.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/typer-0.20.0.dist-info"
+                }
+            ]
+        },
+        "mdurl": {
+            "name": "mdurl",
+            "version": "0.1.2",
+            "requirements": [
+                {
+                    "raw": "mdurl==0.1.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "mdurl",
+                    "specifier": "==0.1.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/mdurl-0.1.2.dist-info"
+                }
+            ]
+        },
+        "pytokens": {
+            "name": "pytokens",
+            "version": "0.1.10",
+            "requirements": [
+                {
+                    "raw": "pytokens==0.1.10",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pytokens",
+                    "specifier": "==0.1.10",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pytokens-0.1.10.dist-info"
+                }
+            ]
+        },
+        "python-dateutil": {
+            "name": "python-dateutil",
+            "version": "2.9.0.post0",
+            "requirements": [
+                {
+                    "raw": "python-dateutil==2.9.0.post0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "python-dateutil",
+                    "specifier": "==2.9.0.post0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/python_dateutil-2.9.0.post0.dist-info"
+                }
+            ]
+        },
+        "PyYAML": {
+            "name": "PyYAML",
+            "version": "6.0.3",
+            "requirements": [
+                {
+                    "raw": "PyYAML==6.0.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "PyYAML",
+                    "specifier": "==6.0.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pyyaml-6.0.3.dist-info"
+                }
+            ]
+        },
+        "mccabe": {
+            "name": "mccabe",
+            "version": "0.7.0",
+            "requirements": [
+                {
+                    "raw": "mccabe==0.7.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "mccabe",
+                    "specifier": "==0.7.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/mccabe-0.7.0.dist-info"
+                }
+            ]
+        },
+        "pytest": {
+            "name": "pytest",
+            "version": "8.4.2",
+            "requirements": [
+                {
+                    "raw": "pytest==8.4.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pytest",
+                    "specifier": "==8.4.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pytest-8.4.2.dist-info"
+                }
+            ]
+        },
+        "pydantic_core": {
+            "name": "pydantic_core",
+            "version": "2.41.5",
+            "requirements": [
+                {
+                    "raw": "pydantic_core==2.41.5",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pydantic_core",
+                    "specifier": "==2.41.5",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pydantic_core-2.41.5.dist-info"
+                }
+            ]
+        },
+        "frozenlist": {
+            "name": "frozenlist",
+            "version": "1.8.0",
+            "requirements": [
+                {
+                    "raw": "frozenlist==1.8.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "frozenlist",
+                    "specifier": "==1.8.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/frozenlist-1.8.0.dist-info"
+                }
+            ]
+        },
+        "typing_extensions": {
+            "name": "typing_extensions",
+            "version": "4.15.0",
+            "requirements": [
+                {
+                    "raw": "typing_extensions==4.15.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "typing_extensions",
+                    "specifier": "==4.15.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/typing_extensions-4.15.0.dist-info"
+                }
+            ]
+        },
+        "aiosignal": {
+            "name": "aiosignal",
+            "version": "1.4.0",
+            "requirements": [
+                {
+                    "raw": "aiosignal==1.4.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "aiosignal",
+                    "specifier": "==1.4.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/aiosignal-1.4.0.dist-info"
+                }
+            ]
+        },
+        "fastjsonschema": {
+            "name": "fastjsonschema",
+            "version": "2.21.2",
+            "requirements": [
+                {
+                    "raw": "fastjsonschema==2.21.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "fastjsonschema",
+                    "specifier": "==2.21.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/fastjsonschema-2.21.2.dist-info"
+                }
+            ]
+        },
+        "opentelemetry-instrumentation": {
+            "name": "opentelemetry-instrumentation",
+            "version": "0.58b0",
+            "requirements": [
+                {
+                    "raw": "opentelemetry-instrumentation==0.58b0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "opentelemetry-instrumentation",
+                    "specifier": "==0.58b0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/opentelemetry_instrumentation-0.58b0.dist-info"
+                }
+            ]
+        },
+        "peewee": {
+            "name": "peewee",
+            "version": "3.18.3",
+            "requirements": [
+                {
+                    "raw": "peewee==3.18.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "peewee",
+                    "specifier": "==3.18.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/peewee-3.18.3.dist-info"
+                }
+            ]
+        },
+        "packaging": {
+            "name": "packaging",
+            "version": "25.0",
+            "requirements": [
+                {
+                    "raw": "packaging==25.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "packaging",
+                    "specifier": "==25.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/packaging-25.0.dist-info"
+                }
+            ]
+        },
+        "pyflakes": {
+            "name": "pyflakes",
+            "version": "3.4.0",
+            "requirements": [
+                {
+                    "raw": "pyflakes==3.4.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pyflakes",
+                    "specifier": "==3.4.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pyflakes-3.4.0.dist-info"
+                }
+            ]
+        },
+        "cycler": {
+            "name": "cycler",
+            "version": "0.12.1",
+            "requirements": [
+                {
+                    "raw": "cycler==0.12.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "cycler",
+                    "specifier": "==0.12.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/cycler-0.12.1.dist-info"
+                }
+            ]
+        },
+        "Jinja2": {
+            "name": "Jinja2",
+            "version": "3.1.6",
+            "requirements": [
+                {
+                    "raw": "Jinja2==3.1.6",
+                    "extras": [],
+                    "marker": null,
+                    "name": "Jinja2",
+                    "specifier": "==3.1.6",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/jinja2-3.1.6.dist-info"
+                }
+            ]
+        },
+        "referencing": {
+            "name": "referencing",
+            "version": "0.37.0",
+            "requirements": [
+                {
+                    "raw": "referencing==0.37.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "referencing",
+                    "specifier": "==0.37.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/referencing-0.37.0.dist-info"
+                }
+            ]
+        },
+        "pandas": {
+            "name": "pandas",
+            "version": "2.3.3",
+            "requirements": [
+                {
+                    "raw": "pandas==2.3.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pandas",
+                    "specifier": "==2.3.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pandas-2.3.3.dist-info"
+                }
+            ]
+        },
+        "flake8": {
+            "name": "flake8",
+            "version": "7.3.0",
+            "requirements": [
+                {
+                    "raw": "flake8==7.3.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "flake8",
+                    "specifier": "==7.3.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/flake8-7.3.0.dist-info"
+                }
+            ]
+        },
+        "mcp": {
+            "name": "mcp",
+            "version": "1.16.0",
+            "requirements": [
+                {
+                    "raw": "mcp==1.16.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "mcp",
+                    "specifier": "==1.16.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/mcp-1.16.0.dist-info"
+                }
+            ]
+        },
+        "marshmallow": {
+            "name": "marshmallow",
+            "version": "4.1.0",
+            "requirements": [
+                {
+                    "raw": "marshmallow==4.1.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "marshmallow",
+                    "specifier": "==4.1.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/marshmallow-4.1.0.dist-info"
+                }
+            ]
+        },
+        "python-multipart": {
+            "name": "python-multipart",
+            "version": "0.0.20",
+            "requirements": [
+                {
+                    "raw": "python-multipart==0.0.20",
+                    "extras": [],
+                    "marker": null,
+                    "name": "python-multipart",
+                    "specifier": "==0.0.20",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/python_multipart-0.0.20.dist-info"
+                }
+            ]
+        },
+        "MarkupSafe": {
+            "name": "MarkupSafe",
+            "version": "3.0.3",
+            "requirements": [
+                {
+                    "raw": "MarkupSafe==3.0.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "MarkupSafe",
+                    "specifier": "==3.0.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/markupsafe-3.0.3.dist-info"
+                }
+            ]
+        },
+        "pure_eval": {
+            "name": "pure_eval",
+            "version": "0.2.3",
+            "requirements": [
+                {
+                    "raw": "pure_eval==0.2.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pure_eval",
+                    "specifier": "==0.2.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pure_eval-0.2.3.dist-info"
+                }
+            ]
+        },
+        "pluggy": {
+            "name": "pluggy",
+            "version": "1.6.0",
+            "requirements": [
+                {
+                    "raw": "pluggy==1.6.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pluggy",
+                    "specifier": "==1.6.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pluggy-1.6.0.dist-info"
+                }
+            ]
+        },
+        "narwhals": {
+            "name": "narwhals",
+            "version": "2.7.0",
+            "requirements": [
+                {
+                    "raw": "narwhals==2.7.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "narwhals",
+                    "specifier": "==2.7.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/narwhals-2.7.0.dist-info"
+                }
+            ]
+        },
+        "Pygments": {
+            "name": "Pygments",
+            "version": "2.19.2",
+            "requirements": [
+                {
+                    "raw": "Pygments==2.19.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "Pygments",
+                    "specifier": "==2.19.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pygments-2.19.2.dist-info"
+                }
+            ]
+        },
+        "opentelemetry-proto": {
+            "name": "opentelemetry-proto",
+            "version": "1.37.0",
+            "requirements": [
+                {
+                    "raw": "opentelemetry-proto==1.37.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "opentelemetry-proto",
+                    "specifier": "==1.37.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/opentelemetry_proto-1.37.0.dist-info"
+                }
+            ]
+        },
+        "aiohappyeyeballs": {
+            "name": "aiohappyeyeballs",
+            "version": "2.6.1",
+            "requirements": [
+                {
+                    "raw": "aiohappyeyeballs==2.6.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "aiohappyeyeballs",
+                    "specifier": "==2.6.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/aiohappyeyeballs-2.6.1.dist-info"
+                }
+            ]
+        },
+        "attrs": {
+            "name": "attrs",
+            "version": "25.4.0",
+            "requirements": [
+                {
+                    "raw": "attrs==25.4.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "attrs",
+                    "specifier": "==25.4.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/attrs-25.4.0.dist-info"
+                }
+            ]
+        },
+        "opentelemetry-api": {
+            "name": "opentelemetry-api",
+            "version": "1.37.0",
+            "requirements": [
+                {
+                    "raw": "opentelemetry-api==1.37.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "opentelemetry-api",
+                    "specifier": "==1.37.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/opentelemetry_api-1.37.0.dist-info"
+                }
+            ]
+        },
+        "nltk": {
+            "name": "nltk",
+            "version": "3.9.2",
+            "requirements": [
+                {
+                    "raw": "nltk==3.9.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "nltk",
+                    "specifier": "==3.9.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/nltk-3.9.2.dist-info"
+                }
+            ]
+        },
+        "httpx": {
+            "name": "httpx",
+            "version": "0.28.1",
+            "requirements": [
+                {
+                    "raw": "httpx==0.28.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "httpx",
+                    "specifier": "==0.28.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/httpx-0.28.1.dist-info"
+                }
+            ]
+        },
+        "filelock": {
+            "name": "filelock",
+            "version": "3.20.0",
+            "requirements": [
+                {
+                    "raw": "filelock==3.20.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "filelock",
+                    "specifier": "==3.20.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/filelock-3.20.0.dist-info"
+                }
+            ]
+        },
+        "ruamel.yaml": {
+            "name": "ruamel.yaml",
+            "version": "0.18.16",
+            "requirements": [
+                {
+                    "raw": "ruamel.yaml==0.18.16",
+                    "extras": [],
+                    "marker": null,
+                    "name": "ruamel.yaml",
+                    "specifier": "==0.18.16",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/ruamel.yaml-0.18.16.dist-info"
+                }
+            ]
+        },
+        "matplotlib-inline": {
+            "name": "matplotlib-inline",
+            "version": "0.1.7",
+            "requirements": [
+                {
+                    "raw": "matplotlib-inline==0.1.7",
+                    "extras": [],
+                    "marker": null,
+                    "name": "matplotlib-inline",
+                    "specifier": "==0.1.7",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/matplotlib_inline-0.1.7.dist-info"
+                }
+            ]
+        },
+        "importlib_metadata": {
+            "name": "importlib_metadata",
+            "version": "8.7.0",
+            "requirements": [
+                {
+                    "raw": "importlib_metadata==8.7.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "importlib_metadata",
+                    "specifier": "==8.7.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/importlib_metadata-8.7.0.dist-info"
+                }
+            ]
+        },
+        "scipy": {
+            "name": "scipy",
+            "version": "1.16.2",
+            "requirements": [
+                {
+                    "raw": "scipy==1.16.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "scipy",
+                    "specifier": "==1.16.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/scipy-1.16.2.dist-info"
+                }
+            ]
+        },
+        "pillow": {
+            "name": "pillow",
+            "version": "11.3.0",
+            "requirements": [
+                {
+                    "raw": "pillow==11.3.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pillow",
+                    "specifier": "==11.3.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pillow-11.3.0.dist-info"
+                }
+            ]
+        },
+        "cryptography": {
+            "name": "cryptography",
+            "version": "46.0.3",
+            "requirements": [
+                {
+                    "raw": "cryptography==46.0.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "cryptography",
+                    "specifier": "==46.0.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/cryptography-46.0.3.dist-info"
+                }
+            ]
+        },
+        "debugpy": {
+            "name": "debugpy",
+            "version": "1.8.17",
+            "requirements": [
+                {
+                    "raw": "debugpy==1.8.17",
+                    "extras": [],
+                    "marker": null,
+                    "name": "debugpy",
+                    "specifier": "==1.8.17",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/debugpy-1.8.17.dist-info"
+                }
+            ]
+        },
+        "opentelemetry-semantic-conventions": {
+            "name": "opentelemetry-semantic-conventions",
+            "version": "0.58b0",
+            "requirements": [
+                {
+                    "raw": "opentelemetry-semantic-conventions==0.58b0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "opentelemetry-semantic-conventions",
+                    "specifier": "==0.58b0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/opentelemetry_semantic_conventions-0.58b0.dist-info"
+                }
+            ]
+        },
+        "aiohttp": {
+            "name": "aiohttp",
+            "version": "3.13.0",
+            "requirements": [
+                {
+                    "raw": "aiohttp==3.13.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "aiohttp",
+                    "specifier": "==3.13.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/aiohttp-3.13.0.dist-info"
+                }
+            ]
+        },
+        "starlette": {
+            "name": "starlette",
+            "version": "0.50.0",
+            "requirements": [
+                {
+                    "raw": "starlette==0.50.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "starlette",
+                    "specifier": "==0.50.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/starlette-0.50.0.dist-info"
+                }
+            ]
+        },
+        "protobuf": {
+            "name": "protobuf",
+            "version": "6.33.1",
+            "requirements": [
+                {
+                    "raw": "protobuf==6.33.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "protobuf",
+                    "specifier": "==6.33.1",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/protobuf-6.33.1.dist-info"
+                }
+            ]
+        },
+        "iniconfig": {
+            "name": "iniconfig",
+            "version": "2.1.0",
+            "requirements": [
+                {
+                    "raw": "iniconfig==2.1.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "iniconfig",
+                    "specifier": "==2.1.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/iniconfig-2.1.0.dist-info"
+                }
+            ]
+        },
+        "typing-inspection": {
+            "name": "typing-inspection",
+            "version": "0.4.2",
+            "requirements": [
+                {
+                    "raw": "typing-inspection==0.4.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "typing-inspection",
+                    "specifier": "==0.4.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/typing_inspection-0.4.2.dist-info"
+                }
+            ]
+        },
+        "joblib": {
+            "name": "joblib",
+            "version": "1.5.2",
+            "requirements": [
+                {
+                    "raw": "joblib==1.5.2",
+                    "extras": [],
+                    "marker": null,
+                    "name": "joblib",
+                    "specifier": "==1.5.2",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/joblib-1.5.2.dist-info"
+                }
+            ]
+        },
+        "zipp": {
+            "name": "zipp",
+            "version": "3.23.0",
+            "requirements": [
+                {
+                    "raw": "zipp==3.23.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "zipp",
+                    "specifier": "==3.23.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/zipp-3.23.0.dist-info"
+                }
+            ]
+        },
+        "annotated-types": {
+            "name": "annotated-types",
+            "version": "0.7.0",
+            "requirements": [
+                {
+                    "raw": "annotated-types==0.7.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "annotated-types",
+                    "specifier": "==0.7.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/annotated_types-0.7.0.dist-info"
+                }
+            ]
+        },
+        "httpx-sse": {
+            "name": "httpx-sse",
+            "version": "0.4.3",
+            "requirements": [
+                {
+                    "raw": "httpx-sse==0.4.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "httpx-sse",
+                    "specifier": "==0.4.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/httpx_sse-0.4.3.dist-info"
+                }
+            ]
+        },
+        "wcwidth": {
+            "name": "wcwidth",
+            "version": "0.2.14",
+            "requirements": [
+                {
+                    "raw": "wcwidth==0.2.14",
+                    "extras": [],
+                    "marker": null,
+                    "name": "wcwidth",
+                    "specifier": "==0.2.14",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/wcwidth-0.2.14.dist-info"
+                }
+            ]
+        },
+        "widgetsnbextension": {
+            "name": "widgetsnbextension",
+            "version": "4.0.14",
+            "requirements": [
+                {
+                    "raw": "widgetsnbextension==4.0.14",
+                    "extras": [],
+                    "marker": null,
+                    "name": "widgetsnbextension",
+                    "specifier": "==4.0.14",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/widgetsnbextension-4.0.14.dist-info"
+                }
+            ]
+        },
+        "mypy_extensions": {
+            "name": "mypy_extensions",
+            "version": "1.1.0",
+            "requirements": [
+                {
+                    "raw": "mypy_extensions==1.1.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "mypy_extensions",
+                    "specifier": "==1.1.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/mypy_extensions-1.1.0.dist-info"
+                }
+            ]
+        },
+        "six": {
+            "name": "six",
+            "version": "1.17.0",
+            "requirements": [
+                {
+                    "raw": "six==1.17.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "six",
+                    "specifier": "==1.17.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/six-1.17.0.dist-info"
+                }
+            ]
+        },
+        "yarl": {
+            "name": "yarl",
+            "version": "1.22.0",
+            "requirements": [
+                {
+                    "raw": "yarl==1.22.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "yarl",
+                    "specifier": "==1.22.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/yarl-1.22.0.dist-info"
+                }
+            ]
+        },
+        "pycparser": {
+            "name": "pycparser",
+            "version": "2.23",
+            "requirements": [
+                {
+                    "raw": "pycparser==2.23",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pycparser",
+                    "specifier": "==2.23",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pycparser-2.23.dist-info"
+                }
+            ]
+        },
+        "pyzmq": {
+            "name": "pyzmq",
+            "version": "27.1.0",
+            "requirements": [
+                {
+                    "raw": "pyzmq==27.1.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pyzmq",
+                    "specifier": "==27.1.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/pyzmq-27.1.0.dist-info"
+                }
+            ]
+        },
+        "ipython": {
+            "name": "ipython",
+            "version": "9.6.0",
+            "requirements": [
+                {
+                    "raw": "ipython==9.6.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "ipython",
+                    "specifier": "==9.6.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/ipython-9.6.0.dist-info"
+                }
+            ]
+        },
+        "semgrep": {
+            "name": "semgrep",
+            "version": "1.144.0",
+            "requirements": [
+                {
+                    "raw": "semgrep==1.144.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "semgrep",
+                    "specifier": "==1.144.0",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/semgrep-1.144.0.dist-info"
+                }
+            ]
+        },
+        "matplotlib": {
+            "name": "matplotlib",
+            "version": "3.10.7",
+            "requirements": [
+                {
+                    "raw": "matplotlib==3.10.7",
+                    "extras": [],
+                    "marker": null,
+                    "name": "matplotlib",
+                    "specifier": "==3.10.7",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/matplotlib-3.10.7.dist-info"
+                }
+            ]
+        },
+        "comm": {
+            "name": "comm",
+            "version": "0.2.3",
+            "requirements": [
+                {
+                    "raw": "comm==0.2.3",
+                    "extras": [],
+                    "marker": null,
+                    "name": "comm",
+                    "specifier": "==0.2.3",
+                    "url": null,
+                    "found": "/Users/goodwiinz/development/RAG_system/.venv/lib/python3.13/site-packages/comm-0.2.3.dist-info"
+                }
+            ]
+        }
+    },
+    "affected_packages": {},
+    "announcements": [],
+    "vulnerabilities": [],
+    "ignored_vulnerabilities": [],
+    "remediations": {},
+    "remediations_results": {
+        "vulnerabilities_fixed": [],
+        "remediations_applied": {},
+        "remediations_skipped": {}
+    }
+}
+
+
++===========================================================================================================================================================================================+
+
+
+DEPRECATED: this command (`check`) has been DEPRECATED, and will be unsupported beyond 01 June 2024.
+
+
+We highly encourage switching to the new `scan` command which is easier to use, more powerful, and can be set up to mimic the deprecated command if required.
+
+
++===========================================================================================================================================================================================+
+
+

@@ -1,0 +1,222 @@
+# OpenTelemetry Collector Configuration for Multimodal RAG System
+# Supports traces, metrics, and logs collection with multiple exporters
+
+receivers:
+  # OpenTelemetry Protocol receiver for traces and metrics
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "http://localhost:3000"
+            - "http://localhost:3001"
+            - "http://grafana:3000"
+
+  # Prometheus receiver for metrics
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'rag-backend'
+          static_configs:
+            - targets: ['backend:8001']
+          metrics_path: /metrics
+          scrape_interval: 15s
+        - job_name: 'otel-collector'
+          static_configs:
+            - targets: ['localhost:8888']
+        - job_name: 'rag-node-exporter'
+          static_configs:
+            - targets: ['node-exporter:9100']
+        - job_name: 'rag-cadvisor'
+          static_configs:
+            - targets: ['cadvisor:8080']
+        - job_name: 'rag-postgres-exporter'
+          static_configs:
+            - targets: ['postgres-exporter:9187']
+        - job_name: 'rag-redis-exporter'
+          static_configs:
+            - targets: ['redis-exporter:9121']
+
+  # File log receiver for application logs
+  filelog:
+    include:
+      - /app/logs/*.log
+      - /app/logs/*/*.log
+    include_file_name: true
+    include_file_path: true
+    operators:
+      - type: json_parser
+        # Parse structured JSON logs
+        timestamp:
+          parse_from: attributes.timestamp
+          layout: "%Y-%m-%dT%H:%M:%S.%LZ"
+      - type: regex_parser
+        # Parse unstructured logs
+        regex: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d+Z)\s+(?P<level>\w+)\s+(?P<logger>\w+)\s+(?P<message>.*)'
+        timestamp:
+          parse_from: timestamp
+          layout: "%Y-%m-%dT%H:%M:%S.%LZ"
+
+  # Receive logs from Fluentd/Filebeat
+  fluent_forward:
+    endpoint: 0.0.0.0:24224
+
+processors:
+  # Resource detection and enrichment
+  resource:
+    attributes:
+      - key: service.name
+        value: multimodal-rag-system
+        action: upsert
+      - key: service.version
+        value: "1.0.0"
+        action: upsert
+      - key: environment
+        value: "development"
+        action: upsert
+
+  # Batch processing for efficiency
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 2s
+    limit_mib: 512
+
+  # Attributes processing
+  attributes:
+    actions:
+      - key: http.target
+        action: hash
+      - key: user.id
+        action: hash
+
+  # Transform and filter data
+  transform:
+    # Add useful attributes to traces
+    logs:
+      - action: add_attribute
+        key: service.name
+        value: multimodal-rag-system
+      - action: add_attribute
+        key: service.instance.id
+        value: "otel-collector"
+    traces:
+      - action: add_attribute
+        key: environment
+        value: development
+    metrics:
+      - action: add_attribute
+        key: environment
+        value: development
+
+  # Filter out unwanted metrics
+  filter:
+    metrics:
+      include:
+        match_type: regexp
+        metric_names:
+          - ".*document_processing.*"
+          - ".*websocket.*"
+          - ".*http.*"
+          - ".*database.*"
+          - ".*cache.*"
+          - ".*search.*"
+          - ".*ml.*"
+          - ".*system.*"
+
+exporters:
+  # Export traces to Jaeger
+  jaeger:
+    endpoint: jaeger:14250
+    tls:
+      insecure: true
+
+  # Export traces to Grafana Tempo (alternative)
+  otlp/tempo:
+    endpoint: http://tempo:4317
+    tls:
+      insecure: true
+
+  # Export metrics to Prometheus
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: "rag_system"
+    const_labels:
+      environment: "development"
+      service: "multimodal-rag"
+    send_timestamps: true
+    metric_expiration: 180m
+    enable_open_metrics: true
+
+  # Export logs to Elasticsearch via Logstash
+  elasticsearch/logstash:
+    endpoints: ["http://logstash:5000"]
+    index: "rag-logs-%Y.%m.%d"
+    flush_interval: 5s
+    max_retries: 2
+    timeout: 2m
+
+  # Debug logging exporter
+  logging:
+    loglevel: info
+    sampling_initial: 10
+    sampling_thereafter: 100
+
+extensions:
+  # Health check extension
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+  # Memory ballast extension
+  memory_ballast:
+    size_mib: 512
+
+  # Pprof extension for debugging
+  pprof:
+    endpoint: 0.0.0.0:1777
+
+  # zPages extension for debugging
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  # Define what pipelines to run
+  extensions:
+    - health_check
+    - memory_ballast
+    - pprof
+    - zpages
+
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, transform, attributes]
+      exporters: [jaeger, otlp/tempo, logging]
+
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [memory_limiter, batch, transform, filter, attributes]
+      exporters: [prometheus, logging]
+
+    logs:
+      receivers: [filelog, fluent_forward, otlp]
+      processors: [memory_limiter, batch, transform, attributes]
+      exporters: [elasticsearch/logstash, logging]
+
+  # Telemetry about the collector itself
+  telemetry:
+    logs:
+      level: "info"
+    metrics:
+      address: 0.0.0.0:8888
+    traces:
+      propagators:
+        - tracecontext
+        - baggage
+        - b3
