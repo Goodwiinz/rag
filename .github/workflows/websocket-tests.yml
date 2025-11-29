@@ -1,0 +1,305 @@
+name: WebSocket and Status API Tests
+
+on:
+  push:
+    branches: [ main, develop, "002-multimodal-enterprise-rag" ]
+    paths:
+      - 'backend/src/api/websocket**'
+      - 'backend/src/services/websocket**'
+      - 'backend/src/models/websocket_status.py'
+      - 'tests/api_contract/**'
+      - 'tests/fixtures/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/src/api/websocket**'
+      - 'backend/src/services/websocket**'
+      - 'backend/src/models/websocket_status.py'
+      - 'tests/api_contract/**'
+      - 'tests/fixtures/**'
+  schedule:
+    # Run comprehensive tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of tests to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - unit
+        - integration
+        - load
+        - performance
+      load_test_connections:
+        description: 'Number of connections for load test'
+        required: false
+        default: '1000'
+        type: string
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+  POSTGRES_VERSION: '15'
+  REDIS_VERSION: '7'
+  NEO4J_VERSION: '5'
+  QDRANT_VERSION: '1.7'
+
+jobs:
+  setup-test-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      cache-key: ${{ steps.cache.outputs.cache-hit }}
+      test-type: ${{ github.event.inputs.test_type || 'all' }}
+      load-connections: ${{ github.event.inputs.load_test_connections || '1000' }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      id: cache
+      with:
+        path: |
+          ~/.cache/pip
+          ~/.local/share/virtualenvs
+          backend/venv
+          node_modules
+        key: ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-websocket-${{ hashFiles('**/requirements*.txt', '**/package*.json') }}
+        restore-keys: |
+          ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-websocket-
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+        pip install -r requirements-test.txt
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install Node.js dependencies
+      run: |
+        npm ci
+
+  websocket-unit-tests:
+    needs: setup-test-environment
+    runs-on: ubuntu-latest
+    if: needs.setup-test-environment.outputs.test-type == 'all' || needs.setup-test-environment.outputs.test-type == 'unit'
+
+    services:
+      postgres:
+        image: postgres:${{ env.POSTGRES_VERSION }}
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: multimodal_rag_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:${{ env.REDIS_VERSION }}
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Restore cached dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/pip
+          ~/.local/share/virtualenvs
+          backend/venv
+        key: ${{ needs.setup-test-environment.outputs.cache-key }}
+
+    - name: Set up environment variables
+      run: |
+        cat > .env.test << EOF
+        DATABASE_URL=postgresql://postgres:postgres@localhost:5432/multimodal_rag_test
+        REDIS_URL=redis://localhost:6379
+        NEO4J_URI=bolt://localhost:7687
+        NEO4J_USER=neo4j
+        NEO4J_PASSWORD=password
+        QDRANT_URL=http://localhost:6333
+        JWT_SECRET_KEY=test_secret_key_for_ci
+        DEBUG=True
+        TESTING=True
+        LOG_LEVEL=DEBUG
+        EOF
+
+    - name: Run WebSocket unit tests
+      run: |
+        cd backend
+        python -m pytest tests/api_contract/websocket/test_connection_lifecycle.py -v \
+          --cov=src/services/websocket_manager \
+          --cov=src/api/websocket \
+          --cov-report=xml \
+          --cov-report=html \
+          --junit-xml=test-results/websocket-unit.xml
+
+    - name: Run message validation tests
+      run: |
+        cd backend
+        python -m pytest tests/api_contract/websocket/test_message_validation.py -v \
+          --junit-xml=test-results/message-validation.xml
+
+    - name: Run error handling tests
+      run: |
+        cd backend
+        python -m pytest tests/api_contract/websocket/test_error_handling.py -v \
+          --junit-xml=test-results/error-handling.xml
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: websocket-unit-test-results
+        path: |
+          test-results/
+          htmlcov/
+        retention-days: 7
+
+  rest-api-tests:
+    needs: setup-test-environment
+    runs-on: ubuntu-latest
+    if: needs.setup-test-environment.outputs.test-type == 'all' || needs.setup-test-environment.outputs.test-type == 'integration'
+
+    services:
+      postgres:
+        image: postgres:${{ env.POSTGRES_VERSION }}
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: multimodal_rag_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:${{ env.REDIS_VERSION }}
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      qdrant:
+        image: qdrant/qdrant:${{ env.QDRANT_VERSION }}
+        ports:
+          - 6333:6333
+        options: >-
+          --health-cmd "curl -f http://localhost:6333/health || exit 1"
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 3
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Restore cached dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/pip
+          ~/.local/share/virtualenvs
+          backend/venv
+        key: ${{ needs.setup-test-environment.outputs.cache-key }}
+
+    - name: Set up environment variables
+      run: |
+        cat > .env.test << EOF
+        DATABASE_URL=postgresql://postgres:postgres@localhost:5432/multimodal_rag_test
+        REDIS_URL=redis://localhost:6379
+        QDRANT_URL=http://localhost:6333
+        NEO4J_URI=bolt://localhost:7687
+        NEO4J_USER=neo4j
+        NEO4J_PASSWORD=password
+        JWT_SECRET_KEY=test_secret_key_for_ci
+        DEBUG=True
+        TESTING=True
+        LOG_LEVEL=INFO
+        EOF
+
+    - name: Run REST API status endpoint tests
+      run: |
+        cd backend
+        python -m pytest tests/api_contract/rest/test_status_endpoints.py -v \
+          --cov=src/api \
+          --cov-report=xml \
+          --junit-xml=test-results/rest-api-status.xml
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: rest-api-test-results
+        path: test-results/
+        retention-days: 7
+
+  security-scan:
+    needs: setup-test-environment
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install security tools
+      run: |
+        pip install bandit safety
+
+    - name: Run Bandit security scan
+      run: |
+        bandit -r backend/src/api/websocket.py \
+                 backend/src/services/websocket_manager.py \
+                 backend/src/models/websocket_status.py \
+                 -f json \
+                 -o security-scan-results.json
+
+    - name: Run Safety dependency check
+      run: |
+        safety check --json --output safety-results.json
+
+    - name: Upload security scan results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-scan-results
+        path: security-scan-results.json safety-results.json
+        retention-days: 30

@@ -1,0 +1,48 @@
+{
+  "name": "multimodal-rag-monorepo",
+  "version": "1.0.0",
+  "description": "Multimodal Enterprise RAG System - Monorepo Root",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "tests/e2e"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspace=frontend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "start": "npm run start --workspace=frontend",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:e2e": "npm run test:e2e --workspace=tests/e2e",
+    "clean": "npm run clean --workspaces --if-present && rm -rf node_modules",
+    "install:all": "npm install"
+  },
+  "engines": {
+    "node": ">=18.17.0",
+    "npm": ">=9.6.7"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/multimodal-rag-system"
+  },
+  "keywords": [
+    "rag",
+    "multimodal",
+    "enterprise",
+    "knowledge-graph",
+    "nextjs"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@radix-ui/react-label": "^2.1.7",
+    "@radix-ui/react-progress": "^1.1.7",
+    "@radix-ui/react-switch": "^1.2.6",
+    "critters": "^0.0.23",
+    "nanoid": "^5.1.6"
+  },
+  "devDependencies": {
+    "shadcn": "^3.5.0"
+  }
+}

@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: rag-monitoring
+  labels:
+    app: alertmanager
+    component: monitoring
+    version: v0.26.0
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+        component: monitoring
+      annotations:
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '9093'
+        prometheus.io/path: '/metrics'
+    spec:
+      serviceAccountName: alertmanager
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      containers:
+      - name: alertmanager
+        image: prom/alertmanager:v0.26.0
+        imagePullPolicy: IfNotPresent
+        args:
+          - '--config.file=/etc/alertmanager/alertmanager.yml'
+          - '--storage.path=/data'
+          - '--data.retention=120h'
+          - '--web.external-url=http://alertmanager:9093'
+          - '--web.route-prefix=/'
+          - '--cluster.listen-address=0.0.0.0:6783'
+          - '--web.enable-lifecycle'
+          - '--web.enable-admin-api'
+          - '--config.file=/etc/alertmanager/alertmanager.yml'
+          - '--storage.path=/data'
+          - '--data.retention=120h'
+          - '--cluster.listen-address=0.0.0.0:6783'
+          - '--web.external-url=http://alertmanager:9093'
+          - '--web.route-prefix=/'
+          - '--web.enable-lifecycle'
+          - '--web.enable-admin-api'
+        ports:
+        - containerPort: 9093
+          name: http
+          protocol: TCP
+        - containerPort: 6783
+          name: cluster
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 9093
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: 9093
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "125m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+        volumeMounts:
+        - name: alertmanager-config
+          mountPath: /etc/alertmanager
+        - name: alertmanager-data
+          mountPath: /data
+        - name: empty-dir
+          mountPath: /tmp
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: alertmanager-config
+        configMap:
+          name: alertmanager-config
+      - name: alertmanager-data
+        persistentVolumeClaim:
+          claimName: alertmanager-pvc
+      - name: empty-dir
+        emptyDir: {}
+      imagePullSecrets:
+      - name: regcred

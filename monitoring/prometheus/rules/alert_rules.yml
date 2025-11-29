@@ -1,0 +1,223 @@
+# Alert rules for RAG System
+groups:
+  - name: rag_system_alerts
+    rules:
+      # System Health Alerts
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} has been down for more than 1 minute."
+          runbook_url: "https://yourcompany.com/runbooks/service-down"
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status_class=~"5xx"}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "Error rate is {{ $value | humanizePercentage }} on {{ $labels.job }} for the last 5 minutes."
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: warning
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "High latency on {{ $labels.job }}"
+          description: "95th percentile latency is {{ $value }}s on {{ $labels.job }} for the last 5 minutes."
+
+  - name: rag_quality_alerts
+    rules:
+      # RAG Quality SLO Alerts
+      - alert: RAGAnswerRelevancyLow
+        expr: histogram_quantile(0.90, rate(rag_answer_relevancy_score_bucket[10m])) < 0.7
+        for: 5m
+        labels:
+          severity: warning
+          category: quality
+        annotations:
+          summary: "RAG Answer Relevancy below SLO"
+          description: "90th percentile answer relevancy is {{ $value }}, below SLO of 0.7."
+
+      - alert: RAGFaithfulnessLow
+        expr: histogram_quantile(0.90, rate(rag_faithfulness_score_bucket[10m])) < 0.9
+        for: 5m
+        labels:
+          severity: critical
+          category: quality
+        annotations:
+          summary: "RAG Faithfulness below SLO"
+          description: "90th percentile faithfulness is {{ $value }}, below SLO of 0.9."
+
+      - alert: RAGContextualRelevancyLow
+        expr: histogram_quantile(0.90, rate(rag_contextual_relevancy_score_bucket[10m])) < 0.7
+        for: 5m
+        labels:
+          severity: warning
+          category: quality
+        annotations:
+          summary: "RAG Contextual Relevancy below SLO"
+          description: "90th percentile contextual relevancy is {{ $value }}, below SLO of 0.7."
+
+  - name: rag_performance_alerts
+    rules:
+      # Search Performance Alerts
+      - alert: SearchLatencyHigh
+        expr: histogram_quantile(0.95, rate(search_duration_seconds_bucket[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Search latency is high"
+          description: "95th percentile search latency is {{ $value }}s, above threshold of 5s."
+
+      - alert: SearchErrorsHigh
+        expr: rate(search_requests_total{success="false"}[5m]) / rate(search_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "High search error rate"
+          description: "Search error rate is {{ $value | humanizePercentage }}, above threshold of 5%."
+
+      # File Processing Alerts
+      - alert: FileProcessingLatencyHigh
+        expr: histogram_quantile(0.95, rate(file_processing_duration_seconds_bucket[10m])) > 300
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "File processing latency is high"
+          description: "95th percentile file processing time is {{ $value }}s, above threshold of 5 minutes."
+
+      - alert: FileProcessingErrorsHigh
+        expr: rate(file_processing_errors_total[5m]) / rate(file_processing_total[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "High file processing error rate"
+          description: "File processing error rate is {{ $value | humanizePercentage }}, above threshold of 10%."
+
+  - name: rag_infrastructure_alerts
+    rules:
+      # Database Alerts
+      - alert: DatabaseConnectionsHigh
+        expr: database_connections_active > 80
+        for: 2m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "High database connections"
+          description: "{{ $value }} active database connections, above threshold of 80."
+
+      - alert: DatabaseQueryLatencyHigh
+        expr: histogram_quantile(0.95, rate(database_query_duration_seconds_bucket[5m])) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "Database query latency is high"
+          description: "95th percentile database query latency is {{ $value }}s, above threshold of 100ms."
+
+      # Redis Alerts
+      - alert: RedisLatencyHigh
+        expr: histogram_quantile(0.95, rate(redis_command_duration_seconds_bucket[5m])) > 0.01
+        for: 3m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "Redis latency is high"
+          description: "95th percentile Redis latency is {{ $value }}s, above threshold of 10ms."
+
+      # Vector Database Alerts
+      - alert: VectorSearchLatencyHigh
+        expr: histogram_quantile(0.95, rate(qdrant_search_duration_seconds_bucket[5m])) > 1
+        for: 3m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "Vector search latency is high"
+          description: "95th percentile vector search latency is {{ $value }}s, above threshold of 1s."
+
+  - name: rag_business_alerts
+    rules:
+      # Business Metrics Alerts
+      - alert: LowUserEngagement
+        expr: rate(user_sessions_total[1h]) < 10
+        for: 10m
+        labels:
+          severity: info
+          category: business
+        annotations:
+          summary: "Low user engagement"
+          description: "User session rate is {{ $value }} per hour, below threshold of 10."
+
+      - alert: HighDocumentUploadRate
+        expr: rate(document_uploads_total[5m]) > 100
+        for: 2m
+        labels:
+          severity: info
+          category: business
+        annotations:
+          summary: "High document upload rate"
+          description: "Document upload rate is {{ $value }} per minute, indicating high activity."
+
+      - alert: StorageUsageHigh
+        expr: system_disk_usage_bytes / system_disk_capacity_bytes > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: "Disk usage is high"
+          description: "Disk usage is {{ $value | humanizePercentage }}, above threshold of 90%."
+
+  - name: rag_security_alerts
+    rules:
+      # Security Alerts
+      - alert: HighAuthenticationFailureRate
+        expr: rate(authentication_failures_total[5m]) / rate(authentication_attempts_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "High authentication failure rate"
+          description: "Authentication failure rate is {{ $value | humanizePercentage }}, above threshold of 10%."
+
+      - alert: SuspiciousActivityDetected
+        expr: rate(suspicious_requests_total[5m]) > 5
+        for: 1m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "Suspicious activity detected"
+          description: "{{ $value }} suspicious requests per minute detected."
+
+      - alert: UnauthorizedAccessAttempts
+        expr: rate(unauthorized_access_attempts_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "High unauthorized access attempts"
+          description: "{{ $value }} unauthorized access attempts per minute."

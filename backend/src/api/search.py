@@ -160,6 +160,40 @@ async def get_search_suggestions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/history")
+async def get_search_history(
+    limit: int = Query(default=50, ge=1, le=100, description="Number of history items"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get search history for the current user (placeholder)
+    """
+    # Return empty list for now until search history table is implemented
+    return []
+
+
+@router.post("/history")
+async def add_search_history(
+    query: str,
+    result_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Add item to search history (placeholder)
+    """
+    return {"status": "success", "message": "Search history saved"}
+
+
+@router.delete("/history")
+async def clear_search_history(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Clear search history (placeholder)
+    """
+    return {"status": "success", "message": "Search history cleared"}
+
+
 @router.get("/analytics", response_model=SearchAnalytics)
 async def get_search_analytics(
     days: int = Query(default=30, ge=1, le=365, description="Number of days for analytics"),
@@ -338,6 +372,30 @@ async def get_popular_searches(
     except Exception as e:
         logger.error(f"Error getting popular searches: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/similar")
+async def get_similar_queries(
+    q: str = Query(..., min_length=2, description="Query to find similar searches for"),
+    limit: int = Query(default=5, ge=1, le=20, description="Number of similar queries"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get similar search queries (placeholder)
+    """
+    return []
+
+
+@router.get("/related/{result_id}")
+async def get_related_searches(
+    result_id: str,
+    limit: int = Query(default=5, ge=1, le=20, description="Number of related searches"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get related searches for a result (placeholder)
+    """
+    return []
 
 
 @router.post("/feedback")

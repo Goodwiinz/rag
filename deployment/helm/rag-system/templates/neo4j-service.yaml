@@ -1,0 +1,26 @@
+{{- if .Values.neo4j.enabled }}
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "rag-system.fullname" . }}-neo4j
+  namespace: {{ include "rag-system.namespace" . }}
+  labels:
+    {{- include "rag-system.labels" . | set "app" "neo4j" | set "version" "v1.0.0" | nindent 4 }}
+  {{- if .Values.neo4j.service.annotations }}
+  annotations:
+    {{- toYaml .Values.neo4j.service.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.neo4j.service.type }}
+  ports:
+  - port: {{ .Values.neo4j.service.port }}
+    targetPort: {{ .Values.neo4j.service.targetPort }}
+    name: {{ .Values.neo4j.service.portName }}
+    protocol: TCP
+  - port: {{ .Values.neo4j.service.boltPort }}
+    targetPort: {{ .Values.neo4j.service.targetBoltPort }}
+    name: {{ .Values.neo4j.service.portNameBolt }}
+    protocol: TCP
+  selector:
+    app: neo4j
+{{- end }}

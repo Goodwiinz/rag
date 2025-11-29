@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rag-backend
+  namespace: rag-system
+  labels:
+    app: rag-backend
+    version: v1.0.0
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8001"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+    protocol: TCP
+    appProtocol: HTTP
+  - name: metrics
+    port: 8001
+    targetPort: 8001
+    protocol: TCP
+    appProtocol: HTTP
+  selector:
+    app: rag-backend
+    version: v1.0.0
+  sessionAffinity: None
+  externalTrafficPolicy: Local
+  internalTrafficPolicy: Local

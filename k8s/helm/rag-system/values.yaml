@@ -1,0 +1,361 @@
+# Default values for rag-system Helm chart
+
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: "fast-ssd"
+
+# Common labels
+commonLabels:
+  app.kubernetes.io/name: rag-system
+  app.kubernetes.io/managed-by: Helm
+
+# Image settings
+image:
+  registry: docker.io
+  repository: rag-system
+  pullPolicy: IfNotPresent
+  tag: "latest"
+  backend:
+    repository: rag-system/backend
+  frontend:
+    repository: rag-system/frontend
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Ingress settings
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "500m"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+  hosts:
+    - host: rag.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: rag-tls
+      hosts:
+        - rag.yourdomain.com
+
+# Backend configuration
+backend:
+  replicaCount: 3
+  image:
+    repository: rag-system/backend
+    tag: "latest"
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  env:
+    - name: ENVIRONMENT
+      value: "production"
+    - name: LOG_LEVEL
+      value: "INFO"
+    - name: DEBUG
+      value: "false"
+  nodeSelector:
+    node-type: application
+  tolerations:
+    - key: "application"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                    - backend
+            topologyKey: kubernetes.io/hostname
+
+# Frontend configuration
+frontend:
+  replicaCount: 2
+  image:
+    repository: rag-system/frontend
+    tag: "latest"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  env:
+    - name: NODE_ENV
+      value: "production"
+    - name: REACT_APP_API_URL
+      value: "http://backend:8000"
+  nodeSelector:
+    node-type: application
+  tolerations:
+    - key: "application"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+
+# Celery configuration
+celery:
+  worker:
+    replicaCount: 4
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+    nodeSelector:
+      node-type: worker
+    tolerations:
+      - key: "worker"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+  beat:
+    replicaCount: 1
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    nodeSelector:
+      node-type: worker
+    tolerations:
+      - key: "worker"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+
+# Database configurations
+postgres:
+  enabled: true
+  image: postgres:15-alpine
+  auth:
+    database: ragdb
+    username: raguser
+    existingSecret: rag-secrets
+    existingSecretPasswordKey: db-password
+  primary:
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClass: fast-ssd
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+  auth:
+    enabled: true
+    existingSecret: rag-secrets
+    existingSecretPasswordKey: redis-password
+  master:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: fast-ssd
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+
+neo4j:
+  enabled: true
+  image: neo4j:5.15-community
+  auth:
+    enabled: true
+    existingSecret: rag-secrets
+    existingSecretPasswordKey: neo4j-password
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: fast-ssd
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+  plugins:
+    - apoc
+    - graph-data-science
+
+qdrant:
+  enabled: true
+  image: qdrant/qdrant:v1.7.0
+  auth:
+    enabled: true
+    existingSecret: rag-secrets
+    existingSecretApiKeyKey: qdrant-api-key
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: fast-ssd
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+    rules:
+      enabled: true
+  grafana:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+    dashboards:
+      enabled: true
+
+# Storage
+storage:
+  uploads:
+    size: 500Gi
+    storageClass: fast-ssd
+  logs:
+    size: 50Gi
+    storageClass: fast-ssd
+  models:
+    size: 100Gi
+    storageClass: fast-ssd
+  celerybeat:
+    size: 1Gi
+    storageClass: fast-ssd
+
+# Security
+security:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
+# Feature flags
+featureFlags:
+  multimodalProcessing: true
+  advancedAnalytics: true
+  evaluationMetrics: true
+  realTimeProcessing: false
+
+# Performance tuning
+performance:
+  maxFileSizeMB: 500
+  maxConcurrentUploads: 10
+  workerConcurrency: 4
+  cache:
+    enabled: true
+    ttlSeconds: 3600
+  compression:
+    enabled: true
+    level: 6
+
+# Resource quotas
+resourceQuotas:
+  enabled: true
+  requests:
+    cpu: "10"
+    memory: 20Gi
+  limits:
+    cpu: "20"
+    memory: 40Gi
+
+# Network policies
+networkPolicies:
+  enabled: true
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+  egress:
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+
+# Pod disruption budgets
+podDisruptionBudgets:
+  backend:
+    enabled: true
+    minAvailable: 2
+  frontend:
+    enabled: true
+    minAvailable: 1
+  celeryWorker:
+    enabled: true
+    minAvailable: 2
+
+# Backup configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: "7d"
+  storage:
+    size: 200Gi
+    storageClass: fast-ssd

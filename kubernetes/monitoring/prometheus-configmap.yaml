@@ -1,0 +1,486 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: multimodal-rag-system
+  labels:
+    app: monitoring
+    component: prometheus
+    version: 1.0.0
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        monitor: 'multimodal-rag-monitor'
+        cluster: 'production'
+        environment: 'production'
+
+    rule_files:
+      - "/etc/prometheus/rules/*.rules"
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093
+
+    scrape_configs:
+      # Backend service metrics
+      - job_name: 'backend'
+        static_configs:
+          - targets: ['backend-service:8080']
+        metrics_path: /metrics
+        scrape_interval: 15s
+        scrape_timeout: 10s
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __address__
+            replacement: backend-service:8000
+        labels:
+          service: 'backend'
+          component: 'api'
+
+      # WebSocket service metrics
+      - job_name: 'websocket'
+        static_configs:
+          - targets: ['backend-service:8001']
+        metrics_path: /ws/metrics
+        scrape_interval: 15s
+        scrape_timeout: 10s
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __address__
+            replacement: backend-service:8001
+        labels:
+          service: 'websocket'
+          component: 'realtime'
+
+      # Frontend service metrics
+      - job_name: 'frontend'
+        static_configs:
+          - targets: ['frontend-service:3000']
+        metrics_path: /metrics
+        scrape_interval: 30s
+        scrape_timeout: 10s
+        labels:
+          service: 'frontend'
+          component: 'ui'
+
+      # Node metrics
+      - job_name: 'node-exporter'
+        static_configs:
+          - targets: ['node-exporter:9100']
+        scrape_interval: 30s
+        labels:
+          service: 'infrastructure'
+          component: 'node'
+
+      # Kubernetes API metrics
+      - job_name: 'kubernetes-apiservers'
+        kubernetes_sd_configs:
+          - role: endpoints
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: default;kubernetes;https
+        labels:
+          service: 'kubernetes'
+          component: 'apiserver'
+
+      # Prometheus self-metrics
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+        scrape_interval: 30s
+        labels:
+          service: 'prometheus'
+          component: 'monitoring'
+
+      # Blackbox exporter for external checks
+      - job_name: 'blackbox'
+        static_configs:
+          - targets: ['blackbox-exporter:9115']
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - target_label: __address__
+            replacement: blackbox-exporter:9115
+        scrape_interval: 60s
+        labels:
+          service: 'blackbox'
+          component: 'healthcheck'
+
+      # PostgreSQL metrics
+      - job_name: 'postgres-exporter'
+        static_configs:
+          - targets: ['postgres-exporter:9187']
+        scrape_interval: 30s
+        labels:
+          service: 'postgres'
+          component: 'database'
+
+      # Redis metrics
+      - job_name: 'redis-exporter'
+        static_configs:
+          - targets: ['redis-exporter:9121']
+        scrape_interval: 30s
+        labels:
+          service: 'redis'
+          component: 'cache'
+
+      # Neo4j metrics
+      - job_name: 'neo4j-exporter'
+        static_configs:
+          - targets: ['neo4j-exporter:9100']
+        scrape_interval: 30s
+        labels:
+          service: 'neo4j'
+          component: 'graphdb'
+
+      # Qdrant metrics
+      - job_name: 'qdrant'
+        static_configs:
+          - targets: ['qdrant:6333']
+        metrics_path: /metrics
+        scrape_interval: 30s
+        labels:
+          service: 'qdrant'
+          component: 'vectordb'
+
+      # WebSocket custom metrics
+      - job_name: 'websocket-metrics'
+        static_configs:
+          - targets: ['backend-service:8001']
+        metrics_path: /ws/metrics
+        scrape_interval: 10s
+        scrape_timeout: 5s
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __address__
+            replacement: backend-service:8001
+        labels:
+          service: 'websocket-custom'
+          component: 'realtime-metrics'
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: multimodal-rag-system
+  labels:
+    app: monitoring
+    component: prometheus
+    version: 1.0.0
+data:
+  alert.rules: |
+    groups:
+      - name: multimodal-rag-alerts
+        rules:
+          # High response time alert
+          - alert: HighResponseTime
+            expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+            for: 5m
+            labels:
+              severity: warning
+              service: backend
+            annotations:
+              summary: "High response time detected"
+              description: "95th percentile response time is above 2 seconds for {{ $labels.service }}"
+
+          # High error rate alert
+          - alert: HighErrorRate
+            expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+            for: 5m
+            labels:
+              severity: critical
+              service: backend
+            annotations:
+              summary: "High error rate detected"
+              description: "Error rate is {{ $value }} for {{ $labels.service }}"
+
+          # WebSocket connection count alert
+          - alert: HighWebSocketConnections
+            expr: websocket_connections_total > 1000
+            for: 5m
+            labels:
+              severity: warning
+              service: websocket
+            annotations:
+              summary: "High WebSocket connection count"
+              description: "WebSocket connections: {{ $value }} for {{ $labels.service }}"
+
+          # WebSocket message rate alert
+          - alert: HighWebSocketMessageRate
+            expr: rate(websocket_messages_total[5m]) > 100
+            for: 5m
+            labels:
+              severity: warning
+              service: websocket
+            annotations:
+              summary: "High WebSocket message rate"
+              description: "Message rate: {{ $value }} messages/second for {{ $labels.service }}"
+
+          # Memory usage alert
+          - alert: HighMemoryUsage
+            expr: (container_memory_working_set_bytes / container_spec_memory_limit_bytes) > 0.8
+            for: 5m
+            labels:
+              severity: warning
+              service: backend
+            annotations:
+              summary: "High memory usage"
+              description: "Memory usage: {{ $value }} for {{ $labels.service }}"
+
+          # CPU usage alert
+          - alert: HighCPUUsage
+            expr: rate(container_cpu_usage_seconds_total[5m]) / container_spec_cpu_quota * 100 > 80
+            for: 5m
+            labels:
+              severity: warning
+              service: backend
+            annotations:
+              summary: "High CPU usage"
+              description: "CPU usage: {{ $value }}% for {{ $labels.service }}"
+
+          # PostgreSQL connection alert
+          - alert: PostgresHighConnections
+            expr: pg_stat_database_numbackends > 80
+            for: 5m
+            labels:
+              severity: warning
+              service: postgres
+            annotations:
+              summary: "High PostgreSQL connections"
+              description: "Database connections: {{ $value }}"
+
+          # Redis memory alert
+          - alert: RedisHighMemoryUsage
+            expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 80
+            for: 5m
+            labels:
+              severity: warning
+              service: redis
+            annotations:
+              summary: "High Redis memory usage"
+              description: "Memory usage: {{ $value }}%"
+
+          # Neo4j memory alert
+          - alert: Neo4jHighMemoryUsage
+            expr: neo4j_memory_used / neo4j_memory_max * 100 > 80
+            for: 5m
+            labels:
+              severity: warning
+              service: neo4j
+            annotations:
+              summary: "High Neo4j memory usage"
+              description: "Memory usage: {{ $value }}%"
+
+          # Qdrant disk alert
+          - alert: QdrantHighDiskUsage
+            expr: qdrant_storage_disk_usage_percent > 80
+            for: 5m
+            labels:
+              severity: warning
+              service: qdrant
+            annotations:
+              summary: "High Qdrant disk usage"
+              description: "Disk usage: {{ $value }}%"
+
+          # Health check failures
+          - alert: HealthCheckFailure
+            expr: up == 0
+            for: 1m
+            labels:
+              severity: critical
+              service: backend
+            annotations:
+              summary: "Health check failed"
+              description: "Health check failed for {{ $labels.instance }}"
+
+          # Low disk space
+          - alert: LowDiskSpace
+            expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100 < 10
+            for: 5m
+            labels:
+              severity: critical
+              service: infrastructure
+            annotations:
+              summary: "Low disk space"
+              description: "Disk space: {{ $value }}% available"
+
+          # High load average
+          - alert: HighLoadAverage
+            expr: node_load1 > 2
+            for: 5m
+            labels:
+              severity: warning
+              service: infrastructure
+            annotations:
+              summary: "High load average"
+              description: "1-minute load average: {{ $value }}"
+
+          # Network errors
+          - alert: NetworkErrors
+            expr: rate(node_network_receive_errs_total[5m]) > 0
+            for: 5m
+            labels:
+              severity: warning
+              service: infrastructure
+            annotations:
+              summary: "Network errors detected"
+              description: "Network errors: {{ $value }}"
+
+          # Container restarts
+          - alert: ContainerRestarts
+            expr: changes(container_status_restarts_total[5m]) > 3
+            for: 5m
+            labels:
+              severity: warning
+              service: backend
+            annotations:
+              summary: "Container restarts detected"
+              description: "Container {{ $labels.container }} restarted {{ $value }} times"
+
+          # Pod memory usage
+          - alert: PodMemoryUsage
+            expr: container_memory_working_set_bytes / container_spec_memory_limit_bytes > 0.9
+            for: 5m
+            labels:
+              severity: critical
+              service: backend
+            annotations:
+              summary: "Pod memory usage high"
+              description: "Memory usage: {{ $value }} for pod {{ $labels.pod }}"
+
+          # Pod CPU usage
+          - alert: PodCPUUsage
+            expr: sum(rate(container_cpu_usage_seconds_total[5m])) by (pod) / sum(container_spec_cpu_quota) by (pod) * 100 > 90
+            for: 5m
+            labels:
+              severity: warning
+              service: backend
+            annotations:
+              summary: "Pod CPU usage high"
+              description: "CPU usage: {{ $value }}% for pod {{ $labels.pod }}"
+
+          # WebSocket latency
+          - alert: WebSocketLatency
+            expr: histogram_quantile(0.95, rate(websocket_message_latency_seconds_bucket[5m])) > 1
+            for: 5m
+            labels:
+              severity: warning
+              service: websocket
+            annotations:
+              summary: "High WebSocket latency"
+              description: "95th percentile latency: {{ $value }}s"
+
+          # WebSocket error rate
+          - alert: WebSocketErrorRate
+            expr: rate(websocket_errors_total[5m]) / rate(websocket_messages_total[5m]) > 0.01
+            for: 5m
+            labels:
+              severity: critical
+              service: websocket
+            annotations:
+              summary: "High WebSocket error rate"
+              description: "Error rate: {{ $value }} for {{ $labels.service }}"
+
+          # Database query time
+          - alert: DatabaseQueryTime
+            expr: histogram_quantile(0.95, rate(pg_stat_database_call_time_seconds_sum[5m])) > 1
+            for: 5m
+            labels:
+              severity: warning
+              service: postgres
+            annotations:
+              summary: "High database query time"
+              description: "95th percentile query time: {{ $value }}s"
+
+          # Cache hit rate
+          - alert: LowCacheHitRate
+            expr: rate(redis_keyspace_hits_total[5m]) / (rate(redis_keyspace_hits_total[5m]) + rate(redis_keyspace_misses_total[5m])) < 0.8
+            for: 5m
+            labels:
+              severity: warning
+              service: redis
+            annotations:
+              summary: "Low cache hit rate"
+              description: "Cache hit rate: {{ $value }}"
+
+          # Vector database latency
+          - alert: QdrantLatency
+            expr: histogram_quantile(0.95, rate(qdrant_request_duration_seconds_bucket[5m])) > 2
+            for: 5m
+            labels:
+              severity: warning
+              service: qdrant
+            annotations:
+              summary: "High Qdrant latency"
+              description: "95th percentile latency: {{ $value }}s"
+
+          # Message queue backlog
+          - alert: MessageQueueBacklog
+            expr: celery_queue_length > 100
+            for: 5m
+            labels:
+              severity: warning
+              service: backend
+            annotations:
+              summary: "Message queue backlog"
+              description: "Queue length: {{ $value }}"
+
+          # Document processing rate
+          - alert: LowDocumentProcessingRate
+            expr: rate(documents_processed_total[5m]) < 1
+            for: 10m
+            labels:
+              severity: warning
+              service: backend
+            annotations:
+              summary: "Low document processing rate"
+              description: "Processing rate: {{ $value }} documents/minute"
+
+          # AI model inference time
+          - alert: HighModelInferenceTime
+            expr: histogram_quantile(0.95, rate(ai_model_inference_duration_seconds_bucket[5m])) > 10
+            for: 5m
+            labels:
+              severity: warning
+              service: backend
+            annotations:
+              summary: "High AI model inference time"
+              description: "95th percentile inference time: {{ $value }}s"
+
+          # File upload errors
+          - alert: FileUploadErrors
+            expr: rate(file_upload_errors_total[5m]) > 1
+            for: 5m
+            labels:
+              severity: warning
+              service: backend
+            annotations:
+              summary: "File upload errors detected"
+              description: "Upload errors: {{ $value }}/minute"
+
+          # Authentication failures
+          - alert: AuthenticationFailures
+            expr: rate(authentication_failures_total[5m]) > 5
+            for: 5m
+            labels:
+              severity: critical
+              service: backend
+            annotations:
+              summary: "Authentication failures detected"
+              description: "Authentication failures: {{ $value }}/minute"

@@ -1,0 +1,923 @@
+# name: CI/CD Pipeline - Document Upload & Processing
+
+# on:
+#   push:
+#     branches: [main, develop, staging]
+#   pull_request:
+#     branches: [main, develop]
+#   release:
+#     types: [published]
+
+# env:
+#   REGISTRY: ghcr.io
+#   IMAGE_NAME: ${{ github.repository }}
+
+# jobs:
+#   # === Code Quality & Security ===
+#   code-quality:
+#     name: Code Quality & Security
+#     runs-on: ubuntu-latest
+#     outputs:
+#       version: ${{ steps.version.outputs.version }}
+
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+#       with:
+#         fetch-depth: 0
+
+#     - name: Set up Python
+#       uses: actions/setup-python@v4
+#       with:
+#         python-version: '3.11'
+
+#     - name: Set up Node.js
+#       uses: actions/setup-node@v4
+#       with:
+#         node-version: '18'
+#         cache: 'npm'
+#         cache-dependency-path: frontend/package-lock.json
+
+#     - name: Install Python dependencies
+#       run: |
+#         python -m pip install --upgrade pip || {
+#           echo "Failed to upgrade pip"
+#           exit 1
+#         }
+#         pip install -r backend/requirements.txt || {
+#           echo "Failed to install main requirements"
+#           exit 1
+#         }
+#         pip install -r backend/requirements.dev.txt || {
+#           echo "Failed to install dev requirements"
+#           exit 1
+#         }
+
+#     - name: Install frontend dependencies
+#       working-directory: ./frontend
+#       run: |
+#         npm ci || {
+#           echo "Failed to install frontend dependencies"
+#           exit 1
+#         }
+
+#     - name: Lint Python code
+#       run: |
+#         echo "Running Python linting checks..."
+
+#         echo "Checking ruff linting..."
+#         ruff_check_output=$(ruff check backend/ 2>&1 || true)
+#         if [ -n "$ruff_check_output" ]; then
+#           echo "::warning::Ruff found issues:"
+#           echo "$ruff_check_output"
+#           echo "Run: ruff check --fix backend/ to fix"
+#         fi
+
+#         echo "Checking black formatting..."
+#         if ! black --check backend/; then
+#           echo "::warning::Code is not formatted with black"
+#           echo "Run: black backend/ to fix formatting"
+#         fi
+
+#         echo "Checking ruff import sorting..."
+#         import_issues=$(ruff check --select I backend/ 2>&1 || true)
+#         if [ -n "$import_issues" ]; then
+#           echo "::warning::Import sorting issues found:"
+#           echo "$import_issues"
+#           echo "Run: ruff check --fix --select I backend/ to fix imports"
+#         fi
+
+#         echo "Linting checks completed - see warnings above for issues to fix"
+
+#     - name: Lint TypeScript code
+#       working-directory: ./frontend
+#       run: |
+#         echo "Running frontend linting..."
+#         npm run lint || {
+#           echo "::warning::ESLint found issues - see above for details"
+#         }
+
+#         echo "Running TypeScript type check..."
+#         npm run type-check || {
+#           echo "::warning::TypeScript type errors found - see above for details"
+#         }
+
+#     - name: Run Python security scanning
+#       run: |
+#         sudo apt-get update -qq && sudo apt-get install -y -qq jq || {
+#           echo "Failed to install jq"
+#           exit 1
+#         }
+
+#         pip install bandit safety || {
+#           echo "Failed to install security tools"
+#           exit 1
+#         }
+
+#         echo "Running Bandit security scanner..."
+#         bandit -r backend/ -f json -o bandit-report.json || {
+#           echo "Bandit scanning completed with findings"
+#         }
+
+#         echo "Running Safety vulnerability check..."
+#         safety check --json --output safety-report.json || {
+#           echo "Safety check completed with findings"
+#         }
+        
+#         # Check for critical vulnerabilities in safety report
+#         critical_vulnerabilities=0
+#         if [ -f safety-report.json ]; then
+#           critical_count=$(jq '[.vulnerabilities[] | select(.severity == "critical")] | length' safety-report.json 2>/dev/null || echo "0")
+#           if [ "$critical_count" -gt 0 ]; then
+#             echo "::error::Found $critical_count CRITICAL vulnerabilities in dependencies!"
+#             jq '.vulnerabilities[] | select(.severity == "critical")' safety-report.json
+#             critical_vulnerabilities=1
+#           fi
+#         fi
+
+#         # Check for CONFIRMED high severity issues in bandit report
+#         if [ -f bandit-report.json ]; then
+#           high_confirmed=$(jq '[.results[] | select(.issue_severity == "HIGH" and .issue_cwe_id != null and .issue_cwe_id != "CWE-0")] | length' bandit-report.json 2>/dev/null || echo "0")
+#           if [ "$high_confirmed" -gt 0 ]; then
+#             echo "::warning::Found $high_confirmed CONFIRMED high severity security issues!"
+#             jq '.results[] | select(.issue_severity == "HIGH" and .issue_cwe_id != null and .issue_cwe_id != "CWE-0")' bandit-report.json
+#           fi
+#         fi
+
+#         if [ "$critical_vulnerabilities" -gt 0 ]; then
+#           echo "::error::Critical security issues found - failing build"
+#           exit 1
+#         fi
+
+#         echo "Security scans completed!"
+
+#     - name: Run Node.js security audit
+#       working-directory: ./frontend
+#       run: npm audit --audit-level moderate
+
+#     - name: Generate version
+#       id: version
+#       run: |
+#         if [[ "${{ github.event_name }}" == "release" ]]; then
+#           echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+#         else
+#           echo "version=$(git describe --tags --always --dirty)" >> $GITHUB_OUTPUT
+#         fi
+
+#     - name: Upload security reports
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: security-reports
+#         path: |
+#           bandit-report.json
+#           safety-report.json
+
+#   # === Testing ===
+#   test-backend:
+#     name: Backend Tests
+#     runs-on: ubuntu-latest
+#     needs: code-quality
+
+#     services:
+#       postgres:
+#         image: postgres:15-alpine
+#         env:
+#           POSTGRES_PASSWORD: postgres
+#           POSTGRES_DB: test_multimodal_rag
+#           POSTGRES_USER: postgres
+#         options: >-
+#           --health-cmd pg_isready -U postgres
+#           --health-interval 10s
+#           --health-timeout 5s
+#           --health-retries 5
+#         ports:
+#           - 5432:5432
+
+#       redis:
+#         image: redis:7-alpine
+#         options: >-
+#           --health-cmd "redis-cli ping"
+#           --health-interval 10s
+#           --health-timeout 5s
+#           --health-retries 5
+#         ports:
+#           - 6379:6379
+
+#       neo4j:
+#         image: neo4j:5.15-community
+#         env:
+#           NEO4J_AUTH: neo4j/neo4jpassword
+#           NEO4J_ACCEPT_LICENSE_AGREEMENT: yes
+#         options: >-
+#           --health-cmd "cypher-shell -u neo4j -p neo4jpassword 'RETURN 1'"
+#           --health-interval 10s
+#           --health-timeout 5s
+#           --health-retries 5
+#         ports:
+#           - 7474:7474
+#           - 7687:7687
+
+#       qdrant:
+#         image: qdrant/qdrant:v1.7.0
+#         ports:
+#           - 6333:6333
+
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+
+#     - name: Set up Python
+#       uses: actions/setup-python@v4
+#       with:
+#         python-version: '3.11'
+
+#     - name: Install dependencies
+#       run: |
+#         python -m pip install --upgrade pip
+#         pip install -r backend/requirements.txt
+#         pip install -r backend/requirements.dev.txt
+
+#     - name: Wait for services
+#       run: |
+#         echo "Waiting for services to be ready..."
+        
+#         # Function to check service readiness with proper validation
+#         check_service() {
+#           local service=$1
+#           local host=$2
+#           local port=$3
+#           local max_attempts=60
+#           local attempt=0
+          
+#           echo "Checking $service at $host:$port..."
+#           while [ $attempt -lt $max_attempts ]; do
+#             if nc -z $host $port 2>/dev/null; then
+#               echo "$service port is open, verifying service health..."
+              
+#               # Additional health checks for specific services
+#               case $service in
+#                 "PostgreSQL")
+#                   if PGPASSWORD=postgres psql -h localhost -U postgres -d test_multimodal_rag -c "SELECT 1" >/dev/null 2>&1; then
+#                     echo "$service is healthy!"
+#                     return 0
+#                   fi
+#                   ;;
+#                 "Redis")
+#                   if redis-cli -h localhost ping | grep -q PONG; then
+#                     echo "$service is healthy!"
+#                     return 0
+#                   fi
+#                   ;;
+#                 "Neo4j")
+#                   if curl -f -s http://localhost:7474/ > /dev/null 2>&1; then
+#                     echo "$service is healthy!"
+#                     return 0
+#                   fi
+#                   ;;
+#                 "Qdrant")
+#                   if curl -f -s http://localhost:6333/health >/dev/null 2>&1; then
+#                     echo "$service is healthy!"
+#                     return 0
+#                   fi
+#                   ;;
+#               esac
+#             fi
+#             attempt=$((attempt + 1))
+#             echo "Attempt $attempt/$max_attempts for $service..."
+#             sleep 5
+#           done
+#           echo "ERROR: $service failed to become ready within 300 seconds"
+#           return 1
+#         }
+        
+#         # Install required tools for health checks
+#         sudo apt-get update -qq
+#         sudo apt-get install -y -qq postgresql-client redis-tools curl netcat jq || {
+#           echo "Failed to install required tools"
+#           exit 1
+#         }
+        
+#         # Check PostgreSQL
+#         check_service "PostgreSQL" "localhost" "5432" || exit 1
+        
+#         # Check Redis
+#         check_service "Redis" "localhost" "6379" || exit 1
+        
+#         # Check Neo4j
+#         check_service "Neo4j" "localhost" "7687" || exit 1
+        
+#         # Check Qdrant
+#         check_service "Qdrant" "localhost" "6333" || exit 1
+        
+#         echo "All services are ready and healthy!"
+
+#     - name: Run unit tests
+#       env:
+#         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_multimodal_rag
+#         REDIS_URL: redis://localhost:6379
+#         NEO4J_URI: bolt://localhost:7687
+#         NEO4J_USER: neo4j
+#         NEO4J_PASSWORD: neo4jpassword
+#         QDRANT_URL: http://localhost:6333
+#         SECRET_KEY: test-secret-key
+#         ENVIRONMENT: testing
+#         PYTHONPATH: ./backend/src
+#       run: |
+#         python -m pytest tests/unit/ -v \
+#           --cov=backend/src \
+#           --cov-report=xml \
+#           --cov-report=html \
+#           --cov-report=term-missing \
+#           --cov-fail-under=70
+
+#         if [ $? -ne 0 ]; then
+#           echo "::error::Tests failed or coverage is below 70%"
+#           exit 1
+#         fi
+
+#     - name: Run integration tests
+#       env:
+#         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_multimodal_rag
+#         REDIS_URL: redis://localhost:6379
+#         NEO4J_URI: bolt://localhost:7687
+#         NEO4J_USER: neo4j
+#         NEO4J_PASSWORD: neo4jpassword
+#         QDRANT_URL: http://localhost:6333
+#         SECRET_KEY: test-secret-key
+#         ENVIRONMENT: testing
+#         PYTHONPATH: ./backend/src
+#       run: |
+#         python -m pytest tests/integration/ -v \
+#           --cov=backend/src \
+#           --cov-append \
+#           --cov-report=xml \
+#           --cov-fail-under=60
+
+#         if [ $? -ne 0 ]; then
+#           echo "::error::Integration tests failed or coverage is below 60%"
+#           exit 1
+#         fi
+
+#     - name: Upload coverage to Codecov
+#       uses: codecov/codecov-action@v3
+#       with:
+#         file: ./coverage.xml
+#         flags: backend
+#         name: backend-coverage
+
+#     - name: Upload test results
+#       uses: actions/upload-artifact@v4
+#       if: always()
+#       with:
+#         name: backend-test-results
+#         path: |
+#           htmlcov/
+#           coverage.xml
+
+#   test-frontend:
+#     name: Frontend Tests
+#     runs-on: ubuntu-latest
+#     needs: code-quality
+
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+
+#     - name: Set up Node.js
+#       uses: actions/setup-node@v4
+#       with:
+#         node-version: '18'
+#         cache: 'npm'
+#         cache-dependency-path: frontend/package-lock.json
+
+#     - name: Install dependencies
+#       working-directory: ./frontend
+#       run: npm ci
+
+#     - name: Run unit tests
+#       working-directory: ./frontend
+#       run: npm run test:unit -- --coverage --watchAll=false
+
+#     - name: Run component tests
+#       working-directory: ./frontend
+#       run: npm run test:component -- --coverage --watchAll=false
+
+#     - name: Upload coverage to Codecov
+#       uses: codecov/codecov-action@v3
+#       with:
+#         file: ./frontend/coverage/lcov.info
+#         flags: frontend
+#         name: frontend-coverage
+
+#     - name: Upload test results
+#       uses: actions/upload-artifact@v4
+#       if: always()
+#       with:
+#         name: frontend-test-results
+#         path: frontend/coverage/
+
+#   # === Build ===
+#   build-images:
+#     name: Build Docker Images
+#     runs-on: ubuntu-latest
+#     needs: [test-backend, test-frontend]
+#     outputs:
+#       backend-image: ${{ steps.meta-backend.outputs.tags }}
+#       frontend-image: ${{ steps.meta-frontend.outputs.tags }}
+#       version: ${{ needs.code-quality.outputs.version }}
+
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+
+#     - name: Set up Docker Buildx
+#       uses: docker/setup-buildx-action@v3
+
+#     - name: Log in to Container Registry
+#       uses: docker/login-action@v3
+#       with:
+#         registry: ${{ env.REGISTRY }}
+#         username: ${{ github.actor }}
+#         password: ${{ secrets.GITHUB_TOKEN }}
+
+#     - name: Extract metadata for backend
+#       id: meta-backend
+#       uses: docker/metadata-action@v5
+#       with:
+#         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend
+#         tags: |
+#           type=ref,event=branch
+#           type=ref,event=pr
+#           type=semver,pattern={{version}}
+#           type=semver,pattern={{major}}.{{minor}}
+#           type=raw,value=latest,enable={{is_default_branch}}
+
+#     - name: Extract metadata for frontend
+#       id: meta-frontend
+#       uses: docker/metadata-action@v5
+#       with:
+#         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend
+#         tags: |
+#           type=ref,event=branch
+#           type=ref,event=pr
+#           type=semver,pattern={{version}}
+#           type=semver,pattern={{major}}.{{minor}}
+#           type=raw,value=latest,enable={{is_default_branch}}
+
+#     - name: Build and push backend image
+#       uses: docker/build-push-action@v5
+#       with:
+#         context: ./backend
+#         file: ./backend/Dockerfile
+#         push: true
+#         tags: ${{ steps.meta-backend.outputs.tags }}
+#         labels: ${{ steps.meta-backend.outputs.labels }}
+#         cache-from: type=gha
+#         cache-to: type=gha,mode=max
+#         platforms: linux/amd64,linux/arm64
+
+#     - name: Build and push frontend image
+#       uses: docker/build-push-action@v5
+#       with:
+#         context: ./frontend
+#         file: ./frontend/Dockerfile
+#         push: true
+#         tags: ${{ steps.meta-frontend.outputs.tags }}
+#         labels: ${{ steps.meta-frontend.outputs.labels }}
+#         cache-from: type=gha
+#         cache-to: type=gha,mode=max
+#         platforms: linux/amd64,linux/arm64
+
+#   # === Security Scanning ===
+#   security-scan:
+#     name: Container Security Scan
+#     runs-on: ubuntu-latest
+#     needs: build-images
+#     if: github.event_name != 'pull_request'
+
+#     steps:
+#     - name: Run Trivy vulnerability scanner on backend
+#       uses: aquasecurity/trivy-action@master
+#       with:
+#         image-ref: ${{ needs.build-images.outputs.backend-image }}
+#         format: 'sarif'
+#         output: 'trivy-backend-results.sarif'
+
+#     - name: Run Trivy vulnerability scanner on frontend
+#       uses: aquasecurity/trivy-action@master
+#       with:
+#         image-ref: ${{ needs.build-images.outputs.frontend-image }}
+#         format: 'sarif'
+#         output: 'trivy-frontend-results.sarif'
+
+#     - name: Upload Trivy scan results to GitHub Security tab
+#       uses: github/codeql-action/upload-sarif@v2
+#       with:
+#         sarif_file: 'trivy-backend-results.sarif'
+
+#     - name: Upload Trivy scan results to GitHub Security tab (frontend)
+#       uses: github/codeql-action/upload-sarif@v2
+#       with:
+#         sarif_file: 'trivy-frontend-results.sarif'
+
+#   # === Pre-Deployment Validation ===
+#   pre-deploy-checks:
+#     name: Pre-Deployment Validation
+#     runs-on: ubuntu-latest
+#     needs: [build-images, security-scan]
+#     if: github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/develop' || github.event_name == 'release'
+
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+#       with:
+#         fetch-depth: 0
+
+#     - name: Check for breaking changes
+#       run: |
+#         echo "Checking for breaking changes..."
+
+#         # Check for migration files that indicate breaking changes
+#         MIGRATION_COUNT=$(git diff --name-only HEAD~1 | grep -c "alembic/versions/.*\.py" || echo "0")
+#         if [ "$MIGRATION_COUNT" -gt 5 ]; then
+#           echo "WARNING: Large number of migration files detected ($MIGRATION_COUNT)"
+#           echo "Please review migrations carefully before proceeding"
+#         fi
+
+#         # Check for dangerous patterns in migrations
+#         if git diff HEAD~1 -- alembic/versions/ | grep -q "op.drop_table\|op.drop_column\|op.alter_column.*nullable=False"; then
+#           echo "WARNING: Potentially destructive migration detected!"
+#           echo "Manual review required before deployment"
+#           exit 1
+#         fi
+
+#     - name: Verify deployment prerequisites
+#       run: |
+#         echo "Verifying deployment prerequisites..."
+
+#         # Check if all required files exist
+#         REQUIRED_FILES=("docker-compose.yml" "backend/Dockerfile" "frontend/Dockerfile" "backend/alembic.ini")
+#         for file in "${REQUIRED_FILES[@]}"; do
+#           if [ ! -f "$file" ]; then
+#             echo "ERROR: Required file missing: $file"
+#             exit 1
+#           fi
+#         done
+
+#         # Check if alembic can connect and show current revision (test migration readiness)
+#         echo "Migration system appears ready"
+
+#         # Verify that tests passed in earlier stages
+#         if [ "${{ needs.test-backend.result }}" != "success" ]; then
+#           echo "ERROR: Backend tests did not pass - cannot proceed with deployment"
+#           exit 1
+#         fi
+
+#         if [ "${{ needs.test-frontend.result }}" != "success" ]; then
+#           echo "ERROR: Frontend tests did not pass - cannot proceed with deployment"
+#           exit 1
+#         fi
+
+#         echo "All deployment prerequisites verified ✓"
+
+#   # === Deploy to Staging ===
+#   deploy-staging:
+#     name: Deploy to Staging
+#     runs-on: ubuntu-latest
+#     needs: [build-images, security-scan, pre-deploy-checks]
+#     if: github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/develop'
+#     environment:
+#       name: staging
+
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+
+#     - name: Configure SSH access
+#       run: |
+#         mkdir -p ~/.ssh
+#         echo "${{ secrets.STAGING_SSH_KEY }}" > ~/.ssh/deploy_key
+#         chmod 600 ~/.ssh/deploy_key
+#         ssh-keyscan -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts
+
+#     - name: Deploy to staging
+#       run: |
+#         echo "Deploying to staging environment..."
+#         ssh -i ~/.ssh/deploy_key ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} << 'EOF'
+#           cd ${{ secrets.STAGING_DEPLOY_PATH }}
+          
+#           # Pull latest images using GitHub Container Registry
+#           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username ${{ github.actor }} --password-stdin
+#           docker-compose pull backend frontend
+
+#           # Create database backup before migration
+#           echo "Creating database backup..."
+#           BACKUP_FILE="backup_$(date +%Y%m%d_%H%M%S).sql"
+#           docker-compose exec -T postgres pg_dump -U postgres multimodal_rag > "$BACKUP_FILE" || {
+#             echo "Failed to create database backup"
+#             exit 1
+#           }
+#           echo "Database backup created: $BACKUP_FILE"
+
+#           # Verify backup file is not empty
+#           if [ ! -s "$BACKUP_FILE" ]; then
+#             echo "ERROR: Backup file is empty!"
+#             exit 1
+#           fi
+
+#           # Capture current DB migration revision before upgrade
+#           CURRENT_REVISION=$(docker-compose run --rm backend alembic current 2>&1 | grep -oP '^[a-f0-9]+' | head -n 1)
+#           echo "Current DB revision: ${CURRENT_REVISION:-none}"
+#           echo "$CURRENT_REVISION" > .deployment_rollback_revision
+
+#           # Run database migrations
+#           if ! docker-compose run --rm backend alembic upgrade head; then
+#             echo "Migration failed, rolling back to revision: ${CURRENT_REVISION:-base}"
+#             if [ -n "$CURRENT_REVISION" ]; then
+#               docker-compose run --rm backend alembic downgrade "$CURRENT_REVISION" || {
+#                 echo "Rollback to $CURRENT_REVISION failed, attempting restore from backup..."
+#                 # Trigger backup restore path here
+#                 exit 1
+#               }
+#             else
+#               echo "No previous revision found, cannot rollback"
+#               exit 1
+#             fi
+#             exit 1
+#           fi
+          
+#           # Start services
+#           docker-compose up -d backend frontend
+          
+#           # Wait for services to be healthy
+#           for i in {1..30}; do
+#             if docker-compose ps | grep -q "Up (healthy)"; then
+#               echo "Services are healthy"
+#               break
+#             fi
+#             sleep 5
+#           done
+#         EOF
+
+#     - name: Run smoke tests
+#       run: |
+#         echo "Running smoke tests on staging..."
+#         max_retries=3
+#         retry_count=0
+        
+#         while [ $retry_count -lt $max_retries ]; do
+#           # Health check
+#           if curl -f -s ${{ secrets.STAGING_API_URL }}/health > /dev/null; then
+#             echo "Health check passed"
+            
+#             # Basic API test
+#             response=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.STAGING_API_URL }}/api/v1/status)
+#             if [ "$response" = "200" ]; then
+#               echo "Smoke tests passed"
+#               exit 0
+#             fi
+#           fi
+          
+#           retry_count=$((retry_count + 1))
+#           echo "Attempt $retry_count failed, retrying..."
+#           sleep 10
+#         done
+        
+#         echo "Smoke tests failed after $max_retries attempts"
+#         exit 1
+
+#     - name: Rollback on failure
+#       if: failure()
+#       run: |
+#         echo "Deployment failed, rolling back..."
+#         ssh -i ~/.ssh/deploy_key ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} << 'EOF'
+#           cd ${{ secrets.STAGING_DEPLOY_PATH }}
+#           echo "Initiating rollback procedure..."
+
+#           # Read saved revision from file (created during deployment)
+#           if [ -f ".deployment_rollback_revision" ]; then
+#             ROLLBACK_REVISION=$(cat .deployment_rollback_revision)
+#             echo "Found saved revision for rollback: $ROLLBACK_REVISION"
+#           else
+#             echo "ERROR: No rollback revision file found - this indicates a serious deployment issue"
+#             exit 1
+#           fi
+
+#           # Stop all services
+#           docker-compose down
+
+#           # Rollback database migration
+#           if [ -n "$ROLLBACK_REVISION" ]; then
+#             echo "Rolling back database to revision: $ROLLBACK_REVISION"
+#             docker-compose run --rm backend alembic downgrade "$ROLLBACK_REVISION" || {
+#               echo "CRITICAL: Database rollback failed! Manual intervention required."
+#               echo "Available backups:"
+#               ls -la backup_*.sql 2>/dev/null || echo "No backup files found"
+#               exit 1
+#             }
+#             echo "Database rollback completed successfully"
+#           else
+#             echo "ERROR: No rollback revision available"
+#             exit 1
+#           fi
+
+#           # Restart services with previous database state
+#           docker-compose up -d
+
+#           echo "Rollback completed - services restarted with previous state"
+#         EOF
+
+#     - name: Notify deployment status (Staging)
+#       if: always()
+#       run: |
+#         if [ "${{ job.status }}" == "success" ]; then
+#           echo "✅ Staging deployment completed successfully"
+#           # Add Slack notification here if needed:
+#           # curl -X POST -H 'Content-type: application/json' \
+#           #   --data '{"text":"✅ Staging deployment successful for ${{ github.repository }}"}' \
+#           #   ${{ secrets.SLACK_WEBHOOK }}
+#         else
+#           echo "❌ Staging deployment failed - check logs for details"
+#           # Add Slack notification here if needed:
+#           # curl -X POST -H 'Content-type: application/json' \
+#           #   --data '{"text":"❌ Staging deployment FAILED for ${{ github.repository }}"}' \
+#           #   ${{ secrets.SLACK_WEBHOOK }}
+#         fi
+
+#   # === Deploy to Production ===
+#   deploy-production:
+#     name: Deploy to Production
+#     runs-on: ubuntu-latest
+#     needs: [build-images, security-scan, pre-deploy-checks]
+#     if: github.event_name == 'release'
+#     environment:
+#       name: production
+
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+
+#     - name: Configure SSH access for production
+#       run: |
+#         mkdir -p ~/.ssh
+#         echo "${{ secrets.PRODUCTION_SSH_KEY }}" > ~/.ssh/deploy_key
+#         chmod 600 ~/.ssh/deploy_key
+#         ssh-keyscan -H ${{ secrets.PRODUCTION_HOST }} >> ~/.ssh/known_hosts
+
+#     - name: Deploy to production
+#       run: |
+#         echo "Deploying to production..."
+#         ssh -i ~/.ssh/deploy_key ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} << 'EOF'
+#           cd ${{ secrets.PRODUCTION_DEPLOY_PATH }}
+
+#           # Pull latest images using GitHub Container Registry
+#           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username ${{ github.actor }} --password-stdin
+#           docker-compose pull backend frontend
+
+#           # Create database backup before migration (PRODUCTION)
+#           echo "Creating PRODUCTION database backup..."
+#           BACKUP_FILE="production_backup_$(date +%Y%m%d_%H%M%S).sql"
+#           docker-compose exec -T postgres pg_dump -U postgres multimodal_rag > "$BACKUP_FILE" || {
+#             echo "FAILED TO CREATE PRODUCTION DATABASE BACKUP - ABORTING DEPLOYMENT"
+#             exit 1
+#           }
+#           echo "PRODUCTION database backup created: $BACKUP_FILE"
+
+#           # Verify backup file is not empty
+#           if [ ! -s "$BACKUP_FILE" ]; then
+#             echo "ERROR: PRODUCTION backup file is empty!"
+#             exit 1
+#           fi
+
+#           # Upload backup to secure storage (optional)
+#           # aws s3 cp "$BACKUP_FILE" s3://your-backup-bucket/
+
+#           # Capture current DB migration revision before upgrade
+#           CURRENT_REVISION=$(docker-compose run --rm backend alembic current 2>&1 | grep -oP '^[a-f0-9]+' | head -n 1)
+#           echo "Current DB revision: ${CURRENT_REVISION:-none}"
+#           echo "$CURRENT_REVISION" > .deployment_rollback_revision
+
+#           # Run database migrations
+#           if ! docker-compose run --rm backend alembic upgrade head; then
+#             echo "Migration failed, rolling back to revision: ${CURRENT_REVISION:-base}"
+#             if [ -n "$CURRENT_REVISION" ]; then
+#               docker-compose run --rm backend alembic downgrade "$CURRENT_REVISION" || {
+#                 echo "Rollback to $CURRENT_REVISION failed, attempting restore from backup..."
+#                 exit 1
+#               }
+#             else
+#               echo "No previous revision found, cannot rollback"
+#               exit 1
+#             fi
+#             exit 1
+#           fi
+
+#           # Start services
+#           docker-compose up -d backend frontend
+
+#           # Wait for services to be healthy
+#           for i in {1..60}; do
+#             if docker-compose ps | grep -q "Up (healthy)"; then
+#               echo "Services are healthy"
+#               break
+#             fi
+#             sleep 10
+#           done
+#         EOF
+
+#     - name: Run production smoke tests
+#       run: |
+#         echo "Running production smoke tests..."
+#         max_retries=5
+#         retry_count=0
+
+#         while [ $retry_count -lt $max_retries ]; do
+#           # Health check
+#           if curl -f -s ${{ secrets.PRODUCTION_API_URL }}/health > /dev/null; then
+#             echo "Health check passed"
+
+#             # Basic API test
+#             response=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.PRODUCTION_API_URL }}/api/v1/status)
+#             if [ "$response" = "200" ]; then
+#               echo "Production smoke tests passed"
+#               exit 0
+#             fi
+#           fi
+
+#           retry_count=$((retry_count + 1))
+#           echo "Attempt $retry_count failed, retrying..."
+#           sleep 30
+#         done
+
+#         echo "Production smoke tests failed after $max_retries attempts"
+#         exit 1
+
+#     - name: Rollback on production failure
+#       if: failure()
+#       run: |
+#         echo "PRODUCTION deployment failed - EMERGENCY ROLLBACK INITIATED"
+#         ssh -i ~/.ssh/deploy_key ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} << 'EOF'
+#           cd ${{ secrets.PRODUCTION_DEPLOY_PATH }}
+#           echo "!!! PRODUCTION ROLLBACK IN PROGRESS !!!"
+
+#           # Read saved revision from file (created during deployment)
+#           if [ -f ".deployment_rollback_revision" ]; then
+#             ROLLBACK_REVISION=$(cat .deployment_rollback_revision)
+#             echo "PRODUCTION rollback revision: $ROLLBACK_REVISION"
+#           else
+#             echo "CRITICAL: No production rollback revision file found!"
+#             exit 1
+#           fi
+
+#           # Emergency stop all services
+#           docker-compose down
+
+#           # Restore from most recent backup if available (safest option)
+#           LATEST_BACKUP=$(ls -t production_backup_*.sql 2>/dev/null | head -n1)
+#           if [ -n "$LATEST_BACKUP" ]; then
+#             echo "Restoring from latest backup: $LATEST_BACKUP"
+#             docker-compose up -d postgres
+#             sleep 10  # Wait for postgres to be ready
+#             docker-compose exec -T postgres psql -U postgres -c "DROP DATABASE IF EXISTS multimodal_rag;"
+#             docker-compose exec -T postgres psql -U postgres -c "CREATE DATABASE multimodal_rag;"
+#             docker-compose exec -T postgres psql -U postgres multimodal_rag < "$LATEST_BACKUP" || {
+#               echo "CRITICAL: Database restore failed!"
+#               exit 1
+#             }
+#             echo "Database restore completed successfully"
+#           else
+#             # Fallback to migration rollback if no backup available
+#             if [ -n "$ROLLBACK_REVISION" ]; then
+#               echo "No backup found, rolling back migration to: $ROLLBACK_REVISION"
+#               docker-compose run --rm backend alembic downgrade "$ROLLBACK_REVISION" || {
+#                 echo "CRITICAL: Production rollback failed! MANUAL INTERVENTION REQUIRED!"
+#                 exit 1
+#               }
+#             fi
+#           fi
+
+#           # Restart all services
+#           docker-compose up -d
+
+#           echo "!!! PRODUCTION ROLLBACK COMPLETED - VERIFY SYSTEM STATUS !!!"
+#         EOF
+
+#     - name: Notify deployment status (Production)
+#       if: always()
+#       run: |
+#         if [ "${{ job.status }}" == "success" ]; then
+#           echo "🎉 PRODUCTION deployment completed successfully"
+#           echo "📊 Release: ${{ github.event_name }}"
+#           echo "🏷️ Tag: ${{ github.ref_name }}"
+#           # Add Slack notification here if needed:
+#           # curl -X POST -H 'Content-type: application/json' \
+#           #   --data '{"text":"🎉 PRODUCTION deployment successful for ${{ github.repository }} (Release: ${{ github.ref_name }})"}' \
+#           #   ${{ secrets.SLACK_WEBHOOK }}
+#         else
+#           echo "🚨 PRODUCTION deployment FAILED - IMMEDIATE ATTENTION REQUIRED"
+#           echo "🔗 Check GitHub Actions logs for details"
+#           # Add Slack notification here if needed:
+#           # curl -X POST -H 'Content-type: application/json' \
+#           #   --data '{"text":"🚨 PRODUCTION deployment FAILED for ${{ github.repository }} - IMMEDIATE ATTENTION REQUIRED!"}' \
+#           #   ${{ secrets.SLACK_WEBHOOK }}
+#         fi

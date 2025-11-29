@@ -530,7 +530,7 @@ class TestAnalyticsInputSanitizer:
 
         # Malicious parameters
         malicious_params = {
-            'component'; "'; DROP TABLE users; --": 'value',
+            'component': "'; DROP TABLE users; --",
             'valid_field': 'normal_value'
         }
 

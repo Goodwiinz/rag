@@ -1,0 +1,2331 @@
+openapi: 3.0.3
+info:
+  title: Multimodal RAG Analytics Service API
+  description: |
+    Analytics Service for query patterns, user behavior analysis, and performance dashboards.
+
+    ## Features
+    - Real-time query analytics and pattern analysis
+    - User behavior tracking and insights
+    - Performance metrics and monitoring
+    - Custom dashboard data aggregation
+    - Trend analysis and predictive analytics
+    - Multi-dimensional data slicing
+    - Export and visualization support
+
+    ## Authentication
+    All endpoints require JWT authentication with valid organization and user context.
+
+    ## Rate Limiting
+    - Query endpoints: 200 requests/minute
+    - Analytics endpoints: 100 requests/minute
+    - Export endpoints: 10 requests/minute
+
+  version: 1.0.0
+  contact:
+    name: RAG Analytics Team
+    email: analytics@multimodal-rag.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.multimodal-rag.com/analytics/v1
+    description: Production server
+  - url: https://staging-api.multimodal-rag.com/analytics/v1
+    description: Staging server
+  - url: http://localhost:8083/v1
+    description: Development server
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: Returns service health status and basic metrics
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /analytics/query-patterns:
+    get:
+      tags:
+        - Query Analytics
+      summary: Get query pattern analytics
+      description: |
+        Retrieves comprehensive query pattern analytics including:
+        - Most frequent queries
+        - Query length distribution
+        - Query complexity metrics
+        - Temporal query patterns
+        - Query categorization
+        - Search intent analysis
+      operationId: getQueryPatterns
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdParam'
+        - $ref: '#/components/parameters/TimeRangeParam'
+        - $ref: '#/components/parameters/QueryTypeParam'
+        - $ref: '#/components/parameters/GranularityParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Query patterns retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryPatternsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /analytics/user-behavior:
+    get:
+      tags:
+        - User Analytics
+      summary: Get user behavior analytics
+      description: |
+        Retrieves detailed user behavior analytics including:
+        - User engagement metrics
+        - Session analysis
+        - User journey mapping
+        - Feature adoption rates
+        - User segmentation
+        - Retention analysis
+      operationId: getUserBehaviorAnalytics
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdParam'
+        - $ref: '#/components/parameters/TimeRangeParam'
+        - $ref: '#/components/parameters/UserSegmentParam'
+        - $ref: '#/components/parameters/BehaviorTypeParam'
+        - $ref: '#/components/parameters/GranularityParam'
+      responses:
+        '200':
+          description: User behavior analytics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserBehaviorAnalyticsResponse'
+
+  /analytics/performance:
+    get:
+      tags:
+        - Performance Analytics
+      summary: Get performance analytics
+      description: |
+        Retrieves system performance analytics including:
+        - Response time metrics
+        - Throughput analysis
+        - Error rates
+        - Resource utilization
+        - Service latency distribution
+        - Performance trends
+      operationId: getPerformanceAnalytics
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdParam'
+        - $ref: '#/components/parameters/TimeRangeParam'
+        - $ref: '#/components/parameters/ServiceNameParam'
+        - $ref: '#/components/parameters/MetricTypeParam'
+        - $ref: '#/components/parameters/GranularityParam'
+      responses:
+        '200':
+          description: Performance analytics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PerformanceAnalyticsResponse'
+
+  /analytics/content-quality:
+    get:
+      tags:
+        - Content Analytics
+      summary: Get content quality analytics
+      description: |
+        Retrieves content quality analytics including:
+        - Document quality distribution
+        - Content coverage analysis
+        - Knowledge gap identification
+        - Content freshness metrics
+        - Multimodal content analysis
+        - Quality improvement opportunities
+      operationId: getContentQualityAnalytics
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdParam'
+        - $ref: '#/components/parameters/TimeRangeParam'
+        - $ref: '#/components/parameters/ContentTypeParam'
+        - $ref: '#/components/parameters/QualityMetricParam'
+      responses:
+        '200':
+          description: Content quality analytics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentQualityAnalyticsResponse'
+
+  /analytics/usage-summary:
+    get:
+      tags:
+        - Usage Analytics
+      summary: Get usage summary dashboard
+      description: Retrieves comprehensive usage summary for dashboard display
+      operationId: getUsageSummary
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdParam'
+        - $ref: '#/components/parameters/TimeRangeParam'
+        - $ref: '#/components/parameters/DashboardTypeParam'
+      responses:
+        '200':
+          description: Usage summary retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageSummaryResponse'
+
+  /analytics/trends:
+    get:
+      tags:
+        - Trend Analysis
+      summary: Get trend analysis
+      description: |
+        Retrieves trend analysis for various metrics including:
+        - Query volume trends
+        - User activity trends
+        - Performance trends
+        - Quality trends
+        - Feature adoption trends
+      operationId: getTrendAnalysis
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdParam'
+        - $ref: '#/components/parameters/TrendMetricParam'
+        - $ref: '#/components/parameters/TrendPeriodParam'
+        - $ref: '#/components/parameters/ForecastEnabledParam'
+      responses:
+        '200':
+          description: Trend analysis retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrendAnalysisResponse'
+
+  /analytics/custom:
+    post:
+      tags:
+        - Custom Analytics
+      summary: Execute custom analytics query
+      description: Executes custom analytics queries with flexible filtering and aggregation
+      operationId: executeCustomAnalytics
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomAnalyticsRequest'
+      responses:
+        '200':
+          description: Custom analytics executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomAnalyticsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /analytics/insights:
+    get:
+      tags:
+        - Insights
+      summary: Get AI-powered insights
+      description: |
+        Retrieves AI-powered insights including:
+        - Anomaly detection
+        - Predictive analytics
+        - Recommendations
+        - Opportunity identification
+        - Risk assessment
+      operationId: getInsights
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdParam'
+        - $ref: '#/components/parameters/InsightTypeParam'
+        - $ref: '#/components/parameters/ConfidenceThresholdParam'
+      responses:
+        '200':
+          description: Insights retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InsightsResponse'
+
+  /dashboards:
+    get:
+      tags:
+        - Dashboards
+      summary: List available dashboards
+      description: Retrieves list of available analytics dashboards
+      operationId: listDashboards
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DashboardCategoryParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Dashboards retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardsResponse'
+
+    post:
+      tags:
+        - Dashboards
+      summary: Create custom dashboard
+      description: Creates a new custom analytics dashboard
+      operationId: createDashboard
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDashboardRequest'
+      responses:
+        '201':
+          description: Dashboard created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /dashboards/{dashboardId}:
+    get:
+      tags:
+        - Dashboards
+      summary: Get dashboard details
+      description: Retrieves specific dashboard configuration and data
+      operationId: getDashboard
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DashboardIdParam'
+        - $ref: '#/components/parameters/TimeRangeParam'
+      responses:
+        '200':
+          description: Dashboard retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Dashboards
+      summary: Update dashboard
+      description: Updates an existing dashboard configuration
+      operationId: updateDashboard
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DashboardIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDashboardRequest'
+      responses:
+        '200':
+          description: Dashboard updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Dashboards
+      summary: Delete dashboard
+      description: Deletes a custom dashboard
+      operationId: deleteDashboard
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DashboardIdParam'
+      responses:
+        '204':
+          description: Dashboard deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /dashboards/{dashboardId}/data:
+    get:
+      tags:
+        - Dashboards
+      summary: Get dashboard data
+      description: Retrieves data for a specific dashboard
+      operationId: getDashboardData
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DashboardIdParam'
+        - $ref: '#/components/parameters/TimeRangeParam'
+        - $ref: '#/components/parameters/RefreshParam'
+      responses:
+        '200':
+          description: Dashboard data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardDataResponse'
+
+  /export/analytics:
+    post:
+      tags:
+        - Export
+      summary: Export analytics data
+      description: Exports analytics data in specified format
+      operationId: exportAnalyticsData
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportAnalyticsRequest'
+      responses:
+        '202':
+          description: Export job started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportJobResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /export/jobs/{jobId}:
+    get:
+      tags:
+        - Export
+      summary: Get export job status
+      description: Retrieves status of an export job
+      operationId: getExportJobStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/JobIdParam'
+      responses:
+        '200':
+          description: Export job status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportJobStatusResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /export/jobs/{jobId}/download:
+    get:
+      tags:
+        - Export
+      summary: Download exported data
+      description: Downloads the exported data file
+      operationId: downloadExportedData
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/JobIdParam'
+      responses:
+        '200':
+          description: Export file downloaded successfully
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Export job not completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /events/track:
+    post:
+      tags:
+        - Event Tracking
+      summary: Track analytics event
+      description: Tracks custom analytics events
+      operationId: trackAnalyticsEvent
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyticsEventRequest'
+      responses:
+        '202':
+          description: Event tracked successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /events/batch:
+    post:
+      tags:
+        - Event Tracking
+      summary: Batch track analytics events
+      description: Tracks multiple analytics events in batch
+      operationId: batchTrackAnalyticsEvents
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchAnalyticsEventsRequest'
+      responses:
+        '202':
+          description: Events tracked successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    OrganizationIdParam:
+      name: organizationId
+      in: query
+      description: Organization ID filter
+      required: false
+      schema:
+        type: string
+        format: uuid
+
+    TimeRangeParam:
+      name: timeRange
+      in: query
+      description: Time range for analytics (default: 7d)
+      required: false
+      schema:
+        type: string
+        enum:
+          - 1h
+          - 24h
+          - 7d
+          - 30d
+          - 90d
+          - custom
+        default: 7d
+
+    StartTimeParam:
+      name: startTime
+      in: query
+      description: Start time for custom time range (ISO 8601)
+      required: false
+      schema:
+        type: string
+        format: date-time
+
+    EndTimeParam:
+      name: endTime
+      in: query
+      description: End time for custom time range (ISO 8601)
+      required: false
+      schema:
+        type: string
+        format: date-time
+
+    QueryTypeParam:
+      name: queryType
+      in: query
+      description: Query type filter
+      required: false
+      schema:
+        type: string
+        enum:
+          - factual
+          - reasoning
+          - multimodal
+          - conversational
+          - exploratory
+
+    GranularityParam:
+      name: granularity
+      in: query
+      description: Data granularity
+      required: false
+      schema:
+        type: string
+        enum:
+          - minute
+          - hour
+          - day
+          - week
+          - month
+        default: day
+
+    LimitParam:
+      name: limit
+      in: query
+      description: Maximum number of results
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 100
+
+    UserSegmentParam:
+      name: userSegment
+      in: query
+      description: User segment filter
+      required: false
+      schema:
+        type: string
+        enum:
+          - new_users
+          - active_users
+          - power_users
+          - inactive_users
+          - all
+
+    BehaviorTypeParam:
+      name: behaviorType
+      in: query
+      description: Behavior type filter
+      required: false
+      schema:
+        type: string
+        enum:
+          - search
+          - navigation
+          - interaction
+          - feedback
+          - export
+
+    ServiceNameParam:
+      name: serviceName
+      in: query
+      description: Service name filter
+      required: false
+      schema:
+        type: string
+
+    MetricTypeParam:
+      name: metricType
+      in: query
+      description: Performance metric type
+      required: false
+      schema:
+        type: string
+        enum:
+          - response_time
+          - throughput
+          - error_rate
+          - availability
+          - resource_usage
+
+    ContentTypeParam:
+      name: contentType
+      in: query
+      description: Content type filter
+      required: false
+      schema:
+        type: string
+        enum:
+          - text
+          - image
+          - audio
+          - video
+          - document
+
+    QualityMetricParam:
+      name: qualityMetric
+      in: query
+      description: Quality metric filter
+      required: false
+      schema:
+        type: string
+        enum:
+          - relevance
+          - accuracy
+          - completeness
+          - freshness
+
+    DashboardTypeParam:
+      name: dashboardType
+      in: query
+      description: Dashboard type filter
+      required: false
+      schema:
+        type: string
+        enum:
+          - overview
+          - performance
+          - usage
+          - quality
+          - custom
+
+    TrendMetricParam:
+      name: metric
+      in: query
+      description: Trend metric to analyze
+      required: false
+      schema:
+        type: string
+        enum:
+          - query_volume
+          - user_activity
+          - response_time
+          - quality_score
+          - error_rate
+
+    TrendPeriodParam:
+      name: period
+      in: query
+      description: Trend analysis period
+      required: false
+      schema:
+        type: string
+        enum:
+          - 24h
+          - 7d
+          - 30d
+          - 90d
+        default: 7d
+
+    ForecastEnabledParam:
+      name: forecast
+      in: query
+      description: Enable forecasting
+      required: false
+      schema:
+        type: boolean
+        default: false
+
+    InsightTypeParam:
+      name: insightType
+      in: query
+      description: Type of insights to retrieve
+      required: false
+      schema:
+        type: string
+        enum:
+          - anomalies
+          - opportunities
+          - recommendations
+          - predictions
+          - risks
+
+    ConfidenceThresholdParam:
+      name: confidence
+      in: query
+      description: Minimum confidence threshold for insights
+      required: false
+      schema:
+        type: number
+        minimum: 0
+        maximum: 1
+        default: 0.7
+
+    DashboardCategoryParam:
+      name: category
+      in: query
+      description: Dashboard category filter
+      required: false
+      schema:
+        type: string
+        enum:
+          - built_in
+          - custom
+          - shared
+
+    DashboardIdParam:
+      name: dashboardId
+      in: path
+      description: Dashboard ID
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    RefreshParam:
+      name: refresh
+      in: query
+      description: Force refresh of dashboard data
+      required: false
+      schema:
+        type: boolean
+        default: false
+
+    JobIdParam:
+      name: jobId
+      in: path
+      description: Job ID
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - degraded
+            - unhealthy
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+        uptime:
+          type: integer
+        dependencies:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/HealthCheck'
+
+    HealthCheck:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - pass
+            - fail
+            - warn
+        response_time_ms:
+          type: number
+
+    QueryPatternsResponse:
+      type: object
+      required:
+        - patterns
+        - summary
+      properties:
+        patterns:
+          $ref: '#/components/schemas/QueryPatterns'
+        summary:
+          $ref: '#/components/schemas/QueryPatternsSummary'
+        time_range:
+          $ref: '#/components/schemas/TimeRangeInfo'
+
+    QueryPatterns:
+      type: object
+      properties:
+        top_queries:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueryFrequency'
+        query_length_distribution:
+          $ref: '#/components/schemas/QueryLengthDistribution'
+        query_types:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueryTypeDistribution'
+        temporal_patterns:
+          type: array
+          items:
+            $ref: '#/components/schemas/TemporalQueryPattern'
+        search_intents:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchIntentAnalysis'
+        query_complexity:
+          $ref: '#/components/schemas/QueryComplexityMetrics'
+
+    QueryFrequency:
+      type: object
+      required:
+        - query
+        - frequency
+      properties:
+        query:
+          type: string
+        frequency:
+          type: integer
+        percentage:
+          type: number
+        avg_response_time_ms:
+          type: number
+        success_rate:
+          type: number
+        last_seen:
+          type: string
+          format: date-time
+
+    QueryLengthDistribution:
+      type: object
+      properties:
+        buckets:
+          type: array
+          items:
+            $ref: '#/components/schemas/LengthBucket'
+        average_length:
+          type: number
+        median_length:
+          type: number
+        std_deviation:
+          type: number
+
+    LengthBucket:
+      type: object
+      required:
+        - range
+        - count
+      properties:
+        range:
+          type: string
+        count:
+          type: integer
+        percentage:
+          type: number
+
+    QueryTypeDistribution:
+      type: object
+      required:
+        - type
+        - count
+      properties:
+        type:
+          type: string
+        count:
+          type: integer
+        percentage:
+          type: number
+        avg_response_time_ms:
+          type: number
+        success_rate:
+          type: number
+
+    TemporalQueryPattern:
+      type: object
+      required:
+        - timestamp
+        - query_count
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        query_count:
+          type: integer
+        unique_users:
+          type: integer
+        avg_response_time_ms:
+          type: number
+
+    SearchIntentAnalysis:
+      type: object
+      required:
+        - intent
+        - count
+      properties:
+        intent:
+          type: string
+        count:
+          type: integer
+        confidence:
+          type: number
+        example_queries:
+          type: array
+          items:
+            type: string
+
+    QueryComplexityMetrics:
+      type: object
+      properties:
+        avg_complexity_score:
+          type: number
+        complexity_distribution:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComplexityDistribution'
+        complex_queries_count:
+          type: integer
+        complex_queries_percentage:
+          type: number
+
+    ComplexityDistribution:
+      type: object
+      required:
+        - complexity_level
+        - count
+      properties:
+        complexity_level:
+          type: string
+          enum:
+            - simple
+            - moderate
+            - complex
+            - very_complex
+        count:
+          type: integer
+        percentage:
+          type: number
+
+    QueryPatternsSummary:
+      type: object
+      properties:
+        total_queries:
+          type: integer
+        unique_queries:
+          type: integer
+        avg_queries_per_session:
+          type: number
+        peak_query_hour:
+          type: integer
+        most_common_intent:
+          type: string
+
+    TimeRangeInfo:
+      type: object
+      required:
+        - start_time
+        - end_time
+      properties:
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        duration_hours:
+          type: integer
+
+    UserBehaviorAnalyticsResponse:
+      type: object
+      required:
+        - analytics
+        - summary
+      properties:
+        analytics:
+          $ref: '#/components/schemas/UserBehaviorAnalytics'
+        summary:
+          $ref: '#/components/schemas/UserBehaviorSummary'
+
+    UserBehaviorAnalytics:
+      type: object
+      properties:
+        engagement_metrics:
+          $ref: '#/components/schemas/EngagementMetrics'
+        session_analysis:
+          $ref: '#/components/schemas/SessionAnalysis'
+        user_segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserSegment'
+        feature_adoption:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeatureAdoption'
+        user_journeys:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserJourney'
+        retention_analysis:
+          $ref: '#/components/schemas/RetentionAnalysis'
+
+    EngagementMetrics:
+      type: object
+      properties:
+        daily_active_users:
+          type: integer
+        monthly_active_users:
+          type: integer
+        avg_session_duration_minutes:
+          type: number
+        avg_queries_per_session:
+          type: number
+        bounce_rate:
+          type: number
+        return_user_rate:
+          type: number
+
+    SessionAnalysis:
+      type: object
+      properties:
+        total_sessions:
+          type: integer
+        avg_session_length:
+          type: number
+        session_duration_distribution:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionDurationBucket'
+        peak_usage_hours:
+          type: array
+          items:
+            type: integer
+        new_vs_returning_sessions:
+          $ref: '#/components/schemas/NewVsReturningSessions'
+
+    SessionDurationBucket:
+      type: object
+      required:
+        - duration_range
+        - count
+      properties:
+        duration_range:
+          type: string
+        count:
+          type: integer
+        percentage:
+          type: number
+
+    NewVsReturningSessions:
+      type: object
+      properties:
+        new_sessions:
+          type: integer
+        returning_sessions:
+          type: integer
+        new_percentage:
+          type: number
+        returning_percentage:
+          type: number
+
+    UserSegment:
+      type: object
+      required:
+        - segment_name
+        - user_count
+      properties:
+        segment_name:
+          type: string
+        user_count:
+          type: integer
+        percentage:
+          type: number
+        avg_queries_per_user:
+          type: number
+        avg_session_duration:
+          type: number
+        characteristics:
+          type: array
+          items:
+            type: string
+
+    FeatureAdoption:
+      type: object
+      required:
+        - feature_name
+        - adoption_rate
+      properties:
+        feature_name:
+          type: string
+        adoption_rate:
+          type: number
+        total_users:
+          type: integer
+        adopting_users:
+          type: integer
+        first_adoption_date:
+          type: string
+          format: date-time
+
+    UserJourney:
+      type: object
+      required:
+        - journey_name
+        - step_count
+      properties:
+        journey_name:
+          type: string
+        step_count:
+          type: integer
+        completion_rate:
+          type: number
+        avg_duration_minutes:
+          type: number
+        drop_off_points:
+          type: array
+          items:
+            type: string
+        common_paths:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+
+    RetentionAnalysis:
+      type: object
+      properties:
+        day_1_retention:
+          type: number
+        day_7_retention:
+          type: number
+        day_30_retention:
+          type: number
+        cohort_analysis:
+          type: array
+          items:
+            $ref: '#/components/schemas/CohortData'
+
+    CohortData:
+      type: object
+      required:
+        - cohort_date
+        - retention_rates
+      properties:
+        cohort_date:
+          type: string
+          format: date
+        initial_users:
+          type: integer
+        retention_rates:
+          type: object
+          additionalProperties:
+            type: number
+
+    UserBehaviorSummary:
+      type: object
+      properties:
+        total_active_users:
+          type: integer
+        user_growth_rate:
+          type: number
+        most_active_segment:
+          type: string
+        top_adopted_feature:
+          type: string
+
+    PerformanceAnalyticsResponse:
+      type: object
+      required:
+        - analytics
+        - summary
+      properties:
+        analytics:
+          $ref: '#/components/schemas/PerformanceAnalytics'
+        summary:
+          $ref: '#/components/schemas/PerformanceSummary'
+
+    PerformanceAnalytics:
+      type: object
+      properties:
+        response_time_metrics:
+          $ref: '#/components/schemas/ResponseTimeMetrics'
+        throughput_analysis:
+          $ref: '#/components/schemas/ThroughputAnalysis'
+        error_analysis:
+          $ref: '#/components/schemas/ErrorAnalysis'
+        resource_utilization:
+          $ref: '#/components/schemas/ResourceUtilization'
+        service_performance:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServicePerformance'
+
+    ResponseTimeMetrics:
+      type: object
+      properties:
+        avg_response_time_ms:
+          type: number
+        p50_response_time_ms:
+          type: number
+        p95_response_time_ms:
+          type: number
+        p99_response_time_ms:
+          type: number
+        response_time_trend:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResponseTimeTrend'
+
+    ResponseTimeTrend:
+      type: object
+      required:
+        - timestamp
+        - response_time_ms
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        response_time_ms:
+          type: number
+        request_count:
+          type: integer
+
+    ThroughputAnalysis:
+      type: object
+      properties:
+        requests_per_second:
+          type: number
+        peak_throughput:
+          type: number
+        throughput_trend:
+          type: array
+          items:
+            $ref: '#/components/schemas/ThroughputTrend'
+
+    ThroughputTrend:
+      type: object
+      required:
+        - timestamp
+        - rps
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        rps:
+          type: number
+
+    ErrorAnalysis:
+      type: object
+      properties:
+        error_rate:
+          type: number
+        total_errors:
+          type: integer
+        error_types:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorType'
+        error_trend:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorTrend'
+
+    ErrorType:
+      type: object
+      required:
+        - error_type
+        - count
+      properties:
+        error_type:
+          type: string
+        count:
+          type: integer
+        percentage:
+          type: number
+        avg_response_time_ms:
+          type: number
+
+    ErrorTrend:
+      type: object
+      required:
+        - timestamp
+        - error_rate
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        error_rate:
+          type: number
+        error_count:
+          type: integer
+
+    ResourceUtilization:
+      type: object
+      properties:
+        cpu_usage:
+          $ref: '#/components/schemas/CPUUsage'
+        memory_usage:
+          $ref: '#/components/schemas/MemoryUsage'
+        disk_usage:
+          $ref: '#/components/schemas/DiskUsage'
+        network_usage:
+          $ref: '#/components/schemas/NetworkUsage'
+
+    CPUUsage:
+      type: object
+      properties:
+        avg_usage_percent:
+          type: number
+        peak_usage_percent:
+          type: number
+        usage_trend:
+          type: array
+          items:
+            $ref: '#/components/schemas/CPUTrend'
+
+    CPUTrend:
+      type: object
+      required:
+        - timestamp
+        - usage_percent
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        usage_percent:
+          type: number
+
+    MemoryUsage:
+      type: object
+      properties:
+        avg_usage_percent:
+          type: number
+        peak_usage_percent:
+          type: number
+        total_memory_gb:
+          type: number
+        used_memory_gb:
+          type: number
+
+    DiskUsage:
+      type: object
+      properties:
+        usage_percent:
+          type: number
+        total_disk_gb:
+          type: number
+        used_disk_gb:
+          type: number
+        read_throughput_mbps:
+          type: number
+        write_throughput_mbps:
+          type: number
+
+    NetworkUsage:
+      type: object
+      properties:
+        inbound_throughput_mbps:
+          type: number
+        outbound_throughput_mbps:
+          type: number
+        total_connections:
+          type: integer
+        active_connections:
+          type: integer
+
+    ServicePerformance:
+      type: object
+      required:
+        - service_name
+        - metrics
+      properties:
+        service_name:
+          type: string
+        status:
+          type: string
+          enum:
+            - healthy
+            - degraded
+            - unhealthy
+        uptime_percentage:
+          type: number
+        avg_response_time_ms:
+          type: number
+        error_rate:
+          type: number
+        last_check:
+          type: string
+          format: date-time
+
+    PerformanceSummary:
+      type: object
+      properties:
+        overall_health_status:
+          type: string
+        critical_issues:
+          type: integer
+        performance_score:
+          type: number
+        sla_compliance:
+          type: number
+
+    ContentQualityAnalyticsResponse:
+      type: object
+      required:
+        - analytics
+        - summary
+      properties:
+        analytics:
+          $ref: '#/components/schemas/ContentQualityAnalytics'
+        summary:
+          $ref: '#/components/schemas/ContentQualitySummary'
+
+    ContentQualityAnalytics:
+      type: object
+      properties:
+        quality_distribution:
+          $ref: '#/components/schemas/QualityDistribution'
+        coverage_analysis:
+          $ref: '#/components/schemas/CoverageAnalysis'
+        content_freshness:
+          $ref: '#/components/schemas/ContentFreshness'
+        multimodal_analysis:
+          $ref: '#/components/schemas/MultimodalAnalysis'
+        quality_trends:
+          type: array
+          items:
+            $ref: '#/components/schemas/QualityTrend'
+
+    QualityDistribution:
+      type: object
+      properties:
+        avg_quality_score:
+          type: number
+        quality_score_distribution:
+          type: array
+          items:
+            $ref: '#/components/schemas/QualityScoreBucket'
+        high_quality_content_percentage:
+          type: number
+        low_quality_content_percentage:
+          type: number
+
+    QualityScoreBucket:
+      type: object
+      required:
+        - score_range
+        - count
+      properties:
+        score_range:
+          type: string
+        count:
+          type: integer
+        percentage:
+          type: number
+
+    CoverageAnalysis:
+      type: object
+      properties:
+        topic_coverage:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopicCoverage'
+        knowledge_gaps:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgeGap'
+        coverage_score:
+          type: number
+
+    TopicCoverage:
+      type: object
+      required:
+        - topic
+        - coverage_score
+      properties:
+        topic:
+          type: string
+        coverage_score:
+          type: number
+        document_count:
+          type: integer
+        last_updated:
+          type: string
+          format: date-time
+
+    KnowledgeGap:
+      type: object
+      required:
+        - gap_description
+        - severity
+      properties:
+        gap_description:
+          type: string
+        severity:
+          type: string
+          enum:
+            - low
+            - medium
+            - high
+            - critical
+        affected_queries:
+          type: array
+          items:
+            type: string
+        recommendation:
+          type: string
+
+    ContentFreshness:
+      type: object
+      properties:
+        avg_age_days:
+          type: number
+        freshness_distribution:
+          type: array
+          items:
+            $ref: '#/components/schemas/FreshnessBucket'
+        stale_content_percentage:
+          type: number
+        update_frequency:
+          $ref: '#/components/schemas/UpdateFrequency'
+
+    FreshnessBucket:
+      type: object
+      required:
+        - age_range
+        - count
+      properties:
+        age_range:
+          type: string
+        count:
+          type: integer
+        percentage:
+          type: number
+
+    UpdateFrequency:
+      type: object
+      properties:
+        daily_updates:
+          type: integer
+        weekly_updates:
+          type: integer
+        monthly_updates:
+          type: integer
+        avg_updates_per_day:
+          type: number
+
+    MultimodalAnalysis:
+      type: object
+      properties:
+        content_type_distribution:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentTypeDistribution'
+        cross_modal_quality:
+          type: array
+          items:
+            $ref: '#/components/schemas/CrossModalQuality'
+        multimodal_query_support:
+          type: number
+
+    ContentTypeDistribution:
+      type: object
+      required:
+        - content_type
+        - count
+      properties:
+        content_type:
+          type: string
+        count:
+          type: integer
+        percentage:
+          type: number
+        avg_quality_score:
+          type: number
+
+    CrossModalQuality:
+      type: object
+      required:
+        - modality_pair
+        - coherence_score
+      properties:
+        modality_pair:
+          type: string
+        coherence_score:
+          type: number
+        sample_count:
+          type: integer
+
+    QualityTrend:
+      type: object
+      required:
+        - timestamp
+        - avg_quality_score
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        avg_quality_score:
+          type: number
+        document_count:
+          type: integer
+
+    ContentQualitySummary:
+      type: object
+      properties:
+        total_documents:
+          type: integer
+        avg_quality_score:
+          type: number
+        coverage_percentage:
+          type: number
+        critical_gaps:
+          type: integer
+
+    UsageSummaryResponse:
+      type: object
+      required:
+        - summary
+        - metrics
+      properties:
+        summary:
+          $ref: '#/components/schemas/UsageSummary'
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/UsageMetric'
+
+    UsageSummary:
+      type: object
+      properties:
+        total_queries:
+          type: integer
+        active_users:
+          type: integer
+        avg_response_time_ms:
+          type: number
+        overall_quality_score:
+          type: number
+        system_availability:
+          type: number
+        data_freshness_days:
+          type: number
+
+    UsageMetric:
+      type: object
+      required:
+        - name
+        - value
+        - trend
+      properties:
+        name:
+          type: string
+        value:
+          type: number
+        unit:
+          type: string
+        trend:
+          type: string
+          enum:
+            - up
+            - down
+            - stable
+        trend_percentage:
+          type: number
+
+    TrendAnalysisResponse:
+      type: object
+      required:
+        - trends
+        - forecast
+      properties:
+        trends:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrendData'
+        forecast:
+          $ref: '#/components/schemas/TrendForecast'
+        insights:
+          type: array
+          items:
+            type: string
+
+    TrendData:
+      type: object
+      required:
+        - timestamp
+        - value
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        value:
+          type: number
+        confidence_interval:
+          $ref: '#/components/schemas/ConfidenceInterval'
+
+    ConfidenceInterval:
+      type: object
+      required:
+        - lower_bound
+        - upper_bound
+      properties:
+        lower_bound:
+          type: number
+        upper_bound:
+          type: number
+        confidence_level:
+          type: number
+
+    TrendForecast:
+      type: object
+      properties:
+        forecast_period_days:
+          type: integer
+        forecast_data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrendData'
+        accuracy_score:
+          type: number
+        model_info:
+          type: string
+
+    CustomAnalyticsRequest:
+      type: object
+      required:
+        - query
+        - dimensions
+        - metrics
+      properties:
+        query:
+          type: string
+          description: Analytics query in custom DSL
+        dimensions:
+          type: array
+          items:
+            type: string
+          description: Dimensions to group by
+        metrics:
+          type: array
+          items:
+            type: string
+          description: Metrics to calculate
+        filters:
+          type: object
+          additionalProperties: true
+        time_range:
+          $ref: '#/components/schemas/TimeRangeInfo'
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 10000
+
+    CustomAnalyticsResponse:
+      type: object
+      required:
+        - data
+        - metadata
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        metadata:
+          $ref: '#/components/schemas/AnalyticsMetadata'
+
+    AnalyticsMetadata:
+      type: object
+      properties:
+        total_rows:
+          type: integer
+        execution_time_ms:
+          type: number
+        cached:
+          type: boolean
+        time_range:
+          $ref: '#/components/schemas/TimeRangeInfo'
+
+    InsightsResponse:
+      type: object
+      required:
+        - insights
+      properties:
+        insights:
+          type: array
+          items:
+            $ref: '#/components/schemas/Insight'
+        summary:
+          type: string
+
+    Insight:
+      type: object
+      required:
+        - type
+        - title
+        - description
+        - confidence
+      properties:
+        type:
+          type: string
+          enum:
+            - anomaly
+            - opportunity
+            - recommendation
+            - prediction
+            - risk
+        title:
+          type: string
+        description:
+          type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        impact:
+          type: string
+          enum:
+            - low
+            - medium
+            - high
+            - critical
+        actionable:
+          type: boolean
+        recommendations:
+          type: array
+          items:
+            type: string
+        supporting_data:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+
+    DashboardsResponse:
+      type: object
+      required:
+        - dashboards
+      properties:
+        dashboards:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dashboard'
+        total:
+          type: integer
+
+    Dashboard:
+      type: object
+      required:
+        - id
+        - name
+        - type
+        - category
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        category:
+          type: string
+        is_public:
+          type: boolean
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        thumbnail_url:
+          type: string
+
+    CreateDashboardRequest:
+      type: object
+      required:
+        - name
+        - type
+        - widgets
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        is_public:
+          type: boolean
+          default: false
+        widgets:
+          type: array
+          items:
+            $ref: '#/components/schemas/WidgetConfig'
+        layout:
+          $ref: '#/components/schemas/DashboardLayout'
+        refresh_interval_minutes:
+          type: integer
+          minimum: 1
+
+    WidgetConfig:
+      type: object
+      required:
+        - type
+        - title
+        - data_source
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        data_source:
+          type: string
+        config:
+          type: object
+          additionalProperties: true
+        position:
+          $ref: '#/components/schemas/WidgetPosition'
+        filters:
+          type: object
+          additionalProperties: true
+
+    WidgetPosition:
+      type: object
+      required:
+        - x
+        - y
+        - width
+        - height
+      properties:
+        x:
+          type: integer
+        y:
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+
+    DashboardLayout:
+      type: object
+      properties:
+        columns:
+          type: integer
+          default: 12
+        gap:
+          type: integer
+          default: 16
+        padding:
+          type: integer
+          default: 16
+
+    UpdateDashboardRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        is_public:
+          type: boolean
+        widgets:
+          type: array
+          items:
+            $ref: '#/components/schemas/WidgetConfig'
+        layout:
+          $ref: '#/components/schemas/DashboardLayout'
+        refresh_interval_minutes:
+          type: integer
+          minimum: 1
+
+    DashboardResponse:
+      type: object
+      required:
+        - dashboard
+      properties:
+        dashboard:
+          $ref: '#/components/schemas/DashboardDetails'
+
+    DashboardDetails:
+      type: object
+      required:
+        - id
+        - name
+        - type
+        - category
+        - widgets
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        category:
+          type: string
+        is_public:
+          type: boolean
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        widgets:
+          type: array
+          items:
+            $ref: '#/components/schemas/WidgetConfig'
+        layout:
+          $ref: '#/components/schemas/DashboardLayout'
+        refresh_interval_minutes:
+          type: integer
+
+    DashboardDataResponse:
+      type: object
+      required:
+        - dashboard_id
+        - data
+        - timestamp
+      properties:
+        dashboard_id:
+          type: string
+          format: uuid
+        data:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+        refresh_time_ms:
+          type: integer
+
+    ExportAnalyticsRequest:
+      type: object
+      required:
+        - export_type
+        - format
+      properties:
+        export_type:
+          type: string
+          enum:
+            - query_patterns
+            - user_behavior
+            - performance
+            - content_quality
+            - custom
+        format:
+          type: string
+          enum:
+            - csv
+            - json
+            - parquet
+            - excel
+        time_range:
+          $ref: '#/components/schemas/TimeRangeInfo'
+        filters:
+          type: object
+          additionalProperties: true
+        fields:
+          type: array
+          items:
+            type: string
+        custom_query:
+          type: string
+        notify_email:
+          type: string
+          format: email
+
+    ExportJobResponse:
+      type: object
+      required:
+        - job_id
+        - status
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - pending
+            - processing
+            - completed
+            - failed
+        created_at:
+          type: string
+          format: date-time
+        estimated_completion:
+          type: string
+          format: date-time
+
+    ExportJobStatusResponse:
+      type: object
+      required:
+        - job_id
+        - status
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - pending
+            - processing
+            - completed
+            - failed
+        progress_percentage:
+          type: number
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        file_size_bytes:
+          type: integer
+        download_url:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        error_message:
+          type: string
+
+    AnalyticsEventRequest:
+      type: object
+      required:
+        - event_type
+        - event_data
+      properties:
+        event_type:
+          type: string
+        event_data:
+          type: object
+          additionalProperties: true
+        user_id:
+          type: string
+        session_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        properties:
+          type: object
+          additionalProperties: true
+
+    BatchAnalyticsEventsRequest:
+      type: object
+      required:
+        - events
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsEventRequest'
+          maxItems: 1000
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: Unauthorized - invalid or missing authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+            timestamp:
+              type: string
+              format: date-time
+        request_id:
+          type: string
+          format: uuid
+
+tags:
+  - name: Health
+    description: Service health and status endpoints
+  - name: Query Analytics
+    description: Query pattern and analysis endpoints
+  - name: User Analytics
+    description: User behavior and engagement endpoints
+  - name: Performance Analytics
+    description: System performance monitoring endpoints
+  - name: Content Analytics
+    description: Content quality and coverage endpoints
+  - name: Usage Analytics
+    description: Usage summary and statistics endpoints
+  - name: Trend Analysis
+    description: Trend analysis and forecasting endpoints
+  - name: Custom Analytics
+    description: Custom analytics query endpoints
+  - name: Insights
+    description: AI-powered insights endpoints
+  - name: Dashboards
+    description: Dashboard management endpoints
+  - name: Export
+    description: Data export endpoints
+  - name: Event Tracking
+    description: Analytics event tracking endpoints

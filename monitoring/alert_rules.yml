@@ -1,0 +1,327 @@
+# Alert Rules for Multimodal Enterprise RAG System
+groups:
+  - name: system_alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }} for more than 5 minutes."
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }} for more than 5 minutes."
+
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }} for more than 5 minutes."
+
+      - alert: SystemLoadHigh
+        expr: node_load15 > 10
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High system load on {{ $labels.instance }}"
+          description: "15-minute load average is {{ $value }} on {{ $labels.instance }}."
+
+  - name: application_alerts
+    rules:
+      - alert: BackendDown
+        expr: up{job="rag-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "Backend service is down"
+          description: "Backend service has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for more than 2 minutes."
+
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s for more than 5 minutes."
+
+      - alert: DatabaseConnectionHigh
+        expr: pg_stat_activity_count > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "High database connection count"
+          description: "Database has {{ $value }} active connections."
+
+      - alert: DatabaseDeadlocks
+        expr: increase(pg_stat_database_deadlocks[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "Database deadlocks detected"
+          description: "{{ $value }} deadlocks detected in the last 5 minutes."
+
+  - name: rag_specific_alerts
+    rules:
+      - alert: VectorSearchLatencyHigh
+        expr: histogram_quantile(0.95, rate(rag_vector_search_duration_seconds_bucket[5m])) > 1.5
+        for: 5m
+        labels:
+          severity: warning
+          service: rag
+        annotations:
+          summary: "High vector search latency"
+          description: "95th percentile vector search latency is {{ $value }}s."
+
+      - alert: LLMRequestRateHigh
+        expr: rate(rag_llm_requests_total[5m]) > 100
+        for: 10m
+        labels:
+          severity: warning
+          service: rag
+        annotations:
+          summary: "High LLM request rate"
+          description: "LLM request rate is {{ $value }} requests/second."
+
+      - alert: LLMErrorRateHigh
+        expr: rate(rag_llm_requests_failed_total[5m]) / rate(rag_llm_requests_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          service: rag
+        annotations:
+          summary: "High LLM error rate"
+          description: "LLM error rate is {{ $value | humanizePercentage }}."
+
+      - alert: DocumentProcessingBacklog
+        expr: rag_document_processing_queue_size > 100
+        for: 10m
+        labels:
+          severity: warning
+          service: rag
+        annotations:
+          summary: "Document processing backlog"
+          description: "{{ $value }} documents waiting to be processed."
+
+      - alert: KnowledgeGraphQueryLatencyHigh
+        expr: histogram_quantile(0.95, rate(rag_graph_query_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: rag
+        annotations:
+          summary: "High knowledge graph query latency"
+          description: "95th percentile graph query latency is {{ $value }}s."
+
+      - alert: RAGQualityScoreLow
+        expr: rag_quality_score_average < 0.7
+        for: 15m
+        labels:
+          severity: warning
+          service: rag
+        annotations:
+          summary: "Low RAG quality score"
+          description: "Average RAG quality score is {{ $value }}."
+
+  - name: infrastructure_alerts
+    rules:
+      - alert: Neo4jDown
+        expr: up{job="neo4j-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Neo4j database is down"
+          description: "Neo4j database has been down for more than 1 minute."
+
+      - alert: QdrantDown
+        expr: up{job="qdrant-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Qdrant vector database is down"
+          description: "Qdrant vector database has been down for more than 1 minute."
+
+      - alert: RedisDown
+        expr: up{job="redis-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Redis cache is down"
+          description: "Redis cache has been down for more than 1 minute."
+
+      - alert: ContainerRestartHigh
+        expr: increase(container_start_time_seconds[1h]) > 5
+        for: 0m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High container restart rate"
+          description: "Container {{ $labels.name }} has restarted {{ $value }} times in the last hour."
+
+  - name: business_metrics_alerts
+    rules:
+      - alert: LowUserEngagement
+        expr: rag_daily_active_users < 10
+        for: 1h
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "Low user engagement"
+          description: "Only {{ $value }} daily active users in the last hour."
+
+      - alert: HighQueryFailureRate
+        expr: rate(rag_queries_failed_total[5m]) / rate(rag_queries_total[5m]) > 0.15
+        for: 5m
+        labels:
+          severity: critical
+          service: business
+        annotations:
+          summary: "High query failure rate"
+          description: "Query failure rate is {{ $value | humanizePercentage }}."
+
+      - alert: DocumentUploadFailureRate
+        expr: rate(rag_document_uploads_failed_total[5m]) / rate(rag_document_uploads_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "High document upload failure rate"
+          description: "Document upload failure rate is {{ $value | humanizePercentage }}."
+
+  - name: security_alerts
+    rules:
+      - alert: SuspiciousLoginActivity
+        expr: rate(rag_failed_login_attempts[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "Suspicious login activity detected"
+          description: "{{ $value }} failed login attempts per second."
+
+      - alert: UnauthorizedAPIAccess
+        expr: rate(rag_unauthorized_api_requests[5m]) > 5
+        for: 1m
+        labels:
+          severity: critical
+          service: security
+        annotations:
+          summary: "Unauthorized API access attempts"
+          description: "{{ $value }} unauthorized API requests per second."
+
+      - alert: DataExfiltrationRisk
+        expr: rate(rag_large_data_exports[5m]) > 1
+        for: 2m
+        labels:
+          severity: critical
+          service: security
+        annotations:
+          summary: "Potential data exfiltration"
+          description: "Large data exports detected at {{ $value }} per second."
+
+  - name: performance_alerts
+    rules:
+      - alert: LowCacheHitRate
+        expr: rate(rag_cache_hits_total[5m]) / (rate(rag_cache_hits_total[5m]) + rate(rag_cache_misses_total[5m])) < 0.8
+        for: 10m
+        labels:
+          severity: warning
+          service: performance
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is {{ $value | humanizePercentage }}."
+
+      - alert: DatabaseQuerySlow
+        expr: histogram_quantile(0.95, rate(pg_stat_statements_mean_time_seconds[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: performance
+        annotations:
+          summary: "Slow database queries detected"
+          description: "95th percentile query time is {{ $value }}s."
+
+      - alert: HighConcurrencyQueue
+        expr: rag_concurrent_requests > 50
+        for: 5m
+        labels:
+          severity: warning
+          service: performance
+        annotations:
+          summary: "High concurrent request queue"
+          description: "{{ $value }} concurrent requests in queue."
+
+  - name: real_time_status_alerts
+    rules:
+      - alert: WebSocketHighErrorRate
+        expr: rate(websocket_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High WebSocket error rate"
+          description: "WebSocket error rate is above 0.1 errors per second"
+
+      - alert: DocumentProcessingHighErrorRate
+        expr: sum(rate(document_processing_total{status="failed"}[5m])) / sum(rate(document_processing_total[5m])) * 100 > 10
+        for: 5m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "High document processing error rate"
+          description: "Document processing error rate is above 10% for more than 5 minutes"
+
+      - alert: DocumentProcessingHighLatency
+        expr: rate(document_processing_duration_seconds_sum[5m]) / rate(document_processing_duration_seconds_count[5m]) > 300
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High document processing latency"
+          description: "Average document processing duration is above 5 minutes"

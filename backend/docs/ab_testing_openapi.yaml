@@ -1,0 +1,1794 @@
+openapi: 3.0.3
+info:
+  title: Multimodal Enterprise RAG System - A/B Testing API
+  description: |
+    Comprehensive A/B testing API for search improvements in the Multimodal Enterprise RAG System.
+
+    This API provides:
+    - Experiment lifecycle management (create, start, stop, analyze)
+    - Real-time query routing and variant assignment
+    - High-volume metrics collection with minimal latency impact
+    - Statistical analysis and reporting
+    - User segmentation and targeting
+    - Performance monitoring and health checks
+
+    ## Architecture Overview
+
+    The A/B testing system is built with microservices architecture:
+    - **Experiment Assignment Service**: Real-time user assignment with caching
+    - **Metrics Collection Service**: Async processing with batching
+    - **Statistical Analysis Service**: Comprehensive analysis with multiple test types
+    - **Resilience Service**: Circuit breakers, retries, and fault tolerance
+    - **Caching Service**: Multi-level caching (Memory + Redis)
+    - **Event Service**: Event-driven communication with Redis Streams
+
+    ## Key Features
+
+    - **10K+ queries/hour** throughput capability
+    - **Sub-millisecond** assignment latency with caching
+    - **Statistical significance** testing (Z-test, T-test, Chi-square, etc.)
+    - **Multi-tenant** data isolation
+    - **Real-time** experiment management
+    - **Comprehensive** analytics and reporting
+
+    ## Integration
+
+    The A/B testing system integrates seamlessly with the existing RAG pipeline:
+    1. Query interception and variant assignment
+    2. Search execution with variant-specific configurations
+    3. Metrics collection without impacting search latency
+    4. Real-time analysis and reporting
+
+    ## Authentication
+
+    All endpoints require JWT authentication except health check endpoints.
+    Role-based access control (RBAC) is enforced:
+    - **Admin**: Full access to all experiments and settings
+    - **Analyst**: Can create, view, and analyze experiments
+    - **User**: Can participate in experiments and view basic results
+
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@company.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.company.com/v1
+    description: Production server
+  - url: https://staging-api.company.com/v1
+    description: Staging server
+  - url: http://localhost:8000/v1
+    description: Development server
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Experiments
+    description: Experiment lifecycle management
+  - name: Variants
+    description: Test variant management
+  - name: Assignment
+    description: Real-time query routing and assignment
+  - name: Metrics
+    description: Metrics collection and analysis
+  - name: Analytics
+    description: Statistical analysis and reporting
+  - name: Segments
+    description: User segmentation and targeting
+  - name: Health
+    description: System health and monitoring
+
+paths:
+  # Experiment Management
+  /ab-testing/experiments:
+    post:
+      tags:
+        - Experiments
+      summary: Create new A/B testing experiment
+      description: |
+        Creates a new experiment with specified configuration.
+        The experiment starts in DRAFT status and must be explicitly started.
+
+        **Required permissions**: Analyst or Admin role
+      operationId: createExperiment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExperimentCreateRequest'
+            examples:
+              search_algorithm_test:
+                summary: Search algorithm comparison
+                value:
+                  name: "Vector vs Hybrid Search Algorithm"
+                  description: "Testing pure vector search against hybrid search"
+                  hypothesis: "Vector search will provide 15% better relevance scores for technical queries"
+                  experiment_type: "search_algorithm"
+                  primary_metric: "relevance_score"
+                  target_improvement: 15.0
+                  traffic_percentage: 20.0
+                  minimum_sample_size: 2000
+                  confidence_level: 0.95
+                  statistical_test: "z_test"
+                  start_time: "2024-01-01T00:00:00Z"
+                  end_time: "2024-01-31T23:59:59Z"
+                  target_user_segments: ["technical_users", "power_users"]
+                  tags: ["search", "algorithm", "q1_2024"]
+      responses:
+        '201':
+          description: Experiment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentResponse'
+              examples:
+                created_experiment:
+                  summary: Successfully created experiment
+                  value:
+                    $ref: '#/components/examples/created_experiment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags:
+        - Experiments
+      summary: List experiments
+      description: |
+        Retrieves experiments for the current user's organization with optional filtering.
+        Supports pagination and filtering by status and experiment type.
+      operationId: listExperiments
+      parameters:
+        - name: status
+          in: query
+          description: Filter by experiment status
+          schema:
+            $ref: '#/components/schemas/ExperimentStatus'
+        - name: experiment_type
+          in: query
+          description: Filter by experiment type
+          schema:
+            $ref: '#/components/schemas/ExperimentType'
+        - name: limit
+          in: query
+          description: Number of experiments to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of experiments to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: include_results
+          in: query
+          description: Include experimental results
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: List of experiments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExperimentSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /ab-testing/experiments/{experiment_id}:
+    get:
+      tags:
+        - Experiments
+      summary: Get experiment details
+      description: |
+        Retrieves detailed information about a specific experiment including
+        variants, configuration, and optionally results.
+      operationId: getExperiment
+      parameters:
+        - name: experiment_id
+          in: path
+          required: true
+          description: Experiment UUID
+          schema:
+            type: string
+            format: uuid
+        - name: include_results
+          in: query
+          description: Include experimental results
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Experiment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Experiments
+      summary: Update experiment configuration
+      description: |
+        Updates experiment configuration. Can only be done while experiment is in DRAFT status.
+        Limited updates allowed for running experiments (description, tags).
+      operationId: updateExperiment
+      parameters:
+        - name: experiment_id
+          in: path
+          required: true
+          description: Experiment UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExperimentUpdateRequest'
+      responses:
+        '200':
+          description: Experiment updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Experiments
+      summary: Delete experiment
+      description: |
+        Deletes an experiment and all associated data. Only allowed in DRAFT status
+        unless force parameter is used (requires Admin role).
+      operationId: deleteExperiment
+      parameters:
+        - name: experiment_id
+          in: path
+          required: true
+          description: Experiment UUID
+          schema:
+            type: string
+            format: uuid
+        - name: force
+          in: query
+          description: Force delete even if experiment has data
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '204':
+          description: Experiment deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /ab-testing/experiments/{experiment_id}/start:
+    post:
+      tags:
+        - Experiments
+      summary: Start experiment
+      description: |
+        Starts the experiment, making it active for user assignments and metric collection.
+        Experiment must have at least 2 variants and pass validation.
+      operationId: startExperiment
+      parameters:
+        - name: experiment_id
+          in: path
+          required: true
+          description: Experiment UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Experiment started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /ab-testing/experiments/{experiment_id}/stop:
+    post:
+      tags:
+        - Experiments
+      summary: Stop experiment
+      description: |
+        Stops the experiment, preventing new user assignments but keeping existing data.
+        Triggers automatic statistical analysis.
+      operationId: stopExperiment
+      parameters:
+        - name: experiment_id
+          in: path
+          required: true
+          description: Experiment UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Experiment stopped successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  experiment_id:
+                    type: string
+                  analysis_triggered:
+                    type: boolean
+                example:
+                  message: "Experiment stopped successfully"
+                  experiment_id: "123e4567-e89b-12d3-a456-426614174000"
+                  analysis_triggered: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Variant Management
+  /ab-testing/experiments/{experiment_id}/variants:
+    post:
+      tags:
+        - Variants
+      summary: Create variant
+      description: |
+        Adds a new variant to an existing experiment. Only allowed in DRAFT status.
+        Each experiment must have exactly one control variant.
+      operationId: createVariant
+      parameters:
+        - name: experiment_id
+          in: path
+          required: true
+          description: Experiment UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VariantCreateRequest'
+            examples:
+              treatment_variant:
+                summary: Treatment variant example
+                value:
+                  name: "Enhanced Vector Search"
+                  description: "Vector search with enhanced embedding model"
+                  is_control: false
+                  weight: 1.0
+                  config:
+                    search_config:
+                      algorithm: "vector"
+                      embedding_model: "text-embedding-3-large"
+                      similarity_threshold: 0.7
+      responses:
+        '201':
+          description: Variant created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VariantResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags:
+        - Variants
+      summary: List variants
+      description: |
+        Retrieves all variants for a specific experiment including
+        performance metrics and configuration.
+      operationId: listVariants
+      parameters:
+        - name: experiment_id
+          in: path
+          required: true
+          description: Experiment UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of variants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VariantResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Query Assignment
+  /ab-testing/routing/assign:
+    post:
+      tags:
+        - Assignment
+      summary: Assign user to experiment variant
+      description: |
+        Real-time endpoint that assigns users to experiment variants based on
+        configured targeting and traffic allocation rules. This is called during
+        query processing to determine which variant should be used.
+
+        **Performance**: < 5ms latency with caching, supports 10K+ queries/hour
+      operationId: assignExperimentVariant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                  description: User ID (optional for anonymous users)
+                session_id:
+                  type: string
+                  description: Session ID for anonymous users
+                query_context:
+                  type: object
+                  description: Context information for targeting
+                  properties:
+                    query_text:
+                      type: string
+                    search_type:
+                      type: string
+                    device_type:
+                      type: string
+                    user_segments:
+                      type: array
+                      items:
+                        type: string
+              example:
+                user_id: "123e4567-e89b-12d3-a456-426614174000"
+                session_id: "sess_abc123"
+                query_context:
+                  query_text: "machine learning algorithms"
+                  search_type: "hybrid"
+                  device_type: "desktop"
+                  user_segments: ["technical_users", "premium"]
+      responses:
+        '200':
+          description: Assignment result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryRoutingResponse'
+              examples:
+                assigned:
+                  summary: User assigned to variant
+                  value:
+                    experiment_id: "123e4567-e89b-12d3-a456-426614174000"
+                    variant_id: "456e7890-e89b-12d3-a456-426614174111"
+                    assignment_type: "consistent_hash"
+                    routing_reason: "user_meets_criteria"
+                    variant_config:
+                      search_config:
+                        algorithm: "vector"
+                        embedding_model: "text-embedding-3-large"
+                no_assignment:
+                  summary: No active experiments
+                  value:
+                    experiment_id: null
+                    variant_id: null
+                    assignment_type: "none"
+                    routing_reason: "no_active_experiments"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Metrics Collection
+  /ab-testing/metrics:
+    post:
+      tags:
+        - Metrics
+      summary: Submit metric data
+      description: |
+        Endpoint for submitting performance metrics collected during query processing.
+        Metrics are processed asynchronously to avoid impacting query latency.
+
+        **Throughput**: Supports high-volume metric submission with batching
+      operationId: submitMetric
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MetricSubmissionRequest'
+            examples:
+              search_metric:
+                summary: Search performance metric
+                value:
+                  experiment_id: "123e4567-e89b-12d3-a456-426614174000"
+                  variant_id: "456e7890-e89b-12d3-a456-426614174111"
+                  metric_type: "response_time"
+                  metric_value: 150.5
+                  user_id: "123e4567-e89b-12d3-a456-426614174000"
+                  session_id: "sess_abc123"
+                  query_id: "query_789"
+                  timestamp: "2024-01-01T12:00:00Z"
+                  metadata:
+                    search_type: "hybrid"
+                    result_count: 10
+                    query_length: 25
+      responses:
+        '201':
+          description: Metric submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  metric_id:
+                    type: string
+                example:
+                  message: "Metric submitted for processing"
+                  metric_id: "metric_456def789"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /ab-testing/metrics/bulk:
+    post:
+      tags:
+        - Metrics
+      summary: Submit metrics in bulk
+      description: |
+        Endpoint for efficiently submitting multiple metrics at once.
+        Maximum 10,000 metrics per request for performance reasons.
+      operationId: submitMetricsBulk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkMetricSubmissionRequest'
+      responses:
+        '201':
+          description: Metrics submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  metrics_count:
+                    type: integer
+                  batch_id:
+                    type: string
+                example:
+                  message: "Metrics submitted for bulk processing"
+                  metrics_count: 500
+                  batch_id: "batch_789ghi012"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Statistical Analysis
+  /ab-testing/experiments/{experiment_id}/analyze:
+    post:
+      tags:
+        - Analytics
+      summary: Analyze experiment results
+      description: |
+        Analyzes experiment data to determine statistical significance, effect sizes,
+        and confidence intervals for the specified metrics.
+
+        Features multiple statistical tests:
+        - Z-test (large samples)
+        - T-test (small samples)
+        - Welch's t-test (unequal variances)
+        - Chi-square (categorical data)
+        - Mann-Whitney (non-parametric)
+      operationId: analyzeExperiment
+      parameters:
+        - name: experiment_id
+          in: path
+          required: true
+          description: Experiment UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatisticalAnalysisRequest'
+            examples:
+              standard_analysis:
+                summary: Standard analysis
+                value:
+                  confidence_level: 0.95
+                  include_secondary_metrics: true
+                  metrics_to_analyze:
+                    - "relevance_score"
+                    - "response_time"
+                    - "click_through_rate"
+                  comparison_groups:
+                    - control: "variant_1"
+                      treatment: "variant_2"
+      responses:
+        '200':
+          description: Analysis results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatisticalAnalysisResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /ab-testing/experiments/{experiment_id}/summary:
+    get:
+      tags:
+        - Analytics
+      summary: Get experiment summary
+      description: |
+        Provides a comprehensive summary of experiment performance including
+        participant statistics, metric comparisons, and recommendations.
+      operationId: getExperimentSummary
+      parameters:
+        - name: experiment_id
+          in: path
+          required: true
+          description: Experiment UUID
+          schema:
+            type: string
+            format: uuid
+        - name: time_range
+          in: query
+          description: Time range for summary
+          schema:
+            type: string
+            enum: ["24h", "7d", "30d", "90d", "all"]
+            default: "30d"
+        - name: include_recommendations
+          in: query
+          description: Include AI-powered recommendations
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Experiment summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentSummaryResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # User Segments
+  /ab-testing/segments:
+    post:
+      tags:
+        - Segments
+      summary: Create user segment
+      description: |
+        Creates a user segment for targeted experiments based on specified criteria.
+        Segments can be based on user behavior, demographics, or technical attributes.
+      operationId: createUserSegment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserSegmentCreateRequest'
+            examples:
+              power_users:
+                summary: Power users segment
+                value:
+                  name: "Power Users"
+                  description: "Users with high query volume and engagement"
+                  segment_type: "behavioral"
+                  segment_criteria:
+                    min_queries_per_week: 50
+                    min_session_duration: 300
+                    account_age_days: 30
+                  is_dynamic: true
+      responses:
+        '201':
+          description: Segment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSegmentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags:
+        - Segments
+      summary: List user segments
+      description: |
+        Retrieves user segments for the current user's organization.
+        Includes segment membership counts and activity metrics.
+      operationId: listUserSegments
+      parameters:
+        - name: segment_type
+          in: query
+          description: Filter by segment type
+          schema:
+            type: string
+            enum: ["behavioral", "demographic", "technical"]
+        - name: include_counts
+          in: query
+          description: Include membership counts
+          schema:
+            type: boolean
+            default: true
+        - name: limit
+          in: query
+          description: Maximum number of segments to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: List of user segments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserSegmentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Health Check
+  /ab-testing/health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: |
+        Checks the health of A/B testing components including database connectivity,
+        Redis caching, and critical services.
+      operationId: healthCheck
+      responses:
+        '200':
+          description: System health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+              examples:
+                healthy:
+                  summary: All systems healthy
+                  value:
+                    status: "healthy"
+                    timestamp: "2024-01-01T12:00:00Z"
+                    components:
+                      database:
+                        status: "healthy"
+                        message: "Database connection successful"
+                      redis:
+                        status: "healthy"
+                        message: "Redis connection successful"
+                      ab_testing_service:
+                        status: "healthy"
+                        active_experiments: 5
+                degraded:
+                  summary: Some components degraded
+                  value:
+                    status: "degraded"
+                    timestamp: "2024-01-01T12:00:00Z"
+                    components:
+                      database:
+                        status: "healthy"
+                        message: "Database connection successful"
+                      redis:
+                        status: "unhealthy"
+                        error: "Connection timeout"
+                      ab_testing_service:
+                        status: "healthy"
+                        active_experiments: 5
+        '503':
+          description: System unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+
+  /ab-testing/public/health:
+    get:
+      tags:
+        - Health
+      summary: Public health check
+      description: |
+        Basic health check that doesn't require authentication.
+        Used for load balancer health checks and monitoring.
+      operationId: publicHealthCheck
+      responses:
+        '200':
+          description: Service is accessible
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  service:
+                    type: string
+                    example: "A/B Testing System"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2024-01-01T12:00:00Z"
+                  message:
+                    type: string
+                    example: "A/B testing API is accessible"
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "unhealthy"
+                  error:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # Experiment Schemas
+    ExperimentStatus:
+      type: string
+      enum:
+        - draft
+        - scheduled
+        - running
+        - paused
+        - completed
+        - analyzed
+        - archived
+        - cancelled
+
+    ExperimentType:
+      type: string
+      enum:
+        - search_algorithm
+        - ranking_model
+        - query_processing
+        - filter_configuration
+        - multimodal_weighting
+        - response_format
+        - performance_optimization
+        - ui_experience
+
+    MetricType:
+      type: string
+      enum:
+        - relevance_score
+        - click_through_rate
+        - response_time
+        - user_satisfaction
+        - conversion_rate
+        - result_count
+        - query_success_rate
+        - bounce_rate
+        - diversity_score
+        - novelty_score
+        - coverage_score
+
+    StatisticalTest:
+      type: string
+      enum:
+        - z_test
+        - t_test
+        - chi_square
+        - mann_whitney
+        - welch_t_test
+        - bayesian_ab
+
+    ExperimentCreateRequest:
+      type: object
+      required:
+        - name
+        - hypothesis
+        - experiment_type
+        - primary_metric
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Experiment name
+          example: "Vector Search Algorithm Test"
+        description:
+          type: string
+          maxLength: 1000
+          description: Experiment description
+          example: "Testing new vector search algorithm against current hybrid approach"
+        hypothesis:
+          type: string
+          minLength: 10
+          maxLength: 2000
+          description: Test hypothesis
+          example: "The new vector search algorithm will improve relevance scores by 15% for technical queries"
+        experiment_type:
+          $ref: '#/components/schemas/ExperimentType'
+        primary_metric:
+          $ref: '#/components/schemas/MetricType'
+        target_improvement:
+          type: number
+          minimum: 0.1
+          maximum: 1000.0
+          description: Expected improvement percentage
+          example: 15.0
+        traffic_percentage:
+          type: number
+          minimum: 1.0
+          maximum: 100.0
+          default: 10.0
+          description: Percentage of traffic to include
+          example: 20.0
+        minimum_sample_size:
+          type: integer
+          minimum: 100
+          maximum: 1000000
+          default: 1000
+          description: Minimum sample size
+          example: 2000
+        confidence_level:
+          type: number
+          minimum: 0.8
+          maximum: 0.99
+          default: 0.95
+          description: Statistical confidence level
+          example: 0.95
+        statistical_test:
+          $ref: '#/components/schemas/StatisticalTest'
+          default: "z_test"
+        start_time:
+          type: string
+          format: date-time
+          description: Scheduled start time
+        end_time:
+          type: string
+          format: date-time
+          description: Scheduled end time
+        target_user_segments:
+          type: array
+          items:
+            type: string
+          description: Target user segments
+          example: ["technical_users", "power_users"]
+        target_query_patterns:
+          type: array
+          items:
+            type: string
+          description: Target query patterns
+          example: ["machine learning", "artificial intelligence", "data science"]
+        tags:
+          type: array
+          items:
+            type: string
+          description: Experiment tags
+          example: ["search", "algorithm", "q1_2024"]
+
+    ExperimentUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+        hypothesis:
+          type: string
+          minLength: 10
+          maxLength: 2000
+        status:
+          $ref: '#/components/schemas/ExperimentStatus'
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        traffic_percentage:
+          type: number
+          minimum: 1.0
+          maximum: 100.0
+        target_improvement:
+          type: number
+          minimum: 0.1
+          maximum: 1000.0
+        tags:
+          type: array
+          items:
+            type: string
+
+    ExperimentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "Vector Search Algorithm Test"
+        description:
+          type: string
+          nullable: true
+        hypothesis:
+          type: string
+          example: "The new vector search algorithm will improve relevance scores by 15%"
+        experiment_type:
+          $ref: '#/components/schemas/ExperimentType'
+        status:
+          $ref: '#/components/schemas/ExperimentStatus'
+        primary_metric:
+          $ref: '#/components/schemas/MetricType'
+        target_improvement:
+          type: number
+          nullable: true
+          example: 15.0
+        traffic_percentage:
+          type: number
+          example: 20.0
+        minimum_sample_size:
+          type: integer
+          example: 2000
+        confidence_level:
+          type: number
+          example: 0.95
+        statistical_test:
+          $ref: '#/components/schemas/StatisticalTest'
+        start_time:
+          type: string
+          format: date-time
+          nullable: true
+        end_time:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        is_active:
+          type: boolean
+          example: true
+        duration_days:
+          type: number
+          nullable: true
+          example: 15.5
+        actual_sample_size:
+          type: integer
+          example: 2500
+        statistical_power:
+          type: number
+          example: 0.85
+        participant_stats:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 2500
+            variants:
+              type: array
+              items:
+                type: object
+                properties:
+                  variant_id:
+                    type: string
+                  variant_name:
+                    type: string
+                  participant_count:
+                    type: integer
+                  percentage:
+                    type: number
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/VariantSummary'
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["search", "algorithm", "q1_2024"]
+
+    ExperimentSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        experiment_type:
+          $ref: '#/components/schemas/ExperimentType'
+        status:
+          $ref: '#/components/schemas/ExperimentStatus'
+        primary_metric:
+          $ref: '#/components/schemas/MetricType'
+        is_active:
+          type: boolean
+        duration_days:
+          type: number
+          nullable: true
+        actual_sample_size:
+          type: integer
+        participant_stats:
+          $ref: '#/components/schemas/ExperimentResponse/properties/participant_stats'
+        created_at:
+          type: string
+          format: date-time
+        tags:
+          type: array
+          items:
+            type: string
+
+    # Variant Schemas
+    VariantCreateRequest:
+      type: object
+      required:
+        - name
+        - config
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Variant name
+          example: "Enhanced Vector Search"
+        description:
+          type: string
+          maxLength: 1000
+          description: Variant description
+          example: "Vector search with enhanced embedding model"
+        is_control:
+          type: boolean
+          default: false
+          description: Whether this is the control variant
+        weight:
+          type: number
+          minimum: 0.1
+          maximum: 10.0
+          default: 1.0
+          description: Traffic weight
+        config:
+          type: object
+          description: Variant configuration
+          properties:
+            search_config:
+              type: object
+              properties:
+                algorithm:
+                  type: string
+                  example: "vector"
+                embedding_model:
+                  type: string
+                  example: "text-embedding-3-large"
+                similarity_threshold:
+                  type: number
+                  example: 0.7
+            ranking_weights:
+              type: object
+              properties:
+                relevance:
+                  type: number
+                  example: 0.7
+                recency:
+                  type: number
+                  example: 0.2
+                popularity:
+                  type: number
+                  example: 0.1
+            retrieval_config:
+              type: object
+              properties:
+                top_k:
+                  type: integer
+                  example: 100
+                rerank:
+                  type: boolean
+                  example: true
+
+    VariantResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        is_control:
+          type: boolean
+        weight:
+          type: number
+        config:
+          type: object
+        participant_count:
+          type: integer
+        query_count:
+          type: integer
+        traffic_percentage:
+          type: number
+          nullable: true
+        conversion_rate:
+          type: number
+          nullable: true
+        click_through_rate:
+          type: number
+          nullable: true
+        average_response_time_ms:
+          type: number
+          nullable: true
+        primary_metric_value:
+          type: number
+          nullable: true
+
+    VariantSummary:
+      type: object
+      properties:
+        variant_id:
+          type: string
+        variant_name:
+          type: string
+        participant_count:
+          type: integer
+        percentage:
+          type: number
+        is_control:
+          type: boolean
+
+    # Assignment Schemas
+    QueryRoutingResponse:
+      type: object
+      properties:
+        experiment_id:
+          type: string
+          format: uuid
+          nullable: true
+        variant_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignment_type:
+          type: string
+          enum: ["consistent_hash", "random", "weighted_random", "bandit", "none", "error_fallback"]
+        routing_reason:
+          type: string
+          example: "user_meets_criteria"
+        variant_config:
+          type: object
+          nullable: true
+
+    # Metrics Schemas
+    MetricSubmissionRequest:
+      type: object
+      required:
+        - experiment_id
+        - variant_id
+        - metric_type
+        - metric_value
+      properties:
+        experiment_id:
+          type: string
+          format: uuid
+        variant_id:
+          type: string
+          format: uuid
+        metric_type:
+          $ref: '#/components/schemas/MetricType'
+        metric_value:
+          type: number
+        user_id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+        query_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+
+    BulkMetricSubmissionRequest:
+      type: object
+      required:
+        - metrics
+      properties:
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricSubmissionRequest'
+          maxItems: 10000
+
+    # Analysis Schemas
+    StatisticalAnalysisRequest:
+      type: object
+      properties:
+        confidence_level:
+          type: number
+          minimum: 0.8
+          maximum: 0.99
+          default: 0.95
+        include_secondary_metrics:
+          type: boolean
+          default: true
+        metrics_to_analyze:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricType'
+        comparison_groups:
+          type: array
+          items:
+            type: object
+            properties:
+              control:
+                type: string
+              treatment:
+                type: string
+        time_range:
+          type: object
+          properties:
+            start_date:
+              type: string
+              format: date-time
+            end_date:
+              type: string
+              format: date-time
+
+    StatisticalAnalysisResponse:
+      type: object
+      properties:
+        experiment_id:
+          type: string
+          format: uuid
+        analysis_id:
+          type: string
+        confidence_level:
+          type: number
+        analysis_date:
+          type: string
+          format: date-time
+        total_participants:
+          type: integer
+        comparisons:
+          type: array
+          items:
+            type: object
+            properties:
+              control_variant:
+                type: string
+              treatment_variant:
+                type: string
+              metric_name:
+                type: string
+              control_mean:
+                type: number
+              treatment_mean:
+                type: number
+              absolute_difference:
+                type: number
+              relative_difference:
+                type: number
+              statistical_result:
+                type: object
+                properties:
+                  test_name:
+                    type: string
+                  statistic:
+                    type: number
+                  p_value:
+                    type: number
+                  is_significant:
+                    type: boolean
+                  confidence_interval:
+                    type: object
+                    properties:
+                      lower:
+                        type: number
+                      upper:
+                        type: number
+                  effect_size:
+                    type: number
+                  power:
+                    type: number
+                  interpretation:
+                    type: string
+              recommendation:
+                type: string
+        overall_recommendation:
+          type: string
+        business_impact:
+          type: object
+        data_quality_metrics:
+          type: object
+
+    ExperimentSummaryResponse:
+      type: object
+      properties:
+        experiment_id:
+          type: string
+          format: uuid
+        experiment_name:
+          type: string
+        summary_date:
+          type: string
+          format: date-time
+        total_participants:
+          type: integer
+        total_variants:
+          type: integer
+        duration_days:
+          type: number
+        primary_metric:
+          type: string
+        key_findings:
+          type: array
+          items:
+            type: object
+        performance_comparison:
+          type: object
+        statistical_significance:
+          type: object
+        recommendations:
+          type: array
+          items:
+            type: string
+        confidence_level:
+          type: number
+        data_quality:
+          type: object
+
+    # User Segment Schemas
+    UserSegmentCreateRequest:
+      type: object
+      required:
+        - name
+        - segment_criteria
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+        segment_type:
+          type: string
+          enum: ["behavioral", "demographic", "technical"]
+        segment_criteria:
+          type: object
+          description: Rules for segment membership
+          example:
+            min_queries_per_week: 50
+            min_session_duration: 300
+            account_age_days: 30
+        is_dynamic:
+          type: boolean
+          default: true
+        tags:
+          type: array
+          items:
+            type: string
+
+    UserSegmentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        segment_type:
+          type: string
+        user_count:
+          type: integer
+        active_user_count:
+          type: integer
+        segment_criteria:
+          type: object
+        is_dynamic:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        last_updated:
+          type: string
+          format: date-time
+        tags:
+          type: array
+          items:
+            type: string
+
+    # Health Check Schema
+    HealthCheckResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: ["healthy", "degraded", "unhealthy"]
+        timestamp:
+          type: string
+          format: date-time
+        components:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: ["healthy", "degraded", "unhealthy"]
+              message:
+                type: string
+              error:
+                type: string
+              active_experiments:
+                type: integer
+        error:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  status_code:
+                    type: integer
+                  type:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: string
+            example:
+              error:
+                message: "Validation failed"
+                status_code: 400
+                type: "validation_error"
+                details: ["name is required", "experiment_type is invalid"]
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  status_code:
+                    type: integer
+                  type:
+                    type: string
+            example:
+              error:
+                message: "Authentication required"
+                status_code: 401
+                type: "authentication_error"
+
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  status_code:
+                    type: integer
+                  type:
+                    type: string
+            example:
+              error:
+                message: "Insufficient permissions"
+                status_code: 403
+                type: "authorization_error"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  status_code:
+                    type: integer
+                  type:
+                    type: string
+            example:
+              error:
+                message: "Experiment not found"
+                status_code: 404
+                type: "not_found_error"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  status_code:
+                    type: integer
+                  type:
+                    type: string
+            example:
+              error:
+                message: "Internal server error"
+                status_code: 500
+                type: "internal_error"
+
+  examples:
+    created_experiment:
+      value:
+        id: "123e4567-e89b-12d3-a456-426614174000"
+        name: "Vector Search Algorithm Test"
+        description: "Testing new vector search algorithm against current hybrid approach"
+        hypothesis: "The new vector search algorithm will improve relevance scores by 15%"
+        experiment_type: "search_algorithm"
+        status: "draft"
+        primary_metric: "relevance_score"
+        target_improvement: 15.0
+        traffic_percentage: 20.0
+        minimum_sample_size: 2000
+        confidence_level: 0.95
+        statistical_test: "z_test"
+        start_time: "2024-01-01T00:00:00Z"
+        end_time: "2024-01-31T23:59:59Z"
+        created_at: "2024-01-01T10:00:00Z"
+        updated_at: "2024-01-01T10:00:00Z"
+        is_active: false
+        duration_days: null
+        actual_sample_size: 0
+        statistical_power: 0.0
+        participant_stats:
+          total: 0
+          variants: []
+        variants: []
+        tags: ["search", "algorithm", "q1_2024"]

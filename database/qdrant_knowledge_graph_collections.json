@@ -1,0 +1,318 @@
+{
+  "collections": {
+    "entity_embeddings": {
+      "name": "entity_embeddings",
+      "vectors": {
+        "size": 1536,
+        "distance": "Cosine"
+      },
+      "hnsw_config": {
+        "m": 32,
+        "ef_construct": 200,
+        "full_scan_threshold": 20000,
+        "max_indexing_threads": 4,
+        "on_disk": false
+      },
+      "quantization_config": {
+        "scalar": {
+          "type": "int8",
+          "quantile": 0.99,
+          "always_ram": true
+        }
+      },
+      "payload_schema": {
+        "entity_id": "keyword",
+        "entity_name": "text",
+        "canonical_name": "text",
+        "entity_type": "keyword",
+        "entity_subtypes": "keyword",
+        "organization_id": "keyword",
+        "confidence": "float",
+        "importance_score": "float",
+        "extraction_method": "keyword",
+        "extraction_model": "keyword",
+        "source_document_ids": "keyword",
+        "aliases": "text",
+        "description": "text",
+        "first_seen": "integer",
+        "last_seen": "integer",
+        "created_at": "integer",
+        "updated_at": "integer",
+        "embedding_model": "keyword",
+        "embedding_version": "keyword",
+        "processing_status": "keyword",
+        "quality_flags": "keyword"
+      },
+      "optimizer_config": {
+        "deleted_threshold": 0.2,
+        "vacuum_min_vector_number": 1000,
+        "default_segment_number": 2,
+        "max_segment_size": 200000,
+        "memmap_threshold": 50000,
+        "indexing_threshold": 20000,
+        "flush_interval_sec": 5,
+        "max_optimization_threads": 1
+      }
+    },
+    "relationship_embeddings": {
+      "name": "relationship_embeddings",
+      "vectors": {
+        "size": 768,
+        "distance": "Cosine"
+      },
+      "hnsw_config": {
+        "m": 24,
+        "ef_construct": 150,
+        "full_scan_threshold": 15000,
+        "max_indexing_threads": 4,
+        "on_disk": false
+      },
+      "quantization_config": {
+        "scalar": {
+          "type": "int8",
+          "quantile": 0.99,
+          "always_ram": true
+        }
+      },
+      "payload_schema": {
+        "relationship_id": "keyword",
+        "source_entity_id": "keyword",
+        "target_entity_id": "keyword",
+        "source_entity_name": "text",
+        "target_entity_name": "text",
+        "relationship_type": "keyword",
+        "relationship_subtype": "keyword",
+        "organization_id": "keyword",
+        "strength": "float",
+        "confidence": "float",
+        "weight": "float",
+        "direction": "keyword",
+        "source_document_id": "keyword",
+        "context": "text",
+        "evidence": "text",
+        "extraction_method": "keyword",
+        "created_at": "integer",
+        "updated_at": "integer",
+        "embedding_model": "keyword",
+        "relationship_properties": "text"
+      },
+      "optimizer_config": {
+        "deleted_threshold": 0.2,
+        "vacuum_min_vector_number": 500,
+        "default_segment_number": 2,
+        "max_segment_size": 100000,
+        "memmap_threshold": 30000,
+        "indexing_threshold": 15000,
+        "flush_interval_sec": 5,
+        "max_optimization_threads": 1
+      }
+    },
+    "graph_context_embeddings": {
+      "name": "graph_context_embeddings",
+      "vectors": {
+        "size": 1024,
+        "distance": "Cosine"
+      },
+      "hnsw_config": {
+        "m": 28,
+        "ef_construct": 175,
+        "full_scan_threshold": 10000,
+        "max_indexing_threads": 4,
+        "on_disk": false
+      },
+      "quantization_config": {
+        "scalar": {
+          "type": "int8",
+          "quantile": 0.99,
+          "always_ram": false
+        }
+      },
+      "payload_schema": {
+        "context_id": "keyword",
+        "context_type": "keyword",
+        "entity_ids": "keyword",
+        "organization_id": "keyword",
+        "context_radius": "integer",
+        "path_length": "integer",
+        "community_id": "keyword",
+        "graph_snapshot_id": "keyword",
+        "context_size": "integer",
+        "entity_types": "keyword",
+        "relationship_types": "keyword",
+        "created_at": "integer",
+        "expires_at": "integer",
+        "embedding_model": "keyword",
+        "embedding_version": "keyword",
+        "computation_metadata": "text"
+      },
+      "optimizer_config": {
+        "deleted_threshold": 0.3,
+        "vacuum_min_vector_number": 200,
+        "default_segment_number": 1,
+        "max_segment_size": 50000,
+        "memmap_threshold": 20000,
+        "indexing_threshold": 10000,
+        "flush_interval_sec": 3,
+        "max_optimization_threads": 1
+      }
+    },
+    "entity_semantic_embeddings": {
+      "name": "entity_semantic_embeddings",
+      "vectors": {
+        "size": 2048,
+        "distance": "Cosine"
+      },
+      "hnsw_config": {
+        "m": 40,
+        "ef_construct": 250,
+        "full_scan_threshold": 30000,
+        "max_indexing_threads": 6,
+        "on_disk": false
+      },
+      "quantization_config": {
+        "product": {
+          "compression": "x32",
+          "always_ram": false
+        }
+      },
+      "payload_schema": {
+        "entity_id": "keyword",
+        "entity_name": "text",
+        "entity_type": "keyword",
+        "organization_id": "keyword",
+        "semantic_context": "text",
+        "domain_knowledge": "text",
+        "related_concepts": "keyword",
+        "concept_hierarchy": "keyword",
+        "domain_confidence": "float",
+        "semantic_similarity_threshold": "float",
+        "knowledge_domains": "keyword",
+        "created_at": "integer",
+        "embedding_model": "keyword",
+        "model_version": "keyword",
+        "training_data_version": "keyword"
+      },
+      "optimizer_config": {
+        "deleted_threshold": 0.15,
+        "vacuum_min_vector_number": 2000,
+        "default_segment_number": 3,
+        "max_segment_size": 300000,
+        "memmap_threshold": 75000,
+        "indexing_threshold": 30000,
+        "flush_interval_sec": 7,
+        "max_optimization_threads": 2
+      }
+    }
+  },
+  "configuration": {
+    "storage": {
+      "use_memory_map": true,
+      "max_search_threads": 8,
+      "on_disk_payload": true,
+      "replicas": 1
+    },
+    "performance": {
+      "max_result_size": 1000,
+      "search_timeout_ms": 5000,
+      "write_timeout_ms": 10000,
+      "batch_size": 100
+    },
+    "sharding": {
+      "method": "auto",
+      "shard_number": 1,
+      "shard_transfer_timeout": 120000,
+      "replication_factor": 1
+    },
+    "security": {
+      "api_key_required": false,
+      "read_only": false,
+      "enable_tls": false
+    }
+  },
+  "indexing_strategies": {
+    "entity_embeddings": {
+      "payload_indexes": [
+        {
+          "field_name": "organization_id",
+          "field_schema": "keyword"
+        },
+        {
+          "field_name": "entity_type",
+          "field_schema": "keyword"
+        },
+        {
+          "field_name": "confidence",
+          "field_schema": "float"
+        },
+        {
+          "field_name": "importance_score",
+          "field_schema": "float"
+        },
+        {
+          "field_name": "created_at",
+          "field_schema": "integer"
+        }
+      ]
+    },
+    "relationship_embeddings": {
+      "payload_indexes": [
+        {
+          "field_name": "organization_id",
+          "field_schema": "keyword"
+        },
+        {
+          "field_name": "relationship_type",
+          "field_schema": "keyword"
+        },
+        {
+          "field_name": "strength",
+          "field_schema": "float"
+        },
+        {
+          "field_name": "confidence",
+          "field_schema": "float"
+        },
+        {
+          "field_name": "created_at",
+          "field_schema": "integer"
+        }
+      ]
+    },
+    "graph_context_embeddings": {
+      "payload_indexes": [
+        {
+          "field_name": "organization_id",
+          "field_schema": "keyword"
+        },
+        {
+          "field_name": "context_type",
+          "field_schema": "keyword"
+        },
+        {
+          "field_name": "community_id",
+          "field_schema": "keyword"
+        },
+        {
+          "field_name": "expires_at",
+          "field_schema": "integer"
+        }
+      ]
+    },
+    "entity_semantic_embeddings": {
+      "payload_indexes": [
+        {
+          "field_name": "organization_id",
+          "field_schema": "keyword"
+        },
+        {
+          "field_name": "knowledge_domains",
+          "field_schema": "keyword"
+        },
+        {
+          "field_name": "domain_confidence",
+          "field_schema": "float"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rag-search-service
+  namespace: rag-system
+  labels:
+    app: rag-search
+    component: backend
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8083
+    targetPort: 8083
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  selector:
+    app: rag-search
+    component: backend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rag-search-headless
+  namespace: rag-system
+  labels:
+    app: rag-search
+    component: backend
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: http
+    port: 8083
+    targetPort: 8083
+    protocol: TCP
+  selector:
+    app: rag-search
+    component: backend

@@ -1,0 +1,604 @@
+# =============================================================================
+# Monitoring Stack Configuration
+# =============================================================================
+
+# Global Configuration
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: "gp2"
+
+# Common Labels
+commonLabels:
+  app.kubernetes.io/name: monitoring-stack
+  app.kubernetes.io/instance: {{ .Release.Name }}
+  app.kubernetes.io/managed-by: {{ .Release.Service }}
+
+# =============================================================================
+# Prometheus Configuration
+# =============================================================================
+
+prometheus:
+  enabled: true
+
+  # Server Configuration
+  server:
+    enabled: true
+    replicaCount: 2
+
+    image:
+      repository: prom/prometheus
+      tag: "v2.45.0"
+      pullPolicy: IfNotPresent
+
+    # Data retention
+    retention: "15d"
+    retentionSize: "10GB"
+
+    # Persistent storage
+    persistentVolume:
+      enabled: true
+      storageClass: "gp2"
+      size: "50Gi"
+
+    # Resource limits
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+
+    # Configuration
+    config:
+      global:
+        scrape_interval: 15s
+        evaluation_interval: 15s
+        external_labels:
+          cluster: 'production'
+          environment: 'production'
+          region: 'us-west-2'
+
+      rule_files:
+        - "/etc/prometheus/rules/*.yml"
+
+      alerting:
+        alertmanagers:
+          - static_configs:
+              - targets: ['alertmanager:9093']
+
+      scrape_configs:
+        # Kubernetes API Server
+        - job_name: 'kubernetes-apiservers'
+          kubernetes_sd_configs:
+            - role: endpoints
+          scheme: https
+          tls_config:
+            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+              action: keep
+              regex: default;kubernetes;https
+
+        # Node Exporter
+        - job_name: 'kubernetes-nodes'
+          kubernetes_sd_configs:
+            - role: node
+          relabel_configs:
+            - action: labelmap
+              regex: __meta_kubernetes_node_label_(.+)
+            - target_label: __address__
+              replacement: kubernetes.default.svc:443
+            - source_labels: [__meta_kubernetes_node_name]
+              regex: (.+)
+              target_label: __metrics_path__
+              replacement: /api/v1/nodes/${1}/proxy/metrics
+
+        # Kubelet
+        - job_name: 'kubernetes-kubelet'
+          kubernetes_sd_configs:
+            - role: node
+          scheme: https
+          tls_config:
+            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            insecure_skip_verify: true
+          relabel_configs:
+            - action: labelmap
+              regex: __meta_kubernetes_node_label_(.+)
+            - target_label: __address__
+              replacement: kubernetes.default.svc:443
+            - source_labels: [__meta_kubernetes_node_name]
+              regex: (.+)
+              target_label: __metrics_path__
+              replacement: /api/v1/nodes/${1}/proxy/metrics
+
+        # cAdvisor
+        - job_name: 'kubernetes-cadvisor'
+          kubernetes_sd_configs:
+            - role: node
+          scheme: https
+          metrics_path: /metrics/cadvisor
+          tls_config:
+            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            insecure_skip_verify: true
+          relabel_configs:
+            - action: labelmap
+              regex: __meta_kubernetes_node_label_(.+)
+            - target_label: __address__
+              replacement: kubernetes.default.svc:443
+            - source_labels: [__meta_kubernetes_node_name]
+              regex: (.+)
+              target_label: __metrics_path__
+              replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+
+        # Application Metrics
+        - job_name: 'knowledge-graph-frontend'
+          static_configs:
+            - targets: ['frontend-service:3000']
+          metrics_path: /metrics
+          scrape_interval: 30s
+
+        - job_name: 'knowledge-graph-backend'
+          static_configs:
+            - targets: ['backend-service:8000']
+          metrics_path: /metrics
+          scrape_interval: 30s
+
+        # Database Metrics
+        - job_name: 'postgres-exporter'
+          static_configs:
+            - targets: ['postgres-exporter:9187']
+
+        - job_name: 'redis-exporter'
+          static_configs:
+            - targets: ['redis-exporter:9121']
+
+        - job_name: 'neo4j-exporter'
+          static_configs:
+            - targets: ['neo4j:2004']
+
+        - job_name: 'qdrant-exporter'
+          static_configs:
+            - targets: ['qdrant:6333']
+
+    # Service monitor for additional services
+    serviceMonitor:
+      enabled: true
+      namespace: knowledge-graph-analytics
+
+    # Pod monitor
+    podMonitor:
+      enabled: true
+      namespace: knowledge-graph-analytics
+
+    # Rules
+    defaultRules:
+      enabled: true
+      rules:
+        alertmanager: true
+        etcd: true
+        configReloaders: true
+        general.rules: true
+        k8s: true
+        kubeApiserver: true
+        kubelet: true
+        kubeProxy: true
+        kubePrometheusGeneral: true
+        kubePrometheusNodeRecording: true
+        kubernetesApps: true
+        kubernetesResources: true
+        kubernetesStorage: true
+        network: true
+        node: true
+        prometheus: true
+        prometheusOperator: true
+        time: true
+
+  # AlertManager
+  alertmanager:
+    enabled: true
+
+    replicaCount: 2
+
+    config:
+      global:
+        smtp_smarthost: 'smtp.gmail.com:587'
+        smtp_from: 'alerts@yourcompany.com'
+        smtp_auth_username: 'alerts@yourcompany.com'
+        smtp_auth_password_file: '/etc/alertmanager/secrets/smtp-password'
+
+      route:
+        group_by: ['alertname', 'cluster', 'service']
+        group_wait: 10s
+        group_interval: 10s
+        repeat_interval: 1h
+        receiver: 'web.hook'
+        routes:
+          - match:
+              severity: critical
+            receiver: 'critical-alerts'
+          - match:
+              severity: warning
+            receiver: 'warning-alerts'
+
+      receivers:
+        - name: 'web.hook'
+          webhook_configs:
+            - url: 'http://127.0.0.1:5001/'
+
+        - name: 'critical-alerts'
+          email_configs:
+            - to: 'devops@yourcompany.com'
+              subject: '[CRITICAL] {{ .GroupLabels.alertname }} in {{ .GroupLabels.cluster }}'
+              body: |
+                {{ range .Alerts }}
+                Alert: {{ .Annotations.summary }}
+                Description: {{ .Annotations.description }}
+                {{ end }}
+          slack_configs:
+            - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+              channel: '#alerts-critical'
+              title: 'Critical Alert: {{ .GroupLabels.alertname }}'
+              text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+
+        - name: 'warning-alerts'
+          email_configs:
+            - to: 'devops@yourcompany.com'
+              subject: '[WARNING] {{ .GroupLabels.alertname }} in {{ .GroupLabels.cluster }}'
+              body: |
+                {{ range .Alerts }}
+                Alert: {{ .Annotations.summary }}
+                Description: {{ .Annotations.description }}
+                {{ end }}
+
+    persistentVolume:
+      enabled: true
+      storageClass: "gp2"
+      size: "2Gi"
+
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+
+  # Node Exporter
+  nodeExporter:
+    enabled: true
+    hostRootFs: true
+    hostNetwork: true
+    hostPID: true
+
+    resources:
+      limits:
+        cpu: 250m
+        memory: 180Mi
+      requests:
+        cpu: 100m
+        memory: 100Mi
+
+# =============================================================================
+# Grafana Configuration
+# =============================================================================
+
+grafana:
+  enabled: true
+
+  replicaCount: 2
+
+  image:
+    repository: grafana/grafana
+    tag: "10.0.0"
+    pullPolicy: IfNotPresent
+
+  admin:
+    existingSecret: "monitoring-credentials"
+    userKey: "admin-user"
+    passwordKey: "grafana-admin-password"
+
+  # Sidecar configuration
+  sidecar:
+    datasources:
+      enabled: true
+      defaultDatasourceEnabled: false
+    dashboards:
+      enabled: true
+      provider:
+        allowUiUpdates: false
+
+  # Data sources
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://prometheus-server:80
+          access: proxy
+          isDefault: true
+        - name: Loki
+          type: loki
+          url: http://loki:3100
+          access: proxy
+
+  # Dashboard providers
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  # Dashboards
+  dashboards:
+    default:
+      # System Overview
+      system-overview:
+        gnetId: 1860
+        revision: 27
+        datasource: Prometheus
+
+      # Node Exporter Full
+      node-exporter-full:
+        gnetId: 1860
+        revision: 27
+        datasource: Prometheus
+
+      # Kubernetes Cluster Monitoring
+      kubernetes-cluster:
+        gnetId: 14205
+        revision: 1
+        datasource: Prometheus
+
+      # Application Performance
+      application-performance:
+        url: https://raw.githubusercontent.com/your-org/knowledge-graph-analytics/main/monitoring/grafana/dashboards/application-performance.json
+
+      # Business Metrics
+      business-metrics:
+        url: https://raw.githubusercontent.com/your-org/knowledge-graph-analytics/main/monitoring/grafana/dashboards/business-metrics.json
+
+  # Persistent storage
+  persistence:
+    enabled: true
+    storageClassName: "gp2"
+    size: "10Gi"
+
+  # Resources
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+
+  # Ingress
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    hosts:
+      - host: grafana.yourdomain.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.yourdomain.com
+
+# =============================================================================
+# Loki Configuration (Log Aggregation)
+# =============================================================================
+
+loki:
+  enabled: true
+
+  replicaCount: 1
+
+  image:
+    repository: grafana/loki
+    tag: "2.8.0"
+    pullPolicy: IfNotPresent
+
+  # Configuration
+  config:
+    auth_enabled: false
+
+    ingester:
+      lifecycler:
+        address: 127.0.0.1
+        ring:
+          kvstore:
+            store: inmemory
+          replication_factor: 1
+        final_sleep: 0s
+
+    schema_config:
+      configs:
+        - from: 2020-10-24
+          store: boltdb-shipper
+          object_store: filesystem
+          schema: v11
+          index:
+            prefix: index_
+            period: 24h
+
+    storage_config:
+      boltdb_shipper:
+        active_index_directory: /loki/boltdb-shipper-active
+        cache_location: /loki/boltdb-shipper-cache
+        shared_store: filesystem
+      filesystem:
+        directory: /loki/chunks
+
+    limits_config:
+      enforce_metric_name: false
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+
+    chunk_store_config:
+      max_look_back_period: 0s
+
+    table_manager:
+      retention_deletes_enabled: false
+      retention_period: 0s
+
+  # Persistent storage
+  persistence:
+    enabled: true
+    storageClassName: "gp2"
+    size: "20Gi"
+
+  # Resources
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+# =============================================================================
+# Promtail Configuration (Log Collection)
+# =============================================================================
+
+promtail:
+  enabled: true
+
+  image:
+    repository: grafana/promtail
+    tag: "2.8.0"
+    pullPolicy: IfNotPresent
+
+  # Configuration
+  config:
+    server:
+      http_listen_port: 3101
+      grpc_listen_port: 0
+
+    positions:
+      filename: /tmp/positions.yaml
+
+    clients:
+      - url: http://loki:3100/loki/api/v1/push
+
+    scrape_configs:
+      # Kubernetes Pods
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels:
+              - __meta_kubernetes_pod_annotation_prometheus_io_scrape
+            action: keep
+            regex: true
+          - source_labels:
+              - __meta_kubernetes_pod_annotation_prometheus_io_path
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - action: replace
+            source_labels:
+              - __meta_kubernetes_namespace
+            target_label: namespace
+          - action: replace
+            source_labels:
+              - __meta_kubernetes_pod_name
+            target_label: pod
+          - action: replace
+            source_labels:
+              - __meta_kubernetes_pod_container_name
+            target_label: container
+          - action: replace
+            replacement: /var/log/pods/*$1*.log
+            source_labels:
+              - __meta_kubernetes_pod_uid
+              - __meta_kubernetes_pod_container_name
+            target_label: __path__
+
+      # System logs
+      - job_name: system
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              job: varlogs
+              __path__: /var/log/*log
+
+  # Resources
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# =============================================================================
+# Additional Components
+# =============================================================================
+
+# PostgreSQL Exporter
+postgres-exporter:
+  enabled: true
+  image:
+    repository: prometheuscommunity/postgres-exporter
+    tag: "v0.12.0"
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+# Redis Exporter
+redis-exporter:
+  enabled: true
+  image:
+    repository: oliver006/redis_exporter
+    tag: "v1.45.0"
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+# Network Policies
+networkPolicy:
+  enabled: true
+
+# Pod Security Policies
+podSecurityPolicy:
+  enabled: false
+
+# Service Monitor
+serviceMonitor:
+  enabled: true
+
+# Pod Monitor
+podMonitor:
+  enabled: true

@@ -1,0 +1,520 @@
+# Security Scanning Configuration for Multimodal Enterprise RAG System
+
+# Trivy Configuration
+trivy:
+  # Image scanning
+  image:
+    # Scan images for vulnerabilities
+    scan:
+      enabled: true
+      # Skip update of vulnerability database
+      skip-db-update: false
+      # Skip scanning of Java DB
+      skip-java-db-update: false
+      # Include unreproducible vulnerabilities
+      include-unreproducible: false
+      # List of modules to skip
+      skip-modules: []
+      # Scan layers in parallel
+      parallel: 1
+      # Number of workers
+      jobs: 5
+      # Exit code when vulnerabilities are found
+      exit-code: 1
+      # Exit code when vulnerabilities are found and severity is specified
+      trivy-exit-code: 0
+
+    # Severities to check for
+    severity:
+      - UNKNOWN
+      - LOW
+      - MEDIUM
+      - HIGH
+      - CRITICAL
+
+    # Ignore unfixed vulnerabilities
+    ignore-unfixed: false
+
+    # Ignore file
+    ignore-file: "/tmp/.trivyignore"
+
+    # Skip directories
+    skip-dirs:
+      - "/tmp"
+      - "/var/log"
+
+    # Skip files
+    skip-files:
+      - "*.log"
+      - "*.tmp"
+
+    # List of CVEs to ignore
+    ignore-cves: []
+
+    # List of vulnerabilities to ignore
+    ignore-vulns: []
+
+  # File system scanning
+  filesystem:
+    # Scan filesystem for vulnerabilities
+    scan:
+      enabled: true
+      # Scan root directory
+      root: "/"
+      # Scan recursively
+      recursive: true
+      # Follow symbolic links
+      follow-symlinks: false
+      # Skip directories
+      skip-dirs:
+        - "/proc"
+        - "/sys"
+        - "/dev"
+      # Skip files
+      skip-files:
+        - "*.log"
+        - "*.tmp"
+        - "*.cache"
+      # Severities to check for
+      severity:
+        - UNKNOWN
+        - LOW
+        - MEDIUM
+        - HIGH
+        - CRITICAL
+      # Include unreproducible vulnerabilities
+      include-unreproducible: false
+      # Skip update of vulnerability database
+      skip-db-update: false
+      # List of modules to skip
+      skip-modules: []
+
+# OWASP ZAP Configuration
+owasp-zap:
+  # ZAP proxy configuration
+  proxy:
+    host: "localhost"
+    port: 8080
+
+  # Target configuration
+  target:
+    url: "http://localhost:8000"
+    context: "RAG System"
+
+  # Authentication configuration
+  authentication:
+    enabled: true
+    login-url: "/auth/login"
+    username: "test-user"
+    password: "test-password"
+    username-field: "username"
+    password-field: "password"
+
+  # Scan configuration
+  scan:
+    # Active scan configuration
+    active:
+      enabled: true
+      # Strength of the attack (LOW, MEDIUM, HIGH, INSANE)
+      strength: "MEDIUM"
+      # Policy to use
+      policy: "Default Policy"
+
+    # Passive scan configuration
+    passive:
+      enabled: true
+      # Scan all requests
+      scan-all-requests: true
+
+    # Spider configuration
+    spider:
+      enabled: true
+      # Maximum depth to crawl
+      max-depth: 10
+      # Maximum children to crawl
+      max-children: 100
+      # Accept cookies
+      accept-cookies: true
+      # Handle OData parameters visited
+      handle-odata: true
+
+    # AJAX spider configuration
+    ajax-spider:
+      enabled: true
+      # Maximum crawl time in minutes
+      max-crawl-time: 30
+      # Maximum crawl depth
+      max-crawl-depth: 10
+
+# SAST (Static Application Security Testing) Configuration
+sast:
+  # Semgrep configuration
+  semgrep:
+    # Scan configuration
+    scan:
+      enabled: true
+      # Configuration file
+      config: "auto"
+      # Maximum number of findings to report
+      max-findings: 1000
+      # Minimum severity level
+      severity: "INFO"
+      # Output format
+      output-format: "json"
+      # Output file
+      output-file: "/tmp/semgrep-report.json"
+
+    # Paths to scan
+    paths:
+      - "frontend/src"
+      - "backend/src"
+      - "tests"
+
+    # Paths to exclude
+    exclude:
+      - "node_modules"
+      - ".git"
+      - "build"
+      - "dist"
+      - "__pycache__"
+      - "*.test.js"
+      - "*.test.ts"
+      - "*.spec.js"
+      - "*.spec.ts"
+
+    # Rules configuration
+    rules:
+      # Custom rules directory
+      custom-rules-dir: "/config/semgrep-rules"
+      # Additional rule IDs
+      rule-ids: []
+      # Rule IDs to exclude
+      exclude-rule-ids: []
+
+    # Configuration options
+    options:
+      # Enable auto-generated config
+      auto-gen: true
+      # Enable JSON output
+      json: true
+      # Enable SARIF output
+      sarif: true
+      # Enable performance profiling
+      profiling: false
+
+  # ESLint security configuration
+  eslint:
+    # Scan configuration
+    scan:
+      enabled: true
+      # Configuration file
+      config-file: ".eslintrc.js"
+      # Extensions to check
+      extensions: [".js", ".jsx", ".ts", ".tsx"]
+
+    # Paths to scan
+    paths:
+      - "frontend/src"
+
+    # Paths to exclude
+    exclude:
+      - "node_modules"
+      - "build"
+      - "dist"
+      - "*.test.js"
+      - "*.test.ts"
+      - "*.spec.js"
+      - "*.spec.ts"
+
+    # Security rules
+    rules:
+      # Enable security plugin
+      plugin-security: true
+      # Custom security rules
+      custom-rules: []
+
+# DAST (Dynamic Application Security Testing) Configuration
+dast:
+  # Nuclei configuration
+  nuclei:
+    # Scan configuration
+    scan:
+      enabled: true
+      # Target URLs
+      targets:
+        - "http://localhost:8000"
+        - "https://api.rag-system.com"
+
+    # Templates configuration
+    templates:
+      # Templates directory
+      directory: "/nuclei-templates"
+      # Template tags to use
+      tags:
+        - "cve"
+        - "web"
+        - "exposure"
+        - "vulnerability"
+        - "misconfiguration"
+      # Template severity levels
+      severity:
+        - "critical"
+        - "high"
+        - "medium"
+        - "low"
+        - "info"
+
+    # Scan options
+    options:
+      # Concurrency level
+      concurrency: 25
+      # Rate limit per second
+      rate-limit: 10
+      # Template timeout in seconds
+      timeout: 10
+      # Retries on failure
+      retries: 1
+      # Maximum pages to crawl
+      max-pages: 100
+
+    # Authentication
+    authentication:
+      enabled: false
+      type: "bearer"
+      token: ""
+
+    # Headers
+    headers:
+      User-Agent: "RAG System Security Scanner"
+      Accept: "*/*"
+
+    # Exclude paths
+    exclude-paths:
+      - "/health"
+      - "/metrics"
+      - "/status"
+
+# Dependency Scanning Configuration
+dependency-scanning:
+  # npm audit configuration
+  npm-audit:
+    # Scan configuration
+    scan:
+      enabled: true
+      # Audit level (low, moderate, high, critical)
+      level: "moderate"
+      # Production only
+      production-only: false
+      # Output format
+      output-format: "json"
+
+    # Paths to scan
+    paths:
+      - "frontend/package.json"
+      - "backend/package.json"
+
+  # Python dependency scanning
+  pip-audit:
+    # Scan configuration
+    scan:
+      enabled: true
+      # Requirements file
+      requirements-file: "requirements.txt"
+      # Output format
+      output-format: "json"
+      # Vulnerability database
+      vulnerability-db: "pyup.io"
+
+    # Paths to scan
+    paths:
+      - "requirements.txt"
+      - "requirements-dev.txt"
+
+  # OWASP Dependency Check
+  owasp-dependency-check:
+    # Scan configuration
+    scan:
+      enabled: true
+      # Suppression file
+      suppression-file: "/config/dependency-check-suppressions.xml"
+      # Fail build on CVSS > 0
+      fail-on-cvss: 0
+      # Data directory
+      data-directory: "/tmp/dependency-check-data"
+
+    # Paths to scan
+    paths:
+      - "frontend/node_modules"
+      - "backend/venv"
+      - "frontend/package-lock.json"
+      - "backend/Pipfile.lock"
+
+# Infrastructure Scanning Configuration
+infrastructure-scanning:
+  # Terraform security scanning
+  terraform:
+    # Scan configuration
+    scan:
+      enabled: true
+      # Directory to scan
+      directory: "./infrastructure"
+      # Output format
+      output-format: "json"
+      # Output file
+      output-file: "/tmp/terraform-security-scan.json"
+
+    # Checkov configuration
+    checkov:
+      # Framework to check
+      framework: "terraform"
+      # Directory to check
+      directory: "./infrastructure"
+      # Output format
+      output: "json"
+      # Output file path
+      output-file-path: "/tmp/checkov-report.json"
+      # Soft fail on checks
+      soft-fail: false
+      # Download external modules
+      download-external-modules: true
+      # Evaluate variables
+      evaluate-variables: true
+
+  # Docker security scanning
+  docker:
+    # Scan configuration
+    scan:
+      enabled: true
+      # Dockerfiles to scan
+      dockerfiles:
+        - "Dockerfile"
+        - "frontend/Dockerfile"
+        - "backend/Dockerfile"
+      # Output format
+      output-format: "json"
+      # Minimum severity level
+      severity: "INFO"
+
+    # Hadolint configuration
+    hadolint:
+      # Configuration file
+      config-file: "/config/.hadolint.yaml"
+      # Dockerfiles to check
+      dockerfiles:
+        - "Dockerfile"
+        - "frontend/Dockerfile"
+        - "backend/Dockerfile"
+      # Output format
+      output-format: "json"
+      # Output file
+      output-file: "/tmp/hadolint-report.json"
+
+# Compliance Configuration
+compliance:
+  # GDPR compliance checks
+  gdpr:
+    # Scan configuration
+    scan:
+      enabled: true
+      # Personal data patterns to detect
+      personal-data-patterns:
+        - "email"
+        - "phone"
+        - "ssn"
+        - "credit-card"
+        - "address"
+        - "name"
+      # Files to scan
+      paths:
+        - "frontend/src"
+        - "backend/src"
+        - "tests"
+      # Files to exclude
+      exclude:
+        - "node_modules"
+        - ".git"
+        - "__pycache__"
+        - "*.test.js"
+        - "*.test.ts"
+
+  # SOC 2 compliance checks
+  soc2:
+    # Scan configuration
+    scan:
+      enabled: true
+      # Security controls to check
+      controls:
+        - "access-control"
+        - "encryption"
+        - "audit-logging"
+        - "incident-response"
+        - "vulnerability-management"
+        - "data-protection"
+
+  # ISO 27001 compliance checks
+  iso27001:
+    # Scan configuration
+    scan:
+      enabled: true
+      # Security controls to check
+      controls:
+        - "information-security-policies"
+        - "organization-of-information-security"
+        - "human-resource-security"
+        - "asset-management"
+        - "access-control"
+        - "cryptography"
+        - "physical-and-environmental-security"
+        - "operations-security"
+        - "communications-security"
+        - "system-acquisition-development-and-maintenance"
+        - "supplier-relationships"
+        - "information-security-incident-management"
+        - "information-security-aspects-of-business-continuity-management"
+        - "compliance"
+
+# Reporting Configuration
+reporting:
+  # Report formats
+  formats:
+    - "json"
+    - "sarif"
+    - "html"
+    - "pdf"
+
+  # Output directory
+  output-directory: "/tmp/security-reports"
+
+  # Email notifications
+  email:
+    enabled: false
+    smtp-server: "smtp.example.com"
+    smtp-port: 587
+    username: "security@example.com"
+    password: "password"
+    from: "security@example.com"
+    to:
+      - "security-team@example.com"
+      - "dev-team@example.com"
+
+  # Slack notifications
+  slack:
+    enabled: false
+    webhook-url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+    channel: "#security-alerts"
+    username: "Security Scanner"
+
+  # Jira integration
+  jira:
+    enabled: false
+    url: "https://your-domain.atlassian.net"
+    username: "security-bot"
+    password: "api-token"
+    project: "SEC"
+    issue-type: "Vulnerability"
+    priority-mapping:
+      critical: "Highest"
+      high: "High"
+      medium: "Medium"
+      low: "Low"
+      info: "Lowest"

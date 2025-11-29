@@ -1,0 +1,15 @@
+# Logstash configuration for RAG System
+http.host: "0.0.0.0"
+xpack.monitoring.elasticsearch.hosts: [ "http://elasticsearch:9200" ]
+path.config: /usr/share/logstash/pipeline
+path.logs: /usr/share/logstash/logs
+
+# Settings for performance
+pipeline.workers: 2
+pipeline.batch.size: 125
+pipeline.batch.delay: 50
+
+# Enable monitoring
+xpack.monitoring.enabled: true
+xpack.monitoring.elasticsearch.username: ""
+xpack.monitoring.elasticsearch.password: ""

@@ -1,0 +1,599 @@
+# Default values for Knowledge Graph Analytics Dashboard
+
+# Global configuration
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: "gp2"
+  dnsZone: "yourdomain.com"
+  environment: "production"
+
+# Common labels and annotations
+commonLabels:
+  app.kubernetes.io/name: knowledge-graph-analytics
+  app.kubernetes.io/instance: {{ .Release.Name }}
+  app.kubernetes.io/managed-by: {{ .Release.Service }}
+
+commonAnnotations:
+  helm.sh/hook-weight: "0"
+  helm.sh/hook: "pre-install,pre-upgrade"
+
+# Frontend Configuration
+frontend:
+  enabled: true
+  replicaCount: 3
+
+  image:
+    repository: your-registry/knowledge-graph-frontend
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    hosts:
+      - host: analytics.yourdomain.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: frontend-tls
+        hosts:
+          - analytics.yourdomain.com
+
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  env:
+    - name: NODE_ENV
+      value: "production"
+    - name: REACT_APP_API_URL
+      value: "https://api.yourdomain.com"
+    - name: REACT_APP_WS_URL
+      value: "wss://api.yourdomain.com"
+
+  healthCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Backend Configuration
+backend:
+  enabled: true
+  replicaCount: 3
+
+  image:
+    repository: your-registry/knowledge-graph-backend
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    hosts:
+      - host: api.yourdomain.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: backend-tls
+        hosts:
+          - api.yourdomain.com
+
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  env:
+    - name: ENVIRONMENT
+      value: "production"
+    - name: LOG_LEVEL
+      value: "INFO"
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: database-credentials
+          key: url
+    - name: REDIS_URL
+      valueFrom:
+        secretKeyRef:
+          name: redis-credentials
+          key: url
+    - name: NEO4J_URI
+      value: "bolt://neo4j:7687"
+    - name: NEO4J_USER
+      valueFrom:
+        secretKeyRef:
+          name: neo4j-credentials
+          key: username
+    - name: NEO4J_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: neo4j-credentials
+          key: password
+    - name: QDRANT_URL
+      value: "http://qdrant:6333"
+    - name: QDRANT_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: qdrant-credentials
+          key: api-key
+    - name: SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: backend-secrets
+          key: secret-key
+    - name: OPENAI_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: ai-credentials
+          key: openai-key
+    - name: ANTHROPIC_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: ai-credentials
+          key: anthropic-key
+
+  healthCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Celery Worker Configuration
+celeryWorker:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: your-registry/knowledge-graph-backend
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  command: ["celery", "-A", "src.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
+
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+
+  env:
+    - name: ENVIRONMENT
+      value: "production"
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: database-credentials
+          key: url
+    - name: REDIS_URL
+      valueFrom:
+        secretKeyRef:
+          name: redis-credentials
+          key: url
+    - name: NEO4J_URI
+      value: "bolt://neo4j:7687"
+    - name: NEO4J_USER
+      valueFrom:
+        secretKeyRef:
+          name: neo4j-credentials
+          key: username
+    - name: NEO4J_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: neo4j-credentials
+          key: password
+    - name: QDRANT_URL
+      value: "http://qdrant:6333"
+    - name: QDRANT_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: qdrant-credentials
+          key: api-key
+
+# Celery Beat Configuration
+celeryBeat:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: your-registry/knowledge-graph-backend
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  command: ["celery", "-A", "src.tasks.celery_app", "beat", "--loglevel=info"]
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+  env:
+    - name: ENVIRONMENT
+      value: "production"
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: database-credentials
+          key: url
+    - name: REDIS_URL
+      valueFrom:
+        secretKeyRef:
+          name: redis-credentials
+          key: url
+
+# PostgreSQL Configuration
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: ""
+    database: ragdb
+    username: raguser
+    existingSecret: "postgresql-credentials"
+  primary:
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClass: "gp2"
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+    initdb:
+      scripts:
+        init.sql: |
+          CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+          CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+          CREATE EXTENSION IF NOT EXISTS "btree_gin";
+
+# Redis Configuration
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    existingSecret: "redis-credentials"
+    existingSecretPasswordKey: "password"
+  master:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: "gp2"
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+  replica:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: "gp2"
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+
+# Neo4j Configuration
+neo4j:
+  enabled: true
+  auth:
+    enabled: true
+    existingSecret: "neo4j-credentials"
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+  persistence:
+    enabled: true
+    size: 200Gi
+    storageClass: "gp2"
+  config:
+    dbms:
+      memory:
+        heap:
+          initial_size: "1G"
+          max_size: "2G"
+        pagecache:
+          size: "1G"
+      security:
+        procedures:
+          unrestricted: "apoc.*,gds.*"
+      plugins:
+        - apoc
+        - graph-data-science
+
+# Qdrant Configuration
+qdrant:
+  enabled: true
+  replicaCount: 1
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: "gp2"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  config:
+    service:
+      api_key: ""
+      http_port: 6333
+      grpc_port: 6334
+
+# Prometheus Configuration
+prometheus:
+  enabled: true
+  server:
+    retention: "15d"
+    persistentVolume:
+      enabled: true
+      size: 50Gi
+      storageClass: "gp2"
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+    config:
+      global:
+        scrape_interval: 15s
+        evaluation_interval: 15s
+      rule_files:
+        - "/etc/prometheus/rules/*.yml"
+      scrape_configs:
+        - job_name: 'frontend'
+          static_configs:
+            - targets: ['frontend:3000']
+          metrics_path: /metrics
+        - job_name: 'backend'
+          static_configs:
+            - targets: ['backend:8000']
+          metrics_path: /metrics
+        - job_name: 'postgresql'
+          static_configs:
+            - targets: ['postgresql-exporter:9187']
+        - job_name: 'redis'
+          static_configs:
+            - targets: ['redis-exporter:9121']
+        - job_name: 'neo4j'
+          static_configs:
+            - targets: ['neo4j:2004']
+        - job_name: 'qdrant'
+          static_configs:
+            - targets: ['qdrant:6333']
+
+# Grafana Configuration
+grafana:
+  enabled: true
+  adminPassword: ""
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: "gp2"
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  sidecar:
+    datasources:
+      enabled: true
+      defaultDatasourceEnabled: false
+    dashboards:
+      enabled: true
+      provider:
+        allowUiUpdates: false
+
+# NGINX Ingress Controller
+nginx-ingress-controller:
+  enabled: true
+  controller:
+    replicaCount: 2
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+    service:
+      type: LoadBalancer
+      loadBalancerIP: ""
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+        service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "tcp"
+    config:
+      use-proxy-protocol: "true"
+      proxy-buffer-size: "16k"
+      proxy-buffers-number: "4"
+
+# Storage Classes
+storageClasses:
+  - name: gp2
+    provisioner: kubernetes.io/aws-ebs
+    parameters:
+      type: gp2
+      fsType: ext4
+    reclaimPolicy: Retain
+    allowVolumeExpansion: true
+
+# Monitoring and Logging
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    retention: "15d"
+  grafana:
+    enabled: true
+    persistence:
+      enabled: true
+      size: "10Gi"
+  loki:
+    enabled: true
+    persistence:
+      enabled: true
+      size: "20Gi"
+  fluentd:
+    enabled: true
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+# Security Context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+
+# Pod Security Policy
+podSecurityPolicy:
+  enabled: true
+  spec:
+    privileged: false
+    allowPrivilegeEscalation: false
+    requiredDropCapabilities:
+      - ALL
+    volumes:
+      - 'configMap'
+      - 'emptyDir'
+      - 'projected'
+      - 'secret'
+      - 'downwardAPI'
+      - 'persistentVolumeClaim'
+
+# Network Policies
+networkPolicy:
+  enabled: true
+  ingress:
+    enabled: true
+  egress:
+    enabled: true
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  maxUnavailable: ""
+
+# Affinity and Anti-Affinity
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - knowledge-graph-analytics
+          topologyKey: kubernetes.io/hostname
+
+# Tolerations and Node Selectors
+tolerations: []
+nodeSelector: {}
+
+# Pod Annotations
+podAnnotations: {}
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# RBAC
+rbac:
+  create: true
+
+# Backup Configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  retention: "30d"
+  storageClass: "gp2"
+  storageSize: "50Gi"

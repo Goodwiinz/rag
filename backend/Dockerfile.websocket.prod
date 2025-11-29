@@ -1,0 +1,230 @@
+# =============================================================================
+# Production-Ready WebSocket Service Dockerfile
+# =============================================================================
+# This Dockerfile implements security best practices for WebSocket services including:
+# - Multi-stage builds for minimal image size
+# - Non-root user execution
+# - WebSocket-specific optimizations
+# - Security scanning compatibility
+# - Health checks
+# - Proper layer caching
+# =============================================================================
+
+# =============================================================================
+# Stage 1: Base Image Builder
+# =============================================================================
+FROM python:3.11-slim as base
+
+# Set environment variables for better pip performance and security
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONHASHSEED=random \
+    PIP_DEFAULT_TIMEOUT=60 \
+    WS_PORT=8001 \
+    WS_HOST=0.0.0.0
+
+# Install system dependencies with security updates
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    make \
+    libpq-dev \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    libtesseract-dev \
+    libmagic1 \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libglib2.0-0 \
+    libsndfile1 \
+    libgl1 \
+    libgtk-3-0 \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    pkg-config \
+    curl \
+    ca-certificates \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create app directory with proper permissions
+WORKDIR /app
+
+# =============================================================================
+# Stage 2: Dependency Builder
+# =============================================================================
+FROM base as dependencies
+
+# Copy requirements files for dependency installation
+COPY requirements.txt requirements-dev.txt ./
+
+# Upgrade pip and install build tools
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Install WebSocket-specific dependencies
+RUN pip install --no-cache-dir \
+    websockets==12.0 \
+    redis-py-cluster==2.1.3 \
+    aioredis==2.0.1 \
+    orjson==3.9.10 \
+    msgspec==0.18.6 \
+    uvloop==0.19.0 \
+    python-multipart==0.0.6
+
+# Install problematic packages first with specific flags to avoid build issues
+RUN pip install --no-cache-dir --prefer-binary \
+    grpcio==1.59.3 \
+    grpcio-tools==1.59.3 || \
+    pip install --no-cache-dir --no-build-isolation \
+    grpcio==1.59.3 \
+    grpcio-tools==1.59.3 || \
+    pip install --no-cache-dir grpcio grpcio-tools
+
+# Install heavy AI/ML packages separately to isolate build issues
+RUN pip install --no-cache-dir --prefer-binary \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu || \
+    pip install --no-cache-dir torch torchvision torchaudio
+
+RUN pip install --no-cache-dir --prefer-binary \
+    sentence-transformers || \
+    pip install --no-cache-dir sentence-transformers
+
+RUN pip install --no-cache-dir --prefer-binary \
+    transformers || \
+    pip install --no-cache-dir transformers
+
+RUN pip install --no-cache-dir --prefer-binary \
+    qdrant-client || \
+    pip install --no-cache-dir qdrant-client
+
+# Install remaining Python packages
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Download spaCy model
+RUN python -m spacy download en_core_web_sm
+
+# =============================================================================
+# Stage 3: Development and Testing
+# =============================================================================
+FROM dependencies as development
+
+# Install development dependencies
+RUN pip install --no-cache-dir -r requirements-dev.txt
+
+# Copy application code
+COPY . .
+
+# Set permissions for development
+RUN chmod +x scripts/*.sh 2>/dev/null || true
+
+# Expose WebSocket and HTTP ports
+EXPOSE 8000 8001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Start development server
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# =============================================================================
+# Stage 4: Production Security Hardening
+# =============================================================================
+FROM base as production
+
+# Install only production runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    libtesseract-dev \
+    libmagic1 \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libglib2.0-0 \
+    libsndfile1 \
+    libgl1 \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    curl \
+    ca-certificates \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy Python dependencies from builder stage
+COPY --from=dependencies /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=dependencies /usr/local/bin /usr/local/bin
+
+# Copy spaCy model data
+COPY --from=dependencies /root/.local/lib/python3.11/site-packages /root/.local/lib/python3.11/site-packages
+
+# Copy application code
+COPY --chown=app:app . .
+
+# Create non-root user for security
+RUN groupadd --gid 1001 app && \
+    useradd --uid 1001 --gid 1001 --create-home --shell /bin/bash app && \
+    mkdir -p /app/uploads/documents \
+    /app/uploads/images \
+    /app/uploads/audio \
+    /app/uploads/video \
+    /app/uploads/temp \
+    /app/uploads/processed \
+    /app/logs \
+    /app/models \
+    /app/config \
+    && chown -R app:app /app
+
+# Set proper ownership and permissions
+RUN chmod -R 755 /app/uploads && \
+    chmod -R 755 /app/logs && \
+    chmod -R 755 /app/models && \
+    chmod -R 755 /app/config
+
+# Switch to non-root user
+USER app
+
+# Create Python path for the app user
+ENV PYTHONPATH=/app:$PYTHONPATH
+
+# Verify WebSocket installation
+RUN python -c "import websockets; print('WebSocket library imported successfully')" && \
+    python -c "import src; print('Application module imported successfully')" && \
+    python -c "import spacy; nlp = spacy.load('en_core_web_sm'); print('spaCy model loaded successfully')" && \
+    python -c "import sentence_transformers; print('Sentence transformers imported successfully')"
+
+# Create startup scripts
+RUN mkdir -p /app/scripts && \
+    echo '#!/bin/bash' > /app/scripts/start_websocket.sh && \
+    echo 'cd /app' >> /app/scripts/start_websocket.sh && \
+    echo 'exec uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 4 --websocket 8001 --log-level info' >> /app/scripts/start_websocket.sh && \
+    chmod +x /app/scripts/start_websocket.sh
+
+# Health check with proper timeout and retry logic
+HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Expose WebSocket and HTTP ports
+EXPOSE 8000 8001
+
+# Set security-related labels
+LABEL maintainer="DevOps Team <devops@yourcompany.com>" \
+      version="1.0.0" \
+      description="Production WebSocket backend for Multimodal RAG System" \
+      security.scan="enabled" \
+      websocket.enabled="true" \
+      org.opencontainers.image.source="https://github.com/your-org/multimodal-rag-system" \
+      org.opencontainers.image.licenses="MIT"
+
+# Production startup command with WebSocket support
+CMD ["/app/scripts/start_websocket.sh"]

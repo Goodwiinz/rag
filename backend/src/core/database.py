@@ -9,6 +9,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 import logging
 
 # Import base model from models
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/multimodal_rag")
+ASYNC_DATABASE_URL = os.getenv("ASYNC_DATABASE_URL", DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"))
 
 # Create engine with appropriate settings
 engine = create_engine(
@@ -29,8 +31,23 @@ engine = create_engine(
     echo=os.getenv("ENVIRONMENT") == "development"
 )
 
+# Create async engine for async operations
+async_engine = create_async_engine(
+    ASYNC_DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    echo=os.getenv("ENVIRONMENT") == "development"
+)
+
 # Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Async session factory
+AsyncSessionLocal = async_sessionmaker(
+    async_engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
 
 def get_db() -> Session:
     """Get database session"""
@@ -40,10 +57,21 @@ def get_db() -> Session:
     finally:
         db.close()
 
+async def get_async_session() -> AsyncSession:
+    """Get async database session"""
+    async with AsyncSessionLocal() as session:
+        yield session
+
 def create_tables():
     """Create all database tables"""
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created successfully")
+
+async def create_tables_async():
+    """Create all database tables using async engine"""
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("Database tables created successfully (async)")
 
 def drop_tables():
     """Drop all database tables (use with caution)"""
@@ -166,7 +194,8 @@ def get_database_info():
         try:
             result = db.execute(text("SELECT pg_size_pretty(pg_database_size('multimodal_rag'))"))
             info['database_size'] = result.scalar()
-        except:
+        except (Exception,) as e:
+            logger.debug(f"Could not get database size: {e}")
             info['database_size'] = 'Unknown'
 
         return info

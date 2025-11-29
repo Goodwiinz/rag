@@ -9,7 +9,7 @@ import logging
 
 from ..core.dependencies import get_current_user, get_db
 from ..services.knowledge_graph_service import knowledge_graph_service
-from ..services.entity_extraction_service import EntityExtractionService
+from ..services.services.entity_extraction_service import EntityExtractionService
 from ..models.graph import (
     Entity, EntityResponse, CreateEntityRequest, UpdateEntityRequest,
     Relationship, RelationshipResponse, CreateRelationshipRequest,
