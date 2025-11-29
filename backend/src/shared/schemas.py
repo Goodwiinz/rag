@@ -189,7 +189,7 @@ class SearchRequest(BaseModel):
     limit: int = Field(default=10, ge=1, le=50)
     offset: int = Field(default=0, ge=0)
     include_metadata: bool = True
-    sort_by: str = Field(default="relevance", regex="^(relevance|date|title)$")
+    sort_by: str = Field(default="relevance", pattern="^(relevance|date|title)$")
 
 
 class MatchedContent(BaseModel):
@@ -232,7 +232,7 @@ class SearchResponse(BaseModel):
 class SearchSuggestion(BaseModel):
     """Search suggestion"""
     text: str
-    type: str = Field(regex="^(autocomplete|correction|expansion)$")
+    type: str = Field(pattern="^(autocomplete|correction|expansion)$")
     score: float = Field(ge=0, le=1)
 
 
@@ -343,7 +343,7 @@ class EvaluationResponse(BaseModel):
 
 class BenchmarkRequest(BaseModel):
     """Benchmark request"""
-    benchmark_type: str = Field(regex="^(rag_triad|performance|stress|scalability)$")
+    benchmark_type: str = Field(pattern="^(rag_triad|performance|stress|scalability)$")
     test_dataset: str
     parameters: Dict[str, Any] = {}
 
@@ -400,7 +400,7 @@ class ProcessingJobDetail(ProcessingJob):
 # User Management Schemas
 class LoginRequest(BaseModel):
     """Login request"""
-    email: str = Field(regex="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+    email: str = Field(pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
     password: str = Field(min_length=1)
 
 
@@ -427,7 +427,7 @@ class TokenResponse(BaseModel):
 
 class CreateUserRequest(BaseModel):
     """Create user request"""
-    email: str = Field(regex="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+    email: str = Field(pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
     password: str = Field(min_length=8)
@@ -488,7 +488,7 @@ class PerformanceAnalytics(BaseModel):
 class DashboardWidget(BaseModel):
     """Dashboard widget"""
     widget_id: str
-    type: str = Field(regex="^(metric_chart|table|gauge|alert_list)$")
+    type: str = Field(pattern="^(metric_chart|table|gauge|alert_list)$")
     title: str
     data: Dict[str, Any]
     position: Dict[str, int]
@@ -550,7 +550,7 @@ class SystemNotification(WebSocketMessage):
 # Health Check Schemas
 class HealthCheckResponse(BaseModel):
     """Health check response"""
-    status: str = Field(regex="^(healthy|unhealthy|degraded)$")
+    status: str = Field(pattern="^(healthy|unhealthy|degraded)$")
     version: str
     environment: str
     timestamp: datetime

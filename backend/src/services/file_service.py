@@ -76,8 +76,8 @@ class FileService:
         if content:
             try:
                 mime_type = magic.from_buffer(content, mime=True)
-            except:
-                pass
+            except (OSError, ValueError) as e:
+                logger.debug(f"Magic MIME detection failed: {e}")
 
         # Map MIME types to document types
         if mime_type:
@@ -371,7 +371,8 @@ class FileService:
                             if hasattr(shape, "text"):
                                 text.append(shape.text)
                     return '\n'.join(text)
-                except:
+                except (ImportError, ValueError, IOError) as e:
+                    logger.warning(f"Failed to extract text from PowerPoint: {e}")
                     return ""
 
             elif document.document_type == DocumentType.IMAGE:

@@ -37,6 +37,7 @@ from src.api.rbac_management import router as rbac_router
 from src.api.evaluation import router as evaluation_router
 from src.api.websocket import router as websocket_router
 from src.api.websocket_v2 import router as websocket_v2_router
+from src.api.realtime_document_status import router as realtime_status_router
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.core.database import engine
 # from src.services.file_service import redis_client  # Not exported, not needed here
@@ -123,12 +124,14 @@ if OBSERVABILITY_ENABLED:
         instrument_services(sql_engine=engine)
 
 # Add CORS middleware
+# SECURITY: Never use allow_origins=["*"] in production - always specify explicit origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.DEBUG else ["http://localhost:3000"],  # Restrict in production
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
+    allow_headers=["*"],  # Allow all headers for flexibility with custom headers like X-Organization-ID
+    expose_headers=["X-Process-Time", "X-Request-ID"],
 )
 
 # Add rate limiting middleware for analytics endpoints
@@ -195,6 +198,7 @@ app.include_router(rbac_router, prefix="/api/v1/rbac")
 app.include_router(evaluation_router, prefix="/api/v1")
 app.include_router(websocket_router)  # Legacy WebSocket routes
 app.include_router(websocket_v2_router)  # Enhanced WebSocket v2 routes
+app.include_router(realtime_status_router)  # Real-time document status API
 
 # Health check endpoint
 @app.get("/health")

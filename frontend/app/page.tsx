@@ -6,33 +6,35 @@ import { useDocuments } from '@/hooks/useDocuments';
 import { useAuth } from '@/hooks/useAuth';
 import { DocumentCard } from '@/components/documents/DocumentCard';
 import { EnhancedDocumentUploadZone } from '@/components/documents/EnhancedDocumentUploadZone';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { 
+  Upload, 
+  Search, 
+  MessageSquare, 
+  FileText, 
+  Database, 
+  Network, 
+  Zap,
+  ArrowRight,
+  X,
+  CheckCircle2,
+  FolderOpen,
+  Bot,
+  Sparkles,
+} from 'lucide-react';
 
-/**
- * Next.js Main Dashboard Page
- *
- * This is the core interface that combines:
- * - Left panel: Document upload and library
- * - Right panel: Recent documents with live data
- *
- * Migrated from Vite to Next.js with:
- * - Server-side rendering capabilities
- * - Enhanced SEO metadata
- * - Optimized bundle loading
- * - Built-in image optimization
- */
 export default function HomePage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [showUploadZone, setShowUploadZone] = useState(false);
-  const [uploadResults, setUploadResults] = useState<Array<{id: string, result: any}>>([]);
+  const [uploadResults, setUploadResults] = useState<Array<{ id: string, result: any }>>([]);
 
-  // Fetch recent documents (limit to 5 for the home page) - only if authenticated
   const { documents, loading, error } = useDocuments({
     initialPageSize: 5,
     autoFetch: isAuthenticated && !authLoading,
   });
 
   const handleUploadComplete = (documentId: string, result: any) => {
-    console.log('Upload completed:', { documentId, result });
     setUploadResults(prev => [...prev, { id: documentId, result }]);
     setShowUploadZone(false);
   };
@@ -41,129 +43,261 @@ export default function HomePage() {
     console.error('Upload error:', error, file);
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Multimodal Enterprise RAG System
-          </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Upload documents to extract entities, build knowledge graphs, and enable intelligent search across your organization's knowledge base
-          </p>
-        </div>
+  const features = [
+    {
+      icon: Search,
+      title: 'Semantic Search',
+      description: 'AI-powered search across all your documents',
+      href: '/search',
+      color: 'text-blue-500',
+      bgColor: 'bg-blue-500/10',
+    },
+    {
+      icon: Bot,
+      title: 'AI Chat',
+      description: 'Chat with AI models running in your browser',
+      href: '/llm-chat',
+      color: 'text-amber-500',
+      bgColor: 'bg-amber-500/10',
+    },
+    {
+      icon: FileText,
+      title: 'Documents',
+      description: 'Manage your document library',
+      href: '/documents/upload',
+      color: 'text-green-500',
+      bgColor: 'bg-green-500/10',
+    },
+  ];
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Panel: Document Upload */}
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-                Document Upload
-              </h2>
-              <p className="text-gray-600 mb-6">
-                Upload PDFs, text files, images, audio, and video files to extract entities and populate the knowledge graph.
-              </p>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">Upload documents</h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  Drag and drop or click to browse
-                </p>
-                <div className="mt-4 flex gap-3">
-                  <button
-                    onClick={() => setShowUploadZone(true)}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    Upload Files Here
-                  </button>
-                  <Link
-                    href="/documents/upload"
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    Advanced Upload
-                  </Link>
-                </div>
+  const stats = [
+    { label: 'Backend API', status: 'online', icon: Zap },
+    { label: 'Database', status: 'online', icon: Database },
+    { label: 'Vector Store', status: 'online', icon: Sparkles },
+    { label: 'Knowledge Graph', status: 'online', icon: Network },
+  ];
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Hero Section */}
+      <div className="relative overflow-hidden border-b border-border">
+        {/* Background Effects */}
+        <div className="absolute inset-0 bg-gradient-to-b from-amber-500/5 via-background to-background" />
+        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-amber-500/20 rounded-full blur-[120px] opacity-60" />
+        <div className="absolute top-20 right-1/4 w-[400px] h-[400px] bg-orange-500/15 rounded-full blur-[100px] opacity-50" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,var(--background)_70%)]" />
+        
+        {/* Grid Pattern */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border))_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border))_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,black_20%,transparent_80%)] opacity-30" />
+        
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20">
+          <div className="text-center">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 text-sm font-medium mb-6">
+              <Sparkles className="w-4 h-4" />
+              Enterprise RAG System
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            </div>
+            
+            {/* Heading */}
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground tracking-tight leading-[1.1] mb-6">
+              Transform Documents into
+              <br />
+              <span className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 bg-clip-text text-transparent">
+                Actionable Knowledge
+              </span>
+            </h1>
+            
+            {/* Description */}
+            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed">
+              Upload any document format, extract entities with AI, build knowledge graphs, 
+              and search with semantic understanding.
+            </p>
+            
+            {/* CTAs */}
+            <div className="flex flex-wrap justify-center gap-4 mb-12">
+              <Button 
+                size="lg" 
+                onClick={() => setShowUploadZone(true)}
+                className="bg-amber-500 hover:bg-amber-600 text-white h-12 px-6 text-base shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 transition-all"
+              >
+                <Upload className="w-5 h-5 mr-2" />
+                Upload Documents
+              </Button>
+              <Link href="/search">
+                <Button size="lg" variant="outline" className="h-12 px-6 text-base border-border hover:bg-muted">
+                  <Search className="w-5 h-5 mr-2" />
+                  Search Knowledge Base
+                </Button>
+              </Link>
+            </div>
+            
+            {/* Hero Stats */}
+            <div className="flex flex-wrap justify-center gap-8 md:gap-12">
+              <div className="text-center">
+                <div className="text-2xl md:text-3xl font-bold text-foreground">PDF, DOCX</div>
+                <div className="text-sm text-muted-foreground mt-1">Document Formats</div>
+              </div>
+              <div className="hidden sm:block w-px h-12 bg-border" />
+              <div className="text-center">
+                <div className="text-2xl md:text-3xl font-bold text-foreground">Images</div>
+                <div className="text-sm text-muted-foreground mt-1">OCR Extraction</div>
+              </div>
+              <div className="hidden sm:block w-px h-12 bg-border" />
+              <div className="text-center">
+                <div className="text-2xl md:text-3xl font-bold text-foreground">Audio/Video</div>
+                <div className="text-sm text-muted-foreground mt-1">Transcription</div>
+              </div>
+              <div className="hidden sm:block w-px h-12 bg-border" />
+              <div className="text-center">
+                <div className="text-2xl md:text-3xl font-bold text-amber-500">AI-Powered</div>
+                <div className="text-sm text-muted-foreground mt-1">Semantic Search</div>
               </div>
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* Right Panel: Recent Documents */}
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-semibold text-gray-900">
-                  Recent Documents
-                </h2>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          {features.map((feature) => (
+            <Link key={feature.title} href={feature.href}>
+              <Card className="h-full border-border hover:border-amber-500/50 hover:shadow-md transition-all cursor-pointer group">
+                <CardContent className="p-5">
+                  <div className="flex items-start gap-4">
+                    <div className={`w-10 h-10 rounded-lg ${feature.bgColor} flex items-center justify-center shrink-0`}>
+                      <feature.icon className={`w-5 h-5 ${feature.color}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-foreground group-hover:text-amber-600 transition-colors">
+                        {feature.title}
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        {feature.description}
+                      </p>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-amber-500 group-hover:translate-x-1 transition-all shrink-0 mt-1" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+
+        {/* Main Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* Upload Section */}
+          <div className="lg:col-span-2">
+            <Card className="h-full border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Upload className="w-5 h-5 text-amber-500" />
+                  Quick Upload
+                </CardTitle>
+                <CardDescription>
+                  Drag and drop files to get started
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div 
+                  className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-amber-500/50 hover:bg-amber-500/5 transition-all cursor-pointer group"
+                  onClick={() => setShowUploadZone(true)}
+                >
+                  <div className="w-12 h-12 mx-auto rounded-xl bg-muted flex items-center justify-center mb-4 group-hover:bg-amber-500/10 group-hover:scale-110 transition-all">
+                    <Upload className="w-6 h-6 text-muted-foreground group-hover:text-amber-500" />
+                  </div>
+                  <p className="text-sm font-medium text-foreground mb-1">
+                    Drop files here
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    PDF, TXT, Images, Audio, Video
+                  </p>
+                  <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white">
+                    Browse Files
+                  </Button>
+                </div>
+                <div className="mt-4 pt-4 border-t border-border">
+                  <Link href="/documents/upload" className="text-sm text-amber-600 hover:text-amber-700 font-medium flex items-center gap-1">
+                    Advanced upload options
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Recent Documents */}
+          <div className="lg:col-span-3">
+            <Card className="h-full border-border">
+              <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FolderOpen className="w-5 h-5 text-amber-500" />
+                    Recent Documents
+                  </CardTitle>
+                  <CardDescription>
+                    Your latest uploaded files
+                  </CardDescription>
+                </div>
                 {documents.length > 0 && (
-                  <Link
-                    href="/documents"
-                    className="text-sm text-blue-600 hover:text-blue-700"
-                  >
-                    View all →
+                  <Link href="/documents/upload">
+                    <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-500/10">
+                      View all
+                      <ArrowRight className="w-3 h-3 ml-1" />
+                    </Button>
                   </Link>
                 )}
-              </div>
-              <p className="text-gray-600 mb-6">
-                View and manage your recently uploaded documents.
-              </p>
-              <div className="space-y-4">
+              </CardHeader>
+              <CardContent>
                 {authLoading || loading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-2 text-sm text-gray-600">
-                      {authLoading ? 'Checking authentication...' : 'Loading documents...'}
-                    </p>
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                      <p className="text-sm text-muted-foreground mt-3">
+                        {authLoading ? 'Checking authentication...' : 'Loading documents...'}
+                      </p>
+                    </div>
                   </div>
                 ) : !isAuthenticated ? (
-                  <div className="border-2 border-blue-300 rounded-lg p-6 text-center bg-blue-50">
-                    <svg className="mx-auto h-10 w-10 text-blue-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2z" />
-                    </svg>
-                    <p className="text-sm font-medium text-blue-800 mb-2">Sign In to View Documents</p>
-                    <p className="text-xs text-blue-700 mb-4">
-                      Please log in to view and manage your documents.
+                  <div className="rounded-xl bg-muted/30 p-8 text-center">
+                    <div className="w-12 h-12 mx-auto rounded-xl bg-muted flex items-center justify-center mb-4">
+                      <FileText className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                    <p className="font-medium text-foreground mb-1">Sign in to view documents</p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Access your document library and search history
                     </p>
-                    <div className="flex gap-3 justify-center">
-                      <Link
-                        href="/login"
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      >
-                        Sign In
+                    <div className="flex gap-2 justify-center">
+                      <Link href="/login">
+                        <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white">
+                          Sign In
+                        </Button>
                       </Link>
-                      <Link
-                        href="/register"
-                        className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      >
-                        Create Account
+                      <Link href="/register">
+                        <Button size="sm" variant="outline">
+                          Create Account
+                        </Button>
                       </Link>
                     </div>
                   </div>
                 ) : error ? (
-                  <div className="border-2 border-red-300 rounded-lg p-6 text-center bg-red-50">
-                    <svg className="mx-auto h-10 w-10 text-red-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-sm font-medium text-red-800 mb-2">Error Loading Documents</p>
-                    <p className="text-xs text-red-700">
-                      {error}
-                    </p>
+                  <div className="rounded-xl bg-destructive/10 p-6 text-center border border-destructive/20">
+                    <p className="text-sm font-medium text-destructive mb-1">Error loading documents</p>
+                    <p className="text-xs text-destructive/80">{error}</p>
                   </div>
                 ) : documents.length === 0 ? (
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <h3 className="mt-2 text-sm font-medium text-gray-900">No recent documents</h3>
-                    <p className="mt-1 text-sm text-gray-500">
-                      Upload documents to see them here
+                  <div className="rounded-xl border-2 border-dashed border-border p-8 text-center">
+                    <div className="w-12 h-12 mx-auto rounded-xl bg-muted flex items-center justify-center mb-4">
+                      <FileText className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                    <p className="font-medium text-foreground mb-1">No documents yet</p>
+                    <p className="text-sm text-muted-foreground">
+                      Upload your first document to get started
                     </p>
                   </div>
                 ) : (
-                  <>
+                  <div className="space-y-3">
                     {documents.map((doc) => (
                       <DocumentCard
                         key={doc.id}
@@ -172,56 +306,62 @@ export default function HomePage() {
                         selected={false}
                       />
                     ))}
-                  </>
+                  </div>
                 )}
-              </div>
-            </div>
-
-            {/* Quick Stats */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                System Status
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">✓</div>
-                  <div className="text-sm text-gray-600">Backend API</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">✓</div>
-                  <div className="text-sm text-gray-600">Database</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">✓</div>
-                  <div className="text-sm text-gray-600">Vector Store</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">✓</div>
-                  <div className="text-sm text-gray-600">Knowledge Graph</div>
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
+
+        {/* System Status */}
+        <Card className="mt-6 border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Zap className="w-5 h-5 text-amber-500" />
+              System Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {stats.map((stat) => (
+                <div 
+                  key={stat.label}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+                    <stat.icon className="w-4 h-4 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">{stat.label}</p>
+                    <p className="text-sm font-medium text-green-600 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                      Online
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Upload Zone Overlay */}
+      {/* Upload Zone Modal */}
       {showUploadZone && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Upload Documents</h2>
-              <button
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-xl shadow-2xl border border-border max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-in zoom-in-95 fade-in duration-200">
+            <div className="sticky top-0 bg-background border-b border-border px-6 py-4 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <Upload className="w-5 h-5 text-amber-500" />
+                Upload Documents
+              </h2>
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => setShowUploadZone(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-                aria-label="Close upload dialog"
               >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+                <X className="h-5 w-5" />
+              </Button>
             </div>
-
             <div className="p-6">
               <EnhancedDocumentUploadZone
                 onUploadComplete={handleUploadComplete}
@@ -233,23 +373,28 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Upload Results */}
+      {/* Upload Success Toast */}
       {uploadResults.length > 0 && (
-        <div className="fixed bottom-4 right-4 max-w-md z-50">
-          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
-            <h3 className="font-medium text-green-800 mb-2">
-              ✓ Upload Complete
-            </h3>
-            <p className="text-sm text-green-600">
-              {uploadResults.length} document{uploadResults.length > 1 ? 's' : ''} uploaded successfully
-            </p>
-            <button
-              onClick={() => setUploadResults([])}
-              className="mt-2 text-sm text-gray-500 hover:text-gray-700"
-            >
-              Dismiss
-            </button>
-          </div>
+        <div className="fixed bottom-6 right-6 max-w-sm z-50 animate-in slide-in-from-bottom-4 duration-300">
+          <Card className="border-green-500/20 bg-green-500/10 shadow-lg">
+            <CardContent className="p-4 flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                  Upload Complete
+                </p>
+                <p className="text-sm text-green-600 dark:text-green-500 mt-0.5">
+                  {uploadResults.length} document{uploadResults.length > 1 ? 's' : ''} uploaded
+                </p>
+                <button
+                  onClick={() => setUploadResults([])}
+                  className="text-xs font-medium text-green-700 dark:text-green-400 hover:underline mt-2"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>

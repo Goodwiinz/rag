@@ -83,7 +83,7 @@ class BroadcastRequest(BaseModel):
 class SystemAnnouncementRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     message: str = Field(..., min_length=1, max_length=1000)
-    severity: str = Field(..., regex="^(info|warning|error|critical)$")
+    severity: str = Field(..., pattern="^(info|warning|error|critical)$")
     target_roles: Optional[List[str]] = Field(None)
     expires_at: Optional[datetime] = Field(None)
     action_url: Optional[str] = Field(None)

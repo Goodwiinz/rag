@@ -109,7 +109,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const data: LoginResponse = await apiClient.post('/api/v1/auth/login', {
+          const data: LoginResponse = await apiClient.post('/auth/login', {
             email,
             password,
           });
@@ -133,7 +133,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const data: LoginResponse = await apiClient.post('/api/v1/auth/register', userData);
+          const data: LoginResponse = await apiClient.post('/auth/register', userData);
 
           set({
             user: data.user,
@@ -165,7 +165,7 @@ export const useAuthStore = create<AuthState>()(
         if (!token) return;
 
         try {
-          const data: RefreshResponse = await apiClient.post('/api/v1/auth/refresh', {
+          const data: RefreshResponse = await apiClient.post('/auth/refresh', {
             refresh_token: token, // Backend expects refresh_token in body
           });
 
@@ -186,7 +186,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const data: SwitchOrganizationResponse = await apiClient.post('/api/v1/auth/switch-organization', {
+          const data: SwitchOrganizationResponse = await apiClient.post('/auth/switch-organization', {
             organizationId,
           });
 

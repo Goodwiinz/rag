@@ -108,7 +108,7 @@ const QualityAssessmentSchema = z.object({
 // ============================================================================
 
 export class EnhancedDocumentServiceV2 {
-  private readonly basePath = '/api/v1/files';
+  private readonly basePath = '/files';
   private websocketConnections: Map<string, WebSocket> = new Map();
 
   /**
@@ -261,7 +261,7 @@ export class EnhancedDocumentServiceV2 {
    */
   async retryDocumentProcessing(documentId: string): Promise<{ job_id: string }> {
     return typeSafeApiClient.post(
-      `/api/v1/documents/${documentId}/retry-processing`,
+      `/documents/${documentId}/retry-processing`,
       z.object({ job_id: z.string().uuid() })
     );
   }

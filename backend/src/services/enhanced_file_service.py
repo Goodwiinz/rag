@@ -180,7 +180,8 @@ class EnhancedFileService:
         # Detect MIME type using python-magic
         try:
             detected_mime_type = magic.from_buffer(file_content, mime=True)
-        except:
+        except (OSError, ValueError) as e:
+            logger.debug(f"Magic MIME detection failed, falling back to mimetypes: {e}")
             detected_mime_type = mimetypes.guess_type(file.filename)[0]
 
         # Validate MIME type
@@ -669,7 +670,8 @@ class EnhancedFileService:
                 if len(pdf_reader.pages) > 0:
                     pdf_reader.pages[0].extract_text()
                 return False
-        except:
+        except (IOError, OSError, ValueError, Exception) as e:
+            logger.warning(f"PDF file appears corrupted: {file_path}, error: {e}")
             return True
 
     def is_image_corrupted(self, file_path: str) -> bool:
@@ -678,7 +680,8 @@ class EnhancedFileService:
             with Image.open(file_path) as img:
                 img.load()  # Load image data
                 return False
-        except:
+        except (IOError, OSError, ValueError) as e:
+            logger.warning(f"Image file appears corrupted: {file_path}, error: {e}")
             return True
 
     async def save_temp_file(self, file: UploadFile) -> str:

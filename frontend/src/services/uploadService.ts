@@ -404,7 +404,7 @@ class UploadService {
       });
 
       // Open and send request
-      xhr.open('POST', `${apiClient['baseURL']}/api/v1${endpoint}`);
+      xhr.open('POST', `${apiClient['baseURL']}${endpoint}`);
 
       // Add auth headers
       const authHeaders = apiClient['token'] && apiClient['organizationId']

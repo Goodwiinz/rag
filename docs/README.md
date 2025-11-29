@@ -84,12 +84,21 @@ AB testing system documentation and architecture
 
 ### 📄 [OpenAPI Specs](openapi-specs/)
 API specifications and contracts
+- [Real-time Processing API Reference](../api/REALTIME_API_REFERENCE.md)
+
+### ⚡ [Real-time Processing](#real-time-processing)
+Real-time document processing status system documentation
+- [Real-time Processing Guide](REALTIME_PROCESSING_GUIDE.md) - Comprehensive implementation and usage guide
+- [Quick Start Guide](guides/REALTIME_QUICK_START.md) - Get started in minutes
+- [API Reference](../api/REALTIME_API_REFERENCE.md) - Complete API documentation
+- [WebSocket Services Documentation](websocket_services.md) - WebSocket infrastructure and architecture
 
 ---
 
 ## Quick Links
 
 - **Getting Started**: See [Quick Start Guide](guides/QUICK_START.md)
+- **Real-time Processing**: [Quick Start Guide](guides/REALTIME_QUICK_START.md)
 - **Deployment**: Check [Deployment Guide](deployment/DEPLOYMENT_GUIDE.md)
 - **Database Setup**: Follow [Database Setup Guide](database/README_DATABASE_SETUP.md)
 - **Testing**: Refer to [Quick Test Guide](testing/QUICK_TEST_GUIDE.md)

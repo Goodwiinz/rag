@@ -1,6 +1,14 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { API_CONFIG, DEFAULT_HEADERS, getAuthHeaders, APIErrorClass } from '@/types/api';
-import { useAuthStore } from '@/stores/authStore';
+
+// Define minimal AuthState interface for localStorage parsing
+interface AuthState {
+  state: {
+    token: string | null;
+    organization: { id: string } | null;
+    isAuthenticated: boolean;
+  };
+}
 
 class ApiClient {
   private client: AxiosInstance;
@@ -15,6 +23,30 @@ class ApiClient {
     this.setupInterceptors();
   }
 
+  private getAuthFromStorage() {
+    try {
+      // Try to get from Zustand persistence first
+      const storageItem = localStorage.getItem('auth-storage');
+      if (storageItem) {
+        const parsed = JSON.parse(storageItem) as AuthState;
+        return {
+          token: parsed.state?.token,
+          organizationId: parsed.state?.organization?.id,
+          isAuthenticated: parsed.state?.isAuthenticated
+        };
+      }
+      
+      // Fallback to legacy items if needed
+      return {
+        token: localStorage.getItem('access_token'),
+        organizationId: null,
+        isAuthenticated: !!localStorage.getItem('access_token')
+      };
+    } catch (e) {
+      return { token: null, organizationId: null, isAuthenticated: false };
+    }
+  }
+
   private setupInterceptors() {
     // Request interceptor
     this.client.interceptors.request.use(
@@ -26,10 +58,7 @@ class ApiClient {
         }
 
         // Add auth headers if available
-        const authState = useAuthStore.getState();
-        const token = authState.token;
-        const organizationId = authState.organization?.id;
-        const isAuthenticated = authState.isAuthenticated;
+        const { token, organizationId, isAuthenticated } = this.getAuthFromStorage();
 
         // Debug logging
         console.debug('🔐 Auth Debug:', {
@@ -40,9 +69,7 @@ class ApiClient {
           isAuthenticated,
           tokenPreview: token ? `${token.substring(0, 20)}...` : null,
           organizationId,
-          currentHeaders: config.headers,
-          authStateLoading: authState.isLoading,
-          fullAuthState: authState
+          currentHeaders: config.headers
         });
 
         if (token) {
@@ -57,8 +84,7 @@ class ApiClient {
           console.warn('⚠️ Missing auth data:', {
             hasToken: !!token,
             hasOrganizationId: !!organizationId,
-            isAuthenticated,
-            isLoading: authState.isLoading
+            isAuthenticated
           });
         }
 
@@ -93,12 +119,15 @@ class ApiClient {
           originalRequest._retry = true;
 
           try {
+            // Dynamically import store to avoid circular dependency
+            // This is only called when a refresh is needed, so the module should be loaded by then
+            const { useAuthStore } = await import('@/stores/authStore');
+            
             // Attempt to refresh token
             await useAuthStore.getState().refreshToken();
 
-            // Retry original request with new token
-            const token = useAuthStore.getState().token;
-            const organizationId = useAuthStore.getState().organization?.id;
+            // Retry original request with new token from updated storage
+            const { token, organizationId } = this.getAuthFromStorage();
 
             if (token && organizationId) {
               originalRequest.headers = {
@@ -111,6 +140,7 @@ class ApiClient {
           } catch (refreshError) {
             // Refresh failed, logout user
             console.warn('Token refresh failed, logging out');
+            const { useAuthStore } = await import('@/stores/authStore');
             useAuthStore.getState().logout();
             return Promise.reject(refreshError);
           }
@@ -119,6 +149,7 @@ class ApiClient {
         // If this is the refresh endpoint failing, logout immediately
         if (isRefreshRequest && error.response?.status === 401) {
           console.warn('Refresh token expired, logging out');
+          const { useAuthStore } = await import('@/stores/authStore');
           useAuthStore.getState().logout();
         }
 

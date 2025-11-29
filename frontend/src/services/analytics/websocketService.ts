@@ -24,9 +24,75 @@ type WebSocketMessageType =
 
 interface WebSocketMessage {
   type: WebSocketMessageType;
-  payload: any;
+  payload: WebSocketMessagePayload;
   timestamp: string;
   id: string;
+}
+
+type WebSocketMessagePayload =
+  | AnalyticsMetric
+  | TimeSeriesUpdatePayload
+  | GraphUpdatePayload
+  | AlertTriggeredPayload
+  | ConnectionStatusPayload
+  | HeartbeatPayload
+  | ErrorPayload
+  | SubscriptionPayload;
+
+interface TimeSeriesUpdatePayload {
+  metricId: string;
+  data: TimeSeriesData;
+}
+
+interface GraphUpdatePayload {
+  action: 'node_added' | 'node_removed' | 'edge_added' | 'edge_removed' | 'node_updated' | 'edge_updated';
+  data: GraphNodeData | GraphEdgeData;
+}
+
+interface GraphNodeData {
+  id: string;
+  label?: string;
+  type?: string;
+  properties?: Record<string, unknown>;
+}
+
+interface GraphEdgeData {
+  id: string;
+  source: string;
+  target: string;
+  type?: string;
+  properties?: Record<string, unknown>;
+}
+
+interface AlertTriggeredPayload {
+  alertId: string;
+  ruleId: string;
+  metric: string;
+  value: number;
+  threshold: number;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  message: string;
+}
+
+interface ConnectionStatusPayload {
+  status: 'connected' | 'disconnected' | 'error';
+  message?: string;
+}
+
+interface HeartbeatPayload {
+  timestamp: string;
+  latency?: number;
+}
+
+interface ErrorPayload {
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+interface SubscriptionPayload {
+  action: 'subscribe' | 'unsubscribe';
+  metrics: string[];
 }
 
 interface MetricUpdateMessage extends WebSocketMessage {
@@ -44,10 +110,7 @@ interface TimeSeriesUpdateMessage extends WebSocketMessage {
 
 interface GraphUpdateMessage extends WebSocketMessage {
   type: 'graph_update';
-  payload: {
-    action: 'node_added' | 'node_removed' | 'edge_added' | 'edge_removed' | 'node_updated' | 'edge_updated';
-    data: any;
-  };
+  payload: GraphUpdatePayload;
 }
 
 interface AlertTriggeredMessage extends WebSocketMessage {
@@ -81,11 +144,7 @@ interface HeartbeatMessage extends WebSocketMessage {
 
 interface ErrorMessage extends WebSocketMessage {
   type: 'error';
-  payload: {
-    code: string;
-    message: string;
-    details?: any;
-  };
+  payload: ErrorPayload;
 }
 
 // Event Handlers

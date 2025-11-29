@@ -88,7 +88,7 @@ class AnalyticsService {
    */
   async getAnalyticsDashboard(filters?: any): Promise<AnalyticsDashboard> {
     const response = await apiClient.post<AnalyticsDashboard>(
-      `${this.baseUrl}/api/v1/dashboard`,
+      `${this.baseUrl}/dashboard`,
       {
         filters,
         include_insights: true,
@@ -107,7 +107,7 @@ class AnalyticsService {
     metrics: string[] = ['degree', 'betweenness', 'closeness', 'eigenvector', 'pagerank']
   ): Promise<CentralityMetrics[]> {
     const response = await apiClient.post<{ metrics: CentralityMetrics[] }>(
-      `${this.baseUrl}/api/v1/centrality`,
+      `${this.baseUrl}/centrality`,
       {
         node_ids: nodeIds,
         metrics,
@@ -126,7 +126,7 @@ class AnalyticsService {
     resolution: number = 1.0
   ): Promise<CommunityAnalytics[]> {
     const response = await apiClient.post<{ communities: CommunityAnalytics[] }>(
-      `${this.baseUrl}/api/v1/communities`,
+      `${this.baseUrl}/communities`,
       {
         algorithm,
         resolution,
@@ -146,7 +146,7 @@ class AnalyticsService {
     algorithm: string = 'dijkstra'
   ): Promise<PathAnalytics> {
     const response = await apiClient.post<PathAnalytics>(
-      `${this.baseUrl}/api/v1/path-analytics`,
+      `${this.baseUrl}/path-analytics`,
       {
         source_id: sourceId,
         target_id: targetId,
@@ -166,7 +166,7 @@ class AnalyticsService {
     granularity: string = 'daily'
   ): Promise<GraphEvolutionMetrics[]> {
     const response = await apiClient.get<{ evolution: GraphEvolutionMetrics[] }>(
-      `${this.baseUrl}/api/v1/evolution`,
+      `${this.baseUrl}/evolution`,
       {
         params: {
           time_range: timeRange,
@@ -184,7 +184,7 @@ class AnalyticsService {
     insightTypes: string[] = ['anomaly', 'trend', 'pattern', 'recommendation']
   ): Promise<InsightData[]> {
     const response = await apiClient.post<{ insights: InsightData[] }>(
-      `${this.baseUrl}/api/v1/insights`,
+      `${this.baseUrl}/insights`,
       {
         insight_types: insightTypes,
         confidence_threshold: 0.7,
@@ -214,7 +214,7 @@ class AnalyticsService {
         criteria_scores: Record<string, number>;
       }>;
     }>(
-      `${this.baseUrl}/api/v1/ranking/nodes`,
+      `${this.baseUrl}/ranking/nodes`,
       {
         limit,
         criteria,
@@ -232,7 +232,7 @@ class AnalyticsService {
     analyticsType: 'all' | 'centrality' | 'communities' | 'insights'
   ): Promise<Blob> {
     const response = await apiClient.post(
-      `${this.baseUrl}/api/v1/export`,
+      `${this.baseUrl}/export`,
       {
         format,
         analytics_type: analyticsType,

@@ -167,7 +167,7 @@ export class EnhancedDocumentService {
 
     // Make the upload request using the correct v1 endpoint
     // DON'T set Content-Type header manually - Axios will set it correctly for FormData
-    const response = await apiClient.post<DocumentUploadResponse>('/api/v1/files/upload', formData);
+    const response = await apiClient.post<DocumentUploadResponse>('/files/upload', formData);
 
     // Note: WebSocket progress tracking not yet implemented in backend
     // Return null websocket for now
@@ -227,7 +227,7 @@ export class EnhancedDocumentService {
   async getUploadProgress(uploadId: string): Promise<APIResponse<UploadProgressResponse>> {
     // For v1 API, we need to get document status instead of upload progress
     // This is a limitation of the v1 API
-    return apiClient.get(`/api/v1/documents/status`);
+    return apiClient.get(`/documents/status`);
   }
 
   /**
@@ -241,7 +241,7 @@ export class EnhancedDocumentService {
       this.websocketConnections.delete(uploadId);
     }
 
-    return apiClient.delete(`/api/v1/files/cancel/${uploadId}`);
+    return apiClient.delete(`/files/cancel/${uploadId}`);
   }
 
   /**
@@ -267,14 +267,14 @@ export class EnhancedDocumentService {
    * Get processing job status with detailed results
    */
   async getProcessingJobStatus(jobId: string): Promise<APIResponse<ProcessingJobStatus>> {
-    return apiClient.get(`/api/v1/processing/jobs/${jobId}`);
+    return apiClient.get(`/processing/jobs/${jobId}`);
   }
 
   /**
    * Get extracted entities and relationships for a document
    */
   async getDocumentEntities(documentId: string): Promise<APIResponse<EntityExtractionResult>> {
-    return apiClient.get(`/api/v1/documents/${documentId}/entities`);
+    return apiClient.get(`/documents/${documentId}/entities`);
   }
 
   /**
@@ -290,14 +290,14 @@ export class EnhancedDocumentService {
     running_jobs: number;
     jobs: ProcessingJobStatus[];
   }>> {
-    return apiClient.get(`/api/v1/documents/${documentId}/status`);
+    return apiClient.get(`/documents/${documentId}/status`);
   }
 
   /**
    * Retry failed processing for a document
    */
   async retryDocumentProcessing(documentId: string): Promise<APIResponse<{ job_id: string }>> {
-    return apiClient.post(`/api/v1/documents/${documentId}/retry-processing`);
+    return apiClient.post(`/documents/${documentId}/retry-processing`);
   }
 
   /**

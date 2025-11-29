@@ -11,6 +11,7 @@ from .websocket_manager import connection_manager
 from .status_update_service import status_update_service
 from .processing_integration import processing_integration_service
 from .websocket_error_handler import websocket_error_handler
+from .document_realtime_service import document_realtime_service
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,8 @@ class WebSocketServiceInitializer:
             "connection_manager": connection_manager,
             "status_update_service": status_update_service,
             "processing_integration": processing_integration_service,
-            "error_handler": websocket_error_handler
+            "error_handler": websocket_error_handler,
+            "document_realtime": document_realtime_service
         }
 
     async def initialize(self):
@@ -40,6 +42,7 @@ class WebSocketServiceInitializer:
             await status_update_service.initialize()
             await processing_integration_service.initialize()
             await websocket_error_handler.initialize()
+            await document_realtime_service.initialize()
 
             # Set up service integrations
             await self._setup_service_integrations()

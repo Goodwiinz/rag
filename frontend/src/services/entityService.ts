@@ -57,7 +57,7 @@ class EntityService {
    */
   async getEntity(entityId: string): Promise<GraphNode> {
     const response = await apiClient.get<GraphNode>(
-      `${this.baseUrl}/api/v1/entities/${entityId}`
+      `${this.baseUrl}/entities/${entityId}`
     );
     return response.data;
   }
@@ -67,7 +67,7 @@ class EntityService {
    */
   async updateEntity(entityId: string, updates: EntityUpdateRequest): Promise<GraphNode> {
     const response = await apiClient.put<GraphNode>(
-      `${this.baseUrl}/api/v1/entities/${entityId}`,
+      `${this.baseUrl}/entities/${entityId}`,
       updates
     );
     return response.data;
@@ -77,7 +77,7 @@ class EntityService {
    * Delete entity - backend handles cascading deletions
    */
   async deleteEntity(entityId: string): Promise<void> {
-    await apiClient.delete(`${this.baseUrl}/api/v1/entities/${entityId}`);
+    await apiClient.delete(`${this.baseUrl}/entities/${entityId}`);
   }
 
   /**
@@ -89,7 +89,7 @@ class EntityService {
     limit: number = 50
   ): Promise<GraphEdge[]> {
     const response = await apiClient.get<{ relationships: GraphEdge[] }>(
-      `${this.baseUrl}/api/v1/entities/${entityId}/relationships`,
+      `${this.baseUrl}/entities/${entityId}/relationships`,
       {
         params: {
           relationship_type: relationshipType,
@@ -112,7 +112,7 @@ class EntityService {
     relationship: RelationshipUpdateRequest
   ): Promise<GraphEdge> {
     const response = await apiClient.post<GraphEdge>(
-      `${this.baseUrl}/api/v1/relationships`,
+      `${this.baseUrl}/relationships`,
       {
         source_id: sourceId,
         target_id: targetId,
@@ -130,7 +130,7 @@ class EntityService {
     updates: RelationshipUpdateRequest
   ): Promise<GraphEdge> {
     const response = await apiClient.put<GraphEdge>(
-      `${this.baseUrl}/api/v1/relationships/${relationshipId}`,
+      `${this.baseUrl}/relationships/${relationshipId}`,
       updates
     );
     return response.data;
@@ -140,7 +140,7 @@ class EntityService {
    * Delete relationship - backend handles cleanup
    */
   async deleteRelationship(relationshipId: string): Promise<void> {
-    await apiClient.delete(`${this.baseUrl}/api/v1/relationships/${relationshipId}`);
+    await apiClient.delete(`${this.baseUrl}/relationships/${relationshipId}`);
   }
 
   /**
@@ -148,7 +148,7 @@ class EntityService {
    */
   async getEntityTimeline(entityId: string): Promise<EntityTimeline> {
     const response = await apiClient.get<EntityTimeline>(
-      `${this.baseUrl}/api/v1/entities/${entityId}/timeline`,
+      `${this.baseUrl}/entities/${entityId}/timeline`,
       {
         params: {
           include_relationship_events: true,
@@ -164,7 +164,7 @@ class EntityService {
    */
   async compareEntities(entity1Id: string, entity2Id: string): Promise<EntityComparison> {
     const response = await apiClient.post<EntityComparison>(
-      `${this.baseUrl}/api/v1/entities/compare`,
+      `${this.baseUrl}/entities/compare`,
       {
         entity1_id: entity1Id,
         entity2_id: entity2Id,
@@ -186,7 +186,7 @@ class EntityService {
     const response = await apiClient.post<{
       similar_entities: Array<{ entity: GraphNode; similarity: number }>;
     }>(
-      `${this.baseUrl}/api/v1/entities/${entityId}/similar`,
+      `${this.baseUrl}/entities/${entityId}/similar`,
       {
         limit,
         similarity_threshold: similarityThreshold,
@@ -220,7 +220,7 @@ class EntityService {
         context: string;
       }>;
     }>(
-      `${this.baseUrl}/api/v1/entities/${entityId}/mentions`,
+      `${this.baseUrl}/entities/${entityId}/mentions`,
       {
         params: {
           limit,
@@ -250,7 +250,7 @@ class EntityService {
         avgRelationships: number;
       }[];
     }>(
-      `${this.baseUrl}/api/v1/entities/stats/types`
+      `${this.baseUrl}/entities/stats/types`
     );
     return response.data.stats;
   }
@@ -264,7 +264,7 @@ class EntityService {
     mergeStrategy: 'keep_primary' | 'merge_metadata' | 'create_new' = 'keep_primary'
   ): Promise<GraphNode> {
     const response = await apiClient.post<GraphNode>(
-      `${this.baseUrl}/api/v1/entities/merge`,
+      `${this.baseUrl}/entities/merge`,
       {
         primary_entity_id: primaryEntityId,
         secondary_entity_ids: secondaryEntityIds,
@@ -282,7 +282,7 @@ class EntityService {
     splitCriteria: Record<string, any>
   ): Promise<GraphNode[]> {
     const response = await apiClient.post<{ entities: GraphNode[] }>(
-      `${this.baseUrl}/api/v1/entities/${entityId}/split`,
+      `${this.baseUrl}/entities/${entityId}/split`,
       {
         split_criteria: splitCriteria
       }
