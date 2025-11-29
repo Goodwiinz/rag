@@ -1,0 +1,2014 @@
+openapi: 3.0.3
+info:
+  title: Knowledge Graph Analytics Dashboard API
+  description: |
+    Comprehensive analytics API for the Knowledge Graph Analytics Dashboard.
+    Provides real-time metrics, graph analytics, dashboard management, and reporting capabilities.
+  version: 1.0.0
+  contact:
+    name: Analytics Team
+    email: analytics@company.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.company.com/analytics/v1
+    description: Production server
+  - url: https://staging-api.company.com/analytics/v1
+    description: Staging server
+  - url: http://localhost:8000/api/v1/analytics
+    description: Development server
+
+tags:
+  - name: Real-time Analytics
+    description: Real-time metrics and WebSocket connections
+  - name: Graph Analytics
+    description: Graph algorithms and network analysis
+  - name: Dashboard Management
+    description: Dashboard configuration and widget management
+  - name: Reports
+    description: Report generation and scheduling
+  - name: Alerts
+    description: Alert management and notifications
+  - name: Metrics Aggregation
+    description: Time-series metrics and aggregations
+
+paths:
+  /realtime/metrics:
+    get:
+      tags:
+        - Real-time Analytics
+      summary: Get real-time dashboard metrics
+      description: Retrieves current real-time metrics for an organization's dashboard
+      operationId: getRealtimeMetrics
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Organization ID
+        - name: refresh_interval
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 5
+            minimum: 1
+            maximum: 300
+          description: Refresh interval in seconds
+      responses:
+        '200':
+          description: Successful response with real-time metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RealtimeMetricsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /realtime/subscribe:
+    post:
+      tags:
+        - Real-time Analytics
+      summary: Subscribe to real-time updates
+      description: Establish WebSocket connection for real-time dashboard updates
+      operationId: subscribeToRealtimeUpdates
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: WebSocket connection established
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebSocketConnectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /graph/analytics/centrality:
+    get:
+      tags:
+        - Graph Analytics
+      summary: Calculate graph centrality metrics
+      description: Computes centrality measures (degree, betweenness, closeness, PageRank) for entities
+      operationId: getGraphCentrality
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: algorithm
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [degree, betweenness, closeness, pagerank, eigenvector]
+        - name: entity_types
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: false
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+        - name: time_range_start
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: time_range_end
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Centrality metrics calculated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphCentralityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /graph/analytics/clustering:
+    post:
+      tags:
+        - Graph Analytics
+      summary: Perform graph clustering analysis
+      description: Identifies communities and clusters within the knowledge graph
+      operationId: performGraphClustering
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClusteringRequest'
+      responses:
+        '200':
+          description: Clustering analysis completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusteringResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /graph/analytics/paths:
+    post:
+      tags:
+        - Graph Analytics
+      summary: Find paths between entities
+      description: Calculates shortest paths and connections between entities
+      operationId: findGraphPaths
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PathAnalysisRequest'
+      responses:
+        '200':
+          description: Path analysis completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PathAnalysisResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /dashboard/configurations:
+    get:
+      tags:
+        - Dashboard Management
+      summary: List dashboard configurations
+      description: Retrieves all dashboard configurations for an organization
+      operationId: listDashboardConfigurations
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: config_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [user, role, organization]
+        - name: is_active
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Dashboard configurations retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardConfigurationsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Dashboard Management
+      summary: Create dashboard configuration
+      description: Creates a new dashboard configuration
+      operationId: createDashboardConfiguration
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDashboardConfigurationRequest'
+      responses:
+        '201':
+          description: Dashboard configuration created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardConfigurationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /dashboard/configurations/{config_id}:
+    get:
+      tags:
+        - Dashboard Management
+      summary: Get dashboard configuration
+      description: Retrieves a specific dashboard configuration
+      operationId: getDashboardConfiguration
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Dashboard configuration retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardConfigurationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Dashboard Management
+      summary: Update dashboard configuration
+      description: Updates an existing dashboard configuration
+      operationId: updateDashboardConfiguration
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDashboardConfigurationRequest'
+      responses:
+        '200':
+          description: Dashboard configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardConfigurationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Dashboard Management
+      summary: Delete dashboard configuration
+      description: Deletes a dashboard configuration
+      operationId: deleteDashboardConfiguration
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Dashboard configuration deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /dashboard/widgets:
+    get:
+      tags:
+        - Dashboard Management
+      summary: List available widgets
+      description: Retrieves all available widget definitions
+      operationId: listWidgets
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: widget_category
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [entity, relationship, document, user, system, graph]
+        - name: widget_type
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Widgets retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WidgetsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reports:
+    get:
+      tags:
+        - Reports
+      summary: List reports
+      description: Retrieves all reports for an organization
+      operationId: listReports
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: report_category
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: is_template
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: created_by
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Reports retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Reports
+      summary: Create report
+      description: Creates a new custom analytics report
+      operationId: createReport
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReportRequest'
+      responses:
+        '201':
+          description: Report created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reports/{report_id}/execute:
+    post:
+      tags:
+        - Reports
+      summary: Execute report
+      description: Executes a report and generates results
+      operationId: executeReport
+      parameters:
+        - name: report_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecuteReportRequest'
+      responses:
+        '200':
+          description: Report execution started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportExecutionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /reports/{report_id}/executions:
+    get:
+      tags:
+        - Reports
+      summary: List report executions
+      description: Retrieves execution history for a report
+      operationId: listReportExecutions
+      parameters:
+        - name: report_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [running, completed, failed, cancelled]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Report executions retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportExecutionsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /alerts:
+    get:
+      tags:
+        - Alerts
+      summary: List alerts
+      description: Retrieves all alerts for an organization
+      operationId: listAlerts
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, triggered, acknowledged, resolved, suppressed]
+        - name: severity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [info, warning, critical, emergency]
+        - name: alert_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [metric_threshold, data_quality, performance, capacity]
+      responses:
+        '200':
+          description: Alerts retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Alerts
+      summary: Create alert
+      description: Creates a new analytics alert
+      operationId: createAlert
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAlertRequest'
+      responses:
+        '201':
+          description: Alert created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /alerts/{alert_id}/acknowledge:
+    post:
+      tags:
+        - Alerts
+      summary: Acknowledge alert
+      description: Acknowledges an alert
+      operationId: acknowledgeAlert
+      parameters:
+        - name: alert_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcknowledgeAlertRequest'
+      responses:
+        '200':
+          description: Alert acknowledged successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /metrics/aggregations:
+    get:
+      tags:
+        - Metrics Aggregation
+      summary: Get metrics aggregations
+      description: Retrieves aggregated metrics for specified time periods
+      operationId: getMetricsAggregations
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: metric_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [entity, relationship, document, user_interaction, graph_metrics]
+        - name: time_bucket
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [hour, day, week, month]
+        - name: start_time
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: aggregations
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [sum, avg, min, max, count, distinct_count]
+            default: [sum, avg, count]
+      responses:
+        '200':
+          description: Metrics aggregations retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsAggregationsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    RealtimeMetricsResponse:
+      type: object
+      properties:
+        organization_id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        metrics:
+          type: object
+          properties:
+            total_entities:
+              type: integer
+            new_entities_today:
+              type: integer
+            avg_entity_confidence:
+              type: number
+              format: float
+            total_relationships:
+              type: integer
+            new_relationships_today:
+              type: integer
+            total_documents:
+              type: integer
+            documents_processed_today:
+              type: integer
+            avg_document_quality:
+              type: number
+              format: float
+            processing_success_rate:
+              type: number
+              format: float
+            active_users_today:
+              type: integer
+            total_searches_today:
+              type: integer
+            avg_search_response_time:
+              type: number
+              format: float
+            system_health_score:
+              type: number
+              format: float
+            total_storage_used:
+              type: number
+              format: float
+        last_updated:
+          type: string
+          format: date-time
+
+    WebSocketConnectionResponse:
+      type: object
+      properties:
+        connection_id:
+          type: string
+        websocket_url:
+          type: string
+        auth_token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+
+    GraphCentralityResponse:
+      type: object
+      properties:
+        algorithm:
+          type: string
+        computed_at:
+          type: string
+          format: date-time
+        computation_time_ms:
+          type: integer
+        total_entities_analyzed:
+          type: integer
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              entity_id:
+                type: string
+                format: uuid
+              entity_name:
+                type: string
+              entity_type:
+                type: string
+              centrality_score:
+                type: number
+                format: float
+              rank:
+                type: integer
+        metadata:
+          type: object
+          properties:
+            min_score:
+              type: number
+              format: float
+            max_score:
+              type: number
+              format: float
+            avg_score:
+              type: number
+              format: float
+            distribution:
+              type: object
+              additionalProperties: true
+
+    ClusteringRequest:
+      type: object
+      required:
+        - algorithm
+      properties:
+        algorithm:
+          type: string
+          enum: [louvain, leiden, infomap, label_propagation]
+        entity_types:
+          type: array
+          items:
+            type: string
+        relationship_types:
+          type: array
+          items:
+            type: string
+        min_cluster_size:
+          type: integer
+          default: 5
+        max_clusters:
+          type: integer
+          default: 100
+        resolution:
+          type: number
+          format: float
+          default: 1.0
+        time_range_start:
+          type: string
+          format: date-time
+        time_range_end:
+          type: string
+          format: date-time
+
+    ClusteringResponse:
+      type: object
+      properties:
+        algorithm:
+          type: string
+        computed_at:
+          type: string
+          format: date-time
+        computation_time_ms:
+          type: integer
+        total_communities:
+          type: integer
+        modularity_score:
+          type: number
+          format: float
+        communities:
+          type: array
+          items:
+            type: object
+            properties:
+              community_id:
+                type: integer
+              size:
+                type: integer
+              entities:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    entity_id:
+                      type: string
+                      format: uuid
+                    entity_name:
+                      type: string
+                    entity_type:
+                      type: string
+              internal_density:
+                type: number
+                format: float
+        summary_stats:
+          type: object
+          properties:
+            avg_community_size:
+              type: number
+              format: float
+            largest_community_size:
+              type: integer
+            smallest_community_size:
+              type: integer
+            isolated_entities:
+              type: integer
+
+    PathAnalysisRequest:
+      type: object
+      required:
+        - source_entity_id
+        - target_entity_id
+      properties:
+        source_entity_id:
+          type: string
+          format: uuid
+        target_entity_id:
+          type: string
+          format: uuid
+        algorithm:
+          type: string
+          enum: [dijkstra, bfs, astar, floyd_warshall]
+          default: dijkstra
+        max_path_length:
+          type: integer
+          default: 10
+        max_paths:
+          type: integer
+          default: 5
+        include_path_weights:
+          type: boolean
+          default: true
+        entity_types_filter:
+          type: array
+          items:
+            type: string
+        relationship_types_filter:
+          type: array
+          items:
+            type: string
+
+    PathAnalysisResponse:
+      type: object
+      properties:
+        computed_at:
+          type: string
+          format: date-time
+        computation_time_ms:
+          type: integer
+        source_entity:
+          type: object
+          properties:
+            entity_id:
+              type: string
+              format: uuid
+            entity_name:
+              type: string
+            entity_type:
+              type: string
+        target_entity:
+          type: object
+          properties:
+            entity_id:
+              type: string
+              format: uuid
+            entity_name:
+              type: string
+            entity_type:
+              type: string
+        paths:
+          type: array
+          items:
+            type: object
+            properties:
+              path_id:
+                type: string
+              length:
+                type: integer
+              weight:
+                type: number
+                format: float
+              entities:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    entity_id:
+                      type: string
+                      format: uuid
+                    entity_name:
+                      type: string
+                    entity_type:
+                      type: string
+              relationships:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    relationship_type:
+                      type: string
+                    source_id:
+                      type: string
+                      format: uuid
+                    target_id:
+                      type: string
+                      format: uuid
+                    weight:
+                      type: number
+                      format: float
+        shortest_path:
+          $ref: '#/components/schemas/PathAnalysisResponse/properties/paths/items'
+
+    DashboardConfigurationsResponse:
+      type: object
+      properties:
+        configurations:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardConfiguration'
+        total_count:
+          type: integer
+        page_info:
+          type: object
+          properties:
+            has_next_page:
+              type: boolean
+            has_previous_page:
+              type: boolean
+            start_cursor:
+              type: string
+            end_cursor:
+              type: string
+
+    DashboardConfiguration:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        config_name:
+          type: string
+        config_type:
+          type: string
+          enum: [user, role, organization]
+        is_default:
+          type: boolean
+        is_active:
+          type: boolean
+        layout:
+          type: object
+          additionalProperties: true
+        widgets:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        time_range_default:
+          type: string
+        filters:
+          type: object
+          additionalProperties: true
+        auto_refresh_enabled:
+          type: boolean
+        auto_refresh_interval_seconds:
+          type: integer
+        view_permissions:
+          type: array
+          items:
+            type: string
+        edit_permissions:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateDashboardConfigurationRequest:
+      type: object
+      required:
+        - config_name
+        - config_type
+      properties:
+        config_name:
+          type: string
+          maxLength: 255
+        config_type:
+          type: string
+          enum: [user, role, organization]
+        is_default:
+          type: boolean
+          default: false
+        layout:
+          type: object
+          additionalProperties: true
+          default: {}
+        widgets:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          default: []
+        time_range_default:
+          type: string
+          default: 7d
+        filters:
+          type: object
+          additionalProperties: true
+          default: {}
+        auto_refresh_enabled:
+          type: boolean
+          default: true
+        auto_refresh_interval_seconds:
+          type: integer
+          default: 300
+          minimum: 60
+          maximum: 3600
+        view_permissions:
+          type: array
+          items:
+            type: string
+          default: []
+        edit_permissions:
+          type: array
+          items:
+            type: string
+          default: []
+
+    UpdateDashboardConfigurationRequest:
+      type: object
+      properties:
+        config_name:
+          type: string
+          maxLength: 255
+        layout:
+          type: object
+          additionalProperties: true
+        widgets:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        time_range_default:
+          type: string
+        filters:
+          type: object
+          additionalProperties: true
+        auto_refresh_enabled:
+          type: boolean
+        auto_refresh_interval_seconds:
+          type: integer
+          minimum: 60
+          maximum: 3600
+        view_permissions:
+          type: array
+          items:
+            type: string
+        edit_permissions:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+
+    DashboardConfigurationResponse:
+      allOf:
+        - $ref: '#/components/schemas/DashboardConfiguration'
+        - type: object
+          properties:
+            created_by:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                user_name:
+                  type: string
+                user_email:
+                  type: string
+
+    WidgetsResponse:
+      type: object
+      properties:
+        widgets:
+          type: array
+          items:
+            $ref: '#/components/schemas/WidgetDefinition'
+        total_count:
+          type: integer
+
+    WidgetDefinition:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        widget_name:
+          type: string
+        widget_type:
+          type: string
+        widget_category:
+          type: string
+        data_source:
+          type: string
+        data_query:
+          type: string
+          nullable: true
+        default_config:
+          type: object
+          additionalProperties: true
+        chart_type:
+          type: string
+          nullable: true
+        color_scheme:
+          type: object
+          additionalProperties: true
+        axis_config:
+          type: object
+          additionalProperties: true
+        cache_duration_seconds:
+          type: integer
+        max_data_points:
+          type: integer
+        required_permissions:
+          type: array
+          items:
+            type: string
+        widget_roles:
+          type: array
+          items:
+            type: string
+        description:
+          type: string
+          nullable: true
+        version:
+          type: string
+        is_system_widget:
+          type: boolean
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ReportsResponse:
+      type: object
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/Report'
+        total_count:
+          type: integer
+        page_info:
+          type: object
+          properties:
+            has_next_page:
+              type: boolean
+            has_previous_page:
+              type: boolean
+            limit:
+              type: integer
+            offset:
+              type: integer
+
+    Report:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        created_by_user_id:
+          type: string
+          format: uuid
+        report_name:
+          type: string
+        report_description:
+          type: string
+          nullable: true
+        report_category:
+          type: string
+          nullable: true
+        report_definition:
+          type: object
+          additionalProperties: true
+        data_sources:
+          type: array
+          items:
+            type: string
+        visualizations:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        schedule_config:
+          type: object
+          additionalProperties: true
+        auto_generate:
+          type: boolean
+        next_run_at:
+          type: string
+          format: date-time
+          nullable: true
+        output_formats:
+          type: array
+          items:
+            type: string
+        delivery_methods:
+          type: array
+          items:
+            type: string
+        recipients:
+          type: array
+          items:
+            type: string
+        is_public:
+          type: boolean
+        share_with_roles:
+          type: array
+          items:
+            type: string
+        share_with_users:
+          type: array
+          items:
+            type: string
+        version:
+          type: integer
+        is_template:
+          type: boolean
+        template_category:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateReportRequest:
+      type: object
+      required:
+        - report_name
+        - report_definition
+      properties:
+        report_name:
+          type: string
+          maxLength: 255
+        report_description:
+          type: string
+          nullable: true
+        report_category:
+          type: string
+          nullable: true
+        report_definition:
+          type: object
+          additionalProperties: true
+        data_sources:
+          type: array
+          items:
+            type: string
+          default: []
+        visualizations:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          default: []
+        schedule_config:
+          type: object
+          additionalProperties: true
+          default: {}
+        auto_generate:
+          type: boolean
+          default: false
+        output_formats:
+          type: array
+          items:
+            type: string
+            enum: [pdf, csv, json, xlsx, html]
+          default: []
+        delivery_methods:
+          type: array
+          items:
+            type: string
+            enum: [email, download, webhook, api]
+          default: []
+        recipients:
+          type: array
+          items:
+            type: string
+          default: []
+        is_public:
+          type: boolean
+          default: false
+        share_with_roles:
+          type: array
+          items:
+            type: string
+          default: []
+        share_with_users:
+          type: array
+          items:
+            type: string
+          default: []
+        is_template:
+          type: boolean
+          default: false
+        template_category:
+          type: string
+          nullable: true
+
+    ReportResponse:
+      allOf:
+        - $ref: '#/components/schemas/Report'
+        - type: object
+          properties:
+            created_by:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                user_name:
+                  type: string
+                user_email:
+                  type: string
+
+    ExecuteReportRequest:
+      type: object
+      properties:
+        execution_parameters:
+          type: object
+          additionalProperties: true
+          default: {}
+        output_formats:
+          type: array
+          items:
+            type: string
+            enum: [pdf, csv, json, xlsx, html]
+          default: [json]
+        delivery_methods:
+          type: array
+          items:
+            type: string
+            enum: [email, download, webhook, api]
+          default: [download]
+        recipients:
+          type: array
+          items:
+            type: string
+          default: []
+        async_execution:
+          type: boolean
+          default: true
+
+    ReportExecutionResponse:
+      type: object
+      properties:
+        execution_id:
+          type: string
+          format: uuid
+        report_id:
+          type: string
+          format: uuid
+        execution_status:
+          type: string
+          enum: [running, completed, failed, cancelled]
+        started_at:
+          type: string
+          format: date-time
+        estimated_completion_at:
+          type: string
+          format: date-time
+          nullable: true
+        async_execution:
+          type: boolean
+        result_urls:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    ReportExecutionsResponse:
+      type: object
+      properties:
+        executions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportExecution'
+        total_count:
+          type: integer
+        page_info:
+          type: object
+          properties:
+            has_next_page:
+              type: boolean
+            has_previous_page:
+              type: boolean
+            limit:
+              type: integer
+            offset:
+              type: integer
+
+    ReportExecution:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        report_id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        executed_by_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        execution_type:
+          type: string
+          enum: [manual, scheduled, api]
+        execution_parameters:
+          type: object
+          additionalProperties: true
+        data_freshness_at:
+          type: string
+          format: date-time
+          nullable: true
+        execution_time_ms:
+          type: integer
+          nullable: true
+        data_points_processed:
+          type: integer
+          nullable: true
+        memory_usage_mb:
+          type: integer
+          nullable: true
+        execution_status:
+          type: string
+          enum: [running, completed, failed, cancelled]
+        result_file_paths:
+          type: array
+          items:
+            type: string
+        result_data_preview:
+          type: object
+          additionalProperties: true
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+        error_details:
+          type: object
+          additionalProperties: true
+        retry_count:
+          type: integer
+        delivery_status:
+          type: object
+          additionalProperties: true
+        delivery_attempts:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    AlertsResponse:
+      type: object
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alert'
+        total_count:
+          type: integer
+        page_info:
+          type: object
+          properties:
+            has_next_page:
+              type: boolean
+            has_previous_page:
+              type: boolean
+            limit:
+              type: integer
+            offset:
+              type: integer
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        alert_name:
+          type: string
+        alert_type:
+          type: string
+          enum: [metric_threshold, data_quality, performance, capacity]
+        alert_condition:
+          type: object
+          additionalProperties: true
+        threshold_values:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum: [active, triggered, acknowledged, resolved, suppressed]
+        severity:
+          type: string
+          enum: [info, warning, critical, emergency]
+        last_triggered_at:
+          type: string
+          format: date-time
+          nullable: true
+        trigger_count:
+          type: integer
+        consecutive_triggers:
+          type: integer
+        affected_metrics:
+          type: array
+          items:
+            type: string
+        related_entities:
+          type: array
+          items:
+            type: string
+        notification_channels:
+          type: array
+          items:
+            type: string
+        notification_cooldown_minutes:
+          type: integer
+        last_notification_at:
+          type: string
+          format: date-time
+          nullable: true
+        acknowledged_by:
+          type: string
+          format: uuid
+          nullable: true
+        acknowledged_at:
+          type: string
+          format: date-time
+          nullable: true
+        resolved_by:
+          type: string
+          format: uuid
+          nullable: true
+        resolved_at:
+          type: string
+          format: date-time
+          nullable: true
+        alert_details:
+          type: object
+          additionalProperties: true
+        resolution_notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateAlertRequest:
+      type: object
+      required:
+        - alert_name
+        - alert_type
+        - alert_condition
+        - severity
+      properties:
+        alert_name:
+          type: string
+          maxLength: 255
+        alert_type:
+          type: string
+          enum: [metric_threshold, data_quality, performance, capacity]
+        alert_condition:
+          type: object
+          additionalProperties: true
+        threshold_values:
+          type: object
+          additionalProperties: true
+          default: {}
+        severity:
+          type: string
+          enum: [info, warning, critical, emergency]
+        notification_channels:
+          type: array
+          items:
+            type: string
+            enum: [email, slack, webhook, dashboard, sms]
+          default: [dashboard]
+        notification_cooldown_minutes:
+          type: integer
+          default: 60
+          minimum: 1
+          maximum: 1440
+        alert_details:
+          type: object
+          additionalProperties: true
+          default: {}
+
+    AlertResponse:
+      allOf:
+        - $ref: '#/components/schemas/Alert'
+
+    AcknowledgeAlertRequest:
+      type: object
+      properties:
+        action_notes:
+          type: string
+          nullable: true
+        suppress_duration_hours:
+          type: integer
+          minimum: 1
+          maximum: 168
+          nullable: true
+
+    MetricsAggregationsResponse:
+      type: object
+      properties:
+        metric_type:
+          type: string
+        time_bucket:
+          type: string
+        time_range:
+          type: object
+          properties:
+            start_time:
+              type: string
+              format: date-time
+            end_time:
+              type: string
+              format: date-time
+        aggregations:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricAggregation'
+        summary_stats:
+          type: object
+          properties:
+            total_data_points:
+              type: integer
+            aggregation_period_count:
+              type: integer
+            latest_value:
+              type: number
+              format: float
+            trend_direction:
+              type: string
+              enum: [up, down, stable]
+            trend_percentage:
+              type: number
+              format: float
+        computed_at:
+          type: string
+          format: date-time
+        computation_time_ms:
+          type: integer
+
+    MetricAggregation:
+      type: object
+      properties:
+        time_bucket:
+          type: string
+          format: date-time
+        metrics:
+          type: object
+          additionalProperties:
+            type: number
+            format: float
+        metadata:
+          type: object
+          properties:
+            data_quality_score:
+              type: number
+              format: float
+            sample_size:
+              type: integer
+            confidence_interval:
+              type: object
+              properties:
+                lower_bound:
+                  type: number
+                  format: float
+                upper_bound:
+                  type: number
+                  format: float
+                confidence_level:
+                  type: number
+                  format: float
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            status_code:
+              type: integer
+            type:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+            request_id:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+
+  responses:
+    BadRequest:
+      description: Bad request - Invalid input parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: Unauthorized - Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Forbidden:
+      description: Forbidden - Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ServiceUnavailable:
+      description: Service temporarily unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  parameters:
+    OrganizationId:
+      name: organization_id
+      in: query
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Organization ID for multi-tenancy
+
+    UserId:
+      name: user_id
+      in: query
+      required: false
+      schema:
+        type: string
+        format: uuid
+      description: User ID for user-specific operations
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+# Example WebSocket message definitions
+x-websocket-messages:
+  RealtimeUpdate:
+    type: object
+    properties:
+      type:
+        type: string
+        enum: [metric_update, alert_triggered, dashboard_change]
+      timestamp:
+        type: string
+        format: date-time
+      organization_id:
+        type: string
+        format: uuid
+      data:
+        type: object
+        additionalProperties: true
+
+  ConnectionStatus:
+    type: object
+    properties:
+      type:
+        type: string
+        enum: [connected, disconnected, error]
+      connection_id:
+        type: string
+      timestamp:
+        type: string
+        format: date-time
+      message:
+        type: string

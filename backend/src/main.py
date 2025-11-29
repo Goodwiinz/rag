@@ -6,10 +6,14 @@ from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 import logging
 import time
 import os
+
+# Setup basic logging
+logger = logging.getLogger(__name__)
 
 from src.core.config import settings
 from src.core.database import engine, Base
@@ -27,17 +31,35 @@ from src.api.user_behavior import router as user_behavior_router
 from src.api.performance_dashboard import router as performance_dashboard_router
 from src.api.quality_recommendations import router as quality_recommendations_router
 from src.api.workers import router as workers_router
-# TODO: Fix security endpoint imports - temporarily disabled
-# from src.api.encryption import router as encryption_router
-# from src.api.compliance import router as compliance_router
-# from src.api.rbac_management import router as rbac_router
+from src.api.encryption import router as encryption_router
+from src.api.compliance import router as compliance_router
+from src.api.rbac_management import router as rbac_router
+from src.api.evaluation import router as evaluation_router
+from src.api.websocket import router as websocket_router
+from src.api.websocket_v2 import router as websocket_v2_router
+from src.api.realtime_document_status import router as realtime_status_router
+from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
+from src.core.database import engine
+# from src.services.file_service import redis_client  # Not exported, not needed here
 
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL.upper()),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# Configure observability (optional)
+try:
+    from src.observability import (
+        configure_tracing, configure_metrics, configure_logging,
+        instrument_app, instrument_services
+    )
+    configure_logging()
+    configure_tracing()
+    configure_metrics()
+    OBSERVABILITY_ENABLED = True
+except ImportError as e:
+    print(f"Warning: Observability not available: {e}")
+    OBSERVABILITY_ENABLED = False
+    # Create dummy functions
+    def instrument_app(app):
+        return app
+    def instrument_services():
+        pass
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -53,12 +75,29 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to create database tables: {e}")
         raise
 
+    # Initialize WebSocket services
+    try:
+        from src.services.websocket_service_initializer import websocket_service_initializer
+        await websocket_service_initializer.initialize()
+        logger.info("WebSocket services initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize WebSocket services: {e}")
+        # Continue startup even if WebSocket services fail
+
     logger.info("Application startup complete")
 
     yield
 
     # Shutdown
     logger.info("Shutting down Multimodal RAG System...")
+
+    # Shutdown WebSocket services
+    try:
+        from src.services.websocket_service_initializer import websocket_service_initializer
+        await websocket_service_initializer.shutdown()
+        logger.info("WebSocket services shutdown successfully")
+    except Exception as e:
+        logger.error(f"Error shutting down WebSocket services: {e}")
 
 # Create FastAPI application
 app = FastAPI(
@@ -70,14 +109,33 @@ app = FastAPI(
     redoc_url="/redoc" if settings.DEBUG else None,
 )
 
+# Instrument application with observability
+instrument_app(app)
+
+# Instrument additional services
+if OBSERVABILITY_ENABLED:
+    try:
+        from src.services.file_service import redis_client
+        instrument_services(
+            sql_engine=engine,
+            redis_client=redis_client
+        )
+    except ImportError:
+        instrument_services(sql_engine=engine)
+
 # Add CORS middleware
+# SECURITY: Never use allow_origins=["*"] in production - always specify explicit origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.DEBUG else ["http://localhost:3000"],  # Restrict in production
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
+    allow_headers=["*"],  # Allow all headers for flexibility with custom headers like X-Organization-ID
+    expose_headers=["X-Process-Time", "X-Request-ID"],
 )
+
+# Add rate limiting middleware for analytics endpoints
+app.add_middleware(AnalyticsRateLimitMiddleware)
 
 # Add trusted host middleware for production
 if not settings.DEBUG:
@@ -134,10 +192,13 @@ app.include_router(user_behavior_router, prefix="/api/v1/analytics/behavior")
 app.include_router(performance_dashboard_router, prefix="/api/v1/analytics/performance")
 app.include_router(quality_recommendations_router, prefix="/api/v1/analytics/recommendations")
 app.include_router(workers_router, prefix="/api/v1")
-# TODO: Fix security endpoints - temporarily disabled due to import/type issues
-# app.include_router(encryption_router, prefix="/api")
-# app.include_router(compliance_router, prefix="/api")
-# app.include_router(rbac_router, prefix="/api")
+app.include_router(encryption_router, prefix="/api/v1/security")
+app.include_router(compliance_router, prefix="/api/v1/security")
+app.include_router(rbac_router, prefix="/api/v1/rbac")
+app.include_router(evaluation_router, prefix="/api/v1")
+app.include_router(websocket_router)  # Legacy WebSocket routes
+app.include_router(websocket_v2_router)  # Enhanced WebSocket v2 routes
+app.include_router(realtime_status_router)  # Real-time document status API
 
 # Health check endpoint
 @app.get("/health")
@@ -162,9 +223,26 @@ async def root():
     }
 
 # Global exception handlers
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle validation errors"""
+    logger.error(f"Validation error on {request.url.path}: {exc.errors()}")
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "error": {
+                "message": "Validation error",
+                "status_code": 422,
+                "type": "validation_error",
+                "details": exc.errors()
+            }
+        }
+    )
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions"""
+    logger.error(f"HTTP {exc.status_code} error on {request.url.path}: {exc.detail}")
     return JSONResponse(
         status_code=exc.status_code,
         content={

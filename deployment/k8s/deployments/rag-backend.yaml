@@ -1,0 +1,329 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-backend
+  namespace: rag-system
+  labels:
+    app: rag-backend
+    component: backend
+    tier: application
+    version: v1
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    prometheus.io/path: "/metrics"
+    deployment.kubernetes.io/revision: "1"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: rag-backend
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: rag-backend
+        component: backend
+        tier: application
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: rag-backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: rag-backend
+        image: rag-system/backend:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        - name: health
+          containerPort: 8080
+          protocol: TCP
+        - name: websocket
+          containerPort: 8001
+          protocol: TCP
+        env:
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: rag-system-config
+              key: POSTGRES_HOST
+        - name: POSTGRES_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: rag-system-config
+              key: POSTGRES_PORT
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: rag-system-config
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: postgres-user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: postgres-password
+        - name: NEO4J_URI
+          valueFrom:
+            configMapKeyRef:
+              name: rag-system-config
+              key: NEO4J_URI
+        - name: NEO4J_USER
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: neo4j-user
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: neo4j-password
+        - name: QDRANT_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: rag-system-config
+              key: QDRANT_HOST
+        - name: QDRANT_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: qdrant-api-key
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: rag-system-config
+              key: REDIS_HOST
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: redis-password
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: jwt-secret-key
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: openai-api-key
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: anthropic-api-key
+        volumeMounts:
+        - name: uploads
+          mountPath: /app/uploads
+        - name: secrets
+          mountPath: /etc/secrets
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+          successThreshold: 1
+        startupProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+          successThreshold: 1
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: uploads
+        persistentVolumeClaim:
+          claimName: rag-backend-uploads
+      - name: secrets
+        secret:
+          secretName: rag-secrets
+          defaultMode: 0400
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 60
+      nodeSelector:
+        node-type: application
+      tolerations:
+      - key: "application"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - rag-backend
+              topologyKey: kubernetes.io/hostname
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-frontend
+  namespace: rag-system
+  labels:
+    app: rag-frontend
+    component: frontend
+    tier: application
+    version: v1
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: rag-frontend
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: rag-frontend
+        component: frontend
+        tier: application
+        version: v1
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: rag-frontend
+        image: rag-system/frontend:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        env:
+        - name: NEXT_PUBLIC_API_URL
+          value: "https://api.rag.company.com"
+        - name: NEXT_PUBLIC_WS_URL
+          value: "wss://ws.rag.company.com"
+        - name: NODE_ENV
+          value: "production"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /api/ready
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+          successThreshold: 1
+        startupProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+          successThreshold: 1
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 60
+      nodeSelector:
+        node-type: application
+      tolerations:
+      - key: "application"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - rag-frontend
+              topologyKey: kubernetes.io/hostname

@@ -1,0 +1,475 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: rag-monitoring
+  labels:
+    app: grafana
+    component: monitoring
+data:
+  home.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "RAG System - Overview",
+        "tags": ["rag", "overview", "system"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "System Overview",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "rag_system_cpu_usage",
+                "legendFormat": "CPU Usage"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.5
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.8
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 2,
+            "title": "Memory Usage",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "rag_system_memory_usage",
+                "legendFormat": "Memory Usage"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.7
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.9
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 3,
+            "title": "Network I/O",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "rag_system_network_io",
+                "legendFormat": "Network I/O"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1000000
+                    },
+                    {
+                      "color": "red",
+                      "value": 10000000
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 4,
+            "title": "Disk I/O",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "rag_system_disk_io",
+                "legendFormat": "Disk I/O"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1000000
+                    },
+                    {
+                      "color": "red",
+                      "value": 10000000
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "5s"
+      }
+    }
+  kubernetes-overview.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Kubernetes Overview",
+        "tags": ["kubernetes", "overview", "system"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Pod Status",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "rag_system_pod_status",
+                "legendFormat": "Pod Status"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Container Status",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "rag_system_container_status",
+                "legendFormat": "Container Status"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Resource Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rag_system_cpu_usage",
+                "legendFormat": "CPU Usage"
+              },
+              {
+                "expr": "rag_system_memory_usage",
+                "legendFormat": "Memory Usage"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Pod Restart Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(kube_pod_container_status_restarts_total[5m]))",
+                "legendFormat": "Pod Restart Rate"
+              }
+            ]
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "10s"
+      }
+    }
+  database-overview.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Database Overview",
+        "tags": ["database", "neo4j", "qdrant", "redis"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Neo4j Database Status",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "up{job='neo4j'}",
+                "legendFormat": "Neo4j Status"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 0
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 2,
+            "title": "Qdrant Database Status",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "up{job='qdrant'}",
+                "legendFormat": "Qdrant Status"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 0
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 3,
+            "title": "Redis Database Status",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "up{job='redis'}",
+                "legendFormat": "Redis Status"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 0
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 4,
+            "title": "Database Connections",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rag_system_database_connections",
+                "legendFormat": "Database Connections"
+              }
+            ]
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "10s"
+      }
+    }
+  application-overview.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Application Overview",
+        "tags": ["application", "rag-backend", "rag-ui", "rag-api-server", "rag-ingestion"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "HTTP Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(http_server_requests_seconds_count[5m]))",
+                "legendFormat": "HTTP Request Rate"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "HTTP Response Time",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(http_server_requests_seconds_sum[5m])) / sum(rate(http_server_requests_seconds_count[5m]))",
+                "legendFormat": "HTTP Response Time"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Error Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(http_server_requests_seconds_sum{status=~\"5..\"}[5m])) / sum(rate(http_server_requests_seconds_count[5m]))",
+                "legendFormat": "5xx Error Rate"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Ingestion Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(rag_ingestion_requests_total[5m]))",
+                "legendFormat": "Ingestion Rate"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "title": "Active Users",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rag_active_users)",
+                "legendFormat": "Active Users"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "title": "Query Processing Time",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(rag_query_processing_seconds_sum[5m])) / sum(rate(rag_query_processing_seconds_count[5m]))",
+                "legendFormat": "Query Processing Time"
+              }
+            ]
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "5s"
+      }
+    }
+  real-time-status.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Real-Time Status",
+        "tags": ["real-time", "websocket", "document-processing"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Active WebSocket Connections",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "websocket_connections_active",
+                "legendFormat": "Active Connections"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Active Processing Jobs",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "document_processing_active_jobs",
+                "legendFormat": "Active Jobs"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Document Processing Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(document_processing_total[5m])",
+                "legendFormat": "Documents/sec"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Processing Duration",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(document_processing_duration_seconds_sum[5m]) / rate(document_processing_duration_seconds_count[5m])",
+                "legendFormat": "Avg Duration (s)"
+              }
+            ]
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "5s"
+      }
+    }

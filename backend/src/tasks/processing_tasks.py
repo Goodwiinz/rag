@@ -31,6 +31,7 @@ from src.models.document import Document, ProcessingStatus
 from src.models.processing import ProcessingJob, JobStatus
 from src.models.entity import Entity
 from src.services.processing_service import ProcessingPipeline
+from src.services.fulltext_search_service import fulltext_search_service
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +164,18 @@ def process_document_ingestion(self, job_id: str):
                 document.is_embedded = True
         db.commit()
 
-        # Step 4: Finalize
+        # Step 4: Generate Search Vector
+        job.update_progress("Creating search index", 90)
+        db.commit()
+
+        # Update search vector for full-text search
+        try:
+            fulltext_search_service.update_document_search_vector(str(document.id), db)
+            logger.info(f"Updated search vector for document {document.id}")
+        except Exception as e:
+            logger.warning(f"Failed to update search vector for document {document.id}: {e}")
+
+        # Step 5: Finalize
         job.update_progress("Finalizing", 95)
         db.commit()
 

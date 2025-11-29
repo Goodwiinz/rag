@@ -1,0 +1,155 @@
+{
+  "demo_timestamp": "2025-11-04T01:24:46.988993+00:00",
+  "success_criteria": {
+    "thresholds": {
+      "answer_relevancy": {
+        "min": 0.7,
+        "target": 0.85,
+        "description": "Answer should be relevant to the query"
+      },
+      "faithfulness": {
+        "min": 0.9,
+        "target": 0.95,
+        "description": "Answer should be supported by retrieved context"
+      },
+      "contextual_relevancy": {
+        "min": 0.7,
+        "target": 0.85,
+        "description": "Retrieved context should be relevant to query"
+      },
+      "hallucination_rate": {
+        "min": 0.0,
+        "target": 0.05,
+        "description": "Rate of fabricated information"
+      },
+      "latency_p95": {
+        "min": 0.0,
+        "target": 2000.0,
+        "description": "95th percentile response time (ms)"
+      }
+    },
+    "query_types": {
+      "factual_lookup": {
+        "description": "Direct fact retrieval queries",
+        "min_threshold": 0.8,
+        "example": "What is the revenue of Microsoft in 2023?"
+      },
+      "reasoning": {
+        "description": "Complex reasoning and inference queries",
+        "min_threshold": 0.75,
+        "example": "How might the acquisition affect market position?"
+      },
+      "summarization": {
+        "description": "Document and multi-document summarization",
+        "min_threshold": 0.7,
+        "example": "Summarize the key findings from the financial report"
+      },
+      "multimodal_query": {
+        "description": "Queries spanning multiple modalities",
+        "min_threshold": 0.65,
+        "example": "What information do the charts in the presentation convey?"
+      }
+    },
+    "supported_modalities": [
+      "text",
+      "image",
+      "audio",
+      "video"
+    ]
+  },
+  "test_dataset": {
+    "total_test_cases": 4,
+    "test_cases": [
+      {
+        "id": 1,
+        "input": "What is the annual revenue of Microsoft for fiscal year 2023?",
+        "expected_output": "Microsoft's annual revenue for fiscal year 2023 was $211.9 billion.",
+        "query_type": "factual_lookup",
+        "modalities": [
+          "text"
+        ]
+      },
+      {
+        "id": 2,
+        "input": "Based on the financial trends, what might be the outlook for the tech sector in 2024?",
+        "expected_output": "The tech sector outlook for 2024 appears cautiously optimistic with continued growth in cloud computing and AI.",
+        "query_type": "reasoning",
+        "modalities": [
+          "text"
+        ]
+      },
+      {
+        "id": 3,
+        "input": "Summarize the key findings from the Q3 financial report",
+        "expected_output": "Q3 financial report shows revenue growth, improved margins, and positive outlook.",
+        "query_type": "summarization",
+        "modalities": [
+          "text",
+          "image"
+        ]
+      },
+      {
+        "id": 4,
+        "input": "What information do the charts in the Q3 financial report presentation convey?",
+        "expected_output": "Charts show revenue growth of 15% YoY with cloud services at 40% of revenue.",
+        "query_type": "multimodal_query",
+        "modalities": [
+          "text",
+          "image"
+        ]
+      }
+    ]
+  },
+  "evaluation_results": {
+    "test_case_1": {
+      "answer_relevancy": 0.85,
+      "faithfulness": 0.92,
+      "contextual_relevancy": 0.78,
+      "hallucination_rate": 0.05,
+      "latency_p95": 1850.0
+    },
+    "test_case_2": {
+      "answer_relevancy": 0.78,
+      "faithfulness": 0.88,
+      "contextual_relevancy": 0.72,
+      "hallucination_rate": 0.12,
+      "latency_p95": 2100.0
+    },
+    "test_case_3": {
+      "answer_relevancy": 0.82,
+      "faithfulness": 0.9,
+      "contextual_relevancy": 0.75,
+      "hallucination_rate": 0.08,
+      "latency_p95": 1950.0
+    },
+    "test_case_4": {
+      "answer_relevancy": 0.73,
+      "faithfulness": 0.85,
+      "contextual_relevancy": 0.68,
+      "hallucination_rate": 0.15,
+      "latency_p95": 2400.0
+    }
+  },
+  "overall_performance": {
+    "average_score": 415.503,
+    "total_test_cases": 4,
+    "metric_averages": {
+      "answer_relevancy": 0.7949999999999999,
+      "faithfulness": 0.8875000000000001,
+      "contextual_relevancy": 0.7325,
+      "hallucination_rate": 0.1,
+      "latency_p95": 2075.0
+    }
+  },
+  "recommendations": [
+    "\u2705 **Excellent Performance**: System is performing well above standards",
+    "\ud83d\udd17 **Improve faithfulness**: Ensure answers are grounded in context"
+  ],
+  "system_capabilities": [
+    "evaluation_first_development",
+    "comprehensive_metrics",
+    "multimodal_testing",
+    "automated_validation",
+    "enterprise_readiness"
+  ]
+}

@@ -79,8 +79,9 @@ class VectorService:
                     message=f"Collection {config.name} already exists",
                     processing_time=time.time() - start_time
                 )
-            except:
-                pass  # Collection doesn't exist, create it
+            except (ValueError, KeyError, Exception) as e:
+                # Collection doesn't exist, proceed with creation
+                logger.debug(f"Collection {config.name} not found, creating: {e}")
 
             # Configure HNSW parameters for better performance
             hnsw_config = {
@@ -143,7 +144,7 @@ class VectorService:
         try:
             self.client.get_collection(collection_name)
             logger.debug(f"Collection {collection_name} already exists")
-        except:
+        except (ValueError, KeyError, Exception):
             # Create collection with default config
             config = CollectionConfig(
                 name=collection_name,

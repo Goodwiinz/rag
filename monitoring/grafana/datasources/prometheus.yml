@@ -1,0 +1,45 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: "15s"
+      queryTimeout: "60s"
+      httpMethod: "POST"
+    secureJsonData: {}
+
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: true
+    jsonData:
+      maxLines: 1000
+    secureJsonData: {}
+
+  - name: Elasticsearch
+    type: elasticsearch
+    access: proxy
+    url: http://elasticsearch:9200
+    database: "logstash-*"
+    jsonData:
+      interval: "Daily"
+      timeField: "@timestamp"
+      esVersion: "8.0.0"
+      maxConcurrentShardRequests: 5
+      logMessageField: "message"
+      logLevelField: "level"
+    secureJsonData: {}
+
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    editable: true
+    jsonData: {}
+    secureJsonData: {}

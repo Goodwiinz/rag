@@ -1,0 +1,173 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "knowledge-graph-analytics.fullname" . }}-backend
+  labels:
+    {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+  annotations:
+    {{- if .Values.commonAnnotations }}
+    {{- toYaml .Values.commonAnnotations | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if not .Values.backend.autoscaling.enabled }}
+  replicas: {{ .Values.backend.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/backend-configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/backend-secret.yaml") . | sha256sum }}
+        {{- if .Values.backend.podAnnotations }}
+        {{- toYaml .Values.backend.podAnnotations | nindent 8 }}
+        {{- end }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.backend.service.port }}"
+        prometheus.io/path: "/metrics"
+      labels:
+        {{- include "knowledge-graph-analytics.labels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "knowledge-graph-analytics.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      initContainers:
+        - name: wait-for-databases
+          image: postgres:15-alpine
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for PostgreSQL..."
+              until pg_isready -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER; do
+                echo "PostgreSQL is unavailable - sleeping"
+                sleep 2
+              done
+              echo "PostgreSQL is ready!"
+
+              echo "Waiting for Redis..."
+              until redis-cli -h $REDIS_HOST -p $REDIS_PORT ping; do
+                echo "Redis is unavailable - sleeping"
+                sleep 2
+              done
+              echo "Redis is ready!"
+
+              echo "Waiting for Neo4j..."
+              until cypher-shell -a $NEO4J_URI -u $NEO4J_USER -p $NEO4J_PASSWORD "RETURN 1"; do
+                echo "Neo4j is unavailable - sleeping"
+                sleep 5
+              done
+              echo "Neo4j is ready!"
+
+              echo "Waiting for Qdrant..."
+              until curl -f $QDRANT_URL/health; do
+                echo "Qdrant is unavailable - sleeping"
+                sleep 2
+              done
+              echo "Qdrant is ready!"
+          env:
+            - name: POSTGRES_HOST
+              value: postgresql
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-credentials
+                  key: username
+            - name: REDIS_HOST
+              value: redis-master
+            - name: REDIS_PORT
+              value: "6379"
+            - name: NEO4J_URI
+              value: "bolt://neo4j:7687"
+            - name: NEO4J_USER
+              valueFrom:
+                secretKeyRef:
+                  name: neo4j-credentials
+                  key: username
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: neo4j-credentials
+                  key: password
+            - name: QDRANT_URL
+              value: "http://qdrant:6333"
+      containers:
+        - name: backend
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.backend.service.targetPort }}
+              protocol: TCP
+            - name: ws
+              containerPort: 8001
+              protocol: TCP
+          {{- if .Values.backend.healthCheck.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.backend.healthCheck.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.backend.healthCheck.initialDelaySeconds }}
+            periodSeconds: {{ .Values.backend.healthCheck.periodSeconds }}
+            timeoutSeconds: {{ .Values.backend.healthCheck.timeoutSeconds }}
+            failureThreshold: {{ .Values.backend.healthCheck.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.backend.healthCheck.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.backend.healthCheck.initialDelaySeconds }}
+            periodSeconds: {{ .Values.backend.healthCheck.periodSeconds }}
+            timeoutSeconds: {{ .Values.backend.healthCheck.timeoutSeconds }}
+            failureThreshold: {{ .Values.backend.healthCheck.failureThreshold }}
+          {{- end }}
+          env:
+            {{- toYaml .Values.backend.env | nindent 12 }}
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+            - name: logs
+              mountPath: /app/logs
+            - name: models
+              mountPath: /app/models
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: {{ include "knowledge-graph-analytics.fullname" . }}-uploads
+        - name: logs
+          persistentVolumeClaim:
+            claimName: {{ include "knowledge-graph-analytics.fullname" . }}-logs
+        - name: models
+          persistentVolumeClaim:
+            claimName: {{ include "knowledge-graph-analytics.fullname" . }}-models
+        - name: config
+          configMap:
+            name: {{ include "knowledge-graph-analytics.fullname" . }}-backend-config
+      {{- with .Values.backend.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,331 @@
+groups:
+  # Application Health Alerts
+  - name: rag-system-application
+    rules:
+      - alert: ApplicationDown
+        expr: up{job=~"rag-backend|rag-frontend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: application
+        annotations:
+          summary: "RAG System application is down"
+          description: "{{ $labels.job }} has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.job }}."
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "High latency detected"
+          description: "95th percentile latency is {{ $value }}s for {{ $labels.job }}."
+
+      - alert: MemoryUsageHigh
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}% for {{ $labels.pod }}."
+
+      - alert: CPUUsageHigh
+        expr: rate(container_cpu_usage_seconds_total[5m]) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}% for {{ $labels.pod }}."
+
+  # Database Alerts
+  - name: rag-system-database
+    rules:
+      - alert: DatabaseDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "PostgreSQL has been down for more than 1 minute."
+
+      - alert: DatabaseConnectionsHigh
+        expr: pg_stat_activity_count > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "High number of database connections"
+          description: "Database has {{ $value }} active connections."
+
+      - alert: DatabaseReplicationLag
+        expr: pg_replication_lag_seconds > 60
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "Database replication lag"
+          description: "Replication lag is {{ $value }} seconds."
+
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has been down for more than 1 minute."
+
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 10m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis memory usage is {{ $value | humanizePercentage }}."
+
+  # RAG System Specific Alerts
+  - name: rag-system-core
+    rules:
+      - alert: DocumentProcessingQueueBacklog
+        expr: celery_queue_length{queue_name="document_processing"} > 100
+        for: 10m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "Document processing queue backlog"
+          description: "Queue has {{ $value }} documents pending processing."
+
+      - alert: VectorSearchLatencyHigh
+        expr: histogram_quantile(0.95, rate(vector_search_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "High vector search latency"
+          description: "95th percentile vector search latency is {{ $value }}s."
+
+      - alert: KnowledgeGraphSizeStagnant
+        expr: increase(knowledge_graph_entities_total[24h]) == 0
+        for: 2h
+        labels:
+          severity: info
+          service: application
+        annotations:
+          summary: "Knowledge graph size unchanged"
+          description: "Knowledge graph has not grown in the last 24 hours."
+
+      - alert: EvaluationMetricsDegraded
+        expr: rag_answer_relevancy_score < 0.7
+        for: 15m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "RAG evaluation metrics degraded"
+          description: "Answer relevancy score is {{ $value }}."
+
+      - alert: FileUploadFailureRate
+        expr: rate(file_uploads_failed_total[5m]) / rate(file_uploads_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "High file upload failure rate"
+          description: "File upload failure rate is {{ $value | humanizePercentage }}."
+
+  # Infrastructure Alerts
+  - name: rag-system-infrastructure
+    rules:
+      - alert: NodeDiskUsageHigh
+        expr: (node_filesystem_size_bytes - node_filesystem_avail_bytes) / node_filesystem_size_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "Node disk usage high"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }}."
+
+      - alert: NodeMemoryUsageHigh
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Node memory usage high"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}."
+
+      - alert: PodCrashLooping
+        expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "Pod is crash looping"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping."
+
+      - alert: TooManyPods
+        expr: kube_pod_status_phase{phase="Running"} > 100
+        for: 15m
+        labels:
+          severity: info
+          service: infrastructure
+        annotations:
+          summary: "High number of running pods"
+          description: "Cluster has {{ $value }} running pods."
+
+      - alert: PersistentVolumeUsageHigh
+        expr: kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes * 100 > 90
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "Persistent volume usage high"
+          description: "PV {{ $labels.persistentvolumeclaim }} usage is {{ $value }}%."
+
+  # Security Alerts
+  - name: rag-system-security
+    rules:
+      - alert: UnauthorizedAPIAccess
+        expr: rate(http_requests_total{status="401"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "High rate of unauthorized API access"
+          description: "{{ $value }} unauthorized requests per second."
+
+      - alert: SuspiciousUserActivity
+        expr: rate(user_login_attempts_total{status="failed"}[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "Suspicious user activity detected"
+          description: "High rate of failed login attempts for {{ $labels.user }}."
+
+      - alert: LargeFileUpload
+        expr: histogram_quantile(0.99, rate(file_upload_size_bytes_bucket[5m])) > 1000000000  # 1GB
+        for: 5m
+        labels:
+          severity: info
+          service: application
+        annotations:
+          summary: "Large file upload detected"
+          description: "99th percentile file upload size is {{ $value | humanizeBytes }}."
+
+  # Business Metrics Alerts
+  - name: rag-system-business
+    rules:
+      - alert: LowSearchActivity
+        expr: rate(search_requests_total[1h]) < 1
+        for: 2h
+        labels:
+          severity: info
+          service: application
+        annotations:
+          summary: "Low search activity"
+          description: "Search rate is {{ $value }} requests per hour."
+
+      - alert: HighDocumentProcessingTime
+        expr: histogram_quantile(0.95, rate(document_processing_duration_seconds_bucket[5m])) > 300
+        for: 10m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "High document processing time"
+          description: "95th percentile processing time is {{ $value }}s."
+
+      - alert: SystemLoadBelowThreshold
+        expr: rate(http_requests_total[5m]) < 0.1
+        for: 30m
+        labels:
+          severity: info
+          service: application
+        annotations:
+          summary: "Low system load"
+          description: "System request rate is {{ $value }} requests per second."
+
+      - alert: FeatureFlagHighUsage
+        expr: feature_flag_usage_percentage > 80
+        for: 1h
+        labels:
+          severity: info
+          service: application
+        annotations:
+          summary: "Feature flag high usage"
+          description: "Feature flag {{ $labels.feature_name }} usage is {{ $value }}%."
+
+  # Quality Gates
+  - name: rag-system-quality
+    rules:
+      - alert: RAGAnswerRelevancyBelowThreshold
+        expr: rag_answer_relevancy_score < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "RAG answer relevancy below threshold"
+          description: "Answer relevancy score {{ $value }} is below 70% threshold."
+
+      - alert: RAGFaithfulnessBelowThreshold
+        expr: rag_faithfulness_score < 0.9
+        for: 10m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "RAG faithfulness below threshold"
+          description: "Faithfulness score {{ $value }} is below 90% threshold."
+
+      - alert: RAGContextualRelevancyBelowThreshold
+        expr: rag_contextual_relevancy_score < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "RAG contextual relevancy below threshold"
+          description: "Contextual relevancy score {{ $value }} is below 70% threshold."
+
+      - alert: HighHallucinationRate
+        expr: rag_hallucination_rate > 0.1
+        for: 15m
+        labels:
+          severity: critical
+          service: application
+        annotations:
+          summary: "High hallucination rate detected"
+          description: "Hallucination rate is {{ $value | humanizePercentage }}, above 10% threshold."

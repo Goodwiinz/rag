@@ -15,7 +15,7 @@ import aiofiles
 import logging
 import magic
 from PIL import Image
-import PyPDF2
+from pypdf import PdfReader
 
 # Optional pandas import for spreadsheet processing
 try:
@@ -76,8 +76,8 @@ class FileService:
         if content:
             try:
                 mime_type = magic.from_buffer(content, mime=True)
-            except:
-                pass
+            except (OSError, ValueError) as e:
+                logger.debug(f"Magic MIME detection failed: {e}")
 
         # Map MIME types to document types
         if mime_type:
@@ -340,7 +340,7 @@ class FileService:
                 # PDF file
                 text = []
                 with open(file_path, 'rb') as file:
-                    pdf_reader = PyPDF2.PdfReader(file)
+                    pdf_reader = PdfReader(file)
                     for page in pdf_reader.pages:
                         text.append(page.extract_text())
                 return '\n'.join(text)
@@ -371,7 +371,8 @@ class FileService:
                             if hasattr(shape, "text"):
                                 text.append(shape.text)
                     return '\n'.join(text)
-                except:
+                except (ImportError, ValueError, IOError) as e:
+                    logger.warning(f"Failed to extract text from PowerPoint: {e}")
                     return ""
 
             elif document.document_type == DocumentType.IMAGE:
@@ -404,7 +405,7 @@ class FileService:
             elif document.document_type == DocumentType.PDF:
                 # PDF metadata
                 with open(file_path, 'rb') as file:
-                    pdf_reader = PyPDF2.PdfReader(file)
+                    pdf_reader = PdfReader(file)
                     if pdf_reader.metadata:
                         metadata.update({
                             "title": pdf_reader.metadata.get('/Title', ''),

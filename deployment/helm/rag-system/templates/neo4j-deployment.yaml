@@ -1,0 +1,84 @@
+{{- if .Values.neo4j.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rag-system.fullname" . }}-neo4j
+  namespace: {{ include "rag-system.namespace" . }}
+  labels:
+    {{- include "rag-system.labels" . | set "app" "neo4j" | set "version" "v1.0.0" | nindent 4 }}
+  {{- if .Values.neo4j.deployment.annotations }}
+  annotations:
+    {{- toYaml .Values.neo4j.deployment.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.neo4j.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: neo4j
+  template:
+    metadata:
+      labels:
+        app: neo4j
+        version: v1.0.0
+      {{- if .Values.neo4j.template.annotations }}
+      annotations:
+        {{- toYaml .Values.neo4j.template.annotations | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "rag-system.fullname" . }}-neo4j-sa
+      {{- include "rag-system.securityContext" . | set "Values" .Values.neo4j | nindent 6 }}
+      {{- include "rag-system.nodeAffinity" . | set "Values" (dict "nodeAffinity" (dict "enabled" true "key" "node-role" "operator" "In" "values" ["database"])) | nindent 6 }}
+      {{- include "rag-system.tolerations" . | set "Values" (dict "tolerations" (list (dict "key" "dedicated" "operator" "Equal" "value" "database" "effect" "NoSchedule"))) | nindent 6 }}
+      containers:
+      - name: neo4j
+        image: {{ .Values.neo4j.image.repository }}:{{ .Values.neo4j.image.tag }}
+        imagePullPolicy: {{ .Values.neo4j.image.pullPolicy }}
+        {{- include "rag-system.containerSecurityContext" . | nindent 8 }}
+        ports:
+        - containerPort: 7474
+          name: http
+        - containerPort: 7687
+          name: bolt
+        env:
+        - name: NEO4J_AUTH
+          value: {{ .Values.neo4j.env.NEO4J_AUTH }}
+        - name: NEO4J_PLUGINS
+          value: {{ .Values.neo4j.env.NEO4J_PLUGINS }}
+        - name: NEO4J_ACCEPT_LICENSE_AGREEMENT
+          value: {{ .Values.neo4j.env.NEO4J_ACCEPT_LICENSE_AGREEMENT }}
+        - name: NEO4J_dbms_memory_pagecache_size
+          value: {{ .Values.neo4j.env.NEO4J_dbms_memory_pagecache_size }}
+        - name: NEO4J_dbms_memory_heap_max__size
+          value: {{ .Values.neo4j.env.NEO4J_dbms_memory_heap_max__size }}
+        - name: NEO4J_dbms_default__listen__address
+          value: {{ .Values.neo4j.env.NEO4J_dbms_default__listen__address }}
+        - name: NEO4J_dbms_connector_bolt_advertised__address
+          value: {{ .Values.neo4j.env.NEO4J_dbms_connector_bolt_advertised__address }}
+        - name: NEO4J_dbms_connector_http_advertised__address
+          value: {{ .Values.neo4j.env.NEO4J_dbms_connector_http_advertised__address }}
+        {{- if .Values.neo4j.persistence.enabled }}
+        volumeMounts:
+        - name: neo4j-data
+          mountPath: /data
+        {{- end }}
+        resources:
+          requests:
+            memory: {{ .Values.neo4j.resources.requests.memory }}
+            cpu: {{ .Values.neo4j.resources.requests.cpu }}
+          limits:
+            memory: {{ .Values.neo4j.resources.limits.memory }}
+            cpu: {{ .Values.neo4j.resources.limits.cpu }}
+      {{- if .Values.neo4j.persistence.enabled }}
+      volumes:
+      - name: neo4j-data
+        persistentVolumeClaim:
+          claimName: {{ include "rag-system.fullname" . }}-neo4j-pvc
+      {{- end }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecrets }}
+{{- end }}

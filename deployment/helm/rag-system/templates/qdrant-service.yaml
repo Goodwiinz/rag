@@ -1,0 +1,26 @@
+{{- if .Values.qdrant.enabled }}
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "rag-system.fullname" . }}-qdrant
+  namespace: {{ include "rag-system.namespace" . }}
+  labels:
+    {{- include "rag-system.labels" . | set "app" "qdrant" | set "version" "v1.0.0" | nindent 4 }}
+  {{- if .Values.qdrant.service.annotations }}
+  annotations:
+    {{- toYaml .Values.qdrant.service.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.qdrant.service.type }}
+  ports:
+  - port: {{ .Values.qdrant.service.port }}
+    targetPort: {{ .Values.qdrant.service.targetPort }}
+    name: {{ .Values.qdrant.service.portName }}
+    protocol: TCP
+  - port: {{ .Values.qdrant.service.apiPort }}
+    targetPort: {{ .Values.qdrant.service.targetApiPort }}
+    name: {{ .Values.qdrant.service.portNameApi }}
+    protocol: TCP
+  selector:
+    app: qdrant
+{{- end }}

@@ -24,19 +24,22 @@ from ..models.vector import (
     BatchEmbeddingRequest,
     BatchEmbeddingResponse
 )
+from .azure_openai_service import azure_openai_service
 
 logger = logging.getLogger(__name__)
 
 
 class EmbeddingService:
-    """Service for generating text embeddings using sentence transformers"""
+    """Service for generating text embeddings using multiple providers (sentence transformers, Azure OpenAI)"""
 
     def __init__(self):
         self.model_name = settings.EMBEDDING_MODEL
         self.model = None
         self.device = "cuda" if (torch and torch.cuda.is_available()) else "cpu"
         self.embedding_dimension = None
+        self.embedding_provider = "sentence_transformers"  # default provider
         self._load_model()
+        self._check_azure_availability()
 
     def _load_model(self):
         """Load the embedding model"""
@@ -76,12 +79,127 @@ class EmbeddingService:
             logger.error(f"Failed to load simple embedding service: {e}")
             raise
 
-    def generate_embedding(self, request: EmbeddingRequest) -> EmbeddingResponse:
+    def _check_azure_availability(self):
+        """Check if Azure OpenAI is available and set as preferred if configured"""
+        if azure_openai_service.is_embedding_available():
+            logger.info("Azure OpenAI embedding service is available")
+            # Set Azure as preferred if configured
+            if (settings.AZURE_OPENAI_API_KEY and
+                (settings.AZURE_OPENAI_EMBEDDING_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT)):
+                self.embedding_provider = "azure_openai"
+                self.embedding_dimension = 1536  # Azure OpenAI embeddings are typically 1536 dimensions
+                logger.info("Using Azure OpenAI as preferred embedding provider")
+        else:
+            logger.info("Azure OpenAI embedding service not available, using sentence transformers")
+
+    def set_provider(self, provider: str):
+        """Set the embedding provider ('sentence_transformers', 'azure_openai', or 'auto')"""
+        if provider == "azure_openai" and not azure_openai_service.is_embedding_available():
+            raise ValueError("Azure OpenAI embedding provider requested but not available")
+        elif provider == "sentence_transformers" and not hasattr(self, 'model'):
+            raise ValueError("Sentence transformers provider requested but not available")
+        elif provider not in ["sentence_transformers", "azure_openai", "auto"]:
+            raise ValueError(f"Invalid provider: {provider}")
+
+        self.embedding_provider = provider
+        logger.info(f"Embedding provider set to: {provider}")
+
+    async def generate_embedding_azure(self, text: str) -> EmbeddingResponse:
+        """Generate embedding using Azure OpenAI"""
+        start_time = time.time()
+
+        try:
+            embeddings = await azure_openai_service.get_embeddings([text])
+            embedding_list = embeddings[0]
+
+            return EmbeddingResponse(
+                embedding=embedding_list,
+                model=azure_openai_service.get_embedding_deployment(),
+                dimension=len(embedding_list),
+                processing_time=time.time() - start_time,
+                provider="azure_openai"
+            )
+        except Exception as e:
+            logger.error(f"Error generating embedding with Azure OpenAI: {e}")
+            raise
+
+    async def generate_batch_embeddings_azure(self, texts: List[str]) -> BatchEmbeddingResponse:
+        """Generate batch embeddings using Azure OpenAI"""
+        start_time = time.time()
+
+        try:
+            # Filter out empty or None texts
+            valid_texts = []
+            valid_indices = []
+            errors = []
+
+            for i, text in enumerate(texts):
+                if text and text.strip():
+                    valid_texts.append(text.strip())
+                    valid_indices.append(i)
+                else:
+                    errors.append({
+                        "index": i,
+                        "text": text,
+                        "error": "Empty or invalid text"
+                    })
+
+            if not valid_texts:
+                return BatchEmbeddingResponse(
+                    embeddings=[],
+                    model=azure_openai_service.get_embedding_deployment(),
+                    dimension=1536,
+                    processing_time=time.time() - start_time,
+                    failed_count=len(texts),
+                    errors=errors,
+                    provider="azure_openai"
+                )
+
+            # Get embeddings from Azure OpenAI
+            embeddings = await azure_openai_service.get_embeddings(valid_texts)
+
+            # Restore original order
+            all_embeddings = [None] * len(texts)
+            for i, original_index in enumerate(valid_indices):
+                all_embeddings[original_index] = embeddings[i]
+
+            processing_time = time.time() - start_time
+
+            return BatchEmbeddingResponse(
+                embeddings=all_embeddings,
+                model=azure_openai_service.get_embedding_deployment(),
+                dimension=len(embeddings[0]) if embeddings else 1536,
+                processing_time=processing_time,
+                failed_count=len(errors),
+                errors=errors,
+                provider="azure_openai"
+            )
+
+        except Exception as e:
+            logger.error(f"Error generating batch embeddings with Azure OpenAI: {e}")
+            return BatchEmbeddingResponse(
+                embeddings=[],
+                model=azure_openai_service.get_embedding_deployment(),
+                dimension=1536,
+                processing_time=time.time() - start_time,
+                failed_count=len(texts),
+                errors=[{"index": i, "error": str(e)} for i in range(len(texts))],
+                provider="azure_openai"
+            )
+
+    async def generate_embedding(self, request: EmbeddingRequest) -> EmbeddingResponse:
         """Generate embedding for a single text"""
         start_time = time.time()
 
         try:
-            # Use provided model or default model
+            # Determine provider based on request or current setting
+            provider = getattr(request, 'provider', self.embedding_provider)
+
+            # Use Azure OpenAI if requested or if it's the preferred provider
+            if provider == "azure_openai" and azure_openai_service.is_embedding_available():
+                return await self.generate_embedding_azure(request.text)
+
+            # Use provided model or default model for sentence transformers
             model_to_use = request.model if request.model else self.model_name
 
             # Check if we should use simple fallback
@@ -110,19 +228,31 @@ class EmbeddingService:
                 embedding=embedding_list,
                 model=model_to_use,
                 dimension=embedding_dimension,
-                processing_time=processing_time
+                processing_time=processing_time,
+                provider="sentence_transformers"
             )
 
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
+            # Fallback to Azure OpenAI if available and sentence transformers failed
+            if azure_openai_service.is_embedding_available() and provider != "azure_openai":
+                logger.info("Falling back to Azure OpenAI")
+                return await self.generate_embedding_azure(request.text)
             raise
 
-    def generate_batch_embeddings(self, request: BatchEmbeddingRequest) -> BatchEmbeddingResponse:
+    async def generate_batch_embeddings(self, request: BatchEmbeddingRequest) -> BatchEmbeddingResponse:
         """Generate embeddings for multiple texts"""
         start_time = time.time()
 
         try:
-            # Use provided model or default model
+            # Determine provider based on request or current setting
+            provider = getattr(request, 'provider', self.embedding_provider)
+
+            # Use Azure OpenAI if requested or if it's the preferred provider
+            if provider == "azure_openai" and azure_openai_service.is_embedding_available():
+                return await self.generate_batch_embeddings_azure(request.texts)
+
+            # Use provided model or default model for sentence transformers
             model_to_use = request.model if request.model else self.model_name
 
             # Filter out empty or None texts
@@ -181,6 +311,11 @@ class EmbeddingService:
 
         except Exception as e:
             logger.error(f"Error generating batch embeddings: {e}")
+            # Fallback to Azure OpenAI if available and sentence transformers failed
+            if azure_openai_service.is_embedding_available() and provider != "azure_openai":
+                logger.info("Falling back to Azure OpenAI for batch embeddings")
+                return await self.generate_batch_embeddings_azure(request.texts)
+
             # Return error response
             return BatchEmbeddingResponse(
                 embeddings=[],
@@ -188,7 +323,8 @@ class EmbeddingService:
                 dimension=self.embedding_dimension or 384,
                 processing_time=time.time() - start_time,
                 failed_count=len(request.texts),
-                errors=[{"index": i, "error": str(e)} for i in range(len(request.texts))]
+                errors=[{"index": i, "error": str(e)} for i in range(len(request.texts))],
+                provider="sentence_transformers"
             )
 
     def get_model_info(self) -> Dict[str, Any]:

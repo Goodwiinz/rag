@@ -1,0 +1,22 @@
+{{- if .Values.redis.enabled }}
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "rag-system.fullname" . }}-redis
+  namespace: {{ include "rag-system.namespace" . }}
+  labels:
+    {{- include "rag-system.labels" . | set "app" "redis" | set "version" "v1.0.0" | nindent 4 }}
+  {{- if .Values.redis.service.annotations }}
+  annotations:
+    {{- toYaml .Values.redis.service.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.redis.service.type }}
+  ports:
+  - port: {{ .Values.redis.service.port }}
+    targetPort: {{ .Values.redis.service.targetPort }}
+    name: {{ .Values.redis.service.portName }}
+    protocol: TCP
+  selector:
+    app: redis
+{{- end }}

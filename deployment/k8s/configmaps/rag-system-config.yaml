@@ -1,0 +1,168 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rag-system-config
+  namespace: rag-system
+  labels:
+    app: rag-system
+    component: config
+    tier: application
+data:
+  # Database Configuration
+  POSTGRES_HOST: "postgres-rag.rag-system.svc.cluster.local"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "rag_production"
+
+  # Neo4j Configuration
+  NEO4J_URI: "bolt://neo4j-rag.rag-system.svc.cluster.local:7687"
+  NEO4J_DB: "neo4j"
+
+  # Qdrant Configuration
+  QDRANT_HOST: "qdrant-rag.rag-system.svc.cluster.local"
+  QDRANT_PORT: "6333"
+
+  # Redis Configuration
+  REDIS_HOST: "redis-rag.rag-system.svc.cluster.local"
+  REDIS_PORT: "6379"
+
+  # Application Configuration
+  APP_ENV: "production"
+  LOG_LEVEL: "INFO"
+  DEBUG: "false"
+
+  # Performance Configuration
+  MAX_WORKERS: "4"
+  WORKER_CONNECTIONS: "1000"
+  KEEPALIVE_TIMEOUT: "65"
+
+  # Security Configuration
+  CORS_ORIGINS: "https://rag.company.com,https://admin.rag.company.com"
+  JWT_SECRET_KEY_PATH: "/etc/secrets/jwt-secret"
+
+  # File Upload Configuration
+  MAX_FILE_SIZE: "52428800"  # 50MB in bytes
+  UPLOAD_PATH: "/app/uploads"
+
+  # Monitoring Configuration
+  METRICS_ENABLED: "true"
+  METRICS_PORT: "9090"
+  HEALTH_CHECK_PORT: "8080"
+
+  # OpenTelemetry Configuration
+  OTEL_ENABLED: "true"
+  OTEL_SERVICE_NAME: "rag-system"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector.rag-monitoring.svc.cluster.local:4317"
+
+  # Rate Limiting
+  RATE_LIMIT_ENABLED: "true"
+  RATE_LIMIT_REQUESTS: "100"
+  RATE_LIMIT_WINDOW: "60"  # seconds
+
+  # Cache Configuration
+  CACHE_TTL: "3600"  # seconds
+  CACHE_MAX_SIZE: "1000"
+
+  # WebSocket Configuration
+  WEBSOCKET_ENABLED: "true"
+  WEBSOCKET_PORT: "8001"
+  WEBSOCKET_HEARTBEAT_INTERVAL: "30"  # seconds
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-config
+  namespace: rag-monitoring
+  labels:
+    app: rag-monitoring
+    component: config
+    tier: monitoring
+data:
+  # Prometheus Configuration
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    rule_files:
+      - "/etc/prometheus/rules/*.yml"
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093
+
+    scrape_configs:
+      - job_name: 'kubernetes-apiservers'
+        kubernetes_sd_configs:
+        - role: endpoints
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: default;kubernetes;https
+
+      - job_name: 'rag-system-metrics'
+        kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+            - rag-system
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_service_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: kubernetes_namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          action: replace
+          target_label: kubernetes_name
+
+  # Grafana Configuration
+  grafana.ini: |
+    [server]
+    root_url = https://grafana.rag.company.com
+    serve_from_sub_path = false
+
+    [database]
+    type = postgres
+    host = postgres-grafana.rag-monitoring.svc.cluster.local:5432
+    name = grafana
+    user = grafana
+    password_file = /etc/secrets/grafana-password
+
+    [security]
+    admin_user = admin
+    admin_password_file = /etc/secrets/grafana-admin-password
+    secret_key_file = /etc/secrets/grafana-secret-key
+
+    [users]
+    allow_sign_up = false
+    auto_assign_org_role = Viewer
+
+    [auth]
+    disable_login_form = false
+
+    [auth.anonymous]
+    enabled = false
+
+    [snapshots]
+    external_enabled = false
+
+    [dashboards]
+    default_home_dashboard_path = /etc/grafana/provisioning/dashboards/default.json

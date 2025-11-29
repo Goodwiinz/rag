@@ -1,0 +1,3 @@
+{{- if .Values.backend.enabled }}
+{{- include "rag-system.service" . | set "Values" (dict "service" .Values.backend.service) | nindent 0 }}
+{{- end }}

@@ -1,0 +1,201 @@
+global:
+  smtp_smarthost: '${SMTP_HOST}:587'
+  smtp_from: '${SMTP_FROM}'
+  smtp_auth_username: '${SMTP_USER}'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+  routes:
+    # Critical alerts go to both Slack and email immediately
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 0s
+      repeat_interval: 5m
+      continue: true
+
+    # Warning alerts go to Slack
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 30s
+      repeat_interval: 2h
+
+    # System alerts go to operations team
+    - match:
+        team: operations
+      receiver: 'operations-team'
+
+    # Security alerts go to security team
+    - match:
+        team: security
+      receiver: 'security-team'
+      group_wait: 0s
+      repeat_interval: 15m
+
+    # Business alerts go to product team
+    - match:
+        team: product
+      receiver: 'product-team'
+
+inhibit_rules:
+  # Inhibit warning alerts if critical alert is firing for same instance
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']
+
+  # Inhibit all alerts if instance is down
+  - source_match:
+      alertname: 'InstanceDown'
+    target_match_re:
+      alertname: '.*'
+    equal: ['instance']
+
+receivers:
+  - name: 'default'
+    slack_configs:
+      - channel: '#alerts'
+        title: 'Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Labels:* {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
+          {{ end }}
+
+  - name: 'critical-alerts'
+    slack_configs:
+      - channel: '#critical-alerts'
+        title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          🚨 *CRITICAL ALERT* 🚨
+
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          *Time:* {{ .StartsAt }}
+
+          *Labels:*
+          {{ range .Labels.SortedPairs }}• {{ .Name }}: {{ .Value }}{{ end }}
+          {{ end }}
+        send_resolved: true
+    email_configs:
+      - to: '${OPS_EMAIL}'
+        subject: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          CRITICAL ALERT
+
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Instance: {{ .Labels.instance }}
+          Time: {{ .StartsAt }}
+
+          Labels:
+          {{ range .Labels.SortedPairs }}{{ .Name }}: {{ .Value }}{{ end }}
+          {{ end }}
+
+  - name: 'warning-alerts'
+    slack_configs:
+      - channel: '#alerts'
+        title: '⚠️ WARNING: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          ⚠️ *WARNING ALERT* ⚠️
+
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+        send_resolved: true
+
+  - name: 'operations-team'
+    slack_configs:
+      - channel: '#operations'
+        title: 'Operations Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+        send_resolved: true
+    email_configs:
+      - to: '${OPS_EMAIL}'
+        subject: 'Operations Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Instance: {{ .Labels.instance }}
+          {{ end }}
+
+  - name: 'security-team'
+    slack_configs:
+      - channel: '#security'
+        title: '🔒 Security Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          🔒 *SECURITY ALERT* 🔒
+
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          *Time:* {{ .StartsAt }}
+
+          *Labels:*
+          {{ range .Labels.SortedPairs }}{{ .Name }}: {{ .Value }}{{ end }}
+          {{ end }}
+        send_resolved: true
+    email_configs:
+      - to: '${SECURITY_EMAIL}'
+        subject: '🔒 Security Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          SECURITY ALERT
+
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Instance: {{ .Labels.instance }}
+          Time: {{ .StartsAt }}
+          {{ end }}
+
+  - name: 'product-team'
+    slack_configs:
+      - channel: '#product'
+        title: 'Product Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Impact:* {{ .Labels.impact | default "Unknown" }}
+          *Metric:* {{ .Labels.metric | default "Unknown" }}
+          {{ end }}
+        send_resolved: true
+    email_configs:
+      - to: '${PRODUCT_EMAIL}'
+        subject: 'Product Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Impact: {{ .Labels.impact | default "Unknown" }}
+          Metric: {{ .Labels.metric | default "Unknown" }}
+          {{ end }}
+
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'

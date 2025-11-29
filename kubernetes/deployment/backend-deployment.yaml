@@ -1,0 +1,191 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: multimodal-rag-system
+  labels:
+    app: backend
+    component: main
+    version: 1.0.0
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: backend
+      component: main
+  template:
+    metadata:
+      labels:
+        app: backend
+        component: main
+        version: 1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+        checksum/config: sha256:$(sha256sum /app/config/config.json | cut -d' ' -f1)
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+      - name: backend
+        image: multimodal-rag/backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        - containerPort: 8001
+          name: websocket
+          protocol: TCP
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: backend-secrets
+              key: POSTGRES_USER
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: backend-secrets
+              key: REDIS_PASSWORD
+        - name: NEO4J_URI
+          value: "bolt://neo4j:7687"
+        - name: NEO4J_USER
+          valueFrom:
+            secretKeyRef:
+              name: backend-secrets
+              key: NEO4J_PASSWORD
+        - name: QDRANT_URL
+          value: "http://qdrant:6333"
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: backend-secrets
+              key: SECRET_KEY
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: WORKER_CONCURRENCY
+          value: "8"
+        - name: MAX_CONCURRENT_JOBS
+          value: "10"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+        - name: uploads-volume
+          mountPath: /app/uploads
+        - name: models-volume
+          mountPath: /app/models
+        - name: logs-volume
+          mountPath: /app/logs
+      - name: websocket-server
+        image: multimodal-rag/websocket:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8001
+          name: websocket
+          protocol: TCP
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: WS_PORT
+          value: "8001"
+        - name: WS_HOST
+          value: "0.0.0.0"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /ws/health
+            port: 8001
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: 8001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: config-volume
+        configMap:
+          name: backend-config
+      - name: uploads-volume
+        persistentVolumeClaim:
+          claimName: uploads-pvc
+      - name: models-volume
+        persistentVolumeClaim:
+          claimName: models-pvc
+      - name: logs-volume
+        persistentVolumeClaim:
+          claimName: logs-pvc
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+                - arm64
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - backend
+              topologyKey: kubernetes.io/hostname
+      tolerations:
+      - key: "app"
+        operator: "Equal"
+        value: "backend"
+        effect: "NoSchedule"

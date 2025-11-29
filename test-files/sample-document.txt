@@ -1,0 +1,30 @@
+# RAG System Test Document
+
+This is a test document for the Multimodal Enterprise RAG System.
+
+## About RAG Systems
+
+Retrieval-Augmented Generation (RAG) combines the benefits of retrieval-based and generation-based approaches in natural language processing. It enhances large language models by retrieving relevant information from a knowledge base before generating responses.
+
+## Key Features
+
+1. Document Upload: Support for multiple file formats including PDF, TXT, images, and multimedia files
+2. Natural Language Queries: Ask questions in plain English
+3. Knowledge Graph: Visualize relationships between entities
+4. Evaluation Metrics: Track system performance and accuracy
+
+## Security Considerations
+
+- Data isolation between users
+- 50MB file size limit per document
+- 5GB total storage quota per user
+- 30-day query history retention
+
+## Performance Targets
+
+- 95% success rate for document processing
+- 3-second response time for queries
+- 85% accuracy in generated answers
+- 99% system uptime
+
+This document can be used to test the RAG system's ability to answer questions about its own features and capabilities.

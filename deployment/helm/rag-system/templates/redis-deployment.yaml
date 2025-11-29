@@ -1,0 +1,70 @@
+{{- if .Values.redis.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rag-system.fullname" . }}-redis
+  namespace: {{ include "rag-system.namespace" . }}
+  labels:
+    {{- include "rag-system.labels" . | set "app" "redis" | set "version" "v1.0.0" | nindent 4 }}
+  {{- if .Values.redis.deployment.annotations }}
+  annotations:
+    {{- toYaml .Values.redis.deployment.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.redis.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+        version: v1.0.0
+      {{- if .Values.redis.template.annotations }}
+      annotations:
+        {{- toYaml .Values.redis.template.annotations | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "rag-system.fullname" . }}-redis-sa
+      {{- include "rag-system.securityContext" . | set "Values" .Values.redis | nindent 6 }}
+      {{- include "rag-system.nodeAffinity" . | set "Values" (dict "nodeAffinity" (dict "enabled" true "key" "node-role" "operator" "In" "values" ["database"])) | nindent 6 }}
+      {{- include "rag-system.tolerations" . | set "Values" (dict "tolerations" (list (dict "key" "dedicated" "operator" "Equal" "value" "database" "effect" "NoSchedule"))) | nindent 6 }}
+      containers:
+      - name: redis
+        image: {{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}
+        imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+        {{- include "rag-system.containerSecurityContext" . | nindent 8 }}
+        ports:
+        - containerPort: 6379
+          name: redis
+        env:
+        - name: REDIS_PASSWORD
+          value: {{ .Values.redis.env.REDIS_PASSWORD }}
+        - name: REDIS_REPLICATION_MODE
+          value: {{ .Values.redis.env.REDIS_REPLICATION_MODE }}
+        {{- if .Values.redis.persistence.enabled }}
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+        {{- end }}
+        resources:
+          requests:
+            memory: {{ .Values.redis.resources.requests.memory }}
+            cpu: {{ .Values.redis.resources.requests.cpu }}
+          limits:
+            memory: {{ .Values.redis.resources.limits.memory }}
+            cpu: {{ .Values.redis.resources.limits.cpu }}
+      {{- if .Values.redis.persistence.enabled }}
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: {{ include "rag-system.fullname" . }}-redis-pvc
+      {{- end }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecrets }}
+{{- end }}

@@ -1,0 +1,296 @@
+{
+  "collections": {
+    "documents": {
+      "vectors": {
+        "size": 1536,
+        "distance": "Cosine"
+      },
+      "payload_schema": {
+        "document_id": "keyword",
+        "title": "text",
+        "content_type": "keyword",
+        "organization_id": "keyword",
+        "uploaded_by": "keyword",
+        "document_type": "keyword",
+        "processing_status": "keyword",
+        "file_size_bytes": "integer",
+        "language": "keyword",
+        "tags": "keyword",
+        "created_at": "integer",
+        "updated_at": "integer"
+      },
+      "optimization_config": {
+        "memmap_threshold_kb": 50000,
+        "indexing_threshold_kb": 20000,
+        "payload_index_type": "hashed",
+        "quantization_config": {
+          "quantization": "scalar",
+          "scalar": {
+            "type": "int8",
+            "quantile": 0.99,
+            "ram_limit": 1073741824
+          }
+        }
+      }
+    },
+    "entities": {
+      "vectors": {
+        "size": 1536,
+        "distance": "Cosine"
+      },
+      "payload_schema": {
+        "entity_id": "keyword",
+        "name": "text",
+        "entity_type": "keyword",
+        "canonical_name": "text",
+        "organization_id": "keyword",
+        "source_document_id": "keyword",
+        "confidence_score": "float",
+        "extraction_method": "keyword",
+        "aliases": "keyword",
+        "created_at": "integer",
+        "updated_at": "integer"
+      },
+      "optimization_config": {
+        "memmap_threshold_kb": 20000,
+        "indexing_threshold_kb": 10000,
+        "payload_index_type": "hashed",
+        "hnsw_config": {
+          "m": 16,
+          "ef_construct": 200,
+          "full_scan_threshold": 10000,
+          "max_indexing_threads": 4,
+          "on_disk": true
+        }
+      }
+    },
+    "multimodal": {
+      "vectors": {
+        "size": 1536,
+        "distance": "Cosine"
+      },
+      "multivectors": {
+        "size": [512, 512, 512],
+        "distance": "Cosine"
+      },
+      "payload_schema": {
+        "content_id": "keyword",
+        "document_id": "keyword",
+        "content_type": "keyword",
+        "modality": "keyword",
+        "organization_id": "keyword",
+        "confidence_score": "float",
+        "coordinates": "json",
+        "temporal_data": "json",
+        "extraction_method": "keyword",
+        "created_at": "integer"
+      },
+      "optimization_config": {
+        "memmap_threshold_kb": 30000,
+        "indexing_threshold_kb": 15000,
+        "payload_index_type": "hashed",
+        "hnsw_config": {
+          "m": 32,
+          "ef_construct": 200,
+          "full_scan_threshold": 20000,
+          "max_indexing_threads": 4,
+          "on_disk": true
+        }
+      }
+    },
+    "search_sessions": {
+      "vectors": {
+        "size": 768,
+        "distance": "Cosine"
+      },
+      "payload_schema": {
+        "session_id": "keyword",
+        "user_id": "keyword",
+        "organization_id": "keyword",
+        "query_count": "integer",
+        "total_results": "integer",
+        "average_relevance": "float",
+        "session_start": "integer",
+        "session_end": "integer"
+      },
+      "optimization_config": {
+        "memmap_threshold_kb": 10000,
+        "indexing_threshold_kb": 5000,
+        "payload_index_type": "hashed"
+      }
+    },
+    "knowledge_graph": {
+      "vectors": {
+        "size": 1024,
+        "distance": "Cosine"
+      },
+      "payload_schema": {
+        "node_id": "keyword",
+        "node_type": "keyword",
+        "organization_id": "keyword",
+        "importance_score": "float",
+        "degree_centrality": "float",
+        "pagerank_score": "float",
+        "community_id": "keyword",
+        "created_at": "integer"
+      },
+      "optimization_config": {
+        "memmap_threshold_kb": 25000,
+        "indexing_threshold_kb": 12000,
+        "payload_index_type": "hashed",
+        "hnsw_config": {
+          "m": 24,
+          "ef_construct": 200,
+          "full_scan_threshold": 15000,
+          "max_indexing_threads": 4,
+          "on_disk": true
+        }
+      }
+    }
+  },
+  "aliases": {
+    "production_documents": {
+      "actions": [
+        {
+          "action": "create",
+          "collection_name": "documents"
+        }
+      ]
+    },
+    "production_entities": {
+      "actions": [
+        {
+          "action": "create",
+          "collection_name": "entities"
+        }
+      ]
+    },
+    "production_multimodal": {
+      "actions": [
+        {
+          "action": "create",
+          "collection_name": "multimodal"
+        }
+      ]
+    }
+  },
+  "configuration": {
+    "performance": {
+      "max_search_threads": 4,
+      "search_timeout_ms": 5000,
+      "write_timeout_ms": 10000,
+      "max_concurrent_requests": 100
+    },
+    "storage": {
+      "on_disk_payload": true,
+      "vector_storage_on_disk": true,
+      "segment_size": 200000,
+      "segment_number_limit": 10,
+      "max_search_threads": 4
+    },
+    "security": {
+      "api_key_required": true,
+      "read_only_mode": false,
+      "enable_tls": false,
+      "cors_origins": ["*"]
+    },
+    "monitoring": {
+      "enable_metrics": true,
+      "metrics_port": 6333,
+      "telemetry_disabled": true,
+      "log_level": "info"
+    }
+  },
+  "sample_data": {
+    "documents": [
+      {
+        "id": "doc_001",
+        "vector": [0.1, 0.2, 0.3],
+        "payload": {
+          "document_id": "550e8400-e29b-41d4-a716-446655440004",
+          "title": "AI and Machine Learning Trends 2024",
+          "content_type": "text",
+          "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+          "document_type": "pdf",
+          "processing_status": "completed",
+          "created_at": 1704067200
+        }
+      }
+    ],
+    "entities": [
+      {
+        "id": "ent_001",
+        "vector": [0.4, 0.5, 0.6],
+        "payload": {
+          "entity_id": "550e8400-e29b-41d4-a716-446655440006",
+          "name": "Artificial Intelligence",
+          "entity_type": "concept",
+          "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+          "confidence_score": 0.95,
+          "created_at": 1704067200
+        }
+      }
+    ]
+  },
+  "health_checks": [
+    {
+      "name": "collection_health",
+      "description": "Check if all required collections exist and are healthy",
+      "endpoint": "/collections/{collection_name}",
+      "expected_status": 200,
+      "collections": ["documents", "entities", "multimodal", "search_sessions", "knowledge_graph"]
+    },
+    {
+      "name": "search_performance",
+      "description": "Test search performance with sample queries",
+      "endpoint": "/collections/documents/points/search",
+      "method": "POST",
+      "expected_response_time_ms": 500,
+      "payload": {
+        "vector": [0.1, 0.2, 0.3],
+        "limit": 10,
+        "with_payload": true,
+        "with_vector": false
+      }
+    },
+    {
+      "name": "cluster_health",
+      "description": "Check overall cluster health",
+      "endpoint": "/health",
+      "expected_status": 200
+    }
+  ],
+  "maintenance": {
+    "cleanup_policies": [
+      {
+        "collection": "search_sessions",
+        "type": "time_based",
+        "retention_days": 30,
+        "filter": {
+          "must": [
+            {
+              "key": "session_end",
+              "range": {
+                "lt": "now-30d"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "optimization_schedules": [
+      {
+        "collection": "documents",
+        "operation": "optimize",
+        "schedule": "0 2 * * *",
+        "description": "Daily optimization at 2 AM"
+      },
+      {
+        "collection": "entities",
+        "operation": "compact",
+        "schedule": "0 3 * * 0",
+        "description": "Weekly compaction on Sunday at 3 AM"
+      }
+    ]
+  }
+}

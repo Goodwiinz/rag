@@ -1,0 +1,376 @@
+version: '3.8'
+
+services:
+  # Target Application Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag_security
+      - REDIS_URL=redis://redis:6379/3
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=securitytestpassword
+      - QDRANT_URL=http://qdrant:6333
+      - SECRET_KEY=security-test-secret-key
+      - ENVIRONMENT=security-testing
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - CORS_ORIGINS=*
+      - UPLOAD_DIR=/app/uploads
+      - MAX_FILE_SIZE=100MB
+      - ENABLE_VIRUS_SCANNING=false  # Disabled for security testing
+      - ENABLE_AI_PROCESSING=false   # Disabled for security testing
+    volumes:
+      - ./backend:/app
+      - security_uploads:/app/uploads
+      - security_test_files:/app/security-test-files
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    networks:
+      - security-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Target Application Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      - REACT_APP_API_URL=http://backend:8000
+      - REACT_APP_ENVIRONMENT=security-testing
+      - REACT_APP_ENABLE_DEBUG=true
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - security-network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=multimodal_rag_security
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+    volumes:
+      - postgres_security_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/security-seeds.sql:/docker-entrypoint-initdb.d/02-security-seeds.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - security-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_security_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - security-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Neo4j Knowledge Graph
+  neo4j:
+    image: neo4j:5.15-community
+    environment:
+      - NEO4J_AUTH=neo4j/securitytestpassword
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_dbms_default__database=neo4j
+      - NEO4J_dbms_memory_heap_initial__size=256m
+      - NEO4J_dbms_memory_heap_max__size=512m
+      - NEO4J_dbms_memory_pagecache_size=256m
+    volumes:
+      - neo4j_security_data:/data
+      - neo4j_security_logs:/logs
+      - neo4j_security_import:/var/lib/neo4j/import
+      - neo4j_security_plugins:/plugins
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    networks:
+      - security-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "securitytestpassword", "RETURN 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:v1.7.0
+    volumes:
+      - qdrant_security_data:/qdrant/storage
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    networks:
+      - security-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # OWASP ZAP Baseline Scan
+  zap-baseline:
+    image: owasp/zap2docker-stable
+    command: zap-baseline.py -t http://backend:8000 -J gl-sast-report.json || true
+    volumes:
+      - ./security/reports:/zap/wrk
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - security-network
+    profiles:
+      - dast
+
+  # OWASP ZAP API Scan
+  zap-api:
+    image: owasp/zap2docker-stable
+    command: zap-api-scan.py -t http://backend:8000/openapi.json -f json -J gl-api-scan-report.json || true
+    volumes:
+      - ./security/reports:/zap/wrk
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - security-network
+    profiles:
+      - api-security
+
+  # Nikto Web Scanner
+  nikto:
+    image: frapsoft/nikto:latest
+    command: -h http://backend:8000 -output /reports/nikto-report.xml -Format xml
+    volumes:
+      - ./security/reports:/reports
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - security-network
+    profiles:
+      - web-vulnerability
+
+  # SQLMap for SQL Injection Testing
+  sqlmap:
+    image: paoloo/sqlmap
+    command: -u "http://backend:8000/api/documents" --batch --json-output --output-dir=/reports
+    volumes:
+      - ./security/reports:/reports
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - security-network
+    profiles:
+      - sql-injection
+
+  # Nuclei Vulnerability Scanner
+  nuclei:
+    image: projectdiscovery/nuclei:latest
+    command: -u http://backend:8000 -json -o /reports/nuclei-report.json
+    volumes:
+      - ./security/reports:/reports
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - security-network
+    profiles:
+      - nuclei-scan
+
+  # Nmap Network Scanner
+  nmap:
+    image: instrumentisto/nmap
+    command: -sV -sC -oA /reports/nmap-scan backend
+    volumes:
+      - ./security/reports:/reports
+    depends_on:
+      - backend
+    networks:
+      - security-network
+    profiles:
+      - network-scan
+
+  # Gitleaks for Secret Scanning
+  gitleaks:
+    image: zricethezav/gitleaks:latest
+    command: detect --source /app --report-path /reports/gitleaks-report.json --report-format json --verbose
+    volumes:
+      - ./:/app
+      - ./security/reports:/reports
+    profiles:
+      - secret-scan
+
+  # Bandit Security Scanner for Python
+  bandit:
+    image: python:3.11-alpine
+    command: |
+      sh -c "
+        pip install bandit
+        bandit -r /app/backend -f json -o /reports/bandit-report.json
+        bandit -r /app/backend -f txt -o /reports/bandit-report.txt
+      "
+    volumes:
+      - ./backend:/app/backend
+      - ./security/reports:/reports
+    profiles:
+      - sast-python
+
+  # Semgrep for Static Analysis
+  semgrep:
+    image: returntocorp/semgrep:latest
+    command: semgrep --config=auto --json --output=/reports/semgrep-report.json /app/backend
+    volumes:
+      - ./backend:/app/backend
+      - ./security/reports:/reports
+    profiles:
+      - sast-advanced
+
+  # npm Audit for Frontend Dependencies
+  npm-audit:
+    image: node:18-alpine
+    command: |
+      sh -c "
+        cd /app/frontend
+        npm install
+        npm audit --audit-level moderate --json > /reports/npm-audit-report.json
+        npm audit --audit-level moderate > /reports/npm-audit-report.txt
+      "
+    volumes:
+      - ./frontend:/app/frontend
+      - ./security/reports:/reports
+    profiles:
+      - dependency-scan
+
+  # OWASP Dependency Check
+  dependency-check:
+    image: owasp/dependency-check:latest
+    command: |
+      sh -c "
+        /usr/share/dependency-check/bin/dependency-check.sh \
+          --project 'Multimodal RAG' \
+          --scan /app/backend \
+          --scan /app/frontend \
+          --format JSON \
+          --format HTML \
+          --out /reports
+      "
+    volumes:
+      - ./backend:/app/backend
+      - ./frontend:/app/frontend
+      - ./security/reports:/reports
+    profiles:
+      - dependency-check
+
+  # Custom Security Test Runner
+  security-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.security-tests
+    environment:
+      - API_BASE_URL=http://backend:8000
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag_security
+      - REDIS_URL=redis://redis:6379/3
+    volumes:
+      - ./security/reports:/reports
+      - security_test_files:/app/security-test-files
+    depends_on:
+      backend:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - security-network
+    profiles:
+      - custom-tests
+
+  # Report Aggregator
+  report-aggregator:
+    image: node:18-alpine
+    command: |
+      sh -c "
+        cd /app
+        npm install
+        node aggregate-reports.js
+      "
+    volumes:
+      - ./security/reports:/reports
+      - ./security/tools:/app
+    networks:
+      - security-network
+    profiles:
+      - reports
+
+  # Security Dashboard
+  security-dashboard:
+    build:
+      context: ./security/dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    volumes:
+      - ./security/reports:/usr/share/nginx/html/reports:ro
+    networks:
+      - security-network
+    profiles:
+      - dashboard
+
+volumes:
+  postgres_security_data:
+  redis_security_data:
+  neo4j_security_data:
+  neo4j_security_logs:
+  neo4j_security_import:
+  neo4j_security_plugins:
+  qdrant_security_data:
+  security_uploads:
+  security_test_files:
+
+networks:
+  security-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16

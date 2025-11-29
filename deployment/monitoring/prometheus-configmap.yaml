@@ -1,0 +1,447 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: rag-monitoring
+  labels:
+    app: prometheus
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: 'rag-system'
+        environment: 'production'
+        replica: '$(POD_NAME)'
+
+    rule_files:
+      - "alert_rules.yml"
+      - "recording_rules.yml"
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093
+
+    scrape_configs:
+      # Prometheus self-monitoring
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+        scrape_interval: 30s
+        scrape_timeout: 10s
+        metrics_path: /metrics
+
+      # Kubernetes node monitoring
+      - job_name: 'kubernetes-nodes'
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - source_labels: [__address__]
+            regex: '(.*):10250'
+            target_label: __address__
+            replacement: '${1}:9100'
+          - target_label: __scheme__
+            replacement: https
+          - target_label: __metrics_path__
+            replacement: /metrics
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+
+      # Kubernetes pods monitoring
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            action: drop
+            regex: 0
+
+      # Kubernetes services monitoring
+      - job_name: 'kubernetes-services'
+        kubernetes_sd_configs:
+          - role: service
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+            action: replace
+            target_label: __scheme__
+            regex: (https?)
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_service_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            action: replace
+            target_label: kubernetes_service_name
+
+      # RAG Backend Service
+      - job_name: 'rag-backend'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            action: drop
+            regex: 0
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: 'rag_backend_.*'
+            action: keep
+
+      # RAG UI Service
+      - job_name: 'rag-ui'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            action: drop
+            regex: 0
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: 'rag_ui_.*'
+            action: keep
+
+      # RAG API Server Service
+      - job_name: 'rag-api-server'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            action: drop
+            regex: 0
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: 'rag_api_.*'
+            action: keep
+
+      # RAG Ingestion Service
+      - job_name: 'rag-ingestion-service'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            action: drop
+            regex: 0
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: 'rag_ingestion_.*'
+            action: keep
+
+      # Neo4j database monitoring
+      - job_name: 'neo4j'
+        static_configs:
+          - targets: ['neo4j:7474']
+        metrics_path: /dbms/monitor/json
+        basic_auth:
+          username: neo4j
+          password: ${{ secrets.NEO4J_PASSWORD }}
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __address__
+            regex: (.+):7474
+            replacement: $1:7474
+
+      # Qdrant vector database monitoring
+      - job_name: 'qdrant'
+        static_configs:
+          - targets: ['qdrant:6333']
+        metrics_path: /metrics
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __address__
+            regex: (.+):6333
+            replacement: $1:6333
+
+      # Redis caching monitoring
+      - job_name: 'redis'
+        static_configs:
+          - targets: ['redis:6379']
+        metrics_path: /metrics
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __address__
+            regex: (.+):6379
+            replacement: $1:6379
+
+      # Nginx ingress monitoring
+      - job_name: 'nginx-ingress'
+        static_configs:
+          - targets: ['nginx-ingress-controller:10254']
+        metrics_path: /metrics
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __address__
+            regex: (.+):10254
+            replacement: $1:10254
+
+  recording_rules.yml: |
+    groups:
+    - name: RAG_System_Recording_Rules
+      rules:
+      - record: rag_system_cpu_usage
+        expr: sum(rate(container_cpu_usage_seconds_total{container!="",image!=""}[5m])) by (namespace, pod)
+
+      - record: rag_system_memory_usage
+        expr: sum(container_memory_working_set_bytes{container!="",image!=""}) by (namespace, pod)
+
+      - record: rag_system_network_io
+        expr: sum(rate(container_network_receive_bytes_total[5m]) + rate(container_network_transmit_bytes_total[5m])) by (namespace, pod)
+
+      - record: rag_system_disk_io
+        expr: sum(rate(container_fs_reads_bytes_total[5m]) + rate(container_fs_writes_bytes_total[5m])) by (namespace, pod)
+
+      - record: rag_system_container_status
+        expr: sum(container_status_running{container!="",image!=""}) by (namespace, pod)
+
+      - record: rag_system_pod_status
+        expr: kube_pod_status_phase{phase="Running"} == 1
+
+  alert_rules.yml: |
+    groups:
+    - name: RAG_System_Alerts
+      rules:
+      # High CPU usage alerts
+      - alert: RAG_HighCPUUsage
+        expr: sum(rate(container_cpu_usage_seconds_total{container!="",image!=""}[5m])) by (namespace, pod) > 0.8
+        for: 5m
+        labels:
+          severity: critical
+          team: rag
+        annotations:
+          summary: "High CPU usage detected on {{ $labels.pod }} in {{ $labels.namespace }}"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is using {{ $value }} CPU cores (> 0.8)"
+
+      # High memory usage alerts
+      - alert: RAG_HighMemoryUsage
+        expr: sum(container_memory_working_set_bytes{container!="",image!=""}) by (namespace, pod) / sum(container_spec_memory_limit_bytes{container!="",image!=""}) by (namespace, pod) > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          team: rag
+        annotations:
+          summary: "High memory usage detected on {{ $labels.pod }} in {{ $labels.namespace }}"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is using {{ $value | humanizeBytes }} memory (> 90%)"
+
+      # High network usage alerts
+      - alert: RAG_HighNetworkUsage
+        expr: sum(rate(container_network_receive_bytes_total[5m]) + rate(container_network_transmit_bytes_total[5m])) by (namespace, pod) > 1000000
+        for: 5m
+        labels:
+          severity: warning
+          team: rag
+        annotations:
+          summary: "High network usage detected on {{ $labels.pod }} in {{ $labels.namespace }}"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is using {{ $value | humanizeBytes }} network bandwidth (> 1MB/s)"
+
+      # High disk usage alerts
+      - alert: RAG_HighDiskUsage
+        expr: sum(rate(container_fs_reads_bytes_total[5m]) + rate(container_fs_writes_bytes_total[5m])) by (namespace, pod) > 1000000
+        for: 5m
+        labels:
+          severity: warning
+          team: rag
+        annotations:
+          summary: "High disk I/O usage detected on {{ $labels.pod }} in {{ $labels.namespace }}"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is using {{ $value | humanizeBytes }} disk I/O (> 1MB/s)"
+
+      # Container not running alerts
+      - alert: RAG_ContainerNotRunning
+        expr: sum(container_status_running{container!="",image!=""}) by (namespace, pod) == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: rag
+        annotations:
+          summary: "Container not running on {{ $labels.pod }} in {{ $labels.namespace }}"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is not running"
+
+      # Pod not ready alerts
+      - alert: RAG_PodNotReady
+        expr: kube_pod_status_phase{phase="Ready"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: rag
+        annotations:
+          summary: "Pod not ready on {{ $labels.pod }} in {{ $labels.namespace }}"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is not ready"
+
+      # Database connection alerts
+      - alert: RAG_DatabaseConnectionIssues
+        expr: up{job=~"neo4j|qdrant|redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: rag
+        annotations:
+          summary: "Database connection issues detected"
+          description: "Database service {{ $labels.job }} is not reachable"
+
+      # High error rate alerts
+      - alert: RAG_HighErrorRate
+        expr: sum(rate(http_server_requests_seconds_sum{status=~"5.."}[5m])) / sum(rate(http_server_requests_seconds_count[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: rag
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} (> 10%)"
+
+      # High latency alerts
+      - alert: RAG_HighLatency
+        expr: sum(rate(http_server_requests_seconds_sum[5m])) / sum(rate(http_server_requests_seconds_count[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          team: rag
+        annotations:
+          summary: "High latency detected"
+          description: "Average response time is {{ $value | humanizeDuration }} (> 1s)"
+
+      # Low disk space alerts
+      - alert: RAG_LowDiskSpace
+        expr: (1 - kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          team: rag
+        annotations:
+          summary: "Low disk space detected on {{ $labels.pod }}"
+          description: "Disk usage is {{ $value | humanizePercentage }} (> 90%)"
+
+      # High request rate alerts
+      - alert: RAG_HighRequestRate
+        expr: sum(rate(http_server_requests_seconds_count[5m])) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: rag
+        annotations:
+          summary: "High request rate detected"
+          description: "Request rate is {{ $value | humanize }} requests/second (> 1000)"
+
+      # Pod restart rate alerts
+      - alert: RAG_HighPodRestartRate
+        expr: sum(rate(kube_pod_container_status_restarts_total[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          team: rag
+        annotations:
+          summary: "High pod restart rate detected"
+          description: "Pods are restarting {{ $value | humanize }} times/minute (> 2)"

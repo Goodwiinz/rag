@@ -1,0 +1,21 @@
+apiVersion: v2
+name: rag-system
+description: Multimodal Enterprise RAG System with Kubernetes
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+home: https://github.com/your-org/rag-system
+sources:
+- https://github.com/your-org/rag-system
+maintainers:
+- name: RAG Team
+  email: rag-team@example.com
+keywords:
+- rag
+- multimodal
+- ai
+- kubernetes
+- enterprise
+annotations:
+  category: AI/ML
+  licenses: Apache-2.0

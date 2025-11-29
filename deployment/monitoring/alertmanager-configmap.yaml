@@ -1,0 +1,122 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: rag-monitoring
+  labels:
+    app: alertmanager
+    component: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+      smtp_smarthost: 'localhost:587'
+      smtp_from: 'alertmanager@example.com'
+      smtp_auth_username: 'alertmanager@example.com'
+      smtp_auth_password: 'password'
+      slack_api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+
+    route:
+      group_by: ['alertname', 'severity', 'team']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 1h
+      receiver: 'web.hook'
+      routes:
+      - match:
+          severity: critical
+        receiver: 'critical-slack'
+        group_wait: 5s
+        repeat_interval: 30m
+      - match:
+          severity: warning
+        receiver: 'warning-slack'
+        repeat_interval: 1h
+      - match:
+        receiver: 'web.hook'
+
+    receivers:
+    - name: 'web.hook'
+      webhook_configs:
+      - url: 'http://webhook/'
+        send_resolved: true
+        http_config:
+          basic_auth:
+            username: 'admin'
+            password: 'REDACTED'
+        headers:
+          Content-Type: 'application/json'
+        params:
+          text: |
+            {{ range .Alerts }}
+            *Alert:* {{ .Annotations.summary }}
+            *Description:* {{ .Annotations.description }}
+            *Severity:* {{ .Labels.severity }}
+            *Timestamp:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+            *Labels:* {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
+            {{ end }}
+
+    - name: 'critical-slack'
+      slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+        channel: '#alerts-critical'
+        title: '🚨 Critical Alert - RAG System'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Timestamp:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          *Labels:* {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
+          {{ end }}
+        color: 'danger'
+        send_resolved: true
+
+    - name: 'warning-slack'
+      slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+        channel: '#alerts-warning'
+        title: '⚠️ Warning Alert - RAG System'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Timestamp:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          *Labels:* {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
+          {{ end }}
+        color: 'warning'
+        send_resolved: true
+
+    templates:
+    - '/etc/alertmanager/templates/*.tmpl'
+
+    inhibit_rules:
+    - source_match:
+        severity: 'critical'
+      target_match:
+        severity: 'warning'
+      equal: ['alertname', 'dev', 'instance']
+
+    - source_match:
+        alertname: 'RAG_HighCPUUsage'
+      target_match:
+        alertname: 'RAG_HighMemoryUsage'
+      equal: ['namespace', 'pod']
+
+    - source_match:
+        alertname: 'RAG_HighErrorRate'
+      target_match:
+        alertname: 'RAG_HighLatency'
+      equal: ['namespace', 'service']
+
+  templates: |
+    {{ define "slack.message" }}
+    {{ range .Alerts }}
+    *Alert:* {{ .Annotations.summary }}
+    *Description:* {{ .Annotations.description }}
+    *Severity:* {{ .Labels.severity }}
+    *Timestamp:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+    *Labels:* {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
+    {{ end }}
+    {{ end }}

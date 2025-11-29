@@ -71,7 +71,7 @@ class KnowledgeGraphService:
             raise
 
     @contextmanager
-    def get_session(self, database: str = "multimodal-rag") -> Session:
+    def get_session(self, database: str = "neo4j") -> Session:
         """Context manager for database sessions"""
         if not self.driver:
             raise RuntimeError("Neo4j driver not initialized")

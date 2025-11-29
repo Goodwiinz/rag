@@ -1,4 +1,19 @@
-import axios from 'axios';
+import { apiClient } from './apiClient';
+import {
+  RAGTriadMetrics,
+  SystemPerformanceMetrics,
+  SystemUsageMetrics,
+  PerformanceAnalytics,
+  UsageAnalytics,
+  TimeRange,
+  CustomTimeRange,
+  AnalyticsFilters
+} from '@/types';
+
+// Type guard for CustomTimeRange
+const isCustomTimeRange = (timeRange: TimeRange): timeRange is CustomTimeRange => {
+  return typeof timeRange === 'object' && 'start' in timeRange && 'end' in timeRange;
+};
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -136,29 +151,12 @@ export interface RecommendationRule {
 }
 
 class AnalyticsService {
-  private apiClient = axios.create({
-    baseURL: API_BASE_URL,
-    timeout: 10000,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-
-  constructor() {
-    // Add request interceptor for error handling
-    this.apiClient.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        console.error('Analytics API Error:', error);
-        return Promise.reject(error);
-      }
-    );
-  }
+  private apiClient = apiClient;
 
   // Quality Metrics
   async getQualityMetrics(): Promise<{ metrics: QualityMetric[]; alerts: QualityAlert[] }> {
     try {
-      const response = await this.apiClient.get('/api/analytics/quality-metrics');
+      const response = await this.apiClient.get('/api/analytics/quality-metrics') as any;
       return response.data;
     } catch (error) {
       // Fallback to mock data if API fails
@@ -173,7 +171,7 @@ class AnalyticsService {
     sessions: UserSession[];
   }> {
     try {
-      const response = await this.apiClient.get(`/api/analytics/user-behavior?timeRange=${timeRange}`);
+      const response = await this.apiClient.get(`/api/analytics/user-behavior?timeRange=${timeRange}`) as any;
       return response.data;
     } catch (error) {
       // Fallback to mock data if API fails
@@ -188,7 +186,7 @@ class AnalyticsService {
     alerts: PerformanceAlert[];
   }> {
     try {
-      const response = await this.apiClient.get('/api/analytics/performance');
+      const response = await this.apiClient.get('/api/analytics/performance') as any;
       return response.data;
     } catch (error) {
       // Fallback to mock data if API fails
@@ -203,7 +201,7 @@ class AnalyticsService {
     improvements: any[];
   }> {
     try {
-      const response = await this.apiClient.get('/api/analytics/recommendations');
+      const response = await this.apiClient.get('/api/analytics/recommendations') as any;
       return response.data;
     } catch (error) {
       // Fallback to mock data if API fails
@@ -233,6 +231,92 @@ class AnalyticsService {
       await this.apiClient.post(`/api/analytics/recommendations/${recommendationId}/vote`, { voteType });
     } catch (error) {
       console.error('Failed to vote on recommendation:', error);
+      throw error;
+    }
+  }
+
+  // RAG Triad Metrics (New architecture)
+  async getRAGTriadMetrics(timeRange: TimeRange): Promise<{ metrics: RAGTriadMetrics }> {
+    try {
+      const params = isCustomTimeRange(timeRange)
+        ? { start: timeRange.start, end: timeRange.end }
+        : { preset: timeRange };
+      return await this.apiClient.get('/api/analytics/rag-triad', { params });
+    } catch (error) {
+      console.error('Failed to fetch RAG triad metrics:', error);
+      throw error;
+    }
+  }
+
+  // Performance Analytics (New architecture)
+  async getPerformanceAnalytics(
+    filters: AnalyticsFilters,
+    timeRange: TimeRange
+  ): Promise<PerformanceAnalytics> {
+    try {
+      return await this.apiClient.post('/api/analytics/performance', { filters, timeRange });
+    } catch (error) {
+      console.error('Failed to fetch performance analytics:', error);
+      throw error;
+    }
+  }
+
+  // Usage Analytics (New architecture)
+  async getUsageAnalytics(timeRange: TimeRange): Promise<UsageAnalytics> {
+    try {
+      const params = isCustomTimeRange(timeRange)
+        ? { start: timeRange.start, end: timeRange.end }
+        : { preset: timeRange };
+      return await this.apiClient.get('/api/analytics/usage', { params });
+    } catch (error) {
+      console.error('Failed to fetch usage analytics:', error);
+      throw error;
+    }
+  }
+
+  // Real-time Metrics (New architecture)
+  async getRealTimeMetrics(): Promise<{ metrics: RAGTriadMetrics }> {
+    try {
+      return await this.apiClient.get('/api/analytics/real-time');
+    } catch (error) {
+      console.error('Failed to fetch real-time metrics:', error);
+      throw error;
+    }
+  }
+
+  // Historical Trends (New architecture)
+  async getHistoricalTrends(metric: string, timeRange: TimeRange): Promise<any> {
+    try {
+      const params = isCustomTimeRange(timeRange)
+        ? { start: timeRange.start, end: timeRange.end }
+        : { preset: timeRange };
+      return await this.apiClient.get(`/api/analytics/trends/${metric}`, { params });
+    } catch (error) {
+      console.error('Failed to fetch historical trends:', error);
+      throw error;
+    }
+  }
+
+  // Comparison Data (New architecture)
+  async getComparisonData(timeRanges: TimeRange[]): Promise<any> {
+    try {
+      return await this.apiClient.post('/api/analytics/compare', { timeRanges });
+    } catch (error) {
+      console.error('Failed to fetch comparison data:', error);
+      throw error;
+    }
+  }
+
+  // Export Analytics (New architecture)
+  async exportAnalytics(
+    format: 'csv' | 'json' | 'pdf',
+    filters: AnalyticsFilters,
+    timeRange: TimeRange
+  ): Promise<void> {
+    try {
+      await this.apiClient.download(`/api/analytics/export?format=${format}`, `analytics-${Date.now()}.${format}`);
+    } catch (error) {
+      console.error('Failed to export analytics:', error);
       throw error;
     }
   }

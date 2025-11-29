@@ -1,0 +1,509 @@
+openapi: 3.0.3
+info:
+  title: Multimodal RAG WebSocket API
+  description: WebSocket-based real-time document processing status streaming
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@multimodal-rag.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: ws://localhost:8000
+    description: Development WebSocket server
+  - url: wss://api.multimodal-rag.com/ws
+    description: Production WebSocket server
+
+paths:
+  /ws:
+    get:
+      summary: WebSocket endpoint for real-time updates
+      description: |
+        Establish WebSocket connection for real-time document processing updates.
+        Supports authentication via query parameter and connection health monitoring.
+      tags:
+        - WebSocket
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: JWT authentication token
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Organization ID for connection scoping
+        - name: connection_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [document_updates, system_status, search_results, all]
+            default: document_updates
+          description: Type of connection for filtering updates
+        - name: max_message_rate
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 10
+            maximum: 120
+            default: 30
+          description: Maximum messages per minute (rate limiting)
+      responses:
+        "101":
+          description: WebSocket connection established
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Switching Protocols"
+        "400":
+          description: Bad request - missing parameters
+        "401":
+          description: Unauthorized - invalid or missing token
+        "403":
+          description: Forbidden - insufficient permissions
+        "429":
+          description: Too Many Requests - rate limit exceeded
+
+  /ws/documents/{document_id}:
+    get:
+      summary: Document-specific WebSocket connection
+      description: Subscribe to real-time updates for a specific document
+      tags:
+        - WebSocket
+        - Documents
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: JWT authentication token
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Document ID to subscribe to
+      responses:
+        "101":
+          description: WebSocket connection for document updates
+        "404":
+          description: Document not found or access denied
+
+  /ws/status:
+    get:
+      summary: WebSocket connection status
+      description: Get current WebSocket server status and statistics
+      tags:
+        - WebSocket
+        - Status
+      responses:
+        "200":
+          description: WebSocket server status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebSocketStatus'
+
+  /ws/connections/{connection_id}:
+    delete:
+      summary: Force close WebSocket connection
+      description: Force close a specific WebSocket connection (admin only)
+      tags:
+        - WebSocket
+        - Administration
+      parameters:
+        - name: connection_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: WebSocket connection ID to close
+      responses:
+        "200":
+          description: Connection closed successfully
+        "404":
+          description: Connection not found
+        "403":
+          description: Insufficient permissions
+
+components:
+  schemas:
+    WebSocketMessage:
+      type: object
+      properties:
+        type:
+          type: string
+          description: Message type identifier
+          enum: [
+            connected, disconnected, error, ping, pong,
+            document_status_update, processing_progress, stage_complete,
+            stage_failed, quality_metrics, system_notification
+          ]
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp
+        data:
+          type: object
+          description: Message payload (varies by type)
+        metadata:
+          type: object
+          properties:
+            connection_id:
+              type: string
+            organization_id:
+              type: string
+            correlation_id:
+              type: string
+        message_id:
+          type: string
+          description: Unique message identifier for deduplication
+        expires_at:
+          type: string
+          format: date-time
+          description: Message expiration time
+
+    DocumentStatusUpdate:
+      type: object
+      description: Real-time document processing status update
+      allOf:
+        - $ref: '#/components/schemas/WebSocketMessage'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [document_status_update]
+            data:
+              $ref: '#/components/schemas/DocumentStatusData'
+
+    DocumentStatusData:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        processing_status:
+          $ref: '#/components/schemas/ProcessingStatus'
+        progress_percentage:
+          type: number
+          minimum: 0
+          maximum: 100
+        current_stage:
+          type: string
+          enum: [
+            ingestion, extraction, ocr, transcription,
+            embedding, indexing, quality_check, completed
+          ]
+        current_step:
+          type: string
+        processing_duration_seconds:
+          type: number
+        estimated_remaining_seconds:
+          type: number
+        error_message:
+          type: string
+        retry_count:
+          type: integer
+        quality_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        metadata:
+          type: object
+          properties:
+            file_size_bytes:
+              type: integer
+            document_type:
+              type: string
+            processing_rate:
+              type: number
+            resource_usage:
+              type: object
+
+    ProcessingProgress:
+      type: object
+      description: Real-time processing progress update
+      allOf:
+        - $ref: '#/components/schemas/WebSocketMessage'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [processing_progress]
+            data:
+              $ref: '#/components/schemas/ProcessingProgressData'
+
+    ProcessingProgressData:
+      type: object
+      properties:
+        job_execution_id:
+          type: string
+          format: uuid
+        stage_execution_id:
+          type: string
+          format: uuid
+        document_id:
+          type: string
+          format: uuid
+        stage:
+          type: string
+        step:
+          type: string
+        progress:
+          type: number
+          minimum: 0
+          maximum: 100
+        items_processed:
+          type: integer
+        total_items:
+          type: integer
+        processing_rate:
+          type: number
+        estimated_completion:
+          type: string
+          format: date-time
+        performance_metrics:
+          type: object
+          properties:
+            throughput:
+              type: number
+            latency_ms:
+              type: integer
+            memory_usage_mb:
+              type: integer
+            cpu_usage_percent:
+              type: number
+
+    QualityMetrics:
+      type: object
+      description: Document processing quality metrics
+      allOf:
+        - $ref: '#/components/schemas/WebSocketMessage'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [quality_metrics]
+            data:
+              $ref: '#/components/schemas/QualityMetricsData'
+
+    QualityMetricsData:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        answer_relevancy:
+          type: number
+          minimum: 0
+          maximum: 1
+        faithfulness:
+          type: number
+          minimum: 0
+          maximum: 1
+        contextual_relevancy:
+          type: number
+          minimum: 0
+          maximum: 1
+        hallucination_rate:
+          type: number
+          minimum: 0
+          maximum: 1
+        processing_quality_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        extraction_accuracy:
+          type: number
+          minimum: 0
+          maximum: 1
+        recommendations:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+              severity:
+                type: string
+                enum: [low, medium, high]
+              message:
+                type: string
+              action_required:
+                type: boolean
+
+    SystemNotification:
+      type: object
+      description: System-wide notification
+      allOf:
+        - $ref: '#/components/schemas/WebSocketMessage'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [system_notification]
+            data:
+              $ref: '#/components/schemas/SystemNotificationData'
+
+    SystemNotificationData:
+      type: object
+      properties:
+        notification_type:
+          type: string
+          enum: [maintenance, outage, performance_alert, security_alert, feature_update]
+        severity:
+          type: string
+          enum: [info, warning, error, critical]
+        title:
+          type: string
+        message:
+          type: string
+        affected_systems:
+          type: array
+          items:
+            type: string
+        estimated_resolution:
+          type: string
+          format: date-time
+        action_required:
+          type: boolean
+        action_url:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+
+    WebSocketStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        active_connections:
+          type: integer
+        total_connections:
+          type: integer
+        messages_per_second:
+          type: number
+        average_latency_ms:
+          type: number
+        error_rate:
+          type: number
+        uptime_seconds:
+          type: integer
+        version:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        organization_breakdown:
+          type: object
+          additionalProperties:
+            type: integer
+        connection_types:
+          type: object
+          additionalProperties:
+            type: integer
+
+    ProcessingStatus:
+      type: string
+      enum: [queued, processing, extracting, transcribing, embedding, indexing, completed, failed]
+
+    WebSocketError:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [error]
+        error_code:
+          type: string
+        error_message:
+          type: string
+        details:
+          type: object
+        retry_after:
+          type: integer
+        correlation_id:
+          type: string
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: WebSocket
+    description: WebSocket-based real-time updates
+  - name: Documents
+    description: Document processing and status updates
+  - name: Status
+    description: System status and health information
+  - name: Administration
+    description: Administrative WebSocket operations
+
+x-websocket-messages:
+  connected:
+    description: Sent when WebSocket connection is established
+    payload:
+      type: object
+      properties:
+        connection_id:
+          type: string
+        organization_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+  document_status_update:
+    description: Real-time document processing status updates
+    payload:
+      $ref: '#/components/schemas/DocumentStatusUpdate'
+
+  processing_progress:
+    description: Processing progress updates for multi-stage operations
+    payload:
+      $ref: '#/components/schemas/ProcessingProgress'
+
+  quality_metrics:
+    description: Quality metrics and recommendations
+    payload:
+      $ref: '#/components/schemas/QualityMetrics'
+
+  system_notification:
+    description: System-wide notifications
+    payload:
+      $ref: '#/components/schemas/SystemNotification'
+
+  ping:
+    description: Connection health check
+    payload:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+
+  pong:
+    description: Response to ping message
+    payload:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time

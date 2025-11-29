@@ -1,0 +1,490 @@
+# Alerting Rules for Multimodal RAG System
+# Comprehensive alerting rules for document processing, WebSocket, and system health
+
+groups:
+  - name: rag_system_alerts
+    interval: 30s
+    rules:
+      # Document Processing Alerts
+      - alert: DocumentProcessingHighFailureRate
+        expr: |
+          (
+            sum(rate(document_processing_total{status="failed"}[5m])) /
+            sum(rate(document_processing_total[5m]))
+          ) * 100 > 10
+        for: 2m
+        labels:
+          severity: critical
+          service: document-processing
+          category: reliability
+        annotations:
+          summary: "High document processing failure rate detected"
+          description: "Document processing failure rate is {{ $value | printf \"%.2f\" }}% over the last 5 minutes"
+          runbook_url: "https://docs.company.com/runbooks/document-processing-failures"
+          dashboard_url: "https://grafana.company.com/d/document-processing"
+
+      - alert: DocumentProcessingQueueBacklog
+        expr: document_processing_queue_size > 50
+        for: 5m
+        labels:
+          severity: warning
+          service: document-processing
+          category: performance
+        annotations:
+          summary: "Document processing queue has significant backlog"
+          description: "Queue size is {{ $value }} documents, processing may be delayed"
+          runbook_url: "https://docs.company.com/runbooks/processing-queue-backlog"
+
+      - alert: DocumentProcessingSlow
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(document_processing_duration_seconds_bucket[5m])) by (le)
+          ) > 300
+        for: 10m
+        labels:
+          severity: warning
+          service: document-processing
+          category: performance
+        annotations:
+          summary: "Document processing is slow"
+          description: "95th percentile processing time is {{ $value }} seconds (threshold: 300s)"
+          runbook_url: "https://docs.company.com/runbooks/slow-document-processing"
+
+      - alert: DocumentProcessingStopped
+        expr: |
+          sum(rate(document_processing_total[5m])) == 0
+        for: 10m
+        labels:
+          severity: critical
+          service: document-processing
+          category: availability
+        annotations:
+          summary: "Document processing has stopped"
+          description: "No documents have been processed in the last 10 minutes"
+          runbook_url: "https://docs.company.com/runbooks/document-processing-stopped"
+
+      # WebSocket Alerts
+      - alert: WebSocketHighErrorRate
+        expr: |
+          (
+            sum(rate(websocket_errors_total[5m])) /
+            sum(rate(websocket_messages_total[5m]))
+          ) * 100 > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: websocket
+          category: reliability
+        annotations:
+          summary: "High WebSocket error rate detected"
+          description: "WebSocket error rate is {{ $value | printf \"%.2f\" }}% over the last 5 minutes"
+          runbook_url: "https://docs.company.com/runbooks/websocket-errors"
+          dashboard_url: "https://grafana.company.com/d/websocket-observability"
+
+      - alert: WebSocketConnectionDrop
+        expr: |
+          (
+            sum(websocket_connections_active) -
+            sum(websocket_connections_active offset 1m)
+          ) < -20
+        for: 1m
+        labels:
+          severity: warning
+          service: websocket
+          category: availability
+        annotations:
+          summary: "Sudden drop in WebSocket connections"
+          description: "Lost {{ $value | abs }} WebSocket connections in the last minute"
+          runbook_url: "https://docs.company.com/runbooks/websocket-connection-issues"
+
+      - alert: WebSocketHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(websocket_message_duration_seconds_bucket[5m])) by (le)
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          service: websocket
+          category: performance
+        annotations:
+          summary: "WebSocket messages experiencing high latency"
+          description: "95th percentile message latency is {{ $value }} seconds (threshold: 1s)"
+          runbook_url: "https://docs.company.com/runbooks/websocket-latency"
+
+      - alert: WebSocketNoActiveConnections
+        expr: sum(websocket_connections_active) == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: websocket
+          category: availability
+        annotations:
+          summary: "No active WebSocket connections"
+          description: "No WebSocket connections are currently active"
+          runbook_url: "https://docs.company.com/runbooks/websocket-availability"
+
+      # API Performance Alerts
+      - alert: APIHighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status_code=~"5.."}[5m])) /
+            sum(rate(http_requests_total[5m]))
+          ) * 100 > 5
+        for: 2m
+        labels:
+          severity: critical
+          service: api
+          category: reliability
+        annotations:
+          summary: "High API error rate detected"
+          description: "API error rate is {{ $value | printf \"%.2f\" }}% over the last 5 minutes"
+          runbook_url: "https://docs.company.com/runbooks/api-errors"
+
+      - alert: APIHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+          category: performance
+        annotations:
+          summary: "API response times are high"
+          description: "95th percentile API response time is {{ $value }} seconds (threshold: 2s)"
+          runbook_url: "https://docs.company.com/runbooks/api-latency"
+
+      - alert: APINoRequests
+        expr: sum(rate(http_requests_total[5m])) == 0
+        for: 10m
+        labels:
+          severity: warning
+          service: api
+          category: availability
+        annotations:
+          summary: "No API requests received"
+          description: "No API requests have been received in the last 10 minutes"
+          runbook_url: "https://docs.company.com/runbooks/api-availability"
+
+      # Database Alerts
+      - alert: DatabaseHighErrorRate
+        expr: |
+          (
+            sum(rate(database_query_total{status="error"}[5m])) /
+            sum(rate(database_query_total[5m]))
+          ) * 100 > 5
+        for: 2m
+        labels:
+          severity: critical
+          service: database
+          category: reliability
+        annotations:
+          summary: "High database error rate detected"
+          description: "Database error rate is {{ $value | printf \"%.2f\" }}% over the last 5 minutes"
+          runbook_url: "https://docs.company.com/runbooks/database-errors"
+
+      - alert: DatabaseSlowQueries
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(database_query_duration_seconds_bucket[5m])) by (le)
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+          category: performance
+        annotations:
+          summary: "Database queries are slow"
+          description: "95th percentile query time is {{ $value }} seconds (threshold: 1s)"
+          runbook_url: "https://docs.company.com/runbooks/database-performance"
+
+      - alert: DatabaseConnectionPoolExhausted
+        expr: |
+          (
+            sum(database_connections_active) /
+            sum(database_connections_pool_size)
+          ) * 100 > 90
+        for: 2m
+        labels:
+          severity: critical
+          service: database
+          category: availability
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Connection pool usage is {{ $value | printf \"%.1f\" }}%"
+          runbook_url: "https://docs.company.com/runbooks/database-connections"
+
+      # Search Performance Alerts
+      - alert: SearchHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(search_query_duration_seconds_bucket[5m])) by (le)
+          ) > 5.0
+        for: 5m
+        labels:
+          severity: warning
+          service: search
+          category: performance
+        annotations:
+          summary: "Search queries are slow"
+          description: "95th percentile search time is {{ $value }} seconds (threshold: 5s)"
+          runbook_url: "https://docs.company.com/runbooks/search-performance"
+
+      - alert: SearchNoResults
+        expr: |
+          (
+            sum(rate(search_queries_total{results_count=0}[5m])) /
+            sum(rate(search_queries_total[5m]))
+          ) * 100 > 50
+        for: 10m
+        labels:
+          severity: warning
+          service: search
+          category: quality
+        annotations:
+          summary: "High percentage of empty search results"
+          description: "{{ $value | printf \"%.1f\" }}% of searches return no results"
+          runbook_url: "https://docs.company.com/runbooks/search-quality"
+
+      # ML/AI Model Alerts
+      - alert: MLModelHighErrorRate
+        expr: |
+          (
+            sum(rate(ml_inference_requests_total{status="error"}[5m])) /
+            sum(rate(ml_inference_requests_total[5m]))
+          ) * 100 > 10
+        for: 2m
+        labels:
+          severity: critical
+          service: ml
+          category: reliability
+        annotations:
+          summary: "ML model inference error rate is high"
+          description: "ML model error rate is {{ $value | printf \"%.2f\" }}% over the last 5 minutes"
+          runbook_url: "https://docs.company.com/runbooks/ml-model-errors"
+
+      - alert: MLModelLowAccuracy
+        expr: |
+          avg(ml_model_accuracy_score) < 0.8
+        for: 15m
+        labels:
+          severity: warning
+          service: ml
+          category: quality
+        annotations:
+          summary: "ML model accuracy has dropped"
+          description: "Average model accuracy is {{ $value | printf \"%.3f\" }} (threshold: 0.8)"
+          runbook_url: "https://docs.company.com/runbooks/ml-model-quality"
+
+      - alert: MLModelSlowInference
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(ml_inference_duration_seconds_bucket[5m])) by (le)
+          ) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          service: ml
+          category: performance
+        annotations:
+          summary: "ML model inference is slow"
+          description: "95th percentile inference time is {{ $value }} seconds (threshold: 2s)"
+          runbook_url: "https://docs.company.com/runbooks/ml-performance"
+
+      # System Resource Alerts
+      - alert: HighCPUUsage
+        expr: system_cpu_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+          category: resources
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value | printf \"%.1f\" }}%"
+          runbook_url: "https://docs.company.com/runbooks/high-cpu"
+
+      - alert: CriticalCPUUsage
+        expr: system_cpu_percent > 95
+        for: 2m
+        labels:
+          severity: critical
+          service: system
+          category: resources
+        annotations:
+          summary: "Critical CPU usage detected"
+          description: "CPU usage is {{ $value | printf \"%.1f\" }}%"
+          runbook_url: "https://docs.company.com/runbooks/critical-cpu"
+
+      - alert: HighMemoryUsage
+        expr: |
+          (system_memory_bytes{type="used"} / system_memory_bytes{type="total"}) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+          category: resources
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value | printf \"%.1f\" }}%"
+          runbook_url: "https://docs.company.com/runbooks/high-memory"
+
+      - alert: CriticalMemoryUsage
+        expr: |
+          (system_memory_bytes{type="used"} / system_memory_bytes{type="total"}) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+          service: system
+          category: resources
+        annotations:
+          summary: "Critical memory usage detected"
+          description: "Memory usage is {{ $value | printf \"%.1f\" }}%"
+          runbook_url: "https://docs.company.com/runbooks/critical-memory"
+
+      - alert: LowDiskSpace
+        expr: |
+          (system_disk_bytes{type="free"} / system_disk_bytes{type="total"}) * 100 < 20
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+          category: resources
+        annotations:
+          summary: "Low disk space detected"
+          description: "Free disk space is {{ $value | printf \"%.1f\" }}%"
+          runbook_url: "https://docs.company.com/runbooks/low-disk-space"
+
+      - alert: CriticalLowDiskSpace
+        expr: |
+          (system_disk_bytes{type="free"} / system_disk_bytes{type="total"}) * 100 < 10
+        for: 2m
+        labels:
+          severity: critical
+          service: system
+          category: resources
+        annotations:
+          summary: "Critical low disk space detected"
+          description: "Free disk space is {{ $value | printf \".1f\" }}%"
+          runbook_url: "https://docs.company.com/runbooks/critical-disk-space"
+
+      # Cache Performance Alerts
+      - alert: CacheLowHitRatio
+        expr: cache_hit_ratio < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          service: cache
+          category: performance
+        annotations:
+          summary: "Cache hit ratio is low"
+          description: "Cache hit ratio is {{ $value | printf \".2f\" }} (threshold: 0.7)"
+          runbook_url: "https://docs.company.com/runbooks/cache-performance"
+
+      - alert: CacheHighErrorRate
+        expr: |
+          (
+            sum(rate(cache_operations_total{result="error"}[5m])) /
+            sum(rate(cache_operations_total[5m]))
+          ) * 100 > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: cache
+          category: reliability
+        annotations:
+          summary: "High cache error rate detected"
+          description: "Cache error rate is {{ $value | printf \"%.2f\" }}% over the last 5 minutes"
+          runbook_url: "https://docs.company.com/runbooks/cache-errors"
+
+  - name: rag_system_slo_alerts
+    interval: 60s
+    rules:
+      # SLO-based Alerts
+      - alert: SLODocumentProcessingReliability
+        expr: slo_document_processing_reliability_achieved_percentage < 98.0
+        for: 5m
+        labels:
+          severity: critical
+          service: slo
+          category: reliability
+        annotations:
+          summary: "SLO Violation: Document Processing Reliability"
+          description: "Document processing SLO achieved {{ $value | printf \"%.1f\" }}% (target: 99%, alert threshold: 98%)"
+          runbook_url: "https://docs.company.com/runbooks/slo-violations"
+          slo_name: "document_processing_reliability"
+
+      - alert: SLOAPILatency
+        expr: slo_api_latency_slo_achieved_percentage < 95.0
+        for: 5m
+        labels:
+          severity: warning
+          service: slo
+          category: performance
+        annotations:
+          summary: "SLO Violation: API Latency"
+          description: "API latency SLO achieved {{ $value | printf \"%.1f\" }}% (target: 99%, alert threshold: 95%)"
+          runbook_url: "https://docs.company.com/runbooks/slo-violations"
+          slo_name: "api_latency_slo"
+
+      - alert: SLOWebSocketReliability
+        expr: slo_websocket_reliability_slo_achieved_percentage < 98.0
+        for: 5m
+        labels:
+          severity: warning
+          service: slo
+          category: reliability
+        annotations:
+          summary: "SLO Violation: WebSocket Reliability"
+          description: "WebSocket reliability SLO achieved {{ $value | printf \"%.1f\" }}% (target: 99.5%, alert threshold: 98%)"
+          runbook_url: "https://docs.company.com/runbooks/slo-violations"
+          slo_name: "websocket_reliability_slo"
+
+      - alert: SLOSearchPerformance
+        expr: slo_search_performance_slo_achieved_percentage < 90.0
+        for: 5m
+        labels:
+          severity: warning
+          service: slo
+          category: performance
+        annotations:
+          summary: "SLO Violation: Search Performance"
+          description: "Search performance SLO achieved {{ $value | printf \"%.1f\" }}% (target: 95%, alert threshold: 90%)"
+          runbook_url: "https://docs.company.com/runbooks/slo-violations"
+          slo_name: "search_performance_slo"
+
+      - alert: ErrorBudgetExhaustionWarning
+        expr: |
+          (
+            slo_document_processing_reliability_error_budget_consumed > 75 or
+            slo_api_latency_slo_error_budget_consumed > 75 or
+            slo_websocket_reliability_slo_error_budget_consumed > 75
+          )
+        for: 1m
+        labels:
+          severity: warning
+          service: slo
+          category: reliability
+        annotations:
+          summary: "Error budget consumption warning"
+          description: "Error budget consumption is above 75% for one or more SLOs"
+          runbook_url: "https://docs.company.com/runbooks/error-budget-management"
+
+      - alert: ErrorBudgetExhaustionCritical
+        expr: |
+          (
+            slo_document_processing_reliability_error_budget_consumed > 90 or
+            slo_api_latency_slo_error_budget_consumed > 90 or
+            slo_websocket_reliability_slo_error_budget_consumed > 90
+          )
+        for: 1m
+        labels:
+          severity: critical
+          service: slo
+          category: reliability
+        annotations:
+          summary: "Critical error budget consumption"
+          description: "Error budget consumption is above 90% for one or more SLOs"
+          runbook_url: "https://docs.company.com/runbooks/error-budget-management"

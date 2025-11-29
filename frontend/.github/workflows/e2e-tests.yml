@@ -1,0 +1,647 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      browser:
+        description: 'Browser to run tests on'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - chromium
+          - firefox
+          - webkit
+      test_suite:
+        description: 'Test suite to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - smoke
+          - regression
+          - accessibility
+          - performance
+      environment:
+        description: 'Target environment'
+        required: false
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+          - development
+
+env:
+  NODE_VERSION: '18'
+  PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/pw-browsers
+  BASE_URL: ${{ vars.BASE_URL || 'http://localhost:3000' }}
+
+jobs:
+  lint-and-install:
+    name: Lint and Install Dependencies
+    runs-on: ubuntu-latest
+    outputs:
+      cache-key: ${{ steps.cache-key.outputs.key }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Generate cache key
+        id: cache-key
+        run: echo "key=e2e-${{ hashFiles('**/package-lock.json') }}" >> $GITHUB_OUTPUT
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ steps.cache-key.outputs.key }}
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Type check
+        run: npm run type-check
+
+  install-playwright:
+    name: Install Playwright Browsers
+    runs-on: ubuntu-latest
+    needs: lint-and-install
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ needs.lint-and-install.outputs.cache-key }}
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: playwright-browsers-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+
+  build-app:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: lint-and-install
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ needs.lint-and-install.outputs.cache-key }}
+
+      - name: Build application
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-files
+          path: dist/
+          retention-days: 1
+
+  start-services:
+    name: Start Test Services
+    runs-on: ubuntu-latest
+    needs: [lint-and-install, build-app]
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rag_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+      neo4j:
+        image: neo4j:5-community
+        env:
+          NEO4J_AUTH: neo4j/password
+          NEO4J_dbms_default__database: rag_test
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p password 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 7474:7474
+          - 7687:7687
+
+      qdrant:
+        image: qdrant/qdrant:latest
+        options: >-
+          --health-cmd "curl -f http://localhost:6333/health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6333:6333
+          - 6334:6334
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ needs.lint-and-install.outputs.cache-key }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-files
+          path: dist/
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for services..."
+          sleep 30
+
+          # Check database connectivity
+          docker ps
+
+          # Verify Neo4j is ready
+          curl -f http://localhost:7474 || echo "Neo4j not ready yet"
+
+          # Verify Qdrant is ready
+          curl -f http://localhost:6333/health || echo "Qdrant not ready yet"
+
+      - name: Start application
+        run: |
+          npm run preview &
+          echo "Application started"
+          sleep 30
+
+          # Health check
+          curl -f http://localhost:4173 || exit 1
+
+      - name: Upload service logs
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: service-logs
+          path: |
+            /var/log/docker*
+          retention-days: 1
+
+  e2e-smoke-tests:
+    name: E2E Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [install-playwright, start-services]
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium]
+        shard: [1, 2]
+    env:
+      CI: true
+      BASE_URL: http://localhost:4173
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ needs.lint-and-install.outputs.cache-key }}
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: playwright-browsers-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Wait for application
+        run: |
+          echo "Waiting for application..."
+          timeout 300 bash -c 'until curl -f http://localhost:4173; do sleep 5; done'
+
+      - name: Run smoke tests
+        run: |
+          npx playwright test \
+            --project=${{ matrix.browser }} \
+            --grep="smoke" \
+            --shard=${{ matrix.shard }}/2 \
+            --reporter=json,html,junit \
+            --output-dir=test-results/smoke
+
+      - name: Upload smoke test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: smoke-test-results-${{ matrix.browser }}-shard${{ matrix.shard }}
+          path: |
+            test-results/smoke/
+          retention-days: 3
+
+      - name: Upload smoke test screenshots
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: smoke-screenshots-${{ matrix.browser }}-shard${{ matrix.shard }}
+          path: test-results/smoke/
+          retention-days: 3
+
+  e2e-regression-tests:
+    name: E2E Regression Tests
+    runs-on: ubuntu-latest
+    needs: [install-playwright, start-services, e2e-smoke-tests]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+        shard: [1, 2, 3]
+    env:
+      CI: true
+      BASE_URL: http://localhost:4173
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ needs.lint-and-install.outputs.cache-key }}
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: playwright-browsers-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Wait for application
+        run: |
+          echo "Waiting for application..."
+          timeout 300 bash -c 'until curl -f http://localhost:4173; do sleep 5; done'
+
+      - name: Run regression tests
+        run: |
+          npx playwright test \
+            --project=${{ matrix.browser }} \
+            --grep="regression" \
+            --shard=${{ matrix.shard }}/3 \
+            --reporter=json,html,junit \
+            --output-dir=test-results/regression
+
+      - name: Upload regression test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: regression-test-results-${{ matrix.browser }}-shard${{ matrix.shard }}
+          path: |
+            test-results/regression/
+          retention-days: 7
+
+      - name: Upload regression test screenshots
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: regression-screenshots-${{ matrix.browser }}-shard${{ matrix.shard }}
+          path: test-results/regression/
+          retention-days: 7
+
+  e2e-accessibility-tests:
+    name: E2E Accessibility Tests
+    runs-on: ubuntu-latest
+    needs: [install-playwright, start-services]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    env:
+      CI: true
+      BASE_URL: http://localhost:4173
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ needs.lint-and-install.outputs.cache-key }}
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: playwright-browsers-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Wait for application
+        run: |
+          echo "Waiting for application..."
+          timeout 300 bash -c 'until curl -f http://localhost:4173; do sleep 5; done'
+
+      - name: Run accessibility tests
+        run: |
+          npx playwright test \
+            --project=accessibility \
+            --reporter=json,html,junit \
+            --output-dir=test-results/accessibility
+
+      - name: Process accessibility results
+        run: |
+          node scripts/process-accessibility-results.js test-results/accessibility/results.json
+
+      - name: Upload accessibility test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: accessibility-test-results
+          path: |
+            test-results/accessibility/
+          retention-days: 7
+
+      - name: Accessibility violation comment
+        if: failure()
+        env:
+          VIOLATION_COUNT: ${{ steps.count-violations.outputs.count }}
+        run: |
+          COUNT=$(node -e "
+            const fs = require('fs');
+            try {
+              const results = JSON.parse(fs.readFileSync('test-results/accessibility/results.json', 'utf8'));
+              console.log(results.violations ? results.violations.length : 0);
+            } catch (e) {
+              console.log(0);
+            }
+          ")
+          echo "VIOLATION_COUNT=$COUNT" >> $GITHUB_ENV
+
+      - name: Create accessibility comment
+        if: failure() && env.VIOLATION_COUNT != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const violationCount = process.env.VIOLATION_COUNT;
+            const message = `## 🚨 Accessibility Violations Found\n\nFound ${violationCount} accessibility violations that need to be addressed.\n\nPlease review the test results and fix the violations before merging.`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            });
+
+  e2e-performance-tests:
+    name: E2E Performance Tests
+    runs-on: ubuntu-latest
+    needs: [install-playwright, start-services]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    env:
+      CI: true
+      BASE_URL: http://localhost:4173
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ needs.lint-and-install.outputs.cache-key }}
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: playwright-browsers-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Wait for application
+        run: |
+          echo "Waiting for application..."
+          timeout 300 bash -c 'until curl -f http://localhost:4173; do sleep 5; done'
+
+      - name: Run performance tests
+        run: |
+          npx playwright test \
+            --project=performance \
+            --reporter=json,html,junit \
+            --output-dir=test-results/performance
+
+      - name: Process performance results
+        run: |
+          node scripts/process-performance-results.js test-results/performance/results.json
+
+      - name: Upload performance test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: performance-test-results
+          path: |
+            test-results/performance/
+          retention-days: 7
+
+      - name: Performance regression check
+        run: |
+          node scripts/check-performance-regression.js test-results/performance/results.json
+
+  test-report-summary:
+    name: Test Report Summary
+    runs-on: ubuntu-latest
+    needs: [e2e-smoke-tests, e2e-regression-tests, e2e-accessibility-tests, e2e-performance-tests]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all test results
+        uses: actions/download-artifact@v3
+        with:
+          path: all-test-results/
+
+      - name: Generate test summary
+        run: |
+          node scripts/generate-test-summary.js all-test-results/
+
+      - name: Upload summary report
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-summary-report
+          path: test-summary.html
+          retention-days: 30
+
+      - name: Extract test metrics
+        id: test-metrics
+        run: |
+          TOTAL=$(node -e "
+            const fs = require('fs');
+            try {
+              const content = fs.readFileSync('test-summary.html', 'utf8');
+              const match = content.match(/Total Tests: (\d+)/);
+              console.log(match ? match[1] : '0');
+            } catch (e) {
+              console.log('0');
+            }
+          ")
+          PASSED=$(node -e "
+            const fs = require('fs');
+            try {
+              const content = fs.readFileSync('test-summary.html', 'utf8');
+              const match = content.match(/Passed: (\d+)/);
+              console.log(match ? match[1] : '0');
+            } catch (e) {
+              console.log('0');
+            }
+          ")
+          FAILED=$(node -e "
+            const fs = require('fs');
+            try {
+              const content = fs.readFileSync('test-summary.html', 'utf8');
+              const match = content.match(/Failed: (\d+)/);
+              console.log(match ? match[1] : '0');
+            } catch (e) {
+              console.log('0');
+            }
+          ")
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+
+      - name: Comment test summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const totalTests = '${{ steps.test-metrics.outputs.total }}';
+            const passedTests = '${{ steps.test-metrics.outputs.passed }}';
+            const failedTests = '${{ steps.test-metrics.outputs.failed }}';
+
+            const comment = `## 📊 E2E Test Results Summary\n\n- **Total Tests**: ${totalTests}\n- **Passed**: ${passedTests} ✅\n- **Failed**: ${failedTests} ❌\n\n${failedTests > 0 ? 'Please review the failed tests and fix any issues before merging.' : 'All tests passed! 🎉'}\n\n[View detailed report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [test-report-summary]
+    if: always()
+    steps:
+      - name: Cleanup test artifacts
+        uses: geekyeggo/delete-artifact@v5
+        with:
+          name: |
+            build-files
+            smoke-test-results-*
+            regression-test-results-*
+            accessibility-test-results
+            performance-test-results
+          failOnError: false

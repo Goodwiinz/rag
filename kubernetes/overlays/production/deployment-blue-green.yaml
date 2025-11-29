@@ -1,0 +1,281 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-blue
+  namespace: multimodal-rag-system
+  labels:
+    app: backend
+    color: blue
+    component: main
+    version: 1.0.0
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: backend
+      color: blue
+  template:
+    metadata:
+      labels:
+        app: backend
+        color: blue
+        component: main
+        version: 1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+      - name: backend
+        image: multimodal-rag/backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        - containerPort: 8001
+          name: websocket
+          protocol: TCP
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: COLOR
+          value: "blue"
+        - name: DEPLOYMENT_STRATEGY
+          value: "blue-green"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-green
+  namespace: multimodal-rag-system
+  labels:
+    app: backend
+    color: green
+    component: main
+    version: 1.0.0
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: backend
+      color: green
+  template:
+    metadata:
+      labels:
+        app: backend
+        color: green
+        component: main
+        version: 1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+      - name: backend
+        image: multimodal-rag/backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        - containerPort: 8001
+          name: websocket
+          protocol: TCP
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: COLOR
+          value: "green"
+        - name: DEPLOYMENT_STRATEGY
+          value: "blue-green"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-blue
+  namespace: multimodal-rag-system
+  labels:
+    app: frontend
+    color: blue
+    component: main
+    version: 1.0.0
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: frontend
+      color: blue
+  template:
+    metadata:
+      labels:
+        app: frontend
+        color: blue
+        component: main
+        version: 1.0.0
+    spec:
+      containers:
+      - name: frontend
+        image: multimodal-rag/frontend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+          name: http
+          protocol: TCP
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-green
+  namespace: multimodal-rag-system
+  labels:
+    app: frontend
+    color: green
+    component: main
+    version: 1.0.0
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: frontend
+      color: green
+  template:
+    metadata:
+      labels:
+        app: frontend
+        color: green
+        component: main
+        version: 1.0.0
+    spec:
+      containers:
+      - name: frontend
+        image: multimodal-rag/frontend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+          name: http
+          protocol: TCP
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3

@@ -1,0 +1,460 @@
+version: '3.8'
+
+services:
+  # API Gateway Service
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVICE_NAME=api-gateway
+      - PORT=8080
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag
+      - REDIS_URL=redis://redis:6379
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=neo4jpassword
+      - QDRANT_URL=http://qdrant:6333
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-super-secret-jwt-key-change-in-production}
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+    depends_on:
+      - postgres
+      - redis
+      - neo4j
+      - qdrant
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Document Management Service
+  document-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-document-service
+    ports:
+      - "8001:8001"
+    environment:
+      - SERVICE_NAME=document-management
+      - PORT=8001
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag
+      - REDIS_URL=redis://redis:6379
+      - UPLOAD_DIR=/app/uploads
+      - MAX_FILE_SIZE_MB=100
+      - FREE_TIER_STORAGE_GB=10
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+    volumes:
+      - document-storage:/app/uploads
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Search Service
+  search-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-search-service
+    ports:
+      - "8002:8002"
+    environment:
+      - SERVICE_NAME=search-service
+      - PORT=8002
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag
+      - REDIS_URL=redis://redis:6379
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=neo4jpassword
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+    depends_on:
+      - postgres
+      - redis
+      - neo4j
+      - qdrant
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Knowledge Graph Service
+  knowledge-graph-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-knowledge-graph-service
+    ports:
+      - "8003:8003"
+    environment:
+      - SERVICE_NAME=knowledge-graph-service
+      - PORT=8003
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag
+      - REDIS_URL=redis://redis:6379
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=neo4jpassword
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+    depends_on:
+      - postgres
+      - redis
+      - neo4j
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Evaluation Service
+  evaluation-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-evaluation-service
+    ports:
+      - "8004:8004"
+    environment:
+      - SERVICE_NAME=evaluation-service
+      - PORT=8004
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Processing Pipeline Service
+  processing-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-processing-service
+    ports:
+      - "8005:8005"
+    environment:
+      - SERVICE_NAME=processing-service
+      - PORT=8005
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag
+      - REDIS_URL=redis://redis:6379
+      - QDRANT_URL=http://qdrant:6333
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=neo4jpassword
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - MAX_CONCURRENT_JOBS=5
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+    depends_on:
+      - postgres
+      - redis
+      - neo4j
+      - qdrant
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Analytics Service
+  analytics-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-analytics-service
+    ports:
+      - "8006:8006"
+    environment:
+      - SERVICE_NAME=analytics-service
+      - PORT=8006
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag
+      - REDIS_URL=redis://redis:6379
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # User Management Service
+  user-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-user-service
+    ports:
+      - "8007:8007"
+    environment:
+      - SERVICE_NAME=user-management
+      - PORT=8007
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-super-secret-jwt-key-change-in-production}
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Real-time Communications Service
+  realtime-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-realtime-service
+    ports:
+      - "8008:8008"
+    environment:
+      - SERVICE_NAME=realtime-communications
+      - PORT=8008
+      - REDIS_URL=redis://redis:6379
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+    depends_on:
+      - redis
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: rag-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=multimodal_rag
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Neo4j Knowledge Graph Database
+  neo4j:
+    image: neo4j:5.14-community
+    container_name: rag-neo4j
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    environment:
+      - NEO4J_AUTH=neo4j/neo4jpassword
+      - NEO4J_PLUGINS=["apoc", "graph-data-science"]
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=2G
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+      - neo4j-import:/var/lib/neo4j/import
+      - neo4j-plugins:/plugins
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "neo4jpassword", "RETURN 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:v1.7.0
+    container_name: rag-qdrant
+    ports:
+      - "6333:6333"  # HTTP
+      - "6334:6334"  # gRPC
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Nginx Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: rag-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api-gateway
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: rag-prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: rag-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+  # Jaeger Tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.48
+    container_name: rag-jaeger
+    ports:
+      - "16686:16686"  # UI
+      - "14268:14268"  # HTTP collector
+      - "14250:14250"  # gRPC collector
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+networks:
+  rag-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres-data:
+  redis-data:
+  neo4j-data:
+  neo4j-logs:
+  neo4j-import:
+  neo4j-plugins:
+  qdrant-data:
+  document-storage:
+  prometheus-data:
+  grafana-data:
