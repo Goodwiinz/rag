@@ -381,7 +381,7 @@ export const monitorMemoryUsage = () => {
 
     return () => clearInterval(interval);
   }
-  return () => {};
+  return () => { };
 };
 
 // Preload critical resources
@@ -433,7 +433,7 @@ export const useAnimationFrame = (callback: () => void, deps: any[] = []) => {
         cancelAnimationFrame(requestRef.current);
       }
     };
-  }, deps);
+  }, [callback, ...deps]);
 };
 
 // Performance metrics collector

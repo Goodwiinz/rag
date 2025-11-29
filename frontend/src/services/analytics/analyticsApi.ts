@@ -11,7 +11,7 @@ import {
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const ANALYTICS_API_PREFIX = '/api/v1/analytics';
+const ANALYTICS_API_PREFIX = '/analytics';
 
 // API Response Types
 interface ApiResponse<T> {

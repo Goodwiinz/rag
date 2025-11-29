@@ -186,3 +186,135 @@ export interface ConnectionStatusMessage extends WebSocketMessage {
     message?: string;
   };
 }
+
+// Enhanced WebSocket Connection Types
+export interface WebSocketConnectionInfo {
+  id: string;
+  user_id: string;
+  organization_id: string;
+  connected_at: string;
+  last_activity: string;
+  last_heartbeat: string;
+  client_ip: string;
+  user_agent: string;
+  connection_metadata: any;
+  subscription_channels: string[];
+  is_active: boolean;
+  disconnect_reason?: string;
+  disconnected_at?: string;
+  message_count_sent: number;
+  message_count_received: number;
+  bytes_sent: number;
+  bytes_received: number;
+}
+
+// Message Priority and Channel Types
+export enum MessagePriority {
+  LOW = 'low',
+  NORMAL = 'normal',
+  HIGH = 'high',
+  CRITICAL = 'critical'
+}
+
+export enum UpdateFrequency {
+  REALTIME = 'realtime',
+  FREQUENT = 'frequent',
+  NORMAL = 'normal',
+  PERIODIC = 'periodic'
+}
+
+export enum Channel {
+  DOCUMENT_PROCESSING = 'document_processing',
+  JOB_STATUS = 'job_status',
+  SYSTEM_STATUS = 'system_status',
+  USER_NOTIFICATIONS = 'user_notifications',
+  QUOTA_ALERTS = 'quota_alerts',
+  QUALITY_METRICS = 'quality_metrics',
+  ADMIN_ALERTS = 'admin_alerts'
+}
+
+// Enhanced Store Interface
+export interface RealtimeStore {
+  // WebSocket state
+  connection: WebSocketConnectionState;
+  connectionInfo: WebSocketConnectionInfo | null;
+
+  // Document processing state
+  documents: Map<string, DocumentProcessingState>;
+  subscribedDocuments: Set<string>;
+
+  // Performance metrics
+  systemMetrics: RealtimeProcessingState['systemMetrics'];
+
+  // Configuration
+  config: {
+    updateFrequency: UpdateFrequency;
+    subscribedChannels: Set<Channel>;
+    messageFilter: Record<string, any>;
+    autoReconnect: boolean;
+    reconnectDelay: number;
+    maxReconnectAttempts: number;
+  };
+
+  // Actions
+  connect: (token: string, options?: {
+    channels?: Channel[];
+    frequency?: UpdateFrequency;
+    clientInfo?: any;
+  }) => Promise<void>;
+  disconnect: () => void;
+  reconnect: () => void;
+  subscribeToChannel: (channel: Channel) => void;
+  unsubscribeFromChannel: (channel: Channel) => void;
+  subscribeToDocument: (documentId: string) => void;
+  unsubscribeFromDocument: (documentId: string) => void;
+  updateDocumentStatus: (update: DocumentUpdateMessage) => void;
+  sendWebSocketMessage: (message: any) => void;
+  clearNotifications: () => void;
+  updatePreferences: (preferences: Partial<RealtimeProcessingState['preferences']>) => void;
+  updateUI: (ui: Partial<RealtimeProcessingState['ui']>) => void;
+}
+
+// WebSocket Client Configuration
+export interface WebSocketClientConfig {
+  url: string;
+  token: string;
+  channels?: Channel[];
+  frequency?: UpdateFrequency;
+  messageFilter?: Record<string, any>;
+  clientInfo?: any;
+  autoReconnect?: boolean;
+  reconnectDelay?: number;
+  maxReconnectAttempts?: number;
+  heartbeatInterval?: number;
+  enableBatching?: boolean;
+  batchSize?: number;
+  batchTimeout?: number;
+}
+
+// Processing Stage Enhancements
+export interface EnhancedProcessingStage extends ProcessingStage {
+  stage_type: string;
+  stage_order: number;
+  worker_id?: string;
+  stage_metadata?: any;
+  error_details?: any;
+  retry_count: number;
+  max_retries: number;
+  estimated_completion_time?: string;
+}
+
+// System Status Summary
+export interface SystemStatusSummary {
+  total_documents: number;
+  queued_documents: number;
+  processing_documents: number;
+  processed_documents: number;
+  failed_documents: number;
+  active_websocket_connections: number;
+  connected_users: number;
+  avg_processing_time_5min?: number;
+  updates_last_5min: number;
+  active_jobs: number;
+  status_timestamp: string;
+}

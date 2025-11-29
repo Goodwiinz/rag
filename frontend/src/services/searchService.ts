@@ -19,7 +19,7 @@ export class SearchService {
    * Perform a search query
    */
   async search(request: SearchRequest): Promise<APIResponse<SearchResult>> {
-    return apiClient.post(`${this.basePath}`, request);
+    return apiClient.post(`${this.basePath}/`, request);
   }
 
   /**

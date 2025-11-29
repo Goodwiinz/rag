@@ -146,7 +146,7 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
       }
 
       console.log('Making API call to getDocuments with params:', params);
-      const response = await apiClient.get('/api/v1/documents/', { params });  // Added trailing slash to avoid 307 redirect
+      const response = await apiClient.get('/documents/', { params });  // Added trailing slash to avoid 307 redirect
       console.log('API response received:', response);
 
       // Check if response has the expected structure
@@ -300,7 +300,7 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
     }
 
     try {
-      await apiClient.delete(`/api/v1/documents/${documentId}`);
+      await apiClient.delete(`/documents/${documentId}`);
 
       // Refresh documents list
       await fetchDocuments();
@@ -377,7 +377,7 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      const result = await apiClient.post(`/api/v1/documents/${documentId}/retry`);
+      const result = await apiClient.post(`/documents/${documentId}/retry`);
 
       // Refresh documents list to get updated status
       await fetchDocuments();

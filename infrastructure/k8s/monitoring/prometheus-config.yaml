@@ -64,6 +64,18 @@ data:
             target_label: instance
             replacement: 'backend-1'
 
+      # Backend Metrics (Prometheus specific)
+      - job_name: 'backend-metrics'
+        static_configs:
+          - targets: ['backend-service:8002']
+        metrics_path: /metrics
+        scrape_interval: 15s
+        scrape_timeout: 10s
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: instance
+            replacement: 'backend-metrics-1'
+
       # PostgreSQL Metrics
       - job_name: 'postgresql'
         static_configs:
@@ -213,6 +225,38 @@ data:
             annotations:
               summary: "Backend high latency"
               description: "Backend 95th percentile latency is above 2 seconds for more than 5 minutes"
+
+          # WebSocket Alert Rules
+          - alert: WebSocketHighErrorRate
+            expr: rate(websocket_errors_total[5m]) > 0.1
+            for: 2m
+            labels:
+              severity: warning
+              service: backend
+            annotations:
+              summary: "High WebSocket error rate"
+              description: "WebSocket error rate is above 0.1 errors per second"
+
+          # Document Processing Alert Rules
+          - alert: DocumentProcessingHighErrorRate
+            expr: sum(rate(document_processing_total{status="failed"}[5m])) / sum(rate(document_processing_total[5m])) * 100 > 10
+            for: 5m
+            labels:
+              severity: critical
+              service: backend
+            annotations:
+              summary: "High document processing error rate"
+              description: "Document processing error rate is above 10% for more than 5 minutes"
+
+          - alert: DocumentProcessingHighLatency
+            expr: rate(document_processing_duration_seconds_sum[5m]) / rate(document_processing_duration_seconds_count[5m]) > 300
+            for: 5m
+            labels:
+              severity: warning
+              service: backend
+            annotations:
+              summary: "High document processing latency"
+              description: "Average document processing duration is above 5 minutes"
 
           # Database Alert Rules
           - alert: PostgreSQLDown

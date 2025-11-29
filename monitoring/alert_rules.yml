@@ -293,3 +293,35 @@ groups:
         annotations:
           summary: "High concurrent request queue"
           description: "{{ $value }} concurrent requests in queue."
+
+  - name: real_time_status_alerts
+    rules:
+      - alert: WebSocketHighErrorRate
+        expr: rate(websocket_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High WebSocket error rate"
+          description: "WebSocket error rate is above 0.1 errors per second"
+
+      - alert: DocumentProcessingHighErrorRate
+        expr: sum(rate(document_processing_total{status="failed"}[5m])) / sum(rate(document_processing_total[5m])) * 100 > 10
+        for: 5m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "High document processing error rate"
+          description: "Document processing error rate is above 10% for more than 5 minutes"
+
+      - alert: DocumentProcessingHighLatency
+        expr: rate(document_processing_duration_seconds_sum[5m]) / rate(document_processing_duration_seconds_count[5m]) > 300
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High document processing latency"
+          description: "Average document processing duration is above 5 minutes"

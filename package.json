@@ -41,5 +41,8 @@
     "@radix-ui/react-switch": "^1.2.6",
     "critters": "^0.0.23",
     "nanoid": "^5.1.6"
+  },
+  "devDependencies": {
+    "shadcn": "^3.5.0"
   }
 }

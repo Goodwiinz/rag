@@ -12,6 +12,7 @@ import {
   EllipsisHorizontalIcon,
   ArrowDownTrayIcon,
   InformationCircleIcon,
+  CheckIcon,
 } from '@heroicons/react/24/outline';
 import { Document } from '@/types';
 import { cn } from '@/lib/utils';
@@ -142,35 +143,25 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   return (
     <div
       className={cn(
-        "relative bg-card border rounded-lg p-4 transition-all duration-200 hover:shadow-md",
-        selected && "ring-2 ring-primary ring-offset-2",
+        "relative bg-card border border-border rounded-lg p-4 transition-all duration-200 hover:shadow-md hover:border-primary/20 group",
+        selected && "ring-1 ring-primary border-primary",
         className
       )}
     >
       {/* Selection Checkbox */}
-      <div className="absolute top-4 left-4">
+      <div className="absolute top-4 left-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 data-[selected=true]:opacity-100" data-selected={selected}>
         <button
-          onClick={handleSelect}
+          onClick={(e) => { e.stopPropagation(); handleSelect(); }}
           className={cn(
-            "h-4 w-4 rounded border-2 transition-colors",
+            "h-5 w-5 rounded border transition-colors flex items-center justify-center",
             selected
-              ? "bg-primary border-primary"
-              : "border-gray-300 hover:border-primary"
+              ? "bg-primary border-primary text-primary-foreground"
+              : "bg-background border-input hover:border-primary"
           )}
           aria-label={selected ? "Deselect document" : "Select document"}
         >
           {selected && (
-            <svg
-              className="h-3 w-3 text-white"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fillRule="evenodd"
-                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                clipRule="evenodd"
-              />
-            </svg>
+            <CheckIcon className="h-3.5 w-3.5" />
           )}
         </button>
       </div>
@@ -183,11 +174,11 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             <img
               src={document.thumbnail_url}
               alt={document.title}
-              className="h-16 w-16 object-cover rounded-lg"
+              className="h-12 w-12 object-cover rounded-md border border-border"
               loading="lazy"
             />
           ) : (
-            <div className="h-16 w-16 bg-muted rounded-lg flex items-center justify-center">
+            <div className="h-12 w-12 bg-muted/50 rounded-md flex items-center justify-center border border-border/50">
               {getFileIcon()}
             </div>
           )}
@@ -197,30 +188,34 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0 pr-2">
-              <h3 className="text-sm font-medium text-foreground truncate mb-1">
+              <h3 className="text-sm font-medium text-foreground truncate mb-0.5" title={document.title}>
                 {document.title}
               </h3>
-              <p className="text-xs text-muted-foreground truncate mb-2">
+              <p className="text-xs text-muted-foreground truncate mb-2 font-mono">
                 {document.filename}
               </p>
 
               {/* Metadata */}
-              <div className="flex items-center space-x-4 text-xs text-muted-foreground">
+              <div className="flex items-center space-x-3 text-[10px] text-muted-foreground uppercase tracking-wide">
                 <span>{formatFileSize(document.file_size)}</span>
+                <span>•</span>
                 <span>{formatDate(document.upload_timestamp)}</span>
                 {getDurationDisplay() && (
-                  <span>{getDurationDisplay()}</span>
+                  <>
+                    <span>•</span>
+                    <span>{getDurationDisplay()}</span>
+                  </>
                 )}
               </div>
 
               {/* Status */}
-              <div className="flex items-center space-x-2 mt-2">
+              <div className="flex items-center space-x-2 mt-2.5">
                 {getStatusIcon()}
                 <span className="text-xs text-muted-foreground">
                   {getStatusText()}
                 </span>
                 {document.processing_error && (
-                  <span className="text-xs text-destructive">
+                  <span className="text-xs text-destructive truncate max-w-[150px]" title={document.processing_error}>
                     • {document.processing_error}
                   </span>
                 )}
@@ -230,39 +225,45 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             {/* Actions Menu */}
             <div className="relative">
               <button
-                onClick={() => setShowActions(!showActions)}
-                className="p-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
+                onClick={(e) => { e.stopPropagation(); setShowActions(!showActions); }}
+                className="p-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
                 aria-label="More options"
               >
-                <EllipsisHorizontalIcon className="h-4 w-4" />
+                <EllipsisHorizontalIcon className="h-5 w-5" />
               </button>
 
               {showActions && (
-                <div className="absolute right-0 top-full mt-1 w-48 bg-popover border rounded-md shadow-lg z-10">
-                  <div className="py-1">
-                    <button
-                      onClick={handlePreview}
-                      className="flex items-center w-full px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
-                    >
-                      <EyeIcon className="h-4 w-4 mr-2" />
-                      Preview
-                    </button>
-                    <button
-                      onClick={handleDownload}
-                      className="flex items-center w-full px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
-                    >
-                      <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                      Download
-                    </button>
-                    <button
-                      onClick={handleDelete}
-                      className="flex items-center w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-                    >
-                      <TrashIcon className="h-4 w-4 mr-2" />
-                      Delete
-                    </button>
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={(e) => { e.stopPropagation(); setShowActions(false); }}
+                  />
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-popover border border-border rounded-md shadow-lg z-20 animate-in fade-in zoom-in-95 duration-100">
+                    <div className="py-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handlePreview(); setShowActions(false); }}
+                        className="flex items-center w-full px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                      >
+                        <EyeIcon className="h-4 w-4 mr-2 text-muted-foreground" />
+                        Preview
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDownload(); setShowActions(false); }}
+                        className="flex items-center w-full px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                      >
+                        <ArrowDownTrayIcon className="h-4 w-4 mr-2 text-muted-foreground" />
+                        Download
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(); setShowActions(false); }}
+                        className="flex items-center w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                      >
+                        <TrashIcon className="h-4 w-4 mr-2" />
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
           </div>
@@ -271,21 +272,13 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
 
       {/* Processing Status (for processing documents) */}
       {showProcessingStatus && (document.processing_status === 'processing' || document.processing_status === 'queued' || document.processing_status === 'failed') && (
-        <div className="mt-4 pt-4 border-t">
+        <div className="mt-3 pt-3 border-t border-border">
           <ProcessingStatus
             document={document}
             compact
             onRetry={onRetry ? () => onRetry(document.id) : undefined}
           />
         </div>
-      )}
-
-      {/* Click outside to close actions menu */}
-      {showActions && (
-        <div
-          className="fixed inset-0 z-0"
-          onClick={() => setShowActions(false)}
-        />
       )}
     </div>
   );

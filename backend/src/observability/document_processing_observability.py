@@ -103,6 +103,11 @@ class SystemHealthMetric:
     error_rate_1m: Optional[float] = None
     avg_response_time_1m: Optional[float] = None
 
+from .prometheus_metrics import PrometheusMetricsCollector
+
+# Global instances
+prometheus_collector = PrometheusMetricsCollector()
+
 class DocumentProcessingObservability:
     """Comprehensive observability for document processing pipeline"""
 
@@ -161,6 +166,16 @@ class DocumentProcessingObservability:
             "file_type": file_type,
             "file_size_tier": self._get_file_size_tier(file_size_bytes)
         })
+
+        # Record Prometheus metrics
+        prometheus_collector.record_document_processing_start(
+            file_type=file_type,
+            user_role="user"  # Default role
+        )
+        prometheus_collector.update_processing_queue_metrics(
+            queue_size=0,  # Need to get actual queue size if available
+            active_jobs=len(self.active_documents)
+        )
 
         # Record business metrics
         business_metrics.track_document_processing(
@@ -302,6 +317,21 @@ class DocumentProcessingObservability:
         if embedding_count > 0:
             otel_manager.record_metric("document_embeddings_generated", embedding_count, labels)
 
+        # Record Prometheus metrics
+        prometheus_collector.record_document_processing_complete(
+            file_type=metric.file_type,
+            status=metric.status.value,
+            duration_seconds=metric.duration_ms / 1000,
+            user_role="user",
+            entities_count=entities_extracted,
+            embeddings_count=embedding_count,
+            file_size_bytes=metric.file_size_bytes
+        )
+        prometheus_collector.update_processing_queue_metrics(
+            queue_size=0,
+            active_jobs=len(self.active_documents)
+        )
+
         # Update business metrics
         if metric.duration_ms and metric.file_size_bytes:
             business_metrics.track_document_processing(
@@ -378,6 +408,23 @@ class DocumentProcessingObservability:
                 "event_type": event_type
             })
 
+        # Record Prometheus metrics
+        if event_type == "connect":
+            prometheus_collector.record_websocket_connection(connected=True)
+        elif event_type == "disconnect":
+            prometheus_collector.record_websocket_connection(connected=False)
+        elif event_type == "message":
+            prometheus_collector.record_websocket_message(
+                message_type="unknown",
+                direction="unknown",
+                status="success" if not error_type else "error",
+                duration_seconds=(latency_ms or 0) / 1000,
+                message_size_bytes=message_size_bytes
+            )
+        
+        if error_type:
+            prometheus_collector.record_websocket_error(error_type=error_type)
+
         # Update business metrics
         business_metrics.track_api_request(
             endpoint="/websocket",
@@ -447,6 +494,19 @@ class DocumentProcessingObservability:
 
             if avg_response_time_1m is not None:
                 otel_manager.record_metric("avg_response_time_1m", avg_response_time_1m)
+            
+            # Record Prometheus metrics
+            # Note: PrometheusMetricsCollector has its own background collection,
+            # but we can sync some application-specific metrics here
+            prometheus_collector.update_processing_queue_metrics(
+                queue_size=0, 
+                active_jobs=processing_jobs_active
+            )
+            prometheus_collector.update_documents_count(
+                status="processing",
+                file_type="all",
+                count=processing_jobs_active
+            )
 
             # Update business metrics
             business_metrics.metrics["memory_usage_bytes"].set(memory.total * (memory.percent / 100))
@@ -564,14 +624,40 @@ class DocumentProcessingObservability:
     async def _send_websocket_update(self, update_type: str, data: Dict[str, Any],
                                    target_users: Optional[List[str]] = None,
                                    target_organizations: Optional[List[str]] = None):
-        """Send WebSocket update to connected clients"""
+        """Send WebSocket update to connected clients via Redis Pub/Sub"""
         try:
-            # This would integrate with the existing WebSocket manager
-            # For now, just log the update that would be sent
-            logger.info(f"WebSocket update: {update_type} -> {data}")
+            from ..websocket.redis_integration import get_websocket_redis_manager
+            
+            redis_manager = get_websocket_redis_manager()
+            if not redis_manager or not redis_manager._redis_client:
+                # If redis manager is not initialized (e.g. in tests or standalone scripts),
+                # we just log the update
+                logger.debug(f"Redis manager not available, skipping WebSocket update: {update_type}")
+                return
 
-            # In a real implementation, this would call:
-            # await websocket_manager.broadcast_update(update_type, data, target_users, target_organizations)
+            # Construct message for document_processing_events channel
+            # This matches the format expected by setup_document_processing_listeners in server.py
+            event_data = {
+                "type": "document_status_change",
+                "data": {
+                    "document_id": data.get("document_id"),
+                    "user_id": target_users[0] if target_users else None,
+                    "organization_id": target_organizations[0] if target_organizations else None,
+                    "status": data.get("status"),
+                    "metadata": {
+                        "update_type": update_type,
+                        "progress_percentage": data.get("progress_percentage"),
+                        "stage": data.get("stage"),
+                        "additional_data": data.get("additional_data"),
+                        "error_message": data.get("error_message"),
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                }
+            }
+
+            # Publish to Redis
+            await redis_manager.publish("document_processing_events", event_data)
+            logger.debug(f"Published WebSocket update: {update_type} -> {data.get('document_id')}")
 
         except Exception as e:
             logger.error(f"Failed to send WebSocket update: {e}")
@@ -590,6 +676,13 @@ class DocumentProcessingObservability:
         self._monitoring_tasks.append(
             asyncio.create_task(self._cleanup_metrics_loop())
         )
+        
+        # Start Prometheus metrics server
+        try:
+            prometheus_collector.start_metrics_server(port=8002)
+            await prometheus_collector.start_background_collection()
+        except Exception as e:
+            logger.warning(f"Failed to start Prometheus metrics server: {e}")
 
         logger.info("Started observability monitoring tasks")
 

@@ -1,0 +1,62 @@
+{
+    "id": null,
+    "title": "Real-Time Status",
+    "tags": [
+        "real-time",
+        "websocket",
+        "document-processing"
+    ],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+        {
+            "id": 1,
+            "title": "Active WebSocket Connections",
+            "type": "stat",
+            "targets": [
+                {
+                    "expr": "websocket_connections_active",
+                    "legendFormat": "Active Connections"
+                }
+            ]
+        },
+        {
+            "id": 2,
+            "title": "Active Processing Jobs",
+            "type": "stat",
+            "targets": [
+                {
+                    "expr": "document_processing_active_jobs",
+                    "legendFormat": "Active Jobs"
+                }
+            ]
+        },
+        {
+            "id": 3,
+            "title": "Document Processing Rate",
+            "type": "graph",
+            "targets": [
+                {
+                    "expr": "rate(document_processing_total[5m])",
+                    "legendFormat": "Documents/sec"
+                }
+            ]
+        },
+        {
+            "id": 4,
+            "title": "Processing Duration",
+            "type": "graph",
+            "targets": [
+                {
+                    "expr": "rate(document_processing_duration_seconds_sum[5m]) / rate(document_processing_duration_seconds_count[5m])",
+                    "legendFormat": "Avg Duration (s)"
+                }
+            ]
+        }
+    ],
+    "time": {
+        "from": "now-1h",
+        "to": "now"
+    },
+    "refresh": "5s"
+}

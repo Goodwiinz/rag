@@ -96,7 +96,7 @@ class GraphService {
    */
   async getGraphData(request: GraphDataRequest): Promise<KnowledgeGraphData> {
     const response = await apiClient.post<KnowledgeGraphData>(
-      `${this.visualizationUrl}/api/v1/graph/comprehensive`,
+      `${this.visualizationUrl}/graph/comprehensive`,
       request
     );
     return response.data;
@@ -125,7 +125,7 @@ class GraphService {
     }
   ): Promise<EntityDetails> {
     const response = await apiClient.get<EntityDetails>(
-      `${this.baseUrl}/api/v1/entities/${entityId}`,
+      `${this.baseUrl}/entities/${entityId}`,
       { params: options }
     );
     return response.data;
@@ -147,7 +147,7 @@ class GraphService {
       search_time: number;
       ranking_metadata: Record<string, any>;
     }>(
-      `${this.baseUrl}/api/v1/entities/search`,
+      `${this.baseUrl}/entities/search`,
       request
     );
     return response.data;
@@ -159,7 +159,7 @@ class GraphService {
    */
   async getAnalyticsDashboard(request: AnalyticsRequest): Promise<GraphAnalyticsDashboard> {
     const response = await apiClient.post<GraphAnalyticsDashboard>(
-      `${this.analyticsUrl}/api/v1/analytics/comprehensive`,
+      `${this.analyticsUrl}/analytics/comprehensive`,
       request
     );
     return response.data;
@@ -184,7 +184,7 @@ class GraphService {
     }
   ): Promise<KnowledgeGraphData> {
     const response = await apiClient.post<KnowledgeGraphData>(
-      `${this.visualizationUrl}/api/v1/neighborhood`,
+      `${this.visualizationUrl}/neighborhood`,
       { node_id: nodeId, ...options }
     );
     return response.data;
@@ -216,7 +216,7 @@ class GraphService {
         weight: number;
       }>;
     }>(
-      `${this.analyticsUrl}/api/v1/pathfinding/shortest`,
+      `${this.analyticsUrl}/pathfinding/shortest`,
       {
         source_id: sourceId,
         target_id: targetId,
@@ -260,7 +260,7 @@ class GraphService {
         conductance?: number;
       };
     }>(
-      `${this.analyticsUrl}/api/v1/communities/detect`,
+      `${this.analyticsUrl}/communities/detect`,
       options
     );
     return response.data;
@@ -283,7 +283,7 @@ class GraphService {
     }
   ): Promise<RelatedEntity[]> {
     const response = await apiClient.post<RelatedEntity[]>(
-      `${this.analyticsUrl}/api/v1/entities/${entityId}/related`,
+      `${this.analyticsUrl}/entities/${entityId}/related`,
       options
     );
     return response.data;
@@ -295,7 +295,7 @@ class GraphService {
    */
   async exportGraph(options: GraphExportOptions): Promise<Blob> {
     const response = await apiClient.post(
-      `${this.baseUrl}/api/v1/export`,
+      `${this.baseUrl}/export`,
       options,
       { responseType: 'blob' }
     );
@@ -308,7 +308,7 @@ class GraphService {
    */
   async getPerformanceMetrics(): Promise<PerformanceMetrics> {
     const response = await apiClient.get<PerformanceMetrics>(
-      `${this.analyticsUrl}/api/v1/performance/metrics`
+      `${this.analyticsUrl}/performance/metrics`
     );
     return response.data;
   }
@@ -337,7 +337,7 @@ class GraphService {
       warnings: Array<{ id: string; warning: string }>;
       operation_id: string;
     }>(
-      `${this.baseUrl}/api/v1/entities/batch`,
+      `${this.baseUrl}/entities/batch`,
       {
         operation,
         entity_ids: entityIds,
@@ -375,7 +375,7 @@ class GraphService {
       largest_component_size: number;
       update_timestamp: string;
     }>(
-      `${this.analyticsUrl}/api/v1/summary`,
+      `${this.analyticsUrl}/summary`,
       { filters }
     );
     return response.data;
@@ -432,7 +432,7 @@ class GraphService {
       }>;
       validation_time: number;
     }>(
-      `${this.baseUrl}/api/v1/validate`,
+      `${this.baseUrl}/validate`,
       { entity_ids: entityIds }
     );
     return response.data;

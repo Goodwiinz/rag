@@ -61,7 +61,7 @@ export class TypeSafeAPIClient {
     schema: ZodSchema<T>,
     options: RequestConfig = {}
   ): Promise<TypedResponse<T>> {
-    const url = `${this.baseURL}/api/v1${endpoint}`;
+    const url = `${this.baseURL}${endpoint}`;
 
     const headers = {
       ...DEFAULT_HEADERS,

@@ -57,7 +57,7 @@ export class RAGAPIClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseURL}/api/v1${endpoint}`;
+    const url = `${this.baseURL}${endpoint}`;
 
     const headers = {
       ...DEFAULT_HEADERS,
