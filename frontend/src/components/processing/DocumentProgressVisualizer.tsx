@@ -388,10 +388,10 @@ const StageDetails: React.FC<StageDetailsProps> = ({
 }) => {
   return (
     <motion.div
-      className="p-3 rounded-lg border"
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       className={cn(
+        'p-3 rounded-lg border',
         'border-gray-200',
         isActive ? 'bg-blue-50 border-blue-200' :
         isCompleted ? 'bg-green-50 border-green-200' : 'bg-gray-50'
