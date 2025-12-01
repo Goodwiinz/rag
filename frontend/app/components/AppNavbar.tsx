@@ -2,46 +2,74 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { Navbar02 } from '@/components/ui/shadcn-io/navbar-02';
+import type { Navbar02NavItem } from '@/components/ui/shadcn-io/navbar-02';
 import { useRouter } from 'next/navigation';
-import { 
-  Home,
-  Search, 
-  MessageSquare, 
-  FileText, 
-  LayoutGrid,
-  BarChart
-} from 'lucide-react';
 
 export function AppNavbar() {
   const { isAuthenticated, logout } = useAuth();
   const router = useRouter();
 
-  const navLinks = [
+  const workspaceItems: Navbar02NavItem['items'] = [
+    {
+      href: '/search',
+      label: 'Semantic Search',
+      icon: 'Search',
+      description: 'Ask complex questions and retrieve answers with semantic understanding.'
+    },
+    {
+      href: '/llm-chat',
+      label: 'AI Chat Assistant',
+      icon: 'MessageSquare',
+      description: 'Chat with browser-hosted LLMs to synthesize insights from your corpus.'
+    },
+    {
+      href: '/documents/upload',
+      label: 'Document Upload',
+      icon: 'FileText',
+      description: 'Ingest PDFs, images, audio, and video into your knowledge base.'
+    }
+  ];
+
+  const accountItems: Navbar02NavItem['items'] = isAuthenticated
+    ? [
+        {
+          href: '/documents/upload',
+          label: 'Workspace Hub',
+          icon: 'Upload',
+          description: 'Jump directly into managing and monitoring your documents.'
+        }
+      ]
+    : [
+        {
+          href: '/login',
+          label: 'Sign In',
+          icon: 'LogIn',
+          description: 'Access your existing workspace and continue where you left off.'
+        },
+        {
+          href: '/register',
+          label: 'Create Account',
+          icon: 'UserPlus',
+          description: 'Set up a new organization workspace in minutes.'
+        }
+      ];
+
+  const navLinks: Navbar02NavItem[] = [
     { href: '/', label: 'Home' },
     {
-      label: 'Features',
+      label: 'Workspace',
       submenu: true,
-      type: 'icon' as const,
-      items: [
-        { 
-          href: '/search', 
-          label: 'Semantic Search', 
-          icon: 'BookOpenIcon', 
-          description: 'Find information across documents using AI-powered vector search.' 
-        },
-        { 
-          href: '/llm-chat', 
-          label: 'AI Chat Assistant', 
-          icon: 'LifeBuoyIcon', 
-          description: 'Chat with your documents using local LLMs like Llama 3.2.' 
-        },
-        { 
-          href: '/documents', 
-          label: 'Knowledge Graph', 
-          icon: 'InfoIcon', 
-          description: 'Visualize connections and entities within your knowledge base.' 
-        },
-      ],
+      type: 'icon',
+      items: workspaceItems
+    },
+    ...(isAuthenticated
+      ? []
+      : [{ href: '/register', label: 'Get Started' as const }]),
+    {
+      label: 'Account',
+      submenu: true,
+      type: 'icon',
+      items: accountItems
     }
   ];
 
@@ -58,12 +86,12 @@ export function AppNavbar() {
         </div>
       }
       logoHref="/"
-      ctaText={isAuthenticated ? "Dashboard" : "Get Started"}
-      ctaHref={isAuthenticated ? "/documents" : "/register"}
+      ctaText={isAuthenticated ? "Workspace" : "Get Started"}
+      ctaHref={isAuthenticated ? "/documents/upload" : "/register"}
       signInText={isAuthenticated ? "Sign Out" : "Login"}
       signInHref={isAuthenticated ? "#" : "/login"}
       onSignInClick={isAuthenticated ? logout : () => router.push('/login')}
-      onCtaClick={() => router.push(isAuthenticated ? '/documents' : '/register')}
+      onCtaClick={() => router.push(isAuthenticated ? '/documents/upload' : '/register')}
       navigationLinks={navLinks}
     />
   );
