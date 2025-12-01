@@ -5,7 +5,6 @@ import '@testing-library/jest-dom';
 try {
   // @ts-ignore
   if (typeof (global as any).TransformStream === 'undefined') {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const WebStream = require('node:stream/web');
     (global as any).TransformStream = WebStream.TransformStream || class {};
   }
