@@ -2,7 +2,18 @@
 
 import * as React from 'react';
 import { useEffect, useState, useRef } from 'react';
-import { BookOpenIcon, InfoIcon, LifeBuoyIcon } from 'lucide-react';
+import Link from 'next/link';
+import {
+  BookOpen,
+  FileText,
+  Info,
+  LifeBuoy,
+  LogIn,
+  MessageSquare,
+  Search,
+  Upload,
+  UserPlus,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   NavigationMenu,
@@ -144,9 +155,9 @@ const defaultNavigationLinks: Navbar02NavItem[] = [
     submenu: true,
     type: 'icon',
     items: [
-      { href: '#getting-started', label: 'Getting Started', icon: 'BookOpenIcon' },
-      { href: '#tutorials', label: 'Tutorials', icon: 'LifeBuoyIcon' },
-      { href: '#about-us', label: 'About Us', icon: 'InfoIcon' },
+      { href: '#getting-started', label: 'Getting Started', icon: 'BookOpen' },
+      { href: '#tutorials', label: 'Tutorials', icon: 'LifeBuoy' },
+      { href: '#about-us', label: 'About Us', icon: 'Info' },
     ],
   },
 ];
@@ -201,19 +212,6 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
       }
     }, [ref]);
 
-    const renderIcon = (iconName: string) => {
-      switch (iconName) {
-        case 'BookOpenIcon':
-          return <BookOpenIcon size={16} className="text-foreground opacity-60" aria-hidden={true} />;
-        case 'LifeBuoyIcon':
-          return <LifeBuoyIcon size={16} className="text-foreground opacity-60" aria-hidden={true} />;
-        case 'InfoIcon':
-          return <InfoIcon size={16} className="text-foreground opacity-60" aria-hidden={true} />;
-        default:
-          return null;
-      }
-    };
-
     return (
       <header
         ref={combinedRef}
@@ -251,23 +249,23 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
                               <ul>
                                 {link.items?.map((item, itemIndex) => (
                                   <li key={itemIndex}>
-                                    <button
-                                      onClick={(e) => e.preventDefault()}
+                                    <Link
+                                      href={item.href}
                                       className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground cursor-pointer no-underline"
                                     >
                                       {item.label}
-                                    </button>
+                                    </Link>
                                   </li>
                                 ))}
                               </ul>
                             </>
                           ) : (
-                            <button
-                              onClick={(e) => e.preventDefault()}
+                            <Link
+                              href={link.href ?? '#'}
                               className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground cursor-pointer no-underline"
                             >
                               {link.label}
-                            </button>
+                            </Link>
                           )}
                           {/* Add separator between different types of items */}
                           {index < navigationLinks.length - 1 &&
@@ -291,14 +289,14 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
             )}
             {/* Main nav */}
             <div className="flex items-center gap-6">
-              <a 
+              <Link
                 href={logoHref}
                 className="flex items-center space-x-2 text-primary hover:text-primary/90 transition-colors cursor-pointer"
               >
                 <div className="text-2xl">
                   {logo}
                 </div>
-              </a>
+              </Link>
               {/* Navigation menu */}
               {!isMobile && (
                 <NavigationMenu className="flex">
@@ -315,18 +313,18 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
                             <div className="grid gap-3 p-4 md:w-[400px] lg:w-[500px] lg:grid-cols-[.75fr_1fr]">
                               <div className="row-span-3">
                                 <NavigationMenuLink asChild>
-                                  <a
+                                  <Link
                                     href="/search"
                                     className="flex h-full w-full select-none flex-col justify-end rounded-md bg-gradient-to-b from-muted/50 to-muted p-6 no-underline outline-none focus:shadow-md cursor-pointer hover:bg-muted/80 transition-colors"
                                   >
-                                    <BookOpenIcon className="h-6 w-6 mb-2 opacity-70" />
+                                    <BookOpen className="h-6 w-6 mb-2 opacity-70" aria-hidden={true} />
                                     <div className="mb-2 text-lg font-medium">
                                       Enterprise RAG
                                     </div>
                                     <p className="text-sm leading-tight text-muted-foreground">
                                       Advanced retrieval-augmented generation with multimodal support.
                                     </p>
-                                  </a>
+                                  </Link>
                                 </NavigationMenuLink>
                               </div>
                               <div className="flex flex-col gap-2">
@@ -387,12 +385,13 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
                         </NavigationMenuContent>
                       </>
                     ) : (
-                      <NavigationMenuLink
-                        href={link.href}
-                        className={cn(navigationMenuTriggerStyle(), 'cursor-pointer')}
-                        onClick={(e) => e.preventDefault()}
-                      >
-                        {link.label}
+                      <NavigationMenuLink asChild>
+                        <Link
+                          href={link.href ?? '#'}
+                          className={cn(navigationMenuTriggerStyle(), 'cursor-pointer')}
+                        >
+                          {link.label}
+                        </Link>
                       </NavigationMenuLink>
                     )}
                   </NavigationMenuItem>
@@ -437,23 +436,44 @@ Navbar02.displayName = 'Navbar02';
 // ListItem component for navigation menu items
 const ListItem = React.forwardRef<
   React.ElementRef<'a'>,
-  React.ComponentPropsWithoutRef<'a'> & {
+  Omit<React.ComponentPropsWithoutRef<typeof Link>, 'href'> & {
     title: string;
     href?: string;
     icon?: string;
     type?: 'description' | 'simple' | 'icon';
     children?: React.ReactNode;
   }
->(({ className, title, children, icon, type, ...props }, ref) => {
+>(({ className, title, children, icon, type, href = '#', ...props }, ref) => {
   const renderIconComponent = (iconName?: string) => {
     if (!iconName) return null;
     switch (iconName) {
+      case 'BookOpen':
       case 'BookOpenIcon':
-        return <BookOpenIcon className="h-5 w-5" />;
+        return <BookOpen className="h-5 w-5" aria-hidden={true} />;
+      case 'LifeBuoy':
       case 'LifeBuoyIcon':
-        return <LifeBuoyIcon className="h-5 w-5" />;
+        return <LifeBuoy className="h-5 w-5" aria-hidden={true} />;
+      case 'Info':
       case 'InfoIcon':
-        return <InfoIcon className="h-5 w-5" />;
+        return <Info className="h-5 w-5" aria-hidden={true} />;
+      case 'Search':
+      case 'SearchIcon':
+        return <Search className="h-5 w-5" aria-hidden={true} />;
+      case 'MessageSquare':
+      case 'MessageSquareIcon':
+        return <MessageSquare className="h-5 w-5" aria-hidden={true} />;
+      case 'FileText':
+      case 'FileTextIcon':
+        return <FileText className="h-5 w-5" aria-hidden={true} />;
+      case 'Upload':
+      case 'UploadIcon':
+        return <Upload className="h-5 w-5" aria-hidden={true} />;
+      case 'LogIn':
+      case 'LogInIcon':
+        return <LogIn className="h-5 w-5" aria-hidden={true} />;
+      case 'UserPlus':
+      case 'UserPlusIcon':
+        return <UserPlus className="h-5 w-5" aria-hidden={true} />;
       default:
         return null;
     }
@@ -461,9 +481,9 @@ const ListItem = React.forwardRef<
 
   return (
     <NavigationMenuLink asChild>
-      <a
+      <Link
         ref={ref}
-        onClick={(e) => e.preventDefault()}
+        href={href}
         className={cn(
           'block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground cursor-pointer',
           className
@@ -494,7 +514,7 @@ const ListItem = React.forwardRef<
             )}
           </>
         )}
-      </a>
+      </Link>
     </NavigationMenuLink>
   );
 });
