@@ -25,12 +25,13 @@ import {
   navigationMenuTriggerStyle,
 } from '@/components/ui/navigation-menu';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import type { ComponentProps } from 'react';
 
 // Simple logo component for the navbar
 const Logo = (props: React.SVGAttributes<SVGElement>) => {
@@ -62,8 +63,8 @@ const Logo = (props: React.SVGAttributes<SVGElement>) => {
 const HamburgerIcon = ({ className, ...props }: React.SVGAttributes<SVGElement>) => (
   <svg
     className={cn('pointer-events-none', className)}
-    width={16}
-    height={16}
+    width={24}
+    height={24}
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
@@ -73,18 +74,9 @@ const HamburgerIcon = ({ className, ...props }: React.SVGAttributes<SVGElement>)
     xmlns="http://www.w3.org/2000/svg"
     {...props}
   >
-    <path
-      d="M4 12L20 12"
-      className="origin-center -translate-y-[7px] transition-all duration-300 ease-[cubic-bezier(.5,.85,.25,1.1)] group-aria-expanded:translate-x-0 group-aria-expanded:translate-y-0 group-aria-expanded:rotate-[315deg]"
-    />
-    <path
-      d="M4 12H20"
-      className="origin-center transition-all duration-300 ease-[cubic-bezier(.5,.85,.25,1.8)] group-aria-expanded:rotate-45"
-    />
-    <path
-      d="M4 12H20"
-      className="origin-center translate-y-[7px] transition-all duration-300 ease-[cubic-bezier(.5,.85,.25,1.1)] group-aria-expanded:translate-y-0 group-aria-expanded:rotate-[135deg]"
-    />
+    <line x1="4" x2="20" y1="12" y2="12" />
+    <line x1="4" x2="20" y1="6" y2="6" />
+    <line x1="4" x2="20" y1="18" y2="18" />
   </svg>
 );
 
@@ -114,52 +106,9 @@ export interface Navbar02Props extends React.HTMLAttributes<HTMLElement> {
   onCtaClick?: () => void;
 }
 
-// Default navigation links
+// Default navigation links (placeholder)
 const defaultNavigationLinks: Navbar02NavItem[] = [
   { href: '#', label: 'Home' },
-  {
-    label: 'Features',
-    submenu: true,
-    type: 'description',
-    items: [
-      {
-        href: '#components',
-        label: 'Components',
-        description: 'Browse all components in the library.',
-      },
-      {
-        href: '#documentation',
-        label: 'Documentation',
-        description: 'Learn how to use the library.',
-      },
-      {
-        href: '#templates',
-        label: 'Templates',
-        description: 'Pre-built layouts for common use cases.',
-      },
-    ],
-  },
-  {
-    label: 'Pricing',
-    submenu: true,
-    type: 'simple',
-    items: [
-      { href: '#product-a', label: 'Product A' },
-      { href: '#product-b', label: 'Product B' },
-      { href: '#product-c', label: 'Product C' },
-      { href: '#product-d', label: 'Product D' },
-    ],
-  },
-  {
-    label: 'About',
-    submenu: true,
-    type: 'icon',
-    items: [
-      { href: '#getting-started', label: 'Getting Started', icon: 'BookOpen' },
-      { href: '#tutorials', label: 'Tutorials', icon: 'LifeBuoy' },
-      { href: '#about-us', label: 'About Us', icon: 'Info' },
-    ],
-  },
 ];
 
 export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
@@ -216,214 +165,242 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
       <header
         ref={combinedRef}
         className={cn(
-          'sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 md:px-6 [&_*]:no-underline',
+          'sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-lg transition-all duration-200',
+          'px-4 md:px-6 [&_*]:no-underline',
           className
         )}
         {...props}
       >
-        <div className="container mx-auto flex h-16 max-w-screen-2xl items-center justify-between gap-4">
+        <div className="container mx-auto flex h-14 md:h-16 max-w-screen-2xl items-center justify-between gap-4">
           {/* Left side */}
           <div className="flex items-center gap-2">
             {/* Mobile menu trigger */}
             {isMobile && (
-              <Popover>
-                <PopoverTrigger asChild>
+              <Sheet>
+                <SheetTrigger asChild>
                   <Button
-                    className="group h-9 w-9 hover:bg-accent hover:text-accent-foreground"
+                    className="h-9 w-9 shrink-0 md:hidden"
                     variant="ghost"
                     size="icon"
                   >
                     <HamburgerIcon />
+                    <span className="sr-only">Toggle navigation menu</span>
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-64 p-1">
-                  <NavigationMenu className="max-w-none">
-                    <NavigationMenuList className="flex-col items-start gap-0">
+                </SheetTrigger>
+                <SheetContent side="left" className="w-[300px] sm:w-[400px] pr-0">
+                  <SheetHeader className="px-1 pb-4 text-left">
+                    <SheetTitle className="flex items-center gap-2">
+                      <div className="text-xl font-bold">{logo}</div>
+                    </SheetTitle>
+                  </SheetHeader>
+                  <div className="flex flex-col gap-4 py-4 pr-6 h-full overflow-y-auto">
+                    <nav className="flex flex-col gap-1">
                       {navigationLinks.map((link, index) => (
-                        <NavigationMenuItem key={index} className="w-full">
+                        <div key={index} className="flex flex-col gap-2 py-2">
                           {link.submenu ? (
                             <>
-                              <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
+                              <div className="font-medium text-sm text-muted-foreground px-2">
                                 {link.label}
                               </div>
-                              <ul>
+                              <div className="flex flex-col gap-1 pl-2 border-l ml-2">
                                 {link.items?.map((item, itemIndex) => (
-                                  <li key={itemIndex}>
-                                    <Link
-                                      href={item.href}
-                                      className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground cursor-pointer no-underline"
-                                    >
-                                      {item.label}
-                                    </Link>
-                                  </li>
+                                  <Link
+                                    key={itemIndex}
+                                    href={item.href}
+                                    className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground text-foreground/80"
+                                  >
+                                    {item.icon && (
+                                      <span className="mr-2 opacity-70">
+                                        {/* Simple icon render for mobile if needed, keeping it text-based mostly for clean layout */}
+                                      </span>
+                                    )}
+                                    {item.label}
+                                  </Link>
                                 ))}
-                              </ul>
+                              </div>
                             </>
                           ) : (
                             <Link
                               href={link.href ?? '#'}
-                              className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground cursor-pointer no-underline"
+                              className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
                             >
                               {link.label}
                             </Link>
                           )}
-                          {/* Add separator between different types of items */}
-                          {index < navigationLinks.length - 1 &&
-                            ((!link.submenu && navigationLinks[index + 1].submenu) ||
-                              (link.submenu && !navigationLinks[index + 1].submenu) ||
-                              (link.submenu &&
-                                navigationLinks[index + 1].submenu &&
-                                link.type !== navigationLinks[index + 1].type)) && (
-                              <div
-                                role="separator"
-                                aria-orientation="horizontal"
-                                className="bg-border -mx-1 my-1 h-px w-full"
-                              />
-                            )}
-                        </NavigationMenuItem>
+                        </div>
                       ))}
-                    </NavigationMenuList>
-                  </NavigationMenu>
-                </PopoverContent>
-              </Popover>
+                    </nav>
+                    <div className="mt-auto border-t pt-6 flex flex-col gap-3">
+                       <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (onSignInClick) onSignInClick();
+                        }}
+                      >
+                        <LogIn className="mr-2 h-4 w-4" />
+                        {signInText}
+                      </Button>
+                      <Button
+                        className="w-full justify-start"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (onCtaClick) onCtaClick();
+                        }}
+                      >
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        {ctaText}
+                      </Button>
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
             )}
-            {/* Main nav */}
-            <div className="flex items-center gap-6">
-              <Link
-                href={logoHref}
-                className="flex items-center space-x-2 text-primary hover:text-primary/90 transition-colors cursor-pointer"
-              >
-                <div className="text-2xl">
-                  {logo}
-                </div>
-              </Link>
-              {/* Navigation menu */}
-              {!isMobile && (
-                <NavigationMenu className="flex">
-                  <NavigationMenuList className="gap-1">
-                {navigationLinks.map((link, index) => (
-                  <NavigationMenuItem key={index}>
-                    {link.submenu ? (
-                      <>
-                        <NavigationMenuTrigger>
-                          {link.label}
-                        </NavigationMenuTrigger>
-                        <NavigationMenuContent>
-                          {link.type === 'description' && link.label === 'Features' ? (
-                            <div className="grid gap-3 p-4 md:w-[400px] lg:w-[500px] lg:grid-cols-[.75fr_1fr]">
-                              <div className="row-span-3">
-                                <NavigationMenuLink asChild>
-                                  <Link
-                                    href="/search"
-                                    className="flex h-full w-full select-none flex-col justify-end rounded-md bg-gradient-to-b from-muted/50 to-muted p-6 no-underline outline-none focus:shadow-md cursor-pointer hover:bg-muted/80 transition-colors"
-                                  >
-                                    <BookOpen className="h-6 w-6 mb-2 opacity-70" aria-hidden={true} />
-                                    <div className="mb-2 text-lg font-medium">
-                                      Enterprise RAG
-                                    </div>
-                                    <p className="text-sm leading-tight text-muted-foreground">
-                                      Advanced retrieval-augmented generation with multimodal support.
-                                    </p>
-                                  </Link>
-                                </NavigationMenuLink>
-                              </div>
-                              <div className="flex flex-col gap-2">
+
+            {/* Desktop Logo */}
+            <Link
+              href={logoHref}
+              className="flex items-center space-x-2 text-primary hover:text-primary/90 transition-colors cursor-pointer mr-4"
+            >
+              <div className="text-2xl flex items-center justify-center">
+                {logo}
+              </div>
+            </Link>
+
+            {/* Desktop Navigation */}
+            {!isMobile && (
+              <NavigationMenu className="hidden md:flex">
+                <NavigationMenuList className="gap-1">
+                  {navigationLinks.map((link, index) => (
+                    <NavigationMenuItem key={index}>
+                      {link.submenu ? (
+                        <>
+                          <NavigationMenuTrigger className="text-sm font-medium bg-transparent hover:bg-accent focus:bg-accent data-[state=open]:bg-accent/50 transition-colors h-9 px-4 py-2">
+                            {link.label}
+                          </NavigationMenuTrigger>
+                          <NavigationMenuContent>
+                            {/* Mega Menu Layouts */}
+                            {link.type === 'description' && link.label === 'Features' ? (
+                              <ul className="grid gap-3 p-4 md:w-[400px] lg:w-[500px] lg:grid-cols-[.75fr_1fr]">
+                                <li className="row-span-3">
+                                  <NavigationMenuLink asChild>
+                                    <Link
+                                      href="/search"
+                                      className="flex h-full w-full select-none flex-col justify-end rounded-md bg-gradient-to-b from-muted/50 to-muted p-6 no-underline outline-none focus:shadow-md cursor-pointer hover:bg-muted/80 transition-colors group"
+                                    >
+                                      <BookOpen className="h-6 w-6 mb-2 opacity-70 group-hover:opacity-100 transition-opacity" aria-hidden={true} />
+                                      <div className="mb-2 text-lg font-medium">
+                                        Enterprise RAG
+                                      </div>
+                                      <p className="text-sm leading-tight text-muted-foreground">
+                                        Advanced retrieval-augmented generation with multimodal support.
+                                      </p>
+                                    </Link>
+                                  </NavigationMenuLink>
+                                </li>
+                                <div className="flex flex-col gap-2">
+                                  {link.items?.map((item, itemIndex) => (
+                                    <ListItem
+                                      key={itemIndex}
+                                      title={item.label}
+                                      href={item.href}
+                                      type={link.type}
+                                      icon={item.icon}
+                                    >
+                                      {item.description}
+                                    </ListItem>
+                                  ))}
+                                </div>
+                              </ul>
+                            ) : link.type === 'simple' ? (
+                              <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
                                 {link.items?.map((item, itemIndex) => (
                                   <ListItem
                                     key={itemIndex}
                                     title={item.label}
                                     href={item.href}
                                     type={link.type}
-                                    icon={item.icon}
                                   >
                                     {item.description}
                                   </ListItem>
                                 ))}
-                              </div>
-                            </div>
-                          ) : link.type === 'simple' ? (
-                            <div className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
-                              {link.items?.map((item, itemIndex) => (
-                                <ListItem
-                                  key={itemIndex}
-                                  title={item.label}
-                                  href={item.href}
-                                  type={link.type}
-                                >
-                                  {item.description}
-                                </ListItem>
-                              ))}
-                            </div>
-                          ) : link.type === 'icon' ? (
-                            <div className="grid w-[400px] gap-3 p-4">
-                              {link.items?.map((item, itemIndex) => (
-                                <ListItem
-                                  key={itemIndex}
-                                  title={item.label}
-                                  href={item.href}
-                                  icon={item.icon}
-                                  type={link.type}
-                                >
-                                  {item.description}
-                                </ListItem>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="grid gap-3 p-4">
-                              {link.items?.map((item, itemIndex) => (
-                                <ListItem
-                                  key={itemIndex}
-                                  title={item.label}
-                                  href={item.href}
-                                  type={link.type}
-                                >
-                                  {item.description}
-                                </ListItem>
-                              ))}
-                            </div>
-                          )}
-                        </NavigationMenuContent>
-                      </>
-                    ) : (
-                      <NavigationMenuLink asChild>
-                        <Link
-                          href={link.href ?? '#'}
-                          className={cn(navigationMenuTriggerStyle(), 'cursor-pointer')}
-                        >
-                          {link.label}
-                        </Link>
-                      </NavigationMenuLink>
-                    )}
-                  </NavigationMenuItem>
-                ))}
+                              </ul>
+                            ) : link.type === 'icon' ? (
+                              <ul className="grid w-[400px] gap-3 p-4">
+                                {link.items?.map((item, itemIndex) => (
+                                  <ListItem
+                                    key={itemIndex}
+                                    title={item.label}
+                                    href={item.href}
+                                    icon={item.icon}
+                                    type={link.type}
+                                  >
+                                    {item.description}
+                                  </ListItem>
+                                ))}
+                              </ul>
+                            ) : (
+                              <ul className="grid gap-3 p-4 w-[400px]">
+                                {link.items?.map((item, itemIndex) => (
+                                  <ListItem
+                                    key={itemIndex}
+                                    title={item.label}
+                                    href={item.href}
+                                    type={link.type}
+                                  >
+                                    {item.description}
+                                  </ListItem>
+                                ))}
+                              </ul>
+                            )}
+                          </NavigationMenuContent>
+                        </>
+                      ) : (
+                        <NavigationMenuLink asChild>
+                          <Link
+                            href={link.href ?? '#'}
+                            className={cn(
+                              navigationMenuTriggerStyle(),
+                              'text-sm font-medium bg-transparent hover:bg-accent focus:bg-accent h-9 px-4 py-2 cursor-pointer'
+                            )}
+                          >
+                            {link.label}
+                          </Link>
+                        </NavigationMenuLink>
+                      )}
+                    </NavigationMenuItem>
+                  ))}
                 </NavigationMenuList>
-                </NavigationMenu>
-              )}
-            </div>
+              </NavigationMenu>
+            )}
           </div>
+
           {/* Right side */}
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-sm font-medium hover:bg-accent hover:text-accent-foreground"
-              onClick={(e) => {
-                e.preventDefault();
-                if (onSignInClick) onSignInClick();
-              }}
-            >
-              {signInText}
-            </Button>
-            <Button
-              size="sm"
-              className="text-sm font-medium px-4 h-9 rounded-md shadow-sm"
-              onClick={(e) => {
-                e.preventDefault();
-                if (onCtaClick) onCtaClick();
-              }}
-            >
-              {ctaText}
-            </Button>
+          <div className="flex items-center gap-2 md:gap-4">
+            <div className="hidden md:flex items-center gap-2">
+                <Button
+                variant="ghost"
+                size="sm"
+                className="text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                onClick={(e) => {
+                    e.preventDefault();
+                    if (onSignInClick) onSignInClick();
+                }}
+                >
+                {signInText}
+                </Button>
+                <Button
+                size="sm"
+                className="text-sm font-medium px-5 h-9 rounded-md shadow-sm transition-all hover:shadow-md active:scale-95"
+                onClick={(e) => {
+                    e.preventDefault();
+                    if (onCtaClick) onCtaClick();
+                }}
+                >
+                {ctaText}
+                </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -447,75 +424,58 @@ const ListItem = React.forwardRef<
   const renderIconComponent = (iconName?: string) => {
     if (!iconName) return null;
     switch (iconName) {
-      case 'BookOpen':
-      case 'BookOpenIcon':
-        return <BookOpen className="h-5 w-5" aria-hidden={true} />;
-      case 'LifeBuoy':
-      case 'LifeBuoyIcon':
-        return <LifeBuoy className="h-5 w-5" aria-hidden={true} />;
-      case 'Info':
-      case 'InfoIcon':
-        return <Info className="h-5 w-5" aria-hidden={true} />;
-      case 'Search':
-      case 'SearchIcon':
-        return <Search className="h-5 w-5" aria-hidden={true} />;
-      case 'MessageSquare':
-      case 'MessageSquareIcon':
-        return <MessageSquare className="h-5 w-5" aria-hidden={true} />;
-      case 'FileText':
-      case 'FileTextIcon':
-        return <FileText className="h-5 w-5" aria-hidden={true} />;
-      case 'Upload':
-      case 'UploadIcon':
-        return <Upload className="h-5 w-5" aria-hidden={true} />;
-      case 'LogIn':
-      case 'LogInIcon':
-        return <LogIn className="h-5 w-5" aria-hidden={true} />;
-      case 'UserPlus':
-      case 'UserPlusIcon':
-        return <UserPlus className="h-5 w-5" aria-hidden={true} />;
-      default:
-        return null;
+      case 'BookOpen': return <BookOpen className="h-5 w-5" />;
+      case 'LifeBuoy': return <LifeBuoy className="h-5 w-5" />;
+      case 'Info': return <Info className="h-5 w-5" />;
+      case 'Search': return <Search className="h-5 w-5" />;
+      case 'MessageSquare': return <MessageSquare className="h-5 w-5" />;
+      case 'FileText': return <FileText className="h-5 w-5" />;
+      case 'Upload': return <Upload className="h-5 w-5" />;
+      case 'LogIn': return <LogIn className="h-5 w-5" />;
+      case 'UserPlus': return <UserPlus className="h-5 w-5" />;
+      default: return null;
     }
   };
 
   return (
-    <NavigationMenuLink asChild>
-      <Link
-        ref={ref}
-        href={href}
-        className={cn(
-          'block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground cursor-pointer',
-          className
-        )}
-        {...props}
-      >
-        {type === 'icon' && icon ? (
-          <div className="flex items-start space-x-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-              {renderIconComponent(icon)}
+    <li>
+      <NavigationMenuLink asChild>
+        <Link
+          ref={ref}
+          href={href}
+          className={cn(
+            'block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground cursor-pointer group',
+            className
+          )}
+          {...props}
+        >
+          {type === 'icon' && icon ? (
+            <div className="flex items-start space-x-4">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground group-hover:text-primary transition-colors">
+                {renderIconComponent(icon)}
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm font-medium leading-tight group-hover:text-primary transition-colors">{title}</div>
+                {children && (
+                  <p className="line-clamp-2 text-xs leading-snug text-muted-foreground/90 group-hover:text-muted-foreground">
+                    {children}
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="space-y-1">
-              <div className="text-base font-medium leading-tight">{title}</div>
+          ) : (
+            <>
+              <div className="text-sm font-medium leading-none group-hover:text-primary transition-colors">{title}</div>
               {children && (
-                <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
+                <p className="line-clamp-2 text-xs leading-snug text-muted-foreground/90 group-hover:text-muted-foreground">
                   {children}
                 </p>
               )}
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="text-base font-medium leading-none">{title}</div>
-            {children && (
-              <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-                {children}
-              </p>
-            )}
-          </>
-        )}
-      </Link>
-    </NavigationMenuLink>
+            </>
+          )}
+        </Link>
+      </NavigationMenuLink>
+    </li>
   );
 });
 ListItem.displayName = 'ListItem';
