@@ -3,11 +3,17 @@
 import { useAuth } from '@/hooks/useAuth';
 import { Navbar02 } from '@/components/ui/shadcn-io/navbar-02';
 import type { Navbar02NavItem } from '@/components/ui/shadcn-io/navbar-02';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 
 export function AppNavbar() {
   const { isAuthenticated, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+
+  // Hide navbar on dashboard routes
+  if (pathname?.startsWith('/llm-chat') || pathname?.startsWith('/documents/upload')) {
+    return null;
+  }
 
   const workspaceItems: Navbar02NavItem['items'] = [
     {
