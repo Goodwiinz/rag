@@ -1,9 +1,9 @@
 'use client';
 
-import { useAuth } from '@/hooks/useAuth';
-import { Navbar02 } from '@/components/ui/shadcn-io/navbar-02';
 import type { Navbar02NavItem } from '@/components/ui/shadcn-io/navbar-02';
-import { useRouter, usePathname } from 'next/navigation';
+import { Navbar02 } from '@/components/ui/shadcn-io/navbar-02';
+import { useAuth } from '@/hooks/useAuth';
+import { usePathname, useRouter } from 'next/navigation';
 
 export function AppNavbar() {
   const { isAuthenticated, logout } = useAuth();
@@ -24,9 +24,15 @@ export function AppNavbar() {
     },
     {
       href: '/llm-chat',
-      label: 'AI Chat Assistant',
+      label: 'WebLLM Chat',
       icon: 'MessageSquare',
       description: 'Chat with browser-hosted LLMs to synthesize insights from your corpus.'
+    },
+    {
+      href: '/tambo-chat',
+      label: 'Tambo AI Chat',
+      icon: 'Sparkles',
+      description: 'AI-powered chat with dynamic generative UI components.'
     },
     {
       href: '/documents/upload',
