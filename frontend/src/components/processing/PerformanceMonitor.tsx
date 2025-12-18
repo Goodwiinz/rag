@@ -272,7 +272,7 @@ const Alert: React.FC<AlertProps> = ({
           {metric} Alert
         </p>
         <p className="text-xs text-gray-600">
-          {message} ({value} > {threshold})
+          {message} {`(${value} > ${threshold})`}
         </p>
       </div>
       {onDismiss && (
