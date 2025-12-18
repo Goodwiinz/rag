@@ -29,12 +29,6 @@ export function AppNavbar() {
       description: 'Chat with browser-hosted LLMs to synthesize insights from your corpus.'
     },
     {
-      href: '/tambo-chat',
-      label: 'Tambo AI Chat',
-      icon: 'Sparkles',
-      description: 'AI-powered chat with dynamic generative UI components.'
-    },
-    {
       href: '/documents/upload',
       label: 'Document Upload',
       icon: 'FileText',

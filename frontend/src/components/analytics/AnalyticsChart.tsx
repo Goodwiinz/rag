@@ -1,42 +1,41 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import {
-  BarChart3,
-  LineChart as LineChartIcon,
-  PieChart as PieChartIcon,
-  Activity,
-  TrendingUp,
-  TrendingDown,
-  Calendar,
-  Download,
-  Settings,
-} from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+    Activity,
+    BarChart3,
+    Download,
+    LineChart as LineChartIcon,
+    PieChart as PieChartIcon,
+    Settings,
+    TrendingDown,
+    TrendingUp
+} from 'lucide-react';
+import { useMemo, useState } from 'react';
+import {
+    Area,
+    AreaChart,
+    Bar,
+    BarChart,
+    CartesianGrid,
+    Cell,
+    Legend,
+    Line,
+    LineChart,
+    Pie,
+    PieChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from 'recharts';
 
-type ChartType = 'line' | 'bar' | 'area' | 'pie';
+type ChartType = 'line' | 'bar' | 'area' | 'pie' | 'donut';
 
 interface ChartDataPoint {
   name: string;
@@ -306,6 +305,41 @@ export function AnalyticsChart({
               cy="50%"
               labelLine={false}
               label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              outerRadius={100}
+              fill="#8884d8"
+              dataKey="value"
+            >
+              {processedData.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={colors[index] || DEFAULT_COLORS[index]}
+                />
+              ))}
+            </Pie>
+            {showTooltip && (
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'hsl(var(--card))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px',
+                }}
+                formatter={format?.tooltip}
+              />
+            )}
+            {showLegend && <Legend />}
+          </PieChart>
+        );
+
+      case 'donut':
+        return (
+          <PieChart>
+            <Pie
+              data={processedData}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              innerRadius={60}
               outerRadius={100}
               fill="#8884d8"
               dataKey="value"
