@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import { getAnalytics } from '@/lib/analytics';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useRef } from 'react';
 
 export function useAnalyticsTracking() {
   const router = useRouter();
@@ -83,7 +83,7 @@ export function useAnalyticsTracking() {
 
   const trackChatMessage = useCallback((
     messageType: 'user' | 'assistant',
-    chatType: 'llm' | 'tambo',
+    chatType: 'llm',
     tokens?: number
   ) => {
     analyticsRef.current.trackChatMessage(messageType, chatType, tokens);
@@ -175,13 +175,13 @@ export function useChatAnalytics() {
   const { trackChatMessage, trackFeatureUsage, trackUserInteraction } = useAnalyticsTracking();
 
   return {
-    trackMessageSent: (messageType: 'user' | 'assistant', chatType: 'llm' | 'tambo', tokens?: number) => {
+    trackMessageSent: (messageType: 'user' | 'assistant', chatType: 'llm', tokens?: number) => {
       trackChatMessage(messageType, chatType, tokens);
     },
-    trackSessionStart: (chatType: 'llm' | 'tambo') => {
+    trackSessionStart: (chatType: 'llm') => {
       trackFeatureUsage('chat', 'session_start', { chatType });
     },
-    trackSessionEnd: (chatType: 'llm' | 'tambo', duration: number, messageCount: number) => {
+    trackSessionEnd: (chatType: 'llm', duration: number, messageCount: number) => {
       trackFeatureUsage('chat', 'session_end', { chatType, duration, messageCount });
     },
     trackFeedback: (messageId: string, rating: number, comment?: string) => {

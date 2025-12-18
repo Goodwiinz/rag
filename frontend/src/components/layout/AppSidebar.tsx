@@ -13,7 +13,6 @@ import {
     MessageSquare,
     Search,
     Settings,
-    Sparkles,
     User2,
     Users,
 } from 'lucide-react';
@@ -45,7 +44,6 @@ import {
 const projectItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Chat Assistant', url: '/llm-chat', icon: MessageSquare },
-  { title: 'Tambo Chat', url: '/tambo-chat', icon: Sparkles },
   { title: 'Documents', url: '/documents/upload', icon: FileText },
   { title: 'Semantic Search', url: '/search', icon: Search },
   { title: 'Analytics', url: '/analytics', icon: BarChart3 },

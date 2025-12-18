@@ -1,21 +1,19 @@
 'use client';
 
+import { getAnalytics } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
     ArrowRight,
     MessageSquare,
     Search,
     Sparkles,
-    Upload,
-    Zap,
     Target,
-    FileText,
-    Brain
+    Upload,
+    Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import React, { useState } from 'react';
-import { getAnalytics } from '@/lib/analytics';
-import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion';
 
 interface QuickAction {
   title: string;
@@ -53,15 +51,6 @@ const quickActions: QuickAction[] = [
     color: 'text-amber-500',
     bgGradient: 'from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20',
     glowColor: 'amber',
-  },
-  {
-    title: 'Tambo Chat',
-    description: 'Generative UI conversation',
-    href: '/tambo-chat',
-    icon: Sparkles,
-    color: 'text-purple-500',
-    bgGradient: 'from-purple-500/10 to-pink-500/10 hover:from-purple-500/20 hover:to-pink-500/20',
-    glowColor: 'purple',
   },
 ];
 
