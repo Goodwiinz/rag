@@ -1,0 +1,28 @@
+'use client';
+
+import { SimpleLayout } from '@/components/layout/SimpleLayout';
+import { AnalyticsDashboard } from '@/components/analytics/AnalyticsDashboard';
+import { initializeAnalytics } from '@/lib/analytics';
+import { useEffect } from 'react';
+
+export default function AnalyticsPage() {
+  useEffect(() => {
+    // Initialize analytics if not already done
+    if (typeof window !== 'undefined') {
+      initializeAnalytics({
+        provider: 'none', // Change to 'google-analytics' or 'plausible' as needed
+        trackPageViews: true,
+        trackEvents: true,
+        enableDebug: process.env.NODE_ENV === 'development',
+      });
+    }
+  }, []);
+
+  return (
+    <SimpleLayout>
+      <div className="p-6">
+        <AnalyticsDashboard />
+      </div>
+    </SimpleLayout>
+  );
+}

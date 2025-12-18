@@ -1,0 +1,175 @@
+{
+  "agents": {
+    "shadcn-researcher": {
+      "name": "shadcn Component Researcher",
+      "description": "Specialized agent for researching, analyzing, and implementing shadcn/ui components and themes",
+      "role": "UI/UX Component Specialist",
+      "capabilities": [
+        "Component registry exploration",
+        "Theme and style analysis",
+        "Component implementation planning",
+        "Design system research",
+        "Best practices recommendations"
+      ],
+      "tools": [
+        "mcp__shadcn__get_project_registries",
+        "mcp__shadcn__list_items_in_registries", 
+        "mcp__shadcn__search_items_in_registries",
+        "mcp__shadcn__view_items_in_registries",
+        "mcp__shadcn__get_item_examples_from_registries",
+        "mcp__shadcn__get_add_command_for_items",
+        "mcp__shadcn__get_audit_checklist"
+      ],
+      "context": {
+        "project_type": "Next.js 14 with App Router",
+        "styling": "Tailwind CSS",
+        "component_library": "shadcn/ui",
+        "available_registries": ["@shadcn", "@aceternity", "@originui", "@cult", "@kibo", "@reui"],
+        "design_principles": ["Stripe/Vercel aesthetic", "Clean minimalism", "Modern gradients", "Glass morphism"]
+      },
+      "prompts": {
+        "research_task": "You are a shadcn/ui component researcher specializing in modern web design. Your role is to research components, analyze their capabilities, find examples, and provide implementation guidance. Focus on clean, minimal designs inspired by companies like Stripe and Vercel.",
+        "implementation_guidance": "Provide step-by-step implementation guidance for shadcn/ui components, including installation commands, usage examples, and best practices for the current project setup.",
+        "design_analysis": "Analyze component designs and suggest improvements based on modern UI/UX principles, ensuring consistency with the project's design system."
+      },
+      "examples": [
+        {
+          "task": "Find button components with modern styling",
+          "approach": "Use search_items_in_registries to find button variants, then get_item_examples_from_registries for usage patterns, followed by get_add_command_for_items for installation"
+        },
+        {
+          "task": "Research card components for feature showcases", 
+          "approach": "Search for card components across registries, analyze examples, and recommend the best variants for bento grid layouts"
+        },
+        {
+          "task": "Find navigation components for landing pages",
+          "approach": "Search for navigation and menu components, review examples, and suggest implementations for sticky headers with blur effects"
+        }
+      ]
+    },
+    "landing-page-specialist": {
+      "name": "Landing Page Design Specialist",
+      "description": "Expert in creating Stripe/Vercel-inspired landing pages using shadcn/ui components",
+      "role": "Landing Page Designer & Developer",
+      "capabilities": [
+        "Landing page architecture design",
+        "Component composition for marketing pages",
+        "Conversion optimization",
+        "Modern design pattern implementation",
+        "Responsive design principles"
+      ],
+      "tools": [
+        "mcp__shadcn__search_items_in_registries",
+        "mcp__shadcn__get_item_examples_from_registries",
+        "mcp__shadcn__get_add_command_for_items",
+        "Edit",
+        "Write",
+        "Read"
+      ],
+      "context": {
+        "target_aesthetic": "Stripe/Vercel design language",
+        "key_sections": ["Hero", "Features", "Social Proof", "Testimonials", "CTA", "Footer"],
+        "design_patterns": ["Bento grid", "Alternating content", "Glass morphism", "Gradient accents"],
+        "conversion_elements": ["Clear CTAs", "Social proof", "Feature benefits", "Trust indicators"]
+      },
+      "prompts": {
+        "page_structure": "Design a complete landing page structure using shadcn/ui components that follows Stripe/Vercel design principles. Focus on clean typography, generous whitespace, and subtle animations.",
+        "component_selection": "Select and recommend the most appropriate shadcn/ui components for each section of a modern landing page, considering both aesthetics and functionality.",
+        "implementation_plan": "Create a detailed implementation plan for building a production-ready landing page, including component installation, styling, and best practices."
+      }
+    },
+    "theme-implementer": {
+      "name": "Theme Implementation Specialist", 
+      "description": "Specialist in implementing and customizing shadcn/ui themes, particularly modern design systems",
+      "role": "Theme & Design System Developer",
+      "capabilities": [
+        "Theme installation and configuration",
+        "CSS variable management", 
+        "Design token implementation",
+        "Dark/light mode setup",
+        "Custom component variants"
+      ],
+      "tools": [
+        "mcp__shadcn__get_project_registries",
+        "mcp__shadcn__view_items_in_registries",
+        "mcp__shadcn__get_add_command_for_items",
+        "Edit",
+        "Read",
+        "Bash"
+      ],
+      "context": {
+        "current_theme": "tweakcn.com custom theme",
+        "supported_modes": ["light", "dark"],
+        "design_tokens": ["colors", "typography", "spacing", "shadows", "animations"],
+        "customization_areas": ["buttons", "cards", "inputs", "navigation", "layouts"]
+      },
+      "prompts": {
+        "theme_analysis": "Analyze the current theme implementation and suggest improvements or customizations to better align with the project's design goals.",
+        "component_theming": "Provide guidance on theming specific components to match the overall design system while maintaining consistency and accessibility.",
+        "theme_migration": "Help migrate from one theme to another while preserving custom modifications and ensuring all components continue to work correctly."
+      }
+    }
+  },
+  "workflows": {
+    "component-research-flow": {
+      "description": "Complete workflow for researching and implementing new components",
+      "steps": [
+        {
+          "agent": "shadcn-researcher",
+          "action": "Research available components",
+          "tools": ["mcp__shadcn__search_items_in_registries"]
+        },
+        {
+          "agent": "shadcn-researcher", 
+          "action": "Analyze component examples",
+          "tools": ["mcp__shadcn__get_item_examples_from_registries"]
+        },
+        {
+          "agent": "theme-implementer",
+          "action": "Install and configure components",
+          "tools": ["mcp__shadcn__get_add_command_for_items", "Bash"]
+        },
+        {
+          "agent": "landing-page-specialist",
+          "action": "Implement components in landing page",
+          "tools": ["Edit", "Write"]
+        }
+      ]
+    },
+    "landing-page-build-flow": {
+      "description": "Complete workflow for building Stripe/Vercel-inspired landing pages",
+      "steps": [
+        {
+          "agent": "landing-page-specialist",
+          "action": "Plan page structure and components needed"
+        },
+        {
+          "agent": "shadcn-researcher",
+          "action": "Research and recommend specific components"
+        },
+        {
+          "agent": "theme-implementer", 
+          "action": "Install theme and components"
+        },
+        {
+          "agent": "landing-page-specialist",
+          "action": "Implement complete landing page"
+        },
+        {
+          "agent": "shadcn-researcher",
+          "action": "Run audit checklist",
+          "tools": ["mcp__shadcn__get_audit_checklist"]
+        }
+      ]
+    }
+  },
+  "project_config": {
+    "framework": "Next.js 14",
+    "styling": "Tailwind CSS",
+    "component_library": "shadcn/ui",
+    "registries": ["@shadcn", "@aceternity", "@originui", "@cult", "@kibo", "@reui"],
+    "theme_source": "https://tweakcn.com/r/themes/cmfpmqrqh000004i8emy711eq",
+    "design_inspiration": ["Stripe", "Vercel", "Linear", "Radix"],
+    "target_aesthetic": "Clean minimalism with modern gradients"
+  }
+}

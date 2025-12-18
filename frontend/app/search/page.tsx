@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { searchService } from '@/services/searchService';
 import { SearchInterface } from '@/components/search/SearchInterface';
 import { ResultsPanel } from '@/components/search/ResultsPanel';
@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { getAnalytics } from '@/lib/analytics';
 
 // Local interface to match SearchInterface's expected filter type
 interface SearchFilters {
@@ -36,11 +37,33 @@ export default function SearchPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Track page view
+  useEffect(() => {
+    try {
+      const analytics = getAnalytics();
+      analytics.trackPageView('/search', 'Semantic Search');
+    } catch (error) {
+      // Analytics not initialized, silently ignore
+    }
+  }, []);
+
   const handleSearch = useCallback(async (query: string, filters?: SearchFilters) => {
     if (!query.trim()) return;
 
     setIsLoading(true);
     setError(null);
+
+    // Track search query
+    try {
+      const analytics = getAnalytics();
+      analytics.trackSearch(query, 0, 'semantic');
+      analytics.trackFeatureUsage('search', 'query_submitted', {
+        queryLength: query.length,
+        hasFilters: !!filters && Object.keys(filters).length > 0
+      });
+    } catch (error) {
+      // Analytics not initialized, silently ignore
+    }
 
     try {
       const hasFilters = filters && Object.keys(filters).length > 0;
@@ -59,6 +82,18 @@ export default function SearchPage() {
       if (response.success && response.data) {
         setSearchResult(response.data);
 
+        // Track successful search
+        try {
+          const analytics = getAnalytics();
+          analytics.trackSearch(query, response.data.results.length, 'semantic');
+          analytics.trackFeatureUsage('search', 'success', {
+            resultCount: response.data.results.length,
+            responseTime: response.data.metadata?.response_time || 0
+          });
+        } catch (error) {
+          // Analytics not initialized, silently ignore
+        }
+
         // Add to search history
         try {
           await searchService.addToHistory(query.trim(), response.data.id);
@@ -68,11 +103,30 @@ export default function SearchPage() {
       } else {
         setError(response.message || 'Search failed');
         setSearchResult(null);
+
+        // Track search error
+        try {
+          const analytics = getAnalytics();
+          analytics.trackError(new Error(response.message || 'Search failed'), 'search');
+          analytics.trackFeatureUsage('search', 'failed', {
+            error: response.message
+          });
+        } catch (error) {
+          // Analytics not initialized, silently ignore
+        }
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       setError(errorMessage);
       setSearchResult(null);
+
+      // Track unexpected error
+      try {
+        const analytics = getAnalytics();
+        analytics.trackError(err instanceof Error ? err : new Error(errorMessage), 'search_unexpected');
+      } catch (error) {
+        // Analytics not initialized, silently ignore
+      }
     } finally {
       setIsLoading(false);
     }

@@ -155,7 +155,24 @@ class ApiClient {
 
         // Convert to APIErrorClass
         if (error.response?.data) {
-          return Promise.reject(new APIErrorClass(error.response.data));
+          // Check if the response data has the expected error structure
+          const errorData = error.response.data;
+
+          // If it has the nested error property, use it directly
+          if (errorData.error && typeof errorData.error === 'object') {
+            return Promise.reject(new APIErrorClass(errorData.error));
+          }
+
+          // Otherwise, construct the error object
+          const errorObj = {
+            message: errorData.message || errorData.detail || error.message || 'An error occurred',
+            status_code: error.response.status || 500,
+            type: 'http_error' as const,
+            details: errorData,
+            timestamp: new Date().toISOString(),
+          };
+
+          return Promise.reject(new APIErrorClass(errorObj));
         }
 
         return Promise.reject(error);
