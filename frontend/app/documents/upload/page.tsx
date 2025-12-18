@@ -5,8 +5,9 @@
 
 'use client';
 
-import { useState } from 'react';
 import { EnhancedDocumentUploadZone } from '@/components/documents/EnhancedDocumentUploadZone';
+import { SimpleLayout } from '@/components/layout/SimpleLayout';
+import { useState } from 'react';
 
 export default function DocumentUploadPage() {
   const [uploadResults, setUploadResults] = useState<Array<{id: string, result: any}>>([]);
@@ -21,6 +22,7 @@ export default function DocumentUploadPage() {
   };
 
   return (
+    <SimpleLayout>
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
@@ -61,5 +63,6 @@ export default function DocumentUploadPage() {
         )}
       </div>
     </div>
+    </SimpleLayout>
   );
 }

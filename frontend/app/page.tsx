@@ -1,28 +1,28 @@
 'use client';
 
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { useDocuments } from '@/hooks/useDocuments';
-import { useAuth } from '@/hooks/useAuth';
 import { DocumentCard } from '@/components/documents/DocumentCard';
 import { EnhancedDocumentUploadZone } from '@/components/documents/EnhancedDocumentUploadZone';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { SimpleLayout } from '@/components/layout/SimpleLayout';
 import { Button } from '@/components/ui/button';
-import { 
-  Upload, 
-  Search, 
-  MessageSquare, 
-  FileText, 
-  Database, 
-  Network, 
-  Zap,
-  ArrowRight,
-  X,
-  CheckCircle2,
-  FolderOpen,
-  Bot,
-  Sparkles,
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/hooks/useAuth';
+import { useDocuments } from '@/hooks/useDocuments';
+import {
+    ArrowRight,
+    Bot,
+    CheckCircle2,
+    Database,
+    FileText,
+    FolderOpen,
+    Network,
+    Search,
+    Sparkles,
+    Upload,
+    X,
+    Zap
 } from 'lucide-react';
+import Link from 'next/link';
+import { useState } from 'react';
 
 export default function HomePage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -68,6 +68,14 @@ export default function HomePage() {
       color: 'text-green-500',
       bgColor: 'bg-green-500/10',
     },
+    {
+      icon: Database,
+      title: 'ArXiv Papers',
+      description: 'Track and ingest research papers from arXiv',
+      href: '/arxiv',
+      color: 'text-purple-500',
+      bgColor: 'bg-purple-500/10',
+    },
   ];
 
   const stats = [
@@ -78,7 +86,8 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <SimpleLayout>
+      <div className="min-h-screen bg-background">
       {/* Hero Section */}
       <div className="relative overflow-hidden border-b border-border">
         {/* Background Effects */}
@@ -160,7 +169,7 @@ export default function HomePage() {
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {features.map((feature) => (
             <Link key={feature.title} href={feature.href}>
               <Card className="h-full border-border hover:border-amber-500/50 hover:shadow-md transition-all cursor-pointer group">
@@ -398,5 +407,6 @@ export default function HomePage() {
         </div>
       )}
     </div>
+    </SimpleLayout>
   );
 }

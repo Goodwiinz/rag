@@ -1,0 +1,8 @@
+
+# Quantum Entanglement and Superposition
+
+## Core Concepts
+Quantum entanglement is a physical phenomenon that occurs when a group of particles are generated, interacted, or share spatial proximity in a way such that the quantum state of each particle of the group cannot be described independently of the state of the others, including when the particles are separated by a large distance.
+
+## Superposition
+Quantum superposition is a fundamental principle of quantum mechanics. It states that, much like waves in classical physics, any two (or more) quantum states can be added together ("superposed") and the result will be another valid quantum state; and conversely, that every quantum state can be represented as a sum of two or more other distinct states.

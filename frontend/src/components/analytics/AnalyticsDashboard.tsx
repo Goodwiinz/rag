@@ -1,159 +1,234 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { AnalyticsOverview } from './AnalyticsOverview';
-import { AnalyticsChart } from './AnalyticsChart';
-import { AnalyticsTable, createDocumentAnalyticsTable, createSearchAnalyticsTable } from './AnalyticsTable';
-import {
-  BarChart3,
-  LineChart,
-  PieChart,
-  FileText,
-  Search,
-  MessageSquare,
-  Users,
-  Activity,
-  Download,
-  RefreshCw,
-  Filter,
-  Calendar,
-  TrendingUp,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-} from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import {
+    documentAnalyticsApi,
+    DocumentResponse,
+    FileTypeStats,
+    performanceApi,
+    ProcessingStats,
+    searchAnalyticsApi,
+    TrendDataPoint,
+    userBehaviorApi
+} from '@/services/documentAnalyticsApi';
+import {
+    Activity,
+    AlertTriangle,
+    BarChart3,
+    CheckCircle,
+    Clock,
+    Download,
+    FileText,
+    MessageSquare,
+    RefreshCw,
+    Search,
+    TrendingUp,
+    Users
+} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AnalyticsChart } from './AnalyticsChart';
+import { AnalyticsOverview } from './AnalyticsOverview';
+import { AnalyticsTable, createDocumentAnalyticsTable, createSearchAnalyticsTable } from './AnalyticsTable';
 
 interface AnalyticsDashboardProps {
   className?: string;
 }
 
-// Mock data generation
-const generateMockData = () => {
+// Generate fallback trend data when API returns empty
+const generateFallbackTrendData = (): TrendDataPoint[] => {
   const now = new Date();
-  const data = [];
+  const data: TrendDataPoint[] = [];
 
   for (let i = 29; i >= 0; i--) {
     const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
     data.push({
       date: date.toISOString().split('T')[0],
-      pageViews: Math.floor(Math.random() * 1000) + 500,
-      uniqueVisitors: Math.floor(Math.random() * 200) + 100,
-      documentsUploaded: Math.floor(Math.random() * 50) + 10,
-      searchesPerformed: Math.floor(Math.random() * 300) + 100,
-      chatsInitiated: Math.floor(Math.random() * 100) + 20,
+      name: date.toISOString().split('T')[0],
+      pageViews: 0,
+      uniqueVisitors: 0,
+      documentsUploaded: 0,
+      searchesPerformed: 0,
+      chatsInitiated: 0,
     });
   }
 
   return data;
 };
 
-const generateDocumentTableData = () => {
-  const documents = [];
-  const fileTypes = ['pdf', 'txt', 'jpg', 'png', 'mp3', 'mp4'];
-  const statuses = ['completed', 'processing', 'failed', 'pending'];
+// Transform API document to table format
+const transformDocumentToTableRow = (doc: DocumentResponse) => ({
+  id: doc.id,
+  filename: doc.filename,
+  type: doc.document_type,
+  size: doc.file_size_bytes,
+  uploadedAt: doc.created_at,
+  status: doc.processing_status,
+});
 
-  for (let i = 0; i < 25; i++) {
-    documents.push({
-      id: `doc_${i + 1}`,
-      filename: `Document_${i + 1}.${fileTypes[Math.floor(Math.random() * fileTypes.length)]}`,
-      type: fileTypes[Math.floor(Math.random() * fileTypes.length)],
-      size: Math.floor(Math.random() * 10000000) + 100000,
-      uploadedAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-      status: statuses[Math.floor(Math.random() * statuses.length)],
-    });
-  }
+// Transform file type stats for pie chart
+const transformFileTypeForChart = (stats: FileTypeStats[]) => 
+  stats.map(item => ({
+    name: item.type.toUpperCase(),
+    value: item.count,
+  }));
 
-  return documents;
-};
+// Transform processing stats for display
+const transformProcessingStats = (stats: ProcessingStats[]) => {
+  const statusConfig: Record<string, { icon: any; color: string }> = {
+    completed: { icon: CheckCircle, color: 'text-emerald-500' },
+    processing: { icon: Clock, color: 'text-blue-500' },
+    failed: { icon: AlertTriangle, color: 'text-rose-500' },
+    pending: { icon: Clock, color: 'text-muted-foreground' },
+  };
 
-const generateSearchTableData = () => {
-  const searches = [];
-  const queries = [
-    'machine learning basics',
-    'how to implement RAG',
-    'neural network architecture',
-    'data preprocessing',
-    'model evaluation metrics',
-    'transfer learning',
-    'attention mechanisms',
-    'BERT model explanation',
-    'vector databases',
-    'semantic search',
-  ];
-
-  for (let i = 0; i < 15; i++) {
-    const query = queries[Math.floor(Math.random() * queries.length)];
-    searches.push({
-      id: `search_${i + 1}`,
-      query,
-      type: ['semantic', 'keyword', 'hybrid'][Math.floor(Math.random() * 3)],
-      results: Math.floor(Math.random() * 20) + 1,
-      clickRate: Math.random(),
-      lastSearched: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toISOString(),
-    });
-  }
-
-  return searches;
+  return stats.map(item => ({
+    status: item.status.charAt(0).toUpperCase() + item.status.slice(1),
+    count: item.count,
+    icon: statusConfig[item.status]?.icon || Clock,
+    color: statusConfig[item.status]?.color || 'text-muted-foreground',
+  }));
 };
 
 export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<any>({
     overview: null,
     documents: [],
     searches: [],
+    chartData: [],
+    fileTypeDistribution: [],
+    processingStats: [],
+    realtimeMetrics: null,
   });
 
-  // Load mock data
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
+  // Load data from API
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
 
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      // Fetch data from multiple API endpoints in parallel
+      const [
+        fileStats,
+        documentsResponse,
+        searchAnalytics,
+        userTrends,
+        dashboardOverview,
+        realtimeMetrics,
+        trendData
+      ] = await Promise.all([
+        documentAnalyticsApi.getFileStats().catch(() => ({
+          files_by_type: [],
+          processing_stats: [],
+        })),
+        documentAnalyticsApi.getDocuments({ page: 1, size: 25 }).catch(() => ({
+          documents: [],
+          pagination: { page: 1, page_size: 25, total: 0, total_pages: 0, has_next: false, has_prev: false },
+        })),
+        searchAnalyticsApi.getCombinedSearchAnalytics().catch(() => ({
+          topQueries: [],
+          searchTypes: [],
+          totalSearches: 0,
+          avgResponseTime: 0,
+        })),
+        userBehaviorApi.getOrganizationTrends(30).catch(() => ({
+          stats: {
+            total_users: 0,
+            active_users_today: 0,
+            active_users_week: 0,
+            active_users_month: 0,
+            total_sessions: 0,
+            avg_session_duration: 0,
+            bounce_rate: 0,
+            search_volume_today: 0,
+            search_volume_week: 0,
+            new_users: 0,
+            returning_users: 0,
+          },
+          trendData: [],
+        })),
+        performanceApi.getDashboardOverview().catch(() => ({
+          totalUsers: 0,
+          activeUsers: 0,
+          totalSessions: 0,
+          totalSearches: 0,
+          avgResponseTime: 0,
+          errorRate: 0,
+        })),
+        performanceApi.getRealtimeMetrics().catch(() => ({
+          activeUsers: 0,
+          currentSearches: 0,
+          processingFiles: 0,
+          requestsPerMinute: 0,
+        })),
+        performanceApi.getTrendData(30).catch(() => []),
+      ]);
 
-      const chartData = generateMockData();
-      const documentTableData = generateDocumentTableData();
-      const searchTableData = generateSearchTableData();
+      // Transform API data
+      const documentTableData = documentsResponse.documents.map(transformDocumentToTableRow);
+      const fileTypeDistribution = transformFileTypeForChart(fileStats.files_by_type);
+      const processingStats = transformProcessingStats(fileStats.processing_stats);
+
+      // Use API trend data or fallback 
+      const chartData = trendData.length > 0 
+        ? trendData 
+        : (userTrends.trendData.length > 0 ? userTrends.trendData : generateFallbackTrendData());
+
+      // Calculate totals from real data
+      let totalDocuments = 0;
+      fileStats.files_by_type.forEach(item => { totalDocuments += item.count; });
+      const completedDocs = fileStats.processing_stats.find(s => s.status === 'completed')?.count || 0;
+
+      // Use real data from APIs, with fallbacks
+      const totalUsers = dashboardOverview.totalUsers || userTrends.stats.total_users || 0;
+      const activeUsers = dashboardOverview.activeUsers || userTrends.stats.active_users_today || 0;
+      const totalSessions = dashboardOverview.totalSessions || userTrends.stats.total_sessions || 0;
+      const totalSearches = searchAnalytics.totalSearches || dashboardOverview.totalSearches || userTrends.stats.search_volume_week || 0;
 
       setData({
         overview: {
-          totalUsers: 1247,
-          activeUsers: 234,
-          totalSessions: 5678,
-          totalPageViews: chartData.reduce((sum, d) => sum + d.pageViews, 0),
-          averageSessionDuration: 3.5,
-          bounceRate: 42.3,
-          documentsUploaded: documentTableData.filter(d => d.status === 'completed').length,
-          searchesPerformed: chartData.reduce((sum, d) => sum + d.searchesPerformed, 0),
-          chatsInitiated: chartData.reduce((sum, d) => sum + d.chatsInitiated, 0),
-          errorRate: 1.2,
+          totalUsers,
+          activeUsers,
+          totalSessions,
+          totalPageViews: chartData.reduce((sum: number, d: TrendDataPoint) => sum + d.pageViews, 0),
+          averageSessionDuration: userTrends.stats.avg_session_duration || 0,
+          bounceRate: userTrends.stats.bounce_rate || 0,
+          documentsUploaded: totalDocuments,
+          documentsCompleted: completedDocs,
+          searchesPerformed: totalSearches,
+          chatsInitiated: chartData.reduce((sum: number, d: TrendDataPoint) => sum + d.chatsInitiated, 0),
+          errorRate: dashboardOverview.errorRate || 0,
         },
         chartData,
         documents: documentTableData,
-        searches: searchTableData,
+        searches: searchAnalytics.topQueries,
+        searchTypes: searchAnalytics.searchTypes,
+        fileTypeDistribution,
+        processingStats,
+        pagination: documentsResponse.pagination,
+        realtimeMetrics,
       });
-
+    } catch (err) {
+      console.error('Failed to load analytics data:', err);
+      setError('Failed to load analytics data. Please try again.');
+    } finally {
       setLoading(false);
-    };
+    }
+  };
 
+  useEffect(() => {
     loadData();
   }, []);
 
   const handleRefresh = () => {
-    setLoading(true);
-    // Simulate refresh
-    setTimeout(() => {
-      loadData();
-    }, 500);
+    loadData();
   };
 
   const handleExport = (format: 'csv' | 'json') => {
@@ -175,6 +250,21 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
         <div className="flex flex-col items-center gap-2">
           <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Loading analytics...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="flex flex-col items-center gap-4">
+          <AlertTriangle className="h-12 w-12 text-rose-500" />
+          <p className="text-sm text-muted-foreground">{error}</p>
+          <Button variant="outline" onClick={handleRefresh}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Try Again
+          </Button>
         </div>
       </div>
     );
@@ -352,18 +442,20 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
                   <CardTitle className="text-lg">File Type Distribution</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <AnalyticsChart
-                    data={[
-                      { name: 'PDF', value: 45 },
-                      { name: 'Text', value: 25 },
-                      { name: 'Images', value: 20 },
-                      { name: 'Video', value: 10 },
-                    ]}
-                    type="pie"
-                    height={250}
-                    showLegend={true}
-                    showGrid={false}
-                  />
+                  {data.fileTypeDistribution.length > 0 ? (
+                    <AnalyticsChart
+                      title="File Types"
+                      data={data.fileTypeDistribution}
+                      type="pie"
+                      height={250}
+                      showLegend={true}
+                      showGrid={false}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                      <p className="text-sm">No documents uploaded yet</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -372,20 +464,21 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
                   <CardTitle className="text-lg">Processing Status</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {[
-                    { status: 'Completed', count: 124, icon: CheckCircle, color: 'text-emerald-500' },
-                    { status: 'Processing', count: 8, icon: Clock, color: 'text-blue-500' },
-                    { status: 'Failed', count: 3, icon: AlertTriangle, color: 'text-rose-500' },
-                    { status: 'Pending', count: 15, icon: Clock, color: 'text-muted-foreground' },
-                  ].map((item) => (
-                    <div key={item.status} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <item.icon className={cn('h-4 w-4', item.color)} />
-                        <span className="text-sm font-medium">{item.status}</span>
+                  {data.processingStats.length > 0 ? (
+                    data.processingStats.map((item: any) => (
+                      <div key={item.status} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <item.icon className={cn('h-4 w-4', item.color)} />
+                          <span className="text-sm font-medium">{item.status}</span>
+                        </div>
+                        <Badge variant="secondary">{item.count}</Badge>
                       </div>
-                      <Badge variant="secondary">{item.count}</Badge>
+                    ))
+                  ) : (
+                    <div className="flex items-center justify-center py-4 text-muted-foreground">
+                      <p className="text-sm">No processing data available</p>
                     </div>
-                  ))}
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -430,17 +523,20 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
                   <CardTitle className="text-lg">Search Types</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <AnalyticsChart
-                    data={[
-                      { name: 'Semantic', value: 45 },
-                      { name: 'Keyword', value: 30 },
-                      { name: 'Hybrid', value: 25 },
-                    ]}
-                    type="donut"
-                    height={250}
-                    showLegend={true}
-                    showGrid={false}
-                  />
+                  {data.searchTypes && data.searchTypes.length > 0 ? (
+                    <AnalyticsChart
+                      title="Search Types"
+                      data={data.searchTypes}
+                      type="donut"
+                      height={250}
+                      showLegend={true}
+                      showGrid={false}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                      <p className="text-sm">No search data available</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -478,10 +574,30 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
         <TabsContent value="realtime" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: 'Active Users', value: '42', change: '+12%', icon: Users },
-              { label: 'Current Searches', value: '8', change: '+3', icon: Search },
-              { label: 'Processing Files', value: '3', change: '-1', icon: FileText },
-              { label: 'API Requests/min', value: '156', change: '+24', icon: Activity },
+              { 
+                label: 'Active Users', 
+                value: data.realtimeMetrics?.activeUsers || data.overview?.activeUsers || 0, 
+                change: data.realtimeMetrics?.activeUsers > 0 ? 'Live' : '-', 
+                icon: Users 
+              },
+              { 
+                label: 'Current Searches', 
+                value: data.realtimeMetrics?.currentSearches || 0, 
+                change: data.realtimeMetrics?.currentSearches > 0 ? 'Active' : '-', 
+                icon: Search 
+              },
+              { 
+                label: 'Processing Files', 
+                value: data.realtimeMetrics?.processingFiles || 0, 
+                change: data.realtimeMetrics?.processingFiles > 0 ? 'In Queue' : '-', 
+                icon: FileText 
+              },
+              { 
+                label: 'API Requests/min', 
+                value: data.realtimeMetrics?.requestsPerMinute || 0, 
+                change: data.realtimeMetrics?.requestsPerMinute > 0 ? 'Active' : '-', 
+                icon: Activity 
+              },
             ].map((metric) => (
               <Card key={metric.label}>
                 <CardContent className="p-4">

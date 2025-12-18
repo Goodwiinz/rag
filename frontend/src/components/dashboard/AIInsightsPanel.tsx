@@ -2,21 +2,19 @@
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useTambo, useTamboThreadInput } from '@tambo-ai/react';
+// import { useTambo, useTamboThreadInput } from '@tambo-ai/react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
+    Brain,
     FileText,
     Lightbulb,
     Loader2,
     Send,
     Sparkles,
     TrendingUp,
-    Bot,
-    Zap,
-    Brain,
-    Target,
+    Zap
 } from 'lucide-react';
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 
 interface InsightItem {
   id: string;
@@ -76,8 +74,16 @@ interface AIInsightsPanelProps {
 }
 
 export function AIInsightsPanel({ className }: AIInsightsPanelProps) {
-  const { isIdle } = useTambo();
-  const { value, setValue, submit, isPending } = useTamboThreadInput();
+  // const { isIdle } = useTambo();
+  // const { value, setValue, submit, isPending } = useTamboThreadInput();
+  const isIdle = true;
+  const isPending = false;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [value, setValue] = useState('');
+  const submit = async (_options?: { streamResponse: boolean }) => {
+     console.log('Tambo submit disabled');
+     return Promise.resolve();
+  };
   const [isExpanded, setIsExpanded] = useState(false);
   const [localInput, setLocalInput] = useState('');
   const [hoveredInsight, setHoveredInsight] = useState<string | null>(null);

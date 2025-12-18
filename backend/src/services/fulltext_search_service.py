@@ -5,6 +5,7 @@ Full-Text Search Service using PostgreSQL built-in full-text search capabilities
 import logging
 import re
 import time
+import uuid
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy import text, func, and_, or_, not_
 from sqlalchemy.orm import Session
@@ -32,7 +33,7 @@ class FullTextSearchService:
         self.snippet_length = 200
         self.snippet_surround = 50
 
-    def search(self, search_request: SearchQuery, user_id: str = None, organization_id: str = None) -> SearchResponse:
+    def search(self, search_request: SearchQuery, user_id: str = None, organization_id: str = None, db: Session = None) -> SearchResponse:
         """
         Perform full-text search on documents
 
@@ -40,6 +41,7 @@ class FullTextSearchService:
             search_request: Search query and parameters
             user_id: ID of user performing search (for access control)
             organization_id: ID of organization (for filtering)
+            db: Database session (optional, will create one if not provided)
 
         Returns:
             SearchResponse with results and metadata
@@ -50,6 +52,7 @@ class FullTextSearchService:
         if len(search_request.query.strip()) < self.min_query_length:
             return SearchResponse(
                 query=search_request.query,
+                search_id=str(uuid.uuid4()),
                 search_type=search_request.search_type,
                 results=[],
                 total_results=0,
@@ -61,51 +64,60 @@ class FullTextSearchService:
                 suggestions=self._get_spelling_suggestions(search_request.query)
             )
 
+        # Use provided db session or create a new one
+        should_close_db = False
+        if db is None:
+            db = next(get_db())
+            should_close_db = True
+
         try:
-            with next(get_db()) as db:
-                # Build the search query
-                search_sql, params = self._build_search_query(search_request, user_id, organization_id)
+            # Build the search query
+            search_sql, params = self._build_search_query(search_request, user_id, organization_id)
 
-                # Execute search
-                result = db.execute(text(search_sql), params)
-                rows = result.fetchall()
+            # Execute search
+            result = db.execute(text(search_sql), params)
+            rows = result.fetchall()
 
-                # Get total count for pagination
-                count_sql, count_params = self._build_count_query(search_request, user_id, organization_id)
-                count_result = db.execute(text(count_sql), count_params)
-                total_count = count_result.scalar()
+            # Get total count for pagination
+            count_sql, count_params = self._build_count_query(search_request, user_id, organization_id)
+            count_result = db.execute(text(count_sql), count_params)
+            total_count = count_result.scalar()
 
-                # Process results
-                search_results = []
-                for row in rows:
-                    search_result = self._row_to_search_result(row, search_request)
-                    if search_result:
-                        search_results.append(search_result)
+            # Process results
+            search_results = []
+            for row in rows:
+                search_result = self._row_to_search_result(row, search_request)
+                if search_result:
+                    search_results.append(search_result)
 
-                search_time_ms = (time.time() - start_time) * 1000
+            search_time_ms = (time.time() - start_time) * 1000
 
-                # Generate suggestions if needed
-                suggestions = None
-                if len(search_results) < 5:
-                    suggestions = self._get_search_suggestions(search_request.query, db)
+            # Generate suggestions if needed
+            suggestions = None
+            if len(search_results) < 5:
+                suggestions = self._get_search_suggestions(search_request.query, db)
 
-                return SearchResponse(
-                    query=search_request.query,
-                    search_type=search_request.search_type,
-                    results=search_results,
-                    total_results=total_count,
-                    returned_results=len(search_results),
-                    search_time_ms=search_time_ms,
-                    limit=search_request.limit,
-                    offset=search_request.offset,
-                    has_more=(search_request.offset + len(search_results)) < total_count,
-                    suggestions=suggestions,
-                    filters_applied=self._serialize_filters(search_request.filters)
-                )
+            return SearchResponse(
+                query=search_request.query,
+                search_id=str(uuid.uuid4()),
+                search_type=search_request.search_type,
+                results=search_results,
+                total_results=total_count,
+                returned_results=len(search_results),
+                search_time_ms=search_time_ms,
+                limit=search_request.limit,
+                offset=search_request.offset,
+                has_more=(search_request.offset + len(search_results)) < total_count,
+                suggestions=suggestions,
+                filters_applied=self._serialize_filters(search_request.filters)
+            )
 
         except Exception as e:
             logger.error(f"Error performing full-text search: {e}")
             raise
+        finally:
+            if should_close_db:
+                db.close()
 
     def _build_search_query(self, search_request: SearchQuery, user_id: str = None, organization_id: str = None) -> Tuple[str, Dict[str, Any]]:
         """Build PostgreSQL full-text search SQL query"""

@@ -1,33 +1,29 @@
-import React, { useState, useCallback } from 'react';
-import {
-  DocumentTextIcon,
-  PhotoIcon,
-  MusicalNoteIcon,
-  VideoCameraIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  EyeIcon,
-  ShareIcon,
-  ArrowDownTrayIcon,
-  StarIcon,
-  ChartBarIcon,
-  ArrowTopRightOnSquareIcon,
-  InformationCircleIcon,
-  MagnifyingGlassIcon,
-  ClipboardDocumentIcon,
-  CheckIcon,
-  SparklesIcon,
-} from '@heroicons/react/24/outline';
-import { Skeleton } from '@/components/ui/skeleton';
-import { SearchResult, SourceReference, SearchMetrics } from '@/types/search';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import { SearchMetrics, SearchResult, SourceReference } from '@/types/search';
+import {
+    ArrowDownTrayIcon,
+    ChartBarIcon,
+    CheckCircleIcon,
+    ClipboardDocumentIcon,
+    ClockIcon,
+    DocumentTextIcon,
+    EyeIcon,
+    MagnifyingGlassIcon,
+    MusicalNoteIcon,
+    PhotoIcon,
+    ShareIcon,
+    SparklesIcon,
+    StarIcon,
+    VideoCameraIcon,
+    XCircleIcon
+} from '@heroicons/react/24/outline';
+import React, { useCallback, useState } from 'react';
 
 interface ResultsPanelProps {
   result: SearchResult | null;
@@ -140,7 +136,7 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
   };
 
   const formatScore = (score: number): string => {
-    return `${score}%`;
+    return `${Math.round(score)}%`;
   };
 
   return (
@@ -191,7 +187,7 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground text-xs">Hallucination Risk</span>
+              <span className="text-muted-foreground text-xs">Safety Score</span>
               <span className={cn("font-mono font-medium text-xs", getScoreColor(100 - metrics.hallucination_score))}>
                 {formatScore(100 - metrics.hallucination_score)}
               </span>
@@ -206,7 +202,7 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
 
         <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
           <div className="flex flex-col items-center p-2 bg-background rounded border border-border/50">
-            <span className="font-mono font-medium text-foreground">{metrics.latency_ms}ms</span>
+            <span className="font-mono font-medium text-foreground">{Math.round(metrics.latency_ms)}ms</span>
             <span className="text-[10px] uppercase tracking-wider mt-0.5 opacity-70">Latency</span>
           </div>
           <div className="flex flex-col items-center p-2 bg-background rounded border border-border/50">

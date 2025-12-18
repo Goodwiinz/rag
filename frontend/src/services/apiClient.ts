@@ -1,5 +1,5 @@
+import { API_CONFIG, APIErrorClass, DEFAULT_HEADERS, getAuthHeaders } from '@/types/api';
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { API_CONFIG, DEFAULT_HEADERS, getAuthHeaders, APIErrorClass } from '@/types/api';
 
 // Define minimal AuthState interface for localStorage parsing
 interface AuthState {
@@ -11,7 +11,8 @@ interface AuthState {
 }
 
 class ApiClient {
-  private client: AxiosInstance;
+  public client: AxiosInstance;
+  public longTimeoutClient: AxiosInstance;
 
   constructor() {
     this.client = axios.create({
@@ -20,7 +21,15 @@ class ApiClient {
       headers: DEFAULT_HEADERS,
     });
 
+    // Create a client with longer timeout for long-running operations
+    this.longTimeoutClient = axios.create({
+      baseURL: API_CONFIG.BASE_URL,
+      timeout: 300000, // 5 minutes
+      headers: DEFAULT_HEADERS,
+    });
+
     this.setupInterceptors();
+    this.setupLongTimeoutInterceptors();
   }
 
   private getAuthFromStorage() {
@@ -180,6 +189,103 @@ class ApiClient {
     );
   }
 
+  private setupLongTimeoutInterceptors(): void {
+    // Request interceptor for long timeout client
+    this.longTimeoutClient.interceptors.request.use(
+      (config) => {
+        // Try to get auth token from multiple sources
+        let token = null;
+        let organizationId = null;
+
+        // Try Zustand storage first
+        try {
+          const authStorage = localStorage.getItem('auth-storage');
+          if (authStorage) {
+            const auth = JSON.parse(authStorage);
+            token = auth.state?.token;
+            organizationId = auth.state?.organization?.id;
+          }
+        } catch (e) {
+          console.warn('Failed to parse auth storage:', e);
+        }
+
+        // Fallback to individual items
+        if (!token) {
+          token = localStorage.getItem('auth-token');
+          organizationId = localStorage.getItem('organization-id');
+        }
+
+        if (token) {
+          console.debug('Adding auth to long timeout client:', {
+            hasToken: !!token,
+            tokenPreview: token.substring(0, 20) + '...',
+            hasOrgId: !!organizationId
+          });
+
+          config.headers = config.headers || {};
+          config.headers['Authorization'] = `Bearer ${token}`;
+
+          if (organizationId) {
+            config.headers['X-Organization-ID'] = organizationId;
+          }
+        } else {
+          console.warn('No auth token found for long timeout request');
+        }
+
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    // Response interceptor for long timeout client
+    this.longTimeoutClient.interceptors.response.use(
+      (response: AxiosResponse) => response,
+      async (error) => {
+        // Simplified error handling for long timeout client
+        if (error.response?.status === 401 && !error.config._retry) {
+          error.config._retry = true;
+          try {
+            const { useAuthStore } = await import('@/stores/authStore');
+            const refreshResponse = await this.client.post('/auth/refresh', {}, {
+              withCredentials: true
+            });
+            const newToken = refreshResponse.data.access_token;
+            const authStore = useAuthStore.getState();
+            authStore.setToken(newToken);
+            const authHeaders = getAuthHeaders(newToken, authStore.organizationId || 'default');
+            Object.entries(authHeaders).forEach(([key, value]) => {
+              error.config.headers.set(key, value);
+            });
+            return this.longTimeoutClient.request(error.config);
+          } catch (refreshError) {
+            const { useAuthStore } = await import('@/stores/authStore');
+            useAuthStore.getState().logout();
+          }
+        }
+
+        if (error.response?.data) {
+          const errorData = error.response.data;
+          const errorObj = {
+            message: errorData.message || errorData.detail || error.message || 'An error occurred',
+            status_code: error.response.status || 500,
+            type: 'http_error' as const,
+            details: errorData,
+            timestamp: new Date().toISOString(),
+          };
+          return Promise.reject(new APIErrorClass(errorObj));
+        }
+
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  // Method for long timeout requests
+  async postWithLongTimeout<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.longTimeoutClient.post<T>(url, data, config);
+    return response.data;
+  }
+
   // HTTP methods
   async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.client.get<T>(url, config);
@@ -244,8 +350,20 @@ class ApiClient {
 
   // WebSocket connection helper
   createWebSocket(url: string): WebSocket {
-    const token = useAuthStore.getState().token;
-    const organizationId = useAuthStore.getState().organization?.id;
+    // Get token from localStorage as fallback for WebSocket connections
+    const authStateStr = localStorage.getItem('auth-storage');
+    let token = null;
+    let organizationId = null;
+
+    if (authStateStr) {
+      try {
+        const authState: AuthState = JSON.parse(authStateStr);
+        token = authState.state.token;
+        organizationId = authState.state.organization?.id;
+      } catch (e) {
+        console.error('Error parsing auth state:', e);
+      }
+    }
 
     const wsUrl = new URL(url, API_CONFIG.BASE_URL.replace('http', 'ws'));
     if (token) {
