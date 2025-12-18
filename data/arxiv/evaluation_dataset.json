@@ -1,0 +1,3134 @@
+{
+  "dataset_info": {
+    "name": "ArXiv RAG Evaluation Dataset",
+    "created_at": "2025-12-18T01:41:43.974052",
+    "num_papers": 30,
+    "questions_per_paper": 5
+  },
+  "test_cases": [
+    {
+      "paper_id": "2512.15526v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Every day, a significant number of users visit the internet for different needs. The owners of a website generate profits from the user interaction with the contents or items of the website. A robust recommendation system can increase user interaction with a website by recommending items according to the user's unique preferences. BERT and CNN-integrated neural collaborative filtering (NCF) have been proposed for the recommendation system in this experiment. The proposed model takes inputs from the user and item profile and finds the user's interest. This model can handle numeric, categorical, and image data to extract the latent features from the inputs. The model is trained and validated on a small sample of the MovieLens dataset for 25 epochs. The same dataset has been used to train and validate a simple NCF and a BERT-based NCF model and compared with the proposed model. The proposed model outperformed those two baseline models. The obtained result for the proposed model is 0.72 recall and 0.486 Hit Ratio @ 10 for 799 users on the MovieLens dataset. This experiment concludes that considering both categorical and image data can improve the performance of a recommendation system.",
+      "categories": [
+        "cs.IR",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "id": "2512.15526v1_q_1",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.15526v1_q_2",
+          "question": "How does this paper compare to previous work in cs.IR?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.15526v1_q_3",
+          "question": "Which methods are used in this paper about cs.IR?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.15526v1_q_4",
+          "question": "What problem does 'pdf' address in the field of cs.IR?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.15526v1_q_5",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Every day, a significant number of users visit the internet for different needs. The owners of a website generate profits from the user interaction with the contents or items of the website. A robust recommendation system can increase user interaction with a website by recommending items according to the user's unique preferences. BERT and CNN-integrated neural collaborative filtering (NCF) have been proposed for the recommendation system in this experiment. The proposed model takes inputs from the user and item profile and finds the user's interest. This model can handle numeric, categorical, and image data to extract the latent features from the inputs. The model is trained and validated on a small sample of the MovieLens dataset for 25 epochs. The same dataset has been used to train and validate a simple NCF and a BERT-based NCF model and compared with the proposed model. The proposed model outperformed those two baseline models. The obtained result for the proposed model is 0.72 recall and 0.486 Hit Ratio @ 10 for 799 users on the MovieLens dataset. This experiment concludes that considering both categorical and image data can improve the performance of a recommendation system.",
+        "authors": [
+          "Abdullah Al Munem",
+          "Sumona Yeasmin",
+          "Mohammad Rezwanul Huq"
+        ],
+        "categories": [
+          "cs.IR",
+          "cs.AI"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.09370v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Large Language Models (LLMs) are increasingly utilized for large-scale extraction and organization of unstructured data owing to their exceptional Natural Language Processing (NLP) capabilities. Empowering materials design, vast amounts of data from experiments and simulations are scattered across numerous scientific publications, but high-quality experimental databases are scarce. This study considers the effectiveness and practicality of five representative AI tools (ChemDataExtractor, BERT-PSIE, ChatExtract, LangChain, and Kimi) to extract bandgaps from 200 randomly selected Materials Science publications in two presentations (arXiv and publisher versions), comparing the results to those obtained by human processing. Although the integrity of data extraction has not met expectations, encouraging results have been achieved in terms of precision and the ability to eliminate irrelevant papers from human consideration. Our analysis highlights both the strengths and limitations of these tools, offering insights into improving future data extraction techniques for enhanced scientific discovery and innovation. In conjunction with recent research, we provide guidance on feasible improvements for future data extraction methodologies, helping to bridge the gap between unstructured scientific data and structured, actionable databases.",
+      "categories": [
+        "cs.DL",
+        "cond-mat.mtrl-sci"
+      ],
+      "questions": [
+        {
+          "id": "2512.09370v1_q_1",
+          "question": "Which methods are used in this paper about cs.DL?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.09370v1_q_2",
+          "question": "How does this paper compare to previous work in cs.DL?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.09370v1_q_3",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.09370v1_q_4",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.09370v1_q_5",
+          "question": "What problem does 'pdf' address in the field of cs.DL?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Large Language Models (LLMs) are increasingly utilized for large-scale extraction and organization of unstructured data owing to their exceptional Natural Language Processing (NLP) capabilities. Empowering materials design, vast amounts of data from experiments and simulations are scattered across numerous scientific publications, but high-quality experimental databases are scarce. This study considers the effectiveness and practicality of five representative AI tools (ChemDataExtractor, BERT-PSIE, ChatExtract, LangChain, and Kimi) to extract bandgaps from 200 randomly selected Materials Science publications in two presentations (arXiv and publisher versions), comparing the results to those obtained by human processing. Although the integrity of data extraction has not met expectations, encouraging results have been achieved in terms of precision and the ability to eliminate irrelevant papers from human consideration. Our analysis highlights both the strengths and limitations of these tools, offering insights into improving future data extraction techniques for enhanced scientific discovery and innovation. In conjunction with recent research, we provide guidance on feasible improvements for future data extraction methodologies, helping to bridge the gap between unstructured scientific data and structured, actionable databases.",
+        "authors": [
+          "Wenkai Ning",
+          "Musen Li",
+          "Jeffrey R. Reimers",
+          "Rika Kobayashi"
+        ],
+        "categories": [
+          "cs.DL",
+          "cond-mat.mtrl-sci"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.07892v2",
+      "paper_title": "pdf",
+      "paper_abstract": "The study of creativity in science has long sought quantitative metrics capable of capturing the originality of the scientific insights contained within articles and other scientific works. In recent years, the field has witnessed a substantial expansion of research activity, enabled by advances in natural language processing and network analysis, and has utilised both macro- and micro-scale approaches with success. However, they often do not examine the text itself for evidence of originality. In this paper, we apply a computational measure correlating with originality from creativity science, Divergent Semantic Integration (DSI), to a set of 51,200 scientific abstracts and titles sourced from the Web of Science. To adapt DSI for application to scientific texts, we advance the original BERT method by incorporating SciBERT (a model trained on scientific corpora) into the computation of DSI. In our study, we observe that DSI plays a more pronounced role in the accrual of early citations for papers with fewer authors, varies substantially across subjects and research fields, and exhibits a declining correlation with citation counts over time. Furthermore, by modelling SciBERT- and BERT-DSI as predictors of the logarithm of 5-year citation counts alongside field, publication year, and the logarithm of author count, we find statistically significant relationships, with adjusted R-squared of 0.103 and 0.101 for BERT-DSI and SciBERT-DSI. Because existing scientometric measures rarely assess the originality expressed in textual content, DSI provides a valuable means of directly quantifying the conceptual originality embedded in scientific writing.",
+      "categories": [
+        "cs.DL"
+      ],
+      "questions": [
+        {
+          "id": "2512.07892v2_q_1",
+          "question": "How does this paper compare to previous work in cs.DL?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.07892v2_q_2",
+          "question": "Which methods are used in this paper about cs.DL?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.07892v2_q_3",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.07892v2_q_4",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.07892v2_q_5",
+          "question": "What problem does 'pdf' address in the field of cs.DL?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "The study of creativity in science has long sought quantitative metrics capable of capturing the originality of the scientific insights contained within articles and other scientific works. In recent years, the field has witnessed a substantial expansion of research activity, enabled by advances in natural language processing and network analysis, and has utilised both macro- and micro-scale approaches with success. However, they often do not examine the text itself for evidence of originality. In this paper, we apply a computational measure correlating with originality from creativity science, Divergent Semantic Integration (DSI), to a set of 51,200 scientific abstracts and titles sourced from the Web of Science. To adapt DSI for application to scientific texts, we advance the original BERT method by incorporating SciBERT (a model trained on scientific corpora) into the computation of DSI. In our study, we observe that DSI plays a more pronounced role in the accrual of early citations for papers with fewer authors, varies substantially across subjects and research fields, and exhibits a declining correlation with citation counts over time. Furthermore, by modelling SciBERT- and BERT-DSI as predictors of the logarithm of 5-year citation counts alongside field, publication year, and the logarithm of author count, we find statistically significant relationships, with adjusted R-squared of 0.103 and 0.101 for BERT-DSI and SciBERT-DSI. Because existing scientometric measures rarely assess the originality expressed in textual content, DSI provides a valuable means of directly quantifying the conceptual originality embedded in scientific writing.",
+        "authors": [
+          "Jack H. Culbert",
+          "Yoed N. Kenett",
+          "Philipp Mayr"
+        ],
+        "categories": [
+          "cs.DL"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.10656v1",
+      "paper_title": "pdf",
+      "paper_abstract": "As context windows in large language models continue to expand, it is essential to characterize how attention behaves at extreme sequence lengths. We introduce token-sample complexity: the rate at which attention computed on $n$ tokens converges to its infinite-token limit. We estimate finite-$n$ convergence bounds at two levels: pointwise uniform convergence of the attention map, and convergence of moments for the transformed token distribution. For compactly supported (and more generally sub-Gaussian) distributions, our first result shows that the attention map converges uniformly on a ball of radius $R$ at rate $C(R)/\\sqrt{n}$, where $C(R)$ grows exponentially with $R$. For large $R$, this estimate loses practical value, and our second result addresses this issue by establishing convergence rates for the moments of the transformed distribution (the token output of the attention layer). In this case, the rate is $C'(R)/n^\u03b2$ with $\u03b2<\\tfrac{1}{2}$, and $C'(R)$ depends polynomially on the size of the support of the distribution. The exponent $\u03b2$ depends on the attention geometry and the spectral properties of the tokens distribution. We also examine the regime in which the attention parameter tends to infinity and the softmax approaches a hardmax, and in this setting, we establish a logarithmic rate of convergence. Experiments on synthetic Gaussian data and real BERT models on Wikipedia text confirm our predictions.",
+      "categories": [
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "id": "2512.10656v1_q_1",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10656v1_q_2",
+          "question": "What problem does 'pdf' address in the field of cs.LG?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10656v1_q_3",
+          "question": "Which methods are used in this paper about cs.LG?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10656v1_q_4",
+          "question": "How does this paper compare to previous work in cs.LG?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10656v1_q_5",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "As context windows in large language models continue to expand, it is essential to characterize how attention behaves at extreme sequence lengths. We introduce token-sample complexity: the rate at which attention computed on $n$ tokens converges to its infinite-token limit. We estimate finite-$n$ convergence bounds at two levels: pointwise uniform convergence of the attention map, and convergence of moments for the transformed token distribution. For compactly supported (and more generally sub-Gaussian) distributions, our first result shows that the attention map converges uniformly on a ball of radius $R$ at rate $C(R)/\\sqrt{n}$, where $C(R)$ grows exponentially with $R$. For large $R$, this estimate loses practical value, and our second result addresses this issue by establishing convergence rates for the moments of the transformed distribution (the token output of the attention layer). In this case, the rate is $C'(R)/n^\u03b2$ with $\u03b2<\\tfrac{1}{2}$, and $C'(R)$ depends polynomially on the size of the support of the distribution. The exponent $\u03b2$ depends on the attention geometry and the spectral properties of the tokens distribution. We also examine the regime in which the attention parameter tends to infinity and the softmax approaches a hardmax, and in this setting, we establish a logarithmic rate of convergence. Experiments on synthetic Gaussian data and real BERT models on Wikipedia text confirm our predictions.",
+        "authors": [
+          "L\u00e9a Bohbot",
+          "Cyril Letrouit",
+          "Gabriel Peyr\u00e9",
+          "Fran\u00e7ois-Xavier Vialard"
+        ],
+        "categories": [
+          "cs.LG"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.05681v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Retrieving case law is a time-consuming task predominantly carried out by querying databases. We provide a comparison of two models in three different settings for Czech Constitutional Court decisions: (i) a large general-purpose embedder (OpenAI), (ii) a domain-specific BERT-trained from scratch on ~30,000 decisions using sliding windows and attention pooling. We propose a noise-aware evaluation including IDF-weighted keyword overlap as graded relevance, binarization via two thresholds (0.20 balanced, 0.28 strict), significance via paired bootstrap, and an nDCG diagnosis supported with qualitative analysis. Despite modest absolute nDCG (expected under noisy labels), the general OpenAI embedder decisively outperforms the domain pre-trained BERT in both settings at @10/@20/@100 across both thresholds; differences are statistically significant. Diagnostics attribute low absolutes to label drift and strong ideals rather than lack of utility. Additionally, our framework is robust enough to be used for evaluation under a noisy gold dataset, which is typical when handling data with heterogeneous labels stemming from legacy judicial databases.",
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "id": "2512.05681v1_q_1",
+          "question": "How does this paper compare to previous work in cs.CL?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05681v1_q_2",
+          "question": "What problem does 'pdf' address in the field of cs.CL?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05681v1_q_3",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05681v1_q_4",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05681v1_q_5",
+          "question": "Which methods are used in this paper about cs.CL?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Retrieving case law is a time-consuming task predominantly carried out by querying databases. We provide a comparison of two models in three different settings for Czech Constitutional Court decisions: (i) a large general-purpose embedder (OpenAI), (ii) a domain-specific BERT-trained from scratch on ~30,000 decisions using sliding windows and attention pooling. We propose a noise-aware evaluation including IDF-weighted keyword overlap as graded relevance, binarization via two thresholds (0.20 balanced, 0.28 strict), significance via paired bootstrap, and an nDCG diagnosis supported with qualitative analysis. Despite modest absolute nDCG (expected under noisy labels), the general OpenAI embedder decisively outperforms the domain pre-trained BERT in both settings at @10/@20/@100 across both thresholds; differences are statistically significant. Diagnostics attribute low absolutes to label drift and strong ideals rather than lack of utility. Additionally, our framework is robust enough to be used for evaluation under a noisy gold dataset, which is typical when handling data with heterogeneous labels stemming from legacy judicial databases.",
+        "authors": [
+          "Tereza Novotna",
+          "Jakub Harasta"
+        ],
+        "categories": [
+          "cs.CL",
+          "cs.AI"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.10485v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Vulnerability detection methods based on deep learning (DL) have shown strong performance on benchmark datasets, yet their real-world effectiveness remains underexplored. Recent work suggests that both graph neural network (GNN)-based and transformer-based models, including large language models (LLMs), yield promising results when evaluated on curated benchmark datasets. These datasets are typically characterized by consistent data distributions and heuristic or partially noisy labels. In this study, we systematically evaluate two representative DL models-ReVeal and LineVul-across four representative datasets: Juliet, Devign, BigVul, and ICVul. Each model is trained independently on each respective dataset, and their code representations are analyzed using t-SNE to uncover vulnerability related patterns. To assess realistic applicability, we deploy these models along with four pretrained LLMs, Claude 3.5 Sonnet, GPT-o3-mini, GPT-4o, and GPT-5 on a curated dataset, VentiVul, comprising 20 recently (May 2025) fixed vulnerabilities from the Linux kernel. Our experiments reveal that current models struggle to distinguish vulnerable from non-vulnerable code in representation space and generalize poorly across datasets with differing distributions. When evaluated on VentiVul, our newly constructed time-wise out-of-distribution dataset, performance drops sharply, with most models failing to detect vulnerabilities reliably. These results expose a persistent gap between academic benchmarks and real-world deployment, emphasizing the value of our deployment-oriented evaluation framework and the need for more robust code representations and higher-quality datasets.",
+      "categories": [
+        "cs.CR",
+        "cs.LG",
+        "cs.SE"
+      ],
+      "questions": [
+        {
+          "id": "2512.10485v1_q_1",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10485v1_q_2",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10485v1_q_3",
+          "question": "How does this paper compare to previous work in cs.CR?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10485v1_q_4",
+          "question": "Which methods are used in this paper about cs.CR?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10485v1_q_5",
+          "question": "What problem does 'pdf' address in the field of cs.CR?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Vulnerability detection methods based on deep learning (DL) have shown strong performance on benchmark datasets, yet their real-world effectiveness remains underexplored. Recent work suggests that both graph neural network (GNN)-based and transformer-based models, including large language models (LLMs), yield promising results when evaluated on curated benchmark datasets. These datasets are typically characterized by consistent data distributions and heuristic or partially noisy labels. In this study, we systematically evaluate two representative DL models-ReVeal and LineVul-across four representative datasets: Juliet, Devign, BigVul, and ICVul. Each model is trained independently on each respective dataset, and their code representations are analyzed using t-SNE to uncover vulnerability related patterns. To assess realistic applicability, we deploy these models along with four pretrained LLMs, Claude 3.5 Sonnet, GPT-o3-mini, GPT-4o, and GPT-5 on a curated dataset, VentiVul, comprising 20 recently (May 2025) fixed vulnerabilities from the Linux kernel. Our experiments reveal that current models struggle to distinguish vulnerable from non-vulnerable code in representation space and generalize poorly across datasets with differing distributions. When evaluated on VentiVul, our newly constructed time-wise out-of-distribution dataset, performance drops sharply, with most models failing to detect vulnerabilities reliably. These results expose a persistent gap between academic benchmarks and real-world deployment, emphasizing the value of our deployment-oriented evaluation framework and the need for more robust code representations and higher-quality datasets.",
+        "authors": [
+          "Chaomeng Lu",
+          "Bert Lagaisse"
+        ],
+        "categories": [
+          "cs.CR",
+          "cs.LG",
+          "cs.SE"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.12677v1",
+      "paper_title": "pdf",
+      "paper_abstract": "We explore efficient strategies to fine-tune decoder-only Large Language Models (LLMs) for downstream text classification under resource constraints. Two approaches are investigated: (1) attaching a classification head to a pre-trained causal LLM and fine-tuning on the task (using the LLM's final token embedding as a sequence representation), and (2) instruction-tuning the LLM in a prompt->response format for classification. To enable single-GPU fine-tuning of models up to 8B parameters, we combine 4-bit model quantization with Low-Rank Adaptation (LoRA) for parameter-efficient training. Experiments on two datasets - a proprietary single-label dataset and the public WIPO-Alpha patent dataset (extreme multi-label classification) - show that the embedding-based method significantly outperforms the instruction-tuned method in F1-score, and is very competitive with - even surpassing - fine-tuned domain-specific models (e.g. BERT) on the same tasks. These results demonstrate that directly leveraging the internal representations of causal LLMs, along with efficient fine-tuning techniques, yields impressive classification performance under limited computational resources. We discuss the advantages of each approach while outlining practical guidelines and future directions for optimizing LLM fine-tuning in classification scenarios.",
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "id": "2512.12677v1_q_1",
+          "question": "How does this paper compare to previous work in cs.CL?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.12677v1_q_2",
+          "question": "What problem does 'pdf' address in the field of cs.CL?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.12677v1_q_3",
+          "question": "Which methods are used in this paper about cs.CL?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.12677v1_q_4",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.12677v1_q_5",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "We explore efficient strategies to fine-tune decoder-only Large Language Models (LLMs) for downstream text classification under resource constraints. Two approaches are investigated: (1) attaching a classification head to a pre-trained causal LLM and fine-tuning on the task (using the LLM's final token embedding as a sequence representation), and (2) instruction-tuning the LLM in a prompt->response format for classification. To enable single-GPU fine-tuning of models up to 8B parameters, we combine 4-bit model quantization with Low-Rank Adaptation (LoRA) for parameter-efficient training. Experiments on two datasets - a proprietary single-label dataset and the public WIPO-Alpha patent dataset (extreme multi-label classification) - show that the embedding-based method significantly outperforms the instruction-tuned method in F1-score, and is very competitive with - even surpassing - fine-tuned domain-specific models (e.g. BERT) on the same tasks. These results demonstrate that directly leveraging the internal representations of causal LLMs, along with efficient fine-tuning techniques, yields impressive classification performance under limited computational resources. We discuss the advantages of each approach while outlining practical guidelines and future directions for optimizing LLM fine-tuning in classification scenarios.",
+        "authors": [
+          "Amirhossein Yousefiramandi",
+          "Ciaran Cooney"
+        ],
+        "categories": [
+          "cs.CL",
+          "cs.AI"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.10441v1",
+      "paper_title": "pdf",
+      "paper_abstract": "This paper presents a psychologically-aware conversational agent designed to enhance both learning performance and emotional well-being in educational settings. The system combines Large Language Models (LLMs), a knowledge graph-enhanced BERT (KG-BERT), and a bidirectional Long Short-Term Memory (LSTM) with attention to classify students' cognitive and affective states in real time. Unlike prior chatbots limited to either tutoring or affective support, our approach leverages multimodal data-including textual semantics, prosodic speech features, and temporal behavioral trends-to infer engagement, stress, and conceptual understanding. A pilot study with university students demonstrated improved motivation, reduced stress, and moderate academic gains compared to baseline methods. These results underline the promise of integrating semantic reasoning, multimodal fusion, and temporal modeling to support adaptive, student-centered educational interventions.",
+      "categories": [
+        "cs.CL"
+      ],
+      "questions": [
+        {
+          "id": "2512.10441v1_q_1",
+          "question": "Which methods are used in this paper about cs.CL?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10441v1_q_2",
+          "question": "How does this paper compare to previous work in cs.CL?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10441v1_q_3",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10441v1_q_4",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10441v1_q_5",
+          "question": "What problem does 'pdf' address in the field of cs.CL?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "This paper presents a psychologically-aware conversational agent designed to enhance both learning performance and emotional well-being in educational settings. The system combines Large Language Models (LLMs), a knowledge graph-enhanced BERT (KG-BERT), and a bidirectional Long Short-Term Memory (LSTM) with attention to classify students' cognitive and affective states in real time. Unlike prior chatbots limited to either tutoring or affective support, our approach leverages multimodal data-including textual semantics, prosodic speech features, and temporal behavioral trends-to infer engagement, stress, and conceptual understanding. A pilot study with university students demonstrated improved motivation, reduced stress, and moderate academic gains compared to baseline methods. These results underline the promise of integrating semantic reasoning, multimodal fusion, and temporal modeling to support adaptive, student-centered educational interventions.",
+        "authors": [
+          "Nour El Houda Ben Chaabene",
+          "Hamza Hammami",
+          "Laid Kahloul"
+        ],
+        "categories": [
+          "cs.CL"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.02845v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Hate speech recognition in low-resource languages remains a difficult problem due to insufficient datasets, orthographic heterogeneity, and linguistic variety. Bangla is spoken by more than 230 million people of Bangladesh and India (West Bengal). Despite the growing need for automated moderation on social media platforms, Bangla is significantly under-represented in computational resources. In this work, we study Subtask 1A and Subtask 1B of the BLP 2025 Shared Task on hate speech detection. We reproduce the official baselines (e.g., Majority, Random, Support Vector Machine) and also produce and consider Logistic Regression, Random Forest, and Decision Tree as baseline methods. We also utilized transformer-based models such as DistilBERT, BanglaBERT, m-BERT, and XLM-RoBERTa for hate speech classification. All the transformer-based models outperformed baseline methods for the subtasks, except for DistilBERT. Among the transformer-based models, BanglaBERT produces the best performance for both subtasks. Despite being smaller in size, BanglaBERT outperforms both m-BERT and XLM-RoBERTa, which suggests language-specific pre-training is very important. Our results highlight the potential and need for pre-trained language models for the low-resource Bangla language.",
+      "categories": [
+        "cs.CL"
+      ],
+      "questions": [
+        {
+          "id": "2512.02845v1_q_1",
+          "question": "Which methods are used in this paper about cs.CL?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.02845v1_q_2",
+          "question": "How does this paper compare to previous work in cs.CL?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.02845v1_q_3",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.02845v1_q_4",
+          "question": "What problem does 'pdf' address in the field of cs.CL?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.02845v1_q_5",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Hate speech recognition in low-resource languages remains a difficult problem due to insufficient datasets, orthographic heterogeneity, and linguistic variety. Bangla is spoken by more than 230 million people of Bangladesh and India (West Bengal). Despite the growing need for automated moderation on social media platforms, Bangla is significantly under-represented in computational resources. In this work, we study Subtask 1A and Subtask 1B of the BLP 2025 Shared Task on hate speech detection. We reproduce the official baselines (e.g., Majority, Random, Support Vector Machine) and also produce and consider Logistic Regression, Random Forest, and Decision Tree as baseline methods. We also utilized transformer-based models such as DistilBERT, BanglaBERT, m-BERT, and XLM-RoBERTa for hate speech classification. All the transformer-based models outperformed baseline methods for the subtasks, except for DistilBERT. Among the transformer-based models, BanglaBERT produces the best performance for both subtasks. Despite being smaller in size, BanglaBERT outperforms both m-BERT and XLM-RoBERTa, which suggests language-specific pre-training is very important. Our results highlight the potential and need for pre-trained language models for the low-resource Bangla language.",
+        "authors": [
+          "Yalda Keivan Jafari",
+          "Krishno Dey"
+        ],
+        "categories": [
+          "cs.CL"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.06694v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Rapid expansion of social media platforms such as X (formerly Twitter), Facebook, and Reddit has enabled large-scale analysis of public perceptions on diverse topics, including social issues, politics, natural disasters, and consumer sentiment. Topic modeling is a widely used approach for uncovering latent themes in text data, typically framed as an unsupervised classification task. However, traditional models, originally designed for longer and more formal documents, struggle with short social media posts due to limited co-occurrence statistics, fragmented semantics, inconsistent spelling, and informal language. To address these challenges, we propose a new method, TopiCLEAR: Topic extraction by CLustering Embeddings with Adaptive dimensional Reduction. Specifically, each text is embedded using Sentence-BERT (SBERT) and provisionally clustered using Gaussian Mixture Models (GMM). The clusters are then refined iteratively using a supervised projection based on linear discriminant analysis, followed by GMM-based clustering until convergence. Notably, our method operates directly on raw text, eliminating the need for preprocessing steps such as stop word removal. We evaluate our approach on four diverse datasets, 20News, AgNewsTitle, Reddit, and TweetTopic, each containing human-labeled topic information. Compared with seven baseline methods, including a recent SBERT-based method and a zero-shot generative AI method, our approach achieves the highest similarity to human-annotated topics, with significant improvements for both social media posts and online news articles. Additionally, qualitative analysis shows that our method produces more interpretable topics, highlighting its potential for applications in social media data and web content analytics.",
+      "categories": [
+        "cs.CL"
+      ],
+      "questions": [
+        {
+          "id": "2512.06694v1_q_1",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.06694v1_q_2",
+          "question": "What problem does 'pdf' address in the field of cs.CL?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.06694v1_q_3",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.06694v1_q_4",
+          "question": "Which methods are used in this paper about cs.CL?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.06694v1_q_5",
+          "question": "How does this paper compare to previous work in cs.CL?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Rapid expansion of social media platforms such as X (formerly Twitter), Facebook, and Reddit has enabled large-scale analysis of public perceptions on diverse topics, including social issues, politics, natural disasters, and consumer sentiment. Topic modeling is a widely used approach for uncovering latent themes in text data, typically framed as an unsupervised classification task. However, traditional models, originally designed for longer and more formal documents, struggle with short social media posts due to limited co-occurrence statistics, fragmented semantics, inconsistent spelling, and informal language. To address these challenges, we propose a new method, TopiCLEAR: Topic extraction by CLustering Embeddings with Adaptive dimensional Reduction. Specifically, each text is embedded using Sentence-BERT (SBERT) and provisionally clustered using Gaussian Mixture Models (GMM). The clusters are then refined iteratively using a supervised projection based on linear discriminant analysis, followed by GMM-based clustering until convergence. Notably, our method operates directly on raw text, eliminating the need for preprocessing steps such as stop word removal. We evaluate our approach on four diverse datasets, 20News, AgNewsTitle, Reddit, and TweetTopic, each containing human-labeled topic information. Compared with seven baseline methods, including a recent SBERT-based method and a zero-shot generative AI method, our approach achieves the highest similarity to human-annotated topics, with significant improvements for both social media posts and online news articles. Additionally, qualitative analysis shows that our method produces more interpretable topics, highlighting its potential for applications in social media data and web content analytics.",
+        "authors": [
+          "Aoi Fujita",
+          "Taichi Yamamoto",
+          "Yuri Nakayama",
+          "Ryota Kobayashi"
+        ],
+        "categories": [
+          "cs.CL"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.01460v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Limited data for low-resource languages typically yield weaker language models (LMs). Since pre-training is compute-intensive, it is more pragmatic to target improvements during fine-tuning. In this work, we examine the use of Active Learning (AL) methods augmented by structured data selection strategies which we term 'Active Learning schedulers', to boost the fine-tuning process with a limited amount of training data. We connect the AL to data clustering and propose an integrated fine-tuning pipeline that systematically combines AL, clustering, and dynamic data selection schedulers to enhance model's performance. Experiments in the Slovak, Maltese, Icelandic and Turkish languages show that the use of clustering during the fine-tuning phase together with AL scheduling can simultaneously produce annotation savings up to 30% and performance improvements up to four F1 score points, while also providing better fine-tuning stability.",
+      "categories": [
+        "cs.CL",
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "id": "2512.01460v1_q_1",
+          "question": "Which methods are used in this paper about cs.CL?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.01460v1_q_2",
+          "question": "How does this paper compare to previous work in cs.CL?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.01460v1_q_3",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.01460v1_q_4",
+          "question": "What problem does 'pdf' address in the field of cs.CL?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.01460v1_q_5",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Limited data for low-resource languages typically yield weaker language models (LMs). Since pre-training is compute-intensive, it is more pragmatic to target improvements during fine-tuning. In this work, we examine the use of Active Learning (AL) methods augmented by structured data selection strategies which we term 'Active Learning schedulers', to boost the fine-tuning process with a limited amount of training data. We connect the AL to data clustering and propose an integrated fine-tuning pipeline that systematically combines AL, clustering, and dynamic data selection schedulers to enhance model's performance. Experiments in the Slovak, Maltese, Icelandic and Turkish languages show that the use of clustering during the fine-tuning phase together with AL scheduling can simultaneously produce annotation savings up to 30% and performance improvements up to four F1 score points, while also providing better fine-tuning stability.",
+        "authors": [
+          "Jozef Kub\u00edk",
+          "Marek \u0160uppa",
+          "Martin Tak\u00e1\u010d"
+        ],
+        "categories": [
+          "cs.CL",
+          "cs.LG"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.07647v1",
+      "paper_title": "pdf",
+      "paper_abstract": "We develop a unified mathematical framework for certified Top-$k$ attention truncation that quantifies approximation error at both the distribution and output levels. For a single attention distribution $P$ and its Top-$k$ truncation $\\hat P$, we show that the total-variation distance coincides with the discarded softmax tail mass and satisfies $\\mathrm{TV}(P,\\hat P)=1-e^{-\\mathrm{KL}(\\hat P\\Vert P)}$, yielding sharp Top-$k$-specific bounds in place of generic inequalities. From this we derive non-asymptotic deterministic bounds -- from a single boundary gap through multi-gap and blockwise variants -- that control $\\mathrm{TV}(P,\\hat P)$ using only the ordered logits. Using an exact head-tail decomposition, we prove that the output error factorizes as $\\|\\mathrm{Attn}(q,K,V)-\\mathrm{Attn}_k(q,K,V)\\|_2=\u03c4\\|\u03bc_{\\mathrm{tail}}-\u03bc_{\\mathrm{head}}\\|_2$ with $\u03c4=\\mathrm{TV}(P,\\hat P)$, yielding a new head-tail diameter bound $\\|\\mathrm{Attn}(q,K,V)-\\mathrm{Attn}_k(q,K,V)\\|_2\\le\u03c4\\,\\mathrm{diam}_{H,T}$ and refinements linking the error to $\\mathrm{Var}_P(V)$. Under an i.i.d. Gaussian score model $s_i\\sim\\mathcal N(\u03bc,\u03c3^2)$ we derive closed-form tail masses and an asymptotic rule for the minimal $k_\\varepsilon$ ensuring $\\mathrm{TV}(P,\\hat P)\\le\\varepsilon$, namely $k_\\varepsilon/n\\approx\u03a6_c(\u03c3+\u03a6^{-1}(\\varepsilon))$. Experiments on bert-base-uncased and synthetic logits confirm the predicted scaling of $k_\\varepsilon/n$ and show that certified Top-$k$ can reduce scored keys by 2-4$\\times$ on average while meeting the prescribed total-variation budget.",
+      "categories": [
+        "cs.LG",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "id": "2512.07647v1_q_1",
+          "question": "Which methods are used in this paper about cs.LG?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.07647v1_q_2",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.07647v1_q_3",
+          "question": "How does this paper compare to previous work in cs.LG?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.07647v1_q_4",
+          "question": "What problem does 'pdf' address in the field of cs.LG?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.07647v1_q_5",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "We develop a unified mathematical framework for certified Top-$k$ attention truncation that quantifies approximation error at both the distribution and output levels. For a single attention distribution $P$ and its Top-$k$ truncation $\\hat P$, we show that the total-variation distance coincides with the discarded softmax tail mass and satisfies $\\mathrm{TV}(P,\\hat P)=1-e^{-\\mathrm{KL}(\\hat P\\Vert P)}$, yielding sharp Top-$k$-specific bounds in place of generic inequalities. From this we derive non-asymptotic deterministic bounds -- from a single boundary gap through multi-gap and blockwise variants -- that control $\\mathrm{TV}(P,\\hat P)$ using only the ordered logits. Using an exact head-tail decomposition, we prove that the output error factorizes as $\\|\\mathrm{Attn}(q,K,V)-\\mathrm{Attn}_k(q,K,V)\\|_2=\u03c4\\|\u03bc_{\\mathrm{tail}}-\u03bc_{\\mathrm{head}}\\|_2$ with $\u03c4=\\mathrm{TV}(P,\\hat P)$, yielding a new head-tail diameter bound $\\|\\mathrm{Attn}(q,K,V)-\\mathrm{Attn}_k(q,K,V)\\|_2\\le\u03c4\\,\\mathrm{diam}_{H,T}$ and refinements linking the error to $\\mathrm{Var}_P(V)$. Under an i.i.d. Gaussian score model $s_i\\sim\\mathcal N(\u03bc,\u03c3^2)$ we derive closed-form tail masses and an asymptotic rule for the minimal $k_\\varepsilon$ ensuring $\\mathrm{TV}(P,\\hat P)\\le\\varepsilon$, namely $k_\\varepsilon/n\\approx\u03a6_c(\u03c3+\u03a6^{-1}(\\varepsilon))$. Experiments on bert-base-uncased and synthetic logits confirm the predicted scaling of $k_\\varepsilon/n$ and show that certified Top-$k$ can reduce scored keys by 2-4$\\times$ on average while meeting the prescribed total-variation budget.",
+        "authors": [
+          "Georgios Tzachristas",
+          "Lei Deng",
+          "Ioannis Tzachristas",
+          "Gong Zhang",
+          "Renhai Chen"
+        ],
+        "categories": [
+          "cs.LG",
+          "cs.AI"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.13061v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Measuring collaborative problem solving (CPS) synergy remains challenging in learning analytics, as classical manual coding cannot capture emergent system-level dynamics. This study introduces a computational framework that integrates automated discourse analysis with the Synergy Degree Model (SDM) to quantify CPS synergy from group communication. Data were collected from 52 learners in 12 groups during a 5-week connectivist MOOC (cMOOC) activity. Nine classification models were applied to automatically identify ten CPS behaviors across four interaction levels: operation, wayfinding, sense-making, and creation. While BERT achieved the highest accuracy, GPT models demonstrated superior precision suitable for human-AI collaborative coding. Within the SDM framework, each interaction level was treated as a subsystem to compute group-level order parameters and derive synergy degrees. Permutation tests showed automated measures preserve construct validity, despite systematic biases at the subsystem level. Statistical analyses revealed significant task-type differences: survey study groups exhibited higher creation-order than mode study groups, suggesting \"controlled disorder\" may benefit complex problem solving. Importantly, synergy degree distinguished collaborative quality, ranging from excellent to failing groups. Findings establish synergy degree as a sensitive indicator of collaboration and demonstrate the feasibility of scaling fine-grained CPS analytics through AI-in-the-loop approaches.",
+      "categories": [
+        "cs.CY"
+      ],
+      "questions": [
+        {
+          "id": "2512.13061v1_q_1",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.13061v1_q_2",
+          "question": "How does this paper compare to previous work in cs.CY?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.13061v1_q_3",
+          "question": "Which methods are used in this paper about cs.CY?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.13061v1_q_4",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.13061v1_q_5",
+          "question": "What problem does 'pdf' address in the field of cs.CY?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Measuring collaborative problem solving (CPS) synergy remains challenging in learning analytics, as classical manual coding cannot capture emergent system-level dynamics. This study introduces a computational framework that integrates automated discourse analysis with the Synergy Degree Model (SDM) to quantify CPS synergy from group communication. Data were collected from 52 learners in 12 groups during a 5-week connectivist MOOC (cMOOC) activity. Nine classification models were applied to automatically identify ten CPS behaviors across four interaction levels: operation, wayfinding, sense-making, and creation. While BERT achieved the highest accuracy, GPT models demonstrated superior precision suitable for human-AI collaborative coding. Within the SDM framework, each interaction level was treated as a subsystem to compute group-level order parameters and derive synergy degrees. Permutation tests showed automated measures preserve construct validity, despite systematic biases at the subsystem level. Statistical analyses revealed significant task-type differences: survey study groups exhibited higher creation-order than mode study groups, suggesting \"controlled disorder\" may benefit complex problem solving. Importantly, synergy degree distinguished collaborative quality, ranging from excellent to failing groups. Findings establish synergy degree as a sensitive indicator of collaboration and demonstrate the feasibility of scaling fine-grained CPS analytics through AI-in-the-loop approaches.",
+        "authors": [
+          "Jianjun Xiao",
+          "Cixiao Wang",
+          "Wenmei Zhang"
+        ],
+        "categories": [
+          "cs.CY"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.01791v1",
+      "paper_title": "pdf",
+      "paper_abstract": "We study a novel $n(n+1)/2$-dimensional non-semisimple Lie algebra $\\mathfrak{g}_n$, a generalisation of both $\\mathfrak{sl}_2(\\mathbb{K})$ and the two-photon Lie algebra $\\mathfrak{h}_6$. We investigate its properties, including its structure, representations, and its Casimir elements. In particular, we prove that there exists only one non-trivial Casimir polynomial of degree $n$ given by the determinant of an $n\\times n$ symmetric matrix. We then associate this Lie algebra to a hierarchy of Hamiltonian systems with integrability properties depending on $n$, and describe their first integrals as sums of squares of linear combinations of the components of the angular momentum. In particular, we obtain that these systems are integrable for $n=2$, quasi-integrable for $n=3$, and of Poincar\u00e9-Lyapunov-Nekhoroshev type for $n\\geq4$.",
+      "categories": [
+        "math-ph",
+        "math.RT",
+        "nlin.SI"
+      ],
+      "questions": [
+        {
+          "id": "2512.01791v1_q_1",
+          "question": "Which methods are used in this paper about math-ph?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.01791v1_q_2",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.01791v1_q_3",
+          "question": "How does this paper compare to previous work in math-ph?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.01791v1_q_4",
+          "question": "What problem does 'pdf' address in the field of math-ph?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.01791v1_q_5",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "We study a novel $n(n+1)/2$-dimensional non-semisimple Lie algebra $\\mathfrak{g}_n$, a generalisation of both $\\mathfrak{sl}_2(\\mathbb{K})$ and the two-photon Lie algebra $\\mathfrak{h}_6$. We investigate its properties, including its structure, representations, and its Casimir elements. In particular, we prove that there exists only one non-trivial Casimir polynomial of degree $n$ given by the determinant of an $n\\times n$ symmetric matrix. We then associate this Lie algebra to a hierarchy of Hamiltonian systems with integrability properties depending on $n$, and describe their first integrals as sums of squares of linear combinations of the components of the angular momentum. In particular, we obtain that these systems are integrable for $n=2$, quasi-integrable for $n=3$, and of Poincar\u00e9-Lyapunov-Nekhoroshev type for $n\\geq4$.",
+        "authors": [
+          "Giorgio Gubbiotti",
+          "Danilo Latini",
+          "Bert van Geemen"
+        ],
+        "categories": [
+          "math-ph",
+          "math.RT",
+          "nlin.SI"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.10440v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Large language models (LLMs) like Claude, Mistral IA, and GPT-4 excel in NLP but lack structured knowledge, leading to factual inconsistencies. We address this by integrating Knowledge Graphs (KGs) via KG-BERT to enhance grounding and reasoning. Experiments show significant gains in knowledge-intensive tasks such as question answering and entity linking. This approach improves factual reliability and enables more context-aware next-generation LLMs.",
+      "categories": [
+        "cs.CL"
+      ],
+      "questions": [
+        {
+          "id": "2512.10440v1_q_1",
+          "question": "What problem does 'pdf' address in the field of cs.CL?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10440v1_q_2",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10440v1_q_3",
+          "question": "How does this paper compare to previous work in cs.CL?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10440v1_q_4",
+          "question": "Which methods are used in this paper about cs.CL?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10440v1_q_5",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Large language models (LLMs) like Claude, Mistral IA, and GPT-4 excel in NLP but lack structured knowledge, leading to factual inconsistencies. We address this by integrating Knowledge Graphs (KGs) via KG-BERT to enhance grounding and reasoning. Experiments show significant gains in knowledge-intensive tasks such as question answering and entity linking. This approach improves factual reliability and enables more context-aware next-generation LLMs.",
+        "authors": [
+          "Nour El Houda Ben Chaabene",
+          "Hamza Hammami"
+        ],
+        "categories": [
+          "cs.CL"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.11269v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Encrypted AI using fully homomorphic encryption (FHE) provides strong privacy guarantees; but its slow performance has limited practical deployment. Recent works proposed ASICs to accelerate FHE, but require expensive advanced manufacturing processes that constrain their accessibility. GPUs are a far more accessible platform, but achieving ASIC-level performance using GPUs has remained elusive. Furthermore, state-of-the-art approaches primarily focus on small models that fit comfortably within a single device. Supporting large models such as LLMs in FHE introduces a dramatic increase in computational complexity that requires optimized GPU kernels, along with managing terabyte-scale memory footprints that far exceed the capacity of a single GPU. This paper presents Cerium, a multi-GPU framework for FHE inference on large models. Cerium integrates a domain-specific language, an optimizing compiler, and a runtime system to automatically generate high-performance GPU kernels, manage terabyte-scale memory footprints, and parallelize computation across multiple GPUs. It introduces new IR constructs, compiler passes, sparse polynomial representations, memory-efficient data layouts, and communication-aware parallelization techniques that together enable encrypted inference for models ranging from small CNNs to Llama3-8B. We build Cerium on NVIDIA GPUs and demonstrate significant performance gains. For small models, Cerium outperforms expert-written hand-optimized GPU libraries by up to 2.25 times. Cerium achieves performance competitive with state-of-the-art FHE ASICs, outright matching prior FHE ASIC CraterLake. It is the first GPU system to execute bootstrapping in under 10 milliseconds, achieving 7.5 milliseconds, and is the first to demonstrate encrypted inference for BERT-Base and Llama3-8B in 8 seconds and 134 seconds, respectively.",
+      "categories": [
+        "cs.CR",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "id": "2512.11269v1_q_1",
+          "question": "How does this paper compare to previous work in cs.CR?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.11269v1_q_2",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.11269v1_q_3",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.11269v1_q_4",
+          "question": "What problem does 'pdf' address in the field of cs.CR?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.11269v1_q_5",
+          "question": "Which methods are used in this paper about cs.CR?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Encrypted AI using fully homomorphic encryption (FHE) provides strong privacy guarantees; but its slow performance has limited practical deployment. Recent works proposed ASICs to accelerate FHE, but require expensive advanced manufacturing processes that constrain their accessibility. GPUs are a far more accessible platform, but achieving ASIC-level performance using GPUs has remained elusive. Furthermore, state-of-the-art approaches primarily focus on small models that fit comfortably within a single device. Supporting large models such as LLMs in FHE introduces a dramatic increase in computational complexity that requires optimized GPU kernels, along with managing terabyte-scale memory footprints that far exceed the capacity of a single GPU. This paper presents Cerium, a multi-GPU framework for FHE inference on large models. Cerium integrates a domain-specific language, an optimizing compiler, and a runtime system to automatically generate high-performance GPU kernels, manage terabyte-scale memory footprints, and parallelize computation across multiple GPUs. It introduces new IR constructs, compiler passes, sparse polynomial representations, memory-efficient data layouts, and communication-aware parallelization techniques that together enable encrypted inference for models ranging from small CNNs to Llama3-8B. We build Cerium on NVIDIA GPUs and demonstrate significant performance gains. For small models, Cerium outperforms expert-written hand-optimized GPU libraries by up to 2.25 times. Cerium achieves performance competitive with state-of-the-art FHE ASICs, outright matching prior FHE ASIC CraterLake. It is the first GPU system to execute bootstrapping in under 10 milliseconds, achieving 7.5 milliseconds, and is the first to demonstrate encrypted inference for BERT-Base and Llama3-8B in 8 seconds and 134 seconds, respectively.",
+        "authors": [
+          "Siddharth Jayashankar",
+          "Joshua Kim",
+          "Michael B. Sullivan",
+          "Wenting Zheng",
+          "Dimitrios Skarlatos"
+        ],
+        "categories": [
+          "cs.CR",
+          "cs.AI"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.10638v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Bayesian inference offers a principled account of information processing in natural agents. However, it remains an open question how neural mechanisms perform their abstract operations. We investigate a hypothesis where a distributed form of Bayesian inference, namely message passing on factor graphs, is performed by a simulated network of leaky-integrate-and-fire neurons. Specifically, we perform Gaussian belief propagation by encoding messages that come into factor nodes as spike-based signals, propagating these signals through a spiking neural network (SNN) and decoding the spike-based signal back to an outgoing message. Three core linear operations, equality (branching), addition, and multiplication, are realized in networks of leaky integrate-and-fire models. Validation against the standard sum-product algorithm shows accurate message updates, while applications to Kalman filtering and Bayesian linear regression demonstrate the framework's potential for both static and dynamic inference tasks. Our results provide a step toward biologically grounded, neuromorphic implementations of probabilistic reasoning.",
+      "categories": [
+        "cs.NE"
+      ],
+      "questions": [
+        {
+          "id": "2512.10638v1_q_1",
+          "question": "How does this paper compare to previous work in cs.NE?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10638v1_q_2",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10638v1_q_3",
+          "question": "Which methods are used in this paper about cs.NE?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10638v1_q_4",
+          "question": "What problem does 'pdf' address in the field of cs.NE?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.10638v1_q_5",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Bayesian inference offers a principled account of information processing in natural agents. However, it remains an open question how neural mechanisms perform their abstract operations. We investigate a hypothesis where a distributed form of Bayesian inference, namely message passing on factor graphs, is performed by a simulated network of leaky-integrate-and-fire neurons. Specifically, we perform Gaussian belief propagation by encoding messages that come into factor nodes as spike-based signals, propagating these signals through a spiking neural network (SNN) and decoding the spike-based signal back to an outgoing message. Three core linear operations, equality (branching), addition, and multiplication, are realized in networks of leaky integrate-and-fire models. Validation against the standard sum-product algorithm shows accurate message updates, while applications to Kalman filtering and Bayesian linear regression demonstrate the framework's potential for both static and dynamic inference tasks. Our results provide a step toward biologically grounded, neuromorphic implementations of probabilistic reasoning.",
+        "authors": [
+          "Sepideh Adamiat",
+          "Wouter M. Kouw",
+          "Bert de Vries"
+        ],
+        "categories": [
+          "cs.NE"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.05364v1",
+      "paper_title": "pdf",
+      "paper_abstract": "This study demonstrates how hybrid neural-symbolic methods can yield significant new insights into the evolution of a morphologically rich, low-resource language. We challenge the naive assumption that linguistic change is simplification by quantitatively analyzing over 2,000 years of Sanskrit, demonstrating how weakly-supervised hybrid methods can yield new insights into the evolution of morphologically rich, low-resource languages. Our approach addresses data scarcity through weak supervision, using 100+ high-precision regex patterns to generate pseudo-labels for fine-tuning a multilingual BERT. We then fuse symbolic and neural outputs via a novel confidence-weighted ensemble, creating a system that is both scalable and interpretable. Applying this framework to a 1.47-million-word diachronic corpus, our ensemble achieves a 52.4% overall feature detection rate. Our findings reveal that Sanskrit's overall morphological complexity does not decrease but is instead dynamically redistributed: while earlier verbal features show cyclical patterns of decline, complexity shifts to other domains, evidenced by a dramatic expansion in compounding and the emergence of new philosophical terminology. Critically, our system produces well-calibrated uncertainty estimates, with confidence strongly correlating with accuracy (Pearson r = 0.92) and low overall calibration error (ECE = 0.043), bolstering the reliability of these findings for computational philology.",
+      "categories": [
+        "cs.CL"
+      ],
+      "questions": [
+        {
+          "id": "2512.05364v1_q_1",
+          "question": "How does this paper compare to previous work in cs.CL?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05364v1_q_2",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05364v1_q_3",
+          "question": "What problem does 'pdf' address in the field of cs.CL?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05364v1_q_4",
+          "question": "Which methods are used in this paper about cs.CL?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05364v1_q_5",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "This study demonstrates how hybrid neural-symbolic methods can yield significant new insights into the evolution of a morphologically rich, low-resource language. We challenge the naive assumption that linguistic change is simplification by quantitatively analyzing over 2,000 years of Sanskrit, demonstrating how weakly-supervised hybrid methods can yield new insights into the evolution of morphologically rich, low-resource languages. Our approach addresses data scarcity through weak supervision, using 100+ high-precision regex patterns to generate pseudo-labels for fine-tuning a multilingual BERT. We then fuse symbolic and neural outputs via a novel confidence-weighted ensemble, creating a system that is both scalable and interpretable. Applying this framework to a 1.47-million-word diachronic corpus, our ensemble achieves a 52.4% overall feature detection rate. Our findings reveal that Sanskrit's overall morphological complexity does not decrease but is instead dynamically redistributed: while earlier verbal features show cyclical patterns of decline, complexity shifts to other domains, evidenced by a dramatic expansion in compounding and the emergence of new philosophical terminology. Critically, our system produces well-calibrated uncertainty estimates, with confidence strongly correlating with accuracy (Pearson r = 0.92) and low overall calibration error (ECE = 0.043), bolstering the reliability of these findings for computational philology.",
+        "authors": [
+          "Ananth Hariharan",
+          "David Mortensen"
+        ],
+        "categories": [
+          "cs.CL"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.02141v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Abusive speech on social media poses a persistent and evolving challenge, driven by the continuous emergence of novel slang and obfuscated terms designed to circumvent detection systems. In this work, we present a data efficient strategy for fine tuning BERT on hate speech classification by significantly reducing training set size without compromising performance. Our approach employs a TF IDF-based sample selection mechanism to retain only the most informative 75 percent of examples, thereby minimizing training overhead. To address the limitations of BERT's native vocabulary in capturing evolving hate speech terminology, we augment the tokenizer with domain-specific slang and lexical variants commonly found in abusive contexts. Experimental results on a widely used hate speech dataset demonstrate that our method achieves competitive performance while improving computational efficiency, highlighting its potential for scalable and adaptive abusive content moderation.",
+      "categories": [
+        "cs.CL",
+        "cs.AI",
+        "cs.NE"
+      ],
+      "questions": [
+        {
+          "id": "2512.02141v1_q_1",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.02141v1_q_2",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.02141v1_q_3",
+          "question": "What problem does 'pdf' address in the field of cs.CL?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.02141v1_q_4",
+          "question": "How does this paper compare to previous work in cs.CL?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.02141v1_q_5",
+          "question": "Which methods are used in this paper about cs.CL?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Abusive speech on social media poses a persistent and evolving challenge, driven by the continuous emergence of novel slang and obfuscated terms designed to circumvent detection systems. In this work, we present a data efficient strategy for fine tuning BERT on hate speech classification by significantly reducing training set size without compromising performance. Our approach employs a TF IDF-based sample selection mechanism to retain only the most informative 75 percent of examples, thereby minimizing training overhead. To address the limitations of BERT's native vocabulary in capturing evolving hate speech terminology, we augment the tokenizer with domain-specific slang and lexical variants commonly found in abusive contexts. Experimental results on a widely used hate speech dataset demonstrate that our method achieves competitive performance while improving computational efficiency, highlighting its potential for scalable and adaptive abusive content moderation.",
+        "authors": [
+          "Pritish N. Desai",
+          "Tanay Kewalramani",
+          "Srimanta Mandal"
+        ],
+        "categories": [
+          "cs.CL",
+          "cs.AI",
+          "cs.NE"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.06033v1",
+      "paper_title": "pdf",
+      "paper_abstract": "The rapid expansion of Artificial Intelligence is hindered by a fundamental friction in data markets: the value-privacy dilemma, where buyers cannot verify a dataset's utility without inspection, yet inspection may expose the data (Arrow's Information Paradox). We resolve this challenge by introducing the Trustworthy Influence Protocol (TIP), a privacy-preserving framework that enables prospective buyers to quantify the utility of external data without ever decrypting the raw assets. By integrating Homomorphic Encryption with gradient-based influence functions, our approach allows for the precise, blinded scoring of data points against a buyer's specific AI model. To ensure scalability for Large Language Models (LLMs), we employ low-rank gradient projections that reduce computational overhead while maintaining near-perfect fidelity to plaintext baselines, as demonstrated across BERT and GPT-2 architectures. Empirical simulations in healthcare and generative AI domains validate the framework's economic potential: we show that encrypted valuation signals achieve a high correlation with realized clinical utility and reveal a heavy-tailed distribution of data value in pre-training corpora where a minority of texts drive capability while the majority degrades it. These findings challenge prevailing flat-rate compensation models and offer a scalable technical foundation for a meritocratic, secure data economy.",
+      "categories": [
+        "cs.CR",
+        "econ.GN"
+      ],
+      "questions": [
+        {
+          "id": "2512.06033v1_q_1",
+          "question": "What problem does 'pdf' address in the field of cs.CR?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.06033v1_q_2",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.06033v1_q_3",
+          "question": "Which methods are used in this paper about cs.CR?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.06033v1_q_4",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.06033v1_q_5",
+          "question": "How does this paper compare to previous work in cs.CR?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "The rapid expansion of Artificial Intelligence is hindered by a fundamental friction in data markets: the value-privacy dilemma, where buyers cannot verify a dataset's utility without inspection, yet inspection may expose the data (Arrow's Information Paradox). We resolve this challenge by introducing the Trustworthy Influence Protocol (TIP), a privacy-preserving framework that enables prospective buyers to quantify the utility of external data without ever decrypting the raw assets. By integrating Homomorphic Encryption with gradient-based influence functions, our approach allows for the precise, blinded scoring of data points against a buyer's specific AI model. To ensure scalability for Large Language Models (LLMs), we employ low-rank gradient projections that reduce computational overhead while maintaining near-perfect fidelity to plaintext baselines, as demonstrated across BERT and GPT-2 architectures. Empirical simulations in healthcare and generative AI domains validate the framework's economic potential: we show that encrypted valuation signals achieve a high correlation with realized clinical utility and reveal a heavy-tailed distribution of data value in pre-training corpora where a minority of texts drive capability while the majority degrades it. These findings challenge prevailing flat-rate compensation models and offer a scalable technical foundation for a meritocratic, secure data economy.",
+        "authors": [
+          "Michael Yang",
+          "Ruijiang Gao",
+          " Zhiqiang",
+          " Zheng"
+        ],
+        "categories": [
+          "cs.CR",
+          "econ.GN"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.08061v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Scaling attention faces a critical bottleneck: the $\\mathcal{O}(n^2)$ quadratic computational cost of softmax attention, which limits its application in long-sequence domains. While linear attention mechanisms reduce this cost to $\\mathcal{O}(n)$, they typically rely on fixed random feature maps, such as random Fourier features or hand-crafted functions. This reliance on static, data-agnostic kernels creates a fundamental trade-off, forcing practitioners to sacrifice significant model accuracy for computational efficiency. We introduce \\textsc{LUNA}, a kernelized linear attention mechanism that eliminates this trade-off, retaining linear cost while matching and surpassing the accuracy of quadratic attention. \\textsc{LUNA} is built on the key insight that the kernel feature map itself should be learned rather than fixed a priori. By parameterizing the kernel, \\textsc{LUNA} learns a feature basis tailored to the specific data and task, overcoming the expressive limitations of fixed-feature methods. \\textsc{Luna} implements this with a learnable feature map that induces a positive-definite kernel and admits a streaming form, yielding linear time and memory scaling in the sequence length. Empirical evaluations validate our approach across diverse settings. On the Long Range Arena (LRA), \\textsc{Luna} achieves state-of-the-art average accuracy among efficient Transformers under compute parity, using the same parameter count, training steps, and approximate FLOPs. \\textsc{Luna} also excels at post-hoc conversion: replacing softmax in fine-tuned BERT and ViT-B/16 checkpoints and briefly fine-tuning recovers most of the original performance, substantially outperforming fixed linearizations.",
+      "categories": [
+        "cs.LG",
+        "stat.ML"
+      ],
+      "questions": [
+        {
+          "id": "2512.08061v1_q_1",
+          "question": "What problem does 'pdf' address in the field of cs.LG?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.08061v1_q_2",
+          "question": "How does this paper compare to previous work in cs.LG?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.08061v1_q_3",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.08061v1_q_4",
+          "question": "Which methods are used in this paper about cs.LG?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.08061v1_q_5",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Scaling attention faces a critical bottleneck: the $\\mathcal{O}(n^2)$ quadratic computational cost of softmax attention, which limits its application in long-sequence domains. While linear attention mechanisms reduce this cost to $\\mathcal{O}(n)$, they typically rely on fixed random feature maps, such as random Fourier features or hand-crafted functions. This reliance on static, data-agnostic kernels creates a fundamental trade-off, forcing practitioners to sacrifice significant model accuracy for computational efficiency. We introduce \\textsc{LUNA}, a kernelized linear attention mechanism that eliminates this trade-off, retaining linear cost while matching and surpassing the accuracy of quadratic attention. \\textsc{LUNA} is built on the key insight that the kernel feature map itself should be learned rather than fixed a priori. By parameterizing the kernel, \\textsc{LUNA} learns a feature basis tailored to the specific data and task, overcoming the expressive limitations of fixed-feature methods. \\textsc{Luna} implements this with a learnable feature map that induces a positive-definite kernel and admits a streaming form, yielding linear time and memory scaling in the sequence length. Empirical evaluations validate our approach across diverse settings. On the Long Range Arena (LRA), \\textsc{Luna} achieves state-of-the-art average accuracy among efficient Transformers under compute parity, using the same parameter count, training steps, and approximate FLOPs. \\textsc{Luna} also excels at post-hoc conversion: replacing softmax in fine-tuned BERT and ViT-B/16 checkpoints and briefly fine-tuning recovers most of the original performance, substantially outperforming fixed linearizations.",
+        "authors": [
+          "Ashkan Shahbazi",
+          "Ping He",
+          "Ali Abbasi",
+          "Yikun Bai",
+          "Xinran Liu",
+          "Elaheh Akbari",
+          "Darian Salehi",
+          "Navid NaderiAlizadeh",
+          "Soheil Kolouri"
+        ],
+        "categories": [
+          "cs.LG",
+          "stat.ML"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.08865v1",
+      "paper_title": "pdf",
+      "paper_abstract": "We study finite size effects on the linear response of spherically symmetric objects in Born-Infeld (BI) electromagnetism and Dirac-Born-Infeld (DBI) scalar field theories. Previous works show that the linear response coefficients for a point-like source vanish for odd multipoles above the dipole, a feature that resembles the vanishing of Love numbers for black holes. This work goes beyond the point-like idealisation and considers a sphere of finite radius. We find that the vanishing of the linear response coefficients ceases as they acquire a correction due to the finite size of the object. This introduces a hierarchy between the even and odd multipoles of the response coefficients determined by the separation of scales between the radius of the sphere and the screening scale of non-linearities. From a phenomenological viewpoint, the hierarchy between the odd and even multipoles would give access to the screening scale and the object's radius by measuring the behaviour of the potentials at infinity.",
+      "categories": [
+        "hep-th",
+        "gr-qc"
+      ],
+      "questions": [
+        {
+          "id": "2512.08865v1_q_1",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.08865v1_q_2",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.08865v1_q_3",
+          "question": "What problem does 'pdf' address in the field of hep-th?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.08865v1_q_4",
+          "question": "How does this paper compare to previous work in hep-th?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.08865v1_q_5",
+          "question": "Which methods are used in this paper about hep-th?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "We study finite size effects on the linear response of spherically symmetric objects in Born-Infeld (BI) electromagnetism and Dirac-Born-Infeld (DBI) scalar field theories. Previous works show that the linear response coefficients for a point-like source vanish for odd multipoles above the dipole, a feature that resembles the vanishing of Love numbers for black holes. This work goes beyond the point-like idealisation and considers a sphere of finite radius. We find that the vanishing of the linear response coefficients ceases as they acquire a correction due to the finite size of the object. This introduces a hierarchy between the even and odd multipoles of the response coefficients determined by the separation of scales between the radius of the sphere and the screening scale of non-linearities. From a phenomenological viewpoint, the hierarchy between the odd and even multipoles would give access to the screening scale and the object's radius by measuring the behaviour of the potentials at infinity.",
+        "authors": [
+          "Jose Beltr\u00e1n Jim\u00e9nez",
+          "Dario Bettoni",
+          "Philippe Brax",
+          "Bert Janssen",
+          "Pablo Sampedro"
+        ],
+        "categories": [
+          "hep-th",
+          "gr-qc"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.05288v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Malicious WebShells pose a significant and evolving threat by compromising critical digital infrastructures and endangering public services in sectors such as healthcare and finance. While the research community has made significant progress in WebShell detection (i.e., distinguishing malicious samples from benign ones), we argue that it is time to transition from passive detection to in-depth analysis and proactive defense. One promising direction is the automation of WebShell family classification, which involves identifying the specific malware lineage in order to understand an adversary's tactics and enable a precise, rapid response. This crucial task, however, remains a largely unexplored area that currently relies on slow, manual expert analysis. To address this gap, we present the first systematic study to automate WebShell family classification. Our method begins with extracting dynamic function call traces to capture inherent behaviors that are resistant to common encryption and obfuscation. To enhance the scale and diversity of our dataset for a more stable evaluation, we augment these real-world traces with new variants synthesized by Large Language Models. These augmented traces are then abstracted into sequences, graphs, and trees, providing a foundation to benchmark a comprehensive suite of representation methods. Our evaluation spans classic sequence-based embeddings (CBOW, GloVe), transformers (BERT, SimCSE), and a range of structure-aware algorithms, including Graph Kernels, Graph Edit Distance, Graph2Vec, and various Graph Neural Networks. Through extensive experiments on four real-world, family-annotated datasets under both supervised and unsupervised settings, we establish a robust baseline and provide practical insights into the most effective combinations of data abstractions, representation models, and learning paradigms for this challenge.",
+      "categories": [
+        "cs.CR",
+        "cs.AI",
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "id": "2512.05288v1_q_1",
+          "question": "Which methods are used in this paper about cs.CR?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05288v1_q_2",
+          "question": "How does this paper compare to previous work in cs.CR?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05288v1_q_3",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05288v1_q_4",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05288v1_q_5",
+          "question": "What problem does 'pdf' address in the field of cs.CR?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Malicious WebShells pose a significant and evolving threat by compromising critical digital infrastructures and endangering public services in sectors such as healthcare and finance. While the research community has made significant progress in WebShell detection (i.e., distinguishing malicious samples from benign ones), we argue that it is time to transition from passive detection to in-depth analysis and proactive defense. One promising direction is the automation of WebShell family classification, which involves identifying the specific malware lineage in order to understand an adversary's tactics and enable a precise, rapid response. This crucial task, however, remains a largely unexplored area that currently relies on slow, manual expert analysis. To address this gap, we present the first systematic study to automate WebShell family classification. Our method begins with extracting dynamic function call traces to capture inherent behaviors that are resistant to common encryption and obfuscation. To enhance the scale and diversity of our dataset for a more stable evaluation, we augment these real-world traces with new variants synthesized by Large Language Models. These augmented traces are then abstracted into sequences, graphs, and trees, providing a foundation to benchmark a comprehensive suite of representation methods. Our evaluation spans classic sequence-based embeddings (CBOW, GloVe), transformers (BERT, SimCSE), and a range of structure-aware algorithms, including Graph Kernels, Graph Edit Distance, Graph2Vec, and various Graph Neural Networks. Through extensive experiments on four real-world, family-annotated datasets under both supervised and unsupervised settings, we establish a robust baseline and provide practical insights into the most effective combinations of data abstractions, representation models, and learning paradigms for this challenge.",
+        "authors": [
+          "Feijiang Han"
+        ],
+        "categories": [
+          "cs.CR",
+          "cs.AI",
+          "cs.LG"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.03464v1",
+      "paper_title": "pdf",
+      "paper_abstract": "In recent years, financial sentiment analysis of public opinion has become increasingly important for market forecasting and risk assessment. However, existing methods often struggle to effectively integrate diverse opinion modalities and capture fine-grained interactions across them. This paper proposes an end-to-end deep learning framework that integrates two distinct modalities of financial opinions: recency modality (timely opinions) and popularity modality (trending opinions), through a novel cross-modal attention mechanism specifically designed for financial sentiment analysis. While both modalities consist of textual data, they represent fundamentally different information channels: recency-driven market updates versus popularity-driven collective sentiment. Our model first uses BERT (Chinese-wwm-ext) for feature embedding and then employs our proposed Financial Multi-Head Cross-Attention (FMHCA) structure to facilitate information exchange between these distinct opinion modalities. The processed features are optimized through a transformer layer and fused using multimodal factored bilinear pooling for classification into negative, neutral, and positive sentiment. Extensive experiments on a comprehensive dataset covering 837 companies demonstrate that our approach achieves an accuracy of 83.5%, significantly outperforming baselines including BERT+Transformer by 21 percent. These results highlight the potential of our framework to support more accurate financial decision-making and risk management.",
+      "categories": [
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "id": "2512.03464v1_q_1",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.03464v1_q_2",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.03464v1_q_3",
+          "question": "Which methods are used in this paper about cs.LG?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.03464v1_q_4",
+          "question": "What problem does 'pdf' address in the field of cs.LG?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.03464v1_q_5",
+          "question": "How does this paper compare to previous work in cs.LG?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "In recent years, financial sentiment analysis of public opinion has become increasingly important for market forecasting and risk assessment. However, existing methods often struggle to effectively integrate diverse opinion modalities and capture fine-grained interactions across them. This paper proposes an end-to-end deep learning framework that integrates two distinct modalities of financial opinions: recency modality (timely opinions) and popularity modality (trending opinions), through a novel cross-modal attention mechanism specifically designed for financial sentiment analysis. While both modalities consist of textual data, they represent fundamentally different information channels: recency-driven market updates versus popularity-driven collective sentiment. Our model first uses BERT (Chinese-wwm-ext) for feature embedding and then employs our proposed Financial Multi-Head Cross-Attention (FMHCA) structure to facilitate information exchange between these distinct opinion modalities. The processed features are optimized through a transformer layer and fused using multimodal factored bilinear pooling for classification into negative, neutral, and positive sentiment. Extensive experiments on a comprehensive dataset covering 837 companies demonstrate that our approach achieves an accuracy of 83.5%, significantly outperforming baselines including BERT+Transformer by 21 percent. These results highlight the potential of our framework to support more accurate financial decision-making and risk management.",
+        "authors": [
+          "Yujing Liu",
+          "Chen Yang"
+        ],
+        "categories": [
+          "cs.LG"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.06393v2",
+      "paper_title": "pdf",
+      "paper_abstract": "Large language models (LLMs) achieve strong performance on many natural language tasks, yet their generalisation under structured perturbations of logical rule systems remains insufficiently characterised. We present a controlled evaluation framework that probes reasoning reliability through four stress tests: (1) rule deletion, removing redundant versus essential rules from a multi-step inference chain; (2) contradictory evidence injection; (3) logic-preserving rewrites based on equivalence laws (contraposition, double negation, implication-to-disjunction, De Morgan, identity, and commutativity); and (4) multi-law equivalence stacking that composes 2--5 transformations. Across three representative model families -- BERT, Qwen2, and LLaMA-like models -- all models attain Acc$=1.0000$ on the base split and show no degradation under redundant rule deletion. In contrast, essential rule deletion yields a pronounced decrease to near-chance performance, and injecting explicit contradictions reduces accuracy to 0.0000. Under logic-preserving rewrites, accuracy is largely preserved for single-law transformations with only small degradations in a few cases, whereas multi-law stacking exposes model-dependent sensitivity: BERT matches the base condition, TinyLlama shows only marginal degradation, and Qwen2 exhibits a substantial drop.\n  Overall, the results indicate that contemporary LLMs are generally stable under semantic-preserving reformulations, yet remain brittle to missing or inconsistent evidence and may degrade under composed logical transformations depending on the model family. The proposed framework provides a concise diagnostic tool for isolating these failure modes and for evaluating logical generalisation beyond surface-form variation.",
+      "categories": [
+        "cs.AI",
+        "cs.CL",
+        "cs.LG",
+        "cs.LO"
+      ],
+      "questions": [
+        {
+          "id": "2512.06393v2_q_1",
+          "question": "How does this paper compare to previous work in cs.AI?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.06393v2_q_2",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.06393v2_q_3",
+          "question": "Which methods are used in this paper about cs.AI?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.06393v2_q_4",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.06393v2_q_5",
+          "question": "What problem does 'pdf' address in the field of cs.AI?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Large language models (LLMs) achieve strong performance on many natural language tasks, yet their generalisation under structured perturbations of logical rule systems remains insufficiently characterised. We present a controlled evaluation framework that probes reasoning reliability through four stress tests: (1) rule deletion, removing redundant versus essential rules from a multi-step inference chain; (2) contradictory evidence injection; (3) logic-preserving rewrites based on equivalence laws (contraposition, double negation, implication-to-disjunction, De Morgan, identity, and commutativity); and (4) multi-law equivalence stacking that composes 2--5 transformations. Across three representative model families -- BERT, Qwen2, and LLaMA-like models -- all models attain Acc$=1.0000$ on the base split and show no degradation under redundant rule deletion. In contrast, essential rule deletion yields a pronounced decrease to near-chance performance, and injecting explicit contradictions reduces accuracy to 0.0000. Under logic-preserving rewrites, accuracy is largely preserved for single-law transformations with only small degradations in a few cases, whereas multi-law stacking exposes model-dependent sensitivity: BERT matches the base condition, TinyLlama shows only marginal degradation, and Qwen2 exhibits a substantial drop.\n  Overall, the results indicate that contemporary LLMs are generally stable under semantic-preserving reformulations, yet remain brittle to missing or inconsistent evidence and may degrade under composed logical transformations depending on the model family. The proposed framework provides a concise diagnostic tool for isolating these failure modes and for evaluating logical generalisation beyond surface-form variation.",
+        "authors": [
+          "Qiming Bao",
+          "Xiaoxuan Fu"
+        ],
+        "categories": [
+          "cs.AI",
+          "cs.CL",
+          "cs.LG",
+          "cs.LO"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.09974v1",
+      "paper_title": "pdf",
+      "paper_abstract": "In recent years, the proliferation of misinformation and fake news has posed serious threats to individuals and society, spurring intense research into automated detection methods. Previous work showed that integrating content, user preferences, and propagation structure achieves strong performance, but leaves all graph-level representation learning entirely to the GNN, hiding any explicit topological cues. To close this gap, we introduce a lightweight enhancement: for each node, we append two classical graph-theoretic metrics, degree centrality and local clustering coefficient, to its original BERT and profile embeddings, thus explicitly flagging the roles of hub and community. In the UPFD Politifact subset, this simple modification boosts macro F1 from 0.7753 to 0.8344 over the original baseline. Our study not only demonstrates the practical value of explicit topology features in fake-news detection but also provides an interpretable, easily reproducible template for fusing graph metrics in other information-diffusion tasks.",
+      "categories": [
+        "cs.SI",
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "id": "2512.09974v1_q_1",
+          "question": "Which methods are used in this paper about cs.SI?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.09974v1_q_2",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.09974v1_q_3",
+          "question": "What problem does 'pdf' address in the field of cs.SI?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.09974v1_q_4",
+          "question": "How does this paper compare to previous work in cs.SI?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.09974v1_q_5",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "In recent years, the proliferation of misinformation and fake news has posed serious threats to individuals and society, spurring intense research into automated detection methods. Previous work showed that integrating content, user preferences, and propagation structure achieves strong performance, but leaves all graph-level representation learning entirely to the GNN, hiding any explicit topological cues. To close this gap, we introduce a lightweight enhancement: for each node, we append two classical graph-theoretic metrics, degree centrality and local clustering coefficient, to its original BERT and profile embeddings, thus explicitly flagging the roles of hub and community. In the UPFD Politifact subset, this simple modification boosts macro F1 from 0.7753 to 0.8344 over the original baseline. Our study not only demonstrates the practical value of explicit topology features in fake-news detection but also provides an interpretable, easily reproducible template for fusing graph metrics in other information-diffusion tasks.",
+        "authors": [
+          "Kaiyuan Xu"
+        ],
+        "categories": [
+          "cs.SI",
+          "cs.LG"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.09730v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Interpreto is a Python library for post-hoc explainability of text HuggingFace models, from early BERT variants to LLMs. It provides two complementary families of methods: attributions and concept-based explanations. The library connects recent research to practical tooling for data scientists, aiming to make explanations accessible to end users. It includes documentation, examples, and tutorials.\n  Interpreto supports both classification and generation models through a unified API. A key differentiator is its concept-based functionality, which goes beyond feature-level attributions and is uncommon in existing libraries.\n  The library is open source; install via pip install interpreto. Code and documentation are available at https://github.com/FOR-sight-ai/interpreto.",
+      "categories": [
+        "cs.CL",
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "id": "2512.09730v1_q_1",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.09730v1_q_2",
+          "question": "What problem does 'pdf' address in the field of cs.CL?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.09730v1_q_3",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.09730v1_q_4",
+          "question": "How does this paper compare to previous work in cs.CL?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.09730v1_q_5",
+          "question": "Which methods are used in this paper about cs.CL?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Interpreto is a Python library for post-hoc explainability of text HuggingFace models, from early BERT variants to LLMs. It provides two complementary families of methods: attributions and concept-based explanations. The library connects recent research to practical tooling for data scientists, aiming to make explanations accessible to end users. It includes documentation, examples, and tutorials.\n  Interpreto supports both classification and generation models through a unified API. A key differentiator is its concept-based functionality, which goes beyond feature-level attributions and is uncommon in existing libraries.\n  The library is open source; install via pip install interpreto. Code and documentation are available at https://github.com/FOR-sight-ai/interpreto.",
+        "authors": [
+          "Antonin Poch\u00e9",
+          "Thomas Mullor",
+          "Gabriele Sarti",
+          "Fr\u00e9d\u00e9ric Boisnard",
+          "Corentin Friedrich",
+          "Charlotte Claye",
+          "Fran\u00e7ois Hoofd",
+          "Raphael Bernas",
+          "C\u00e9line Hudelot",
+          "Fanny Jourdan"
+        ],
+        "categories": [
+          "cs.CL",
+          "cs.LG"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.05179v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Prior work on scientific question answering has largely emphasized chatbot-style systems, with limited exploration of fine-tuning foundation models for domain-specific reasoning. In this study, we developed a chatbot for the University of Limerick's Department of Electronic and Computer Engineering to provide course information to students. A custom dataset of 1,203 question-answer pairs in SQuAD format was constructed using the university book of modules, supplemented with manually and synthetically generated entries. We fine-tuned BERT (Devlin et al., 2019) using PyTorch and evaluated performance with Exact Match and F1 scores. Results show that even modest fine-tuning improves hypothesis framing and knowledge extraction, demonstrating the feasibility of adapting foundation models to educational domains. While domain-specific BERT variants such as BioBERT and SciBERT exist for biomedical and scientific literature, no foundation model has yet been tailored to university course materials. Our work addresses this gap by showing that fine-tuning BERT with academic QA pairs yields effective results, highlighting the potential to scale towards the first domain-specific QA model for universities and enabling autonomous educational knowledge systems.",
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "id": "2512.05179v1_q_1",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05179v1_q_2",
+          "question": "Which methods are used in this paper about cs.CL?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05179v1_q_3",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05179v1_q_4",
+          "question": "What problem does 'pdf' address in the field of cs.CL?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05179v1_q_5",
+          "question": "How does this paper compare to previous work in cs.CL?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Prior work on scientific question answering has largely emphasized chatbot-style systems, with limited exploration of fine-tuning foundation models for domain-specific reasoning. In this study, we developed a chatbot for the University of Limerick's Department of Electronic and Computer Engineering to provide course information to students. A custom dataset of 1,203 question-answer pairs in SQuAD format was constructed using the university book of modules, supplemented with manually and synthetically generated entries. We fine-tuned BERT (Devlin et al., 2019) using PyTorch and evaluated performance with Exact Match and F1 scores. Results show that even modest fine-tuning improves hypothesis framing and knowledge extraction, demonstrating the feasibility of adapting foundation models to educational domains. While domain-specific BERT variants such as BioBERT and SciBERT exist for biomedical and scientific literature, no foundation model has yet been tailored to university course materials. Our work addresses this gap by showing that fine-tuning BERT with academic QA pairs yields effective results, highlighting the potential to scale towards the first domain-specific QA model for universities and enabling autonomous educational knowledge systems.",
+        "authors": [
+          "Aur\u00e9lie Montfrond"
+        ],
+        "categories": [
+          "cs.CL",
+          "cs.AI"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.05721v1",
+      "paper_title": "pdf",
+      "paper_abstract": "We introduce BERTO, a BERT-based framework for traffic prediction and energy optimization in cellular networks. Built on transformer architectures, BERTO delivers high prediction accuracy, while its Balancing Loss Function and prompt-based customization allow operators to adjust the trade-off between power savings and performance. Natural language prompts guide the model to manage underprediction and overprediction in accordance with the operator's intent. Experiments on real-world datasets show that BERTO improves upon existing models with a $4.13$\\% reduction in MSE while introducing the feature of balancing competing objectives of power saving and performance through simple natural language inputs, operating over a flexible range of $1.4$ kW in power and up to $9\\times$ variation in service quality, making it well suited for intelligent RAN deployments.",
+      "categories": [
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "id": "2512.05721v1_q_1",
+          "question": "What problem does 'pdf' address in the field of cs.LG?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05721v1_q_2",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05721v1_q_3",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05721v1_q_4",
+          "question": "How does this paper compare to previous work in cs.LG?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.05721v1_q_5",
+          "question": "Which methods are used in this paper about cs.LG?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "We introduce BERTO, a BERT-based framework for traffic prediction and energy optimization in cellular networks. Built on transformer architectures, BERTO delivers high prediction accuracy, while its Balancing Loss Function and prompt-based customization allow operators to adjust the trade-off between power savings and performance. Natural language prompts guide the model to manage underprediction and overprediction in accordance with the operator's intent. Experiments on real-world datasets show that BERTO improves upon existing models with a $4.13$\\% reduction in MSE while introducing the feature of balancing competing objectives of power saving and performance through simple natural language inputs, operating over a flexible range of $1.4$ kW in power and up to $9\\times$ variation in service quality, making it well suited for intelligent RAN deployments.",
+        "authors": [
+          "Nitin Priyadarshini Shankar",
+          "Vaibhav Singh",
+          "Sheetal Kalyani",
+          "Christian Maciocco"
+        ],
+        "categories": [
+          "cs.LG"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.13654v1",
+      "paper_title": "pdf",
+      "paper_abstract": "Large-language models (LLMs) have been shown to respond in a variety of ways for classification tasks outside of question-answering. LLM responses are sometimes called \"hallucinations\" since the output is not what is ex pected. Memorization strategies in LLMs are being studied in detail, with the goal of understanding how LLMs respond. We perform a deep dive into a classification task based on United States Supreme Court (SCOTUS) decisions. The SCOTUS corpus is an ideal classification task to study for LLM memory accuracy because it presents significant challenges due to extensive sentence length, complex legal terminology, non-standard structure, and domain-specific vocabulary. Experimentation is performed with the latest LLM fine tuning and retrieval-based approaches, such as parameter-efficient fine-tuning, auto-modeling, and others, on two traditional category-based SCOTUS classification tasks: one with 15 labeled topics and another with 279. We show that prompt-based models with memories, such as DeepSeek, can be more robust than previous BERT-based models on both tasks scoring about 2 points better than previous models not based on prompting.",
+      "categories": [
+        "cs.CL",
+        "cs.AI",
+        "cs.ET",
+        "cs.IR"
+      ],
+      "questions": [
+        {
+          "id": "2512.13654v1_q_1",
+          "question": "Which methods are used in this paper about cs.CL?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.13654v1_q_2",
+          "question": "Who are the authors of 'pdf' and what is their main research area?",
+          "difficulty": "easy",
+          "expected_answer_type": "author_info",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.13654v1_q_3",
+          "question": "What is the main contribution of 'pdf'?",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.13654v1_q_4",
+          "question": "What problem does 'pdf' address in the field of cs.CL?",
+          "difficulty": "medium",
+          "expected_answer_type": "problem_statement",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        },
+        {
+          "id": "2512.13654v1_q_5",
+          "question": "How does this paper compare to previous work in cs.CL?",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.6
+          }
+        }
+      ],
+      "ground_truth_context": {
+        "title": "pdf",
+        "abstract": "Large-language models (LLMs) have been shown to respond in a variety of ways for classification tasks outside of question-answering. LLM responses are sometimes called \"hallucinations\" since the output is not what is ex pected. Memorization strategies in LLMs are being studied in detail, with the goal of understanding how LLMs respond. We perform a deep dive into a classification task based on United States Supreme Court (SCOTUS) decisions. The SCOTUS corpus is an ideal classification task to study for LLM memory accuracy because it presents significant challenges due to extensive sentence length, complex legal terminology, non-standard structure, and domain-specific vocabulary. Experimentation is performed with the latest LLM fine tuning and retrieval-based approaches, such as parameter-efficient fine-tuning, auto-modeling, and others, on two traditional category-based SCOTUS classification tasks: one with 15 labeled topics and another with 279. We show that prompt-based models with memories, such as DeepSeek, can be more robust than previous BERT-based models on both tasks scoring about 2 points better than previous models not based on prompting.",
+        "authors": [
+          "John E. Ortega",
+          "Dhruv D. Joshi",
+          "Matt P. Borkowski"
+        ],
+        "categories": [
+          "cs.CL",
+          "cs.AI",
+          "cs.ET",
+          "cs.IR"
+        ]
+      }
+    }
+  ]
+}

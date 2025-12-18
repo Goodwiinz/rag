@@ -418,8 +418,9 @@ export class TypeSafeAPIClient {
    * Analytics Methods
    */
   async getQueryMetrics(queryId: string): Promise<schemas.EvaluationMetrics> {
+    // Note: This endpoint doesn't exist in backend yet. Using search analytics instead.
     return this.get(
-      `/analytics/quality/query/${queryId}`,
+      `/analytics/quality/analytics?query_id=${queryId}`,
       schemas.EvaluationMetricsSchema
     );
   }

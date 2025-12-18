@@ -1,15 +1,14 @@
-import { apiClient } from './apiClient';
 import { APIResponse } from '@/types/api';
 import {
-  Document,
-  DocumentListResponse,
-  DocumentFilters,
-  UploadProgress,
-  DocumentUpload,
+    Document,
+    DocumentFilters,
+    DocumentListResponse,
+    UploadProgress
 } from '@/types/document';
+import { apiClient } from './apiClient';
 
 export class DocumentService {
-  private readonly basePath = '/documents';
+  private readonly basePath = 'documents';
 
   /**
    * Upload a single file

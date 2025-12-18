@@ -50,11 +50,21 @@ class KnowledgeGraphService:
         self.uri = settings.NEO4J_URI
         self.user = settings.NEO4J_USER
         self.password = settings.NEO4J_PASSWORD
+        # Do not connect immediately to avoid import-time side effects
+        # self._connect() 
+
+    async def __aenter__(self):
         self._connect()
-        self._ensure_schema()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def _connect(self):
         """Establish connection to Neo4j database"""
+        if self.driver:
+            return
+
         try:
             self.driver = GraphDatabase.driver(
                 self.uri,
@@ -68,13 +78,18 @@ class KnowledgeGraphService:
             logger.info(f"Connected to Neo4j at {self.uri}")
         except Exception as e:
             logger.error(f"Failed to connect to Neo4j: {e}")
-            raise
+            # Don't raise here, let the caller handle it or retry later
+            self.driver = None
 
     @contextmanager
     def get_session(self, database: str = "neo4j") -> Session:
         """Context manager for database sessions"""
         if not self.driver:
+            self._connect()
+        
+        if not self.driver:
             raise RuntimeError("Neo4j driver not initialized")
+            
         session = self.driver.session(database=database)
         try:
             yield session
@@ -83,8 +98,16 @@ class KnowledgeGraphService:
 
     def _ensure_schema(self):
         """Ensure database schema constraints and indexes exist"""
+        if not self.driver:
+            self._connect()
+            
+        if not self.driver:
+            logger.warning("Skipping schema initialization - no connection to Neo4j")
+            return
+
         try:
             with self.get_session() as session:
+
                 # Create constraints
                 constraints = [
                     "CREATE CONSTRAINT entity_id_unique IF NOT EXISTS FOR (e:Entity) REQUIRE e.id IS UNIQUE",
@@ -336,6 +359,85 @@ class KnowledgeGraphService:
             logger.error(f"Error searching entities: {e}")
             return []
 
+    def get_all_entities(self, limit: int = 100, offset: int = 0,
+                          entity_types: Optional[List[EntityType]] = None) -> List[EntityResponse]:
+        """Get all entities with pagination and optional filtering"""
+        try:
+            with self.get_session() as session:
+                # Build query conditions
+                conditions = []
+                params = {"limit": limit, "offset": offset}
+
+                if entity_types:
+                    # Match specific entity type labels
+                    type_labels = [f"e:{t.value}" for t in entity_types]
+                    match_clause = f"MATCH ({'|'.join(type_labels)})"
+                    conditions.append("true")  # Dummy condition for structure
+                else:
+                    # Match all possible entity type labels
+                    match_clause = "MATCH (e) WHERE any(label IN labels(e) WHERE label IN ['Person', 'Organization', 'Location', 'Concept', 'Event', 'Product', 'Date', 'Technology', 'Document'])"
+
+                where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+
+                # Use the appropriate MATCH clause
+                query = f"""
+                {match_clause}
+                {where_clause}
+                RETURN e
+                ORDER BY e.created_at DESC
+                SKIP $offset
+                LIMIT $limit
+                """
+
+                result = session.run(query, params)
+                entities = []
+
+                for node in result:
+                    e = node["e"]
+                    # Handle legacy nodes that might not have all properties
+                    labels = e.labels if hasattr(e, 'labels') else []
+                    entity_type = EntityType.PERSON  # Default
+
+                    # Determine entity type from labels or properties
+                    if "type" in e:
+                        entity_type = EntityType(e["type"])
+                    elif labels:
+                        # Map label to entity type
+                        label_map = {
+                            'Person': EntityType.PERSON,
+                            'Organization': EntityType.ORGANIZATION,
+                            'Location': EntityType.LOCATION,
+                            'Concept': EntityType.CONCEPT,
+                            'Event': EntityType.EVENT,
+                            'Product': EntityType.PRODUCT,
+                            'Date': EntityType.DATE,
+                            'Technology': EntityType.TECHNOLOGY,
+                            'Document': EntityType.DOCUMENT
+                        }
+                        for label in labels:
+                            if label in label_map:
+                                entity_type = label_map[label]
+                                break
+
+                    entities.append(EntityResponse(
+                        id=e.get("id", str(uuid.uuid4())),
+                        name=e.get("name", "Unknown"),
+                        entity_type=entity_type,
+                        confidence_score=e.get("confidence_score", 0.8),
+                        extraction_method=ExtractionMethod(e.get("extraction_method", "manual")),
+                        position=e.get("position"),
+                        context=e.get("context"),
+                        metadata=_parse_metadata(e.get("metadata", "{}")),
+                        source_document_id=e.get("source_document_id"),
+                        created_at=_convert_datetime(e.get("created_at", datetime.utcnow())),
+                        updated_at=_convert_datetime(e["updated_at"]) if e.get("updated_at") else None
+                    ))
+
+                return entities
+        except Exception as e:
+            logger.error(f"Error getting all entities: {e}")
+            return []
+
     # Relationship Management
     def create_relationship(self, request: CreateRelationshipRequest) -> RelationshipResponse:
         """Create a new relationship between entities"""
@@ -443,6 +545,29 @@ class KnowledgeGraphService:
         except Exception as e:
             logger.error(f"Error retrieving relationships for {entity_id}: {e}")
             return []
+
+    def delete_relationship(self, relationship_id: str) -> bool:
+        """Delete a relationship by ID"""
+        try:
+            with self.get_session() as session:
+                query = """
+                MATCH (source)-[r:RELATED_TO {id: $relationship_id}]-(target)
+                DELETE r
+                RETURN count(r) as deleted_count
+                """
+
+                result = session.run(query, {"relationship_id": relationship_id})
+                deleted_count = result.single()["deleted_count"]
+
+                if deleted_count > 0:
+                    logger.info(f"Deleted relationship {relationship_id}")
+                    return True
+                else:
+                    logger.warning(f"Relationship {relationship_id} not found for deletion")
+                    return False
+        except Exception as e:
+            logger.error(f"Error deleting relationship {relationship_id}: {e}")
+            return False
 
     # Graph Search and Traversal
     def find_related_entities(self, entity_id: str, max_depth: int = 2,
