@@ -9,7 +9,10 @@ import re
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-from ..models.knowledge_graph_models import EntityType, RelationshipType, ExtractionMethod
+from src.models.entity import EntityType, ExtractionMethod
+from src.models.graph import RelationshipType
+from src.core.config import settings
+from openai import AzureOpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +21,48 @@ class EntityExtractionService:
     """Service for extracting entities and relationships from text"""
 
     def __init__(self):
+        # Initialize Azure OpenAI client for LLM extraction
+        self.llm_client = None
+        # Try RAG-specific config first (gpt-4o-mini), then fallback to chat config
+        if (hasattr(settings, 'AZURE_OPENAI_RAG_API_KEY') and
+            hasattr(settings, 'AZURE_OPENAI_RAG_ENDPOINT') and
+            hasattr(settings, 'AZURE_OPENAI_RAG_DEPLOYMENT_NAME')):
+            try:
+                self.llm_client = AzureOpenAI(
+                    api_key=settings.AZURE_OPENAI_RAG_API_KEY,
+                    azure_endpoint=settings.AZURE_OPENAI_RAG_ENDPOINT,
+                    api_version=settings.AZURE_OPENAI_RAG_API_VERSION
+                )
+                self.llm_deployment_name = settings.AZURE_OPENAI_RAG_DEPLOYMENT_NAME
+                logger.info(f"Initialized Azure OpenAI client with deployment: {settings.AZURE_OPENAI_RAG_DEPLOYMENT_NAME} (gpt-4o-mini)")
+            except Exception as e:
+                logger.error(f"Failed to initialize Azure OpenAI RAG client: {e}")
+                self.llm_client = None
+        elif (settings.AZURE_OPENAI_CHAT_API_KEY and
+              settings.AZURE_OPENAI_CHAT_ENDPOINT and
+              settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME):
+            try:
+                self.llm_client = AzureOpenAI(
+                    api_key=settings.AZURE_OPENAI_CHAT_API_KEY,
+                    azure_endpoint=settings.AZURE_OPENAI_CHAT_ENDPOINT,
+                    api_version=settings.AZURE_OPENAI_CHAT_API_VERSION
+                )
+                self.llm_deployment_name = settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+                logger.info(f"Initialized Azure OpenAI client with deployment: {settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME}")
+            except Exception as e:
+                logger.error(f"Failed to initialize Azure OpenAI chat client: {e}")
+                self.llm_client = None
+        else:
+            logger.info("Azure OpenAI credentials not configured. LLM extraction will be disabled.")
+
         # Predefined patterns for common entity types
         self.patterns = {
             EntityType.EMAIL: re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'),
             EntityType.PHONE: re.compile(r'\b(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b'),
             EntityType.URL: re.compile(r'\bhttps?:\/\/(?:[-\w.])+(?:[:\d]+)?(?:\/(?:[\w/_.])*(?:\?(?:[\w&=%.])*)?(?:#(?:\w*))?)?\b'),
             EntityType.DATE: re.compile(r'\b\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}\b|\b\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}\b'),
-            EntityType.FINANCIAL: re.compile(r'\$\d+(?:,\d{3})*(?:\.\d{2})?|\$\d+\.\d{2}|\b\d+(?:,\d{3})*\s*(?:USD|EUR|GBP|CAD|AUD)\b'),
+            # EntityType.NUMBER covers financial numbers
+            "NUMBER": re.compile(r'\$\d+(?:,\d{3})*(?:\.\d{2})?|\$\d+\.\d{2}|\b\d+(?:,\d{3})*\s*(?:USD|EUR|GBP|CAD|AUD)\b'),
         }
 
         # Common relationship indicators
@@ -124,7 +162,7 @@ class EntityExtractionService:
                     "name": match.group(),
                     "entity_type": entity_type.value,
                     "confidence_score": 0.9,  # High confidence for pattern matches
-                    "extraction_method": ExtractionMethod.PATTERN_MATCHING.value,
+                    "extraction_method": ExtractionMethod.REGEX.value,  # Using REGEX for pattern matching
                     "position": [match.start(), match.end()],
                     "context": context,
                     "metadata": {
@@ -179,7 +217,7 @@ class EntityExtractionService:
                         "name": word,
                         "entity_type": EntityType.ORGANIZATION.value,
                         "confidence_score": 0.8,
-                        "extraction_method": ExtractionMethod.RULE_BASED.value,
+                        "extraction_method": "rule_based",  # String value for rule-based extraction
                         "position": [start_pos, start_pos + len(word)],
                         "context": context,
                         "metadata": {
@@ -212,7 +250,7 @@ class EntityExtractionService:
                     "name": name,
                     "entity_type": EntityType.PERSON.value,
                     "confidence_score": 0.85,
-                    "extraction_method": ExtractionMethod.RULE_BASED.value,
+                    "extraction_method": "rule_based",  # String value for rule-based extraction
                     "position": [start_pos + len(title) + 1, start_pos + len(match.group())],
                     "context": context,
                     "metadata": {
@@ -248,7 +286,7 @@ class EntityExtractionService:
                     "name": match.group(),
                     "entity_type": EntityType.LOCATION.value,
                     "confidence_score": 0.8,
-                    "extraction_method": ExtractionMethod.RULE_BASED.value,
+                    "extraction_method": "rule_based",  # String value for rule-based extraction
                     "position": [start_pos, start_pos + len(match.group())],
                     "context": context,
                     "metadata": {
@@ -285,9 +323,9 @@ class EntityExtractionService:
 
                 entities.append({
                     "name": match.group(),
-                    "entity_type": EntityType.JOB_TITLE.value,
+                    "entity_type": EntityType.CUSTOM.value,  # Using CUSTOM for job titles
                     "confidence_score": 0.75,
-                    "extraction_method": ExtractionMethod.RULE_BASED.value,
+                    "extraction_method": "rule_based",  # String value for rule-based extraction
                     "position": [start_pos, start_pos + len(match.group())],
                     "context": context,
                     "metadata": {
@@ -299,17 +337,127 @@ class EntityExtractionService:
         return entities
 
     async def _extract_with_llm(self, text: str) -> List[Dict[str, Any]]:
-        """Extract entities using LLM (placeholder implementation)"""
-        # This would integrate with an actual LLM service like OpenAI, Anthropic, etc.
-        # For now, return empty list
+        """Extract entities using Azure OpenAI LLM"""
+        if not self.llm_client:
+            logger.warning("LLM client not available for entity extraction")
+            return []
 
-        # Example implementation would:
-        # 1. Send text to LLM with entity extraction prompt
-        # 2. Parse LLM response
-        # 3. Return structured entity data
+        try:
+            # Truncate text if too long (leave room for prompt and response)
+            max_text_length = 8000  # Adjust based on model's context limit
+            truncated_text = text[:max_text_length] if len(text) > max_text_length else text
 
-        logger.info("LLM extraction not implemented yet")
-        return []
+            # Create prompt for entity extraction
+            prompt = f"""Extract entities and relationships from the following text.
+Return a JSON object with the following structure:
+
+{{
+    "entities": [
+        {{
+            "name": "Entity Name",
+            "entity_type": "PERSON|ORGANIZATION|LOCATION|PRODUCT|CONCEPT|DATE|NUMBER|EMAIL|PHONE|URL|CUSTOM",
+            "confidence_score": 0.0-1.0,
+            "position": [start_index, end_index],
+            "context": "relevant text snippet",
+            "metadata": {{
+                "description": "Brief description of the entity",
+                "aliases": ["alternative names"]
+            }}
+        }}
+    ],
+    "relationships": [
+        {{
+            "source_entity": "Source Entity Name",
+            "target_entity": "Target Entity Name",
+            "relationship_type": "WORKS_FOR|KNOWS|RELATED_TO|LOCATED_IN|PART_OF|MANAGES|COLLABORATES_WITH|REPORTS_TO|MEMBER_OF|ATTENDED|CREATED|OWNS|USES|REFERENCES",
+            "confidence_score": 0.0-1.0,
+            "context": "text describing the relationship",
+            "evidence": ["supporting quotes"]
+        }}
+    ]
+}}
+
+Text to analyze:
+{truncated_text}
+
+Focus on:
+1. Named entities (people, organizations, locations)
+2. Specific concepts and technologies
+3. Relationships between entities
+4. Provide confidence scores based on how certain you are
+
+JSON Response:"""
+
+            # Call Azure OpenAI
+            response = self.llm_client.chat.completions.create(
+                model=self.llm_deployment_name,
+                messages=[
+                    {"role": "system", "content": "You are an expert at entity extraction and relationship analysis. Always return valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,  # Low temperature for consistent extraction
+                max_tokens=2000,
+                response_format={"type": "json_object"}
+            )
+
+            # Parse the response
+            content = response.choices[0].message.content
+            if not content:
+                logger.warning("Empty response from LLM")
+                return []
+
+            result = json.loads(content)
+            entities = []
+
+            # Convert entities to our format
+            for entity in result.get("entities", []):
+                entities.append({
+                    "name": entity["name"],
+                    "entity_type": self._normalize_entity_type(entity["entity_type"]),
+                    "confidence_score": min(1.0, max(0.0, float(entity.get("confidence_score", 0.7)))),
+                    "extraction_method": ExtractionMethod.OPENAI.value,  # Using OPENAI enum for LLM extraction
+                    "position": entity.get("position"),
+                    "context": entity.get("context", ""),
+                    "metadata": {
+                        "extraction_method": "llm_azure_openai",
+                        "model": self.llm_deployment_name,
+                        "description": entity.get("metadata", {}).get("description", ""),
+                        "aliases": entity.get("metadata", {}).get("aliases", [])
+                    }
+                })
+
+            # Convert relationships to our format (these will be processed separately)
+            # For now, we'll only return entities from LLM extraction to keep the flow simple
+            # Relationships will be extracted by the main relationship extraction method
+
+            logger.info(f"Extracted {len(entities)} entities using LLM")
+            return entities
+
+        except Exception as e:
+            logger.error(f"Error in LLM entity extraction: {e}")
+            return []
+
+    def _normalize_entity_type(self, llm_type: str) -> str:
+        """Normalize entity types from LLM to our enum values"""
+        type_mapping = {
+            "PERSON": EntityType.PERSON.value,
+            "ORGANIZATION": EntityType.ORGANIZATION.value,
+            "LOCATION": EntityType.LOCATION.value,
+            "PRODUCT": EntityType.PRODUCT.value,
+            "CONCEPT": EntityType.CONCEPT.value,
+            "DATE": EntityType.DATE.value,
+            "NUMBER": EntityType.NUMBER.value,
+            "EMAIL": EntityType.EMAIL.value,
+            "PHONE": EntityType.PHONE.value,
+            "URL": EntityType.URL.value,
+            "CUSTOM": EntityType.CUSTOM.value,
+            "EVENT": EntityType.CONCEPT.value,  # Map EVENT to CONCEPT
+            "TECHNOLOGY": EntityType.CONCEPT.value,  # Map TECHNOLOGY to CONCEPT
+            "JOB_TITLE": EntityType.CUSTOM.value,  # Map JOB_TITLE to CUSTOM
+            "FINANCIAL": EntityType.NUMBER.value,  # Map FINANCIAL to NUMBER
+        }
+
+        return type_mapping.get(llm_type.upper(), EntityType.CONCEPT.value)
 
     async def _extract_relationships(self, text: str, entities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Extract relationships between entities"""

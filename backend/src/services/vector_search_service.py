@@ -4,6 +4,7 @@ Combined vector search service - integrates embedding generation and vector data
 
 import time
 import logging
+import asyncio
 from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
 
@@ -40,8 +41,9 @@ class VectorSearchService:
         organization_id: str,
         content_type: str = "text",
         source_type: str = "document",
-        chunk_size: int = 500,
-        overlap: int = 50
+        chunk_size: int = 1000,  # Increased from 500 for better context
+        overlap: int = 200,      # Increased from 50 for better continuity
+        metadata: Optional[Dict[str, Any]] = None
     ) -> VectorOperationResult:
         """Index a document by generating embeddings and storing in vector database"""
         start_time = time.time()
@@ -53,15 +55,18 @@ class VectorSearchService:
                 "source_type": source_type,
                 "timestamp": datetime.utcnow()
             }
+            
+            if metadata:
+                base_metadata.update(metadata)
 
             # Generate document embeddings with chunking
-            document_embeddings = self.embedding_service.generate_document_embeddings(
+            document_embeddings = asyncio.run(self.embedding_service.generate_document_embeddings(
                 document_id=document_id,
                 text=text,
                 metadata=base_metadata,
                 chunk_size=chunk_size,
                 overlap=overlap
-            )
+            ))
 
             if not document_embeddings:
                 return VectorOperationResult(
@@ -84,8 +89,12 @@ class VectorSearchService:
                     additional_data=doc_emb["metadata"]
                 )
 
+                import uuid
+                # Qdrant requires ID to be UUID or int, not arbitrary string
+                point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, doc_emb["id"]))
+                
                 vector_entry = VectorEntry(
-                    id=doc_emb["id"],
+                    id=point_id,
                     vector=doc_emb["embedding"],
                     text=doc_emb["text"],
                     metadata=metadata,
@@ -138,7 +147,7 @@ class VectorSearchService:
         try:
             # Generate embedding for entity text
             embedding_request = EmbeddingRequest(text=entity_text)
-            embedding_response = self.embedding_service.generate_embedding(embedding_request)
+            embedding_response = asyncio.run(self.embedding_service.generate_embedding(embedding_request))
 
             if not embedding_response.embedding:
                 return VectorOperationResult(
@@ -202,14 +211,15 @@ class VectorSearchService:
         query: str,
         organization_id: str,
         limit: int = 10,
-        score_threshold: float = 0.7,
+        score_threshold: float = 0.5,  # Lowered from 0.7 for better recall
         filters: Optional[Dict[str, Any]] = None
     ) -> VectorSearchResponse:
         """Search for similar documents"""
         try:
-            # Generate embedding for query
-            embedding_request = EmbeddingRequest(text=query)
-            embedding_response = self.embedding_service.generate_embedding(embedding_request)
+            # Generate embedding for query - use Azure OpenAI to match indexed vectors (1536d)
+            # Force Azure provider since indexed vectors are 1536d from Azure OpenAI
+            embedding_request = EmbeddingRequest(text=query, provider="azure_openai")
+            embedding_response = asyncio.run(self.embedding_service.generate_embedding(embedding_request))
 
             if not embedding_response.embedding:
                 return VectorSearchResponse(
@@ -254,13 +264,13 @@ class VectorSearchService:
         organization_id: str,
         entity_type: Optional[str] = None,
         limit: int = 10,
-        score_threshold: float = 0.7
+        score_threshold: float = 0.5  # Lowered from 0.7 for better recall
     ) -> VectorSearchResponse:
         """Search for similar entities"""
         try:
             # Generate embedding for query
             embedding_request = EmbeddingRequest(text=query)
-            embedding_response = self.embedding_service.generate_embedding(embedding_request)
+            embedding_response = asyncio.run(self.embedding_service.generate_embedding(embedding_request))
 
             if not embedding_response.embedding:
                 return VectorSearchResponse(

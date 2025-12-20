@@ -49,9 +49,11 @@ openai-whisper==20231117
 # NLP
 spacy==3.7.2
 
-# Multi-Agent Framework (commented out for faster builds - add back when needed)
-# crewai>=0.36.0
-# crewai-tools>=0.4.26
+# Multi-Agent Framework
+crewai>=0.36.0
+crewai-tools>=0.4.26
+langchain-openai>=0.1.0
+langchain-community>=0.0.25
 
 # RAG Evaluation
 deepeval==0.20.78

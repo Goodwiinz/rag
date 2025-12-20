@@ -1,0 +1,85 @@
+{
+  "dataset_info": {
+    "name": "ArXiv RAG Evaluation Dataset",
+    "created_at": "2025-12-19T15:34:58.648725",
+    "num_papers": 1,
+    "questions_per_paper": 3
+  },
+  "test_cases": [
+    {
+      "paper_id": "2512.15687v1",
+      "paper_title": "Can LLMs Guide Their Own Exploration? Gradient-Guided Reinforcement Learning for LLM Reasoning",
+      "paper_abstract": "We propose Gradient-Guided Reinforcement Learning (G2RL), a framework that leverages the gradients of the policy to guide exploration in the action space. By using the gradients, we can identify promising directions for exploration and avoid redundant exploration of the action space. We evaluate our method on several reasoning tasks and show that it outperforms standard RL methods.",
+      "categories": [
+        "cs.LG",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "id": "2512.15687v1_q_1",
+          "question": "What is the main idea of Gradient-Guided Reinforcement Learning (G2RL) and how does it guide exploration differently from standard RL?",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.85,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.7
+          },
+          "source": "llm_generated"
+        },
+        {
+          "id": "2512.15687v1_q_2",
+          "question": "What are the theoretical or empirical justifications provided for using gradients of the policy to guide exploration in LLM reasoning tasks?",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.75,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.7
+          },
+          "source": "llm_generated"
+        },
+        {
+          "id": "2512.15687v1_q_3",
+          "question": "What datasets or reasoning tasks were used to evaluate G2RL, and how did G2RL perform relative to standard RL baselines?",
+          "difficulty": "medium",
+          "expected_answer_type": "results",
+          "requires_context": [
+            "title",
+            "abstract",
+            "categories"
+          ],
+          "evaluation_criteria": {
+            "answer_relevancy": 0.9,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.7
+          },
+          "source": "llm_generated"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Can LLMs Guide Their Own Exploration? Gradient-Guided Reinforcement Learning for LLM Reasoning",
+        "abstract": "We propose Gradient-Guided Reinforcement Learning (G2RL), a framework that leverages the gradients of the policy to guide exploration in the action space. By using the gradients, we can identify promising directions for exploration and avoid redundant exploration of the action space. We evaluate our method on several reasoning tasks and show that it outperforms standard RL methods.",
+        "authors": [
+          "Zhenwen Liang",
+          "Sidi Lu",
+          "Wenhao Yu"
+        ],
+        "categories": [
+          "cs.LG",
+          "cs.AI"
+        ]
+      }
+    }
+  ]
+}

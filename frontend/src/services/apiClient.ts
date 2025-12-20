@@ -246,7 +246,13 @@ class ApiClient {
           error.config._retry = true;
           try {
             const { useAuthStore } = await import('@/stores/authStore');
-            const refreshResponse = await this.client.post('/auth/refresh', {}, {
+            const authState = useAuthStore.getState();
+            // Use specific refresh token if available, otherwise fallback to access token
+            const refreshTokenToSend = authState.refreshToken || authState.token;
+
+            const refreshResponse = await this.client.post('/auth/refresh', {
+              refresh_token: refreshTokenToSend
+            }, {
               withCredentials: true
             });
             const newToken = refreshResponse.data.access_token;

@@ -84,6 +84,7 @@ class EmbeddingService:
         if azure_openai_service.is_embedding_available():
             logger.info("Azure OpenAI embedding service is available")
             # Set Azure as preferred if configured
+            # Set Azure as preferred if configured
             if (settings.AZURE_OPENAI_API_KEY and
                 (settings.AZURE_OPENAI_EMBEDDING_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT)):
                 self.embedding_provider = "azure_openai"
@@ -404,7 +405,7 @@ class EmbeddingService:
 
         return chunks
 
-    def generate_document_embeddings(
+    async def generate_document_embeddings(
         self,
         document_id: str,
         text: str,
@@ -420,10 +421,10 @@ class EmbeddingService:
             if not chunks:
                 return []
 
-            # Generate embeddings for all chunks
+            # Generate embeddings for all chunks - force Azure OpenAI for 1536d vectors
             chunk_texts = [chunk for chunk in chunks]
-            request = BatchEmbeddingRequest(texts=chunk_texts)
-            response = self.generate_batch_embeddings(request)
+            request = BatchEmbeddingRequest(texts=chunk_texts, provider="azure_openai")
+            response = await self.generate_batch_embeddings(request)
 
             # Combine embeddings with metadata
             document_embeddings = []

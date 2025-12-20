@@ -89,9 +89,28 @@ async def extract_paper_features(
                     if request.extract_entities:
                         try:
                             entity_service = EntityExtractionService()
-                            entities = await entity_service.extract_entities_from_text(
-                                text=text_content,
-                                document_id=paper_id
+                            # Create a minimal Document object
+                            from ..models.document import Document, DocumentType
+                            from datetime import datetime
+
+                            doc = Document(
+                                id=None,
+                                title=paper.get("title", ""),
+                                content=text_content,
+                                document_type=DocumentType.PDF,
+                                metadata={
+                                    "paper_id": paper_id,
+                                    "source": "arxiv",
+                                    "authors": paper.get("authors", []),
+                                    "categories": paper.get("categories", [])
+                                },
+                                created_at=datetime.now(),
+                                updated_at=datetime.now()
+                            )
+
+                            entities = entity_service.extract_entities_from_text(
+                                document=doc,
+                                text=text_content
                             )
                             extraction_result["features"]["entities"] = entities
                         except Exception as e:
@@ -332,24 +351,85 @@ async def _update_knowledge_graph_with_extractions(extraction_results: List[Dict
                     features = result.get("features", {})
                     paper_id = result.get("paper_id")
 
+                    # Create document entity for the paper
+                    from ..models.graph import CreateEntityRequest, EntityType, ExtractionMethod
+
+                    doc_entity_request = CreateEntityRequest(
+                        entity_type=EntityType.DOCUMENT,
+                        name=result.get("title", f"ArXiv Paper: {paper_id}"),
+                        confidence_score=0.9,
+                        extraction_method=ExtractionMethod.SPACY_NER,
+                        metadata={
+                            "paper_id": paper_id,
+                            "source": "arxiv_extraction"
+                        }
+                    )
+                    doc_entity = kg.kg_service.create_entity(doc_entity_request)
+
+                    if not doc_entity:
+                        logger.error(f"Failed to create document entity for {paper_id}")
+                        return
+
                     # Update KG with entities
                     if "entities" in features:
                         for entity in features["entities"].get("entities", []):
-                            await kg.kg_service.create_entity(
-                                name=entity.get("name"),
-                                entity_type=entity.get("type"),
-                                properties=entity.get("properties", {})
+                            entity_request = CreateEntityRequest(
+                                entity_type=EntityType(entity.get("type", "OTHER")),
+                                name=entity.get("name", ""),
+                                confidence_score=entity.get("properties", {}).get("confidence", 0.5),
+                                extraction_method=ExtractionMethod.SPACY_NER,
+                                metadata=entity.get("properties", {})
                             )
+                            kg.kg_service.create_entity(entity_request)
+
+                    # Update KG with topics
+                    if "topics" in features and isinstance(features["topics"], list):
+                        for topic in features["topics"]:
+                            topic_request = CreateEntityRequest(
+                                entity_type=EntityType.CONCEPT,
+                                name=topic,
+                                confidence_score=0.8,
+                                extraction_method=ExtractionMethod.SPACY_NER,
+                                metadata={"source": "arxiv_extraction", "paper_id": paper_id}
+                            )
+                            kg.kg_service.create_entity(topic_request)
+
+                    # Update KG with keyphrases
+                    if "keyphrases" in features and isinstance(features["keyphrases"], list):
+                        for keyphrase in features["keyphrases"]:
+                            kp_request = CreateEntityRequest(
+                                entity_type=EntityType.CONCEPT,
+                                name=keyphrase,
+                                confidence_score=0.7,
+                                extraction_method=ExtractionMethod.SPACY_NER,
+                                metadata={"source": "arxiv_keyphrase", "paper_id": paper_id}
+                            )
+                            kg.kg_service.create_entity(kp_request)
 
                     # Update KG with relationships
                     if "entities" in features and "relationships" in features["entities"]:
+                        from ..models.graph import CreateRelationshipRequest, RelationshipType
+
                         for rel in features["entities"]["relationships"]:
-                            await kg.kg_service.create_relationship(
-                                source=rel.get("source"),
-                                target=rel.get("target"),
-                                relationship_type=rel.get("type"),
-                                properties=rel.get("properties", {})
+                            # Find entity IDs by name
+                            source_entities = kg.kg_service.search_entities(
+                                query=rel.get("source", ""),
+                                limit=1
                             )
+                            target_entities = kg.kg_service.search_entities(
+                                query=rel.get("target", ""),
+                                limit=1
+                            )
+
+                            if source_entities and target_entities:
+                                rel_request = CreateRelationshipRequest(
+                                    source_entity_id=source_entities[0].id,
+                                    target_entity_id=target_entities[0].id,
+                                    relationship_type=RelationshipType.RELATED_TO,
+                                    confidence_score=rel.get("properties", {}).get("confidence", 0.5),
+                                    metadata=rel.get("properties", {})
+                                )
+                                kg.kg_service.create_relationship(rel_request)
 
         logger.info(f"Knowledge graph updated for {len(extraction_results)} papers")
 

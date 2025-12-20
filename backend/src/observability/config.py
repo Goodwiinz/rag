@@ -4,7 +4,8 @@ Observability configuration for the Multimodal RAG System.
 
 import os
 from typing import Optional, Dict, Any
-from pydantic import BaseSettings, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 
 class ObservabilityConfig(BaseSettings):
@@ -64,6 +65,7 @@ class ObservabilityConfig(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"  # Allow other env vars from .env without error
 
     def get_otel_resource_attributes(self) -> Dict[str, Any]:
         """Get OpenTelemetry resource attributes."""

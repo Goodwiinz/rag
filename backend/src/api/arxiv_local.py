@@ -9,6 +9,7 @@ import uuid
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks, Body
 from pydantic import BaseModel, Field
 
@@ -235,38 +236,7 @@ async def extract_features_from_local_pdfs(
                         summary = f"Summary of paper {paper_id}: This paper appears to be from the ArXiv repository."
                     extraction_result["features"]["summary"] = summary
 
-                # Generate embeddings for the extracted text (optional)
-                if extracted_text and len(extracted_text) > 100:
-                    try:
-                        from ..services.embedding_service import EmbeddingService
-                        from ..models.vector import EmbeddingRequest
 
-                        embedding_service = EmbeddingService()
-
-                        # Create embedding request for the full text or abstract
-                        text_to_embed = extracted_text[:2000]  # Limit to first 2000 chars
-
-                        embedding_request = EmbeddingRequest(
-                            text=text_to_embed,
-                            metadata={
-                                "paper_id": paper_id,
-                                "source": "arxiv_local",
-                                "text_type": "extracted_content"
-                            }
-                        )
-
-                        embedding_response = embedding_service.generate_embedding(embedding_request)
-                        extraction_result["features"]["embedding"] = {
-                            "vector": embedding_response.embedding.tolist() if hasattr(embedding_response.embedding, 'tolist') else embedding_response.embedding,
-                            "dimension": embedding_response.dimension,
-                            "model": embedding_response.model,
-                            "provider": embedding_response.provider
-                        }
-                        logger.info(f"Generated embedding for {paper_id} using {embedding_response.provider}")
-
-                    except Exception as e:
-                        logger.warning(f"Failed to generate embedding for {paper_id}: {e}")
-                        extraction_result["features"]["embedding"] = None
 
                 extraction_result["extraction_status"] = "completed"
                 extraction_results.append(extraction_result)
@@ -281,29 +251,189 @@ async def extract_features_from_local_pdfs(
                     "error": str(e)
                 })
 
-        # Update knowledge graph if requested
         if request.update_knowledge_graph and processed_count > 0:
             logger.info(f"Scheduling knowledge graph update for {processed_count} papers")
-            background_tasks.add_task(
-                _update_knowledge_graph_with_local_extractions,
-                extraction_results
-            )
-        else:
-            logger.info(f"Knowledge graph update skipped - update_knowledge_graph: {request.update_knowledge_graph}, processed_count: {processed_count}")
+            # Create background tasks for each result to process independently
+            for result in extraction_results:
+                background_tasks.add_task(_post_process_extraction, result, request)
 
-        logger.info(f"Returning response after processing {processed_count} PDF files")
         return LocalExtractionResponse(
             status="success",
-            message=f"Successfully extracted features from {processed_count} local PDF files",
+            message=f"Successfully processed {processed_count} files",
             total_files_found=len(pdf_files),
             processed_count=processed_count,
             results=extraction_results
         )
 
     except Exception as e:
-        logger.error(f"Local PDF extraction failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error in local PDF extraction: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to extract features from local PDFs: {str(e)}"
+        )
 
+
+# Global executor for KG updates to prevent resource exhaustion
+# Max workers = 5 allows parallel KG updates while preventing resource exhaustion
+KG_UPDATE_EXECUTOR = ThreadPoolExecutor(max_workers=5)
+
+async def _post_process_extraction(result, request):
+    """
+    Handle async post-processing steps (embeddings, KG update)
+    """
+    paper_id = result.get('paper_id', 'unknown')
+    logger.info(f"Starting post-processing for paper: {paper_id}")
+
+    try:
+        extracted_text = result["features"].get("extracted_text", "")
+        
+        # 1. Generate Embeddings (Async)
+        if extracted_text and len(extracted_text) > 100:
+            try:
+                from ..services.embedding_service import EmbeddingService
+
+                embedding_service = EmbeddingService()
+                # Set provider to Azure OpenAI if available
+                if hasattr(embedding_service, 'embedding_provider') and embedding_service.embedding_provider == "azure_openai":
+                    logger.info("Using Azure OpenAI for embeddings")
+                    embedding = await embedding_service.generate_embedding_azure(extracted_text[:2000])
+                else:
+                    # Fall back to default embedding method
+                    from ..models.vector import EmbeddingRequest
+                    embedding_request = EmbeddingRequest(
+                        text=extracted_text[:2000],
+                        model="sentence-transformers/all-MiniLM-L6-v2"
+                    )
+                    embedding = await embedding_service.generate_embedding(embedding_request)
+
+                result["features"]["embedding"] = embedding
+                logger.info(f"Generated embedding with {len(embedding.embedding) if hasattr(embedding, 'embedding') else 'unknown'} dimensions")
+            except Exception as e:
+                logger.error(f"Error generating embedding: {e}")
+
+        # 2. Extract Topics (Async)
+        if request.extract_topics and extracted_text:
+             pass
+
+        # 3. Update Knowledge Graph (Sync wrapper in ThreadPool)
+        if request.update_knowledge_graph:
+            import asyncio
+            loop = asyncio.get_event_loop()
+
+            # Run the synchronous KG update in the global executor
+            try:
+                logger.info(f"Submitting KG update for {result.get('paper_id', 'unknown')} to executor")
+                await loop.run_in_executor(
+                    KG_UPDATE_EXECUTOR,
+                    _update_knowledge_graph_with_local_extractions_sync,
+                    result
+                )
+                logger.info(f"KG update task submitted for {result.get('paper_id', 'unknown')}")
+            except Exception as e:
+                logger.error(f"Failed to update knowledge graph: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+
+    except Exception as e:
+        logger.error(f"Error in post-processing: {e}")
+
+
+def _update_knowledge_graph_with_local_extractions_sync(result: Dict[str, Any]):
+    """
+    Synchronous wrapper for knowledge graph updates
+    """
+    try:
+        from ..services.knowledge_graph_service import KnowledgeGraphService
+        from ..models.graph import CreateEntityRequest, EntityType, ExtractionMethod
+        
+        kg_service = KnowledgeGraphService()
+        
+        # Extract metadata
+        features = result.get("features", {})
+        metadata = features.get("metadata", {})
+        paper_id = result.get("paper_id", "")
+        filename = result.get("filename", "")
+        
+        # Helper to safely get string values
+        def get_safe_str(val):
+            return str(val) if val else ""
+            
+        # Create Paper Entity
+        paper_title = get_safe_str(metadata.get("title", ""))
+        
+        paper_entity_request = CreateEntityRequest(
+            entity_type=EntityType.DOCUMENT,
+            name=paper_title if paper_title and paper_title != "pdf" else f"ArXiv Paper: {paper_id}",
+            confidence_score=0.9,
+            extraction_method=ExtractionMethod.SPACY_NER,
+            metadata={
+                "paper_id": paper_id,
+                "filename": filename,
+                "title": paper_title,
+                "author": get_safe_str(metadata.get("author", "")),
+                "subject": get_safe_str(metadata.get("subject", "")),
+                "creator": get_safe_str(metadata.get("creator", "")),
+                "source": "local_arxiv",
+                "topics": features.get("topics", []),
+                "keyphrases": features.get("keyphrases", []),
+                "summary": features.get("summary", ""),
+                "extracted_at": datetime.now().isoformat()
+            }
+        )
+        
+        logger.info(f"Creating paper entity for {paper_id}...")
+        paper_entity = kg_service.create_entity(paper_entity_request)
+        logger.info(f"Created/Updated paper entity: {paper_entity.id if paper_entity else 'None'}")
+
+        if not paper_entity:
+            logger.warning(f"Failed to create paper entity for {paper_id}")
+            return
+
+        # Add topics as entities and create relationships
+        topics = features.get("topics", [])
+        for topic in topics:
+            if not topic: continue
+            
+            try:
+                # Create or get topic entity
+                topic_entity_request = CreateEntityRequest(
+                    entity_type=EntityType.CONCEPT, 
+                    name=topic,
+                    confidence_score=0.8,
+                    extraction_method=ExtractionMethod.SPACY_NER,
+                    metadata={
+                        "source": "arxiv_extraction",
+                        "paper_id": paper_id
+                    }
+                )
+                topic_entity = kg_service.create_entity(topic_entity_request)
+                
+                # Create relationship: PAPER -> HAS_TOPIC -> TOPIC
+                if topic_entity:
+                    from ..models.graph import CreateRelationshipRequest, RelationshipType
+
+                    logger.info(f"Creating relationship between paper {paper_entity.id} and topic {topic_entity.id}")
+                    rel_request = CreateRelationshipRequest(
+                        source_entity_id=paper_entity.id,
+                        target_entity_id=topic_entity.id,
+                        relationship_type=RelationshipType.RELATED_TO,
+                        confidence_score=0.85,
+                        metadata={"type": "topic_extraction"}
+                    )
+                    relationship = kg_service.create_relationship(rel_request)
+                    if relationship:
+                        logger.info(f"✅ Created relationship: {relationship.id}")
+                    else:
+                        logger.warning(f"❌ Failed to create relationship")
+            except Exception as e:
+                logger.warning(f"Failed to process topic '{topic}': {e}")
+                continue
+
+    except Exception as e:
+        logger.error(f"Error in knowledge graph update: {e}")
+        raise
 
 @router.get("/local-stats")
 async def get_local_papers_stats(
@@ -635,6 +765,7 @@ async def _update_knowledge_graph_with_local_extractions(extraction_results: Lis
                         }
                     )
                     paper_entity = kg_service.create_entity(paper_entity_request)
+                    logger.info(f"Created Paper Entity: {paper_entity.id if paper_entity else 'None'}. Type: {paper_entity_request.entity_type}")
 
                     # Add topics as entities and create relationships
                     topics = features.get("topics", [])
@@ -663,6 +794,7 @@ async def _update_knowledge_graph_with_local_extractions(extraction_results: Lis
                             context="Topic extracted from ArXiv paper"
                         )
                         kg_service.create_relationship(relationship_request)
+                        logger.info(f"Created relationship Paper->Topic: {paper_entity.id} -> {topic_entity.id}")
 
                     # Add keyphrases as entities
                     keyphrases = features.get("keyphrases", [])
@@ -690,6 +822,7 @@ async def _update_knowledge_graph_with_local_extractions(extraction_results: Lis
                             context="Keyphrase extracted from ArXiv paper"
                         )
                         kg_service.create_relationship(relationship_request)
+                        logger.info(f"Created relationship Paper->Keyphrase: {paper_entity.id} -> {keyphrase_entity.id}")
         finally:
             kg_service.close()
 
