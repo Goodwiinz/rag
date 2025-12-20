@@ -86,9 +86,12 @@ class WebSocketServiceInitializer:
     async def _setup_service_integrations(self):
         """Set up integrations between services"""
         try:
-            # Register error handlers for connection manager
-            connection_manager.register_error_handler("ConnectionError", self._handle_connection_error)
-            connection_manager.register_error_handler("AuthenticationError", self._handle_auth_error)
+            # Register error handlers for connection manager if available
+            if hasattr(connection_manager, 'register_error_handler'):
+                connection_manager.register_error_handler("ConnectionError", self._handle_connection_error)
+                connection_manager.register_error_handler("AuthenticationError", self._handle_auth_error)
+            else:
+                logger.info("Connection manager does not support error handler registration")
 
             # Connect processing integration to status updates
             # This would be done through event systems or direct calls

@@ -273,6 +273,18 @@ export default function ArxivManagement() {
     setProgress(0);
 
     try {
+      // Check if we have a valid token before making the request
+      const { useAuthStore } = await import('@/stores/authStore');
+      const authStore = useAuthStore.getState();
+
+      if (!authStore.token) {
+        setMessage('No authentication token found. Please log in first.');
+        setIsExtracting(false);
+        return;
+      }
+
+      setProgress(10);
+
       const response = await apiClient.postWithLongTimeout('/arxiv/local/extract-local-features', {
         paper_ids: null, // Process all files
         extract_entities: extractEntities,
@@ -284,7 +296,9 @@ export default function ArxivManagement() {
         update_knowledge_graph: updateKG
       });
 
-        // The response is direct, not wrapped in .data
+      setProgress(80);
+
+      // The response is direct, not wrapped in .data
       const data = response.data || response;
 
       setExtractionResult({
@@ -294,19 +308,29 @@ export default function ArxivManagement() {
         results: data.results || []
       });
 
-      setMessage(`Successfully extracted features from ${data.processed_count} local PDF files`);
+      setMessage(`✅ Successfully extracted features from ${data.processed_count} local PDF files`);
       setProgress(100);
     } catch (error: any) {
       console.error('Local PDF extraction failed:', error);
 
-      // Check if it's an authentication error
-      if (error.status === 401 || error.response?.status === 401) {
-        setMessage('Authentication expired. Please refresh the page and log in again.');
-      } else if (error.status === 403 || error.response?.status === 403) {
-        setMessage('Access denied. Please check your permissions and try again.');
+      // Extract error details
+      const status = error.response?.status || error.status;
+      const detail = error.response?.data?.detail || error.message || error.toString();
+
+      if (status === 401) {
+        setMessage('❌ Authentication expired. Please refresh the page and log in again.');
+        // Optional: Attempt to refresh token automatically
+        // authStore.refreshToken();
+      } else if (status === 403) {
+        setMessage('❌ Access denied. You do not have permission to extract PDFs.');
+      } else if (status === 404) {
+        setMessage('❌ No local PDF files found. Please ensure PDF files are in the data directory.');
+      } else if (status === 500) {
+        setMessage('❌ Server error. Please check the backend logs for details.');
       } else {
-        setMessage(`Local PDF extraction failed: ${error.response?.data?.detail || error.message || error.toString()}`);
+        setMessage(`❌ Extraction failed: ${detail}`);
       }
+      setProgress(0);
     } finally {
       setIsExtracting(false);
     }
