@@ -16,7 +16,7 @@ class DatabaseConnectionConfig(BaseModel):
     # Connection settings
     host: str = "localhost"
     port: int = 5432
-    database: str = "multimodal_rag"
+    database: str = "multimodal_rag_dev"
     username: str = "postgres"
     password: str = "postgres"
     schema: str = "public"

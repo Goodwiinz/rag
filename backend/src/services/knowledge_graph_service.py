@@ -2,6 +2,7 @@
 Knowledge Graph Service for managing Neo4j graph database operations
 """
 
+import json
 import logging
 import time
 import uuid
@@ -171,7 +172,7 @@ class KnowledgeGraphService:
                     "extraction_method": request.extraction_method.value,
                     "position": request.position,
                     "context": request.context,
-                    "metadata": str(request.metadata) if request.metadata else {},
+                    "metadata": str(request.metadata) if request.metadata else "{}",
                     "source_document_id": request.source_document_id
                 })
 
@@ -251,7 +252,7 @@ class KnowledgeGraphService:
 
                 if request.metadata is not None:
                     update_fields.append("e.metadata = $metadata")
-                    params["metadata"] = str(request.metadata) if request.metadata else {}
+                    params["metadata"] = str(request.metadata) if request.metadata else "{}"
 
                 if not update_fields:
                     return self.get_entity(entity_id)
@@ -464,6 +465,10 @@ class KnowledgeGraphService:
                 RETURN r, source, target
                 """
 
+                # Serialize evidence and metadata to JSON strings (Neo4j only accepts primitives)
+                evidence_str = json.dumps(request.evidence) if request.evidence else "[]"
+                metadata_str = json.dumps(request.metadata) if request.metadata else "{}"
+                
                 result = session.run(query, {
                     "id": relationship_id,
                     "source_entity_id": request.source_entity_id,
@@ -472,8 +477,8 @@ class KnowledgeGraphService:
                     "strength": request.strength,
                     "confidence_score": request.confidence_score,
                     "context": request.context,
-                    "evidence": request.evidence,
-                    "metadata": str(request.metadata) if request.metadata else {},
+                    "evidence": evidence_str,
+                    "metadata": metadata_str,
                     "source_document_id": request.source_document_id
                 })
 
@@ -767,7 +772,7 @@ class KnowledgeGraphService:
             "extraction_method": request.extraction_method.value,
             "position": request.position,
             "context": request.context,
-            "metadata": str(request.metadata) if request.metadata else {},
+            "metadata": str(request.metadata) if request.metadata else "{}",
             "source_document_id": request.source_document_id
         })
 
@@ -810,6 +815,10 @@ class KnowledgeGraphService:
         RETURN r
         """
 
+        # Serialize evidence and metadata to JSON strings (Neo4j only accepts primitives)
+        evidence_str = json.dumps(request.evidence) if request.evidence else "[]"
+        metadata_str = json.dumps(request.metadata) if request.metadata else "{}"
+        
         result = tx.run(query, {
             "id": relationship_id,
             "source_entity_id": request.source_entity_id,
@@ -818,8 +827,8 @@ class KnowledgeGraphService:
             "strength": request.strength,
             "confidence_score": request.confidence_score,
             "context": request.context,
-            "evidence": request.evidence,
-            "metadata": str(request.metadata) if request.metadata else {},
+            "evidence": evidence_str,
+            "metadata": metadata_str,
             "source_document_id": request.source_document_id
         })
 
