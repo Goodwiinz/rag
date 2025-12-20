@@ -1,0 +1,1937 @@
+{
+  "evaluation_info": {
+    "timestamp": "2025-12-19T23:20:42.531091",
+    "api_base_url": "http://localhost:8000"
+  },
+  "test_cases": [
+    {
+      "paper_id": "2512.16762v1",
+      "paper_title": "NRGPT: An Energy-based Alternative for GPT",
+      "categories": [
+        "cs.LG"
+      ],
+      "question_results": [
+        {
+          "question": "What is the main contribution of 'NRGPT: An Energy-based Alternative for GPT'?",
+          "question_id": "2512.16762v1_q_1",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 2156.532049179077,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What is the main idea behind 'NRGPT: An Energy-based Alternative for GPT'?",
+          "question_id": "2512.16762v1_q_2",
+          "difficulty": "easy",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1710.5281352996826,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What methods are used in 'NRGPT: An Energy-based Alternative for GPT'?",
+          "question_id": "2512.16762v1_q_3",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 1573.7688541412354,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16899v1",
+      "paper_title": "Multimodal RewardBench 2: Evaluating Omni Reward Models for Interleaved Text and Image",
+      "categories": [
+        "cs.CL",
+        "cs.CV"
+      ],
+      "question_results": [
+        {
+          "question": "What is the main idea behind 'Multimodal RewardBench 2: Evaluating Omni Reward Models for Interleaved Text and'?",
+          "question_id": "2512.16899v1_q_1",
+          "difficulty": "easy",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 2152.301073074341,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What is the main contribution of 'Multimodal RewardBench 2: Evaluating Omni Reward Models for Interleaved Text and'?",
+          "question_id": "2512.16899v1_q_2",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1599.228858947754,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "Describe the approach taken in 'Multimodal RewardBench 2: Evaluating Omni Reward Models for Interleaved Text and'.",
+          "question_id": "2512.16899v1_q_3",
+          "difficulty": "hard",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 1637.1300220489502,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16891v1",
+      "paper_title": "LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Generation Video Recommendation",
+      "categories": [
+        "cs.CV",
+        "cs.AI",
+        "cs.IR",
+        "cs.LG",
+        "cs.MM"
+      ],
+      "question_results": [
+        {
+          "question": "Who are the authors of 'LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Gene'?",
+          "question_id": "2512.16891v1_q_1",
+          "difficulty": "easy",
+          "expected_answer_type": "author",
+          "response_time_ms": 2766.770839691162,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "Describe the approach taken in 'LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Gene'.",
+          "question_id": "2512.16891v1_q_2",
+          "difficulty": "hard",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 1572.9930400848389,
+          "answer": "",
+          "retrieved_count": 2,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.5
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What problem does 'LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Gene' address?",
+          "question_id": "2512.16891v1_q_3",
+          "difficulty": "medium",
+          "expected_answer_type": "problem",
+          "response_time_ms": 1599.5700359344482,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16785v1",
+      "paper_title": "Topology of the near field in enhanced transmission through subwavelength apertures",
+      "categories": [
+        "physics.optics"
+      ],
+      "question_results": [
+        {
+          "question": "What is the main contribution of 'Topology of the near field in enhanced transmission through subwavelength apertu'?",
+          "question_id": "2512.16785v1_q_1",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1637.7599239349365,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "Who are the authors of 'Topology of the near field in enhanced transmission through subwavelength apertu'?",
+          "question_id": "2512.16785v1_q_2",
+          "difficulty": "easy",
+          "expected_answer_type": "author",
+          "response_time_ms": 2543.915033340454,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the key results of 'Topology of the near field in enhanced transmission through subwavelength apertu'?",
+          "question_id": "2512.16785v1_q_3",
+          "difficulty": "hard",
+          "expected_answer_type": "results",
+          "response_time_ms": 1568.8002109527588,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16702v1",
+      "paper_title": "How accurate are foundational machine learning interatomic potentials for heterogeneous catalysis?",
+      "categories": [
+        "cond-mat.mtrl-sci",
+        "cs.LG",
+        "physics.chem-ph"
+      ],
+      "question_results": [
+        {
+          "question": "What are the key results of 'How accurate are foundational machine learning interatomic potentials for hetero'?",
+          "question_id": "2512.16702v1_q_1",
+          "difficulty": "hard",
+          "expected_answer_type": "results",
+          "response_time_ms": 1742.2590255737305,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What is the main contribution of 'How accurate are foundational machine learning interatomic potentials for hetero'?",
+          "question_id": "2512.16702v1_q_2",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1825.84810256958,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What methods are used in 'How accurate are foundational machine learning interatomic potentials for hetero'?",
+          "question_id": "2512.16702v1_q_3",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 3074.370861053467,
+          "answer": "",
+          "retrieved_count": 2,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.5
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16888v1",
+      "paper_title": "An exciton interacting with the phonons of an electronic Wigner crystal",
+      "categories": [
+        "cond-mat.str-el"
+      ],
+      "question_results": [
+        {
+          "question": "What problem does 'An exciton interacting with the phonons of an electronic Wigner crystal' address?",
+          "question_id": "2512.16888v1_q_1",
+          "difficulty": "medium",
+          "expected_answer_type": "problem",
+          "response_time_ms": 2002.5043487548828,
+          "answer": "",
+          "retrieved_count": 2,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.5
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the key results of 'An exciton interacting with the phonons of an electronic Wigner crystal'?",
+          "question_id": "2512.16888v1_q_2",
+          "difficulty": "hard",
+          "expected_answer_type": "results",
+          "response_time_ms": 1940.4380321502686,
+          "answer": "",
+          "retrieved_count": 2,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.5
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What methods are used in 'An exciton interacting with the phonons of an electronic Wigner crystal'?",
+          "question_id": "2512.16888v1_q_3",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 1984.2369556427002,
+          "answer": "",
+          "retrieved_count": 2,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.5
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What is the main contribution of 'An exciton interacting with the phonons of an electronic Wigner crystal'?",
+          "question_id": "2512.16888v1_q_4",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1954.6880722045898,
+          "answer": "",
+          "retrieved_count": 2,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.5
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16788v1",
+      "paper_title": "Next-to-Leading Order corrections to the Next-to-Eikonal DIS structure functions",
+      "categories": [
+        "hep-ph"
+      ],
+      "question_results": [
+        {
+          "question": "Who are the authors of 'Next-to-Leading Order corrections to the Next-to-Eikonal DIS structure functions'?",
+          "question_id": "2512.16788v1_q_1",
+          "difficulty": "easy",
+          "expected_answer_type": "author",
+          "response_time_ms": 1843.6028957366943,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the key results of 'Next-to-Leading Order corrections to the Next-to-Eikonal DIS structure functions'?",
+          "question_id": "2512.16788v1_q_2",
+          "difficulty": "hard",
+          "expected_answer_type": "results",
+          "response_time_ms": 1740.7701015472412,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What is the main contribution of 'Next-to-Leading Order corrections to the Next-to-Eikonal DIS structure functions'?",
+          "question_id": "2512.16788v1_q_3",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1844.8820114135742,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16861v1",
+      "paper_title": "ReinforceGen: Hybrid Skill Policies with Automated Data Generation and Reinforcement Learning",
+      "categories": [
+        "cs.RO",
+        "cs.AI",
+        "cs.LG"
+      ],
+      "question_results": [
+        {
+          "question": "What is the main contribution of 'ReinforceGen: Hybrid Skill Policies with Automated Data Generation and Reinforce'?",
+          "question_id": "2512.16861v1_q_1",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1777.223825454712,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What problem does 'ReinforceGen: Hybrid Skill Policies with Automated Data Generation and Reinforce' address?",
+          "question_id": "2512.16861v1_q_2",
+          "difficulty": "medium",
+          "expected_answer_type": "problem",
+          "response_time_ms": 1942.5268173217773,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What is the main idea behind 'ReinforceGen: Hybrid Skill Policies with Automated Data Generation and Reinforce'?",
+          "question_id": "2512.16861v1_q_3",
+          "difficulty": "easy",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 2113.2559776306152,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What methods are used in 'ReinforceGen: Hybrid Skill Policies with Automated Data Generation and Reinforce'?",
+          "question_id": "2512.16861v1_q_4",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 2076.1821269989014,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16698v1",
+      "paper_title": "Do Multi-Agents Solve Better Than Single? Evaluating Agentic Frameworks for Diagram-Grounded Geometry Problem Solving and Reasoning",
+      "categories": [
+        "cs.AI",
+        "cs.CG"
+      ],
+      "question_results": [
+        {
+          "question": "What is the main idea behind 'Do Multi-Agents Solve Better Than Single? Evaluating Agentic Frameworks for Diag'?",
+          "question_id": "2512.16698v1_q_1",
+          "difficulty": "easy",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 2534.888982772827,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the key results of 'Do Multi-Agents Solve Better Than Single? Evaluating Agentic Frameworks for Diag'?",
+          "question_id": "2512.16698v1_q_2",
+          "difficulty": "hard",
+          "expected_answer_type": "results",
+          "response_time_ms": 2354.050874710083,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What methods are used in 'Do Multi-Agents Solve Better Than Single? Evaluating Agentic Frameworks for Diag'?",
+          "question_id": "2512.16698v1_q_3",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 2929.0249347686768,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16694v1",
+      "paper_title": "Unsupervised Thematic Clustering Of hadith Texts Using The Apriori Algorithm",
+      "categories": [
+        "cs.AI"
+      ],
+      "question_results": [
+        {
+          "question": "What is the main contribution of 'Unsupervised Thematic Clustering Of hadith Texts Using The Apriori Algorithm'?",
+          "question_id": "2512.16694v1_q_1",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 2907.266139984131,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "Who are the authors of 'Unsupervised Thematic Clustering Of hadith Texts Using The Apriori Algorithm'?",
+          "question_id": "2512.16694v1_q_2",
+          "difficulty": "easy",
+          "expected_answer_type": "author",
+          "response_time_ms": 2184.983968734741,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What methods are used in 'Unsupervised Thematic Clustering Of hadith Texts Using The Apriori Algorithm'?",
+          "question_id": "2512.16694v1_q_3",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 2218.6291217803955,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16879v1",
+      "paper_title": "Advantage of Warm Starts for Electron-Phonon Systems on Quantum Computers",
+      "categories": [
+        "quant-ph"
+      ],
+      "question_results": [
+        {
+          "question": "What problem does 'Advantage of Warm Starts for Electron-Phonon Systems on Quantum Computers' address?",
+          "question_id": "2512.16879v1_q_1",
+          "difficulty": "medium",
+          "expected_answer_type": "problem",
+          "response_time_ms": 1741.3229942321777,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the key results of 'Advantage of Warm Starts for Electron-Phonon Systems on Quantum Computers'?",
+          "question_id": "2512.16879v1_q_2",
+          "difficulty": "hard",
+          "expected_answer_type": "results",
+          "response_time_ms": 1727.7560234069824,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "Describe the approach taken in 'Advantage of Warm Starts for Electron-Phonon Systems on Quantum Computers'.",
+          "question_id": "2512.16879v1_q_3",
+          "difficulty": "hard",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 1854.9580574035645,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What is the main contribution of 'Advantage of Warm Starts for Electron-Phonon Systems on Quantum Computers'?",
+          "question_id": "2512.16879v1_q_4",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1740.3881549835205,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16858v1",
+      "paper_title": "Random planting with harvest: A statistical-mechanical analysis",
+      "categories": [
+        "cond-mat.stat-mech"
+      ],
+      "question_results": [
+        {
+          "question": "What problem does 'Random planting with harvest: A statistical-mechanical analysis' address?",
+          "question_id": "2512.16858v1_q_1",
+          "difficulty": "medium",
+          "expected_answer_type": "problem",
+          "response_time_ms": 1995.204210281372,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What is the main contribution of 'Random planting with harvest: A statistical-mechanical analysis'?",
+          "question_id": "2512.16858v1_q_2",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1832.78489112854,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the key results of 'Random planting with harvest: A statistical-mechanical analysis'?",
+          "question_id": "2512.16858v1_q_3",
+          "difficulty": "hard",
+          "expected_answer_type": "results",
+          "response_time_ms": 2009.4809532165527,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16875v1",
+      "paper_title": "Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery",
+      "categories": [
+        "cs.DS",
+        "cs.LG",
+        "math.ST",
+        "stat.ML"
+      ],
+      "question_results": [
+        {
+          "question": "What is the main idea behind 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery'?",
+          "question_id": "2512.16875v1_q_1",
+          "difficulty": "easy",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 2131.4189434051514,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "Who are the authors of 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery'?",
+          "question_id": "2512.16875v1_q_2",
+          "difficulty": "easy",
+          "expected_answer_type": "author",
+          "response_time_ms": 2271.682024002075,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What is the main contribution of 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery'?",
+          "question_id": "2512.16875v1_q_3",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 2151.97491645813,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16912v1",
+      "paper_title": "Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Spurious Reward",
+      "categories": [
+        "cs.LG",
+        "cs.AI",
+        "cs.CL"
+      ],
+      "question_results": [
+        {
+          "question": "What methods are used in 'Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Sp'?",
+          "question_id": "2512.16912v1_q_1",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 1773.711919784546,
+          "answer": "",
+          "retrieved_count": 2,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "Describe the approach taken in 'Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Sp'.",
+          "question_id": "2512.16912v1_q_2",
+          "difficulty": "hard",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 2115.921974182129,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "Who are the authors of 'Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Sp'?",
+          "question_id": "2512.16912v1_q_3",
+          "difficulty": "easy",
+          "expected_answer_type": "author",
+          "response_time_ms": 1924.7748851776123,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16851v1",
+      "paper_title": "PrivateXR: Defending Privacy Attacks in Extended Reality Through Explainable AI-Guided Differential Privacy",
+      "categories": [
+        "cs.CR",
+        "cs.AI",
+        "cs.HC"
+      ],
+      "question_results": [
+        {
+          "question": "What methods are used in 'PrivateXR: Defending Privacy Attacks in Extended Reality Through Explainable AI-'?",
+          "question_id": "2512.16851v1_q_1",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 1681.2138557434082,
+          "answer": "",
+          "retrieved_count": 2,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What problem does 'PrivateXR: Defending Privacy Attacks in Extended Reality Through Explainable AI-' address?",
+          "question_id": "2512.16851v1_q_2",
+          "difficulty": "medium",
+          "expected_answer_type": "problem",
+          "response_time_ms": 1922.7371215820312,
+          "answer": "",
+          "retrieved_count": 2,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the key results of 'PrivateXR: Defending Privacy Attacks in Extended Reality Through Explainable AI-'?",
+          "question_id": "2512.16851v1_q_3",
+          "difficulty": "hard",
+          "expected_answer_type": "results",
+          "response_time_ms": 1875.7507801055908,
+          "answer": "",
+          "retrieved_count": 2,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16857v1",
+      "paper_title": "Identification and efficient estimation of compliance and network causal effects in cluster-randomized trials",
+      "categories": [
+        "stat.ME"
+      ],
+      "question_results": [
+        {
+          "question": "What are the key results of 'Identification and efficient estimation of compliance and network causal effects'?",
+          "question_id": "2512.16857v1_q_1",
+          "difficulty": "hard",
+          "expected_answer_type": "results",
+          "response_time_ms": 2120.5592155456543,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What methods are used in 'Identification and efficient estimation of compliance and network causal effects'?",
+          "question_id": "2512.16857v1_q_2",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 1935.5790615081787,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "Describe the approach taken in 'Identification and efficient estimation of compliance and network causal effects'.",
+          "question_id": "2512.16857v1_q_3",
+          "difficulty": "hard",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 1871.5829849243164,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What is the main idea behind 'Identification and efficient estimation of compliance and network causal effects'?",
+          "question_id": "2512.16857v1_q_4",
+          "difficulty": "easy",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1832.4031829833984,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16849v1",
+      "paper_title": "Temporal Frictions and Judicial Outcomes: Analyzing the Impact of Time Delays on Criminal Sentencing in Cook County (2020-2024)",
+      "categories": [
+        "cs.CY"
+      ],
+      "question_results": [
+        {
+          "question": "What methods are used in 'Temporal Frictions and Judicial Outcomes: Analyzing the Impact of Time Delays on'?",
+          "question_id": "2512.16849v1_q_1",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 2036.9071960449219,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What is the main contribution of 'Temporal Frictions and Judicial Outcomes: Analyzing the Impact of Time Delays on'?",
+          "question_id": "2512.16849v1_q_2",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 2048.4180450439453,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "Describe the approach taken in 'Temporal Frictions and Judicial Outcomes: Analyzing the Impact of Time Delays on'.",
+          "question_id": "2512.16849v1_q_3",
+          "difficulty": "hard",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 2150.407075881958,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the key results of 'Temporal Frictions and Judicial Outcomes: Analyzing the Impact of Time Delays on'?",
+          "question_id": "2512.16849v1_q_4",
+          "difficulty": "hard",
+          "expected_answer_type": "results",
+          "response_time_ms": 2150.280237197876,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16884v1",
+      "paper_title": "The Motile Josephson Array: Bridging Active Turbulence and Superconductivity",
+      "categories": [
+        "cond-mat.soft",
+        "cond-mat.stat-mech",
+        "cond-mat.supr-con",
+        "nlin.AO"
+      ],
+      "question_results": [
+        {
+          "question": "Who are the authors of 'The Motile Josephson Array: Bridging Active Turbulence and Superconductivity'?",
+          "question_id": "2512.16884v1_q_1",
+          "difficulty": "easy",
+          "expected_answer_type": "author",
+          "response_time_ms": 1924.6273040771484,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the key results of 'The Motile Josephson Array: Bridging Active Turbulence and Superconductivity'?",
+          "question_id": "2512.16884v1_q_2",
+          "difficulty": "hard",
+          "expected_answer_type": "results",
+          "response_time_ms": 1866.8529987335205,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What is the main contribution of 'The Motile Josephson Array: Bridging Active Turbulence and Superconductivity'?",
+          "question_id": "2512.16884v1_q_3",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1861.9167804718018,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What is the main idea behind 'The Motile Josephson Array: Bridging Active Turbulence and Superconductivity'?",
+          "question_id": "2512.16884v1_q_4",
+          "difficulty": "easy",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1721.7929363250732,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16649v1",
+      "paper_title": "JustRL: Scaling a 1.5B LLM with a Simple RL Recipe",
+      "categories": [
+        "cs.CL"
+      ],
+      "question_results": [
+        {
+          "question": "Who are the authors of 'JustRL: Scaling a 1.5B LLM with a Simple RL Recipe'?",
+          "question_id": "2512.16649v1_q_1",
+          "difficulty": "easy",
+          "expected_answer_type": "author",
+          "response_time_ms": 1813.9798641204834,
+          "answer": "",
+          "retrieved_count": 5,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What problem does 'JustRL: Scaling a 1.5B LLM with a Simple RL Recipe' address?",
+          "question_id": "2512.16649v1_q_2",
+          "difficulty": "medium",
+          "expected_answer_type": "problem",
+          "response_time_ms": 1760.7390880584717,
+          "answer": "",
+          "retrieved_count": 2,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What is the main idea behind 'JustRL: Scaling a 1.5B LLM with a Simple RL Recipe'?",
+          "question_id": "2512.16649v1_q_3",
+          "difficulty": "easy",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1903.2647609710693,
+          "answer": "",
+          "retrieved_count": 4,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What methods are used in 'JustRL: Scaling a 1.5B LLM with a Simple RL Recipe'?",
+          "question_id": "2512.16649v1_q_4",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 1789.566993713379,
+          "answer": "",
+          "retrieved_count": 4,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16855v1",
+      "paper_title": "TOGGLE: Temporal Logic-Guided Large Language Model Compression for Edge",
+      "categories": [
+        "cs.AI",
+        "cs.LO"
+      ],
+      "question_results": [
+        {
+          "question": "Who are the authors of 'TOGGLE: Temporal Logic-Guided Large Language Model Compression for Edge'?",
+          "question_id": "2512.16855v1_q_1",
+          "difficulty": "easy",
+          "expected_answer_type": "author",
+          "response_time_ms": 2047.6739406585693,
+          "answer": "",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What methods are used in 'TOGGLE: Temporal Logic-Guided Large Language Model Compression for Edge'?",
+          "question_id": "2512.16855v1_q_2",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 1947.7949142456055,
+          "answer": "",
+          "retrieved_count": 3,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 0.6666666666666666
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "Describe the approach taken in 'TOGGLE: Temporal Logic-Guided Large Language Model Compression for Edge'.",
+          "question_id": "2512.16855v1_q_3",
+          "difficulty": "hard",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 1841.606855392456,
+          "answer": "",
+          "retrieved_count": 3,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the key results of 'TOGGLE: Temporal Logic-Guided Large Language Model Compression for Edge'?",
+          "question_id": "2512.16855v1_q_4",
+          "difficulty": "hard",
+          "expected_answer_type": "results",
+          "response_time_ms": 2037.1730327606201,
+          "answer": "",
+          "retrieved_count": 2,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.0,
+            "faithfulness": 0.0,
+            "contextual_precision": 1.0
+          },
+          "meets_thresholds": {
+            "response_time": false,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    }
+  ],
+  "aggregate_metrics": {
+    "total_questions": 68,
+    "overall_pass_rate": 0.0,
+    "average_response_time_ms": 1984.1932268703686,
+    "median_response_time_ms": 1924.7010946273804,
+    "threshold_pass_rates": {
+      "response_time": 0.6176470588235294,
+      "precision_at_3": 0.0,
+      "answer_relevancy": 0.0,
+      "faithfulness": 0.0
+    },
+    "retrieval_metrics": {
+      "precision_at_1": 1.0,
+      "mrr": 1.0,
+      "recall": 1.0
+    },
+    "answer_metrics": {
+      "answer_relevancy": 0.0,
+      "faithfulness": 0.0,
+      "contextual_precision": 0.5098039215686274
+    }
+  }
+}

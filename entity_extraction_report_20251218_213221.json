@@ -1,0 +1,81 @@
+{
+  "evaluation_timestamp": "20251218_213221",
+  "methods_tested": [
+    "pattern_matching",
+    "rule_based"
+  ],
+  "results": [
+    {
+      "document_id": "doc1",
+      "method_results": {
+        "pattern_matching": null,
+        "rule_based": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0,
+          "true_positives": 0,
+          "false_positives": 2,
+          "false_negatives": 15,
+          "total_extracted": 2,
+          "total_expected": 15
+        }
+      }
+    },
+    {
+      "document_id": "doc2",
+      "method_results": {
+        "pattern_matching": null,
+        "rule_based": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0,
+          "true_positives": 0,
+          "false_positives": 2,
+          "false_negatives": 13,
+          "total_extracted": 2,
+          "total_expected": 13
+        }
+      }
+    },
+    {
+      "document_id": "doc3",
+      "method_results": {
+        "pattern_matching": null,
+        "rule_based": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0,
+          "true_positives": 0,
+          "false_positives": 4,
+          "false_negatives": 16,
+          "total_extracted": 4,
+          "total_expected": 16
+        }
+      }
+    }
+  ],
+  "average_metrics": {
+    "pattern_matching": {
+      "precision": [],
+      "recall": [],
+      "f1": []
+    },
+    "rule_based": {
+      "precision": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "recall": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "f1": [
+        0,
+        0,
+        0
+      ]
+    }
+  }
+}

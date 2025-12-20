@@ -4,6 +4,7 @@ Vector database service using Qdrant
 
 import time
 import logging
+import json
 from typing import List, Dict, Any, Optional, Union
 from uuid import uuid4
 from qdrant_client import QdrantClient
@@ -18,7 +19,9 @@ from qdrant_client.models import (
     OptimizersConfigDiff,
     CreateCollection,
     CollectionInfo,
-    CollectionStatus
+    CollectionStatus,
+    RecommendRequest,
+    Range
 )
 
 from ..core.config import settings
@@ -85,9 +88,9 @@ class VectorService:
 
             # Configure HNSW parameters for better performance
             hnsw_config = {
-                "m": 16,  # Number of neighbors
-                "ef_construct": 100,  # Size of dynamic candidate list
-                "full_scan_threshold": 10000,
+                "m": 32,  # Number of neighbors (increased from 16 for better recall)
+                "ef_construct": 200,  # Size of dynamic candidate list (increased from 100)
+                "full_scan_threshold": 20000,  # Increased for larger datasets
                 "max_indexing_threads": 4,
                 "on_disk": config.on_disk
             }
@@ -137,7 +140,7 @@ class VectorService:
                 processing_time=processing_time
             )
 
-    def ensure_collection_exists(self, collection_type: VectorCollectionType, vector_size: int = 384):
+    def ensure_collection_exists(self, collection_type: VectorCollectionType, vector_size: int = 1536):
         """Ensure a collection exists, create if necessary"""
         collection_name = collection_type.value
 
@@ -145,16 +148,16 @@ class VectorService:
             self.client.get_collection(collection_name)
             logger.debug(f"Collection {collection_name} already exists")
         except (ValueError, KeyError, Exception):
-            # Create collection with default config
+            # Create collection with improved config for better recall
             config = CollectionConfig(
                 name=collection_name,
                 vector_size=vector_size,
                 distance="Cosine",
                 on_disk=True,
                 hnsw_config={
-                    "m": 16,
-                    "ef_construct": 100,
-                    "full_scan_threshold": 10000
+                    "m": 32,  # Increased from 16 for better recall
+                    "ef_construct": 200,  # Increased from 100 for better index quality
+                    "full_scan_threshold": 20000  # Increased for larger datasets
                 }
             )
             result = self.create_collection(config)
@@ -178,7 +181,7 @@ class VectorService:
                     vector=vector_entry.vector,
                     payload={
                         "text": vector_entry.text,
-                        "metadata": vector_entry.metadata.dict(),
+                        "metadata": json.loads(vector_entry.metadata.json()) if hasattr(vector_entry.metadata, 'json') else vector_entry.metadata.dict(),
                         "content_type": vector_entry.metadata.content_type,
                         "source_type": vector_entry.metadata.source_type,
                         "document_id": vector_entry.metadata.document_id,
@@ -229,64 +232,85 @@ class VectorService:
 
             # Build filter
             query_filter = None
-            if request.organization_id or request.filters:
-                filter_conditions = []
+            filter_conditions = []
 
-                if request.organization_id:
+            if request.organization_id:
+                filter_conditions.append(
+                    FieldCondition(
+                        key="organization_id",
+                        match=MatchValue(value=request.organization_id)
+                    )
+                )
+
+            # Add custom filters
+            if request.filters:
+                for key, value in request.filters.items():
                     filter_conditions.append(
                         FieldCondition(
-                            key="organization_id",
-                            match=MatchValue(value=request.organization_id)
+                            key=key,
+                            match=MatchValue(value=value)
                         )
-                    )
-
-                # Add custom filters
-                if request.filters:
-                    for key, value in request.filters.items():
-                        filter_conditions.append(
-                            FieldCondition(
-                                key=key,
-                                match=MatchValue(value=value)
-                            )
-                        )
-
+                )
+            
+            if filter_conditions:
                 query_filter = Filter(must=filter_conditions)
 
-            # Perform search
-            search_result = self.client.search(
-                collection_name=collection_name,
-                query_vector=query_vector,
-                query_filter=query_filter,
-                limit=request.limit,
-                score_threshold=request.score_threshold,
-                with_payload=True,
-                with_vectors=False,
-                search_params=SearchParams(
-                    hnsw_ef=64,
-                    exact=False
-                )
-            )
+            # Use requests directly to avoid client version mismatch (Client v1.16+ vs Server v1.7.0)
+            url = f"{settings.QDRANT_URL}/collections/{collection_name}/points/search"
+            headers = {"Content-Type": "application/json"}
+            if settings.QDRANT_API_KEY:
+                headers["api-key"] = settings.QDRANT_API_KEY
+                
+            payload = {
+                "vector": query_vector,
+                "limit": request.limit,
+                "with_payload": True,
+                "with_vector": False,
+                "score_threshold": request.score_threshold
+            }
+            
+            if filter_conditions:
+                # Convert Filter model to dict
+                # model_dump for Pydantic v2, dict for v1
+                if hasattr(query_filter, 'model_dump'):
+                    payload["filter"] = query_filter.model_dump()
+                else:
+                    payload["filter"] = query_filter.dict()
+            
+            import requests # Import here to ensure availability
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
+            response.raise_for_status()
+            search_result_json = response.json()
+            search_results = search_result_json.get("result", [])
 
-            # Convert results
-            results = []
-            for hit in search_result:
-                payload = hit.payload
-                metadata = VectorMetadata(**payload["metadata"])
-
-                result = VectorSearchResult(
-                    id=str(hit.id),
-                    text=payload.get("text"),
-                    score=hit.score,
-                    metadata=metadata,
-                    document_id=metadata.document_id
+            # Convert to internal VectorSearchResult objects
+            vector_results = []
+            for hit in search_results:
+                payload_data = hit.get("payload", {})
+                metadata = VectorMetadata(
+                    document_id=payload_data.get("document_id"),
+                    organization_id=payload_data.get("organization_id") or "",
+                    content_type=payload_data.get("content_type", "text"),
+                    source_type=payload_data.get("source_type", "document"),
+                    chunk_index=payload_data.get("chunk_index"),
+                    timestamp=payload_data.get("timestamp") or datetime.utcnow(),
+                    additional_data=payload_data
                 )
-                results.append(result)
+                
+                result_entry = VectorSearchResult(
+                    id=str(hit.get("id")),
+                    score=hit.get("score"),
+                    text=payload_data.get("text", ""),
+                    metadata=metadata
+                )
+                vector_results.append(result_entry)
 
             processing_time = time.time() - start_time
+            logger.info(f"Found {len(vector_results)} results in {collection_name}")
 
             return VectorSearchResponse(
-                results=results,
-                total_found=len(results),
+                results=vector_results,
+                total_found=len(vector_results),
                 search_time=processing_time,
                 query=request.query,
                 collection=request.collection
@@ -437,12 +461,12 @@ class VectorService:
                 processing_time=processing_time
             )
 
-    def delete_collection(self, collection_type: VectorCollectionType) -> VectorOperationResult:
+    def delete_collection(self, collection_type: Union[VectorCollectionType, str]) -> VectorOperationResult:
         """Delete a collection entirely"""
         start_time = time.time()
 
         try:
-            collection_name = collection_type.value
+            collection_name = collection_type.value if hasattr(collection_type, "value") else str(collection_type)
 
             # Delete collection
             self.client.delete_collection(collection_name)
@@ -458,7 +482,8 @@ class VectorService:
 
         except Exception as e:
             processing_time = time.time() - start_time
-            logger.error(f"Error deleting collection {collection_type.value}: {e}")
+            collection_name_err = collection_type.value if hasattr(collection_type, "value") else str(collection_type)
+            logger.error(f"Error deleting collection {collection_name_err}: {e}")
             return VectorOperationResult(
                 success=False,
                 message=f"Failed to delete collection",

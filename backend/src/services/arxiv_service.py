@@ -22,6 +22,7 @@ from typing import Union
 from ..shared.schemas import DocumentMetadata
 from ..models.document import DocumentType, ProcessingStatus
 from ..shared.exceptions import ValidationError, ProcessingError
+from .azure_openai_service import azure_openai_service
 
 # Create a simple IngestionError if not available
 try:
@@ -248,9 +249,22 @@ class ArXivIngestionService:
 
         # Authors
         authors = []
+        authors_detailed = []
         for author in entry.findall('atom:author', namespaces):
             name = author.find('atom:name', namespaces).text
             authors.append(name)
+            
+            affils = []
+            # Try to find affiliation using arxiv namespace
+            # Namespace definition implies 'arxiv' key is present in namespaces dict passed to this method
+            # Usually passed from search_papers which defines it.
+            for aff in author.findall('arxiv:affiliation', namespaces):
+                affils.append(aff.text)
+            
+            authors_detailed.append({
+                'name': name,
+                'affiliations': affils
+            })
 
         # Categories
         categories = []
@@ -262,11 +276,11 @@ class ArXivIngestionService:
         # Links (PDF, DOI, etc.)
         links = {}
         for link in entry.findall('atom:link', namespaces):
-            title = link.get('title', '')
+            link_title = link.get('title', '')
             href = link.get('href', '')
-            if title == 'pdf':
+            if link_title == 'pdf':
                 links['pdf'] = href
-            elif title == 'doi':
+            elif link_title == 'doi':
                 links['doi'] = href
             elif href.endswith('.pdf'):
                 links['pdf'] = href
@@ -290,7 +304,8 @@ class ArXivIngestionService:
             'links': links,
             'comment': comment,
             'journal_ref': journal_ref,
-            'primary_category': categories[0] if categories else None
+            'primary_category': categories[0] if categories else None,
+            'authors_detailed': authors_detailed
         }
 
     async def download_paper_pdf(self, paper_id: str, pdf_url: Optional[str] = None) -> Optional[bytes]:
@@ -601,14 +616,74 @@ class ArXivIngestionService:
         num_questions: int
     ) -> List[Dict[str, Any]]:
         """
-        Generate questions for a specific paper
-
-        In a real implementation, this would use an LLM to generate
-        contextually relevant questions. For now, we'll use templates.
+        Generate questions for a specific paper using Azure OpenAI
         """
         questions = []
-
-        # Template questions based on paper content
+        
+        # Try to use LLM first
+        if azure_openai_service.is_chat_available():
+            try:
+                system_prompt = """
+                You are an expert research evaluator. Generate evaluation questions for a research paper based on its title and abstract.
+                Return a JSON object with a key 'questions' containing a list of objects.
+                Each object must have:
+                - question: The text of the question
+                - difficulty: 'easy', 'medium', or 'hard'
+                - expected_answer_type: One of 'contribution', 'methodology', 'problem_statement', 'results', 'comparison'
+                - answer_relevancy_score: 0.0 to 1.0 (target score for evaluation)
+                """
+                
+                user_content = f"""
+                Title: {paper['title']}
+                Abstract: {paper['abstract']}
+                Categories: {', '.join(paper['categories'])}
+                
+                Generate {num_questions} questions for this paper.
+                """
+                
+                response = await azure_openai_service.chat_completion(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content}
+                    ],
+                    temperature=0.7,
+                    max_tokens=2000
+                )
+                
+                content = response.get("content", "")
+                if "```json" in content:
+                    content = content.split("```json")[1].split("```")[0].strip()
+                elif "```" in content:
+                    content = content.split("```")[1].split("```")[0].strip()
+                    
+                data = json.loads(content)
+                llm_questions = data.get("questions", [])
+                
+                for i, q in enumerate(llm_questions):
+                    question = {
+                        'id': f"{paper['id']}_q_{i+1}",
+                        'question': q['question'],
+                        'difficulty': q['difficulty'],
+                        'expected_answer_type': q['expected_answer_type'],
+                        'requires_context': ['title', 'abstract', 'categories'],
+                        'evaluation_criteria': {
+                            'answer_relevancy': q.get('answer_relevancy_score', 0.8),
+                            'faithfulness': 0.8,
+                            'contextual_precision': 0.7
+                        },
+                        'source': 'llm_generated'
+                    }
+                    questions.append(question)
+                    
+                if questions:
+                    logger.info(f"Generated {len(questions)} questions using LLM for paper {paper['id']}")
+                    return questions
+                    
+            except Exception as e:
+                logger.warning(f"Failed to generate questions using LLM: {e}")
+                # Fallback to templates below
+                
+        # Fallback Template questions based on paper content
         templates = [
             {
                 'question': f"What is the main contribution of '{paper['title']}'?",
@@ -652,7 +727,8 @@ class ArXivIngestionService:
                     'answer_relevancy': 0.7,
                     'faithfulness': 0.8,
                     'contextual_precision': 0.6
-                }
+                },
+                'source': 'template_fallback'
             }
             questions.append(question)
 
