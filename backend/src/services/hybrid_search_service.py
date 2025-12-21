@@ -296,7 +296,7 @@ class HybridSearchService:
                 query=search_request.query,
                 organization_id=organization_id,
                 limit=self.max_results_per_source,
-                score_threshold=0.5  # Lowered from 0.7 for better recall
+                score_threshold=0.2  # Lowered to 0.2 for more results (P@3, P@5 calculation)
             )
 
             # Convert to raw results

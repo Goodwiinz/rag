@@ -512,13 +512,11 @@ class WebSocketErrorHandler(BaseService):
     async def _log_error(self, error_context: ErrorContext):
         """Log error to database and monitoring systems"""
         try:
-            # Log to database
-            async with get_async_session() as session:
-                # Log error details
-                logger.error(f"WebSocket Error: {error_context.error_type} - {error_context.message}")
-
-                # Would store in database here
-                # For now, just log to file
+            # Log error details (database storage disabled to avoid session issues)
+            logger.error(f"WebSocket Error: {error_context.error_type} - {error_context.message}")
+            
+            # TODO: Implement proper database logging with dependency injection
+            # For now, just log to file/console
 
         except Exception as e:
             logger.error(f"Failed to log error: {e}")
