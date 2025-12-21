@@ -211,7 +211,7 @@ class VectorSearchService:
         query: str,
         organization_id: str,
         limit: int = 10,
-        score_threshold: float = 0.5,  # Lowered from 0.7 for better recall
+        score_threshold: float = 0.2,  # Lowered to 0.2 for more results
         filters: Optional[Dict[str, Any]] = None
     ) -> VectorSearchResponse:
         """Search for similar documents"""
@@ -264,7 +264,7 @@ class VectorSearchService:
         organization_id: str,
         entity_type: Optional[str] = None,
         limit: int = 10,
-        score_threshold: float = 0.5  # Lowered from 0.7 for better recall
+        score_threshold: float = 0.2  # Lowered to 0.2 for more results
     ) -> VectorSearchResponse:
         """Search for similar entities"""
         try:

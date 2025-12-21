@@ -39,13 +39,13 @@ async def backfill_relationships():
     # 1. Fetch Documents and their Concept Entities
     query = """
     MATCH (d:DOCUMENT)
-    WHERE d.paper_id IS NOT NULL
-    OPTIONAL MATCH (c:CONCEPT)-[:EXTRACTED_FROM]->(d)
-    WITH d, collect(c) as concepts
+    WHERE d.id IS NOT NULL
+    OPTIONAL MATCH (e:Entity)-[:EXTRACTED_FROM]->(d)
+    WITH d, collect(e) as entities
     RETURN 
-        d.paper_id as paper_id, 
+        d.id as paper_id, 
         d.title as title, 
-        collect(concepts) as nested_concepts
+        collect(entities) as nested_concepts
     """
 
     
