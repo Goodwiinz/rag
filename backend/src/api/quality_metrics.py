@@ -48,10 +48,12 @@ async def record_search_metrics(
     try:
         # Convert dict to SearchResponse object (simplified)
         from src.models.search_schemas import SearchResponse, SearchResult
+        import uuid
 
         # This is a simplified conversion - in practice, you'd parse the full response
         search_response = SearchResponse(
             query=search_query,
+            search_id=str(uuid.uuid4()),
             results=[],  # Would be populated from actual search results
             total_results=search_response_data.get("total_results", 0),
             query_time_ms=search_response_data.get("query_time_ms", 0),

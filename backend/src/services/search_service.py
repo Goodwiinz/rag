@@ -37,7 +37,7 @@ from ..shared.utils import (
 from ..core.database import get_db
 from ..core.config import settings
 from ..models.document import Document, DocumentType as DocType, ProcessingStatus as ProcStatus
-from ..models.search import SearchQuery, SearchResult as SearchResultModel, SearchSession
+from ..models.search import SearchQuery, SearchResult as SearchResultModel
 
 
 # Configuration
@@ -638,13 +638,14 @@ async def search(
         raise ValidationError(f"Search limit must be between 1 and {SEARCH_SERVICE_CONFIG['max_search_limit']}")
 
     # Check cache for identical searches
-    cache_key = f"search:{hash(json.dumps({
+    cache_data = {
         'query': request.query,
         'search_type': request.search_type.value,
         'filters': request.filters.dict() if request.filters else None,
         'limit': request.limit,
         'organization_id': str(organization_id)
-    }, sort_keys=True))}"
+    }
+    cache_key = f"search:{hash(json.dumps(cache_data, sort_keys=True))}"
 
     cached_result = await cache.get(cache_key)
     if cached_result:

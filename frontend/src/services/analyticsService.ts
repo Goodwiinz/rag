@@ -156,7 +156,7 @@ class AnalyticsService {
   // Quality Metrics
   async getQualityMetrics(): Promise<{ metrics: QualityMetric[]; alerts: QualityAlert[] }> {
     try {
-      const response = await this.apiClient.get('/api/analytics/quality-metrics') as any;
+      const response = await this.apiClient.get('/api/v1/analytics/quality/metrics') as any;
       return response.data;
     } catch (error) {
       // Fallback to mock data if API fails

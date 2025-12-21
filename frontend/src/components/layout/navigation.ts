@@ -12,6 +12,7 @@ import {
   Search,
   Settings,
   TrendingUp,
+  Database,
 } from 'lucide-react';
 
 export interface NavigationItem {
@@ -36,6 +37,7 @@ export const mainNavigation: NavigationItem[] = [
   { name: 'Evaluations', href: '/evaluation', icon: ClipboardList },
   { name: 'A/B Testing', href: '/ab-testing', icon: FlaskConical },
   { name: 'Search Analytics', href: '/search-analytics', icon: TrendingUp },
+  { name: 'ArXiv', href: '/arxiv', icon: Database },
   { name: 'Monitoring', href: '/monitoring', icon: Monitor },
 ];
 

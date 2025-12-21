@@ -56,7 +56,7 @@ build_backend() {
         print_status "Backend image already exists ✓"
     else
         print_status "Building backend image..."
-        docker build -t rag-system/backend -f backend/Dockerfile ./backend
+        docker build -t rag-system/backend -f backend/Dockerfile .
         print_status "Backend image built ✓"
     fi
 }

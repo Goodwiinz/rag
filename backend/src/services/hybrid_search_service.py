@@ -4,20 +4,21 @@ Hybrid Search Service that combines vector, graph, and full-text search results
 
 import logging
 import time
+import uuid
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 from ..core.database import get_db
+from sqlalchemy.orm import Session
 from ..models.document import Document, DocumentType, ProcessingStatus
 from ..models.search_schemas import (
     SearchQuery, SearchResponse, SearchResult, SearchType, SearchFilter
 )
 from ..services.fulltext_search_service import fulltext_search_service
-from ..services.vector_search_service import vector_search_service
-from ..services.knowledge_graph_service import knowledge_graph_service
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ class HybridSearchService:
         # Thread pool for parallel search execution
         self.executor = ThreadPoolExecutor(max_workers=3)
 
-    def search(self, search_request: SearchQuery, user_id: str = None, organization_id: str = None) -> SearchResponse:
+    def search(self, search_request: SearchQuery, user_id: str = None, organization_id: str = None, db: Session = None) -> SearchResponse:
         """
         Perform hybrid search combining multiple search modalities
 
@@ -75,6 +76,7 @@ class HybridSearchService:
             search_request: Search query and parameters
             user_id: ID of user performing search
             organization_id: ID of organization for filtering
+            db: Database session (optional, will create one if not provided)
 
         Returns:
             SearchResponse with fused results from all sources
@@ -87,7 +89,7 @@ class HybridSearchService:
 
             # Execute searches in parallel
             source_results = self._execute_parallel_searches(
-                search_request, search_sources, user_id, organization_id
+                search_request, search_sources, user_id, organization_id, db
             )
 
             # Fuse and rank results
@@ -103,6 +105,7 @@ class HybridSearchService:
 
             return SearchResponse(
                 query=search_request.query,
+                search_id=str(uuid.uuid4()),
                 search_type=SearchType.HYBRID,
                 results=final_results,
                 total_results=len(final_results),
@@ -158,7 +161,8 @@ class HybridSearchService:
         search_request: SearchQuery,
         sources: List[SearchSourceType],
         user_id: str,
-        organization_id: str
+        organization_id: str,
+        db: Session = None
     ) -> Dict[SearchSourceType, SearchSourceResult]:
         """
         Execute searches from multiple sources in parallel
@@ -178,11 +182,11 @@ class HybridSearchService:
         search_tasks = []
         for source_type in sources:
             if source_type == SearchSourceType.FULLTEXT:
-                search_tasks.append((source_type, self._execute_fulltext_search, search_request, user_id, organization_id))
+                search_tasks.append((source_type, self._execute_fulltext_search, search_request, user_id, organization_id, db))
             elif source_type == SearchSourceType.VECTOR:
-                search_tasks.append((source_type, self._execute_vector_search, search_request, user_id, organization_id))
+                search_tasks.append((source_type, self._execute_vector_search, search_request, user_id, organization_id, db))
             elif source_type == SearchSourceType.KNOWLEDGE_GRAPH:
-                search_tasks.append((source_type, self._execute_knowledge_graph_search, search_request, user_id, organization_id))
+                search_tasks.append((source_type, self._execute_knowledge_graph_search, search_request, user_id, organization_id, db))
 
         # Execute searches in parallel
         future_to_source = {
@@ -212,7 +216,8 @@ class HybridSearchService:
         self,
         search_request: SearchQuery,
         user_id: str,
-        organization_id: str
+        organization_id: str,
+        db: Session = None
     ) -> SearchSourceResult:
         """Execute full-text search"""
         start_time = time.time()
@@ -232,7 +237,8 @@ class HybridSearchService:
             ft_result = fulltext_search_service.search(
                 search_request=ft_search_request,
                 user_id=user_id,
-                organization_id=organization_id
+                organization_id=organization_id,
+                db=db
             )
 
             # Convert to raw results
@@ -275,42 +281,56 @@ class HybridSearchService:
         self,
         search_request: SearchQuery,
         user_id: str,
-        organization_id: str
+        organization_id: str,
+        db: Session = None
     ) -> SearchSourceResult:
         """Execute vector similarity search"""
         start_time = time.time()
 
         try:
-            # Create vector search query
-            vector_search_request = SearchQuery(
-                query=search_request.query,
-                search_type=SearchType.VECTOR,
-                limit=self.max_results_per_source,
-                offset=0,
-                filters=search_request.filters,
-                include_snippets=False  # Vector search typically doesn't include snippets
-            )
+            # Import and use vector search service
+            from ..services.vector_search_service import vector_search_service
 
-            # Execute search
-            vector_result = vector_search_service.search(
-                search_request=vector_search_request,
-                user_id=user_id,
-                organization_id=organization_id
+            # Execute search using the available interface
+            vector_result = vector_search_service.search_documents(
+                query=search_request.query,
+                organization_id=organization_id,
+                limit=self.max_results_per_source,
+                score_threshold=0.7  # Default threshold
             )
 
             # Convert to raw results
             raw_results = []
             for result in vector_result.results:
+                # Create SearchResult from VectorSearchResult
+                search_result = SearchResult(
+                    document_id=result.metadata.document_id,
+                    title=result.text[:100],  # Use text as title preview
+                    document_type=DocumentType.TEXT,  # Default type
+                    content_preview=result.text[:300],
+                    snippets=[],
+                    relevance_score=result.score,
+                    file_size_bytes=0,
+                    created_at=result.metadata.timestamp,
+                    updated_at=result.metadata.timestamp,
+                    processing_status=ProcessingStatus.COMPLETED,
+                    tags=[],
+                    is_public=False,
+                    uploaded_by_user_id=user_id or "",
+                    organization_id=organization_id,
+                    metadata=result.metadata.additional_data or {}
+                )
+
                 raw_results.append(RawSearchResult(
-                    document_id=result.document_id,
+                    document_id=result.metadata.document_id,
                     source_type=SearchSourceType.VECTOR,
-                    relevance_score=result.relevance_score,
+                    relevance_score=result.score,
                     metadata={
-                        'original_score': result.relevance_score,
+                        'original_score': result.score,
                         'source': 'vector',
-                        'similarity': result.relevance_score
+                        'similarity': result.score
                     },
-                    search_result=result
+                    search_result=search_result
                 ))
 
             search_time_ms = (time.time() - start_time) * 1000
@@ -319,7 +339,7 @@ class HybridSearchService:
                 source_type=SearchSourceType.VECTOR,
                 results=raw_results,
                 search_time_ms=search_time_ms,
-                total_available=vector_result.total_results,
+                total_available=vector_result.total_found,
                 success=True
             )
 
@@ -338,42 +358,55 @@ class HybridSearchService:
         self,
         search_request: SearchQuery,
         user_id: str,
-        organization_id: str
+        organization_id: str,
+        db: Session = None
     ) -> SearchSourceResult:
         """Execute knowledge graph search"""
         start_time = time.time()
 
         try:
-            # Create knowledge graph search query
-            kg_search_request = SearchQuery(
-                query=search_request.query,
-                search_type=SearchType.KNOWLEDGE_GRAPH,
-                limit=self.max_results_per_source,
-                offset=0,
-                filters=search_request.filters,
-                include_snippets=False
-            )
+            # Import and use knowledge graph service
+            from ..services.knowledge_graph_service import knowledge_graph_service
 
-            # Execute search
-            kg_result = knowledge_graph_service.search(
-                search_request=kg_search_request,
-                user_id=user_id,
-                organization_id=organization_id
+            # Execute search using the available interface
+            kg_result = knowledge_graph_service.search_entities(
+                query=search_request.query,
+                organization_id=organization_id,
+                limit=self.max_results_per_source
             )
 
             # Convert to raw results
             raw_results = []
-            for result in kg_result.results:
+            for result in kg_result.results if hasattr(kg_result, 'results') else []:
+                # Create SearchResult from knowledge graph result
+                search_result = SearchResult(
+                    document_id=str(result.id) if hasattr(result, 'id') else str(uuid.uuid4()),
+                    title=getattr(result, 'name', 'Entity'),
+                    document_type=DocumentType.TEXT,
+                    content_preview=getattr(result, 'description', ''),
+                    snippets=[],
+                    relevance_score=0.8,  # Default score
+                    file_size_bytes=0,
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow(),
+                    processing_status=ProcessingStatus.COMPLETED,
+                    tags=[],
+                    is_public=False,
+                    uploaded_by_user_id=user_id or "",
+                    organization_id=organization_id,
+                    metadata={}
+                )
+
                 raw_results.append(RawSearchResult(
-                    document_id=result.document_id,
+                    document_id=search_result.document_id,
                     source_type=SearchSourceType.KNOWLEDGE_GRAPH,
-                    relevance_score=result.relevance_score,
+                    relevance_score=search_result.relevance_score,
                     metadata={
-                        'original_score': result.relevance_score,
+                        'original_score': search_result.relevance_score,
                         'source': 'knowledge_graph',
-                        'entities': result.metadata.get('entities', [])
+                        'entities': []
                     },
-                    search_result=result
+                    search_result=search_result
                 ))
 
             search_time_ms = (time.time() - start_time) * 1000
@@ -382,7 +415,7 @@ class HybridSearchService:
                 source_type=SearchSourceType.KNOWLEDGE_GRAPH,
                 results=raw_results,
                 search_time_ms=search_time_ms,
-                total_available=kg_result.total_results,
+                total_available=len(raw_results),  # KG service doesn't provide total
                 success=True
             )
 
@@ -596,6 +629,7 @@ class HybridSearchService:
             logger.error(f"Fallback full-text search also failed: {e}")
             return SearchResponse(
                 query=search_request.query,
+                search_id=str(uuid.uuid4()),
                 search_type=SearchType.FULLTEXT,
                 results=[],
                 total_results=0,

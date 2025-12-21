@@ -27,7 +27,7 @@ from ..core.database import get_async_session
 from ..core.config import settings
 from ..models.document import Document, ProcessingStatus as DocumentProcessingStatus
 from ..models.processing import ProcessingJob, JobStatus, JobType
-from ..models.websocket_status import StatusUpdate, UpdateType
+from ..models.websocket_status import StatusUpdate, UpdateType, Priority as UpdatePriority
 
 logger = logging.getLogger(__name__)
 

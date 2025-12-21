@@ -12,7 +12,7 @@ from datetime import datetime, timezone as dt_timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func, desc
+from sqlalchemy import select, and_, or_, func, desc, cast, String
 from sqlalchemy.orm import selectinload
 
 from ..core.database import get_async_session
@@ -118,7 +118,8 @@ class SystemMetricsResponse(BaseModel):
 async def subscribe_document_status_updates(
     subscription: RealtimeStatusSubscription,
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization)
+    organization: Organization = Depends(get_current_organization),
+    session: AsyncSession = Depends(get_async_session)
 ):
     """
     Subscribe to real-time status updates for a specific document
@@ -128,23 +129,22 @@ async def subscribe_document_status_updates(
     """
     try:
         # Verify document belongs to user's organization
-        async with get_async_session() as session:
-            result = await session.execute(
-                select(Document).where(
-                    and_(
-                        Document.id == subscription.document_id,
-                        Document.organization_id == organization.id,
-                        Document.is_deleted == False
-                    )
+        result = await session.execute(
+            select(Document).where(
+                and_(
+                    Document.id == subscription.document_id,
+                    Document.organization_id == organization.id,
+                    Document.is_deleted == False
                 )
             )
-            document = result.scalar_one_or_none()
+        )
+        document = result.scalar_one_or_none()
 
-            if not document:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Document not found"
-                )
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document not found"
+            )
 
         # Get user's WebSocket connections
         user_connections = connection_manager.get_user_connections(str(current_user.id))
@@ -204,7 +204,8 @@ async def get_realtime_document_status(
     include_progress: bool = Query(True, description="Include detailed progress information"),
     include_stages: bool = Query(True, description="Include processing stage details"),
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization)
+    organization: Organization = Depends(get_current_organization),
+    session: AsyncSession = Depends(get_async_session)
 ):
     """
     Get enhanced real-time status for a specific document
@@ -213,151 +214,150 @@ async def get_realtime_document_status(
     progress metrics, and real-time connection information.
     """
     try:
-        async with get_async_session() as session:
-            # Get document with relationships
-            result = await session.execute(
-                select(Document)
-                .options(selectinload(Document.uploaded_by_user))
-                .options(selectinload(Document.processing_jobs))
-                .where(
-                    and_(
-                        Document.id == document_id,
-                        Document.organization_id == organization.id,
-                        Document.is_deleted == False
-                    )
+        # Get document with relationships
+        result = await session.execute(
+            select(Document)
+            .options(selectinload(Document.uploaded_by_user))
+            .options(selectinload(Document.processing_jobs))
+            .where(
+                and_(
+                    Document.id == document_id,
+                    Document.organization_id == organization.id,
+                    Document.is_deleted == False
                 )
             )
-            document = result.scalar_one_or_none()
+        )
+        document = result.scalar_one_or_none()
 
-            if not document:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Document not found"
-                )
-
-            # Get processing jobs for this document
-            jobs_result = await session.execute(
-                select(ProcessingJob)
-                .where(ProcessingJob.document_id == document_id)
-                .order_by(desc(ProcessingJob.created_at))
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document not found"
             )
-            jobs = jobs_result.scalars().all()
 
-            # Get active WebSocket subscribers for this document
-            user_connections = connection_manager.get_user_connections(str(document.uploaded_by_user_id))
-            active_subscribers = len([
-                conn_id for conn_id in user_connections
-                if connection_manager.active_connections.get(conn_id)
-            ])
+        # Get processing jobs for this document
+        jobs_result = await session.execute(
+            select(ProcessingJob)
+            .where(ProcessingJob.document_id == document_id)
+            .order_by(desc(ProcessingJob.created_at))
+        )
+        jobs = jobs_result.scalars().all()
 
-            # Get latest status update for this document
-            latest_update_result = await session.execute(
-                select(StatusUpdate)
-                .where(
-                    and_(
-                        StatusUpdate.update_data['document_id'].astext == document_id,
-                        StatusUpdate.created_at >= datetime.utcnow() - timedelta(hours=24)
-                    )
+        # Get active WebSocket subscribers for this document
+        user_connections = connection_manager.get_user_connections(str(document.uploaded_by_user_id))
+        active_subscribers = len([
+            conn_id for conn_id in user_connections
+            if connection_manager.active_connections.get(conn_id)
+        ])
+
+        # Get latest status update for this document
+        latest_update_result = await session.execute(
+            select(StatusUpdate)
+            .where(
+                and_(
+                    StatusUpdate.update_data.op('->>')('document_id') == document_id,
+                    StatusUpdate.created_at >= datetime.utcnow() - timedelta(hours=24)
                 )
-                .order_by(desc(StatusUpdate.created_at))
-                .limit(1)
             )
-            latest_update = latest_update_result.scalar_one_or_none()
+            .order_by(desc(StatusUpdate.created_at))
+            .limit(1)
+        )
+        latest_update = latest_update_result.scalar_one_or_none()
 
-            # Build processing stages information
-            stages = []
-            current_stage = None
+        # Build processing stages information
+        stages = []
+        current_stage = None
 
-            if include_stages and jobs:
-                # Create stage information from jobs
-                stage_order = {
-                    JobType.OCR_PROCESSING: 1,
-                    JobType.TEXT_EXTRACTION: 2,
-                    JobType.EMBEDDING_GENERATION: 3,
-                    JobType.VECTOR_INDEXING: 4,
-                    JobType.ENTITY_EXTRACTION: 5,
-                    JobType.KNOWLEDGE_GRAPH: 6
-                }
+        if include_stages and jobs:
+            # Create stage information from jobs
+            stage_order = {
+                JobType.OCR_PROCESSING: 1,
+                JobType.TEXT_EXTRACTION: 2,
+                JobType.EMBEDDING_GENERATION: 3,
+                JobType.VECTOR_INDEXING: 4,
+                JobType.ENTITY_EXTRACTION: 5,
+                JobType.KNOWLEDGE_GRAPH: 6
+            }
 
-                for job in sorted(jobs, key=lambda j: stage_order.get(j.job_type, 999)):
-                    stage = ProcessingStageInfo(
-                        id=str(job.id),
-                        name=job.job_type.value.replace('_', ' ').title(),
-                        description=f"Processing {job.job_type.value.replace('_', ' ').lower()}",
-                        status=job.status.value,
-                        progress=job.progress_percentage,
-                        started_at=job.started_at.isoformat() if job.started_at else None,
-                        completed_at=job.completed_at.isoformat() if job.completed_at else None,
-                        duration_seconds=job.duration_seconds,
-                        error=job.error_message,
-                        metadata={
-                            "job_type": job.job_type.value,
-                            "priority": job.priority.value,
-                            "retry_count": job.retry_count,
-                            "worker_id": job.worker_id
-                        }
-                    )
-                    stages.append(stage)
+            for job in sorted(jobs, key=lambda j: stage_order.get(j.job_type, 999)):
+                stage = ProcessingStageInfo(
+                    id=str(job.id),
+                    name=job.job_type.value.replace('_', ' ').title(),
+                    description=f"Processing {job.job_type.value.replace('_', ' ').lower()}",
+                    status=job.status.value,
+                    progress=job.progress_percentage,
+                    started_at=job.started_at.isoformat() if job.started_at else None,
+                    completed_at=job.completed_at.isoformat() if job.completed_at else None,
+                    duration_seconds=job.duration_seconds,
+                    error=job.error_message,
+                    metadata={
+                        "job_type": job.job_type.value,
+                        "priority": job.priority.value,
+                        "retry_count": job.retry_count,
+                        "worker_id": job.worker_id
+                    }
+                )
+                stages.append(stage)
 
-                    if job.status in [JobStatus.RUNNING, JobStatus.QUEUED]:
-                        current_stage = stage
+                if job.status in [JobStatus.RUNNING, JobStatus.QUEUED]:
+                    current_stage = stage
 
-            # Calculate overall progress
-            overall_progress = 0.0
-            if document.processing_status == DocumentProcessingStatus.COMPLETED:
-                overall_progress = 100.0
-            elif document.processing_status == DocumentProcessingStatus.PROCESSING:
-                if jobs:
-                    overall_progress = sum(job.progress_percentage for job in jobs) / len(jobs)
-                else:
-                    overall_progress = 0.0
-            elif document.processing_status == DocumentProcessingStatus.FAILED:
+        # Calculate overall progress
+        overall_progress = 0.0
+        if document.processing_status == DocumentProcessingStatus.COMPLETED:
+            overall_progress = 100.0
+        elif document.processing_status == DocumentProcessingStatus.PROCESSING:
+            if jobs:
+                overall_progress = sum(job.progress_percentage for job in jobs) / len(jobs)
+            else:
                 overall_progress = 0.0
+        elif document.processing_status == DocumentProcessingStatus.FAILED:
+            overall_progress = 0.0
 
-            # Estimate completion time
-            estimated_completion = None
-            if overall_progress > 0 and overall_progress < 100:
-                # Simple estimation based on current progress
-                elapsed_time = (datetime.utcnow() - document.processing_started_at).total_seconds() if document.processing_started_at else 0
-                if elapsed_time > 0:
-                    estimated_total_time = elapsed_time * (100 / overall_progress)
-                    estimated_completion = datetime.utcnow() + timedelta(seconds=estimated_total_time)
-                    estimated_completion = estimated_completion.isoformat()
+        # Estimate completion time
+        estimated_completion = None
+        if overall_progress > 0 and overall_progress < 100:
+            # Simple estimation based on current progress
+            elapsed_time = (datetime.utcnow() - document.processing_started_at).total_seconds() if document.processing_started_at else 0
+            if elapsed_time > 0:
+                estimated_total_time = elapsed_time * (100 / overall_progress)
+                estimated_completion = datetime.utcnow() + timedelta(seconds=estimated_total_time)
+                estimated_completion = estimated_completion.isoformat()
 
-            # Build response
-            enhanced_status = EnhancedDocumentStatus(
-                id=str(document.id),
-                filename=document.filename,
-                title=document.title,
-                document_type=document.document_type.value,
-                file_size_bytes=document.file_size_bytes,
-                processing_status=document.processing_status.value,
-                overall_progress=overall_progress,
-                current_stage=current_stage,
-                stages=stages,
-                upload_progress=100.0,  # Assume upload is complete for processing status
-                processing_started_at=document.processing_started_at.isoformat() if document.processing_started_at else None,
-                processing_completed_at=document.processing_completed_at.isoformat() if document.processing_completed_at else None,
-                estimated_completion_time=estimated_completion,
-                processing_error=document.processing_error,
-                retry_count=document.processing_retry_count,
-                can_retry=document.can_retry_processing(),
-                actions={
-                    "pause": document.processing_status == DocumentProcessingStatus.PROCESSING,
-                    "resume": document.processing_status == DocumentProcessingStatus.PENDING,
-                    "cancel": document.processing_status in [DocumentProcessingStatus.PENDING, DocumentProcessingStatus.PROCESSING],
-                    "retry": document.can_retry_processing(),
-                    "download": document.processing_status == DocumentProcessingStatus.COMPLETED
-                },
-                created_at=document.created_at.isoformat(),
-                updated_at=document.updated_at.isoformat(),
-                websocket_subscribers=active_subscribers,
-                last_status_update=latest_update.created_at.isoformat() if latest_update else None,
-                update_frequency="realtime" if active_subscribers > 0 else None,
-                is_realtime_enabled=active_subscribers > 0
-            )
+        # Build response
+        enhanced_status = EnhancedDocumentStatus(
+            id=str(document.id),
+            filename=document.filename,
+            title=document.title,
+            document_type=document.document_type.value,
+            file_size_bytes=document.file_size_bytes,
+            processing_status=document.processing_status.value,
+            overall_progress=overall_progress,
+            current_stage=current_stage,
+            stages=stages,
+            upload_progress=100.0,  # Assume upload is complete for processing status
+            processing_started_at=document.processing_started_at.isoformat() if document.processing_started_at else None,
+            processing_completed_at=document.processing_completed_at.isoformat() if document.processing_completed_at else None,
+            estimated_completion_time=estimated_completion,
+            processing_error=document.processing_error,
+            retry_count=document.processing_retry_count,
+            can_retry=document.can_retry_processing(),
+            actions={
+                "pause": document.processing_status == DocumentProcessingStatus.PROCESSING,
+                "resume": document.processing_status == DocumentProcessingStatus.PENDING,
+                "cancel": document.processing_status in [DocumentProcessingStatus.PENDING, DocumentProcessingStatus.PROCESSING],
+                "retry": document.can_retry_processing(),
+                "download": document.processing_status == DocumentProcessingStatus.COMPLETED
+            },
+            created_at=document.created_at.isoformat(),
+            updated_at=document.updated_at.isoformat(),
+            websocket_subscribers=active_subscribers,
+            last_status_update=latest_update.created_at.isoformat() if latest_update else None,
+            update_frequency="realtime" if active_subscribers > 0 else None,
+            is_realtime_enabled=active_subscribers > 0
+        )
 
-            return enhanced_status
+        return enhanced_status
 
     except HTTPException:
         raise
@@ -372,7 +372,8 @@ async def get_realtime_document_status(
 async def get_bulk_realtime_status(
     request: BulkStatusRequest,
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization)
+    organization: Organization = Depends(get_current_organization),
+    session: AsyncSession = Depends(get_async_session)
 ):
     """
     Get real-time status for multiple documents in bulk
@@ -380,82 +381,81 @@ async def get_bulk_realtime_status(
     Optimized for dashboard views and bulk status updates.
     """
     try:
-        async with get_async_session() as session:
-            # Get documents
-            result = await session.execute(
-                select(Document)
-                .where(
-                    and_(
-                        Document.id.in_(request.document_ids),
-                        Document.organization_id == organization.id,
-                        Document.is_deleted == False
-                    )
+        # Get documents
+        result = await session.execute(
+            select(Document)
+            .where(
+                and_(
+                    Document.id.in_(request.document_ids),
+                    Document.organization_id == organization.id,
+                    Document.is_deleted == False
                 )
             )
-            documents = result.scalars().all()
+        )
+        documents = result.scalars().all()
 
-            found_document_ids = {str(doc.id) for doc in documents}
-            missing_document_ids = set(request.document_ids) - found_document_ids
+        found_document_ids = {str(doc.id) for doc in documents}
+        missing_document_ids = set(request.document_ids) - found_document_ids
 
-            # Build status responses
-            document_statuses = {}
+        # Build status responses
+        document_statuses = {}
 
-            for document in documents:
-                # Get basic status without full details for performance
-                document_statuses[str(document.id)] = {
-                    "id": str(document.id),
-                    "filename": document.filename,
-                    "title": document.title,
-                    "document_type": document.document_type.value,
-                    "processing_status": document.processing_status.value,
-                    "processing_started_at": document.processing_started_at.isoformat() if document.processing_started_at else None,
-                    "processing_completed_at": document.processing_completed_at.isoformat() if document.processing_completed_at else None,
-                    "processing_error": document.processing_error,
-                    "retry_count": document.processing_retry_count,
-                    "updated_at": document.updated_at.isoformat()
-                }
-
-                # Add job information if requested
-                if request.include_jobs:
-                    jobs_result = await session.execute(
-                        select(ProcessingJob)
-                        .where(ProcessingJob.document_id == document.id)
-                        .order_by(desc(ProcessingJob.created_at))
-                        .limit(5)  # Limit for performance
-                    )
-                    jobs = jobs_result.scalars().all()
-
-                    document_statuses[str(document.id)]["jobs"] = [
-                        {
-                            "id": str(job.id),
-                            "job_type": job.job_type.value,
-                            "status": job.status.value,
-                            "progress_percentage": job.progress_percentage,
-                            "current_step": job.current_step
-                        }
-                        for job in jobs
-                    ]
-
-            response = {
-                "documents": document_statuses,
-                "total_requested": len(request.document_ids),
-                "found_count": len(found_document_ids),
-                "missing_count": len(missing_document_ids),
-                "missing_document_ids": list(missing_document_ids)
+        for document in documents:
+            # Get basic status without full details for performance
+            document_statuses[str(document.id)] = {
+                "id": str(document.id),
+                "filename": document.filename,
+                "title": document.title,
+                "document_type": document.document_type.value,
+                "processing_status": document.processing_status.value,
+                "processing_started_at": document.processing_started_at.isoformat() if document.processing_started_at else None,
+                "processing_completed_at": document.processing_completed_at.isoformat() if document.processing_completed_at else None,
+                "processing_error": document.processing_error,
+                "retry_count": document.processing_retry_count,
+                "updated_at": document.updated_at.isoformat()
             }
 
-            # Group by status if requested
-            if request.group_by_status:
-                status_groups = {}
-                for doc_status in document_statuses.values():
-                    status = doc_status["processing_status"]
-                    if status not in status_groups:
-                        status_groups[status] = []
-                    status_groups[status].append(doc_status["id"])
+            # Add job information if requested
+            if request.include_jobs:
+                jobs_result = await session.execute(
+                    select(ProcessingJob)
+                    .where(ProcessingJob.document_id == document.id)
+                    .order_by(desc(ProcessingJob.created_at))
+                    .limit(5)  # Limit for performance
+                )
+                jobs = jobs_result.scalars().all()
 
-                response["status_groups"] = status_groups
+                document_statuses[str(document.id)]["jobs"] = [
+                    {
+                        "id": str(job.id),
+                        "job_type": job.job_type.value,
+                        "status": job.status.value,
+                        "progress_percentage": job.progress_percentage,
+                        "current_step": job.current_step
+                    }
+                    for job in jobs
+                ]
 
-            return response
+        response = {
+            "documents": document_statuses,
+            "total_requested": len(request.document_ids),
+            "found_count": len(found_document_ids),
+            "missing_count": len(missing_document_ids),
+            "missing_document_ids": list(missing_document_ids)
+        }
+
+        # Group by status if requested
+        if request.group_by_status:
+            status_groups = {}
+            for doc_status in document_statuses.values():
+                status = doc_status["processing_status"]
+                if status not in status_groups:
+                    status_groups[status] = []
+                status_groups[status].append(doc_status["id"])
+
+            response["status_groups"] = status_groups
+
+        return response
 
     except Exception as e:
         logger.error(f"Error getting bulk realtime status: {e}")
@@ -467,7 +467,8 @@ async def get_bulk_realtime_status(
 @router.get("/system/metrics", response_model=SystemMetricsResponse)
 async def get_realtime_system_metrics(
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization)
+    organization: Organization = Depends(get_current_organization),
+    session: AsyncSession = Depends(get_async_session)
 ):
     """
     Get real-time system-wide processing metrics
@@ -483,86 +484,85 @@ async def get_realtime_system_metrics(
         ws_stats = connection_manager.get_connection_stats()
 
         # Get document statistics for the organization
-        async with get_async_session() as session:
-            current_time = datetime.utcnow()
-            today_start = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        current_time = datetime.utcnow()
+        today_start = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
 
-            # Total documents
-            total_docs_result = await session.execute(
-                select(func.count(Document.id))
-                .where(
-                    and_(
-                        Document.organization_id == organization.id,
-                        Document.is_deleted == False
-                    )
+        # Total documents
+        total_docs_result = await session.execute(
+            select(func.count(Document.id))
+            .where(
+                and_(
+                    Document.organization_id == organization.id,
+                    Document.is_deleted == False
                 )
             )
-            total_documents = total_docs_result.scalar() or 0
+        )
+        total_documents = total_docs_result.scalar() or 0
 
-            # Documents by status
-            queued_docs_result = await session.execute(
-                select(func.count(Document.id))
-                .where(
-                    and_(
-                        Document.organization_id == organization.id,
-                        Document.processing_status == DocumentProcessingStatus.PENDING,
-                        Document.is_deleted == False
-                    )
+        # Documents by status
+        queued_docs_result = await session.execute(
+            select(func.count(Document.id))
+            .where(
+                and_(
+                    Document.organization_id == organization.id,
+                    Document.processing_status == DocumentProcessingStatus.PENDING,
+                    Document.is_deleted == False
                 )
             )
-            queued_documents = queued_docs_result.scalar() or 0
+        )
+        queued_documents = queued_docs_result.scalar() or 0
 
-            processing_docs_result = await session.execute(
-                select(func.count(Document.id))
-                .where(
-                    and_(
-                        Document.organization_id == organization.id,
-                        Document.processing_status == DocumentProcessingStatus.PROCESSING,
-                        Document.is_deleted == False
-                    )
+        processing_docs_result = await session.execute(
+            select(func.count(Document.id))
+            .where(
+                and_(
+                    Document.organization_id == organization.id,
+                    Document.processing_status == DocumentProcessingStatus.PROCESSING,
+                    Document.is_deleted == False
                 )
             )
-            processing_documents = processing_docs_result.scalar() or 0
+        )
+        processing_documents = processing_docs_result.scalar() or 0
 
-            # Completed today
-            completed_today_result = await session.execute(
-                select(func.count(Document.id))
-                .where(
-                    and_(
-                        Document.organization_id == organization.id,
-                        Document.processing_status == DocumentProcessingStatus.COMPLETED,
-                        Document.processing_completed_at >= today_start,
-                        Document.is_deleted == False
-                    )
+        # Completed today
+        completed_today_result = await session.execute(
+            select(func.count(Document.id))
+            .where(
+                and_(
+                    Document.organization_id == organization.id,
+                    Document.processing_status == DocumentProcessingStatus.COMPLETED,
+                    Document.processing_completed_at >= today_start,
+                    Document.is_deleted == False
                 )
             )
-            completed_documents_today = completed_today_result.scalar() or 0
+        )
+        completed_documents_today = completed_today_result.scalar() or 0
 
-            # Failed today
-            failed_today_result = await session.execute(
-                select(func.count(Document.id))
-                .where(
-                    and_(
-                        Document.organization_id == organization.id,
-                        Document.processing_status == DocumentProcessingStatus.FAILED,
-                        Document.processing_completed_at >= today_start,
-                        Document.is_deleted == False
-                    )
+        # Failed today
+        failed_today_result = await session.execute(
+            select(func.count(Document.id))
+            .where(
+                and_(
+                    Document.organization_id == organization.id,
+                    Document.processing_status == DocumentProcessingStatus.FAILED,
+                    Document.processing_completed_at >= today_start,
+                    Document.is_deleted == False
                 )
             )
-            failed_documents_today = failed_today_result.scalar() or 0
+        )
+        failed_documents_today = failed_today_result.scalar() or 0
 
-            # Recent status updates (last hour) for message rate
-            recent_updates_result = await session.execute(
-                select(func.count(StatusUpdate.id))
-                .where(
-                    and_(
-                        StatusUpdate.target_organizations.contains([str(organization.id)]),
-                        StatusUpdate.created_at >= current_time - timedelta(hours=1)
-                    )
+        # Recent status updates (last hour) for message rate
+        recent_updates_result = await session.execute(
+            select(func.count(StatusUpdate.id))
+            .where(
+                and_(
+                    StatusUpdate.target_organizations.contains([str(organization.id)]),
+                    StatusUpdate.created_at >= current_time - timedelta(hours=1)
                 )
             )
-            messages_last_hour = recent_updates_result.scalar() or 0
+        )
+        messages_last_hour = recent_updates_result.scalar() or 0
 
         # Calculate error rate (placeholder - would need proper error tracking)
         error_rate_last_hour = 0.0
@@ -595,7 +595,8 @@ async def get_realtime_system_metrics(
 async def trigger_document_status_broadcast(
     document_id: str,
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization)
+    organization: Organization = Depends(get_current_organization),
+    session: AsyncSession = Depends(get_async_session)
 ):
     """
     Trigger a manual status broadcast for a document
@@ -603,23 +604,22 @@ async def trigger_document_status_broadcast(
     Useful for refreshing client status or testing WebSocket connectivity.
     """
     try:
-        async with get_async_session() as session:
-            result = await session.execute(
-                select(Document).where(
-                    and_(
-                        Document.id == document_id,
-                        Document.organization_id == organization.id,
-                        Document.is_deleted == False
-                    )
+        result = await session.execute(
+            select(Document).where(
+                and_(
+                    Document.id == document_id,
+                    Document.organization_id == organization.id,
+                    Document.is_deleted == False
                 )
             )
-            document = result.scalar_one_or_none()
+        )
+        document = result.scalar_one_or_none()
 
-            if not document:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Document not found"
-                )
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document not found"
+            )
 
         # Broadcast status update
         await status_update_service.broadcast_document_update(

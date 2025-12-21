@@ -1,23 +1,19 @@
 'use client';
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { searchService } from '@/services/searchService';
-import { SearchInterface } from '@/components/search/SearchInterface';
+import { SimpleLayout } from '@/components/layout/SimpleLayout';
 import { ResultsPanel } from '@/components/search/ResultsPanel';
-import { SearchResult, SearchRequest, QueryHistory, QuerySuggestions } from '@/types/search';
-import {
-  MagnifyingGlassIcon,
-  DocumentTextIcon,
-  ClockIcon,
-  SparklesIcon,
-  ExclamationTriangleIcon,
-  LightBulbIcon,
-} from '@heroicons/react/24/outline';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { SearchInterface } from '@/components/search/SearchInterface';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Card, CardContent } from '@/components/ui/card';
 import { getAnalytics } from '@/lib/analytics';
+import { searchService } from '@/services/searchService';
+import { QueryHistory, QuerySuggestions, SearchRequest, SearchResult } from '@/types/search';
+import {
+    ExclamationTriangleIcon,
+    MagnifyingGlassIcon,
+    SparklesIcon
+} from '@heroicons/react/24/outline';
+import { useCallback, useEffect, useState } from 'react';
 
 // Local interface to match SearchInterface's expected filter type
 interface SearchFilters {
@@ -115,15 +111,39 @@ export default function SearchPage() {
           // Analytics not initialized, silently ignore
         }
       }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+    } catch (err: any) {
+      console.error('Search error details:', err);
+
+      // Extract more detailed error information
+      let errorMessage = 'An unexpected error occurred';
+      if (err?.response?.data?.error) {
+        errorMessage = err.response.data.error.message || err.response.data.error;
+      } else if (err?.response?.data?.detail) {
+        errorMessage = err.response.data.detail;
+      } else if (err?.message) {
+        errorMessage = err.message;
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      }
+
       setError(errorMessage);
       setSearchResult(null);
 
-      // Track unexpected error
+      // Track unexpected error with more details
       try {
         const analytics = getAnalytics();
-        analytics.trackError(err instanceof Error ? err : new Error(errorMessage), 'search_unexpected');
+        const errorObj = new Error(errorMessage);
+        errorObj.stack = err?.stack;
+        analytics.trackError(errorObj, 'search_unexpected');
+
+        // Log additional error context
+        console.error('Search error context:', {
+          query: query,
+          filters: filters,
+          errorStatus: err?.response?.status,
+          errorCode: err?.code,
+          errorConfig: err?.config,
+        });
       } catch (error) {
         // Analytics not initialized, silently ignore
       }
@@ -239,6 +259,7 @@ export default function SearchPage() {
   }, []);
 
   return (
+    <SimpleLayout>
     <div className="min-h-screen bg-background">
       {/* Subtle Background Pattern */}
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
@@ -373,5 +394,6 @@ export default function SearchPage() {
         </div>
       </div>
     </div>
+    </SimpleLayout>
   );
 }
