@@ -38,14 +38,16 @@ async def search_documents(
             result = hybrid_search_service.search(
                 search_request=search_request,
                 user_id=str(current_user.id),
-                organization_id=str(current_user.organization_id)
+                organization_id=str(current_user.organization_id),
+                db=db
             )
         elif search_request.search_type == SearchType.FULLTEXT:
             # Use full-text search service
             result = fulltext_search_service.search(
                 search_request=search_request,
                 user_id=str(current_user.id),
-                organization_id=str(current_user.organization_id)
+                organization_id=str(current_user.organization_id),
+                db=db
             )
         elif search_request.search_type == SearchType.VECTOR:
             # Use vector search service
@@ -53,7 +55,8 @@ async def search_documents(
             result = vector_search_service.search(
                 search_request=search_request,
                 user_id=str(current_user.id),
-                organization_id=str(current_user.organization_id)
+                organization_id=str(current_user.organization_id),
+                db=db
             )
         elif search_request.search_type == SearchType.KNOWLEDGE_GRAPH:
             # Use knowledge graph search service
@@ -61,7 +64,8 @@ async def search_documents(
             result = knowledge_graph_service.search(
                 search_request=search_request,
                 user_id=str(current_user.id),
-                organization_id=str(current_user.organization_id)
+                organization_id=str(current_user.organization_id),
+                db=db
             )
         else:
             # Default to hybrid search
@@ -69,7 +73,8 @@ async def search_documents(
             result = hybrid_search_service.search(
                 search_request=search_request,
                 user_id=str(current_user.id),
-                organization_id=str(current_user.organization_id)
+                organization_id=str(current_user.organization_id),
+                db=db
             )
 
         # Log search query in background (for analytics)

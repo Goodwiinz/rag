@@ -38,6 +38,13 @@ from src.api.evaluation import router as evaluation_router
 from src.api.websocket import router as websocket_router
 from src.api.websocket_v2 import router as websocket_v2_router
 from src.api.realtime_document_status import router as realtime_status_router
+from src.api.realtime_quality_metrics import router as realtime_quality_metrics_router
+from src.api.arxiv import router as arxiv_router
+from src.api.arxiv_knowledge_graph import router as arxiv_kg_router
+from src.api.arxiv_change_tracking import router as arxiv_change_router
+from src.api.arxiv_extraction import router as arxiv_extraction_router
+from src.api.arxiv_local import router as arxiv_local_router
+# from src.api.arxiv_local_batch import router as arxiv_batch_router  # Temporarily disabled due to import error
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.core.database import engine
 # from src.services.file_service import redis_client  # Not exported, not needed here
@@ -199,6 +206,13 @@ app.include_router(evaluation_router, prefix="/api/v1")
 app.include_router(websocket_router)  # Legacy WebSocket routes
 app.include_router(websocket_v2_router)  # Enhanced WebSocket v2 routes
 app.include_router(realtime_status_router)  # Real-time document status API
+app.include_router(realtime_quality_metrics_router, prefix="/api/v2")  # Real-time quality metrics API
+app.include_router(arxiv_router)  # ArXiv integration endpoints
+app.include_router(arxiv_kg_router, prefix="/api/v1/arxiv/kg")  # ArXiv Knowledge Graph endpoints
+app.include_router(arxiv_change_router, prefix="/api/v1/arxiv/tracking")  # ArXiv Change Tracking endpoints
+app.include_router(arxiv_extraction_router, prefix="/api/v1/arxiv/extraction")  # ArXiv Feature Extraction endpoints
+app.include_router(arxiv_local_router, prefix="/api/v1/arxiv/local")  # Local ArXiv PDF processing endpoints
+# app.include_router(arxiv_batch_router, prefix="/api/v1/arxiv/batch")  # Temporarily disabled due to import error
 
 # Health check endpoint
 @app.get("/health")
@@ -290,6 +304,21 @@ if settings.DEBUG:
                 "REDIS_URL": settings.REDIS_URL,
             }
         }
+
+
+# Debug: Inspect middleware stack
+print("Inspecting middleware stack:", flush=True)
+for i, m in enumerate(app.user_middleware):
+    try:
+        print(f"Middleware {i}: {m} (type: {type(m)})", flush=True)
+        # specific check for unpacking
+        try:
+            items = list(m)
+            print(f"  Unpacks to {len(items)} items: {items}", flush=True)
+        except Exception as e:
+            print(f"  Cannot unpack middleware {i}: {e}", flush=True)
+    except Exception as e:
+        print(f"  Error inspecting middleware {i}: {e}", flush=True)
 
 if __name__ == "__main__":
     import uvicorn

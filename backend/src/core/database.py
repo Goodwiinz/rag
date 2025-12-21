@@ -62,6 +62,9 @@ async def get_async_session() -> AsyncSession:
     async with AsyncSessionLocal() as session:
         yield session
 
+# Alias for get_db to support existing imports
+get_db_session = get_db
+
 def create_tables():
     """Create all database tables"""
     Base.metadata.create_all(bind=engine)

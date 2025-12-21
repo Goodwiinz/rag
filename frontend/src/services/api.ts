@@ -380,7 +380,7 @@ export class RAGAPIClient {
   }
 
   async submitFeedback(feedback: UserFeedback): Promise<{ feedback_id: string; message: string }> {
-    return this.requestWithRetry('/analytics/quality/feedback', {
+    return this.requestWithRetry('/feedback', {
       method: 'POST',
       body: JSON.stringify(feedback),
     });

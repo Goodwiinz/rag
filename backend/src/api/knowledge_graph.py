@@ -79,6 +79,22 @@ async def delete_entity(
     return {"message": "Entity deleted successfully"}
 
 
+@router.get("/entities", response_model=List[EntityResponse])
+async def get_all_entities(
+    limit: int = Query(default=100, ge=1, le=1000, description="Maximum results to return"),
+    offset: int = Query(default=0, ge=0, description="Number of results to skip"),
+    entity_types: Optional[List[EntityType]] = Query(None, description="Filter by entity types"),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all entities with pagination and optional filtering"""
+    try:
+        entities = knowledge_graph_service.get_all_entities(limit, offset, entity_types)
+        return entities
+    except Exception as e:
+        logger.error(f"Error getting entities: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/entities/search", response_model=List[EntityResponse])
 async def search_entities(
     query: str = Query(..., description="Search query"),
@@ -152,6 +168,22 @@ async def get_relationship(
     """Get a relationship by ID"""
     # TODO: Implement get_relationship method in service
     raise HTTPException(status_code=501, detail="Not implemented yet")
+
+
+@router.delete("/relationships/{relationship_id}")
+async def delete_relationship(
+    relationship_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a relationship"""
+    try:
+        success = knowledge_graph_service.delete_relationship(relationship_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Relationship not found")
+        return {"message": "Relationship deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting relationship: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Graph Search and Traversal Endpoints
