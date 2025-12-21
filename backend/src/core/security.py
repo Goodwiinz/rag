@@ -7,15 +7,12 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Union
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt  # Changed from passlib
 from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
 from src.core.config import settings
-
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT Bearer scheme
 security = HTTPBearer()
@@ -41,13 +38,20 @@ class TokenRefresh(BaseModel):
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash"""
-    # Truncate password to bcrypt's 72-byte limit for verification
-    return pwd_context.verify(plain_password[:72], hashed_password)
+    try:
+        # Truncate to 72 chars to avoid bcrypt limit and ensure compatibility
+        plain_bytes = plain_password[:72].encode('utf-8')
+        hash_bytes = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(plain_bytes, hash_bytes)
+    except Exception:
+        return False
 
 def get_password_hash(password: str) -> str:
     """Generate password hash"""
-    # Truncate password to bcrypt's 72-byte limit
-    return pwd_context.hash(password[:72])
+    # Truncate to 72 chars to avoid bcrypt limit
+    pwd_bytes = password[:72].encode('utf-8')
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
 
 def generate_password_reset_token() -> str:
     """Generate a secure password reset token"""
@@ -124,9 +128,10 @@ def verify_token(token: str) -> Optional[TokenData]:
             email=email,
             organization_id=organization_id,
             role=role,
-            exp=datetime.fromtimestamp(exp) if exp else None
+            exp=datetime.utcfromtimestamp(exp) if exp else None
         )
         return token_data
+
 
     except JWTError:
         return None

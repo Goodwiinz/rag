@@ -38,7 +38,7 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
     # Database
-    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/multimodal_rag"
+    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev"
     REDIS_URL: str = "redis://localhost:6379"
 
     # Neo4j Configuration
@@ -192,8 +192,9 @@ class Settings(BaseSettings):
         return v
 
     class Config:
-        env_file = ".env"
+        env_file = "../.env"
         case_sensitive = True
+        extra = "ignore"
 
 # Create settings instance
 settings = Settings()

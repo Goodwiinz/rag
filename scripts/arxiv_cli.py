@@ -12,6 +12,9 @@ import sys
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 # Add backend to path
 sys.path.append(str(Path(__file__).parent.parent / "backend"))
@@ -109,14 +112,38 @@ async def ingest_papers(args):
             )
 
             # Save to database (if implemented)
+            # Save to database (if implemented)
             if args.save_to_db:
-                # DocumentService not implemented yet
-                # document_service = DocumentService()
-                # for doc in documents:
-                #     # Note: You'd need to implement user authentication
-                #     # await document_service.create_document(doc, user_id="system")
-                #     pass
-                print("Note: Database save feature not implemented yet")
+                print("\nSaving documents to Vector Database...")
+                try:
+                    from src.services.vector_search_service import vector_search_service
+                    
+                    saved_count = 0
+                    for doc in documents:
+                        # Use asyncio.to_thread to run the sync service method (which might use asyncio.run internally)
+                        # This avoids "asyncio.run() cannot be called from a running event loop" error
+                        result = await asyncio.to_thread(
+                            vector_search_service.index_document,
+                            document_id=doc.metadata.get('arxiv_id', doc.filename),
+                            text=doc.content_text,
+                            organization_id="system", # Default org
+                            metadata=doc.metadata
+                        )
+                        
+                        if result.success:
+                            saved_count += 1
+                            print(f"✓ Indexed: {doc.metadata.get('title', 'Unknown')[:50]}...")
+                        else:
+                            print(f"✗ Failed to index {doc.metadata.get('id', 'unknown')}: {result.message}")
+                            
+                    print(f"Successfully saved {saved_count}/{len(documents)} documents to Vector DB")
+                    
+                except ImportError as e:
+                    print(f"Error importing VectorSearchService: {e}")
+                except Exception as e:
+                    print(f"Error saving to database: {e}")
+                    import traceback
+                    traceback.print_exc()
 
             print(f"\nSuccessfully ingested {len(documents)}/{len(all_papers)} papers")
 
@@ -268,7 +295,7 @@ def main():
     ingest_parser.add_argument('--extract-content', action='store_true', default=True, help='Extract full text content')
     ingest_parser.add_argument('--no-extract', dest='extract_content', action='store_false', help='Skip content extraction')
     ingest_parser.add_argument('--batch-size', type=int, default=10, help='Batch size for processing')
-    ingest_parser.add_argument('--save-to-db', action='store_true', help='Save to database')
+    ingest_parser.add_argument('--save-to-db', action='store_true', default=True, help='Save to database')
     ingest_parser.add_argument('--extract-entities', action='store_true', help='Extract entities and add to knowledge graph')
 
     # Dataset command

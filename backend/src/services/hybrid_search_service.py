@@ -139,7 +139,7 @@ class HybridSearchService:
             sources.append(SearchSourceType.FULLTEXT)
 
         # Include vector search for semantic similarity
-        if search_request.search_type in [SearchType.VECTOR, SearchType.HYBRID]:
+        if search_request.search_type in [SearchType.SEMANTIC, SearchType.HYBRID]:
             sources.append(SearchSourceType.VECTOR)
 
         # Include knowledge graph search for entity-based queries
@@ -296,7 +296,7 @@ class HybridSearchService:
                 query=search_request.query,
                 organization_id=organization_id,
                 limit=self.max_results_per_source,
-                score_threshold=0.7  # Default threshold
+                score_threshold=0.2  # Lowered to 0.2 for more results (P@3, P@5 calculation)
             )
 
             # Convert to raw results
@@ -317,7 +317,7 @@ class HybridSearchService:
                     tags=[],
                     is_public=False,
                     uploaded_by_user_id=user_id or "",
-                    organization_id=organization_id,
+                    organization_id=result.metadata.organization_id or organization_id or "",
                     metadata=result.metadata.additional_data or {}
                 )
 
@@ -371,7 +371,6 @@ class HybridSearchService:
             # Execute search using the available interface
             kg_result = knowledge_graph_service.search_entities(
                 query=search_request.query,
-                organization_id=organization_id,
                 limit=self.max_results_per_source
             )
 
@@ -549,8 +548,15 @@ class HybridSearchService:
             return 0.0
 
         import datetime
-        now = datetime.datetime.utcnow()
-        age_hours = (now - search_result.created_at).total_seconds() / 3600
+        from datetime import timezone
+        now = datetime.datetime.now(timezone.utc)
+        
+        # Ensure created_at is aware
+        created_at = search_result.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+            
+        age_hours = (now - created_at).total_seconds() / 3600
 
         if age_hours < self.recency_boost_hours:
             # Linear decay from full boost to 0 over the period

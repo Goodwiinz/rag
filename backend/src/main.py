@@ -26,6 +26,7 @@ from src.api.knowledge_graph import router as knowledge_graph_router
 from src.api.search import router as search_router
 from src.api.search_quality import router as search_quality_router
 from src.api.multi_agent_search import router as multi_agent_search_router
+from src.api.multi_agent_search_v2 import router as multi_agent_search_v2_router
 from src.api.quality_metrics import router as quality_metrics_router
 from src.api.user_behavior import router as user_behavior_router
 from src.api.performance_dashboard import router as performance_dashboard_router
@@ -194,6 +195,7 @@ app.include_router(knowledge_graph_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(search_quality_router, prefix="/api/v1")
 app.include_router(multi_agent_search_router, prefix="/api/v1")
+app.include_router(multi_agent_search_v2_router)  # Enhanced v2 multi-agent search
 app.include_router(quality_metrics_router, prefix="/api/v1/analytics/quality")
 app.include_router(user_behavior_router, prefix="/api/v1/analytics/behavior")
 app.include_router(performance_dashboard_router, prefix="/api/v1/analytics/performance")

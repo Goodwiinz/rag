@@ -1,0 +1,564 @@
+﻿  {
+    "n": {
+      "identity": 445,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:07.379000000Z",
+        "entity_count": 8,
+        "entity_types": [
+          "OTHER",
+          "CONCEPT",
+          "PERSON"
+        ],
+        "name": "Predictive Concept Decoders: Training Scalable End-to-End Interpretability Assistants",
+        "publication_date": "2025-12-17T18:59:48Z",
+        "created_at": "2025-12-19T02:02:31.542000000Z",
+        "extraction_methods": [
+          "pattern_matching",
+          "rule_based"
+        ],
+        "id": "2512.15712v1",
+        "title": "Predictive Concept Decoders: Training Scalable End-to-End Interpretability Assistants",
+        "paper_id": "2512.15712v1",
+        "arxiv_category": "cs.AI",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "445"
+    }
+  },
+  {
+    "n": {
+      "identity": 446,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:07.607000000Z",
+        "entity_count": 6,
+        "entity_types": [
+          "CONCEPT",
+          "PERSON"
+        ],
+        "name": "Artism: AI-Driven Dual-Engine System for Art Generation and Critique",
+        "publication_date": "2025-12-17T18:58:42Z",
+        "created_at": "2025-12-19T02:02:31.672000000Z",
+        "extraction_methods": [
+          "pattern_matching",
+          "rule_based"
+        ],
+        "id": "2512.15710v1",
+        "title": "Artism: AI-Driven Dual-Engine System for Art Generation and Critique",
+        "paper_id": "2512.15710v1",
+        "arxiv_category": "cs.AI",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "446"
+    }
+  },
+  {
+    "n": {
+      "identity": 447,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:07.820000000Z",
+        "entity_count": 5,
+        "entity_types": [
+          "CONCEPT",
+          "PERSON"
+        ],
+        "name": "Learning Model Parameter Dynamics in a Combination Therapy for Bladder Cancer from Sparse Biological Data",
+        "publication_date": "2025-12-17T18:55:49Z",
+        "created_at": "2025-12-19T02:02:31.679000000Z",
+        "extraction_methods": [
+          "pattern_matching",
+          "rule_based"
+        ],
+        "id": "2512.15706v1",
+        "title": "Learning Model Parameter Dynamics in a Combination Therapy for Bladder Cancer from Sparse Biological Data",
+        "paper_id": "2512.15706v1",
+        "arxiv_category": "cs.LG",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "447"
+    }
+  },
+  {
+    "n": {
+      "identity": 461,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:09.364000000Z",
+        "entity_count": 40,
+        "entity_types": [
+          "PERSON",
+          "CONCEPT"
+        ],
+        "name": "FrontierCS: Evolving Challenges for Evolving Intelligence",
+        "publication_date": "2025-12-17T18:52:45Z",
+        "created_at": "2025-12-19T02:02:31.818000000Z",
+        "extraction_methods": [
+          "rule_based",
+          "pattern_matching"
+        ],
+        "id": "2512.15699v1",
+        "title": "FrontierCS: Evolving Challenges for Evolving Intelligence",
+        "paper_id": "2512.15699v1",
+        "arxiv_category": "cs.LG",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "461"
+    }
+  },
+  {
+    "n": {
+      "identity": 462,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:09.578000000Z",
+        "entity_count": 9,
+        "entity_types": [
+          "OTHER",
+          "CONCEPT",
+          "PERSON"
+        ],
+        "name": "mimic-video: Video-Action Models for Generalizable Robot Control Beyond VLAs",
+        "publication_date": "2025-12-17T18:47:31Z",
+        "created_at": "2025-12-19T02:02:31.827000000Z",
+        "extraction_methods": [
+          "pattern_matching",
+          "rule_based"
+        ],
+        "id": "2512.15692v1",
+        "title": "mimic-video: Video-Action Models for Generalizable Robot Control Beyond VLAs",
+        "paper_id": "2512.15692v1",
+        "arxiv_category": "cs.RO",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "462"
+    }
+  },
+  {
+    "n": {
+      "identity": 463,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:09.799000000Z",
+        "entity_count": 8,
+        "name": "Multi-Modal Semantic Communication",
+        "entity_types": [
+          "OTHER",
+          "PERSON",
+          "CONCEPT"
+        ],
+        "publication_date": "2025-12-17T18:47:22Z",
+        "created_at": "2025-12-19T02:02:31.832000000Z",
+        "extraction_methods": [
+          "pattern_matching",
+          "rule_based"
+        ],
+        "id": "2512.15691v1",
+        "title": "Multi-Modal Semantic Communication",
+        "paper_id": "2512.15691v1",
+        "arxiv_category": "cs.LG",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "463"
+    }
+  },
+  {
+    "n": {
+      "identity": 464,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:10.038000000Z",
+        "entity_count": 8,
+        "entity_types": [
+          "PERSON",
+          "OTHER",
+          "CONCEPT"
+        ],
+        "name": "Can LLMs Guide Their Own Exploration? Gradient-Guided Reinforcement Learning for LLM Reasoning",
+        "publication_date": "2025-12-17T18:44:45Z",
+        "created_at": "2025-12-19T02:02:31.837000000Z",
+        "extraction_methods": [
+          "rule_based",
+          "pattern_matching"
+        ],
+        "id": "2512.15687v1",
+        "title": "Can LLMs Guide Their Own Exploration? Gradient-Guided Reinforcement Learning for LLM Reasoning",
+        "paper_id": "2512.15687v1",
+        "arxiv_category": "cs.LG",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "464"
+    }
+  },
+  {
+    "n": {
+      "identity": 465,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:10.250000000Z",
+        "entity_count": 9,
+        "entity_types": [
+          "CONCEPT",
+          "PERSON",
+          "OTHER"
+        ],
+        "name": "A Multivariate Statistical Framework for Detection, Classification and Pre-localization of Anomalies in Water Distribution Networks",
+        "publication_date": "2025-12-17T18:38:37Z",
+        "created_at": "2025-12-19T02:02:31.841000000Z",
+        "extraction_methods": [
+          "pattern_matching",
+          "rule_based"
+        ],
+        "id": "2512.15685v1",
+        "title": "A Multivariate Statistical Framework for Detection, Classification and Pre-localization of Anomalies in Water Distribution Networks",
+        "paper_id": "2512.15685v1",
+        "arxiv_category": "cs.LG",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "465"
+    }
+  },
+  {
+    "n": {
+      "identity": 466,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:10.544000000Z",
+        "entity_count": 3,
+        "entity_types": [
+          "PERSON",
+          "OTHER"
+        ],
+        "name": "High-Dimensional Partial Least Squares: Spectral Analysis and Fundamental Limitations",
+        "publication_date": "2025-12-17T18:38:01Z",
+        "created_at": "2025-12-19T02:02:31.846000000Z",
+        "extraction_methods": [
+          "rule_based",
+          "pattern_matching"
+        ],
+        "id": "2512.15684v1",
+        "title": "High-Dimensional Partial Least Squares: Spectral Analysis and Fundamental Limitations",
+        "paper_id": "2512.15684v1",
+        "arxiv_category": "stat.ML",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "466"
+    }
+  },
+  {
+    "n": {
+      "identity": 467,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:10.749000000Z",
+        "entity_count": 11,
+        "entity_types": [
+          "CONCEPT",
+          "OTHER",
+          "PERSON"
+        ],
+        "name": "Stylized Synthetic Augmentation further improves Corruption Robustness",
+        "publication_date": "2025-12-17T18:28:04Z",
+        "created_at": "2025-12-19T02:02:31.849000000Z",
+        "extraction_methods": [
+          "pattern_matching",
+          "rule_based"
+        ],
+        "id": "2512.15675v1",
+        "title": "Stylized Synthetic Augmentation further improves Corruption Robustness",
+        "paper_id": "2512.15675v1",
+        "arxiv_category": "cs.CV",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "467"
+    }
+  },
+  {
+    "n": {
+      "identity": 468,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:10.973000000Z",
+        "entity_count": 16,
+        "entity_types": [
+          "PERSON",
+          "CONCEPT",
+          "OTHER"
+        ],
+        "name": "Activation Oracles: Training and Evaluating LLMs as General-Purpose Activation Explainers",
+        "publication_date": "2025-12-17T18:26:28Z",
+        "created_at": "2025-12-19T02:02:31.855000000Z",
+        "extraction_methods": [
+          "rule_based",
+          "pattern_matching"
+        ],
+        "id": "2512.15674v1",
+        "title": "Activation Oracles: Training and Evaluating LLMs as General-Purpose Activation Explainers",
+        "paper_id": "2512.15674v1",
+        "arxiv_category": "cs.CL",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "468"
+    }
+  },
+  {
+    "n": {
+      "identity": 469,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:11.185000000Z",
+        "entity_count": 6,
+        "entity_types": [
+          "PERSON",
+          "CONCEPT"
+        ],
+        "name": "Stepwise Think-Critique: A Unified Framework for Robust and Interpretable LLM Reasoning",
+        "publication_date": "2025-12-17T18:15:17Z",
+        "created_at": "2025-12-19T02:02:31.861000000Z",
+        "extraction_methods": [
+          "rule_based",
+          "pattern_matching"
+        ],
+        "id": "2512.15662v1",
+        "title": "Stepwise Think-Critique: A Unified Framework for Robust and Interpretable LLM Reasoning",
+        "paper_id": "2512.15662v1",
+        "arxiv_category": "cs.AI",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "469"
+    }
+  },
+  {
+    "n": {
+      "identity": 470,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:11.381000000Z",
+        "entity_count": 6,
+        "entity_types": [
+          "PERSON",
+          "CONCEPT"
+        ],
+        "name": "Prospects for quantum advantage in machine learning from the representability of functions",
+        "publication_date": "2025-12-17T18:14:59Z",
+        "created_at": "2025-12-19T02:02:31.864000000Z",
+        "extraction_methods": [
+          "rule_based",
+          "pattern_matching"
+        ],
+        "id": "2512.15661v1",
+        "title": "Prospects for quantum advantage in machine learning from the representability of functions",
+        "paper_id": "2512.15661v1",
+        "arxiv_category": "quant-ph",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "470"
+    }
+  },
+  {
+    "n": {
+      "identity": 471,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:11.598000000Z",
+        "entity_count": 11,
+        "entity_types": [
+          "CONCEPT",
+          "PERSON",
+          "OTHER"
+        ],
+        "name": "PPSEBM: An Energy-Based Model with Progressive Parameter Selection for Continual Learning",
+        "publication_date": "2025-12-17T18:11:29Z",
+        "created_at": "2025-12-19T02:02:31.869000000Z",
+        "extraction_methods": [
+          "pattern_matching",
+          "rule_based"
+        ],
+        "id": "2512.15658v1",
+        "title": "PPSEBM: An Energy-Based Model with Progressive Parameter Selection for Continual Learning",
+        "paper_id": "2512.15658v1",
+        "arxiv_category": "cs.CL",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "471"
+    }
+  },
+  {
+    "n": {
+      "identity": 472,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:11.813000000Z",
+        "entity_count": 8,
+        "entity_types": [
+          "PERSON",
+          "OTHER",
+          "CONCEPT"
+        ],
+        "name": "SoFlow: Solution Flow Models for One-Step Generative Modeling",
+        "publication_date": "2025-12-17T18:10:17Z",
+        "created_at": "2025-12-19T02:02:31.874000000Z",
+        "extraction_methods": [
+          "rule_based",
+          "pattern_matching"
+        ],
+        "id": "2512.15657v1",
+        "title": "SoFlow: Solution Flow Models for One-Step Generative Modeling",
+        "paper_id": "2512.15657v1",
+        "arxiv_category": "cs.LG",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "472"
+    }
+  },
+  {
+    "n": {
+      "identity": 473,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:12.040000000Z",
+        "entity_count": 10,
+        "entity_types": [
+          "PERSON",
+          "OTHER",
+          "CONCEPT"
+        ],
+        "name": "IC-Effect: Precise and Efficient Video Effects Editing via In-Context Learning",
+        "publication_date": "2025-12-17T17:47:18Z",
+        "created_at": "2025-12-19T02:02:31.878000000Z",
+        "extraction_methods": [
+          "rule_based",
+          "pattern_matching"
+        ],
+        "id": "2512.15635v1",
+        "title": "IC-Effect: Precise and Efficient Video Effects Editing via In-Context Learning",
+        "paper_id": "2512.15635v1",
+        "arxiv_category": "cs.CV",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "473"
+    }
+  },
+  {
+    "n": {
+      "identity": 474,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:12.234000000Z",
+        "entity_count": 7,
+        "entity_types": [
+          "PERSON",
+          "OTHER",
+          "CONCEPT"
+        ],
+        "name": "How Much is Too Much? Exploring LoRA Rank Trade-offs for Retaining Knowledge and Domain Robustness",
+        "publication_date": "2025-12-17T17:44:09Z",
+        "created_at": "2025-12-19T02:02:31.883000000Z",
+        "extraction_methods": [
+          "rule_based",
+          "pattern_matching"
+        ],
+        "id": "2512.15634v1",
+        "title": "How Much is Too Much? Exploring LoRA Rank Trade-offs for Retaining Knowledge and Domain Robustness",
+        "paper_id": "2512.15634v1",
+        "arxiv_category": "cs.CL",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "474"
+    }
+  },
+  {
+    "n": {
+      "identity": 475,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:12.429000000Z",
+        "entity_count": 3,
+        "entity_types": [
+          "PERSON",
+          "CONCEPT"
+        ],
+        "name": "Learning continuous SOC-dependent thermal decomposition kinetics for Li-ion cathodes using KA-CRNNs",
+        "publication_date": "2025-12-17T17:39:20Z",
+        "created_at": "2025-12-19T02:02:31.892000000Z",
+        "extraction_methods": [
+          "rule_based",
+          "pattern_matching"
+        ],
+        "id": "2512.15628v1",
+        "title": "Learning continuous SOC-dependent thermal decomposition kinetics for Li-ion cathodes using KA-CRNNs",
+        "paper_id": "2512.15628v1",
+        "arxiv_category": "physics.chem-ph",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "475"
+    }
+  },
+  {
+    "n": {
+      "identity": 476,
+      "labels": [
+        "DOCUMENT"
+      ],
+      "properties": {
+        "arxiv_title_fetched_at": "2025-12-19T02:03:12.654000000Z",
+        "entity_count": 8,
+        "entity_types": [
+          "PERSON",
+          "OTHER",
+          "CONCEPT"
+        ],
+        "name": "Behavior Tokens Speak Louder: Disentangled Explainable Recommendation with Behavior Vocabulary",
+        "publication_date": "2025-12-17T17:24:24Z",
+        "created_at": "2025-12-19T02:02:31.904000000Z",
+        "extraction_methods": [
+          "rule_based",
+          "pattern_matching"
+        ],
+        "id": "2512.15614v1",
+        "title": "Behavior Tokens Speak Louder: Disentangled Explainable Recommendation with Behavior Vocabulary",
+        "paper_id": "2512.15614v1",
+        "arxiv_category": "cs.LG",
+        "last_extracted_at": "2025-12-19T02:02:31.909000000Z"
+      },
+      "elementId": "476"
+    }
+  }
+]

@@ -2,6 +2,7 @@
 Knowledge Graph Service for managing Neo4j graph database operations
 """
 
+import json
 import logging
 import time
 import uuid
@@ -45,6 +46,8 @@ def _convert_datetime(dt) -> datetime:
 class KnowledgeGraphService:
     """Service for managing knowledge graph operations using Neo4j"""
 
+    _driver_instance: Optional[Driver] = None
+
     def __init__(self):
         self.driver: Optional[Driver] = None
         self.uri = settings.NEO4J_URI
@@ -58,20 +61,32 @@ class KnowledgeGraphService:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        # We don't close the shared driver here anymore
+        pass
+
+    @classmethod
+    def close_driver(cls):
+        """Close the shared driver instance"""
+        if cls._driver_instance:
+            cls._driver_instance.close()
+            cls._driver_instance = None
+            logger.info("Closed shared Neo4j driver")
 
     def _connect(self):
-        """Establish connection to Neo4j database"""
-        if self.driver:
+        """Establish connection to Neo4j database (using shared driver)"""
+        if KnowledgeGraphService._driver_instance:
+            self.driver = KnowledgeGraphService._driver_instance
             return
 
         try:
-            self.driver = GraphDatabase.driver(
+            KnowledgeGraphService._driver_instance = GraphDatabase.driver(
                 self.uri,
                 auth=(self.user, self.password),
                 max_connection_lifetime=3600,
                 max_connection_pool_size=50
             )
+            self.driver = KnowledgeGraphService._driver_instance
+            
             # Test connection
             with self.driver.session() as session:
                 session.run("RETURN 1")
@@ -80,6 +95,7 @@ class KnowledgeGraphService:
             logger.error(f"Failed to connect to Neo4j: {e}")
             # Don't raise here, let the caller handle it or retry later
             self.driver = None
+            KnowledgeGraphService._driver_instance = None
 
     @contextmanager
     def get_session(self, database: str = "neo4j") -> Session:
@@ -132,10 +148,17 @@ class KnowledgeGraphService:
             raise
 
     def close(self):
-        """Close Neo4j driver connection"""
-        if self.driver:
-            self.driver.close()
-            logger.info("Neo4j connection closed")
+        """
+        Close Neo4j driver connection.
+        
+        NOTE: With Singleton pattern, we DO NOT close the shared driver here.
+        The driver should remain open for the application lifetime.
+        Use close_driver() class method for explicit shutdown.
+        """
+        # if self.driver:
+        #     self.driver.close()
+        #     logger.info("Neo4j connection closed")
+        pass
 
     # Entity Management
     def create_entity(self, request: CreateEntityRequest) -> EntityResponse:
@@ -171,7 +194,7 @@ class KnowledgeGraphService:
                     "extraction_method": request.extraction_method.value,
                     "position": request.position,
                     "context": request.context,
-                    "metadata": str(request.metadata) if request.metadata else {},
+                    "metadata": str(request.metadata) if request.metadata else "{}",
                     "source_document_id": request.source_document_id
                 })
 
@@ -251,7 +274,7 @@ class KnowledgeGraphService:
 
                 if request.metadata is not None:
                     update_fields.append("e.metadata = $metadata")
-                    params["metadata"] = str(request.metadata) if request.metadata else {}
+                    params["metadata"] = str(request.metadata) if request.metadata else "{}"
 
                 if not update_fields:
                     return self.get_entity(entity_id)
@@ -464,6 +487,10 @@ class KnowledgeGraphService:
                 RETURN r, source, target
                 """
 
+                # Serialize evidence and metadata to JSON strings (Neo4j only accepts primitives)
+                evidence_str = json.dumps(request.evidence) if request.evidence else "[]"
+                metadata_str = json.dumps(request.metadata) if request.metadata else "{}"
+                
                 result = session.run(query, {
                     "id": relationship_id,
                     "source_entity_id": request.source_entity_id,
@@ -472,8 +499,8 @@ class KnowledgeGraphService:
                     "strength": request.strength,
                     "confidence_score": request.confidence_score,
                     "context": request.context,
-                    "evidence": request.evidence,
-                    "metadata": str(request.metadata) if request.metadata else {},
+                    "evidence": evidence_str,
+                    "metadata": metadata_str,
                     "source_document_id": request.source_document_id
                 })
 
@@ -767,7 +794,7 @@ class KnowledgeGraphService:
             "extraction_method": request.extraction_method.value,
             "position": request.position,
             "context": request.context,
-            "metadata": str(request.metadata) if request.metadata else {},
+            "metadata": str(request.metadata) if request.metadata else "{}",
             "source_document_id": request.source_document_id
         })
 
@@ -810,6 +837,10 @@ class KnowledgeGraphService:
         RETURN r
         """
 
+        # Serialize evidence and metadata to JSON strings (Neo4j only accepts primitives)
+        evidence_str = json.dumps(request.evidence) if request.evidence else "[]"
+        metadata_str = json.dumps(request.metadata) if request.metadata else "{}"
+        
         result = tx.run(query, {
             "id": relationship_id,
             "source_entity_id": request.source_entity_id,
@@ -818,8 +849,8 @@ class KnowledgeGraphService:
             "strength": request.strength,
             "confidence_score": request.confidence_score,
             "context": request.context,
-            "evidence": request.evidence,
-            "metadata": str(request.metadata) if request.metadata else {},
+            "evidence": evidence_str,
+            "metadata": metadata_str,
             "source_document_id": request.source_document_id
         })
 
