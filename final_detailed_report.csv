@@ -1,0 +1,16 @@
+Question ID,Question,Response Time (ms),P@1,MRR,Relevancy,Faithfulness
+2512.16762v1_q_1,What is the main contribution of 'NRGPT: An Energy-based Alternative for GPT'?,5683,1.00,1.00,1.00,1.00
+2512.16762v1_q_2,What is the main idea behind 'NRGPT: An Energy-based Alternative for GPT'?,4825,1.00,1.00,0.00,0.00
+2512.16762v1_q_3,What methods are used in 'NRGPT: An Energy-based Alternative for GPT'?,4774,1.00,1.00,0.00,0.00
+2512.16899v1_q_1,What is the main idea behind 'Multimodal RewardBench 2: Evaluating Omni Reward Models for Interleaved Text and'?,4786,1.00,1.00,0.00,0.00
+2512.16899v1_q_2,What is the main contribution of 'Multimodal RewardBench 2: Evaluating Omni Reward Models for Interleaved Text and'?,4347,1.00,1.00,0.00,0.00
+2512.16899v1_q_3,Describe the approach taken in 'Multimodal RewardBench 2: Evaluating Omni Reward Models for Interleaved Text and'.,4504,1.00,1.00,0.00,0.00
+2512.16891v1_q_1,Who are the authors of 'LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Gene'?,4536,1.00,1.00,1.00,0.67
+2512.16891v1_q_2,Describe the approach taken in 'LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Gene'.,7352,1.00,1.00,0.00,0.00
+2512.16891v1_q_3,What problem does 'LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Gene' address?,6281,1.00,1.00,0.00,0.00
+2512.16785v1_q_1,What is the main contribution of 'Topology of the near field in enhanced transmission through subwavelength apertu'?,6620,1.00,1.00,0.00,0.00
+2512.16785v1_q_2,Who are the authors of 'Topology of the near field in enhanced transmission through subwavelength apertu'?,6517,1.00,1.00,1.00,0.50
+2512.16785v1_q_3,What are the key results of 'Topology of the near field in enhanced transmission through subwavelength apertu'?,7456,1.00,1.00,0.00,0.00
+2512.16702v1_q_1,What are the key results of 'How accurate are foundational machine learning interatomic potentials for hetero'?,6839,1.00,1.00,1.00,0.50
+2512.16702v1_q_2,What is the main contribution of 'How accurate are foundational machine learning interatomic potentials for hetero'?,7687,1.00,1.00,0.00,0.00
+2512.16702v1_q_3,What methods are used in 'How accurate are foundational machine learning interatomic potentials for hetero'?,6994,1.00,1.00,0.00,0.00

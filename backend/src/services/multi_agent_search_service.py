@@ -13,18 +13,22 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 from datetime import datetime
 import json
+import os
 
 # CrewAI imports
 try:
     from crewai import Agent, Task, Crew, Process
     from crewai.tools import BaseTool
-    from langchain_openai import ChatOpenAI
+    from langchain_openai import ChatOpenAI, AzureChatOpenAI
     from langchain_community.llms import OpenAI
     CREWAI_AVAILABLE = True
 except ImportError:
     CREWAI_AVAILABLE = False
     BaseTool = object  # Fallback base class
     logging.warning("CrewAI not available. Multi-agent search will use fallback implementation.")
+
+from ..core.config import settings
+
 
 from ..core.database import get_db
 from ..models.document import Document
@@ -162,12 +166,37 @@ class MultiAgentSearchService:
         }
 
         if CREWAI_AVAILABLE:
-            self.llm = ChatOpenAI(
-                model="gpt-3.5-turbo",
-                temperature=0.1,
-                max_tokens=1000
-            )
-            self._initialize_agents()
+            # Prioritize Azure OpenAI if configured
+            if settings.AZURE_OPENAI_API_KEY and (settings.AZURE_OPENAI_ENDPOINT or settings.AZURE_OPENAI_CHAT_ENDPOINT):
+                try:
+                    # Set environment variables for CrewAI/LiteLLM
+                    os.environ["AZURE_OPENAI_API_KEY"] = settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY
+                    os.environ["AZURE_OPENAI_ENDPOINT"] = settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT
+                    os.environ["OPENAI_API_VERSION"] = settings.AZURE_OPENAI_CHAT_API_VERSION
+                    os.environ["OPENAI_API_TYPE"] = "azure"
+                    
+                    # Set variables for CrewAI Native Azure Provider
+                    os.environ["AZURE_API_KEY"] = settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY
+                    os.environ["AZURE_ENDPOINT"] = settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT
+                    
+                    deployment = settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME or settings.AZURE_OPENAI_DEPLOYMENT_NAME
+                    self.llm = f"azure/{deployment}"
+                    logger.info(f"Initialized MultiAgentSearchService with Azure OpenAI using model: {self.llm}")
+                except Exception as e:
+                    logger.error(f"Failed to initialize Azure OpenAI: {e}")
+                    self.llm = None
+            # Fallback to standard OpenAI if configured
+            elif settings.OPENAI_API_KEY:
+                # Ensure OPENAI_API_KEY is in env for LiteLLM
+                os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
+                self.llm = "gpt-3.5-turbo"
+                logger.info("Initialized MultiAgentSearchService with standard OpenAI")
+            else:
+                logger.warning("No valid OpenAI API key found (Azure or Standard). Multi-agent search will be disabled.")
+                self.llm = None
+
+            if self.llm:
+                self._initialize_agents()
         else:
             self.llm = None
             logger.warning("CrewAI not available - using fallback implementation")

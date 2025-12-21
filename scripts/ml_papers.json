@@ -1,0 +1,532 @@
+[
+  {
+    "id": "2512.15712v1",
+    "title": "pdf",
+    "authors": [
+      "Vincent Huang",
+      "Dami Choi",
+      "Daniel D. Johnson",
+      "Sarah Schwettmann",
+      "Jacob Steinhardt"
+    ],
+    "abstract": "Interpreting the internal activations of neural networks can produce more faithful explanations of their behavior, but is difficult due to the complex structure of activation space. Existing approaches to scalable interpretability use hand-designed agents that make and test hypotheses about how internal activations relate to external behavior. We propose to instead turn this task into an end-to-end training objective, by training interpretability assistants to accurately predict model behavior from activations through a communication bottleneck. Specifically, an encoder compresses activations to a sparse list of concepts, and a decoder reads this list and answers a natural language question about the model. We show how to pretrain this assistant on large unstructured data, then finetune it to answer questions. The resulting architecture, which we call a Predictive Concept Decoder, enjoys favorable scaling properties: the auto-interp score of the bottleneck concepts improves with data, as does the performance on downstream applications. Specifically, PCDs can detect jailbreaks, secret hints, and implanted latent concepts, and are able to accurately surface latent user attributes.",
+    "published": "2025-12-17T18:59:48Z",
+    "updated": "2025-12-17T18:59:48Z",
+    "categories": [
+      "cs.AI",
+      "cs.CL",
+      "cs.LG"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15712v1"
+    },
+    "comment": "28 pages, 12 figures",
+    "journal_ref": null,
+    "primary_category": "cs.AI"
+  },
+  {
+    "id": "2512.15710v1",
+    "title": "pdf",
+    "authors": [
+      "Shuai Liu",
+      "Yiqing Tian",
+      "Yang Chen",
+      "Mar Canet Sola"
+    ],
+    "abstract": "This paper proposes a dual-engine AI architectural method designed to address the complex problem of exploring potential trajectories in the evolution of art. We present two interconnected components: AIDA (an artificial artist social network) and the Ismism Machine, a system for critical analysis. The core innovation lies in leveraging deep learning and multi-agent collaboration to enable multidimensional simulations of art historical developments and conceptual innovation patterns. The framework explores a shift from traditional unidirectional critique toward an intelligent, interactive mode of reflexive practice. We are currently applying this method in experimental studies on contemporary art concepts. This study introduces a general methodology based on AI-driven critical loops, offering new possibilities for computational analysis of art.",
+    "published": "2025-12-17T18:58:42Z",
+    "updated": "2025-12-17T18:58:42Z",
+    "categories": [
+      "cs.AI"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15710v1"
+    },
+    "comment": "7 pages, 3 figures, 36 references, appendix with support material and 1 introduction video",
+    "journal_ref": null,
+    "primary_category": "cs.AI"
+  },
+  {
+    "id": "2512.15706v1",
+    "title": "pdf",
+    "authors": [
+      "Kayode Olumoyin",
+      "Lamees El Naqa",
+      "Katarzyna Rejniak"
+    ],
+    "abstract": "In a mathematical model of interacting biological organisms, where external interventions may alter behavior over time, traditional models that assume fixed parameters usually do not capture the evolving dynamics. In oncology, this is further exacerbated by the fact that experimental data are often sparse and sometimes are composed of a few time points of tumor volume. In this paper, we propose to learn time-varying interactions between cells, such as those of bladder cancer tumors and immune cells, and their response to a combination of anticancer treatments in a limited data scenario. We employ the physics-informed neural network (PINN) approach to predict possible subpopulation trajectories at time points where no observed data are available. We demonstrate that our approach is consistent with the biological explanation of subpopulation trajectories. Our method provides a framework for learning evolving interactions among biological organisms when external interventions are applied to their environment.",
+    "published": "2025-12-17T18:55:49Z",
+    "updated": "2025-12-17T18:55:49Z",
+    "categories": [
+      "cs.LG",
+      "q-bio.CB"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15706v1"
+    },
+    "comment": "NeurIPS 2025 Workshop on Learning from Time Series for Health",
+    "journal_ref": null,
+    "primary_category": "cs.LG"
+  },
+  {
+    "id": "2512.15705v1",
+    "title": "pdf",
+    "authors": [
+      "Xuting Liu",
+      "Daniel Alexander",
+      "Siva Kesava Reddy Kakarla",
+      "Behnaz Arzani",
+      "Vincent Liu"
+    ],
+    "abstract": "Early-Exit (EE) is a Large Language Model (LLM) architecture that accelerates inference by allowing easier tokens to be generated using only a subset of the model's layers. However, traditional batching frameworks are ill-suited for EE LLMs, as not all requests in a batch may be ready to exit at the same time. Existing solutions either force a uniform decision on the batch, which overlooks EE opportunities, or degrade output quality by forcing premature exits. We propose Dynamic Rebatching, a solution where we dynamically reorganize the batch at each early-exit point. Requests that meet the exit criteria are immediately processed, while those that continue are held in a buffer, re-grouped into a new batch, and forwarded to deeper layers. We introduce DREX, an early-exit inference system that implements Dynamic Rebatching with two key optimizations: 1) a copy-free rebatching buffer that avoids physical data movement, and 2) an EE and SLA-aware scheduler that analytically predicts whether a given rebatching operation will be profitable. DREX also efficiently handles the missing KV cache from skipped layers using memory-efficient state-copying. Our evaluation shows that DREX improves throughput by 2-12% compared to baseline approaches while maintaining output quality. Crucially, DREX completely eliminates involuntary exits, providing a key guarantee for preserving the output quality intended by the EE model.",
+    "published": "2025-12-17T18:55:45Z",
+    "updated": "2025-12-17T18:55:45Z",
+    "categories": [
+      "cs.DC",
+      "cs.LG"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15705v1"
+    },
+    "comment": null,
+    "journal_ref": null,
+    "primary_category": "cs.DC"
+  },
+  {
+    "id": "2512.15699v1",
+    "title": "pdf",
+    "authors": [
+      "Qiuyang Mang",
+      "Wenhao Chai",
+      "Zhifei Li",
+      "Huanzhi Mao",
+      "Shang Zhou",
+      "Alexander Du",
+      "Hanchen Li",
+      "Shu Liu",
+      "Edwin Chen",
+      "Yichuan Wang",
+      "Xieting Chu",
+      "Zerui Cheng",
+      "Yuan Xu",
+      "Tian Xia",
+      "Zirui Wang",
+      "Tianneng Shi",
+      "Jianzhu Yao",
+      "Yilong Zhao",
+      "Qizheng Zhang",
+      "Charlie Ruan",
+      "Zeyu Shen",
+      "Kaiyuan Liu",
+      "Runyuan He",
+      "Dong Xing",
+      "Zerui Li",
+      "Zirong Zeng",
+      "Yige Jiang",
+      "Lufeng Cheng",
+      "Ziyi Zhao",
+      "Youran Sun",
+      "Wesley Zheng",
+      "Meiyuwang Zhang",
+      "Ruyi Ji",
+      "Xuechang Tu",
+      "Zihan Zheng",
+      "Zexing Chen",
+      "Kangyang Zhou",
+      "Zhaozi Wang",
+      "Jingbang Chen",
+      "Aleksandra Korolova",
+      "Peter Henderson",
+      "Pramod Viswanath",
+      "Vijay Ganesh",
+      "Saining Xie",
+      "Zhuang Liu",
+      "Dawn Song",
+      "Sewon Min",
+      "Ion Stoica",
+      "Joseph E. Gonzalez",
+      "Jingbo Shang",
+      "Alvin Cheung"
+    ],
+    "abstract": "We introduce FrontierCS, a benchmark of 156 open-ended problems across diverse areas of computer science, designed and reviewed by experts, including CS PhDs and top-tier competitive programming participants and problem setters. Unlike existing benchmarks that focus on tasks with known optimal solutions, FrontierCS targets problems where the optimal solution is unknown, but the quality of a solution can be objectively evaluated. Models solve these tasks by implementing executable programs rather than outputting a direct answer. FrontierCS includes algorithmic problems, which are often NP-hard variants of competitive programming problems with objective partial scoring, and research problems with the same property. For each problem we provide an expert reference solution and an automatic evaluator. Combining open-ended design, measurable progress, and expert curation, FrontierCS provides a benchmark at the frontier of computer-science difficulty. Empirically, we find that frontier reasoning models still lag far behind human experts on both the algorithmic and research tracks, that increasing reasoning budgets alone does not close this gap, and that models often over-optimize for generating merely workable code instead of discovering high-quality algorithms and system designs.",
+    "published": "2025-12-17T18:52:45Z",
+    "updated": "2025-12-17T18:52:45Z",
+    "categories": [
+      "cs.LG",
+      "cs.SE"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15699v1"
+    },
+    "comment": "Code with instruction: https://github.com/FrontierCS/Frontier-CS",
+    "journal_ref": null,
+    "primary_category": "cs.LG"
+  },
+  {
+    "id": "2512.15692v1",
+    "title": "pdf",
+    "authors": [
+      "Jonas Pai",
+      "Liam Achenbach",
+      "Victoriano Montesinos",
+      "Benedek Forrai",
+      "Oier Mees",
+      "Elvis Nava"
+    ],
+    "abstract": "Prevailing Vision-Language-Action Models (VLAs) for robotic manipulation are built upon vision-language backbones pretrained on large-scale, but disconnected static web data. As a result, despite improved semantic generalization, the policy must implicitly infer complex physical dynamics and temporal dependencies solely from robot trajectories. This reliance creates an unsustainable data burden, necessitating continuous, large-scale expert data collection to compensate for the lack of innate physical understanding. We contend that while vision-language pretraining effectively captures semantic priors, it remains blind to physical causality. A more effective paradigm leverages video to jointly capture semantics and visual dynamics during pretraining, thereby isolating the remaining task of low-level control. To this end, we introduce \\model, a novel Video-Action Model (VAM) that pairs a pretrained Internet-scale video model with a flow matching-based action decoder conditioned on its latent representations. The decoder serves as an Inverse Dynamics Model (IDM), generating low-level robot actions from the latent representation of video-space action plans. Our extensive evaluation shows that our approach achieves state-of-the-art performance on simulated and real-world robotic manipulation tasks, improving sample efficiency by 10x and convergence speed by 2x compared to traditional VLA architectures.",
+    "published": "2025-12-17T18:47:31Z",
+    "updated": "2025-12-17T18:47:31Z",
+    "categories": [
+      "cs.RO",
+      "cs.AI",
+      "cs.CV",
+      "cs.LG"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15692v1"
+    },
+    "comment": null,
+    "journal_ref": null,
+    "primary_category": "cs.RO"
+  },
+  {
+    "id": "2512.15691v1",
+    "title": "pdf",
+    "authors": [
+      "Matin Mortaheb",
+      "Erciyes Karakaya",
+      "Sennur Ulukus"
+    ],
+    "abstract": "Semantic communication aims to transmit information most relevant to a task rather than raw data, offering significant gains in communication efficiency for applications such as telepresence, augmented reality, and remote sensing. Recent transformer-based approaches have used self-attention maps to identify informative regions within images, but they often struggle in complex scenes with multiple objects, where self-attention lacks explicit task guidance. To address this, we propose a novel Multi-Modal Semantic Communication framework that integrates text-based user queries to guide the information extraction process. Our proposed system employs a cross-modal attention mechanism that fuses visual features with language embeddings to produce soft relevance scores over the visual data. Based on these scores and the instantaneous channel bandwidth, we use an algorithm to transmit image patches at adaptive resolutions using independently trained encoder-decoder pairs, with total bitrate matching the channel capacity. At the receiver, the patches are reconstructed and combined to preserve task-critical information. This flexible and goal-driven design enables efficient semantic communication in complex and bandwidth-constrained environments.",
+    "published": "2025-12-17T18:47:22Z",
+    "updated": "2025-12-17T18:47:22Z",
+    "categories": [
+      "cs.LG",
+      "cs.IT",
+      "eess.SP",
+      "eess.SY"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15691v1"
+    },
+    "comment": null,
+    "journal_ref": null,
+    "primary_category": "cs.LG"
+  },
+  {
+    "id": "2512.15687v1",
+    "title": "pdf",
+    "authors": [
+      "Zhenwen Liang",
+      "Sidi Lu",
+      "Wenhao Yu",
+      "Kishan Panaganti",
+      "Yujun Zhou",
+      "Haitao Mi",
+      "Dong Yu"
+    ],
+    "abstract": "Reinforcement learning has become essential for strengthening the reasoning abilities of large language models, yet current exploration mechanisms remain fundamentally misaligned with how these models actually learn. Entropy bonuses and external semantic comparators encourage surface level variation but offer no guarantee that sampled trajectories differ in the update directions that shape optimization. We propose G2RL, a gradient guided reinforcement learning framework in which exploration is driven not by external heuristics but by the model own first order update geometry. For each response, G2RL constructs a sequence level feature from the model final layer sensitivity, obtainable at negligible cost from a standard forward pass, and measures how each trajectory would reshape the policy by comparing these features within a sampled group. Trajectories that introduce novel gradient directions receive a bounded multiplicative reward scaler, while redundant or off manifold updates are deemphasized, yielding a self referential exploration signal that is naturally aligned with PPO style stability and KL control. Across math and general reasoning benchmarks (MATH500, AMC, AIME24, AIME25, GPQA, MMLUpro) on Qwen3 base 1.7B and 4B models, G2RL consistently improves pass@1, maj@16, and pass@k over entropy based GRPO and external embedding methods. Analyzing the induced geometry, we find that G2RL expands exploration into substantially more orthogonal and often opposing gradient directions while maintaining semantic coherence, revealing that a policy own update space provides a far more faithful and effective basis for guiding exploration in large language model reinforcement learning.",
+    "published": "2025-12-17T18:44:45Z",
+    "updated": "2025-12-17T18:44:45Z",
+    "categories": [
+      "cs.LG",
+      "cs.AI"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15687v1"
+    },
+    "comment": null,
+    "journal_ref": null,
+    "primary_category": "cs.LG"
+  },
+  {
+    "id": "2512.15685v1",
+    "title": "pdf",
+    "authors": [
+      "Oleg Melnikov",
+      "Yurii Dorofieiev",
+      "Yurii Shakhnovskiy",
+      "Huy Truong",
+      "Victoria Degeler"
+    ],
+    "abstract": "This paper presents a unified framework, for the detection, classification, and preliminary localization of anomalies in water distribution networks using multivariate statistical analysis. The approach, termed SICAMS (Statistical Identification and Classification of Anomalies in Mahalanobis Space), processes heterogeneous pressure and flow sensor data through a whitening transformation to eliminate spatial correlations among measurements. Based on the transformed data, the Hotelling's $T^2$ statistic is constructed, enabling the formulation of anomaly detection as a statistical hypothesis test of network conformity to normal operating conditions. It is shown that Hotelling's $T^2$ statistic can serve as an integral indicator of the overall \"health\" of the system, exhibiting correlation with total leakage volume, and thereby enabling approximate estimation of water losses via a regression model. A heuristic algorithm is developed to analyze the $T^2$ time series and classify detected anomalies into abrupt leaks, incipient leaks, and sensor malfunctions. Furthermore, a coarse leak localization method is proposed, which ranks sensors according to their statistical contribution and employs Laplacian interpolation to approximate the affected region within the network. Application of the proposed framework to the BattLeDIM L-Town benchmark dataset demonstrates high sensitivity and reliability in leak detection, maintaining robust performance even under multiple leaks. These capabilities make the method applicable to real-world operational environments without the need for a calibrated hydraulic model.",
+    "published": "2025-12-17T18:38:37Z",
+    "updated": "2025-12-17T18:38:37Z",
+    "categories": [
+      "cs.LG"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15685v1"
+    },
+    "comment": "48 pages, 18 figures, 3 tables",
+    "journal_ref": null,
+    "primary_category": "cs.LG"
+  },
+  {
+    "id": "2512.15684v1",
+    "title": "pdf",
+    "authors": [
+      "Victor L\u00e9ger",
+      "Florent Chatelain"
+    ],
+    "abstract": "Partial Least Squares (PLS) is a widely used method for data integration, designed to extract latent components shared across paired high-dimensional datasets. Despite decades of practical success, a precise theoretical understanding of its behavior in high-dimensional regimes remains limited. In this paper, we study a data integration model in which two high-dimensional data matrices share a low-rank common latent structure while also containing individual-specific components. We analyze the singular vectors of the associated cross-covariance matrix using tools from random matrix theory and derive asymptotic characterizations of the alignment between estimated and true latent directions. These results provide a quantitative explanation of the reconstruction performance of the PLS variant based on Singular Value Decomposition (PLS-SVD) and identify regimes where the method exhibits counter-intuitive or limiting behavior. Building on this analysis, we compare PLS-SVD with principal component analysis applied separately to each dataset and show its asymptotic superiority in detecting the common latent subspace. Overall, our results offer a comprehensive theoretical understanding of high-dimensional PLS-SVD, clarifying both its advantages and fundamental limitations.",
+    "published": "2025-12-17T18:38:01Z",
+    "updated": "2025-12-17T18:38:01Z",
+    "categories": [
+      "stat.ML",
+      "cs.LG"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15684v1"
+    },
+    "comment": null,
+    "journal_ref": null,
+    "primary_category": "stat.ML"
+  },
+  {
+    "id": "2512.15675v1",
+    "title": "pdf",
+    "authors": [
+      "Georg Siedel",
+      "Rojan Regmi",
+      "Abhirami Anand",
+      "Weijia Shao",
+      "Silvia Vock",
+      "Andrey Morozov"
+    ],
+    "abstract": "This paper proposes a training data augmentation pipeline that combines synthetic image data with neural style transfer in order to address the vulnerability of deep vision models to common corruptions. We show that although applying style transfer on synthetic images degrades their quality with respect to the common FID metric, these images are surprisingly beneficial for model training. We conduct a systematic empirical analysis of the effects of both augmentations and their key hyperparameters on the performance of image classifiers. Our results demonstrate that stylization and synthetic data complement each other well and can be combined with popular rule-based data augmentation techniques such as TrivialAugment, while not working with others. Our method achieves state-of-the-art corruption robustness on several small-scale image classification benchmarks, reaching 93.54%, 74.9% and 50.86% robust accuracy on CIFAR-10-C, CIFAR-100-C and TinyImageNet-C, respectively",
+    "published": "2025-12-17T18:28:04Z",
+    "updated": "2025-12-17T18:28:04Z",
+    "categories": [
+      "cs.CV",
+      "cs.LG"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15675v1"
+    },
+    "comment": "Accepted at VISAPP 2026 conference",
+    "journal_ref": null,
+    "primary_category": "cs.CV"
+  },
+  {
+    "id": "2512.15674v1",
+    "title": "pdf",
+    "authors": [
+      "Adam Karvonen",
+      "James Chua",
+      "Cl\u00e9ment Dumas",
+      "Kit Fraser-Taliente",
+      "Subhash Kantamneni",
+      "Julian Minder",
+      "Euan Ong",
+      "Arnab Sen Sharma",
+      "Daniel Wen",
+      "Owain Evans",
+      "Samuel Marks"
+    ],
+    "abstract": "Large language model (LLM) activations are notoriously difficult to understand, with most existing techniques using complex, specialized methods for interpreting them. Recent work has proposed a simpler approach known as LatentQA: training LLMs to directly accept LLM activations as inputs and answer arbitrary questions about them in natural language. However, prior work has focused on narrow task settings for both training and evaluation. In this paper, we instead take a generalist perspective. We evaluate LatentQA-trained models, which we call Activation Oracles (AOs), in far out-of-distribution settings and examine how performance scales with training data diversity. We find that AOs can recover information fine-tuned into a model (e.g., biographical knowledge or malign propensities) that does not appear in the input text, despite never being trained with activations from a fine-tuned model. Our main evaluations are four downstream tasks where we can compare to prior white- and black-box techniques. We find that even narrowly-trained LatentQA models can generalize well, and that adding additional training datasets (such as classification tasks and a self-supervised context prediction task) yields consistent further improvements. Overall, our best AOs match or exceed prior white-box baselines on all four tasks and are the best method on 3 out of 4. These results suggest that diversified training to answer natural-language queries imparts a general capability to verbalize information about LLM activations.",
+    "published": "2025-12-17T18:26:28Z",
+    "updated": "2025-12-17T18:26:28Z",
+    "categories": [
+      "cs.CL",
+      "cs.AI",
+      "cs.LG"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15674v1"
+    },
+    "comment": "36 pages",
+    "journal_ref": null,
+    "primary_category": "cs.CL"
+  },
+  {
+    "id": "2512.15662v1",
+    "title": "pdf",
+    "authors": [
+      "Jiaqi Xu",
+      "Cuiling Lan",
+      "Xuejin Chen",
+      "Yan LU"
+    ],
+    "abstract": "Human beings solve complex problems through critical thinking, where reasoning and evaluation are intertwined to converge toward correct solutions. However, most existing large language models (LLMs) decouple reasoning from verification: they either generate reasoning without explicit self-checking or rely on external verifiers to detect errors post hoc. The former lacks immediate feedback, while the latter increases system complexity and hinders synchronized learning. Motivated by human critical thinking, we propose Stepwise Think-Critique (STC), a unified framework that interleaves reasoning and self-critique at each step within a single model. STC is trained with a hybrid reinforcement learning objective combining reasoning rewards and critique-consistency rewards to jointly optimize reasoning quality and self-evaluation. Experiments on mathematical reasoning benchmarks show that STC demonstrates strong critic-thinking capabilities and produces more interpretable reasoning traces, representing a step toward LLMs with built-in critical thinking.",
+    "published": "2025-12-17T18:15:17Z",
+    "updated": "2025-12-17T18:15:17Z",
+    "categories": [
+      "cs.AI"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15662v1"
+    },
+    "comment": "Under Review",
+    "journal_ref": null,
+    "primary_category": "cs.AI"
+  },
+  {
+    "id": "2512.15661v1",
+    "title": "pdf",
+    "authors": [
+      "Sergi Masot-Llima",
+      "Elies Gil-Fuster",
+      "Carlos Bravo-Prieto",
+      "Jens Eisert",
+      "and Tommaso Guaita"
+    ],
+    "abstract": "Demonstrating quantum advantage in machine learning tasks requires navigating a complex landscape of proposed models and algorithms. To bring clarity to this search, we introduce a framework that connects the structure of parametrized quantum circuits to the mathematical nature of the functions they can actually learn. Within this framework, we show how fundamental properties, like circuit depth and non-Clifford gate count, directly determine whether a model's output leads to efficient classical simulation or surrogation. We argue that this analysis uncovers common pathways to dequantization that underlie many existing simulation methods. More importantly, it reveals critical distinctions between models that are fully simulatable, those whose function space is classically tractable, and those that remain robustly quantum. This perspective provides a conceptual map of this landscape, clarifying how different models relate to classical simulability and pointing to where opportunities for quantum advantage may lie.",
+    "published": "2025-12-17T18:14:59Z",
+    "updated": "2025-12-17T18:14:59Z",
+    "categories": [
+      "quant-ph",
+      "cs.LG",
+      "stat.ML"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15661v1"
+    },
+    "comment": "21 pages, 6 figures, comments welcome",
+    "journal_ref": null,
+    "primary_category": "quant-ph"
+  },
+  {
+    "id": "2512.15658v1",
+    "title": "pdf",
+    "authors": [
+      "Xiaodi Li",
+      "Dingcheng Li",
+      "Rujun Gao",
+      "Mahmoud Zamani",
+      "Feng Mi",
+      "Latifur Khan"
+    ],
+    "abstract": "Continual learning remains a fundamental challenge in machine learning, requiring models to learn from a stream of tasks without forgetting previously acquired knowledge. A major obstacle in this setting is catastrophic forgetting, where performance on earlier tasks degrades as new tasks are learned. In this paper, we introduce PPSEBM, a novel framework that integrates an Energy-Based Model (EBM) with Progressive Parameter Selection (PPS) to effectively address catastrophic forgetting in continual learning for natural language processing tasks. In PPSEBM, progressive parameter selection allocates distinct, task-specific parameters for each new task, while the EBM generates representative pseudo-samples from prior tasks. These generated samples actively inform and guide the parameter selection process, enhancing the model's ability to retain past knowledge while adapting to new tasks. Experimental results on diverse NLP benchmarks demonstrate that PPSEBM outperforms state-of-the-art continual learning methods, offering a promising and robust solution to mitigate catastrophic forgetting.",
+    "published": "2025-12-17T18:11:29Z",
+    "updated": "2025-12-17T18:11:29Z",
+    "categories": [
+      "cs.CL",
+      "cs.AI",
+      "cs.LG"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15658v1"
+    },
+    "comment": "10 pages, 3 figures, 2025 IEEE International Conference on Big Data (BigData)",
+    "journal_ref": null,
+    "primary_category": "cs.CL"
+  },
+  {
+    "id": "2512.15657v1",
+    "title": "pdf",
+    "authors": [
+      "Tianze Luo",
+      "Haotian Yuan",
+      "Zhuang Liu"
+    ],
+    "abstract": "The multi-step denoising process in diffusion and Flow Matching models causes major efficiency issues, which motivates research on few-step generation. We present Solution Flow Models (SoFlow), a framework for one-step generation from scratch. By analyzing the relationship between the velocity function and the solution function of the velocity ordinary differential equation (ODE), we propose a Flow Matching loss and a solution consistency loss to train our models. The Flow Matching loss allows our models to provide estimated velocity fields for Classifier-Free Guidance (CFG) during training, which improves generation performance. Notably, our consistency loss does not require the calculation of the Jacobian-vector product (JVP), a common requirement in recent works that is not well-optimized in deep learning frameworks like PyTorch. Experimental results indicate that, when trained from scratch using the same Diffusion Transformer (DiT) architecture and an equal number of training epochs, our models achieve better FID-50K scores than MeanFlow models on the ImageNet 256x256 dataset.",
+    "published": "2025-12-17T18:10:17Z",
+    "updated": "2025-12-17T18:10:17Z",
+    "categories": [
+      "cs.LG",
+      "cs.CV"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15657v1"
+    },
+    "comment": "Our code is available at https://github.com/zlab-princeton/SoFlow",
+    "journal_ref": null,
+    "primary_category": "cs.LG"
+  },
+  {
+    "id": "2512.15635v1",
+    "title": "pdf",
+    "authors": [
+      "Yuanhang Li",
+      "Yiren Song",
+      "Junzhe Bai",
+      "Xinran Liang",
+      "Hu Yang",
+      "Libiao Jin",
+      "Qi Mao"
+    ],
+    "abstract": "We propose \\textbf{IC-Effect}, an instruction-guided, DiT-based framework for few-shot video VFX editing that synthesizes complex effects (\\eg flames, particles and cartoon characters) while strictly preserving spatial and temporal consistency. Video VFX editing is highly challenging because injected effects must blend seamlessly with the background, the background must remain entirely unchanged, and effect patterns must be learned efficiently from limited paired data. However, existing video editing models fail to satisfy these requirements. IC-Effect leverages the source video as clean contextual conditions, exploiting the contextual learning capability of DiT models to achieve precise background preservation and natural effect injection. A two-stage training strategy, consisting of general editing adaptation followed by effect-specific learning via Effect-LoRA, ensures strong instruction following and robust effect modeling. To further improve efficiency, we introduce spatiotemporal sparse tokenization, enabling high fidelity with substantially reduced computation. We also release a paired VFX editing dataset spanning $15$ high-quality visual styles. Extensive experiments show that IC-Effect delivers high-quality, controllable, and temporally consistent VFX editing, opening new possibilities for video creation.",
+    "published": "2025-12-17T17:47:18Z",
+    "updated": "2025-12-17T17:47:18Z",
+    "categories": [
+      "cs.CV",
+      "cs.AI"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15635v1"
+    },
+    "comment": null,
+    "journal_ref": null,
+    "primary_category": "cs.CV"
+  },
+  {
+    "id": "2512.15634v1",
+    "title": "pdf",
+    "authors": [
+      "Darshita Rathore",
+      "Vineet Kumar",
+      "Chetna Bansal",
+      "Anindya Moitra"
+    ],
+    "abstract": "Large language models are increasingly adapted to downstream tasks through fine-tuning. Full supervised fine-tuning (SFT) and parameter-efficient fine-tuning (PEFT) methods, such as Low-Rank Adaptation (LoRA), are two dominant approaches. While PEFT methods are widely used for their computational efficiency, the implications of their configurations (e.g., rank) remain under-explored in downstream Q&A tasks and generalisation. In this work, we perform a comprehensive evaluation across multiple reasoning and recall datasets, conducting a rank sweep to quantify the trade-off between SFT and PEFT. We also compare the accuracy of PEFT and SFT models across in-domain and out-of-domain adaptation, highlighting distinct generalisation behaviour and task-specific forgetting. We demonstrate that LoRA achieves competitive and in some cases superior performance compared to SFT, particularly on reasoning tasks at specific rank values. Additionally, we analyze the internal representations via spectral features and layer-wise attention structures, offering insights into representational drift and structural changes in attention patterns.",
+    "published": "2025-12-17T17:44:09Z",
+    "updated": "2025-12-17T17:44:09Z",
+    "categories": [
+      "cs.CL",
+      "cs.AI",
+      "cs.LG"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15634v1"
+    },
+    "comment": "Accepted at AACL IJCNLP 2025",
+    "journal_ref": null,
+    "primary_category": "cs.CL"
+  },
+  {
+    "id": "2512.15628v1",
+    "title": "pdf",
+    "authors": [
+      "Benjamin C. Koenig",
+      "Sili Deng"
+    ],
+    "abstract": "Thermal runaway in lithium-ion batteries is strongly influenced by the state of charge (SOC). Existing predictive models typically infer scalar kinetic parameters at a full SOC or a few discrete SOC levels, preventing them from capturing the continuous SOC dependence that governs exothermic behavior during abuse conditions. To address this, we apply the Kolmogorov-Arnold Chemical Reaction Neural Network (KA-CRNN) framework to learn continuous and realistic SOC-dependent exothermic cathode-electrolyte interactions. We apply a physics-encoded KA-CRNN to learn SOC-dependent kinetic parameters for cathode-electrolyte decomposition directly from differential scanning calorimetry (DSC) data. A mechanistically informed reaction pathway is embedded into the network architecture, enabling the activation energies, pre-exponential factors, enthalpies, and related parameters to be represented as continuous and fully interpretable functions of the SOC. The framework is demonstrated for NCA, NM, and NMA cathodes, yielding models that reproduce DSC heat-release features across all SOCs and provide interpretable insight into SOC-dependent oxygen-release and phase-transformation mechanisms. This approach establishes a foundation for extending kinetic parameter dependencies to additional environmental and electrochemical variables, supporting more accurate and interpretable thermal-runaway prediction and monitoring.",
+    "published": "2025-12-17T17:39:20Z",
+    "updated": "2025-12-17T17:39:20Z",
+    "categories": [
+      "physics.chem-ph",
+      "cs.LG"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15628v1"
+    },
+    "comment": "17 pages, 10 figures, 2 tables",
+    "journal_ref": null,
+    "primary_category": "physics.chem-ph"
+  },
+  {
+    "id": "2512.15614v1",
+    "title": "pdf",
+    "authors": [
+      "Xinshun Feng",
+      "Mingzhe Liu",
+      "Yi Qiao",
+      "Tongyu Zhu",
+      "Leilei Sun",
+      "Shuai Wang"
+    ],
+    "abstract": "Recent advances in explainable recommendations have explored the integration of language models to analyze natural language rationales for user-item interactions. Despite their potential, existing methods often rely on ID-based representations that obscure semantic meaning and impose structural constraints on language models, thereby limiting their applicability in open-ended scenarios. These challenges are intensified by the complex nature of real-world interactions, where diverse user intents are entangled and collaborative signals rarely align with linguistic semantics. To overcome these limitations, we propose BEAT, a unified and transferable framework that tokenizes user and item behaviors into discrete, interpretable sequences. We construct a behavior vocabulary via a vector-quantized autoencoding process that disentangles macro-level interests and micro-level intentions from graph-based representations. We then introduce multi-level semantic supervision to bridge the gap between behavioral signals and language space. A semantic alignment regularization mechanism is designed to embed behavior tokens directly into the input space of frozen language models. Experiments on three public datasets show that BEAT improves zero-shot recommendation performance while generating coherent and informative explanations. Further analysis demonstrates that our behavior tokens capture fine-grained semantics and offer a plug-and-play interface for integrating complex behavior patterns into large language models.",
+    "published": "2025-12-17T17:24:24Z",
+    "updated": "2025-12-17T17:24:24Z",
+    "categories": [
+      "cs.LG"
+    ],
+    "links": {
+      "pdf": "https://arxiv.org/pdf/2512.15614v1"
+    },
+    "comment": "accepted by AAAI 2026",
+    "journal_ref": null,
+    "primary_category": "cs.LG"
+  }
+]

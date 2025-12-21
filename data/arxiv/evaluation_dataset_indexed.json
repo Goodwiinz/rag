@@ -1,0 +1,2901 @@
+{
+  "metadata": {
+    "generated_at": "2025-12-19T18:36:47.498058",
+    "source": "qdrant_indexed_papers",
+    "total_papers": 50,
+    "description": "Evaluation dataset from papers indexed in Qdrant"
+  },
+  "test_cases": [
+    {
+      "paper_id": "2512.16762v1",
+      "paper_title": "NRGPT: An Energy-based Alternative for GPT",
+      "authors": [
+        "Nima Dehmamy",
+        "Benjamin Hoover",
+        "Bishwajit Saha",
+        "Leo Kozachkov",
+        "Jean-Jacques Slotine",
+        "Dmitry Krotov"
+      ],
+      "categories": [
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "question": "What methods are used in 'NRGPT: An Energy-based Alternative for GPT'?",
+          "id": "2512.16762v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Generative Pre-trained Transformer (GPT) architectures are the most popular design for language modeling. Energy-based modeling is a different paradigm that views inference as a dynamical process oper"
+        },
+        {
+          "question": "What problem does 'NRGPT: An Energy-based Alternative for GPT' address?",
+          "id": "2512.16762v1_q_2",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Generative Pre-trained Transformer (GPT) architectures are the most popular design for language modeling. Energy-based modeling is a different paradigm that views inference as a dynamical process oper"
+        },
+        {
+          "question": "Describe the approach taken in 'NRGPT: An Energy-based Alternative for GPT'.",
+          "id": "2512.16762v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Generative Pre-trained Transformer (GPT) architectures are the most popular design for language modeling. Energy-based modeling is a different paradigm that views inference as a dynamical process oper"
+        },
+        {
+          "question": "What are the key results of 'NRGPT: An Energy-based Alternative for GPT'?",
+          "id": "2512.16762v1_q_4",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "Generative Pre-trained Transformer (GPT) architectures are the most popular design for language modeling. Energy-based modeling is a different paradigm that views inference as a dynamical process oper"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "NRGPT: An Energy-based Alternative for GPT",
+        "abstract": "Generative Pre-trained Transformer (GPT) architectures are the most popular design for language modeling. Energy-based modeling is a different paradigm that views inference as a dynamical process operating on an energy landscape. We propose a minimal modification of the GPT setting to unify it with the EBM framework. The inference step of our model, which we call eNeRgy-GPT (NRGPT), is conceptualized as an exploration of the tokens on the energy landscape. We prove, and verify empirically, that ...",
+        "authors": [
+          "Nima Dehmamy",
+          "Benjamin Hoover",
+          "Bishwajit Saha",
+          "Leo Kozachkov",
+          "Jean-Jacques Slotine",
+          "Dmitry Krotov"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16891v1",
+      "paper_title": "LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Generation Video Recommendation",
+      "authors": [
+        "Haichao Zhang",
+        "Yao Lu",
+        "Lichen Wang",
+        "Yunzhe Li",
+        "Daiwei Chen",
+        "Yunpeng Xu",
+        "Yun Fu"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.AI",
+        "cs.IR",
+        "cs.LG",
+        "cs.MM"
+      ],
+      "questions": [
+        {
+          "question": "What is the main contribution of 'LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Gene'?",
+          "id": "2512.16891v1_q_1",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Video Large Language Models (VLLMs) unlock world-knowledge-aware video understanding through pretraining on internet-scale data and have already shown promise on tasks such as movie analysis and video"
+        },
+        {
+          "question": "What is the main idea behind 'LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Gene'?",
+          "id": "2512.16891v1_q_2",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "Video Large Language Models (VLLMs) unlock world-knowledge-aware video understanding through pretraining on internet-scale data and have already shown promise on tasks such as movie analysis and video"
+        },
+        {
+          "question": "What methods are used in 'LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Gene'?",
+          "id": "2512.16891v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Video Large Language Models (VLLMs) unlock world-knowledge-aware video understanding through pretraining on internet-scale data and have already shown promise on tasks such as movie analysis and video"
+        },
+        {
+          "question": "What are the key results of 'LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Gene'?",
+          "id": "2512.16891v1_q_4",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "Video Large Language Models (VLLMs) unlock world-knowledge-aware video understanding through pretraining on internet-scale data and have already shown promise on tasks such as movie analysis and video"
+        },
+        {
+          "question": "Who are the authors of 'LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Gene'?",
+          "id": "2512.16891v1_q_5",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Video Large Language Models (VLLMs) unlock world-knowledge-aware video understanding through pretraining on internet-scale data and have already shown promise on tasks such as movie analysis and video"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Generation Video Recommendation",
+        "abstract": "Video Large Language Models (VLLMs) unlock world-knowledge-aware video understanding through pretraining on internet-scale data and have already shown promise on tasks such as movie analysis and video question answering. However, deploying VLLMs for downstream tasks such as video recommendation remains challenging, since real systems require multi-video inputs, lightweight backbones, low-latency sequential inference, and rapid response. In practice, (1) decode-only generation yields high latency...",
+        "authors": [
+          "Haichao Zhang",
+          "Yao Lu",
+          "Lichen Wang",
+          "Yunzhe Li",
+          "Daiwei Chen",
+          "Yunpeng Xu",
+          "Yun Fu"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16861v1",
+      "paper_title": "ReinforceGen: Hybrid Skill Policies with Automated Data Generation and Reinforcement Learning",
+      "authors": [
+        "Zihan Zhou",
+        "Animesh Garg",
+        "Ajay Mandlekar",
+        "Caelan Garrett"
+      ],
+      "categories": [
+        "cs.RO",
+        "cs.AI",
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "question": "Who are the authors of 'ReinforceGen: Hybrid Skill Policies with Automated Data Generation and Reinforce'?",
+          "id": "2512.16861v1_q_1",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Long-horizon manipulation has been a long-standing challenge in the robotics community. We propose ReinforceGen, a system that combines task decomposition, data generation, imitation learning, and mot"
+        },
+        {
+          "question": "What is the main contribution of 'ReinforceGen: Hybrid Skill Policies with Automated Data Generation and Reinforce'?",
+          "id": "2512.16861v1_q_2",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Long-horizon manipulation has been a long-standing challenge in the robotics community. We propose ReinforceGen, a system that combines task decomposition, data generation, imitation learning, and mot"
+        },
+        {
+          "question": "What methods are used in 'ReinforceGen: Hybrid Skill Policies with Automated Data Generation and Reinforce'?",
+          "id": "2512.16861v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Long-horizon manipulation has been a long-standing challenge in the robotics community. We propose ReinforceGen, a system that combines task decomposition, data generation, imitation learning, and mot"
+        },
+        {
+          "question": "What are the key results of 'ReinforceGen: Hybrid Skill Policies with Automated Data Generation and Reinforce'?",
+          "id": "2512.16861v1_q_4",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "Long-horizon manipulation has been a long-standing challenge in the robotics community. We propose ReinforceGen, a system that combines task decomposition, data generation, imitation learning, and mot"
+        },
+        {
+          "question": "What is the main idea behind 'ReinforceGen: Hybrid Skill Policies with Automated Data Generation and Reinforce'?",
+          "id": "2512.16861v1_q_5",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "Long-horizon manipulation has been a long-standing challenge in the robotics community. We propose ReinforceGen, a system that combines task decomposition, data generation, imitation learning, and mot"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "ReinforceGen: Hybrid Skill Policies with Automated Data Generation and Reinforcement Learning",
+        "abstract": "Long-horizon manipulation has been a long-standing challenge in the robotics community. We propose ReinforceGen, a system that combines task decomposition, data generation, imitation learning, and motion planning to form an initial solution, and improves each component through reinforcement-learning-based fine-tuning. ReinforceGen first segments the task into multiple localized skills, which are connected through motion planning. The skills and motion planning targets are trained with imitation ...",
+        "authors": [
+          "Zihan Zhou",
+          "Animesh Garg",
+          "Ajay Mandlekar",
+          "Caelan Garrett"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16875v1",
+      "paper_title": "Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery",
+      "authors": [
+        "Chao Gao",
+        "Liren Shan",
+        "Vaidehi Srinivas",
+        "Aravindan Vijayaraghavan"
+      ],
+      "categories": [
+        "cs.DS",
+        "cs.LG",
+        "math.ST",
+        "stat.ML"
+      ],
+      "questions": [
+        {
+          "question": "Describe the approach taken in 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery'.",
+          "id": "2512.16875v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "We study the problem of finding confidence ellipsoids for an arbitrary distribution in high dimensions. Given samples from a distribution $D$ and a confidence parameter $\u03b1$, the goal is to find the sm"
+        },
+        {
+          "question": "What problem does 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery' address?",
+          "id": "2512.16875v1_q_2",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "We study the problem of finding confidence ellipsoids for an arbitrary distribution in high dimensions. Given samples from a distribution $D$ and a confidence parameter $\u03b1$, the goal is to find the sm"
+        },
+        {
+          "question": "What methods are used in 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery'?",
+          "id": "2512.16875v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "We study the problem of finding confidence ellipsoids for an arbitrary distribution in high dimensions. Given samples from a distribution $D$ and a confidence parameter $\u03b1$, the goal is to find the sm"
+        },
+        {
+          "question": "What are the key results of 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery'?",
+          "id": "2512.16875v1_q_4",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "We study the problem of finding confidence ellipsoids for an arbitrary distribution in high dimensions. Given samples from a distribution $D$ and a confidence parameter $\u03b1$, the goal is to find the sm"
+        },
+        {
+          "question": "What is the main contribution of 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery'?",
+          "id": "2512.16875v1_q_5",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "We study the problem of finding confidence ellipsoids for an arbitrary distribution in high dimensions. Given samples from a distribution $D$ and a confidence parameter $\u03b1$, the goal is to find the sm"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery",
+        "abstract": "We study the problem of finding confidence ellipsoids for an arbitrary distribution in high dimensions. Given samples from a distribution $D$ and a confidence parameter $\u03b1$, the goal is to find the smallest volume ellipsoid $E$ which has probability mass $\\Pr_{D}[E] \\ge 1-\u03b1$. Ellipsoids are a highly expressive class of confidence sets as they can capture correlations in the distribution, and can approximate any convex set. This problem has been studied in many different communities. In statistic...",
+        "authors": [
+          "Chao Gao",
+          "Liren Shan",
+          "Vaidehi Srinivas",
+          "Aravindan Vijayaraghavan"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16912v1",
+      "paper_title": "Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Spurious Reward",
+      "authors": [
+        "Peter Chen",
+        "Xiaopeng Li",
+        "Ziniu Li",
+        "Wotao Yin",
+        "Xi Chen",
+        "Tianyi Lin"
+      ],
+      "categories": [
+        "cs.LG",
+        "cs.AI",
+        "cs.CL"
+      ],
+      "questions": [
+        {
+          "question": "What is the main contribution of 'Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Sp'?",
+          "id": "2512.16912v1_q_1",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "This paper examines the exploration-exploitation trade-off in reinforcement learning with verifiable rewards (RLVR), a framework for improving the reasoning of Large Language Models (LLMs). Recent stu"
+        },
+        {
+          "question": "What methods are used in 'Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Sp'?",
+          "id": "2512.16912v1_q_2",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "This paper examines the exploration-exploitation trade-off in reinforcement learning with verifiable rewards (RLVR), a framework for improving the reasoning of Large Language Models (LLMs). Recent stu"
+        },
+        {
+          "question": "What is the main idea behind 'Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Sp'?",
+          "id": "2512.16912v1_q_3",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "This paper examines the exploration-exploitation trade-off in reinforcement learning with verifiable rewards (RLVR), a framework for improving the reasoning of Large Language Models (LLMs). Recent stu"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Spurious Reward",
+        "abstract": "This paper examines the exploration-exploitation trade-off in reinforcement learning with verifiable rewards (RLVR), a framework for improving the reasoning of Large Language Models (LLMs). Recent studies suggest that RLVR can elicit strong mathematical reasoning in LLMs through two seemingly paradoxical mechanisms: spurious rewards, which suppress exploitation by rewarding outcomes unrelated to the ground truth, and entropy minimization, which suppresses exploration by pushing the model toward ...",
+        "authors": [
+          "Peter Chen",
+          "Xiaopeng Li",
+          "Ziniu Li",
+          "Wotao Yin",
+          "Xi Chen",
+          "Tianyi Lin"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16851v1",
+      "paper_title": "PrivateXR: Defending Privacy Attacks in Extended Reality Through Explainable AI-Guided Differential Privacy",
+      "authors": [
+        "Ripan Kumar Kundu",
+        "Istiak Ahmed",
+        "Khaza Anuarul Hoque"
+      ],
+      "categories": [
+        "cs.CR",
+        "cs.AI",
+        "cs.HC"
+      ],
+      "questions": [
+        {
+          "question": "What is the main idea behind 'PrivateXR: Defending Privacy Attacks in Extended Reality Through Explainable AI-'?",
+          "id": "2512.16851v1_q_1",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "The convergence of artificial AI and XR technologies (AI XR) promises innovative applications across many domains. However, the sensitive nature of data (e.g., eye-tracking) used in these systems rais"
+        },
+        {
+          "question": "What problem does 'PrivateXR: Defending Privacy Attacks in Extended Reality Through Explainable AI-' address?",
+          "id": "2512.16851v1_q_2",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "The convergence of artificial AI and XR technologies (AI XR) promises innovative applications across many domains. However, the sensitive nature of data (e.g., eye-tracking) used in these systems rais"
+        },
+        {
+          "question": "What methods are used in 'PrivateXR: Defending Privacy Attacks in Extended Reality Through Explainable AI-'?",
+          "id": "2512.16851v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "The convergence of artificial AI and XR technologies (AI XR) promises innovative applications across many domains. However, the sensitive nature of data (e.g., eye-tracking) used in these systems rais"
+        },
+        {
+          "question": "What are the key results of 'PrivateXR: Defending Privacy Attacks in Extended Reality Through Explainable AI-'?",
+          "id": "2512.16851v1_q_4",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "The convergence of artificial AI and XR technologies (AI XR) promises innovative applications across many domains. However, the sensitive nature of data (e.g., eye-tracking) used in these systems rais"
+        },
+        {
+          "question": "Describe the approach taken in 'PrivateXR: Defending Privacy Attacks in Extended Reality Through Explainable AI-'.",
+          "id": "2512.16851v1_q_5",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "The convergence of artificial AI and XR technologies (AI XR) promises innovative applications across many domains. However, the sensitive nature of data (e.g., eye-tracking) used in these systems rais"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "PrivateXR: Defending Privacy Attacks in Extended Reality Through Explainable AI-Guided Differential Privacy",
+        "abstract": "The convergence of artificial AI and XR technologies (AI XR) promises innovative applications across many domains. However, the sensitive nature of data (e.g., eye-tracking) used in these systems raises significant privacy concerns, as adversaries can exploit these data and models to infer and leak personal information through membership inference attacks (MIA) and re-identification (RDA) with a high success rate. Researchers have proposed various techniques to mitigate such privacy attacks, inc...",
+        "authors": [
+          "Ripan Kumar Kundu",
+          "Istiak Ahmed",
+          "Khaza Anuarul Hoque"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16855v1",
+      "paper_title": "TOGGLE: Temporal Logic-Guided Large Language Model Compression for Edge",
+      "authors": [
+        "Khurram Khalil",
+        "Khaza Anuarul Hoque"
+      ],
+      "categories": [
+        "cs.AI",
+        "cs.LO"
+      ],
+      "questions": [
+        {
+          "question": "Describe the approach taken in 'TOGGLE: Temporal Logic-Guided Large Language Model Compression for Edge'.",
+          "id": "2512.16855v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Large Language Models (LLMs) deliver exceptional performance across natural language tasks but demand substantial computational resources, limiting their deployment on resource-constrained edge device"
+        },
+        {
+          "question": "What is the main idea behind 'TOGGLE: Temporal Logic-Guided Large Language Model Compression for Edge'?",
+          "id": "2512.16855v1_q_2",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "Large Language Models (LLMs) deliver exceptional performance across natural language tasks but demand substantial computational resources, limiting their deployment on resource-constrained edge device"
+        },
+        {
+          "question": "What methods are used in 'TOGGLE: Temporal Logic-Guided Large Language Model Compression for Edge'?",
+          "id": "2512.16855v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Large Language Models (LLMs) deliver exceptional performance across natural language tasks but demand substantial computational resources, limiting their deployment on resource-constrained edge device"
+        },
+        {
+          "question": "What is the main contribution of 'TOGGLE: Temporal Logic-Guided Large Language Model Compression for Edge'?",
+          "id": "2512.16855v1_q_4",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Large Language Models (LLMs) deliver exceptional performance across natural language tasks but demand substantial computational resources, limiting their deployment on resource-constrained edge device"
+        },
+        {
+          "question": "What problem does 'TOGGLE: Temporal Logic-Guided Large Language Model Compression for Edge' address?",
+          "id": "2512.16855v1_q_5",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Large Language Models (LLMs) deliver exceptional performance across natural language tasks but demand substantial computational resources, limiting their deployment on resource-constrained edge device"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "TOGGLE: Temporal Logic-Guided Large Language Model Compression for Edge",
+        "abstract": "Large Language Models (LLMs) deliver exceptional performance across natural language tasks but demand substantial computational resources, limiting their deployment on resource-constrained edge devices. Existing compression techniques, such as quantization and pruning, often degrade critical linguistic properties and lack formal guarantees for preserving model behavior. We propose Temporal Logic-Guided Large Language Model Compression (TOGGLE), a novel framework that leverages Signal Temporal Lo...",
+        "authors": [
+          "Khurram Khalil",
+          "Khaza Anuarul Hoque"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16881v1",
+      "paper_title": "PolaRiS: Scalable Real-to-Sim Evaluations for Generalist Robot Policies",
+      "authors": [
+        "Arhan Jain",
+        "Mingtong Zhang",
+        "Kanav Arora",
+        "William Chen",
+        "Marcel Torne",
+        "Muhammad Zubair Irshad",
+        "Sergey Zakharov",
+        "Yue Wang",
+        "Sergey Levine",
+        "Chelsea Finn",
+        "Wei-Chiu Ma",
+        "Dhruv Shah",
+        "Abhishek Gupta",
+        "Karl Pertsch"
+      ],
+      "categories": [
+        "cs.RO",
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "question": "Who are the authors of 'PolaRiS: Scalable Real-to-Sim Evaluations for Generalist Robot Policies'?",
+          "id": "2512.16881v1_q_1",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "A significant challenge for robot learning research is our ability to accurately measure and compare the performance of robot policies. Benchmarking in robotics is historically challenging due to the "
+        },
+        {
+          "question": "What is the main idea behind 'PolaRiS: Scalable Real-to-Sim Evaluations for Generalist Robot Policies'?",
+          "id": "2512.16881v1_q_2",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "A significant challenge for robot learning research is our ability to accurately measure and compare the performance of robot policies. Benchmarking in robotics is historically challenging due to the "
+        },
+        {
+          "question": "What methods are used in 'PolaRiS: Scalable Real-to-Sim Evaluations for Generalist Robot Policies'?",
+          "id": "2512.16881v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "A significant challenge for robot learning research is our ability to accurately measure and compare the performance of robot policies. Benchmarking in robotics is historically challenging due to the "
+        },
+        {
+          "question": "What problem does 'PolaRiS: Scalable Real-to-Sim Evaluations for Generalist Robot Policies' address?",
+          "id": "2512.16881v1_q_4",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "A significant challenge for robot learning research is our ability to accurately measure and compare the performance of robot policies. Benchmarking in robotics is historically challenging due to the "
+        },
+        {
+          "question": "Describe the approach taken in 'PolaRiS: Scalable Real-to-Sim Evaluations for Generalist Robot Policies'.",
+          "id": "2512.16881v1_q_5",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "A significant challenge for robot learning research is our ability to accurately measure and compare the performance of robot policies. Benchmarking in robotics is historically challenging due to the "
+        }
+      ],
+      "ground_truth_context": {
+        "title": "PolaRiS: Scalable Real-to-Sim Evaluations for Generalist Robot Policies",
+        "abstract": "A significant challenge for robot learning research is our ability to accurately measure and compare the performance of robot policies. Benchmarking in robotics is historically challenging due to the stochasticity, reproducibility, and time-consuming nature of real-world rollouts. This challenge is exacerbated for recent generalist policies, which has to be evaluated across a wide variety of scenes and tasks. Evaluation in simulation offers a scalable complement to real world evaluations, but th...",
+        "authors": [
+          "Arhan Jain",
+          "Mingtong Zhang",
+          "Kanav Arora",
+          "William Chen",
+          "Marcel Torne",
+          "Muhammad Zubair Irshad",
+          "Sergey Zakharov",
+          "Yue Wang",
+          "Sergey Levine",
+          "Chelsea Finn",
+          "Wei-Chiu Ma",
+          "Dhruv Shah",
+          "Abhishek Gupta",
+          "Karl Pertsch"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16824v1",
+      "paper_title": "Tiny Recursive Control: Iterative Reasoning for Efficient Optimal Control",
+      "authors": [
+        "Amit Jain",
+        "Richard Linares"
+      ],
+      "categories": [
+        "cs.LG",
+        "math.DS"
+      ],
+      "questions": [
+        {
+          "question": "What problem does 'Tiny Recursive Control: Iterative Reasoning for Efficient Optimal Control' address?",
+          "id": "2512.16824v1_q_1",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Neural network controllers increasingly demand millions of parameters, and language model approaches push into the billions. For embedded aerospace systems with strict power and latency constraints, t"
+        },
+        {
+          "question": "What methods are used in 'Tiny Recursive Control: Iterative Reasoning for Efficient Optimal Control'?",
+          "id": "2512.16824v1_q_2",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Neural network controllers increasingly demand millions of parameters, and language model approaches push into the billions. For embedded aerospace systems with strict power and latency constraints, t"
+        },
+        {
+          "question": "Who are the authors of 'Tiny Recursive Control: Iterative Reasoning for Efficient Optimal Control'?",
+          "id": "2512.16824v1_q_3",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Neural network controllers increasingly demand millions of parameters, and language model approaches push into the billions. For embedded aerospace systems with strict power and latency constraints, t"
+        },
+        {
+          "question": "What is the main contribution of 'Tiny Recursive Control: Iterative Reasoning for Efficient Optimal Control'?",
+          "id": "2512.16824v1_q_4",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Neural network controllers increasingly demand millions of parameters, and language model approaches push into the billions. For embedded aerospace systems with strict power and latency constraints, t"
+        },
+        {
+          "question": "Describe the approach taken in 'Tiny Recursive Control: Iterative Reasoning for Efficient Optimal Control'.",
+          "id": "2512.16824v1_q_5",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Neural network controllers increasingly demand millions of parameters, and language model approaches push into the billions. For embedded aerospace systems with strict power and latency constraints, t"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Tiny Recursive Control: Iterative Reasoning for Efficient Optimal Control",
+        "abstract": "Neural network controllers increasingly demand millions of parameters, and language model approaches push into the billions. For embedded aerospace systems with strict power and latency constraints, this scaling is prohibitive. We present Tiny Recursive Control (TRC), a neural architecture based on a counterintuitive principle: capacity can emerge from iteration depth rather than parameter count. TRC applies compact networks (approximately 1.5M parameters) repeatedly through a two-level hierarch...",
+        "authors": [
+          "Amit Jain",
+          "Richard Linares"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16856v1",
+      "paper_title": "Distributional AGI Safety",
+      "authors": [
+        "Nenad Toma\u0161ev",
+        "Matija Franklin",
+        "Julian Jacobs",
+        "S\u00e9bastien Krier",
+        "Simon Osindero"
+      ],
+      "categories": [
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "What problem does 'Distributional AGI Safety' address?",
+          "id": "2512.16856v1_q_1",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "AI safety and alignment research has predominantly been focused on methods for safeguarding individual AI systems, resting on the assumption of an eventual emergence of a monolithic Artificial General"
+        },
+        {
+          "question": "What is the main idea behind 'Distributional AGI Safety'?",
+          "id": "2512.16856v1_q_2",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "AI safety and alignment research has predominantly been focused on methods for safeguarding individual AI systems, resting on the assumption of an eventual emergence of a monolithic Artificial General"
+        },
+        {
+          "question": "What are the key results of 'Distributional AGI Safety'?",
+          "id": "2512.16856v1_q_3",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "AI safety and alignment research has predominantly been focused on methods for safeguarding individual AI systems, resting on the assumption of an eventual emergence of a monolithic Artificial General"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Distributional AGI Safety",
+        "abstract": "AI safety and alignment research has predominantly been focused on methods for safeguarding individual AI systems, resting on the assumption of an eventual emergence of a monolithic Artificial General Intelligence (AGI). The alternative AGI emergence hypothesis, where general capability levels are first manifested through coordination in groups of sub-AGI individual agents with complementary skills and affordances, has received far less attention. Here we argue that this patchwork AGI hypothesis...",
+        "authors": [
+          "Nenad Toma\u0161ev",
+          "Matija Franklin",
+          "Julian Jacobs",
+          "S\u00e9bastien Krier",
+          "Simon Osindero"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16873v1",
+      "paper_title": "The Social Responsibility Stack: A Control-Theoretic Architecture for Governing Socio-Technical AI",
+      "authors": [
+        "Otman A. Basir"
+      ],
+      "categories": [
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "What methods are used in 'The Social Responsibility Stack: A Control-Theoretic Architecture for Governing '?",
+          "id": "2512.16873v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Artificial intelligence systems are increasingly deployed in domains that shape human behaviour, institutional decision-making, and societal outcomes. Existing responsible AI and governance efforts pr"
+        },
+        {
+          "question": "Who are the authors of 'The Social Responsibility Stack: A Control-Theoretic Architecture for Governing '?",
+          "id": "2512.16873v1_q_2",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Artificial intelligence systems are increasingly deployed in domains that shape human behaviour, institutional decision-making, and societal outcomes. Existing responsible AI and governance efforts pr"
+        },
+        {
+          "question": "Describe the approach taken in 'The Social Responsibility Stack: A Control-Theoretic Architecture for Governing '.",
+          "id": "2512.16873v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Artificial intelligence systems are increasingly deployed in domains that shape human behaviour, institutional decision-making, and societal outcomes. Existing responsible AI and governance efforts pr"
+        },
+        {
+          "question": "What problem does 'The Social Responsibility Stack: A Control-Theoretic Architecture for Governing ' address?",
+          "id": "2512.16873v1_q_4",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Artificial intelligence systems are increasingly deployed in domains that shape human behaviour, institutional decision-making, and societal outcomes. Existing responsible AI and governance efforts pr"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "The Social Responsibility Stack: A Control-Theoretic Architecture for Governing Socio-Technical AI",
+        "abstract": "Artificial intelligence systems are increasingly deployed in domains that shape human behaviour, institutional decision-making, and societal outcomes. Existing responsible AI and governance efforts provide important normative principles but often lack enforceable engineering mechanisms that operate throughout the system lifecycle. This paper introduces the Social Responsibility Stack (SRS), a six-layer architectural framework that embeds societal values into AI systems as explicit constraints, s...",
+        "authors": [
+          "Otman A. Basir"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16795v1",
+      "paper_title": "From Facts to Conclusions : Integrating Deductive Reasoning in Retrieval-Augmented LLMs",
+      "authors": [
+        "Shubham Mishra",
+        "Samyek Jain",
+        "Gorang Mehrishi",
+        "Shiv Tiwari",
+        "Harsh Sharma",
+        "Pratik Narang",
+        "Dhruv Kumar"
+      ],
+      "categories": [
+        "cs.CL",
+        "cs.AI",
+        "cs.CY",
+        "cs.IR"
+      ],
+      "questions": [
+        {
+          "question": "Describe the approach taken in 'From Facts to Conclusions : Integrating Deductive Reasoning in Retrieval-Augment'.",
+          "id": "2512.16795v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Retrieval-Augmented Generation (RAG) grounds large language models (LLMs) in external evidence, but fails when retrieved sources conflict or contain outdated or subjective information. Prior work addr"
+        },
+        {
+          "question": "What are the key results of 'From Facts to Conclusions : Integrating Deductive Reasoning in Retrieval-Augment'?",
+          "id": "2512.16795v1_q_2",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "Retrieval-Augmented Generation (RAG) grounds large language models (LLMs) in external evidence, but fails when retrieved sources conflict or contain outdated or subjective information. Prior work addr"
+        },
+        {
+          "question": "What is the main contribution of 'From Facts to Conclusions : Integrating Deductive Reasoning in Retrieval-Augment'?",
+          "id": "2512.16795v1_q_3",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Retrieval-Augmented Generation (RAG) grounds large language models (LLMs) in external evidence, but fails when retrieved sources conflict or contain outdated or subjective information. Prior work addr"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "From Facts to Conclusions : Integrating Deductive Reasoning in Retrieval-Augmented LLMs",
+        "abstract": "Retrieval-Augmented Generation (RAG) grounds large language models (LLMs) in external evidence, but fails when retrieved sources conflict or contain outdated or subjective information. Prior work address these issues independently but lack unified reasoning supervision. We propose a reasoning-trace-augmented RAG framework that adds structured, interpretable reasoning across three stages : (1) document-level adjudication, (2) conflict analysis, and (3) grounded synthesis, producing citation-linke...",
+        "authors": [
+          "Shubham Mishra",
+          "Samyek Jain",
+          "Gorang Mehrishi",
+          "Shiv Tiwari",
+          "Harsh Sharma",
+          "Pratik Narang",
+          "Dhruv Kumar"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16853v1",
+      "paper_title": "GenEval 2: Addressing Benchmark Drift in Text-to-Image Evaluation",
+      "authors": [
+        "Amita Kamath",
+        "Kai-Wei Chang",
+        "Ranjay Krishna",
+        "Luke Zettlemoyer",
+        "Yushi Hu",
+        "Marjan Ghazvininejad"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "Describe the approach taken in 'GenEval 2: Addressing Benchmark Drift in Text-to-Image Evaluation'.",
+          "id": "2512.16853v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Automating Text-to-Image (T2I) model evaluation is challenging; a judge model must be used to score correctness, and test prompts must be selected to be challenging for current T2I models but not the "
+        },
+        {
+          "question": "What problem does 'GenEval 2: Addressing Benchmark Drift in Text-to-Image Evaluation' address?",
+          "id": "2512.16853v1_q_2",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Automating Text-to-Image (T2I) model evaluation is challenging; a judge model must be used to score correctness, and test prompts must be selected to be challenging for current T2I models but not the "
+        },
+        {
+          "question": "Who are the authors of 'GenEval 2: Addressing Benchmark Drift in Text-to-Image Evaluation'?",
+          "id": "2512.16853v1_q_3",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Automating Text-to-Image (T2I) model evaluation is challenging; a judge model must be used to score correctness, and test prompts must be selected to be challenging for current T2I models but not the "
+        },
+        {
+          "question": "What methods are used in 'GenEval 2: Addressing Benchmark Drift in Text-to-Image Evaluation'?",
+          "id": "2512.16853v1_q_4",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Automating Text-to-Image (T2I) model evaluation is challenging; a judge model must be used to score correctness, and test prompts must be selected to be challenging for current T2I models but not the "
+        },
+        {
+          "question": "What is the main contribution of 'GenEval 2: Addressing Benchmark Drift in Text-to-Image Evaluation'?",
+          "id": "2512.16853v1_q_5",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Automating Text-to-Image (T2I) model evaluation is challenging; a judge model must be used to score correctness, and test prompts must be selected to be challenging for current T2I models but not the "
+        }
+      ],
+      "ground_truth_context": {
+        "title": "GenEval 2: Addressing Benchmark Drift in Text-to-Image Evaluation",
+        "abstract": "Automating Text-to-Image (T2I) model evaluation is challenging; a judge model must be used to score correctness, and test prompts must be selected to be challenging for current T2I models but not the judge. We argue that satisfying these constraints can lead to benchmark drift over time, where the static benchmark judges fail to keep up with newer model capabilities. We show that benchmark drift is a significant problem for GenEval, one of the most popular T2I benchmarks. Although GenEval was we...",
+        "authors": [
+          "Amita Kamath",
+          "Kai-Wei Chang",
+          "Ranjay Krishna",
+          "Luke Zettlemoyer",
+          "Yushi Hu",
+          "Marjan Ghazvininejad"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16780v1",
+      "paper_title": "Towards Mass Spectrum Analysis with ASP",
+      "authors": [
+        "Nils K\u00fcchenmeister",
+        "Alex Ivliev",
+        "Markus Kr\u00f6tzsch"
+      ],
+      "categories": [
+        "cs.LO",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "Describe the approach taken in 'Towards Mass Spectrum Analysis with ASP'.",
+          "id": "2512.16780v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "We present a new use of Answer Set Programming (ASP) to discover the molecular structure of chemical samples based on the relative abundance of elements and structural fragments, as measured in mass s"
+        },
+        {
+          "question": "What are the key results of 'Towards Mass Spectrum Analysis with ASP'?",
+          "id": "2512.16780v1_q_2",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "We present a new use of Answer Set Programming (ASP) to discover the molecular structure of chemical samples based on the relative abundance of elements and structural fragments, as measured in mass s"
+        },
+        {
+          "question": "What is the main contribution of 'Towards Mass Spectrum Analysis with ASP'?",
+          "id": "2512.16780v1_q_3",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "We present a new use of Answer Set Programming (ASP) to discover the molecular structure of chemical samples based on the relative abundance of elements and structural fragments, as measured in mass s"
+        },
+        {
+          "question": "What methods are used in 'Towards Mass Spectrum Analysis with ASP'?",
+          "id": "2512.16780v1_q_4",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "We present a new use of Answer Set Programming (ASP) to discover the molecular structure of chemical samples based on the relative abundance of elements and structural fragments, as measured in mass s"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Towards Mass Spectrum Analysis with ASP",
+        "abstract": "We present a new use of Answer Set Programming (ASP) to discover the molecular structure of chemical samples based on the relative abundance of elements and structural fragments, as measured in mass spectrometry. To constrain the exponential search space for this combinatorial problem, we develop canonical representations of molecular structures and an ASP implemen- tation that uses these definitions. We evaluate the correctness of our implementation over a large set of known molecular structure...",
+        "authors": [
+          "Nils K\u00fcchenmeister",
+          "Alex Ivliev",
+          "Markus Kr\u00f6tzsch"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16742v1",
+      "paper_title": "Machine Learning Algorithms: Detection Official Hajj and Umrah Travel Agency Based on Text and Metadata Analysis",
+      "authors": [
+        "Wisnu Uriawan",
+        "Muhamad Veva Ramadhan",
+        "Firman Adi Nugraha",
+        "Hasbi Nur Wahid",
+        "M Dantha Arianvasya",
+        "Muhammad Zaki Alghifari"
+      ],
+      "categories": [
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "question": "What problem does 'Machine Learning Algorithms: Detection Official Hajj and Umrah Travel Agency Bas' address?",
+          "id": "2512.16742v1_q_1",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "The rapid digitalization of Hajj and Umrah services in Indonesia has significantly facilitated pilgrims but has concurrently opened avenues for digital fraud through counterfeit mobile applications. T"
+        },
+        {
+          "question": "Describe the approach taken in 'Machine Learning Algorithms: Detection Official Hajj and Umrah Travel Agency Bas'.",
+          "id": "2512.16742v1_q_2",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "The rapid digitalization of Hajj and Umrah services in Indonesia has significantly facilitated pilgrims but has concurrently opened avenues for digital fraud through counterfeit mobile applications. T"
+        },
+        {
+          "question": "What methods are used in 'Machine Learning Algorithms: Detection Official Hajj and Umrah Travel Agency Bas'?",
+          "id": "2512.16742v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "The rapid digitalization of Hajj and Umrah services in Indonesia has significantly facilitated pilgrims but has concurrently opened avenues for digital fraud through counterfeit mobile applications. T"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Machine Learning Algorithms: Detection Official Hajj and Umrah Travel Agency Based on Text and Metadata Analysis",
+        "abstract": "The rapid digitalization of Hajj and Umrah services in Indonesia has significantly facilitated pilgrims but has concurrently opened avenues for digital fraud through counterfeit mobile applications. These fraudulent applications not only inflict financial losses but also pose severe privacy risks by harvesting sensitive personal data. This research aims to address this critical issue by implementing and evaluating machine learning algorithms to verify application authenticity automatically. Usin...",
+        "authors": [
+          "Wisnu Uriawan",
+          "Muhamad Veva Ramadhan",
+          "Firman Adi Nugraha",
+          "Hasbi Nur Wahid",
+          "M Dantha Arianvasya",
+          "Muhammad Zaki Alghifari"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16872v1",
+      "paper_title": "On the Universal Representation Property of Spiking Neural Networks",
+      "authors": [
+        "Shayan Hundrieser",
+        "Philipp Tuchel",
+        "Insung Kong",
+        "Johannes Schmidt-Hieber"
+      ],
+      "categories": [
+        "cs.NE",
+        "cs.LG",
+        "stat.ML"
+      ],
+      "questions": [
+        {
+          "question": "What methods are used in 'On the Universal Representation Property of Spiking Neural Networks'?",
+          "id": "2512.16872v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Inspired by biology, spiking neural networks (SNNs) process information via discrete spikes over time, offering an energy-efficient alternative to the classical computing paradigm and classical artifi"
+        },
+        {
+          "question": "What is the main contribution of 'On the Universal Representation Property of Spiking Neural Networks'?",
+          "id": "2512.16872v1_q_2",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Inspired by biology, spiking neural networks (SNNs) process information via discrete spikes over time, offering an energy-efficient alternative to the classical computing paradigm and classical artifi"
+        },
+        {
+          "question": "Who are the authors of 'On the Universal Representation Property of Spiking Neural Networks'?",
+          "id": "2512.16872v1_q_3",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Inspired by biology, spiking neural networks (SNNs) process information via discrete spikes over time, offering an energy-efficient alternative to the classical computing paradigm and classical artifi"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "On the Universal Representation Property of Spiking Neural Networks",
+        "abstract": "Inspired by biology, spiking neural networks (SNNs) process information via discrete spikes over time, offering an energy-efficient alternative to the classical computing paradigm and classical artificial neural networks (ANNs). In this work, we analyze the representational power of SNNs by viewing them as sequence-to-sequence processors of spikes, i.e., systems that transform a stream of input spikes into a stream of output spikes. We establish the universal representation property for a natura...",
+        "authors": [
+          "Shayan Hundrieser",
+          "Philipp Tuchel",
+          "Insung Kong",
+          "Johannes Schmidt-Hieber"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16883v1",
+      "paper_title": "AdaSearch: Balancing Parametric Knowledge and Search in Large Language Models via Reinforcement Learning",
+      "authors": [
+        "Tzu-Han Lin",
+        "Wei-Lin Chen",
+        "Chen-An Li",
+        "Hung-yi Lee",
+        "Yun-Nung Chen",
+        "Yu Meng"
+      ],
+      "categories": [
+        "cs.CL"
+      ],
+      "questions": [
+        {
+          "question": "What is the main idea behind 'AdaSearch: Balancing Parametric Knowledge and Search in Large Language Models vi'?",
+          "id": "2512.16883v1_q_1",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "Equipping large language models (LLMs) with search engines via reinforcement learning (RL) has emerged as an effective approach for building search agents. However, overreliance on search introduces u"
+        },
+        {
+          "question": "What problem does 'AdaSearch: Balancing Parametric Knowledge and Search in Large Language Models vi' address?",
+          "id": "2512.16883v1_q_2",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Equipping large language models (LLMs) with search engines via reinforcement learning (RL) has emerged as an effective approach for building search agents. However, overreliance on search introduces u"
+        },
+        {
+          "question": "What methods are used in 'AdaSearch: Balancing Parametric Knowledge and Search in Large Language Models vi'?",
+          "id": "2512.16883v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Equipping large language models (LLMs) with search engines via reinforcement learning (RL) has emerged as an effective approach for building search agents. However, overreliance on search introduces u"
+        },
+        {
+          "question": "Describe the approach taken in 'AdaSearch: Balancing Parametric Knowledge and Search in Large Language Models vi'.",
+          "id": "2512.16883v1_q_4",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Equipping large language models (LLMs) with search engines via reinforcement learning (RL) has emerged as an effective approach for building search agents. However, overreliance on search introduces u"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "AdaSearch: Balancing Parametric Knowledge and Search in Large Language Models via Reinforcement Learning",
+        "abstract": "Equipping large language models (LLMs) with search engines via reinforcement learning (RL) has emerged as an effective approach for building search agents. However, overreliance on search introduces unnecessary cost and risks exposure to noisy or malicious content, while relying solely on parametric knowledge risks hallucination. The central challenge is to develop agents that adaptively balance parametric knowledge with external search, invoking search only when necessary. Prior work mitigates ...",
+        "authors": [
+          "Tzu-Han Lin",
+          "Wei-Lin Chen",
+          "Chen-An Li",
+          "Hung-yi Lee",
+          "Yun-Nung Chen",
+          "Yu Meng"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16813v1",
+      "paper_title": "Coordinated Anti-Jamming Resilience in Swarm Networks via Multi-Agent Reinforcement Learning",
+      "authors": [
+        "Bahman Abolhassani",
+        "Tugba Erpek",
+        "Kemal Davaslioglu",
+        "Yalin E. Sagduyu",
+        "Sastry Kompella"
+      ],
+      "categories": [
+        "cs.NI",
+        "cs.AI",
+        "cs.DC",
+        "cs.LG",
+        "eess.SP"
+      ],
+      "questions": [
+        {
+          "question": "Who are the authors of 'Coordinated Anti-Jamming Resilience in Swarm Networks via Multi-Agent Reinforcem'?",
+          "id": "2512.16813v1_q_1",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Reactive jammers pose a severe security threat to robotic-swarm networks by selectively disrupting inter-agent communications and undermining formation integrity and mission success. Conventional coun"
+        },
+        {
+          "question": "What problem does 'Coordinated Anti-Jamming Resilience in Swarm Networks via Multi-Agent Reinforcem' address?",
+          "id": "2512.16813v1_q_2",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Reactive jammers pose a severe security threat to robotic-swarm networks by selectively disrupting inter-agent communications and undermining formation integrity and mission success. Conventional coun"
+        },
+        {
+          "question": "What is the main contribution of 'Coordinated Anti-Jamming Resilience in Swarm Networks via Multi-Agent Reinforcem'?",
+          "id": "2512.16813v1_q_3",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Reactive jammers pose a severe security threat to robotic-swarm networks by selectively disrupting inter-agent communications and undermining formation integrity and mission success. Conventional coun"
+        },
+        {
+          "question": "What are the key results of 'Coordinated Anti-Jamming Resilience in Swarm Networks via Multi-Agent Reinforcem'?",
+          "id": "2512.16813v1_q_4",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "Reactive jammers pose a severe security threat to robotic-swarm networks by selectively disrupting inter-agent communications and undermining formation integrity and mission success. Conventional coun"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Coordinated Anti-Jamming Resilience in Swarm Networks via Multi-Agent Reinforcement Learning",
+        "abstract": "Reactive jammers pose a severe security threat to robotic-swarm networks by selectively disrupting inter-agent communications and undermining formation integrity and mission success. Conventional countermeasures such as fixed power control or static channel hopping are largely ineffective against such adaptive adversaries. This paper presents a multi-agent reinforcement learning (MARL) framework based on the QMIX algorithm to improve the resilience of swarm communications under reactive jamming....",
+        "authors": [
+          "Bahman Abolhassani",
+          "Tugba Erpek",
+          "Kemal Davaslioglu",
+          "Yalin E. Sagduyu",
+          "Sastry Kompella"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16786v1",
+      "paper_title": "Few-Shot Specific Emitter Identification via Integrated Complex Variational Mode Decomposition and Spatial Attention Transfer",
+      "authors": [
+        "Chenyu Zhu",
+        "Zeyang Li",
+        "Ziyi Xie",
+        "Jie Zhang"
+      ],
+      "categories": [
+        "eess.SP",
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "question": "What is the main contribution of 'Few-Shot Specific Emitter Identification via Integrated Complex Variational Mode'?",
+          "id": "2512.16786v1_q_1",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Specific emitter identification (SEI) utilizes passive hardware characteristics to authenticate transmitters, providing a robust physical-layer security solution. However, most deep-learning-based met"
+        },
+        {
+          "question": "Who are the authors of 'Few-Shot Specific Emitter Identification via Integrated Complex Variational Mode'?",
+          "id": "2512.16786v1_q_2",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Specific emitter identification (SEI) utilizes passive hardware characteristics to authenticate transmitters, providing a robust physical-layer security solution. However, most deep-learning-based met"
+        },
+        {
+          "question": "What problem does 'Few-Shot Specific Emitter Identification via Integrated Complex Variational Mode' address?",
+          "id": "2512.16786v1_q_3",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Specific emitter identification (SEI) utilizes passive hardware characteristics to authenticate transmitters, providing a robust physical-layer security solution. However, most deep-learning-based met"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Few-Shot Specific Emitter Identification via Integrated Complex Variational Mode Decomposition and Spatial Attention Transfer",
+        "abstract": "Specific emitter identification (SEI) utilizes passive hardware characteristics to authenticate transmitters, providing a robust physical-layer security solution. However, most deep-learning-based methods rely on extensive data or require prior information, which poses challenges in real-world scenarios with limited labeled data. We propose an integrated complex variational mode decomposition algorithm that decomposes and reconstructs complex-valued signals to approximate the original transmitte...",
+        "authors": [
+          "Chenyu Zhu",
+          "Zeyang Li",
+          "Ziyi Xie",
+          "Jie Zhang"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16842v1",
+      "paper_title": "OPENTOUCH: Bringing Full-Hand Touch to Real-World Interaction",
+      "authors": [
+        "Yuxin Ray Song",
+        "Jinzhou Li",
+        "Rao Fu",
+        "Devin Murphy",
+        "Kaichen Zhou",
+        "Rishi Shiv",
+        "Yaqi Li",
+        "Haoyu Xiong",
+        "Crystal Elaine Owens",
+        "Yilun Du",
+        "Yiyue Luo",
+        "Xianyi Cheng",
+        "Antonio Torralba",
+        "Wojciech Matusik",
+        "Paul Pu Liang"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.AI",
+        "cs.RO"
+      ],
+      "questions": [
+        {
+          "question": "What is the main contribution of 'OPENTOUCH: Bringing Full-Hand Touch to Real-World Interaction'?",
+          "id": "2512.16842v1_q_1",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "The human hand is our primary interface to the physical world, yet egocentric perception rarely knows when, where, or how forcefully it makes contact. Robust wearable tactile sensors are scarce, and n"
+        },
+        {
+          "question": "What is the main idea behind 'OPENTOUCH: Bringing Full-Hand Touch to Real-World Interaction'?",
+          "id": "2512.16842v1_q_2",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "The human hand is our primary interface to the physical world, yet egocentric perception rarely knows when, where, or how forcefully it makes contact. Robust wearable tactile sensors are scarce, and n"
+        },
+        {
+          "question": "What methods are used in 'OPENTOUCH: Bringing Full-Hand Touch to Real-World Interaction'?",
+          "id": "2512.16842v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "The human hand is our primary interface to the physical world, yet egocentric perception rarely knows when, where, or how forcefully it makes contact. Robust wearable tactile sensors are scarce, and n"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "OPENTOUCH: Bringing Full-Hand Touch to Real-World Interaction",
+        "abstract": "The human hand is our primary interface to the physical world, yet egocentric perception rarely knows when, where, or how forcefully it makes contact. Robust wearable tactile sensors are scarce, and no existing in-the-wild datasets align first-person video with full-hand touch. To bridge the gap between visual perception and physical interaction, we present OpenTouch, the first in-the-wild egocentric full-hand tactile dataset, containing 5.1 hours of synchronized video-touch-pose data and 2,900 ...",
+        "authors": [
+          "Yuxin Ray Song",
+          "Jinzhou Li",
+          "Rao Fu",
+          "Devin Murphy",
+          "Kaichen Zhou",
+          "Rishi Shiv",
+          "Yaqi Li",
+          "Haoyu Xiong",
+          "Crystal Elaine Owens",
+          "Yilun Du",
+          "Yiyue Luo",
+          "Xianyi Cheng",
+          "Antonio Torralba",
+          "Wojciech Matusik",
+          "Paul Pu Liang"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16919v1",
+      "paper_title": "DVGT: Driving Visual Geometry Transformer",
+      "authors": [
+        "Sicheng Zuo",
+        "Zixun Xie",
+        "Wenzhao Zheng",
+        "Shaoqing Xu",
+        "Fang Li",
+        "Shengyin Jiang",
+        "Long Chen",
+        "Zhi-Xin Yang",
+        "Jiwen Lu"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.AI",
+        "cs.RO"
+      ],
+      "questions": [
+        {
+          "question": "Describe the approach taken in 'DVGT: Driving Visual Geometry Transformer'.",
+          "id": "2512.16919v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Perceiving and reconstructing 3D scene geometry from visual inputs is crucial for autonomous driving. However, there still lacks a driving-targeted dense geometry perception model that can adapt to di"
+        },
+        {
+          "question": "What methods are used in 'DVGT: Driving Visual Geometry Transformer'?",
+          "id": "2512.16919v1_q_2",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Perceiving and reconstructing 3D scene geometry from visual inputs is crucial for autonomous driving. However, there still lacks a driving-targeted dense geometry perception model that can adapt to di"
+        },
+        {
+          "question": "What is the main contribution of 'DVGT: Driving Visual Geometry Transformer'?",
+          "id": "2512.16919v1_q_3",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Perceiving and reconstructing 3D scene geometry from visual inputs is crucial for autonomous driving. However, there still lacks a driving-targeted dense geometry perception model that can adapt to di"
+        },
+        {
+          "question": "What are the key results of 'DVGT: Driving Visual Geometry Transformer'?",
+          "id": "2512.16919v1_q_4",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "Perceiving and reconstructing 3D scene geometry from visual inputs is crucial for autonomous driving. However, there still lacks a driving-targeted dense geometry perception model that can adapt to di"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "DVGT: Driving Visual Geometry Transformer",
+        "abstract": "Perceiving and reconstructing 3D scene geometry from visual inputs is crucial for autonomous driving. However, there still lacks a driving-targeted dense geometry perception model that can adapt to different scenarios and camera configurations. To bridge this gap, we propose a Driving Visual Geometry Transformer (DVGT), which reconstructs a global dense 3D point map from a sequence of unposed multi-view visual inputs. We first extract visual features for each image using a DINO backbone, and emp...",
+        "authors": [
+          "Sicheng Zuo",
+          "Zixun Xie",
+          "Wenzhao Zheng",
+          "Shaoqing Xu",
+          "Fang Li",
+          "Shengyin Jiang",
+          "Long Chen",
+          "Zhi-Xin Yang",
+          "Jiwen Lu"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16874v1",
+      "paper_title": "Pixel Seal: Adversarial-only training for invisible image and video watermarking",
+      "authors": [
+        "Tom\u00e1\u0161 Sou\u010dek",
+        "Pierre Fernandez",
+        "Hady Elsahar",
+        "Sylvestre-Alvise Rebuffi",
+        "Valeriu Lacatusu",
+        "Tuan Tran",
+        "Tom Sander",
+        "Alexandre Mourachko"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.AI",
+        "cs.CR",
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "question": "What are the key results of 'Pixel Seal: Adversarial-only training for invisible image and video watermarking'?",
+          "id": "2512.16874v1_q_1",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "Invisible watermarking is essential for tracing the provenance of digital content. However, training state-of-the-art models remains notoriously difficult, with current approaches often struggling to "
+        },
+        {
+          "question": "What is the main idea behind 'Pixel Seal: Adversarial-only training for invisible image and video watermarking'?",
+          "id": "2512.16874v1_q_2",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "Invisible watermarking is essential for tracing the provenance of digital content. However, training state-of-the-art models remains notoriously difficult, with current approaches often struggling to "
+        },
+        {
+          "question": "Describe the approach taken in 'Pixel Seal: Adversarial-only training for invisible image and video watermarking'.",
+          "id": "2512.16874v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Invisible watermarking is essential for tracing the provenance of digital content. However, training state-of-the-art models remains notoriously difficult, with current approaches often struggling to "
+        },
+        {
+          "question": "Who are the authors of 'Pixel Seal: Adversarial-only training for invisible image and video watermarking'?",
+          "id": "2512.16874v1_q_4",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Invisible watermarking is essential for tracing the provenance of digital content. However, training state-of-the-art models remains notoriously difficult, with current approaches often struggling to "
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Pixel Seal: Adversarial-only training for invisible image and video watermarking",
+        "abstract": "Invisible watermarking is essential for tracing the provenance of digital content. However, training state-of-the-art models remains notoriously difficult, with current approaches often struggling to balance robustness against true imperceptibility. This work introduces Pixel Seal, which sets a new state-of-the-art for image and video watermarking. We first identify three fundamental issues of existing methods: (i) the reliance on proxy perceptual losses such as MSE and LPIPS that fail to mimic ...",
+        "authors": [
+          "Tom\u00e1\u0161 Sou\u010dek",
+          "Pierre Fernandez",
+          "Hady Elsahar",
+          "Sylvestre-Alvise Rebuffi",
+          "Valeriu Lacatusu",
+          "Tuan Tran",
+          "Tom Sander",
+          "Alexandre Mourachko"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16911v1",
+      "paper_title": "Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning",
+      "authors": [
+        "Andrew Wagenmaker",
+        "Perry Dong",
+        "Raymond Tsao",
+        "Chelsea Finn",
+        "Sergey Levine"
+      ],
+      "categories": [
+        "cs.LG",
+        "cs.AI",
+        "cs.RO"
+      ],
+      "questions": [
+        {
+          "question": "What problem does 'Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetunin' address?",
+          "id": "2512.16911v1_q_1",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Standard practice across domains from robotics to language is to first pretrain a policy on a large-scale demonstration dataset, and then finetune this policy, typically with reinforcement learning (R"
+        },
+        {
+          "question": "What is the main contribution of 'Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetunin'?",
+          "id": "2512.16911v1_q_2",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Standard practice across domains from robotics to language is to first pretrain a policy on a large-scale demonstration dataset, and then finetune this policy, typically with reinforcement learning (R"
+        },
+        {
+          "question": "What methods are used in 'Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetunin'?",
+          "id": "2512.16911v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Standard practice across domains from robotics to language is to first pretrain a policy on a large-scale demonstration dataset, and then finetune this policy, typically with reinforcement learning (R"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning",
+        "abstract": "Standard practice across domains from robotics to language is to first pretrain a policy on a large-scale demonstration dataset, and then finetune this policy, typically with reinforcement learning (RL), in order to improve performance on deployment domains. This finetuning step has proved critical in achieving human or super-human performance, yet while much attention has been given to developing more effective finetuning algorithms, little attention has been given to ensuring the pretrained po...",
+        "authors": [
+          "Andrew Wagenmaker",
+          "Perry Dong",
+          "Raymond Tsao",
+          "Chelsea Finn",
+          "Sergey Levine"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16917v1",
+      "paper_title": "Generative Adversarial Reasoner: Enhancing LLM Reasoning with Adversarial Reinforcement Learning",
+      "authors": [
+        "Qihao Liu",
+        "Luoxin Ye",
+        "Wufei Ma",
+        "Yu-Cheng Chou",
+        "Alan Yuille"
+      ],
+      "categories": [
+        "cs.AI",
+        "cs.CL",
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "question": "What methods are used in 'Generative Adversarial Reasoner: Enhancing LLM Reasoning with Adversarial Reinfo'?",
+          "id": "2512.16917v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Large language models (LLMs) with explicit reasoning capabilities excel at mathematical reasoning yet still commit process errors, such as incorrect calculations, brittle logic, and superficially plau"
+        },
+        {
+          "question": "Describe the approach taken in 'Generative Adversarial Reasoner: Enhancing LLM Reasoning with Adversarial Reinfo'.",
+          "id": "2512.16917v1_q_2",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Large language models (LLMs) with explicit reasoning capabilities excel at mathematical reasoning yet still commit process errors, such as incorrect calculations, brittle logic, and superficially plau"
+        },
+        {
+          "question": "What is the main idea behind 'Generative Adversarial Reasoner: Enhancing LLM Reasoning with Adversarial Reinfo'?",
+          "id": "2512.16917v1_q_3",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "Large language models (LLMs) with explicit reasoning capabilities excel at mathematical reasoning yet still commit process errors, such as incorrect calculations, brittle logic, and superficially plau"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Generative Adversarial Reasoner: Enhancing LLM Reasoning with Adversarial Reinforcement Learning",
+        "abstract": "Large language models (LLMs) with explicit reasoning capabilities excel at mathematical reasoning yet still commit process errors, such as incorrect calculations, brittle logic, and superficially plausible but invalid steps. In this paper, we introduce Generative Adversarial Reasoner, an on-policy joint training framework designed to enhance reasoning by co-evolving an LLM reasoner and an LLM-based discriminator through adversarial reinforcement learning. A compute-efficient review schedule part...",
+        "authors": [
+          "Qihao Liu",
+          "Luoxin Ye",
+          "Wufei Ma",
+          "Yu-Cheng Chou",
+          "Alan Yuille"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16910v1",
+      "paper_title": "SFTok: Bridging the Performance Gap in Discrete Tokenizers",
+      "authors": [
+        "Qihang Rao",
+        "Borui Zhang",
+        "Wenzhao Zheng",
+        "Jie Zhou",
+        "Jiwen Lu"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "question": "Who are the authors of 'SFTok: Bridging the Performance Gap in Discrete Tokenizers'?",
+          "id": "2512.16910v1_q_1",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Recent advances in multimodal models highlight the pivotal role of image tokenization in high-resolution image generation. By compressing images into compact latent representations, tokenizers enable "
+        },
+        {
+          "question": "What problem does 'SFTok: Bridging the Performance Gap in Discrete Tokenizers' address?",
+          "id": "2512.16910v1_q_2",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Recent advances in multimodal models highlight the pivotal role of image tokenization in high-resolution image generation. By compressing images into compact latent representations, tokenizers enable "
+        },
+        {
+          "question": "What are the key results of 'SFTok: Bridging the Performance Gap in Discrete Tokenizers'?",
+          "id": "2512.16910v1_q_3",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "Recent advances in multimodal models highlight the pivotal role of image tokenization in high-resolution image generation. By compressing images into compact latent representations, tokenizers enable "
+        },
+        {
+          "question": "What is the main contribution of 'SFTok: Bridging the Performance Gap in Discrete Tokenizers'?",
+          "id": "2512.16910v1_q_4",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Recent advances in multimodal models highlight the pivotal role of image tokenization in high-resolution image generation. By compressing images into compact latent representations, tokenizers enable "
+        },
+        {
+          "question": "Describe the approach taken in 'SFTok: Bridging the Performance Gap in Discrete Tokenizers'.",
+          "id": "2512.16910v1_q_5",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Recent advances in multimodal models highlight the pivotal role of image tokenization in high-resolution image generation. By compressing images into compact latent representations, tokenizers enable "
+        }
+      ],
+      "ground_truth_context": {
+        "title": "SFTok: Bridging the Performance Gap in Discrete Tokenizers",
+        "abstract": "Recent advances in multimodal models highlight the pivotal role of image tokenization in high-resolution image generation. By compressing images into compact latent representations, tokenizers enable generative models to operate in lower-dimensional spaces, thereby improving computational efficiency and reducing complexity. Discrete tokenizers naturally align with the autoregressive paradigm but still lag behind continuous ones, limiting their adoption in multimodal systems. To address this, we ...",
+        "authors": [
+          "Qihang Rao",
+          "Borui Zhang",
+          "Wenzhao Zheng",
+          "Jie Zhou",
+          "Jiwen Lu"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16901v1",
+      "paper_title": "Impacts of Racial Bias in Historical Training Data for News AI",
+      "authors": [
+        "Rahul Bhargava",
+        "Malene Hornstrup Jespersen",
+        "Emily Boardman Ndulue",
+        "Vivica Dsouza"
+      ],
+      "categories": [
+        "cs.LG",
+        "cs.AI",
+        "cs.CL",
+        "cs.CY"
+      ],
+      "questions": [
+        {
+          "question": "What are the key results of 'Impacts of Racial Bias in Historical Training Data for News AI'?",
+          "id": "2512.16901v1_q_1",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "AI technologies have rapidly moved into business and research applications that involve large text corpora, including computational journalism research and newsroom settings. These models, trained on "
+        },
+        {
+          "question": "Describe the approach taken in 'Impacts of Racial Bias in Historical Training Data for News AI'.",
+          "id": "2512.16901v1_q_2",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "AI technologies have rapidly moved into business and research applications that involve large text corpora, including computational journalism research and newsroom settings. These models, trained on "
+        },
+        {
+          "question": "What is the main contribution of 'Impacts of Racial Bias in Historical Training Data for News AI'?",
+          "id": "2512.16901v1_q_3",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "AI technologies have rapidly moved into business and research applications that involve large text corpora, including computational journalism research and newsroom settings. These models, trained on "
+        },
+        {
+          "question": "What problem does 'Impacts of Racial Bias in Historical Training Data for News AI' address?",
+          "id": "2512.16901v1_q_4",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "AI technologies have rapidly moved into business and research applications that involve large text corpora, including computational journalism research and newsroom settings. These models, trained on "
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Impacts of Racial Bias in Historical Training Data for News AI",
+        "abstract": "AI technologies have rapidly moved into business and research applications that involve large text corpora, including computational journalism research and newsroom settings. These models, trained on extant data from various sources, can be conceptualized as historical artifacts that encode decades-old attitudes and stereotypes. This paper investigates one such example trained on the broadly-used New York Times Annotated Corpus to create a multi-label classifier. Our use in research settings sur...",
+        "authors": [
+          "Rahul Bhargava",
+          "Malene Hornstrup Jespersen",
+          "Emily Boardman Ndulue",
+          "Vivica Dsouza"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16739v1",
+      "paper_title": "AI-Driven Prediction of Cancer Pain Episodes: A Hybrid Decision Support Approach",
+      "authors": [
+        "Yipeng Zhuang",
+        "Yifeng Guo",
+        "Yuewen Li",
+        "Yuheng Wu",
+        "Philip Leung-Ho Yu",
+        "Tingting Song",
+        "Zhiyong Wang",
+        "Kunzhong Zhou",
+        "Weifang Wang",
+        "Li Zhuang"
+      ],
+      "categories": [
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "What methods are used in 'AI-Driven Prediction of Cancer Pain Episodes: A Hybrid Decision Support Approach'?",
+          "id": "2512.16739v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Lung cancer patients frequently experience breakthrough pain episodes, with up to 91% requiring timely intervention. To enable proactive pain management, we propose a hybrid machine learning and large"
+        },
+        {
+          "question": "Describe the approach taken in 'AI-Driven Prediction of Cancer Pain Episodes: A Hybrid Decision Support Approach'.",
+          "id": "2512.16739v1_q_2",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Lung cancer patients frequently experience breakthrough pain episodes, with up to 91% requiring timely intervention. To enable proactive pain management, we propose a hybrid machine learning and large"
+        },
+        {
+          "question": "What is the main contribution of 'AI-Driven Prediction of Cancer Pain Episodes: A Hybrid Decision Support Approach'?",
+          "id": "2512.16739v1_q_3",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Lung cancer patients frequently experience breakthrough pain episodes, with up to 91% requiring timely intervention. To enable proactive pain management, we propose a hybrid machine learning and large"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "AI-Driven Prediction of Cancer Pain Episodes: A Hybrid Decision Support Approach",
+        "abstract": "Lung cancer patients frequently experience breakthrough pain episodes, with up to 91% requiring timely intervention. To enable proactive pain management, we propose a hybrid machine learning and large language model pipeline that predicts pain episodes within 48 and 72 hours of hospitalization using both structured and unstructured electronic health record data. A retrospective cohort of 266 inpatients was analyzed, with features including demographics, tumor stage, vital signs, and WHO-tiered a...",
+        "authors": [
+          "Yipeng Zhuang",
+          "Yifeng Guo",
+          "Yuewen Li",
+          "Yuheng Wu",
+          "Philip Leung-Ho Yu",
+          "Tingting Song",
+          "Zhiyong Wang",
+          "Kunzhong Zhou",
+          "Weifang Wang",
+          "Li Zhuang"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16866v1",
+      "paper_title": "Semi-Supervised Online Learning on the Edge by Transforming Knowledge from Teacher Models",
+      "authors": [
+        "Jiabin Xue"
+      ],
+      "categories": [
+        "cs.LG",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "What methods are used in 'Semi-Supervised Online Learning on the Edge by Transforming Knowledge from Teach'?",
+          "id": "2512.16866v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Edge machine learning (Edge ML) enables training ML models using the vast data distributed across network edges. However, many existing approaches assume static models trained centrally and then deplo"
+        },
+        {
+          "question": "Who are the authors of 'Semi-Supervised Online Learning on the Edge by Transforming Knowledge from Teach'?",
+          "id": "2512.16866v1_q_2",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Edge machine learning (Edge ML) enables training ML models using the vast data distributed across network edges. However, many existing approaches assume static models trained centrally and then deplo"
+        },
+        {
+          "question": "Describe the approach taken in 'Semi-Supervised Online Learning on the Edge by Transforming Knowledge from Teach'.",
+          "id": "2512.16866v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Edge machine learning (Edge ML) enables training ML models using the vast data distributed across network edges. However, many existing approaches assume static models trained centrally and then deplo"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Semi-Supervised Online Learning on the Edge by Transforming Knowledge from Teacher Models",
+        "abstract": "Edge machine learning (Edge ML) enables training ML models using the vast data distributed across network edges. However, many existing approaches assume static models trained centrally and then deployed, making them ineffective against unseen data. To address this, Online Edge ML allows models to be trained directly on edge devices and updated continuously with new data. This paper explores a key challenge of Online Edge ML: \"How to determine labels for truly future, unseen data points\". We pro...",
+        "authors": [
+          "Jiabin Xue"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16755v1",
+      "paper_title": "CitySeeker: How Do VLMS Explore Embodied Urban Navigation With Implicit Human Needs?",
+      "authors": [
+        "Siqi Wang",
+        "Chao Liang",
+        "Yunfan Gao",
+        "Erxin Yu",
+        "Sen Li",
+        "Yushi Li",
+        "Jing Li",
+        "Haofen Wang"
+      ],
+      "categories": [
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "Describe the approach taken in 'CitySeeker: How Do VLMS Explore Embodied Urban Navigation With Implicit Human Ne'.",
+          "id": "2512.16755v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Vision-Language Models (VLMs) have made significant progress in explicit instruction-based navigation; however, their ability to interpret implicit human needs (e.g., \"I am thirsty\") in dynamic urban "
+        },
+        {
+          "question": "What are the key results of 'CitySeeker: How Do VLMS Explore Embodied Urban Navigation With Implicit Human Ne'?",
+          "id": "2512.16755v1_q_2",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "Vision-Language Models (VLMs) have made significant progress in explicit instruction-based navigation; however, their ability to interpret implicit human needs (e.g., \"I am thirsty\") in dynamic urban "
+        },
+        {
+          "question": "What methods are used in 'CitySeeker: How Do VLMS Explore Embodied Urban Navigation With Implicit Human Ne'?",
+          "id": "2512.16755v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Vision-Language Models (VLMs) have made significant progress in explicit instruction-based navigation; however, their ability to interpret implicit human needs (e.g., \"I am thirsty\") in dynamic urban "
+        }
+      ],
+      "ground_truth_context": {
+        "title": "CitySeeker: How Do VLMS Explore Embodied Urban Navigation With Implicit Human Needs?",
+        "abstract": "Vision-Language Models (VLMs) have made significant progress in explicit instruction-based navigation; however, their ability to interpret implicit human needs (e.g., \"I am thirsty\") in dynamic urban environments remains underexplored. This paper introduces CitySeeker, a novel benchmark designed to assess VLMs' spatial reasoning and decision-making capabilities for exploring embodied urban navigation to address implicit needs. CitySeeker includes 6,440 trajectories across 8 cities, capturing div...",
+        "authors": [
+          "Siqi Wang",
+          "Chao Liang",
+          "Yunfan Gao",
+          "Erxin Yu",
+          "Sen Li",
+          "Yushi Li",
+          "Jing Li",
+          "Haofen Wang"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16876v1",
+      "paper_title": "Training Together, Diagnosing Better: Federated Learning for Collagen VI-Related Dystrophies",
+      "authors": [
+        "Astrid Brull",
+        "Sara Aguti",
+        "V\u00e9ronique Bolduc",
+        "Ying Hu",
+        "Daniel M. Jimenez-Gutierrez",
+        "Enrique Zuazua",
+        "Joaquin Del-Rio",
+        "Oleksii Sliusarenko",
+        "Haiyan Zhou",
+        "Francesco Muntoni",
+        "Carsten G. B\u00f6nnemann",
+        "Xabi Uribe-Etxebarria"
+      ],
+      "categories": [
+        "cs.LG",
+        "cs.AI",
+        "cs.CV",
+        "cs.DC"
+      ],
+      "questions": [
+        {
+          "question": "What problem does 'Training Together, Diagnosing Better: Federated Learning for Collagen VI-Related' address?",
+          "id": "2512.16876v1_q_1",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "The application of Machine Learning (ML) to the diagnosis of rare diseases, such as collagen VI-related dystrophies (COL6-RD), is fundamentally limited by the scarcity and fragmentation of available d"
+        },
+        {
+          "question": "What is the main contribution of 'Training Together, Diagnosing Better: Federated Learning for Collagen VI-Related'?",
+          "id": "2512.16876v1_q_2",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "The application of Machine Learning (ML) to the diagnosis of rare diseases, such as collagen VI-related dystrophies (COL6-RD), is fundamentally limited by the scarcity and fragmentation of available d"
+        },
+        {
+          "question": "Describe the approach taken in 'Training Together, Diagnosing Better: Federated Learning for Collagen VI-Related'.",
+          "id": "2512.16876v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "The application of Machine Learning (ML) to the diagnosis of rare diseases, such as collagen VI-related dystrophies (COL6-RD), is fundamentally limited by the scarcity and fragmentation of available d"
+        },
+        {
+          "question": "What methods are used in 'Training Together, Diagnosing Better: Federated Learning for Collagen VI-Related'?",
+          "id": "2512.16876v1_q_4",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "The application of Machine Learning (ML) to the diagnosis of rare diseases, such as collagen VI-related dystrophies (COL6-RD), is fundamentally limited by the scarcity and fragmentation of available d"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Training Together, Diagnosing Better: Federated Learning for Collagen VI-Related Dystrophies",
+        "abstract": "The application of Machine Learning (ML) to the diagnosis of rare diseases, such as collagen VI-related dystrophies (COL6-RD), is fundamentally limited by the scarcity and fragmentation of available data. Attempts to expand sampling across hospitals, institutions, or countries with differing regulations face severe privacy, regulatory, and logistical obstacles that are often difficult to overcome. The Federated Learning (FL) provides a promising solution by enabling collaborative model training ...",
+        "authors": [
+          "Astrid Brull",
+          "Sara Aguti",
+          "V\u00e9ronique Bolduc",
+          "Ying Hu",
+          "Daniel M. Jimenez-Gutierrez",
+          "Enrique Zuazua",
+          "Joaquin Del-Rio",
+          "Oleksii Sliusarenko",
+          "Haiyan Zhou",
+          "Francesco Muntoni",
+          "Carsten G. B\u00f6nnemann",
+          "Xabi Uribe-Etxebarria"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16763v1",
+      "paper_title": "Pattern recognition in complex systems via vector-field representations of spatio-temporal data",
+      "authors": [
+        "Ingrid Amaranta Membrillo Solis",
+        "Maria van Rossem",
+        "Tristan Madeleine",
+        "Tetiana Orlova",
+        "Nina Podoliak",
+        "Giampaolo D'Alessandro",
+        "Jacek Brodzki",
+        "Malgosia Kaczmarek"
+      ],
+      "categories": [
+        "cs.LG",
+        "cond-mat.soft",
+        "nlin.CD",
+        "nlin.PS"
+      ],
+      "questions": [
+        {
+          "question": "What is the main contribution of 'Pattern recognition in complex systems via vector-field representations of spati'?",
+          "id": "2512.16763v1_q_1",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "A complex system comprises multiple interacting entities whose interdependencies form a unified whole, exhibiting emergent behaviours not present in individual components. Examples include the human b"
+        },
+        {
+          "question": "Who are the authors of 'Pattern recognition in complex systems via vector-field representations of spati'?",
+          "id": "2512.16763v1_q_2",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "A complex system comprises multiple interacting entities whose interdependencies form a unified whole, exhibiting emergent behaviours not present in individual components. Examples include the human b"
+        },
+        {
+          "question": "What problem does 'Pattern recognition in complex systems via vector-field representations of spati' address?",
+          "id": "2512.16763v1_q_3",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "A complex system comprises multiple interacting entities whose interdependencies form a unified whole, exhibiting emergent behaviours not present in individual components. Examples include the human b"
+        },
+        {
+          "question": "What are the key results of 'Pattern recognition in complex systems via vector-field representations of spati'?",
+          "id": "2512.16763v1_q_4",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "A complex system comprises multiple interacting entities whose interdependencies form a unified whole, exhibiting emergent behaviours not present in individual components. Examples include the human b"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Pattern recognition in complex systems via vector-field representations of spatio-temporal data",
+        "abstract": "A complex system comprises multiple interacting entities whose interdependencies form a unified whole, exhibiting emergent behaviours not present in individual components. Examples include the human brain, living cells, soft matter, Earth's climate, ecosystems, and the economy. These systems exhibit high-dimensional, non-linear dynamics, making their modelling, classification, and prediction particularly challenging. Advances in information technology have enabled data-driven approaches to study...",
+        "authors": [
+          "Ingrid Amaranta Membrillo Solis",
+          "Maria van Rossem",
+          "Tristan Madeleine",
+          "Tetiana Orlova",
+          "Nina Podoliak",
+          "Giampaolo D'Alessandro",
+          "Jacek Brodzki",
+          "Malgosia Kaczmarek"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16791v1",
+      "paper_title": "KineST: A Kinematics-guided Spatiotemporal State Space Model for Human Motion Tracking from Sparse Signals",
+      "authors": [
+        "Shuting Zhao",
+        "Zeyu Xiao",
+        "Xinrong Chen"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "Who are the authors of 'KineST: A Kinematics-guided Spatiotemporal State Space Model for Human Motion Tr'?",
+          "id": "2512.16791v1_q_1",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Full-body motion tracking plays an essential role in AR/VR applications, bridging physical and virtual interactions. However, it is challenging to reconstruct realistic and diverse full-body poses bas"
+        },
+        {
+          "question": "Describe the approach taken in 'KineST: A Kinematics-guided Spatiotemporal State Space Model for Human Motion Tr'.",
+          "id": "2512.16791v1_q_2",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Full-body motion tracking plays an essential role in AR/VR applications, bridging physical and virtual interactions. However, it is challenging to reconstruct realistic and diverse full-body poses bas"
+        },
+        {
+          "question": "What methods are used in 'KineST: A Kinematics-guided Spatiotemporal State Space Model for Human Motion Tr'?",
+          "id": "2512.16791v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Full-body motion tracking plays an essential role in AR/VR applications, bridging physical and virtual interactions. However, it is challenging to reconstruct realistic and diverse full-body poses bas"
+        },
+        {
+          "question": "What is the main idea behind 'KineST: A Kinematics-guided Spatiotemporal State Space Model for Human Motion Tr'?",
+          "id": "2512.16791v1_q_4",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "Full-body motion tracking plays an essential role in AR/VR applications, bridging physical and virtual interactions. However, it is challenging to reconstruct realistic and diverse full-body poses bas"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "KineST: A Kinematics-guided Spatiotemporal State Space Model for Human Motion Tracking from Sparse Signals",
+        "abstract": "Full-body motion tracking plays an essential role in AR/VR applications, bridging physical and virtual interactions. However, it is challenging to reconstruct realistic and diverse full-body poses based on sparse signals obtained by head-mounted displays, which are the main devices in AR/VR scenarios. Existing methods for pose reconstruction often incur high computational costs or rely on separately modeling spatial and temporal dependencies, making it difficult to balance accuracy, temporal coh...",
+        "authors": [
+          "Shuting Zhao",
+          "Zeyu Xiao",
+          "Xinrong Chen"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16882v1",
+      "paper_title": "Cartesian-nj: Extending e3nn to Irreducible Cartesian Tensor Product and Contracion",
+      "authors": [
+        "Zemin Xu",
+        "Chenyu Wu",
+        "Wenbo Xie",
+        "Daiqian Xie",
+        "P. Hu"
+      ],
+      "categories": [
+        "physics.chem-ph",
+        "cond-mat.mtrl-sci",
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "question": "What problem does 'Cartesian-nj: Extending e3nn to Irreducible Cartesian Tensor Product and Contrac' address?",
+          "id": "2512.16882v1_q_1",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Equivariant atomistic machine learning models have brought substantial gains in both extrapolation capability and predictive accuracy. Depending on the basis of the space, two distinct types of irredu"
+        },
+        {
+          "question": "What are the key results of 'Cartesian-nj: Extending e3nn to Irreducible Cartesian Tensor Product and Contrac'?",
+          "id": "2512.16882v1_q_2",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "Equivariant atomistic machine learning models have brought substantial gains in both extrapolation capability and predictive accuracy. Depending on the basis of the space, two distinct types of irredu"
+        },
+        {
+          "question": "Who are the authors of 'Cartesian-nj: Extending e3nn to Irreducible Cartesian Tensor Product and Contrac'?",
+          "id": "2512.16882v1_q_3",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Equivariant atomistic machine learning models have brought substantial gains in both extrapolation capability and predictive accuracy. Depending on the basis of the space, two distinct types of irredu"
+        },
+        {
+          "question": "What is the main idea behind 'Cartesian-nj: Extending e3nn to Irreducible Cartesian Tensor Product and Contrac'?",
+          "id": "2512.16882v1_q_4",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "Equivariant atomistic machine learning models have brought substantial gains in both extrapolation capability and predictive accuracy. Depending on the basis of the space, two distinct types of irredu"
+        },
+        {
+          "question": "What is the main contribution of 'Cartesian-nj: Extending e3nn to Irreducible Cartesian Tensor Product and Contrac'?",
+          "id": "2512.16882v1_q_5",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Equivariant atomistic machine learning models have brought substantial gains in both extrapolation capability and predictive accuracy. Depending on the basis of the space, two distinct types of irredu"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Cartesian-nj: Extending e3nn to Irreducible Cartesian Tensor Product and Contracion",
+        "abstract": "Equivariant atomistic machine learning models have brought substantial gains in both extrapolation capability and predictive accuracy. Depending on the basis of the space, two distinct types of irreducible representations are utilized. From architectures built upon spherical tensors (STs) to more recent formulations employing irreducible Cartesian tensors (ICTs), STs have remained dominant owing to their compactness, elegance, and theoretical completeness. Nevertheless, questions have persisted ...",
+        "authors": [
+          "Zemin Xu",
+          "Chenyu Wu",
+          "Wenbo Xie",
+          "Daiqian Xie",
+          "P. Hu"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16843v1",
+      "paper_title": "LLMCache: Layer-Wise Caching Strategies for Accelerated Reuse in Transformer Inference",
+      "authors": [
+        "Harsh Vardhan Bansal"
+      ],
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "What is the main contribution of 'LLMCache: Layer-Wise Caching Strategies for Accelerated Reuse in Transformer Inf'?",
+          "id": "2512.16843v1_q_1",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Transformer-based language models have achieved remarkable performance across a wide range of tasks, yet their high inference latency poses a significant challenge for real-timeand large-scale deploym"
+        },
+        {
+          "question": "Who are the authors of 'LLMCache: Layer-Wise Caching Strategies for Accelerated Reuse in Transformer Inf'?",
+          "id": "2512.16843v1_q_2",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Transformer-based language models have achieved remarkable performance across a wide range of tasks, yet their high inference latency poses a significant challenge for real-timeand large-scale deploym"
+        },
+        {
+          "question": "Describe the approach taken in 'LLMCache: Layer-Wise Caching Strategies for Accelerated Reuse in Transformer Inf'.",
+          "id": "2512.16843v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Transformer-based language models have achieved remarkable performance across a wide range of tasks, yet their high inference latency poses a significant challenge for real-timeand large-scale deploym"
+        },
+        {
+          "question": "What problem does 'LLMCache: Layer-Wise Caching Strategies for Accelerated Reuse in Transformer Inf' address?",
+          "id": "2512.16843v1_q_4",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Transformer-based language models have achieved remarkable performance across a wide range of tasks, yet their high inference latency poses a significant challenge for real-timeand large-scale deploym"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "LLMCache: Layer-Wise Caching Strategies for Accelerated Reuse in Transformer Inference",
+        "abstract": "Transformer-based language models have achieved remarkable performance across a wide range of tasks, yet their high inference latency poses a significant challenge for real-timeand large-scale deployment. While existing caching mechanisms,such as token-level key-value caches, offer speedups in autore-gressive decoding, they are limited in scope and applicability. In this paper, we present LLMCache, a novel layer-wise caching framework that accelerates transformer inference by reusing intermediat...",
+        "authors": [
+          "Harsh Vardhan Bansal"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16743v1",
+      "paper_title": "TreeNet: A Light Weight Model for Low Bitrate Image Compression",
+      "authors": [
+        "Mahadev Prasad Panda",
+        "Purnachandra Rao Makkena",
+        "Srivatsa Prativadibhayankaram",
+        "Siegfried F\u00f6\u00dfel",
+        "Andr\u00e9 Kaup"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "Who are the authors of 'TreeNet: A Light Weight Model for Low Bitrate Image Compression'?",
+          "id": "2512.16743v1_q_1",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Reducing computational complexity remains a critical challenge for the widespread adoption of learning-based image compression techniques. In this work, we propose TreeNet, a novel low-complexity imag"
+        },
+        {
+          "question": "What is the main contribution of 'TreeNet: A Light Weight Model for Low Bitrate Image Compression'?",
+          "id": "2512.16743v1_q_2",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Reducing computational complexity remains a critical challenge for the widespread adoption of learning-based image compression techniques. In this work, we propose TreeNet, a novel low-complexity imag"
+        },
+        {
+          "question": "Describe the approach taken in 'TreeNet: A Light Weight Model for Low Bitrate Image Compression'.",
+          "id": "2512.16743v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Reducing computational complexity remains a critical challenge for the widespread adoption of learning-based image compression techniques. In this work, we propose TreeNet, a novel low-complexity imag"
+        },
+        {
+          "question": "What problem does 'TreeNet: A Light Weight Model for Low Bitrate Image Compression' address?",
+          "id": "2512.16743v1_q_4",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Reducing computational complexity remains a critical challenge for the widespread adoption of learning-based image compression techniques. In this work, we propose TreeNet, a novel low-complexity imag"
+        },
+        {
+          "question": "What is the main idea behind 'TreeNet: A Light Weight Model for Low Bitrate Image Compression'?",
+          "id": "2512.16743v1_q_5",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "Reducing computational complexity remains a critical challenge for the widespread adoption of learning-based image compression techniques. In this work, we propose TreeNet, a novel low-complexity imag"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "TreeNet: A Light Weight Model for Low Bitrate Image Compression",
+        "abstract": "Reducing computational complexity remains a critical challenge for the widespread adoption of learning-based image compression techniques. In this work, we propose TreeNet, a novel low-complexity image compression model that leverages a binary tree-structured encoder-decoder architecture to achieve efficient representation and reconstruction. We employ attentional feature fusion mechanism to effectively integrate features from multiple branches. We evaluate TreeNet on three widely used benchmark...",
+        "authors": [
+          "Mahadev Prasad Panda",
+          "Purnachandra Rao Makkena",
+          "Srivatsa Prativadibhayankaram",
+          "Siegfried F\u00f6\u00dfel",
+          "Andr\u00e9 Kaup"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16902v1",
+      "paper_title": "In-Context Algebra",
+      "authors": [
+        "Eric Todd",
+        "Jannik Brinkmann",
+        "Rohit Gandikota",
+        "David Bau"
+      ],
+      "categories": [
+        "cs.CL",
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "question": "What is the main idea behind 'In-Context Algebra'?",
+          "id": "2512.16902v1_q_1",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "We investigate the mechanisms that arise when transformers are trained to solve arithmetic on sequences where tokens are variables whose meaning is determined only through their interactions. While pr"
+        },
+        {
+          "question": "Who are the authors of 'In-Context Algebra'?",
+          "id": "2512.16902v1_q_2",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "We investigate the mechanisms that arise when transformers are trained to solve arithmetic on sequences where tokens are variables whose meaning is determined only through their interactions. While pr"
+        },
+        {
+          "question": "What are the key results of 'In-Context Algebra'?",
+          "id": "2512.16902v1_q_3",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "We investigate the mechanisms that arise when transformers are trained to solve arithmetic on sequences where tokens are variables whose meaning is determined only through their interactions. While pr"
+        },
+        {
+          "question": "What is the main contribution of 'In-Context Algebra'?",
+          "id": "2512.16902v1_q_4",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "We investigate the mechanisms that arise when transformers are trained to solve arithmetic on sequences where tokens are variables whose meaning is determined only through their interactions. While pr"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "In-Context Algebra",
+        "abstract": "We investigate the mechanisms that arise when transformers are trained to solve arithmetic on sequences where tokens are variables whose meaning is determined only through their interactions. While prior work has found that transformers develop geometric embeddings that mirror algebraic structure, those previous findings emerge from settings where arithmetic-valued tokens have fixed meanings. We devise a new task in which the assignment of symbols to specific algebraic group elements varies from...",
+        "authors": [
+          "Eric Todd",
+          "Jannik Brinkmann",
+          "Rohit Gandikota",
+          "David Bau"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16822v1",
+      "paper_title": "MEPIC: Memory Efficient Position Independent Caching for LLM Serving",
+      "authors": [
+        "Qian Wang",
+        "Zahra Yousefijamarani",
+        "Morgan Lindsay Heisler",
+        "Rongzhi Gu",
+        "Bai Xiaolong",
+        "Shan Yizhou",
+        "Wei Zhang",
+        "Wang Lan",
+        "Ying Xiong",
+        "Yong Zhang",
+        "Zhenan Fan"
+      ],
+      "categories": [
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "question": "What problem does 'MEPIC: Memory Efficient Position Independent Caching for LLM Serving' address?",
+          "id": "2512.16822v1_q_1",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Modern LLM applications such as deep-research assistants, coding agents, and Retrieval-Augmented Generation (RAG) systems, repeatedly process long prompt histories containing shared document or code c"
+        },
+        {
+          "question": "What methods are used in 'MEPIC: Memory Efficient Position Independent Caching for LLM Serving'?",
+          "id": "2512.16822v1_q_2",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Modern LLM applications such as deep-research assistants, coding agents, and Retrieval-Augmented Generation (RAG) systems, repeatedly process long prompt histories containing shared document or code c"
+        },
+        {
+          "question": "Describe the approach taken in 'MEPIC: Memory Efficient Position Independent Caching for LLM Serving'.",
+          "id": "2512.16822v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Modern LLM applications such as deep-research assistants, coding agents, and Retrieval-Augmented Generation (RAG) systems, repeatedly process long prompt histories containing shared document or code c"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "MEPIC: Memory Efficient Position Independent Caching for LLM Serving",
+        "abstract": "Modern LLM applications such as deep-research assistants, coding agents, and Retrieval-Augmented Generation (RAG) systems, repeatedly process long prompt histories containing shared document or code chunks, creating significant pressure on the Key Value (KV) cache, which must operate within limited memory while sustaining high throughput and low latency. Prefix caching partially alleviates some of these costs by reusing KV cache for previously processed tokens, but limited by strict prefix match...",
+        "authors": [
+          "Qian Wang",
+          "Zahra Yousefijamarani",
+          "Morgan Lindsay Heisler",
+          "Rongzhi Gu",
+          "Bai Xiaolong",
+          "Shan Yizhou",
+          "Wei Zhang",
+          "Wang Lan",
+          "Ying Xiong",
+          "Yong Zhang",
+          "Zhenan Fan"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16792v1",
+      "paper_title": "Delay-Aware Multi-Stage Edge Server Upgrade with Budget Constraint",
+      "authors": [
+        "Endar Suprih Wihidayat",
+        "Sieteng Soh",
+        "Kwan-Wu Chin",
+        "Duc-son Pham"
+      ],
+      "categories": [
+        "cs.DC",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "What is the main idea behind 'Delay-Aware Multi-Stage Edge Server Upgrade with Budget Constraint'?",
+          "id": "2512.16792v1_q_1",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "In this paper, the Multi-stage Edge Server Upgrade (M-ESU) is proposed as a new network planning problem, involving the upgrading of an existing multi-access edge computing (MEC) system through multip"
+        },
+        {
+          "question": "What are the key results of 'Delay-Aware Multi-Stage Edge Server Upgrade with Budget Constraint'?",
+          "id": "2512.16792v1_q_2",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "In this paper, the Multi-stage Edge Server Upgrade (M-ESU) is proposed as a new network planning problem, involving the upgrading of an existing multi-access edge computing (MEC) system through multip"
+        },
+        {
+          "question": "What problem does 'Delay-Aware Multi-Stage Edge Server Upgrade with Budget Constraint' address?",
+          "id": "2512.16792v1_q_3",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "In this paper, the Multi-stage Edge Server Upgrade (M-ESU) is proposed as a new network planning problem, involving the upgrading of an existing multi-access edge computing (MEC) system through multip"
+        },
+        {
+          "question": "Who are the authors of 'Delay-Aware Multi-Stage Edge Server Upgrade with Budget Constraint'?",
+          "id": "2512.16792v1_q_4",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "In this paper, the Multi-stage Edge Server Upgrade (M-ESU) is proposed as a new network planning problem, involving the upgrading of an existing multi-access edge computing (MEC) system through multip"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Delay-Aware Multi-Stage Edge Server Upgrade with Budget Constraint",
+        "abstract": "In this paper, the Multi-stage Edge Server Upgrade (M-ESU) is proposed as a new network planning problem, involving the upgrading of an existing multi-access edge computing (MEC) system through multiple stages (e.g., over several years). More precisely, the problem considers two key decisions: (i) whether to deploy additional edge servers or upgrade those already installed, and (ii) how tasks should be offloaded so that the average number of tasks that meet their delay requirement is maximized. ...",
+        "authors": [
+          "Endar Suprih Wihidayat",
+          "Sieteng Soh",
+          "Kwan-Wu Chin",
+          "Duc-son Pham"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16733v1",
+      "paper_title": "Discovering and Learning Probabilistic Models of Black-Box AI Capabilities",
+      "authors": [
+        "Daniel Bramblett",
+        "Rushang Karia",
+        "Adrian Ciotinga",
+        "Ruthvick Suresh",
+        "Pulkit Verma",
+        "YooJung Choi",
+        "Siddharth Srivastava"
+      ],
+      "categories": [
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "What is the main idea behind 'Discovering and Learning Probabilistic Models of Black-Box AI Capabilities'?",
+          "id": "2512.16733v1_q_1",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "Black-box AI (BBAI) systems such as foundational models are increasingly being used for sequential decision making. To ensure that such systems are safe to operate and deploy, it is imperative to deve"
+        },
+        {
+          "question": "What methods are used in 'Discovering and Learning Probabilistic Models of Black-Box AI Capabilities'?",
+          "id": "2512.16733v1_q_2",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Black-box AI (BBAI) systems such as foundational models are increasingly being used for sequential decision making. To ensure that such systems are safe to operate and deploy, it is imperative to deve"
+        },
+        {
+          "question": "What is the main contribution of 'Discovering and Learning Probabilistic Models of Black-Box AI Capabilities'?",
+          "id": "2512.16733v1_q_3",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Black-box AI (BBAI) systems such as foundational models are increasingly being used for sequential decision making. To ensure that such systems are safe to operate and deploy, it is imperative to deve"
+        },
+        {
+          "question": "Who are the authors of 'Discovering and Learning Probabilistic Models of Black-Box AI Capabilities'?",
+          "id": "2512.16733v1_q_4",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Black-box AI (BBAI) systems such as foundational models are increasingly being used for sequential decision making. To ensure that such systems are safe to operate and deploy, it is imperative to deve"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Discovering and Learning Probabilistic Models of Black-Box AI Capabilities",
+        "abstract": "Black-box AI (BBAI) systems such as foundational models are increasingly being used for sequential decision making. To ensure that such systems are safe to operate and deploy, it is imperative to develop efficient methods that can provide a sound and interpretable representation of the BBAI's capabilities. This paper shows that PDDL-style representations can be used to efficiently learn and model an input BBAI's planning capabilities. It uses the Monte-Carlo tree search paradigm to systematicall...",
+        "authors": [
+          "Daniel Bramblett",
+          "Rushang Karia",
+          "Adrian Ciotinga",
+          "Ruthvick Suresh",
+          "Pulkit Verma",
+          "YooJung Choi",
+          "Siddharth Srivastava"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16871v1",
+      "paper_title": "Sequencing to Mitigate Catastrophic Forgetting in Continual Learning",
+      "authors": [
+        "Hesham G. Moussa",
+        "Aroosa Hameed",
+        "Arashmid Akhavain"
+      ],
+      "categories": [
+        "cs.LG",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "Describe the approach taken in 'Sequencing to Mitigate Catastrophic Forgetting in Continual Learning'.",
+          "id": "2512.16871v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "To cope with real-world dynamics, an intelligent system needs to incrementally acquire, update, and exploit knowledge throughout its lifetime. This ability, known as Continual learning, provides a fou"
+        },
+        {
+          "question": "What is the main contribution of 'Sequencing to Mitigate Catastrophic Forgetting in Continual Learning'?",
+          "id": "2512.16871v1_q_2",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "To cope with real-world dynamics, an intelligent system needs to incrementally acquire, update, and exploit knowledge throughout its lifetime. This ability, known as Continual learning, provides a fou"
+        },
+        {
+          "question": "What problem does 'Sequencing to Mitigate Catastrophic Forgetting in Continual Learning' address?",
+          "id": "2512.16871v1_q_3",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "To cope with real-world dynamics, an intelligent system needs to incrementally acquire, update, and exploit knowledge throughout its lifetime. This ability, known as Continual learning, provides a fou"
+        },
+        {
+          "question": "What is the main idea behind 'Sequencing to Mitigate Catastrophic Forgetting in Continual Learning'?",
+          "id": "2512.16871v1_q_4",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "To cope with real-world dynamics, an intelligent system needs to incrementally acquire, update, and exploit knowledge throughout its lifetime. This ability, known as Continual learning, provides a fou"
+        },
+        {
+          "question": "What are the key results of 'Sequencing to Mitigate Catastrophic Forgetting in Continual Learning'?",
+          "id": "2512.16871v1_q_5",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "To cope with real-world dynamics, an intelligent system needs to incrementally acquire, update, and exploit knowledge throughout its lifetime. This ability, known as Continual learning, provides a fou"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Sequencing to Mitigate Catastrophic Forgetting in Continual Learning",
+        "abstract": "To cope with real-world dynamics, an intelligent system needs to incrementally acquire, update, and exploit knowledge throughout its lifetime. This ability, known as Continual learning, provides a foundation for AI systems to develop themselves adaptively. Catastrophic forgetting is a major challenge to the progress of Continual Learning approaches, where learning a new task usually results in a dramatic performance drop on previously learned ones. Many approaches have emerged to counteract the ...",
+        "authors": [
+          "Hesham G. Moussa",
+          "Aroosa Hameed",
+          "Arashmid Akhavain"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16826v1",
+      "paper_title": "Next-Generation License Plate Detection and Recognition System using YOLOv8",
+      "authors": [
+        "Arslan Amin",
+        "Rafia Mumtaz",
+        "Muhammad Jawad Bashir",
+        "Syed Mohammad Hassan Zaidi"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "What is the main idea behind 'Next-Generation License Plate Detection and Recognition System using YOLOv8'?",
+          "id": "2512.16826v1_q_1",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "In the evolving landscape of traffic management and vehicle surveillance, efficient license plate detection and recognition are indispensable. Historically, many methodologies have tackled this challe"
+        },
+        {
+          "question": "What are the key results of 'Next-Generation License Plate Detection and Recognition System using YOLOv8'?",
+          "id": "2512.16826v1_q_2",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "In the evolving landscape of traffic management and vehicle surveillance, efficient license plate detection and recognition are indispensable. Historically, many methodologies have tackled this challe"
+        },
+        {
+          "question": "Who are the authors of 'Next-Generation License Plate Detection and Recognition System using YOLOv8'?",
+          "id": "2512.16826v1_q_3",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "In the evolving landscape of traffic management and vehicle surveillance, efficient license plate detection and recognition are indispensable. Historically, many methodologies have tackled this challe"
+        },
+        {
+          "question": "Describe the approach taken in 'Next-Generation License Plate Detection and Recognition System using YOLOv8'.",
+          "id": "2512.16826v1_q_4",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "In the evolving landscape of traffic management and vehicle surveillance, efficient license plate detection and recognition are indispensable. Historically, many methodologies have tackled this challe"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Next-Generation License Plate Detection and Recognition System using YOLOv8",
+        "abstract": "In the evolving landscape of traffic management and vehicle surveillance, efficient license plate detection and recognition are indispensable. Historically, many methodologies have tackled this challenge, but consistent real-time accuracy, especially in diverse environments, remains elusive. This study examines the performance of YOLOv8 variants on License Plate Recognition (LPR) and Character Recognition tasks, crucial for advancing Intelligent Transportation Systems. Two distinct datasets were...",
+        "authors": [
+          "Arslan Amin",
+          "Rafia Mumtaz",
+          "Muhammad Jawad Bashir",
+          "Syed Mohammad Hassan Zaidi"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16921v1",
+      "paper_title": "Differences That Matter: Auditing Models for Capability Gap Discovery and Rectification",
+      "authors": [
+        "Qihao Liu",
+        "Chengzhi Mao",
+        "Yaojie Liu",
+        "Alan Yuille",
+        "Wen-Sheng Chu"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "Describe the approach taken in 'Differences That Matter: Auditing Models for Capability Gap Discovery and Rectif'.",
+          "id": "2512.16921v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Conventional evaluation methods for multimodal LLMs (MLLMs) lack interpretability and are often insufficient to fully disclose significant capability gaps across models. To address this, we introduce "
+        },
+        {
+          "question": "Who are the authors of 'Differences That Matter: Auditing Models for Capability Gap Discovery and Rectif'?",
+          "id": "2512.16921v1_q_2",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Conventional evaluation methods for multimodal LLMs (MLLMs) lack interpretability and are often insufficient to fully disclose significant capability gaps across models. To address this, we introduce "
+        },
+        {
+          "question": "What methods are used in 'Differences That Matter: Auditing Models for Capability Gap Discovery and Rectif'?",
+          "id": "2512.16921v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Conventional evaluation methods for multimodal LLMs (MLLMs) lack interpretability and are often insufficient to fully disclose significant capability gaps across models. To address this, we introduce "
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Differences That Matter: Auditing Models for Capability Gap Discovery and Rectification",
+        "abstract": "Conventional evaluation methods for multimodal LLMs (MLLMs) lack interpretability and are often insufficient to fully disclose significant capability gaps across models. To address this, we introduce AuditDM, an automated framework that actively discovers and rectifies MLLM failure modes by auditing their divergence. AuditDM fine-tunes an MLLM as an auditor via reinforcement learning to generate challenging questions and counterfactual images that maximize disagreement among target models. Once ...",
+        "authors": [
+          "Qihao Liu",
+          "Chengzhi Mao",
+          "Yaojie Liu",
+          "Alan Yuille",
+          "Wen-Sheng Chu"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16920v1",
+      "paper_title": "EasyV2V: A High-quality Instruction-based Video Editing Framework",
+      "authors": [
+        "Jinjie Mai",
+        "Chaoyang Wang",
+        "Guocheng Gordon Qian",
+        "Willi Menapace",
+        "Sergey Tulyakov",
+        "Bernard Ghanem",
+        "Peter Wonka",
+        "Ashkan Mirzaei"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "What problem does 'EasyV2V: A High-quality Instruction-based Video Editing Framework' address?",
+          "id": "2512.16920v1_q_1",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "While image editing has advanced rapidly, video editing remains less explored, facing challenges in consistency, control, and generalization. We study the design space of data, architecture, and contr"
+        },
+        {
+          "question": "What is the main contribution of 'EasyV2V: A High-quality Instruction-based Video Editing Framework'?",
+          "id": "2512.16920v1_q_2",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "While image editing has advanced rapidly, video editing remains less explored, facing challenges in consistency, control, and generalization. We study the design space of data, architecture, and contr"
+        },
+        {
+          "question": "Who are the authors of 'EasyV2V: A High-quality Instruction-based Video Editing Framework'?",
+          "id": "2512.16920v1_q_3",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "While image editing has advanced rapidly, video editing remains less explored, facing challenges in consistency, control, and generalization. We study the design space of data, architecture, and contr"
+        },
+        {
+          "question": "What are the key results of 'EasyV2V: A High-quality Instruction-based Video Editing Framework'?",
+          "id": "2512.16920v1_q_4",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "While image editing has advanced rapidly, video editing remains less explored, facing challenges in consistency, control, and generalization. We study the design space of data, architecture, and contr"
+        },
+        {
+          "question": "What methods are used in 'EasyV2V: A High-quality Instruction-based Video Editing Framework'?",
+          "id": "2512.16920v1_q_5",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "While image editing has advanced rapidly, video editing remains less explored, facing challenges in consistency, control, and generalization. We study the design space of data, architecture, and contr"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "EasyV2V: A High-quality Instruction-based Video Editing Framework",
+        "abstract": "While image editing has advanced rapidly, video editing remains less explored, facing challenges in consistency, control, and generalization. We study the design space of data, architecture, and control, and introduce \\emph{EasyV2V}, a simple and effective framework for instruction-based video editing. On the data side, we compose existing experts with fast inverses to build diverse video pairs, lift image edit pairs into videos via single-frame supervision and pseudo pairs with shared affine mo...",
+        "authors": [
+          "Jinjie Mai",
+          "Chaoyang Wang",
+          "Guocheng Gordon Qian",
+          "Willi Menapace",
+          "Sergey Tulyakov",
+          "Bernard Ghanem",
+          "Peter Wonka",
+          "Ashkan Mirzaei"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16814v1",
+      "paper_title": "Grammar-Forced Translation of Natural Language to Temporal Logic using LLMs",
+      "authors": [
+        "William English",
+        "Dominic Simon",
+        "Sumit Kumar Jha",
+        "Rickard Ewetz"
+      ],
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "Describe the approach taken in 'Grammar-Forced Translation of Natural Language to Temporal Logic using LLMs'.",
+          "id": "2512.16814v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Translating natural language (NL) into a formal language such as temporal logic (TL) is integral for human communication with robots and autonomous systems. State-of-the-art approaches decompose the t"
+        },
+        {
+          "question": "What are the key results of 'Grammar-Forced Translation of Natural Language to Temporal Logic using LLMs'?",
+          "id": "2512.16814v1_q_2",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "Translating natural language (NL) into a formal language such as temporal logic (TL) is integral for human communication with robots and autonomous systems. State-of-the-art approaches decompose the t"
+        },
+        {
+          "question": "What methods are used in 'Grammar-Forced Translation of Natural Language to Temporal Logic using LLMs'?",
+          "id": "2512.16814v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Translating natural language (NL) into a formal language such as temporal logic (TL) is integral for human communication with robots and autonomous systems. State-of-the-art approaches decompose the t"
+        },
+        {
+          "question": "Who are the authors of 'Grammar-Forced Translation of Natural Language to Temporal Logic using LLMs'?",
+          "id": "2512.16814v1_q_4",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Translating natural language (NL) into a formal language such as temporal logic (TL) is integral for human communication with robots and autonomous systems. State-of-the-art approaches decompose the t"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Grammar-Forced Translation of Natural Language to Temporal Logic using LLMs",
+        "abstract": "Translating natural language (NL) into a formal language such as temporal logic (TL) is integral for human communication with robots and autonomous systems. State-of-the-art approaches decompose the task into a lifting of atomic propositions (APs) phase and a translation phase. However, existing methods struggle with accurate lifting, the existence of co-references, and learning from limited data. In this paper, we propose a framework for NL to TL translation called Grammar Forced Translation (G...",
+        "authors": [
+          "William English",
+          "Dominic Simon",
+          "Sumit Kumar Jha",
+          "Rickard Ewetz"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16907v1",
+      "paper_title": "Flowing from Reasoning to Motion: Learning 3D Hand Trajectory Prediction from Egocentric Human Interaction Videos",
+      "authors": [
+        "Mingfei Chen",
+        "Yifan Wang",
+        "Zhengqin Li",
+        "Homanga Bharadhwaj",
+        "Yujin Chen",
+        "Chuan Qin",
+        "Ziyi Kou",
+        "Yuan Tian",
+        "Eric Whitmire",
+        "Rajinder Sodhi",
+        "Hrvoje Benko",
+        "Eli Shlizerman",
+        "Yue Liu"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.AI",
+        "cs.RO"
+      ],
+      "questions": [
+        {
+          "question": "Who are the authors of 'Flowing from Reasoning to Motion: Learning 3D Hand Trajectory Prediction from Eg'?",
+          "id": "2512.16907v1_q_1",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Prior works on 3D hand trajectory prediction are constrained by datasets that decouple motion from semantic supervision and by models that weakly link reasoning and action. To address these, we first "
+        },
+        {
+          "question": "What is the main contribution of 'Flowing from Reasoning to Motion: Learning 3D Hand Trajectory Prediction from Eg'?",
+          "id": "2512.16907v1_q_2",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Prior works on 3D hand trajectory prediction are constrained by datasets that decouple motion from semantic supervision and by models that weakly link reasoning and action. To address these, we first "
+        },
+        {
+          "question": "What problem does 'Flowing from Reasoning to Motion: Learning 3D Hand Trajectory Prediction from Eg' address?",
+          "id": "2512.16907v1_q_3",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Prior works on 3D hand trajectory prediction are constrained by datasets that decouple motion from semantic supervision and by models that weakly link reasoning and action. To address these, we first "
+        },
+        {
+          "question": "Describe the approach taken in 'Flowing from Reasoning to Motion: Learning 3D Hand Trajectory Prediction from Eg'.",
+          "id": "2512.16907v1_q_4",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Prior works on 3D hand trajectory prediction are constrained by datasets that decouple motion from semantic supervision and by models that weakly link reasoning and action. To address these, we first "
+        },
+        {
+          "question": "What methods are used in 'Flowing from Reasoning to Motion: Learning 3D Hand Trajectory Prediction from Eg'?",
+          "id": "2512.16907v1_q_5",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Prior works on 3D hand trajectory prediction are constrained by datasets that decouple motion from semantic supervision and by models that weakly link reasoning and action. To address these, we first "
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Flowing from Reasoning to Motion: Learning 3D Hand Trajectory Prediction from Egocentric Human Interaction Videos",
+        "abstract": "Prior works on 3D hand trajectory prediction are constrained by datasets that decouple motion from semantic supervision and by models that weakly link reasoning and action. To address these, we first present the EgoMAN dataset, a large-scale egocentric dataset for interaction stage-aware 3D hand trajectory prediction with 219K 6DoF trajectories and 3M structured QA pairs for semantic, spatial, and motion reasoning. We then introduce the EgoMAN model, a reasoning-to-motion framework that links vi...",
+        "authors": [
+          "Mingfei Chen",
+          "Yifan Wang",
+          "Zhengqin Li",
+          "Homanga Bharadhwaj",
+          "Yujin Chen",
+          "Chuan Qin",
+          "Ziyi Kou",
+          "Yuan Tian",
+          "Eric Whitmire",
+          "Rajinder Sodhi",
+          "Hrvoje Benko",
+          "Eli Shlizerman",
+          "Yue Liu"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16770v1",
+      "paper_title": "GinSign: Grounding Natural Language Into System Signatures for Temporal Logic Translation",
+      "authors": [
+        "William English",
+        "Chase Walker",
+        "Dominic Simon",
+        "Rickard Ewetz"
+      ],
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "Who are the authors of 'GinSign: Grounding Natural Language Into System Signatures for Temporal Logic Tr'?",
+          "id": "2512.16770v1_q_1",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Natural language (NL) to temporal logic (TL) translation enables engineers to specify, verify, and enforce system behaviors without manually crafting formal specifications-an essential capability for "
+        },
+        {
+          "question": "What problem does 'GinSign: Grounding Natural Language Into System Signatures for Temporal Logic Tr' address?",
+          "id": "2512.16770v1_q_2",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Natural language (NL) to temporal logic (TL) translation enables engineers to specify, verify, and enforce system behaviors without manually crafting formal specifications-an essential capability for "
+        },
+        {
+          "question": "What are the key results of 'GinSign: Grounding Natural Language Into System Signatures for Temporal Logic Tr'?",
+          "id": "2512.16770v1_q_3",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "Natural language (NL) to temporal logic (TL) translation enables engineers to specify, verify, and enforce system behaviors without manually crafting formal specifications-an essential capability for "
+        },
+        {
+          "question": "What is the main idea behind 'GinSign: Grounding Natural Language Into System Signatures for Temporal Logic Tr'?",
+          "id": "2512.16770v1_q_4",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "Natural language (NL) to temporal logic (TL) translation enables engineers to specify, verify, and enforce system behaviors without manually crafting formal specifications-an essential capability for "
+        }
+      ],
+      "ground_truth_context": {
+        "title": "GinSign: Grounding Natural Language Into System Signatures for Temporal Logic Translation",
+        "abstract": "Natural language (NL) to temporal logic (TL) translation enables engineers to specify, verify, and enforce system behaviors without manually crafting formal specifications-an essential capability for building trustworthy autonomous systems. While existing NL-to-TL translation frameworks have demonstrated encouraging initial results, these systems either explicitly assume access to accurate atom grounding or suffer from low grounded translation accuracy. In this paper, we propose a framework for ...",
+        "authors": [
+          "William English",
+          "Chase Walker",
+          "Dominic Simon",
+          "Rickard Ewetz"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16778v1",
+      "paper_title": "Non-Linear Strong Data-Processing for Quantum Hockey-Stick Divergences",
+      "authors": [
+        "Theshani Nuradha",
+        "Ian George",
+        "Christoph Hirche"
+      ],
+      "categories": [
+        "quant-ph",
+        "cs.CR",
+        "cs.IT",
+        "cs.LG"
+      ],
+      "questions": [
+        {
+          "question": "What is the main idea behind 'Non-Linear Strong Data-Processing for Quantum Hockey-Stick Divergences'?",
+          "id": "2512.16778v1_q_1",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "Data-processing is a desired property of classical and quantum divergences and information measures. In information theory, the contraction coefficient measures how much the distinguishability of quan"
+        },
+        {
+          "question": "Describe the approach taken in 'Non-Linear Strong Data-Processing for Quantum Hockey-Stick Divergences'.",
+          "id": "2512.16778v1_q_2",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Data-processing is a desired property of classical and quantum divergences and information measures. In information theory, the contraction coefficient measures how much the distinguishability of quan"
+        },
+        {
+          "question": "Who are the authors of 'Non-Linear Strong Data-Processing for Quantum Hockey-Stick Divergences'?",
+          "id": "2512.16778v1_q_3",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "Data-processing is a desired property of classical and quantum divergences and information measures. In information theory, the contraction coefficient measures how much the distinguishability of quan"
+        },
+        {
+          "question": "What are the key results of 'Non-Linear Strong Data-Processing for Quantum Hockey-Stick Divergences'?",
+          "id": "2512.16778v1_q_4",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "Data-processing is a desired property of classical and quantum divergences and information measures. In information theory, the contraction coefficient measures how much the distinguishability of quan"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Non-Linear Strong Data-Processing for Quantum Hockey-Stick Divergences",
+        "abstract": "Data-processing is a desired property of classical and quantum divergences and information measures. In information theory, the contraction coefficient measures how much the distinguishability of quantum states decreases when they are transmitted through a quantum channel, establishing linear strong data-processing inequalities (SDPI). However, these linear SDPI are not always tight and can be improved in most of the cases. In this work, we establish non-linear SDPI for quantum hockey-stick dive...",
+        "authors": [
+          "Theshani Nuradha",
+          "Ian George",
+          "Christoph Hirche"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16750v1",
+      "paper_title": "Plausibility as Failure: How LLMs and Humans Co-Construct Epistemic Error",
+      "authors": [
+        "Claudia Vale Oliveira",
+        "Nelson Zagalo",
+        "Filipe Silva",
+        "Anabela Brandao",
+        "Syeda Faryal Hussain Khurrum",
+        "Joaquim Santos"
+      ],
+      "categories": [
+        "cs.HC",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "What methods are used in 'Plausibility as Failure: How LLMs and Humans Co-Construct Epistemic Error'?",
+          "id": "2512.16750v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Large language models (LLMs) are increasingly used as epistemic partners in everyday reasoning, yet their errors remain predominantly analyzed through predictive metrics rather than through their inte"
+        },
+        {
+          "question": "What is the main idea behind 'Plausibility as Failure: How LLMs and Humans Co-Construct Epistemic Error'?",
+          "id": "2512.16750v1_q_2",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "Large language models (LLMs) are increasingly used as epistemic partners in everyday reasoning, yet their errors remain predominantly analyzed through predictive metrics rather than through their inte"
+        },
+        {
+          "question": "What is the main contribution of 'Plausibility as Failure: How LLMs and Humans Co-Construct Epistemic Error'?",
+          "id": "2512.16750v1_q_3",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "Large language models (LLMs) are increasingly used as epistemic partners in everyday reasoning, yet their errors remain predominantly analyzed through predictive metrics rather than through their inte"
+        },
+        {
+          "question": "What are the key results of 'Plausibility as Failure: How LLMs and Humans Co-Construct Epistemic Error'?",
+          "id": "2512.16750v1_q_4",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "Large language models (LLMs) are increasingly used as epistemic partners in everyday reasoning, yet their errors remain predominantly analyzed through predictive metrics rather than through their inte"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Plausibility as Failure: How LLMs and Humans Co-Construct Epistemic Error",
+        "abstract": "Large language models (LLMs) are increasingly used as epistemic partners in everyday reasoning, yet their errors remain predominantly analyzed through predictive metrics rather than through their interpretive effects on human judgment. This study examines how different forms of epistemic failure emerge, are masked, and are tolerated in human AI interaction, where failure is understood as a relational breakdown shaped by model-generated plausibility and human interpretive judgment. We conducted a...",
+        "authors": [
+          "Claudia Vale Oliveira",
+          "Nelson Zagalo",
+          "Filipe Silva",
+          "Anabela Brandao",
+          "Syeda Faryal Hussain Khurrum",
+          "Joaquim Santos"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16848v1",
+      "paper_title": "Meta-RL Induces Exploration in Language Agents",
+      "authors": [
+        "Yulun Jiang",
+        "Liangze Jiang",
+        "Damien Teney",
+        "Michael Moor",
+        "Maria Brbic"
+      ],
+      "categories": [
+        "cs.LG",
+        "cs.AI"
+      ],
+      "questions": [
+        {
+          "question": "What methods are used in 'Meta-RL Induces Exploration in Language Agents'?",
+          "id": "2512.16848v1_q_1",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "Reinforcement learning (RL) has enabled the training of large language model (LLM) agents to interact with the environment and to solve multi-turn long-horizon tasks. However, the RL-trained agents of"
+        },
+        {
+          "question": "What are the key results of 'Meta-RL Induces Exploration in Language Agents'?",
+          "id": "2512.16848v1_q_2",
+          "expected_answer_type": "results",
+          "difficulty": "hard",
+          "ground_truth": "Reinforcement learning (RL) has enabled the training of large language model (LLM) agents to interact with the environment and to solve multi-turn long-horizon tasks. However, the RL-trained agents of"
+        },
+        {
+          "question": "Describe the approach taken in 'Meta-RL Induces Exploration in Language Agents'.",
+          "id": "2512.16848v1_q_3",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "Reinforcement learning (RL) has enabled the training of large language model (LLM) agents to interact with the environment and to solve multi-turn long-horizon tasks. However, the RL-trained agents of"
+        },
+        {
+          "question": "What problem does 'Meta-RL Induces Exploration in Language Agents' address?",
+          "id": "2512.16848v1_q_4",
+          "expected_answer_type": "problem",
+          "difficulty": "medium",
+          "ground_truth": "Reinforcement learning (RL) has enabled the training of large language model (LLM) agents to interact with the environment and to solve multi-turn long-horizon tasks. However, the RL-trained agents of"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "Meta-RL Induces Exploration in Language Agents",
+        "abstract": "Reinforcement learning (RL) has enabled the training of large language model (LLM) agents to interact with the environment and to solve multi-turn long-horizon tasks. However, the RL-trained agents often struggle in tasks that require active exploration and fail to efficiently adapt from trial-and-error experiences. In this paper, we present LaMer, a general Meta-RL framework that enables LLM agents to actively explore and learn from the environment feedback at test time. LaMer consists of two k...",
+        "authors": [
+          "Yulun Jiang",
+          "Liangze Jiang",
+          "Damien Teney",
+          "Michael Moor",
+          "Maria Brbic"
+        ]
+      }
+    },
+    {
+      "paper_id": "2512.16768v1",
+      "paper_title": "On The Hidden Biases of Flow Matching Samplers",
+      "authors": [
+        "Soon Hoe Lim"
+      ],
+      "categories": [
+        "stat.ML",
+        "cs.LG",
+        "math.PR"
+      ],
+      "questions": [
+        {
+          "question": "What is the main contribution of 'On The Hidden Biases of Flow Matching Samplers'?",
+          "id": "2512.16768v1_q_1",
+          "expected_answer_type": "contribution",
+          "difficulty": "medium",
+          "ground_truth": "We study the implicit bias of flow matching (FM) samplers via the lens of empirical flow matching. Although population FM may produce gradient-field velocities resembling optimal transport (OT), we sh"
+        },
+        {
+          "question": "What methods are used in 'On The Hidden Biases of Flow Matching Samplers'?",
+          "id": "2512.16768v1_q_2",
+          "expected_answer_type": "methodology",
+          "difficulty": "medium",
+          "ground_truth": "We study the implicit bias of flow matching (FM) samplers via the lens of empirical flow matching. Although population FM may produce gradient-field velocities resembling optimal transport (OT), we sh"
+        },
+        {
+          "question": "What is the main idea behind 'On The Hidden Biases of Flow Matching Samplers'?",
+          "id": "2512.16768v1_q_3",
+          "expected_answer_type": "contribution",
+          "difficulty": "easy",
+          "ground_truth": "We study the implicit bias of flow matching (FM) samplers via the lens of empirical flow matching. Although population FM may produce gradient-field velocities resembling optimal transport (OT), we sh"
+        },
+        {
+          "question": "Who are the authors of 'On The Hidden Biases of Flow Matching Samplers'?",
+          "id": "2512.16768v1_q_4",
+          "expected_answer_type": "author",
+          "difficulty": "easy",
+          "ground_truth": "We study the implicit bias of flow matching (FM) samplers via the lens of empirical flow matching. Although population FM may produce gradient-field velocities resembling optimal transport (OT), we sh"
+        },
+        {
+          "question": "Describe the approach taken in 'On The Hidden Biases of Flow Matching Samplers'.",
+          "id": "2512.16768v1_q_5",
+          "expected_answer_type": "methodology",
+          "difficulty": "hard",
+          "ground_truth": "We study the implicit bias of flow matching (FM) samplers via the lens of empirical flow matching. Although population FM may produce gradient-field velocities resembling optimal transport (OT), we sh"
+        }
+      ],
+      "ground_truth_context": {
+        "title": "On The Hidden Biases of Flow Matching Samplers",
+        "abstract": "We study the implicit bias of flow matching (FM) samplers via the lens of empirical flow matching. Although population FM may produce gradient-field velocities resembling optimal transport (OT), we show that the empirical FM minimizer is almost never a gradient field, even when each conditional flow is. Consequently, empirical FM is intrinsically energetically suboptimal. In view of this, we analyze the kinetic energy of generated samples. With Gaussian sources, both instantaneous and integrated...",
+        "authors": [
+          "Soon Hoe Lim"
+        ]
+      }
+    }
+  ]
+}

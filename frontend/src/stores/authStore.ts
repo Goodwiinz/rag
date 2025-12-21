@@ -1,7 +1,7 @@
+import { apiClient } from '@/services/apiClient';
+import { Organization, User } from '@/types';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, Organization } from '@/types';
-import { apiClient } from '@/services/apiClient';
 
 // API Response Types
 interface LoginResponse {
@@ -30,6 +30,7 @@ interface AuthState {
   user: User | null;
   organization: Organization | null;
   token: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -53,6 +54,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       organization: null,
       token: null,
+      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -63,6 +65,7 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           const token = localStorage.getItem('access_token');
+          const refreshToken = localStorage.getItem('refresh_token');
           const userData = localStorage.getItem('user_data');
 
           if (token && userData) {
@@ -88,6 +91,7 @@ export const useAuthStore = create<AuthState>()(
               user,
               organization,
               token,
+              refreshToken: refreshToken || null,
               isAuthenticated: true,
               isLoading: false,
               error: null,
@@ -117,7 +121,9 @@ export const useAuthStore = create<AuthState>()(
           set({
             user: data.user,
             organization: data.organization,
-            token: data.access_token, // Backend returns access_token
+            organization: data.organization,
+            token: data.access_token,
+            refreshToken: data.refresh_token,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -138,7 +144,9 @@ export const useAuthStore = create<AuthState>()(
           set({
             user: data.user,
             organization: data.organization,
+            organization: data.organization,
             token: data.access_token,
+            refreshToken: data.refresh_token,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -155,6 +163,7 @@ export const useAuthStore = create<AuthState>()(
           user: null,
           organization: null,
           token: null,
+          refreshToken: null,
           isAuthenticated: false,
           error: null,
         });
@@ -166,10 +175,14 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           const data: RefreshResponse = await apiClient.post('/auth/refresh', {
-            refresh_token: token, // Backend expects refresh_token in body
+            refresh_token: get().refreshToken || token, // Use stored refresh token or fall back to access token
           });
 
-          set({ token: data.access_token });
+          set({ 
+            token: data.access_token,
+            // Update refresh token if provided in response (rotation)
+            ...(data.refresh_token && { refreshToken: data.refresh_token })
+          });
         } catch (error) {
           get().logout();
         }
@@ -210,7 +223,9 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         organization: state.organization,
+        organization: state.organization,
         token: state.token,
+        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
     }

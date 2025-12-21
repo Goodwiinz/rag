@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
 import jwt
-from passlib.context import CryptContext
+# from passlib.context import CryptContext  # Removed
 import redis.asyncio as redis
 
 from fastapi import FastAPI, HTTPException, status, Depends, Query, BackgroundTasks
@@ -33,6 +33,7 @@ from ..shared.utils import (
 )
 from ..core.database import get_db
 from ..core.config import settings
+from ..core.security import verify_password, get_password_hash  # Imported
 from ..models.user import User, UserRole as UserRoleEnum
 from ..models.organization import Organization, StorageTier
 
@@ -78,7 +79,7 @@ rate_limiter = RateLimiter(settings.REDIS_URL)
 cache = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 # Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")  # Removed
 security = HTTPBearer()
 
 
@@ -93,11 +94,11 @@ class AuthService:
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify password against hash"""
-        return pwd_context.verify(plain_password, hashed_password)
+        return verify_password(plain_password, hashed_password)
 
     def get_password_hash(self, password: str) -> str:
         """Generate password hash"""
-        return pwd_context.hash(password)
+        return get_password_hash(password)
 
     def validate_password_strength(self, password: str) -> tuple[bool, List[str]]:
         """Validate password strength"""

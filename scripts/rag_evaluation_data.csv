@@ -1,0 +1,1 @@
+query,document_id,rank,cosine_similarity,hybrid_score,doc_length,query_length,relevance_score,is_relevant,source
