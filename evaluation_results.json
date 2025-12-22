@@ -1,560 +1,26 @@
 {
   "evaluation_info": {
-    "timestamp": "2025-12-21T12:43:25.388128",
+    "timestamp": "2025-12-22T11:56:57.341155",
     "api_base_url": "http://localhost:8000"
   },
   "test_cases": [
     {
-      "paper_id": "2512.16920v1",
-      "paper_title": "EasyV2V: A High-quality Instruction-based Video Editing Framework",
+      "paper_id": "2512.16046v1",
+      "paper_title": "CauSTream: Causal Spatio-Temporal Representation Learning for Streamflow Forecasting",
       "categories": [
+        "stat.ML",
+        "cs.LG",
         "cs.AI",
-        "cs.CV"
+        "cs.CE"
       ],
       "question_results": [
-        {
-          "question": "What datasets were used to evaluate this approach?",
-          "question_id": "2512.16920v1_q_1",
-          "difficulty": "easy",
-          "expected_answer_type": "results",
-          "response_time_ms": 7785.894155502319,
-          "answer": "Based on the provided excerpts, none of the papers specify the datasets used to evaluate their approaches. The abstracts for:\n- EasyV2V: A High-quality Instruction-based Video Editing Framework (Jinjie Mai, Chaoyang Wang, Guocheng Gordon Qian, et al.)\n- VIVA: VLM-Guided Instruction-Based Video Editing with Reward Optimization (Xiaoyan Cong, Haotian Yang, Angtian Wang, et al.)\n- RePlan: Reasoning-guided Region Planning for Complex Instruction-based Image Editing (Tianyuan Qu, Lei Ke, Xiaohang Zhan, et al.)\n- LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Generation Video Recommendation (Haichao Zhang, Yao Lu, Lichen Wang, et al.)\n- StereoPilot: Learning Unified and Efficient Stereo Conversion via Generative Priors (Guibao Shen, Yihua Du, Wenhang Ge, et al.)\n\ndo not mention any specific datasets or experimental setups. If you can provide the methods or experiments sections, I can extract the exact datasets used.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.9285714285714286,
-            "faithfulness": 0.625,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What is the main contribution of 'EasyV2V: A High-quality Instruction-based Video Editing Framework'?",
-          "question_id": "2512.16920v1_q_2",
-          "difficulty": "easy",
-          "expected_answer_type": "contribution",
-          "response_time_ms": 6398.529767990112,
-          "answer": "- Main contribution: The paper \"EasyV2V: A High-quality Instruction-based Video Editing Framework\" introduces EasyV2V, a framework for high-quality instruction-based video editing that enables editing videos according to natural-language instructions. \n- Context and scope: It aims to close the gap where image editing has advanced but video editing remains challenging, delivering a high-quality instruction-driven editing pipeline. \n- Details: Authors listed are Jinjie Mai, Chaoyang Wang, Guocheng Gordon Qian, Willi Menapace, Sergey Tulyakov, Bernard Ghanem, Peter Wonka, and Ashkan Mirzaei (arXiv:2512.16920v1).",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 1.0,
-            "faithfulness": 0.75,
-            "contextual_precision": 0.4
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
         {
           "question": "Describe the approach taken in this paper.",
-          "question_id": "2512.16920v1_q_3",
+          "question_id": "2512.16046v1_q_1",
           "difficulty": "hard",
           "expected_answer_type": "methodology",
-          "response_time_ms": 10817.461013793945,
-          "answer": "- EasyV2V: A High-quality Instruction-based Video Editing Framework (Jinjie Mai, Chaoyang Wang, Guocheng Gordon Qian, Willi Menapace, Sergey Tulyakov, Bernard Ghanem, Peter Wonka, Ashkan Mirzaei) \u2014 The paper introduces EasyV2V, a high-quality framework for instruction-based video editing that presumably enables edits guided by natural-language instructions.\n\n- VIVA: VLM-Guided Instruction-Based Video Editing with Reward Optimization (Xiaoyan Cong, Haotian Yang, Angtian Wang, Yizhi Wang, Yiding Yang, Canyu Zhang, Chongyang Ma) \u2014 The approach uses a Vision-Language Model (VLM) to guide instruction-based video editing and employs reward optimization to improve editing performance.\n\n- RePlan: Reasoning-guided Region Planning for Complex Instruction-based Image Editing (Tianyuan Qu, Lei Ke, Xiaohang Zhan, Longxiang Tang, Yuqi Liu, Bohao Peng, Bei Yu, Dong Yu, Jiaya Jia) \u2014 The method applies reasoning-guided region planning to handle complex instruction-based image editing tasks.\n\n- LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Generation Video Recommendation (Haichao Zhang, Yao Lu, Lichen Wang, Yunzhe Li, Daiwei Chen, Yunpeng Xu, Yun Fu) \u2014 The work focuses on leveraging world-knowledge representations derived from Video LLMs to enhance next-generation video recommendation.\n\n- StereoPilot: Learning Unified and Efficient Stereo Conversion via Generative Priors (Guibao Shen, Yihua Du, Wenhang Ge, Jing He, Chirui Chang, Donghao Zhou, Zhen Yang, Luozhou Wang, Xin Tao, Ying-Cong Chen) \u2014 The paper proposes a unified and efficient stereo conversion approach that utilizes generative priors to achieve stereo conversion.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8333333333333333,
-            "faithfulness": 1.0,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "What baselines were compared against in this research?",
-          "question_id": "2512.16920v1_q_4",
-          "difficulty": "medium",
-          "expected_answer_type": "comparison",
-          "response_time_ms": 7982.905149459839,
-          "answer": "- Across all provided abstracts, there is no explicit listing of baselines used for comparison. \n- Papers: EasyV2V: A High-quality Instruction-based Video Editing Framework (Jinjie Mai, Chaoyang Wang, Guocheng Gordon Qian, Willi Menapace, Sergey Tulyakov, Bernard Ghanem, Peter Wonka, Ashkan Mirzaei); VIVA: VLM-Guided Instruction-Based Video Editing with Reward Optimization (Xiaoyan Cong, Haotian Yang, Angtian Wang, Yizhi Wang, Yiding Yang, Canyu Zhang, Chongyang Ma); RePlan: Reasoning-guided Region Planning for Complex Instruction-based Image Editing (Tianyuan Qu, Lei Ke, Xiaohang Zhan, Longxiang Tang, Yuqi Liu, Bohao Peng, Bei Yu, Dong Yu, Jiaya Jia); LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Generation Video Recommendation (Haichao Zhang, Yao Lu, Lichen Wang, Yunzhe Li, Daiwei Chen, Yunpeng Xu, Yun Fu); SceneDiff: A Benchmark and Method for Multiview Object Change Detection (Yuqun Wu, Chih-hao Lin, Henry Che, Aditi Tiwari, Chuhang Zou, Shenlong Wang, Derek Hoiem). \n- The abstracts provided do not mention any experimental baselines against which these methods were compared. If you can share the full experimental sections or results, I can extract the exact baselines used.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.9285714285714286,
-            "faithfulness": 0.25,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "Who are the authors of 'EasyV2V: A High-quality Instruction-based Video Editing Framework' and what institutions are they affiliated with?",
-          "question_id": "2512.16920v1_q_5",
-          "difficulty": "easy",
-          "expected_answer_type": "author",
-          "response_time_ms": 3548.78306388855,
-          "answer": "- Authors: Jinjie Mai, Chaoyang Wang, Guocheng Gordon Qian, Willi Menapace, Sergey Tulyakov, Bernard Ghanem, Peter Wonka, Ashkan Mirzaei (from Document 1: EasyV2V: A High-quality Instruction-based Video Editing Framework).\n- Affiliations: Not provided in the excerpt of Document 1; the source text does not list institutional affiliations for these authors.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8125,
-            "faithfulness": 0.5,
-            "contextual_precision": 0.4
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        }
-      ]
-    },
-    {
-      "paper_id": "2512.16919v1",
-      "paper_title": "DVGT: Driving Visual Geometry Transformer",
-      "categories": [
-        "cs.AI",
-        "cs.CV",
-        "cs.RO"
-      ],
-      "question_results": [
-        {
-          "question": "Who are the authors of 'DVGT: Driving Visual Geometry Transformer' and what institutions are they affiliated with?",
-          "question_id": "2512.16919v1_q_1",
-          "difficulty": "medium",
-          "expected_answer_type": "author",
-          "response_time_ms": 3144.5391178131104,
-          "answer": "- Authors: Sicheng Zuo and Zixun Xie. \n- Source: DVGT: Driving Visual Geometry Transformer, Document 1 (ID: 2512.16919v1). \n- Affiliation: The provided excerpt lists only the author names and topics (cs.AI, cs.CV, cs.RO) and does not include any institutional affiliations, so affiliations cannot be determined from this document.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8333333333333333,
-            "faithfulness": 0.42857142857142855,
-            "contextual_precision": 0.2
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What are the limitations of existing approaches that this paper addresses?",
-          "question_id": "2512.16919v1_q_2",
-          "difficulty": "medium",
-          "expected_answer_type": "problem",
-          "response_time_ms": 8196.465969085693,
-          "answer": "- GenEval 2: Addressing Benchmark Drift in Text-to-Image Evaluation by Amita Kamath, Kai-Wei Chang, Ranjay Krishna, Luke Zettlemoyer, Yushi Hu, and Marjan Ghazvininejad notes that automated Text-to-Image evaluation is inherently challenging because it relies on a judge model to score outputs, highlighting a limitation of prior automated methods. \n- The paper\u2019s title explicitly flags benchmark drift as a key limitation, i.e., shifts in evaluation benchmarks over time that can undermine reproducibility and fairness. \n- Collectively, the work identifies two main limitations of existing approaches: dependence on a judge model for evaluation and vulnerability to benchmark drift, which GenEval 2 aims to address.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.9,
-            "faithfulness": 0.8,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What domains could benefit from this work?",
-          "question_id": "2512.16919v1_q_3",
-          "difficulty": "easy",
-          "expected_answer_type": "application",
-          "response_time_ms": 15770.944118499756,
-          "answer": "Domains that could benefit include autonomous driving (DVGT: Driving Visual Geometry Transformer by Sicheng Zuo and Zixun Xie), where perceiving and reconstructing 3D scene geometry from visual inputs is crucial; portrait animation and telepresence (Instant Expressive Gaussian Head Avatar via 3D-Aware Expression Distillation by Kaiwen Jiang, Xueting Li, Seonwook Park, Ravi Ramamoorthi, Shalini De Mello, Koki Nagano) leveraging 3D-aware expression distillation to create expressive Gaussian head avatars; image/video editing and multimodal tool use (AdaTooler-V: Adaptive Tool-Use for Images and Videos by Chaoyang Wa) enabling adaptive tool use across images and videos; efficient vision-language retrieval (Image Complexity-Aware Adaptive Retrieval for Efficient Vision-Language Models by Mikel Williams-Lekuona and Georgina Cosma) with complexity-aware retrieval to optimize resources; and stereo/3D content creation for VR/AR displays (StereoPilot: Learning Unified and Efficient Stereo Conversion via Generative Priors by Guibao Shen, Yihua Du, Wenhang Ge, Jing He, Chirui Chang, Donghao Zhou, Zhen Yang, Luozhou Wang, Xin Tao, Ying-Cong Chen) leveraging generative priors for stereo conversion.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 1.0,
-            "faithfulness": 1.0,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "What improvements does this approach achieve over existing methods?",
-          "question_id": "2512.16919v1_q_4",
-          "difficulty": "easy",
-          "expected_answer_type": "comparison",
-          "response_time_ms": 20461.5318775177,
-          "answer": "",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.0,
-            "faithfulness": 0.0,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": false,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What are the limitations mentioned by the authors?",
-          "question_id": "2512.16919v1_q_5",
-          "difficulty": "medium",
-          "expected_answer_type": "future_work",
-          "response_time_ms": 13767.812013626099,
-          "answer": "- Soft Geometric Inductive Bias for Object Centric Dynamics, Hampus Linander, Conor Heins, Alexander Tschantz, Marco Perin, Christopher Buckley: The authors point out a limitation of exact group equivariance\u2014\u201cexact group equivariance can d[???],\u201d i.e., can be restrictive or hard to realize in practice\u2014which motivates their proposal of a Soft Geometric Inductive Bias as a remedy.\n\n- GenEval 2: Addressing Benchmark Drift in Text-to-Image Evaluation, Amita Kamath, Kai-Wei Chang, Ranjay Krishna, Luke Zettlemoyer, Yushi Hu, Marjan Ghazvininejad: The abstract highlights that automating Text-to-Image evaluation is challenging and relies on a judge model, and the work is framed around addressing benchmark drift in T2I evaluation.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.6666666666666666,
-            "faithfulness": 0.75,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": false,
-            "faithfulness": false
-          }
-        }
-      ]
-    },
-    {
-      "paper_id": "2512.16921v1",
-      "paper_title": "Differences That Matter: Auditing Models for Capability Gap Discovery and Rectification",
-      "categories": [
-        "cs.AI",
-        "cs.CV"
-      ],
-      "question_results": [
-        {
-          "question": "What is the core algorithm or model proposed?",
-          "question_id": "2512.16921v1_q_1",
-          "difficulty": "medium",
-          "expected_answer_type": "methodology",
-          "response_time_ms": 18354.939222335815,
-          "answer": "",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.0,
-            "faithfulness": 0.0,
-            "contextual_precision": 0.2
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": false,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What are the practical applications of this research?",
-          "question_id": "2512.16921v1_q_2",
-          "difficulty": "hard",
-          "expected_answer_type": "application",
-          "response_time_ms": 14301.017045974731,
-          "answer": "- Differences That Matter: Auditing Models for Capability Gap Discovery and Rectification (Qihao Liu, Chengzhi Mao, Yaojie Liu, Alan Yuille, Wen-Sheng Chu) has practical applications in auditing multimodal LLMs to identify capability gaps and guide rectification through interpretable evaluation.\n\n- Constructive Circuit Amplification: Improving Math Reasoning in LLMs via Targeted Sub-Network Updates (Nikhil Prakash, Donghao Ren, Dominik Moritz, Yannick Assogba) provides a practical method to enhance mathematical reasoning by identifying sparse subnetworks and applying targeted updates (circuit amplification).\n\n- Pairwise Comparison for Bias Identification and Quantification (Fabian Haak, Philipp Schaer) and ModelTables: A Corpus of Tables about Models (Zhengyuan Dong, Victor Zhong, Ren\u00e9e J. Miller) offer practical tools for measuring linguistic bias in online content through pairwise comparisons and for benchmarking models via structured performance/configuration tables, respectively.\n\n- Agent Tools Orchestration Leaks More: Dataset, Benchmark, and Mitigation (Yuxuan Qiao, Dongqin Liu, Hongchang Yang, Wei Zhou, Songlin Hu) provides a dataset and benchmark to study and mitigate information leakage in single-agent, multi-tool LLM architectures, enabling safer and more reliable tool-use.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.7857142857142857,
-            "faithfulness": 1.0,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "What are the main experimental results of this paper?",
-          "question_id": "2512.16921v1_q_3",
-          "difficulty": "easy",
-          "expected_answer_type": "results",
-          "response_time_ms": 8763.686895370483,
-          "answer": "The provided abstracts do not state the main experimental results for any of the papers. For example:\n- \"Differences That Matter: Auditing Models for Capability Gap Discovery and Rectification\" (Qihao Liu, Chengzhi Mao, Yaojie Liu, Alan Yuille, Wen-Sheng Chu) discusses the need for interpretable evaluation and capability-gap auditing but reports no results in the abstract.\n- \"Constructive Circuit Amplification: Improving Math Reasoning in LLMs via Targeted Sub-Network Updates\" (Nikhil Prakash, Donghao Ren, Dominik Moritz, Yannick Assogba) mentions discovering sparse subnetworks and targeted updates but provides no experimental outcomes.\n- Similar absence of results is seen in \"Pairwise Comparison for Bias Identification and Quantification\" (Fabian Haak, Philipp Schaer), \"ModelTables: A Corpus of Tables about Models\" (Zhengyuan Dong, Victor Zhong, Ren\u00e9e J. Miller), and \"Agent Tools Orchestration Leaks More: Dataset, Benchmark, and Mitigation\" (Yuxuan Qiao, Dongqin Liu, Hongchang Yang, Wei Zhou, Songlin Hu).",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 1.0,
-            "faithfulness": 0.8,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What improvements does this approach achieve over existing methods?",
-          "question_id": "2512.16921v1_q_4",
-          "difficulty": "medium",
-          "expected_answer_type": "comparison",
-          "response_time_ms": 18387.434005737305,
-          "answer": "- Qihao Liu, Chengzhi Mao, Yaojie Liu, Alan Yuille, and Wen-Sheng Chu, in Differences That Matter: Auditing Models for Capability Gap Discovery and Rectification, propose an interpretability-centered auditing framework that enables discovery and rectification of capability gaps in multimodal LLMs, addressing the shortcomings of conventional evaluation methods.\n\n- Nikhil Prakash, Donghao Ren, Dominik Moritz, and Yannick Assogba, in Constructive Circuit Amplification: Improving Math Reasoning in LLMs via Targeted Sub-Network Updates, report improvements in math reasoning by updating targeted sparse subnetworks (circuit amplification) rather than the whole model, leveraging discovered sparse subnetworks.\n\n- Fabian Haak and Philipp Schaer, in Pairwise Comparison for Bias Identification and Quantification, introduce a pairwise-comparison approach to identify and quantify linguistic bias in online news and social media, offering a more robust measurement method that mitigates subjectivity in existing approaches.\n\n- Yuxuan Qiao, Dongqin Liu, Hongchang Yang, Wei Zhou, and Songlin Hu, in Agent Tools Orchestration Leaks More: Dataset, Benchmark, and Mitigation, provide a new dataset and benchmark for single-agent, multi-tool orchestration and discuss mitigation strategies, representing improvements in evaluation resources and guidance over prior methods.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.9444444444444444,
-            "faithfulness": 1.0,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "What are the limitations mentioned by the authors?",
-          "question_id": "2512.16921v1_q_5",
-          "difficulty": "medium",
-          "expected_answer_type": "future_work",
-          "response_time_ms": 11325.983047485352,
-          "answer": "- In \u201cDifferences That Matter: Auditing Models for Capability Gap Discovery and Rectification\u201d by Qihao Liu, Chengzhi Mao, Yaojie Liu, Alan Yuille, and Wen-Sheng Chu, the authors identify a limitation of current work: conventional evaluation methods for multimodal LLMs lack interpretability.  \n- In \u201cPairwise Comparison for Bias Identification and Quantification\u201d by Fabian Haak and Philipp Schaer, they note a limitation in measuring linguistic bias: it is widespread but difficult to measure due to subjectivity in assessment.  \n- The abstracts of \u201cConstructive Circuit Amplification: Improving Math Reasoning in LLMs via Targeted Sub-Network Updates\u201d (Nikhil Prakash et al.), \u201cModelTables: A Corpus of Tables about Models\u201d (Zhengyuan Dong, Victor Zhong, Ren\u00e9e J. Miller), and \u201cAgent Tools Orchestration Leaks More: Dataset, Benchmark, and Mitigation\u201d (Yuxuan Qiao et al.) do not explicitly state a limitation within the provided excerpts.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.6666666666666666,
-            "faithfulness": 0.8333333333333334,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": false,
-            "faithfulness": true
-          }
-        }
-      ]
-    },
-    {
-      "paper_id": "2512.16917v1",
-      "paper_title": "Generative Adversarial Reasoner: Enhancing LLM Reasoning with Adversarial Reinforcement Learning",
-      "categories": [
-        "cs.AI",
-        "cs.CL",
-        "cs.LG"
-      ],
-      "question_results": [
-        {
-          "question": "What is the research background of the authors?",
-          "question_id": "2512.16917v1_q_1",
-          "difficulty": "easy",
-          "expected_answer_type": "author",
-          "response_time_ms": 23030.330896377563,
-          "answer": "",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.0,
-            "faithfulness": 0.0,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": false,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What future work is suggested in this paper?",
-          "question_id": "2512.16917v1_q_2",
-          "difficulty": "medium",
-          "expected_answer_type": "future_work",
-          "response_time_ms": 5993.551731109619,
-          "answer": "- The provided documents do not contain an explicit statement of future work. In particular, Document 5 (Constructive Circuit Amplification: Improving Math Reasoning in LLMs via Targeted Sub-Network Updates, Nikhil Prakash et al.) presents an abstract that begins with \u201cPrior studies investigating the internal workings of LLMs have uncovered sparse subnetworks,\u201d but does not include any stated future directions. The abstracts for Documents 1\u20134 are truncated and likewise do not reveal any future-work suggestions. Therefore, no specific future work is identifiable from these sources.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8333333333333333,
-            "faithfulness": 0.4,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "How can the findings of 'Generative Adversarial Reasoner: Enhancing LLM Reasoning with Adversarial Reinforcement Learning' be applied in real-world scenarios?",
-          "question_id": "2512.16917v1_q_3",
-          "difficulty": "easy",
-          "expected_answer_type": "application",
-          "response_time_ms": 9251.567840576172,
-          "answer": "- Paper details: \"Generative Adversarial Reasoner: Enhancing LLM Reasoning with Adversarial Reinforcement Learning\" by Qihao Liu, Luoxin Ye, Wufei Ma, Yu-Cheng Chou, and Alan Yuille (Document 1, ID 2512.16917v1).\n\n- Application idea: The Generative Adversarial Reasoner uses adversarial reinforcement learning to enhance explicit reasoning in LLMs, with the abstract noting its focus on mathematical reasoning. In real-world settings, this approach can be deployed in educational tutoring and automated problem-solving systems that require reliable, step-by-step mathematical or logical reasoning.\n\n- Practical impact: By training the reasoning module against adversarial signals or challenging prompts, the method aims to produce more robust and trustworthy chain-of-thought outputs, potentially improving safety and accuracy of LLM-powered decision-support tools in domains demanding rigorous deduction.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 1.0,
-            "faithfulness": 0.6,
-            "contextual_precision": 0.2
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What are the limitations of existing approaches that this paper addresses?",
-          "question_id": "2512.16917v1_q_4",
-          "difficulty": "medium",
-          "expected_answer_type": "problem",
-          "response_time_ms": 8555.391073226929,
-          "answer": "- Paper: Constructive Circuit Amplification: Improving Math Reasoning in LLMs via Targeted Sub-Network Updates (Nikhil Prakash, Donghao Ren, Dominik Moritz, Yannick Assogba).\n\n- Limitation identified: Prior studies investigating the internal workings of LLMs have uncovered sparse subnetworks, implying that standard, non-targeted parameter updates may be ill-suited to reliably enhance specific capabilities like math reasoning.\n\n- How the paper addresses it: It proposes Constructive Circuit Amplification, a method of targeted sub-network updates that leverage these sparse circuits to improve math reasoning.",
+          "response_time_ms": 2074.213743209839,
+          "answer": "The paper \"CauSTream: Causal Spatio-Temporal Representation Learning for Streamflow Forecasting\" by Shu Wan et al. focuses on streamflow forecasting, which is essential for water resource management. The authors propose a causal spatio-temporal representation learning approach to improve forecasting accuracy by capturing the intricate relationships between spatial and temporal factors affecting streamflow.",
           "retrieved_count": 10,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
@@ -566,23 +32,27 @@
           },
           "answer_metrics": {
             "answer_relevancy": 0.8,
-            "faithfulness": 1.0,
-            "contextual_precision": 0.2
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.997541069984436,
+            "hallucination_probability": 0.002458930015563965,
+            "overall_score": 0.8742623209953307
           },
           "meets_thresholds": {
             "response_time": false,
-            "precision_at_3": false,
+            "precision_at_3": true,
             "answer_relevancy": true,
             "faithfulness": true
           }
         },
         {
-          "question": "What are the main experimental results of this paper?",
-          "question_id": "2512.16917v1_q_5",
-          "difficulty": "medium",
-          "expected_answer_type": "results",
-          "response_time_ms": 7337.78715133667,
-          "answer": "- The provided source documents do not include any reported experimental results for the papers. The abstracts are truncated or incomplete, so no quantitative outcomes or comparisons can be cited. For example, Document 5, \u201cConstructive Circuit Amplification: Improving Math Reasoning in LLMs via Targeted Sub-Network Updates\u201d by Nikhil Prakash et al., only states that prior work found sparse subnetworks and mentions targeted sub-network updates, but gives no experimental results.",
+          "question": "Who are the authors of 'CauSTream: Causal Spatio-Temporal Representation Learning for Streamflow Forecasting' and what institutions are they affiliated with?",
+          "question_id": "2512.16046v1_q_2",
+          "difficulty": "hard",
+          "expected_answer_type": "author",
+          "response_time_ms": 1224.971055984497,
+          "answer": "The authors of \"CauSTream: Causal Spatio-Temporal Representation Learning for Streamflow Forecasting\" are Shu Wan, Reepal Shah, John Sabo, Huan Liu, and K. Sel\u00e7uk Candan. The document does not specify their institutional affiliations.",
           "retrieved_count": 10,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
@@ -593,119 +63,134 @@
             "recall": 1.0
           },
           "answer_metrics": {
-            "answer_relevancy": 1.0,
-            "faithfulness": 0.5,
-            "contextual_precision": 0.2
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.853713870048523,
+            "hallucination_probability": 0.14628612995147705,
+            "overall_score": 0.8311141610145568
           },
           "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What metrics were used to measure performance?",
+          "question_id": "2512.16046v1_q_3",
+          "difficulty": "medium",
+          "expected_answer_type": "results",
+          "response_time_ms": 1070.847988128662,
+          "answer": "The documents do not provide specific details on the metrics used to measure performance. However, Document 3 mentions that more details on metrics can be found in supplementary material, indicating that performance metrics were discussed but not explicitly listed in the provided content.",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.3184953033924103,
+            "hallucination_probability": 0.6815046966075897,
+            "overall_score": 0.670548591017723
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": true,
             "answer_relevancy": true,
             "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the practical applications of this research?",
+          "question_id": "2512.16046v1_q_4",
+          "difficulty": "medium",
+          "expected_answer_type": "application",
+          "response_time_ms": 1548.7840175628662,
+          "answer": "The research in \"CauSTream: Causal Spatio-Temporal Representation Learning for Streamflow Forecasting\" by Shu Wan et al. focuses on streamflow forecasting, which is essential for water resource management and risk mitigation. Additionally, the study \"Abacus: Self-Supervised Event Counting-Aligned Distributional Pretraining\" by Sullivan Castro et al. addresses user purchase behavior modeling, which is crucial for improving display advertising effectiveness. These applications highlight the importance of accurate predictions in resource management and marketing strategies.",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9266762733459473,
+            "hallucination_probability": 0.07332372665405273,
+            "overall_score": 0.853002882003784
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "How does 'CauSTream: Causal Spatio-Temporal Representation Learning for Streamflow Forecasting' advance the field of stat.ML?",
+          "question_id": "2512.16046v1_q_5",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1412.806749343872,
+          "answer": "The paper \"CauSTream: Causal Spatio-Temporal Representation Learning for Streamflow Forecasting\" by Shu Wan et al. advances the field of statistical machine learning (stat.ML) by introducing a novel approach for streamflow forecasting that emphasizes causal relationships in spatio-temporal data. This method enhances the accuracy of predictions crucial for water resource management and risk mitigation, addressing the complexities of temporal dependencies and spatial contexts in streamflow data.",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.993057370185852,
+            "hallucination_probability": 0.006942629814147949,
+            "overall_score": 0.8729172110557555
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
+            "faithfulness": true
           }
         }
       ]
     },
     {
-      "paper_id": "2512.16912v1",
-      "paper_title": "Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Spurious Reward",
+      "paper_id": "2512.11743v1",
+      "paper_title": "CogniSNN: Enabling Neuron-Expandability, Pathway-Reusability, and Dynamic-Configurability with Random Graph Architectures in Spiking Neural Networks",
       "categories": [
-        "cs.AI",
-        "cs.LG",
-        "cs.CL"
+        "cs.NE",
+        "cs.AI"
       ],
       "question_results": [
         {
-          "question": "Describe the approach taken in this paper.",
-          "question_id": "2512.16912v1_q_1",
-          "difficulty": "medium",
-          "expected_answer_type": "methodology",
-          "response_time_ms": 6458.270072937012,
-          "answer": "Paper: Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning (Andrew Wagenmaker, Perry Dong, Raymond Tsao, Chelsea Finn, Sergey Levine).\n\nApproach: The authors propose pretraining a behavioral cloning (BC) policy on offline data as an initialization for subsequent reinforcement learning (RL) finetuning. They argue that this BC pretraining\u2014a standard practice across robotics and language domains\u2014bootstraps RL training to improve efficiency and sample efficiency during the RL finetuning phase. The method emphasizes leveraging offline behavior cloning to provide a strong starting policy before engaging in RL optimization.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8333333333333333,
-            "faithfulness": 0.75,
-            "contextual_precision": 0.2
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What is the research background of the authors?",
-          "question_id": "2512.16912v1_q_2",
-          "difficulty": "medium",
-          "expected_answer_type": "author",
-          "response_time_ms": 13194.754123687744,
-          "answer": "The authors\u2019 research backgrounds are centered on reinforcement learning and its applications across AI, language, robotics, and optimization, as reflected by the five papers\u2019 topics and venues (cs.AI, cs.LG, cs.CL, cs.RO, cs.NE). For example, Peter Chen et al. in \u201cExploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Spurious Reward\u201d study exploration-exploitation in RL, while Yulun Jiang et al. in \u201cMeta-RL Induces Exploration in Language Agents\u201d investigate meta-RL to foster exploration in language agents. Further, Bingxiang He et al. in \u201cJustRL: Scaling a 1.5B LLM with a Simple RL Recipe\u201d apply RL to scale large language models, Andrew Wagenmaker et al. in \u201cPosterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning\u201d (with Chelsea Finn and Sergey Levine) address pretraining BC policies for efficient RL finetuning in robotics/AI, and Mehmet Emin Aydin\u2019s \u201cAn exploration for higher efficiency in multi objective optimisation with reinforcement learning\u201d extends RL to multi-objective optimization.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.9,
-            "faithfulness": 0.4666666666666667,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What metrics were used to measure performance?",
-          "question_id": "2512.16912v1_q_3",
-          "difficulty": "medium",
-          "expected_answer_type": "results",
-          "response_time_ms": 11808.463096618652,
-          "answer": "- The five provided papers and their abstracts do not specify any performance metrics in the visible text. \n- Papers and authors: \n  - \"Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Spurious Reward\" \u2014 Peter Chen, Xiaopeng Li, Ziniu Li, Wotao Yin, Xi Chen, Tianyi Lin; abstract truncates after \"reinforcement learni.\"\n  - \"Meta-RL Induces Exploration in Language Agents\" \u2014 Yulun Jiang, Liangze Jiang, Damien Teney, Michael Moor, Maria Brbic; abstract begins with RL enabling LLM agents but no metrics.\n  - \"JustRL: Scaling a 1.5B LLM with a Simple RL Recipe\" \u2014 Bingxiang He, Zekai Qu, Zeyuan Liu, Yinghao Chen, Yuxin Zuo, Cheng Qian, Kaiyan Zhang, Weize Chen, Chaojun Xiao, Ganqu Cui, Ning Ding, Zhiyuan Liu; abstract begins but contains no metrics.\n  - \"Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning\" \u2014 Andrew Wagenmaker, Perry Dong, Raymond Tsao, Chelsea Finn, Sergey Levine; abstract begins but contains no metrics.\n  - \"AdaSearch: Balancing Parametric Knowledge and Search in Large Language Models via Reinforcement Learning\" \u2014 Tzu-Han Lin, Wei-Lin Chen, Chen-An Li, Hung-yi Lee, Yun-Nung Chen, Yu Meng; abstract begins but contains no metrics.\n- Conclusion: The provided excerpts do not include any measured performance metrics, so a determination of metrics cannot be made from these sources alone.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.6666666666666666,
-            "faithfulness": 0.8,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": false,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What are the key innovations introduced in this paper?",
-          "question_id": "2512.16912v1_q_4",
+          "question": "What are the main experimental results of this paper?",
+          "question_id": "2512.11743v1_q_1",
           "difficulty": "hard",
-          "expected_answer_type": "contribution",
-          "response_time_ms": 14183.014154434204,
-          "answer": "- The paper \"Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Spurious Reward\" (Peter Chen, Xiaopeng Li, Ziniu Li, Wotao Yin, Xi Chen, Tianyi Lin) proposes rethinking RLVR by leveraging clipping, entropy regularization, and addressing spurious rewards to tackle the exploration\u2013exploitation trade-off; concurrently, \"Meta-RL Induces Exploration in Language Agents\" (Yulun Jiang, Liangze Jiang, Damien Teney, Michael Moor, Maria Brbic) applies meta-RL to induce exploration in language agents. \n- \"JustRL: Scaling a 1.5B LLM with a Simple RL Recipe\" (Bingxiang He, Zekai Qu, Zeyuan Liu, Yinghao Chen, Yuxin Zuo, Cheng Qian, Kaiyan Zhang, Weize Chen, Chaojun Xiao, Ganqu Cui, Ning Ding, Zhiyuan Liu) demonstrates that a 1.5B LLM can be scaled effectively using a simple RL recipe. \n- \"Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning\" (Andrew Wagenmaker, Perry Dong, Raymond Tsao, Chelsea Finn, Sergey Levine) introduces Posterior Behavioral Cloning to pretrain BC policies for more efficient RL finetuning. \n- \"AdaSearch: Balancing Parametric Knowledge and Search in Large Language Models via Reinforcement Learning\" (Tzu-Han Lin, Wei-Lin Chen, Chen-An Li, Hung-yi Lee, Yun-Nung Chen, Yu Meng) presents AdaSearch, a method to balance parametric knowledge and external search in large language models through reinforcement learning.",
+          "expected_answer_type": "results",
+          "response_time_ms": 1733.5569858551025,
+          "answer": "The documents provided do not include specific experimental results for any of the papers. They primarily contain titles, authors, and abstracts without detailed findings or data. For example, \"CogniSNN\" discusses neuron-expandability and dynamic-configurability in spiking neural networks, but does not present experimental results. To find specific results, one would need to access the full papers.",
           "retrieved_count": 10,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
@@ -716,298 +201,262 @@
             "recall": 1.0
           },
           "answer_metrics": {
-            "answer_relevancy": 0.625,
-            "faithfulness": 0.875,
-            "contextual_precision": 0.2
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.5,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9484936594963074,
+            "hallucination_probability": 0.05150634050369263,
+            "overall_score": 0.8295480978488923
           },
           "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": false,
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What future work is suggested in this paper?",
+          "question_id": "2512.11743v1_q_2",
+          "difficulty": "medium",
+          "expected_answer_type": "future_work",
+          "response_time_ms": 902.8370380401611,
+          "answer": "The documents provided do not explicitly mention future work or suggestions for future research. They primarily focus on the methodologies and findings of the respective studies. For specific future work recommendations, one would need to refer to the full text of each paper.",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.45597389340400696,
+            "hallucination_probability": 0.544026106595993,
+            "overall_score": 0.711792168021202
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the practical applications of this research?",
+          "question_id": "2512.11743v1_q_3",
+          "difficulty": "hard",
+          "expected_answer_type": "application",
+          "response_time_ms": 1874.3221759796143,
+          "answer": "The research in these documents focuses on enhancing Spiking Neural Networks (SNNs) for various applications. For instance, \"CogniSNN\" (Document 1) aims to improve neuron-expandability and dynamic configurability, which can be beneficial in adaptive learning systems. \"Improving Low-Latency Learning Performance\" (Document 2) addresses efficient learning in real-time applications, while \"Self-Motivated Growing Neural Network\" (Document 3) explores adaptive architectures for reinforcement learning, potentially useful in robotics and autonomous systems. Overall, these advancements can lead to more efficient and robust AI systems in fields like robotics, real-time data processing, and adaptive learning environments.",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.920350193977356,
+            "hallucination_probability": 0.07964980602264404,
+            "overall_score": 0.8511050581932067
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What improvements does this approach achieve over existing methods?",
+          "question_id": "2512.11743v1_q_4",
+          "difficulty": "hard",
+          "expected_answer_type": "comparison",
+          "response_time_ms": 1706.2327861785889,
+          "answer": "The document titled \"Improving Low-Latency Learning Performance in Spiking Neural Networks via a Change-Perceptive Dendrite-Soma-Axon Neuron\" by Zeyu Huang et al. focuses on enhancing low-latency learning performance in spiking neural networks. This approach introduces a change-perceptive neuron model that likely improves the responsiveness and efficiency of learning compared to traditional methods, although specific performance metrics are not detailed in the provided content.",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.8842979073524475,
+            "hallucination_probability": 0.11570209264755249,
+            "overall_score": 0.8402893722057342
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What is the main contribution of 'CogniSNN: Enabling Neuron-Expandability, Pathway-Reusability, and Dynamic-Configurability with Random Graph Architectures in Spiking Neural Networks'?",
+          "question_id": "2512.11743v1_q_5",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1709.8050117492676,
+          "answer": "The main contribution of \"CogniSNN: Enabling Neuron-Expandability, Pathway-Reusability, and Dynamic-Configurability with Random Graph Architectures in Spiking Neural Networks\" by Yongsheng Huang et al. is the introduction of a framework that allows for neuron-expandability, pathway-reusability, and dynamic-configurability in spiking neural networks using random graph architectures. This approach enhances the flexibility and adaptability of spiking neural networks in various applications.",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9791610836982727,
+            "hallucination_probability": 0.020838916301727295,
+            "overall_score": 0.8687483251094817
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.15643v1",
+      "paper_title": "Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation",
+      "categories": [
+        "stat.ML",
+        "stat.ME"
+      ],
+      "question_results": [
+        {
+          "question": "How can the findings of 'Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation' be applied in real-world scenarios?",
+          "question_id": "2512.15643v1_q_1",
+          "difficulty": "medium",
+          "expected_answer_type": "application",
+          "response_time_ms": 1525.9630680084229,
+          "answer": "The findings of \"Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation\" by Jairo F\u00faquene-Pati\u00f1o can be applied in real-world scenarios such as improving the accuracy of estimates in small geographic areas, which is crucial for resource allocation and policy-making. The Bayesian model proposed allows for better handling of uncertainty in small area estimates, making it valuable in fields like public health, economics, and social sciences where precise local data is often limited.",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9818400740623474,
+            "hallucination_probability": 0.018159925937652588,
+            "overall_score": 0.8695520222187041
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "Describe the approach taken in this paper.",
+          "question_id": "2512.15643v1_q_2",
+          "difficulty": "easy",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 1229.3062210083008,
+          "answer": "The paper \"Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation\" by Jairo F\u00faquene-Pati\u00f1o proposes a new Bayesian model specifically for Small Area Estimation, leveraging machine learning techniques. The approach focuses on incorporating uncertainty quantification into the spectral clustering process to enhance the reliability of estimates in small areas.",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.3,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9978607296943665,
+            "hallucination_probability": 0.002139270305633545,
+            "overall_score": 0.81435821890831
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What improvements does this approach achieve over existing methods?",
+          "question_id": "2512.15643v1_q_3",
+          "difficulty": "easy",
+          "expected_answer_type": "comparison",
+          "response_time_ms": 1539.3781661987305,
+          "answer": "The document titled \"Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation\" by Jairo F\u00faquene-Pati\u00f1o proposes a new Bayesian model that improves upon existing methods by incorporating uncertainty quantification, which enhances the reliability of Small Area Estimation. This approach allows for better handling of variability in data, leading to more accurate estimates compared to traditional methods that do not account for uncertainty.",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9674028158187866,
+            "hallucination_probability": 0.03259718418121338,
+            "overall_score": 0.865220844745636
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
             "faithfulness": true
           }
         },
         {
           "question": "What are the limitations mentioned by the authors?",
-          "question_id": "2512.16912v1_q_5",
-          "difficulty": "hard",
-          "expected_answer_type": "future_work",
-          "response_time_ms": 7589.142084121704,
-          "answer": "- Based on the provided abstracts, none of the five papers state explicit limitations. For example:\n  - \"Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Spurious Reward\" by Peter Chen, Xiaopeng Li, Ziniu Li, Wotao Yin, Xi Chen, Tianyi Lin starts with a statement about examining the exploration-exploitation trade-off but the abstract is truncated.\n  - \"Meta-RL Induces Exploration in Language Agents\" by Yulun Jiang, Liangze Jiang, Damien Teney, Michael Moor, Maria Brbic begins with a general note on RL enabling LLM agents but is also truncated.\n  - \"JustRL: Scaling a 1.5B LLM with a Simple RL Recipe\" by Bingxiang He, Zekai Qu, Zeyuan Liu, Yinghao Chen, Yuxin Zuo, Cheng Qian, Kaiyan Zhang, Weize Chen, Chaojun Xiao, Ganqu Cui, Ning Ding, Zhiyuan Liu is similarly truncated in its abstract.\n  - \"Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning\" by Andrew Wagenmaker, Perry Dong, Raymond Tsao, Chelsea Finn, Sergey Levine is truncated.\n  - \"AdaSearch: Balancing Parametric Knowledge and Search in Large Language Models via Reinforcement Learning\" by Tzu-Han Lin, Wei-Lin Chen, Chen-An Li, Hung-yi Lee, Yun-Nung Chen, Yu Meng is truncated as well.\n- Therefore, the excerpts provided do not contain any explicit limitations claimed by the authors. To identify the stated limitations, the full texts of these papers would need to be consulted.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8333333333333333,
-            "faithfulness": 0.5454545454545454,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        }
-      ]
-    },
-    {
-      "paper_id": "2512.16911v1",
-      "paper_title": "Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning",
-      "categories": [
-        "cs.AI",
-        "cs.LG",
-        "cs.RO"
-      ],
-      "question_results": [
-        {
-          "question": "How can the findings of 'Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning' be applied in real-world scenarios?",
-          "question_id": "2512.16911v1_q_1",
-          "difficulty": "medium",
-          "expected_answer_type": "application",
-          "response_time_ms": 7791.094064712524,
-          "answer": "- Paper details: Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning by Andrew Wagenmaker, Perry Dong, Raymond Tsao, Chelsea Finn, and Sergey Levine (cs.AI, cs.LG, cs.RO). \n\n- Real-world application: The authors advocate pretraining a behavioral cloning (BC) policy on offline data as a bootstrap for subsequent RL finetuning. In practice, this means leveraging existing demonstrations or offline datasets to initialize policies before online RL, which can reduce data collection and sample-effort when adapting to new tasks or environments in real-world settings such as robotic manipulation and language-enabled agents. This approach aligns with the standard practice of pretraining before RL and is intended to enable more efficient RL finetuning in domains spanning robotics to language.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 1.0,
-            "faithfulness": 0.5714285714285714,
-            "contextual_precision": 0.2
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What datasets were used to evaluate this approach?",
-          "question_id": "2512.16911v1_q_2",
-          "difficulty": "hard",
-          "expected_answer_type": "results",
-          "response_time_ms": 9286.109209060669,
-          "answer": "- The provided abstracts do not specify any datasets used for evaluation for any of the papers.\n- For example: Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning (Wagenmaker, Dong, Tsao, Finn, Levine), JustRL: Scaling a 1.5B LLM with a Simple RL Recipe (He et al.), Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Spurious Reward (Chen et al.), PolaRiS: Scalable Real-to-Sim Evaluations for Generalist Robot Policies (Jain et al. including Levine, Finn, etc.), and Meta-RL Induces Exploration in Language Agents (Jiang et al.) do not list dataset names in their abstracts.\n- The PolaRiS paper title indicates real-to-sim evaluations, but no specific datasets are named in the provided excerpts.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.7857142857142857,
-            "faithfulness": 0.6363636363636364,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What future work is suggested in this paper?",
-          "question_id": "2512.16911v1_q_3",
-          "difficulty": "medium",
-          "expected_answer_type": "future_work",
-          "response_time_ms": 7695.826053619385,
-          "answer": "- The provided excerpts do not contain any explicit \u201cfuture work\u201d statements or suggested directions for future research. \n- The five papers listed (Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning by Wagenmaker, Dong, Tsao, Finn, Levine; JustRL: Scaling a 1.5B LLM with a Simple RL Recipe by He et al.; Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Spurious Reward by Chen et al.; PolaRiS: Scalable Real-to-Sim Evaluations for Generalist Robot Policies by Jain et al.; Meta-RL Induces Exploration in Language Agents by Jiang et al.) all have abstracts truncated in the provided text, and no future-work section is visible. \n- Therefore, based on these sources, there is no specific future-work suggestion that can be cited.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8333333333333333,
-            "faithfulness": 0.6,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "How does 'Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning' advance the field of cs.AI?",
-          "question_id": "2512.16911v1_q_4",
-          "difficulty": "medium",
-          "expected_answer_type": "contribution",
-          "response_time_ms": 10071.429967880249,
-          "answer": "- Paper and authors: Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning by Andrew Wagenmaker, Perry Dong, Raymond Tsao, Chelsea Finn, and Sergey Levine (cs.AI, cs.LG, cs.RO).\n\n- What it advances: The work proposes Posterior Behavioral Cloning as a pretraining step for BC policies to enable more efficient reinforcement learning finetuning, addressing the common practice of pretraining before RL in both robotics and language domains.\n\n- How it connects domains and methods: By framing BC pretraining as a preparatory stage to streamline subsequent RL optimization, the approach aims to bridge supervised policy learning with reinforcement learning, facilitating transfer and efficiency across the cs.AI, cs.LG, and cs.RO landscape.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 1.0,
-            "faithfulness": 0.3333333333333333,
-            "contextual_precision": 0.2
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "Who are the authors of 'Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning' and what institutions are they affiliated with?",
-          "question_id": "2512.16911v1_q_5",
-          "difficulty": "medium",
-          "expected_answer_type": "author",
-          "response_time_ms": 4541.865825653076,
-          "answer": "- Authors: Andrew Wagenmaker, Perry Dong, Raymond Tsao, Chelsea Finn, and Sergey Levine. \n- Source: Posterior Behavioral Cloning: Pretraining BC Policies for Efficient RL Finetuning (Document 1). \n- Affiliation information: The provided document snippet does not include author affiliations or institutions, so affiliations cannot be determined from this source.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.9444444444444444,
-            "faithfulness": 0.6666666666666666,
-            "contextual_precision": 0.2
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        }
-      ]
-    },
-    {
-      "paper_id": "2512.16907v1",
-      "paper_title": "Flowing from Reasoning to Motion: Learning 3D Hand Trajectory Prediction from Egocentric Human Interaction Videos",
-      "categories": [
-        "cs.AI",
-        "cs.CV",
-        "cs.RO"
-      ],
-      "question_results": [
-        {
-          "question": "What are the key innovations introduced in this paper?",
-          "question_id": "2512.16907v1_q_1",
-          "difficulty": "medium",
-          "expected_answer_type": "contribution",
-          "response_time_ms": 23256.566047668457,
-          "answer": "",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.0,
-            "faithfulness": 0.0,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": false,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "Who are the authors of 'Flowing from Reasoning to Motion: Learning 3D Hand Trajectory Prediction from Egocentric Human Interaction Videos' and what institutions are they affiliated with?",
-          "question_id": "2512.16907v1_q_2",
-          "difficulty": "medium",
-          "expected_answer_type": "author",
-          "response_time_ms": 5428.492069244385,
-          "answer": "- Authors: Mingfei Chen, Yifan Wang, Zhengqin Li, Homanga Bharadhwaj, Yujin Chen, Chuan Qin, Ziyi Kou, Yuan Tian, Eric Whitmire, Rajinder Sodhi, Hrvoje Benko, Eli Shlizerman, and Yue Li, from the paper \u201cFlowing from Reasoning to Motion: Learning 3D Hand Trajectory Prediction from Egocentric Human Interaction Videos.\u201d\n- Institutional affiliations: Not specified in the provided document excerpt for this paper; the excerpt only lists authors.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 1.0,
-            "faithfulness": 0.5,
-            "contextual_precision": 0.2
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "How does this paper compare to previous work in cs.AI?",
-          "question_id": "2512.16907v1_q_3",
-          "difficulty": "medium",
-          "expected_answer_type": "comparison",
-          "response_time_ms": 15793.968200683594,
-          "answer": "- Soft Geometric Inductive Bias for Object Centric Dynamics by Hampus Linander, Conor Heins, Alexander Tschantz, Marco Perin, and Christopher Buckley explicitly positions itself against prior cs.AI work by arguing that, while equivariance is a powerful prior for learning physical dynamics, exact group equivariance can be limiting, and it proposes a Soft Geometric Inductive Bias as an alternative. This indicates a direct comparison to previous exact-equivariance methods in the cs.AI literature.\n\n- Among the other cs.AI papers in the set, KineST: A Kinematics-guided Spatiotemporal State Space Model for Human Motion Tracking from Sparse Signals (Shuting Zhao, Zeyu Xiao, Xinrong Chen) and OPENTOUCH: Bringing Full-Hand Touch to Real-World Interaction (Yuxin Ray Song et al.) are categorized cs.AI, but the provided excerpts do not contain explicit statements about how they compare to prior cs.AI work.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 1.0,
-            "faithfulness": 0.4444444444444444,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What future work is suggested in this paper?",
-          "question_id": "2512.16907v1_q_4",
+          "question_id": "2512.15643v1_q_4",
           "difficulty": "easy",
           "expected_answer_type": "future_work",
-          "response_time_ms": 9354.706287384033,
-          "answer": "- None of the provided excerpts contain an explicit \"Future Work\" section or any stated future directions for any of the papers. The papers included are: Flowing from Reasoning to Motion: Learning 3D Hand Trajectory Prediction (Mingfei Chen et al.), KineST: A Kinematics-guided Spatiotemporal State Space Model for Human Motion Tracking from Sparse Signals (Shuting Zhao et al.), OPENTOUCH: Bringing Full-Hand Touch to Real-World Interaction (Yuxin Ray Song et al.), Instant Expressive Gaussian Head Avatar via 3D-Aware Expression Distillat (Kaiwen Jiang et al.), and Soft Geometric Inductive Bias for Object Centric Dynamics (Hampus Linander et al.).\n- Consequently, no specific future work suggestions can be extracted from the provided content.",
+          "response_time_ms": 1627.2199153900146,
+          "answer": "The limitations mentioned in the documents include the challenges of estimating intractable expectations over discrete domains in \"BayesSum: Bayesian Quadrature in Discrete Spaces\" by Sophia Seulkee, and the fundamental limitations of Partial Least Squares (PLS) in \"High-Dimensional Partial Least Squares: Spectral Analysis and Fundamental Limitations\" by Victor L\u00e9ger and Florent Chatelain, which discusses issues related to data integration and latent component extraction. Specific details on limitations are not provided in the abstracts, but these papers address significant computational and methodological challenges in their respective fields.",
           "retrieved_count": 10,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
@@ -1018,24 +467,28 @@
             "recall": 1.0
           },
           "answer_metrics": {
-            "answer_relevancy": 0.8333333333333333,
-            "faithfulness": 0.75,
-            "contextual_precision": 0.0
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.5,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.17662334442138672,
+            "hallucination_probability": 0.8233766555786133,
+            "overall_score": 0.5979870033264161
           },
           "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
+            "response_time": true,
+            "precision_at_3": true,
             "answer_relevancy": true,
             "faithfulness": false
           }
         },
         {
-          "question": "What domains could benefit from this work?",
-          "question_id": "2512.16907v1_q_5",
+          "question": "How does 'Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation' advance the field of stat.ML?",
+          "question_id": "2512.15643v1_q_5",
           "difficulty": "medium",
-          "expected_answer_type": "application",
-          "response_time_ms": 13805.13620376587,
-          "answer": "- AR/VR motion tracking and egocentric hand interaction: the work Flowing from Reasoning to Motion: Learning 3D Hand Trajectory Prediction from Egocentric Human Interaction Videos (Mingfei Chen, Yifan Wang, Zhengqin Li, et al.) and KineST: A Kinematics-guided Spatiotemporal State Space Model for Human Motion Tracking from Sparse Signals (Shuting Zhao, Zeyu Xiao, Xinrong Chen) point to benefits in predicting 3D hand trajectories and full-body motion from sparse signals for AR/VR applications.\n\n- Real-world tactile/haptic interaction and hand-based control: OPENTOUCH: Bringing Full-Hand Touch to Real-World Interaction (Yuxin Ray Song, Jinzhou Li, Rao Fu, et al.) suggests improvements in real-world, full-hand tactile interaction, while Instant Expressive Gaussian Head Avatar via 3D-Aware Expression Distillation (Kaiwen Jiang, Xueting Li, Seonwook Park, et al.) enables expressive head avatars for telepresence and portrait animation.\n\n- Object-centric dynamics and physics-informed modeling for robotics/simulation: Soft Geometric Inductive Bias for Object Centric Dynamics (Hampus Linander, Conor Heins, Alexander Tschantz, et al.) indicates benefits for learning physical dynamics with geometric inductive biases in object-centric settings, applicable to robotics and simulation.",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1304.2078018188477,
+          "answer": "The paper \"Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation\" by Jairo F\u00faquene-Pati\u00f1o proposes a new Bayesian model that enhances Small Area Estimation by incorporating uncertainty quantification. This advancement allows for more robust statistical inference in small area contexts, addressing limitations in existing methods and improving the reliability of estimates in machine learning applications.",
           "retrieved_count": 10,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
@@ -1046,36 +499,39 @@
             "recall": 1.0
           },
           "answer_metrics": {
-            "answer_relevancy": 0.6428571428571428,
-            "faithfulness": 1.0,
-            "contextual_precision": 0.0
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9964147806167603,
+            "hallucination_probability": 0.003585219383239746,
+            "overall_score": 0.8739244341850281
           },
           "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": false,
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
             "faithfulness": true
           }
         }
       ]
     },
     {
-      "paper_id": "2512.16901v1",
-      "paper_title": "Impacts of Racial Bias in Historical Training Data for News AI",
+      "paper_id": "2512.15965v1",
+      "paper_title": "xtdml: Double Machine Learning Estimation to Static Panel Data Models with Fixed Effects in R",
       "categories": [
-        "cs.AI",
-        "cs.LG",
-        "cs.CL",
-        "cs.CY"
+        "stat.ML",
+        "econ.EM",
+        "stat.ME"
       ],
       "question_results": [
         {
-          "question": "What baselines were compared against in this research?",
-          "question_id": "2512.16901v1_q_1",
-          "difficulty": "easy",
+          "question": "How does this paper compare to previous work in stat.ML?",
+          "question_id": "2512.15965v1_q_1",
+          "difficulty": "hard",
           "expected_answer_type": "comparison",
-          "response_time_ms": 11884.580135345459,
-          "answer": "- Based on the provided abstracts, none of the papers explicitly list any baselines used for comparison. \n- For example, GenEval 2: Addressing Benchmark Drift in Text-to-Image Evaluation (Kamath, Chang, Krishna, Zettlemoyer, Hu, Ghazvininejad) discusses the need for a judge model in T2I evaluation but does not name specific baselines. \n- Similarly, the other papers (Pairwise Comparison for Bias Identification and Quantification by Haak & Schaer; Impacts of Racial Bias in Historical Training Data for News AI by Bhargava et al.; From Personalization to Prejudice: Bias and Discrimination in Memory-Enhanced AI Agents for Recruitment by Gharat et al.; Integrating Large Language Models and Knowledge Graphs to Capture Political Viewpoints in News Media by Fadda et al.) do not report baseline comparisons in their abstracts. \n- Therefore, the provided sources do not allow identifying any baselines used in comparison.",
+          "response_time_ms": 1655.1918983459473,
+          "answer": "The paper \"xtdml: Double Machine Learning Estimation to Static Panel Data Models with Fixed Effects in R\" by Annalivia Polselli introduces a double machine learning (DML) method that enhances statistical estimation by integrating machine learning techniques, which is a significant advancement in the field of statistical machine learning (stat.ML). This contrasts with previous work that may not have effectively combined predictive power with statistical rigor, as seen in the other documents that focus on different aspects of machine learning, such as transfer learning and conformal prediction.",
           "retrieved_count": 10,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
@@ -1086,24 +542,28 @@
             "recall": 1.0
           },
           "answer_metrics": {
-            "answer_relevancy": 0.6428571428571428,
-            "faithfulness": 0.8571428571428571,
-            "contextual_precision": 0.0
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9153331518173218,
+            "hallucination_probability": 0.08466684818267822,
+            "overall_score": 0.8495999455451965
           },
           "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": false,
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
             "faithfulness": true
           }
         },
         {
-          "question": "What is the core algorithm or model proposed?",
-          "question_id": "2512.16901v1_q_2",
-          "difficulty": "medium",
+          "question": "Describe the approach taken in this paper.",
+          "question_id": "2512.15965v1_q_2",
+          "difficulty": "easy",
           "expected_answer_type": "methodology",
-          "response_time_ms": 15726.248979568481,
-          "answer": "The core algorithm/model proposed is in Alchemist: Unlocking Efficiency in Text-to-Image Model Training via Meta-Gradient Data Selection (Kaixin Ding, Yang Zhou, Xi Chen, Miao Yang, Jiarong Ou, Rui Chen, Xin Tao, Hengshuang Zhao). It introduces a meta-gradient data selection approach that learns a data-selection policy to curate training data for Text-to-Image models, with the aim of unlocking training efficiency\u2014i.e., the paper reports efficiency gains from this data-selection strategy.",
+          "response_time_ms": 1356.1298847198486,
+          "answer": "The paper titled \"xtdml: Double Machine Learning Estimation to Static Panel Data Models with Fixed Effects in R\" by Annalivia Polselli employs a double machine learning (DML) method that integrates machine learning's predictive capabilities with statistical estimation techniques. This approach is designed to enhance the estimation of static panel data models, particularly those with fixed effects, by leveraging the strengths of both machine learning and traditional econometric methods.",
           "retrieved_count": 10,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
@@ -1114,24 +574,28 @@
             "recall": 1.0
           },
           "answer_metrics": {
-            "answer_relevancy": 1.0,
-            "faithfulness": 0.75,
-            "contextual_precision": 0.0
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9990767240524292,
+            "hallucination_probability": 0.0009232759475708008,
+            "overall_score": 0.8747230172157288
           },
           "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
+            "response_time": true,
+            "precision_at_3": true,
             "answer_relevancy": true,
-            "faithfulness": false
+            "faithfulness": true
           }
         },
         {
           "question": "What metrics were used to measure performance?",
-          "question_id": "2512.16901v1_q_3",
-          "difficulty": "medium",
+          "question_id": "2512.15965v1_q_3",
+          "difficulty": "easy",
           "expected_answer_type": "results",
-          "response_time_ms": 14155.627965927124,
-          "answer": "- GenEval 2: Addressing Benchmark Drift in Text-to-Image Evaluation by Amita Kamath, Kai-Wei Chang, Ranjay Krishna, Luke Zettlemoyer, Yushi Hu, Marjan Ghazvininejad: the abstract mentions the use of a judge model for evaluation but does not specify any concrete metrics.\n\n- Impacts of Racial Bias in Historical Training Data for News AI by Rahul Bhargava, Malene Hornstrup Jespersen, Emily Boardman Ndulue, Vivica Dsouza: the abstract provided does not disclose performance metrics.\n\n- From Personalization to Prejudice: Bias and Discrimination in Memory-Enhanced AI Agents for Recruitment by Himanshu Gharat, Himanshi Agrawal, Gourab K. Patro: the abstract provided does not disclose performance metrics.\n\n- Pairwise Comparison for Bias Identification and Quantification by Fabian Haak, Philipp Schaer: the abstract provided does not disclose performance metrics.\n\n- Integrating Large Language Models and Knowledge Graphs to Capture Political Viewpoints in News Media by Massimiliano Fadda, Enrico Motta, Francesco Osborne, Diego Reforgiato Recupero, Angelo Salatino: the abstract provided does not disclose performance metrics.",
+          "response_time_ms": 1471.2872505187988,
+          "answer": "The documents provided do not specify particular metrics used to measure performance in their respective studies. Document 1 discusses double machine learning estimation methods, while Document 2 addresses transfer learning for individual treatment effects, and Document 3 focuses on multivariate conformal prediction. However, none of these documents detail specific performance metrics.",
           "retrieved_count": 10,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
@@ -1142,24 +606,28 @@
             "recall": 1.0
           },
           "answer_metrics": {
-            "answer_relevancy": 0.5,
-            "faithfulness": 0.8333333333333334,
-            "contextual_precision": 0.0
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.3,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.8760043382644653,
+            "hallucination_probability": 0.12399566173553467,
+            "overall_score": 0.7778013014793397
           },
           "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": false,
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
             "faithfulness": true
           }
         },
         {
-          "question": "Who are the authors of 'Impacts of Racial Bias in Historical Training Data for News AI' and what institutions are they affiliated with?",
-          "question_id": "2512.16901v1_q_4",
+          "question": "What are the limitations mentioned by the authors?",
+          "question_id": "2512.15965v1_q_4",
           "difficulty": "medium",
-          "expected_answer_type": "author",
-          "response_time_ms": 5203.847169876099,
-          "answer": "- Authors: Rahul Bhargava; Malene Hornstrup Jespersen; Emily Boardman Ndulue; Vivica Dsouza.\n- Institutions: Not provided in the excerpt of Document 1 (2512.16901v1); affiliations cannot be determined from the given source.",
+          "expected_answer_type": "future_work",
+          "response_time_ms": 1212.998867034912,
+          "answer": "In Document 2, titled \"Advantages and limitations in the use of transfer learning for individual treatment effects in causal machine learning\" by Seyda Betul Aydin and Holger Brandt, the authors discuss challenges in generalizing causal knowledge across diverse environments. They highlight limitations such as the difficulty in ensuring that transfer learning effectively captures the nuances of individual treatment effects, which can lead to inaccurate estimations in new contexts.",
           "retrieved_count": 10,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
@@ -1170,24 +638,28 @@
             "recall": 1.0
           },
           "answer_metrics": {
-            "answer_relevancy": 0.47368421052631576,
-            "faithfulness": 0.3333333333333333,
-            "contextual_precision": 0.4
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9153593182563782,
+            "hallucination_probability": 0.08464068174362183,
+            "overall_score": 0.8496077954769135
           },
           "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": false,
-            "faithfulness": false
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
+            "faithfulness": true
           }
         },
         {
-          "question": "What future work is suggested in this paper?",
-          "question_id": "2512.16901v1_q_5",
-          "difficulty": "medium",
-          "expected_answer_type": "future_work",
-          "response_time_ms": 9659.122943878174,
-          "answer": "- The provided abstracts do not contain explicit statements of future work for any of the papers.  \n- Papers and authors: 1) \"Impacts of Racial Bias in Historical Training Data for News AI\" by Rahul Bhargava, Malene Hornstrup Jespersen, Emily Boardman Ndulue, Vivica Dsouza; 2) \"From Personalization to Prejudice: Bias and Discrimination in Memory-Enhanced AI Agents for Recruitment\" by Himanshu Gharat, Himanshi Agrawal, Gourab K. Patro; 3) \"Pairwise Comparison for Bias Identification and Quantification\" by Fabian Haak, Philipp Schaer; 4) \"Integrating Large Language Models and Knowledge Graphs to Capture Political Viewpoints in News Media\" by Massimiliano Fadda, Enrico Motta, Francesco Osborne, Diego Reforgiato Recupero, Angelo Salatino; 5) \"Alchemist: Unlocking Efficiency in Text-to-Image Model Training via Meta-Gradient Data Selection\" by Kaixin Ding, Yang Zhou, Xi Chen, Miao Yang, Jiarong Ou, Rui Chen, Xin Tao, Hengshuang Zhao.  \n- The abstracts shown are truncated and do not reveal any future-work conclusions or directions.",
+          "question": "How does 'xtdml: Double Machine Learning Estimation to Static Panel Data Models with Fixed Effects in R' advance the field of stat.ML?",
+          "question_id": "2512.15965v1_q_5",
+          "difficulty": "easy",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1290.126085281372,
+          "answer": "The paper \"xtdml: Double Machine Learning Estimation to Static Panel Data Models with Fixed Effects in R\" by Annalivia Polselli introduces a double machine learning (DML) method that integrates machine learning's predictive capabilities with statistical estimation for static panel data models. This advancement allows for more accurate estimation of causal effects in the presence of fixed effects, enhancing the robustness and applicability of statistical methods in econometrics and machine learning.",
           "retrieved_count": 10,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
@@ -1198,65 +670,38 @@
             "recall": 1.0
           },
           "answer_metrics": {
-            "answer_relevancy": 0.8333333333333333,
-            "faithfulness": 0.5,
-            "contextual_precision": 0.0
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.997480571269989,
+            "hallucination_probability": 0.0025194287300109863,
+            "overall_score": 0.8742441713809966
           },
           "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
+            "response_time": true,
+            "precision_at_3": true,
             "answer_relevancy": true,
-            "faithfulness": false
+            "faithfulness": true
           }
         }
       ]
     },
     {
-      "paper_id": "2512.16891v1",
-      "paper_title": "LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Generation Video Recommendation",
+      "paper_id": "2512.16105v1",
+      "paper_title": "BayesSum: Bayesian Quadrature in Discrete Spaces",
       "categories": [
-        "cs.AI",
-        "cs.CV",
-        "cs.IR",
-        "cs.LG",
-        "cs.MM"
+        "stat.ML",
+        "cs.LG"
       ],
       "question_results": [
         {
-          "question": "What baselines were compared against in this research?",
-          "question_id": "2512.16891v1_q_1",
-          "difficulty": "medium",
-          "expected_answer_type": "comparison",
-          "response_time_ms": 10362.204790115356,
-          "answer": "- Based on the provided excerpts (five documents), none of the abstracts or snippets mention any baselines used for comparison. The papers cover topics like video editing and knowledge-guided video tasks, but do not list experimental baselines in the text shown.\n- Specifically, the papers and authors are: LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Generation Video Recommendation \u2014 Haichao Zhang, Yao Lu, Lichen Wang, Yunzhe Li, Daiwei Chen, Yunpeng Xu, Yun Fu; EasyV2V: A High-quality Instruction-based Video Editing Framework \u2014 Jinjie Mai, Chaoyang Wang, Guocheng Gordon Qian, Willi Menapace, Sergey Tulyakov, Bernard Ghanem, Peter Wonka, Ashkan Mirzaei; Neurosymbolic Inference On Foundation Models For Remote Sensing Text-to-image Retrieval With Complex Queries \u2014 Emanuele Mezzi, Gertjan Burghouts, Maarten Kruithof; SPARQL-LLM: Real-Time SPARQL Query Generation from Natural Language Questions \u2014 Panayiotis Smeros, Vincent Emonet, Ruijie Wang, Ana-Claudia Sima, Tarcisio Mendes de Farias; VIVA: VLM-Guided Instruction-Based Video Editing with Reward Optimization \u2014 Xiaoyan Cong, Haotian Yang, Angtian Wang, Yizhi Wang, Yiding Yang, Canyu Zhang, Chongyang Ma. \n- To answer precisely, please provide the full experimental sections or access to the complete papers, as the current excerpts do not specify the baselines used for comparison.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.6428571428571428,
-            "faithfulness": 0.25,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": false,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "How does 'LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Generation Video Recommendation' advance the field of cs.AI?",
-          "question_id": "2512.16891v1_q_2",
+          "question": "What are the key innovations introduced in this paper?",
+          "question_id": "2512.16105v1_q_1",
           "difficulty": "medium",
           "expected_answer_type": "contribution",
-          "response_time_ms": 10809.346914291382,
-          "answer": "LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Generation Video Recommendation, by Haichao Zhang, Yao Lu, Lichen Wang, Yunzhe Li, Daiwei Chen, Yunpeng Xu, and Yun Fu, advances cs.AI by introducing a framework that links world knowledge representations derived from Video LLMs (VLLMs) to support next-generation video recommendation. The title and abstract fragment suggest the core idea is to leverage VLLMs to unlock or utilize world knowledge representations for knowledge-grounded video recommendation. The paper spans cs.AI, cs.CV, cs.IR, cs.LG, cs.MM, but the provided excerpt does not include specific methodological details or experimental results.",
+          "response_time_ms": 1542.8030490875244,
+          "answer": "The key innovations introduced in the paper \"BayesSum: Bayesian Quadrature in Discrete Spaces\" by Sophia Seulkee Kang et al. include a novel approach to estimating intractable expectations over discrete domains using Bayesian quadrature methods. This work addresses computational challenges in statistical machine learning and contributes to the field by providing a framework that enhances the efficiency of expectation estimation in discrete settings.",
           "retrieved_count": 10,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
@@ -1267,24 +712,28 @@
             "recall": 1.0
           },
           "answer_metrics": {
-            "answer_relevancy": 1.0,
-            "faithfulness": 0.3333333333333333,
-            "contextual_precision": 0.2
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9507625102996826,
+            "hallucination_probability": 0.04923748970031738,
+            "overall_score": 0.8602287530899047
           },
           "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
+            "response_time": true,
+            "precision_at_3": true,
             "answer_relevancy": true,
-            "faithfulness": false
+            "faithfulness": true
           }
         },
         {
-          "question": "What problem does 'LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Generation Video Recommendation' address?",
-          "question_id": "2512.16891v1_q_3",
-          "difficulty": "hard",
-          "expected_answer_type": "problem",
-          "response_time_ms": 7166.475057601929,
-          "answer": "- Paper: LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Generation Video Recommendation by Haichao Zhang, Yao Lu, Lichen Wang, Yunzhe Li, Daiwei Chen, Yunpeng Xu, and Yun Fu.\n- Problem addressed: The work tackles the challenge of leveraging and linking world knowledge representations embedded in Video Large Language Models (VLLMs) to power next-generation, knowledge-aware video recommendation systems. In short, it aims to enable linking world knowledge representations derived from VLLMs for improved video recommendation.",
+          "question": "How can the findings of 'BayesSum: Bayesian Quadrature in Discrete Spaces' be applied in real-world scenarios?",
+          "question_id": "2512.16105v1_q_2",
+          "difficulty": "easy",
+          "expected_answer_type": "application",
+          "response_time_ms": 1220.2579975128174,
+          "answer": "The findings of \"BayesSum: Bayesian Quadrature in Discrete Spaces\" by Sophia Seulkee can be applied in real-world scenarios that require estimating intractable expectations over discrete domains, such as in decision-making processes in finance, machine learning, and operations research. The Bayesian approach allows for more efficient and accurate computations in these complex environments, enhancing predictive modeling and uncertainty quantification.",
           "retrieved_count": 10,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
@@ -1295,24 +744,60 @@
             "recall": 1.0
           },
           "answer_metrics": {
-            "answer_relevancy": 1.0,
-            "faithfulness": 1.0,
-            "contextual_precision": 0.2
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9253900647163391,
+            "hallucination_probability": 0.07460993528366089,
+            "overall_score": 0.8526170194149016
           },
           "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
+            "response_time": true,
+            "precision_at_3": true,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What datasets were used to evaluate this approach?",
+          "question_id": "2512.16105v1_q_3",
+          "difficulty": "medium",
+          "expected_answer_type": "results",
+          "response_time_ms": 874.690055847168,
+          "answer": "The documents provided do not specify any datasets used to evaluate the approaches discussed in the papers. They focus on methodologies and theoretical frameworks rather than detailing specific datasets for evaluation.",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9128105044364929,
+            "hallucination_probability": 0.08718949556350708,
+            "overall_score": 0.8488431513309478
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": true,
             "answer_relevancy": true,
             "faithfulness": true
           }
         },
         {
           "question": "What is the core algorithm or model proposed?",
-          "question_id": "2512.16891v1_q_4",
-          "difficulty": "hard",
+          "question_id": "2512.16105v1_q_4",
+          "difficulty": "medium",
           "expected_answer_type": "methodology",
-          "response_time_ms": 17310.59193611145,
-          "answer": "The core models proposed are:\n\n- LinkedOut: LinkedOut: Linking World Knowledge Representation Out of Video LLM for Next-Generation Video Recommendation (Haichao Zhang, Yao Lu, Lichen Wang, Yunzhe Li, Daiwei Chen, Yunpeng Xu, Yun Fu) \u2014 a framework to extract and link world-knowledge representations from Video LLMs to enable next-generation video recommendation.\n- EasyV2V: EasyV2V: A High-quality Instruction-based Video Editing Framework (Jinjie Mai, Chaoyang Wang, Guocheng Gordon Qian, Willi Menapace, Sergey Tulyakov, Bernard Ghanem, Peter Wonka, Ashkan Mirzaei) \u2014 an instruction-based video editing framework.\n- Neurosymbolic Inference On Foundation Models For Remote Sensing Text-to-image Retrieval With Complex Queries (Emanuele Mezzi, Gertjan Burghouts, Maarten Kruithof) \u2014 a neurosymbolic inference approach on foundation models for remote sensing text-to-image retrieval with complex queries.\n- SPARQL-LLM: Real-Time SPARQL Query Generation from Natural Language Questions (Panayiotis Smeros, Vincent Emonet, Ruijie Wang, Ana-Claudia Sima, Tarcisio Mendes de Farias) \u2014 a real-time NL-to-SPARQL query generation model.\n- VIVA: VLM-Guided Instruction-Based Video Editing with Reward Optimization (Xiaoyan Cong, Haotian Yang, Angtian Wang, Yizhi Wang, Yiding Yang, Canyu Zhang, Chongyang Ma) \u2014 a VLM-guided, reward-optimization framework for instruction-based video editing.\n\nCollectively, these works present models that fuse language, vision, and knowledge (LinkedOut), instruction-conditioned editing (EasyV2V, VIVA), neurosymbolic reasoning over foundation models (Neurosymbolic Inference on RS), and NL-to-SPARQL query generation (SPARQL-LLM).",
+          "response_time_ms": 2063.950777053833,
+          "answer": "The core algorithm proposed in Document 1, \"BayesSum: Bayesian Quadrature in Discrete Spaces\" by Sophia Seulkee, is a Bayesian quadrature method designed for estimating intractable expectations over discrete domains. In Document 2, \"Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation\" by Jairo F\u00faquene-Pati\u00f1o, a new Bayesian model for Small Area Estimation is introduced. Document 3, \"Multivariate Uncertainty Quantification with Tomographic Quantile Forests\" by Takuya Kanazawa, presents a method for quantifying predictive uncertainty using tomographic quantile forests. Document 4, \"BAMBO: Construct Ability and Efficiency LLM Pareto Set via Bayesian Adaptive Multi-objective Block-wise Optimization\" by Kesheng Chen et al., proposes a Bayesian adaptive multi-objective optimization approach for constructing a Pareto set.",
           "retrieved_count": 10,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
@@ -1323,223 +808,83 @@
             "recall": 1.0
           },
           "answer_metrics": {
-            "answer_relevancy": 0.8333333333333333,
-            "faithfulness": 1.0,
-            "contextual_precision": 0.4
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.5935799479484558,
+            "hallucination_probability": 0.4064200520515442,
+            "overall_score": 0.7530739843845367
           },
           "meets_thresholds": {
             "response_time": false,
-            "precision_at_3": false,
+            "precision_at_3": true,
+            "answer_relevancy": true,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What baselines were compared against in this research?",
+          "question_id": "2512.16105v1_q_5",
+          "difficulty": "easy",
+          "expected_answer_type": "comparison",
+          "response_time_ms": 1323.913812637329,
+          "answer": "The documents provided do not specify the baselines compared against in the research. They focus on different methodologies and applications in Bayesian modeling and uncertainty quantification but do not detail specific comparisons or baseline models used in the studies.",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9688103199005127,
+            "hallucination_probability": 0.031189680099487305,
+            "overall_score": 0.8656430959701538
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": true,
             "answer_relevancy": true,
             "faithfulness": true
-          }
-        },
-        {
-          "question": "What are the practical applications of this research?",
-          "question_id": "2512.16891v1_q_5",
-          "difficulty": "easy",
-          "expected_answer_type": "application",
-          "response_time_ms": 20878.87406349182,
-          "answer": "",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.0,
-            "faithfulness": 0.0,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": false,
-            "faithfulness": false
-          }
-        }
-      ]
-    },
-    {
-      "paper_id": "2512.16876v1",
-      "paper_title": "Training Together, Diagnosing Better: Federated Learning for Collagen VI-Related Dystrophies",
-      "categories": [
-        "cs.AI",
-        "cs.LG",
-        "cs.CV",
-        "cs.DC"
-      ],
-      "question_results": [
-        {
-          "question": "What datasets were used to evaluate this approach?",
-          "question_id": "2512.16876v1_q_1",
-          "difficulty": "medium",
-          "expected_answer_type": "results",
-          "response_time_ms": 9157.38582611084,
-          "answer": "- The provided documents do not specify any datasets used to evaluate the approach. \n- For example, Document 1: \u201cTraining Together, Diagnosing Better: Federated Learning for Collagen VI-Related Dystrophies\u201d (Astrid Brull et al.) only lists the title and authors with no methods or datasets described; Document 3: \u201cRadiology Report Generation with Layer-Wise Anatomical Attention\u201d (Emmanuel D. Mu\u00f1iz-De-Le\u00f3n et al.) provides an abstract fragment but no dataset details; Document 5: \u201cDifferences That Matter: Auditing Models for Capability Gap Discovery and Rectification\u201d (Qihao Liu et al.) discusses evaluation methods in general but does not name any datasets. \n- Therefore, dataset names or evaluation corpora are not available in the provided excerpts.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.9285714285714286,
-            "faithfulness": 0.5714285714285714,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "How does 'Training Together, Diagnosing Better: Federated Learning for Collagen VI-Related Dystrophies' advance the field of cs.AI?",
-          "question_id": "2512.16876v1_q_2",
-          "difficulty": "medium",
-          "expected_answer_type": "contribution",
-          "response_time_ms": 6612.977027893066,
-          "answer": "- Paper: Training Together, Diagnosing Better: Federated Learning for Collagen VI-Related Dystrophies (Astrid Brull, Sara Aguti, V\u00e9ronique Bolduc, Ying Hu, Daniel M. Jimenez-Gutierrez, Enrique Zuazua, Joaquin Del-Rio, Oleksii Sliusarenko, Haiyan Zhou, Francesco Muntoni, Carsten G. B\u00f6nnemann, X)\n- How it advances cs.AI: By applying federated learning to a rare collagen VI\u2013related dystrophy diagnostic task, the work demonstrates privacy-preserving, cross-institutional model training for biomedical AI. The approach addresses data-silo challenges in clinical AI by enabling collaboration across sites without sharing raw patient data, thereby potentially improving diagnostic accuracy and generalization across cohorts. This positions federated learning as a practical, real-world tool for healthcare AI within the cs.AI domain.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 1.0,
-            "faithfulness": 0.7142857142857143,
-            "contextual_precision": 0.2
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What research gap does this paper fill?",
-          "question_id": "2512.16876v1_q_3",
-          "difficulty": "easy",
-          "expected_answer_type": "problem",
-          "response_time_ms": 4950.476169586182,
-          "answer": "- Paper: Differences That Matter: Auditing Models for Capability Gap Discovery and Rectification by Qihao Liu, Chengzhi Mao, Yaojie Liu, Alan Yuille, and Wen-Sheng Chu (categories cs.AI, cs.CV). \n- Research gap addressed: The authors identify that conventional evaluation methods for multimodal LLMs (MLLMs) lack interpretability and are often insufficient to diagnose and understand capability gaps. \n- How the paper fills the gap: They propose auditing models for capability gap discovery and rectification, providing interpretable diagnostics and a pathway to remediate discovered gaps.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.9285714285714286,
-            "faithfulness": 0.6,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What methods or techniques are used in 'Training Together, Diagnosing Better: Federated Learning for Collagen VI-Related Dystrophies'?",
-          "question_id": "2512.16876v1_q_4",
-          "difficulty": "hard",
-          "expected_answer_type": "methodology",
-          "response_time_ms": 6434.558153152466,
-          "answer": "- Method/techniques used: Federated Learning (as indicated by the paper title, \u201cTraining Together, Diagnosing Better: Federated Learning for Collagen VI-Related Dystrophies\u201d).  \n- Paper details: Title and author list include Astrid Brull, Sara Aguti, V\u00e9ronique Bolduc, Ying Hu, Daniel M. Jimenez-Gutierrez, Enrique Zuazua, Joaquin Del-Rio, Oleksii Sliusarenko, Haiyan Zhou, Francesco Muntoni, Carsten G. B\u00f6nnemann, X, among others.  \n- Note: The excerpt provided contains only the title and author names and does not include additional methodological specifics or results beyond the use of Federated Learning.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 1.0,
-            "faithfulness": 0.8,
-            "contextual_precision": 0.2
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "How does this paper compare to previous work in cs.AI?",
-          "question_id": "2512.16876v1_q_5",
-          "difficulty": "medium",
-          "expected_answer_type": "comparison",
-          "response_time_ms": 16033.139944076538,
-          "answer": "- None of the provided papers explicitly positions itself as a cs.AI\u2013level comparison to prior cs.AI work. \n- For example, Alchemist: Unlocking Efficiency in Text-to-Image Model Training via Meta-Gradient Data Selection (Kaixin Ding, Yang Zhou, Xi Chen, Miao Yang, Jiarong Ou, Rui Chen, Xin Tao, Hengshuang Zhao) discusses efficiency gains over existing T2I training paradigms by using meta-gradient data selection and cites \u201cRecent advances in Text-to-Image (T2I) generative models, such as Im\u2026,\u201d to situate its approach relative to prior T2I methods. \n- Other papers\u2014Training Together, Diagnosing Better: Federated Learning for Collagen VI-Related Dystrophies (Brull et al.); Radiology Report Generation with Layer-Wise Anatomical Attention (Mu\u00f1iz-De-Le\u00f3n et al.); Exploration of Augmentation Strategies in Multi-modal Retrieval-Augmented Generation for the Biomedical Domain (Kocbek et al.)\u2014describe improvements and baselines within biomedical AI contexts but do not frame their contributions as comparisons to cs.AI literature.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.5,
-            "faithfulness": 0.4444444444444444,
-            "contextual_precision": 0.0
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": false,
-            "answer_relevancy": false,
-            "faithfulness": false
           }
         }
       ]
     }
   ],
   "aggregate_metrics": {
-    "total_questions": 50,
-    "overall_pass_rate": 0.0,
-    "average_response_time_ms": 10995.616993904114,
-    "median_response_time_ms": 9506.914615631104,
+    "total_questions": 25,
+    "overall_pass_rate": 0.8,
+    "average_response_time_ms": 1459.8320960998535,
+    "median_response_time_ms": 1471.2872505187988,
     "threshold_pass_rates": {
-      "response_time": 0.0,
-      "precision_at_3": 0.0,
-      "answer_relevancy": 0.7,
-      "faithfulness": 0.24
+      "response_time": 0.92,
+      "precision_at_3": 1.0,
+      "answer_relevancy": 1.0,
+      "faithfulness": 0.84
     },
     "retrieval_metrics": {
       "precision_at_3": 0.3333333333333333,
-      "mrr": 1.0,
+      "precision_at_1": 1.0,
       "recall": 1.0,
+      "mrr": 1.0,
       "precision_at_5": 0.2,
-      "precision_at_10": 0.1,
-      "precision_at_1": 1.0
+      "precision_at_10": 0.1
     },
     "answer_metrics": {
-      "answer_relevancy": 0.7622871762740183,
-      "faithfulness": 0.6032712842712843,
-      "contextual_precision": 0.092
+      "answer_relevancy": 0.8,
+      "context_relevancy": 0.6519999999999999,
+      "completeness": 0.8,
+      "safety": 1.0,
+      "faithfulness": 0.858100392818451,
+      "hallucination_probability": 0.14189960718154906,
+      "overall_score": 0.8252301178455352
     }
   }
 }
