@@ -75,6 +75,14 @@ except ImportError as e:
 # Global Redis client instance
 redis_client: Optional[redis.Redis] = None
 
+try:
+    redis_client = redis.from_url(settings.REDIS_URL)
+    # We don't ping here to avoid blocking startup if Redis is down, 
+    # but the client object is created so middleware can use it (and fail gracefully later).
+except Exception as e:
+    logger.warning(f"Failed to create Redis client: {e}. Rate limiting will use in-memory storage.")
+    redis_client = None
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
@@ -89,15 +97,13 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to create database tables: {e}")
         raise
 
-    # Initialize Redis client
-    global redis_client
-    try:
-        redis_client = redis.from_url(settings.REDIS_URL)
-        redis_client.ping()  # Test connection
-        logger.info("Redis client initialized and connected successfully")
-    except redis.RedisError as e:
-        logger.error(f"Failed to connect to Redis: {e}. Rate limiting will use in-memory storage.")
-        redis_client = None
+    # Check Redis connection
+    if redis_client:
+        try:
+            redis_client.ping()  # Test connection
+            logger.info("Redis client connected successfully")
+        except redis.RedisError as e:
+            logger.warning(f"Redis connection failed: {e}. Rate limiting may not persist across restarts.")
 
     # Initialize WebSocket services
     try:
