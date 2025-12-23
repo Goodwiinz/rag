@@ -8,10 +8,11 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
-import redis
 import logging
 import time
 import os
+from typing import Optional
+import redis # Added this line
 
 # Setup basic logging
 logger = logging.getLogger(__name__)
