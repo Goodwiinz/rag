@@ -749,6 +749,40 @@ body {
   animation: holo-shimmer 4s linear infinite;
 }
 
+/* Chrome/Safari autofill override - keep dark Terminal Observatory theme */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px rgba(13, 13, 20, 0.98) inset !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.9) !important;
+  background-color: rgba(13, 13, 20, 0.98) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  caret-color: #00ff9f !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Keep lock/mail icons visible when autofill is active */
+.relative:has(input:-webkit-autofill) svg {
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Ensure eye icon button stays phosphor green with autofill */
+input:-webkit-autofill + button,
+input:-webkit-autofill ~ button {
+  color: rgba(0, 255, 159, 0.5) !important;
+}
+
+input:-webkit-autofill + button:hover,
+input:-webkit-autofill ~ button:hover {
+  color: #00ff9f !important;
+}
+
+input:-webkit-autofill + button svg,
+input:-webkit-autofill ~ button svg {
+  color: inherit !important;
+}
+
 /* Terminal-style scrollbar */
 .terminal-scrollbar::-webkit-scrollbar {
   width: 6px;
