@@ -168,6 +168,7 @@ const DEFAULT_SETTINGS: ChatSettings = {
 };
 
 const STORAGE_KEY = 'terminal-observatory-conversations';
+const ACTIVE_CONV_KEY = 'terminal-observatory-active-conversation';
 
 const STARTER_PROMPTS = [
   {
@@ -633,13 +634,8 @@ function ChatInput({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={
-              selectedModel
-                ? 'Ask about your documents, research, or knowledge base...'
-                : 'Select a model to start chatting...'
-            }
             rows={1}
-            className="w-full bg-transparent text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)] text-sm resize-none outline-none"
+            className="w-full bg-transparent text-[var(--terminal-text)] text-sm resize-none outline-none"
             style={{
               fontFamily: "'JetBrains Mono', monospace",
               minHeight: '24px',
@@ -927,28 +923,67 @@ export default function ChatPage() {
   // Refs
   const engineRef = useRef<MLCEngine | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isHydratedRef = useRef(false);
 
   // Auth
   const { isAuthenticated } = useAuthStore();
 
-  // Load conversations from localStorage
+  // Load conversations and active conversation from localStorage (runs first on mount)
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        setConversations(JSON.parse(stored));
-      } catch (e) {
-        console.error('Failed to parse conversations:', e);
+    try {
+      // Load conversations
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setConversations(parsed);
+          console.log('[Chat] Loaded', parsed.length, 'conversations from storage');
+
+          // Load and restore active conversation
+          const activeId = localStorage.getItem(ACTIVE_CONV_KEY);
+          if (activeId && parsed.some((c: Conversation) => c.id === activeId)) {
+            setActiveConversationId(activeId);
+            const activeConv = parsed.find((c: Conversation) => c.id === activeId);
+            if (activeConv) {
+              setMessages(activeConv.messages);
+              console.log('[Chat] Restored active conversation:', activeConv.title);
+            }
+          }
+        }
       }
+    } catch (e) {
+      console.error('[Chat] Failed to parse conversations:', e);
     }
+    // Delay setting hydrated flag until after React flushes state updates
+    // This prevents the save effect from running with stale state
+    setTimeout(() => {
+      isHydratedRef.current = true;
+      console.log('[Chat] Hydration complete');
+    }, 0);
   }, []);
 
-  // Save conversations
+  // Save conversations to localStorage (only after hydration)
   useEffect(() => {
-    if (conversations.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    // Skip saving during initial hydration to prevent overwriting stored data
+    if (!isHydratedRef.current) {
+      return;
     }
+    // Save conversations (including empty array to clear storage when all deleted)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    console.log('[Chat] Saved', conversations.length, 'conversations to storage');
   }, [conversations]);
+
+  // Save active conversation ID
+  useEffect(() => {
+    if (!isHydratedRef.current) {
+      return;
+    }
+    if (activeConversationId) {
+      localStorage.setItem(ACTIVE_CONV_KEY, activeConversationId);
+    } else {
+      localStorage.removeItem(ACTIVE_CONV_KEY);
+    }
+  }, [activeConversationId]);
 
   // Load active conversation
   useEffect(() => {

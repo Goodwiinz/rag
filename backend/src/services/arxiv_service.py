@@ -14,7 +14,7 @@ from pathlib import Path
 import json
 import aiohttp
 import aiofiles
-import PyPDF2
+from pypdf import PdfReader
 from io import BytesIO
 import requests
 
@@ -367,7 +367,7 @@ class ArXivIngestionService:
         """
         try:
             pdf_file = BytesIO(pdf_content)
-            pdf_reader = PyPDF2.PdfReader(pdf_file)
+            pdf_reader = PdfReader(pdf_file)
 
             # Extract text from all pages
             full_text = ""

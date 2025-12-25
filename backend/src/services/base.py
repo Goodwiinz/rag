@@ -65,6 +65,10 @@ class BaseService(ABC):
         """Cleanup the service (override in subclasses)"""
         self.log_info("Service cleaning up")
 
+    async def shutdown(self):
+        """Shutdown the service (override in subclasses)"""
+        self.log_info("Service shutting down")
+
     async def health_check(self) -> Dict[str, Any]:
         """Perform a health check (override in subclasses)"""
         return {

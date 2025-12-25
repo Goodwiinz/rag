@@ -162,8 +162,7 @@ function CommandPalette({
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search commands, conversations, documents..."
-              className="flex-1 bg-transparent text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)] text-sm outline-none"
+              className="flex-1 bg-transparent text-[var(--terminal-text)] text-sm outline-none"
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             />
             <kbd className="px-2 py-1 rounded bg-[var(--terminal-border)] text-[10px] text-[var(--terminal-text-dim)]"
@@ -445,8 +444,7 @@ function ConversationSidebar({
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search conversations..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-xs text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)] outline-none focus:border-[var(--phosphor-green)]/30"
+            className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-xs text-[var(--terminal-text)] outline-none focus:border-[var(--phosphor-green)]/30"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           />
         </div>
