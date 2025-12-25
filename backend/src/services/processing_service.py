@@ -535,8 +535,19 @@ class ProcessingPipeline:
                 return None
 
             # Split text into chunks (Azure OpenAI has token limits)
+            # Split text into chunks (Azure OpenAI has token limits)
             chunk_size = 8000  # characters (roughly ~2000 tokens)
-            chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+            overlap = 1600     # 20% overlap
+            
+            chunks = []
+            if len(text) <= chunk_size:
+                chunks = [text]
+            else:
+                stride = chunk_size - overlap
+                for i in range(0, len(text), stride):
+                    chunk = text[i:i+chunk_size]
+                    if chunk.strip():
+                        chunks.append(chunk)
 
             # Generate embeddings for each chunk using Azure OpenAI
             embeddings = []

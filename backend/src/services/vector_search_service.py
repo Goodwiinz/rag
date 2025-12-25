@@ -42,7 +42,7 @@ class VectorSearchService:
         content_type: str = "text",
         source_type: str = "document",
         chunk_size: int = 1000,  # Increased from 500 for better context
-        overlap: int = 200,      # Increased from 50 for better continuity
+        overlap: int = 300,      # Increased from 200 for 30% overlap
         metadata: Optional[Dict[str, Any]] = None
     ) -> VectorOperationResult:
         """Index a document by generating embeddings and storing in vector database"""
@@ -256,6 +256,110 @@ class VectorSearchService:
                 search_time=0.0,
                 query=query,
                 collection=VectorCollectionType.DOCUMENT_CHUNKS
+            )
+
+    def search_documents_hybrid(
+        self,
+        query: str,
+        organization_id: str,
+        limit: int = 10,
+        score_threshold: float = 0.2,
+        filters: Optional[Dict[str, Any]] = None,
+        dense_weight: float = 0.7,
+        sparse_weight: float = 0.3
+    ) -> VectorSearchResponse:
+        """
+        Hybrid search combining dense embeddings with BM25 keyword matching.
+        
+        This improves Precision@3/5 by boosting results that match query keywords.
+        
+        Args:
+            query: Search query
+            organization_id: Organization filter
+            limit: Max results to return
+            score_threshold: Minimum score threshold
+            filters: Additional filters
+            dense_weight: Weight for semantic similarity (default 0.7)
+            sparse_weight: Weight for keyword matching (default 0.3)
+        """
+        from .bm25_service import bm25_service
+        start_time = time.time()
+        
+        try:
+            # First, get dense search results (fetch more for re-ranking)
+            dense_results = self.search_documents(
+                query=query,
+                organization_id=organization_id,
+                limit=limit * 2,
+                score_threshold=score_threshold,
+                filters=filters
+            )
+            
+            if not dense_results.results:
+                return dense_results
+            
+            # Generate BM25 sparse vector for query
+            query_sparse = bm25_service.encode(query, is_query=True)
+            query_terms = set(query_sparse.indices)
+            
+            # Boost results with BM25 scores
+            boosted_results = []
+            for result in dense_results.results:
+                doc_text = result.text or ""
+                
+                if doc_text:
+                    # Compute BM25 score for this document
+                    doc_sparse = bm25_service.encode(doc_text)
+                    
+                    # Calculate overlap (dot product approximation)
+                    bm25_score = 0.0
+                    if doc_sparse.indices:
+                        for idx, val in zip(doc_sparse.indices, doc_sparse.values):
+                            if idx in query_terms:
+                                bm25_score += val
+                    
+                    # Normalize BM25 score
+                    bm25_score = min(bm25_score / max(len(query_terms), 1), 1.0)
+                    
+                    # Combine scores
+                    combined_score = dense_weight * result.score + sparse_weight * bm25_score
+                else:
+                    combined_score = result.score
+                
+                # Update result score (create new result with updated score)
+                boosted_results.append(VectorSearchResult(
+                    id=result.id,
+                    score=combined_score,
+                    text=result.text,
+                    metadata=result.metadata
+                ))
+            
+            # Re-sort by combined score
+            boosted_results.sort(key=lambda x: x.score, reverse=True)
+            
+            # Return top results
+            final_results = boosted_results[:limit]
+            
+            processing_time = time.time() - start_time
+            logger.info(f"Hybrid search: {len(final_results)} results in {processing_time:.3f}s")
+            
+            return VectorSearchResponse(
+                results=final_results,
+                total_found=len(final_results),
+                search_time=processing_time,
+                query=query,
+                collection=VectorCollectionType.DOCUMENT_CHUNKS
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in hybrid search: {e}")
+            # Fallback to dense-only search
+            return self.search_documents(
+                query=query,
+                organization_id=organization_id,
+                limit=limit,
+                score_threshold=score_threshold,
+                filters=filters
             )
 
     def search_entities(

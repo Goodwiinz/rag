@@ -14,8 +14,17 @@ import json
 import logging
 from pathlib import Path
 from typing import List, Dict, Optional
-import PyPDF2
-from io import BytesIO
+import re
+import io
+try:
+    import fitz  # PyMuPDF
+    import pytesseract
+    from PIL import Image
+    PYMUPDF_AVAILABLE = True
+except ImportError:
+    import PyPDF2
+    PYMUPDF_AVAILABLE = False
+
 
 # Load environment from backend/.env BEFORE importing services
 from dotenv import load_dotenv
@@ -55,8 +64,90 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _clean_extracted_text(text: str) -> str:
+    """Clean and preprocess extracted text"""
+    try:
+        # Remove excessive whitespace
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Remove common PDF artifacts
+        text = re.sub(r'\f', '\n', text)  # Form feeds
+        text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)  # Control characters
+        
+        # Fix common OCR errors
+        text = re.sub(r'\|', 'I', text)  # Vertical bars to I
+        
+        # Normalize line breaks
+        text = re.sub(r'\n\s*\n', '\n\n', text)  # Multiple empty lines to double newline
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        
+        return text.strip()
+    except Exception as e:
+        logger.warning(f"Text cleaning failed: {str(e)}")
+        return text
+
+def extract_pdf_text_pymupdf(pdf_path: Path) -> Optional[str]:
+    """Extract text from a PDF file using PyMuPDF with OCR fallback"""
+    try:
+        # First attempt: Extract text directly
+        text = []
+        try:
+            doc = fitz.open(pdf_path)
+            for page_num in range(len(doc)):
+                page = doc.load_page(page_num)
+                page_text = page.get_text()
+                
+                if page_text.strip():
+                    text.append(page_text)
+                else:
+                    # If no text found, try OCR
+                    logger.info(f"Page {page_num+1} has no text, trying OCR...")
+                    pix = page.get_pixmap()
+                    img_data = pix.tobytes("png")
+                    img = Image.open(io.BytesIO(img_data))
+                    ocr_text = pytesseract.image_to_string(img)
+                    if ocr_text.strip():
+                        text.append(f"[OCR Page {page_num + 1}]\n{ocr_text}")
+            
+            doc.close()
+            
+        except Exception as pdf_error:
+            logger.warning(f"Direct PDF extraction failed: {pdf_error}. Trying complete OCR fallback.")
+            # Fallback: Convert all pages to images and OCR them
+            try:
+                doc = fitz.open(pdf_path)
+                text = [] # Reset text
+                for page_num in range(len(doc)):
+                    page = doc.load_page(page_num)
+                    pix = page.get_pixmap()
+                    img_data = pix.tobytes("png")
+                    img = Image.open(io.BytesIO(img_data))
+                    ocr_text = pytesseract.image_to_string(img)
+                    if ocr_text.strip():
+                        text.append(f"[OCR Page {page_num + 1}]\n{ocr_text}")
+                doc.close()
+            except Exception as ocr_error:
+                logger.error(f"OCR fallback also failed: {ocr_error}")
+                return None
+
+        extracted_text = '\n'.join(text)
+        
+        # Post-process and clean the text
+        if extracted_text:
+            extracted_text = _clean_extracted_text(extracted_text)
+            
+        return extracted_text
+
+    except Exception as e:
+        logger.error(f"Failed to extract PDF {pdf_path}: {e}")
+        return None
+
 def extract_pdf_text(pdf_path: Path) -> Optional[str]:
     """Extract text from a PDF file"""
+    if PYMUPDF_AVAILABLE:
+        return extract_pdf_text_pymupdf(pdf_path)
+        
+    # Fallback to PyPDF2 if PyMuPDF not available (legacy)
     try:
         with open(pdf_path, 'rb') as f:
             pdf_reader = PyPDF2.PdfReader(f)
@@ -66,7 +157,6 @@ def extract_pdf_text(pdf_path: Path) -> Optional[str]:
                 try:
                     page_text = page.extract_text()
                     if page_text:
-                        # Add page marker for context
                         full_text.append(f"[Page {page_num + 1}]\n{page_text}")
                 except Exception as e:
                     logger.warning(f"Failed to extract text from page {page_num + 1}: {e}")

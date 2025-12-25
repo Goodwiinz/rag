@@ -84,7 +84,7 @@ class LLMJudgeService:
             deployment_name or 
             os.environ.get("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME") or
             settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME or 
-            "gpt-5-nano"
+            "gpt-4o-mini"
         )
         self.api_version = api_version
         

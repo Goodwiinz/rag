@@ -1,32 +1,32 @@
 {
   "evaluation_info": {
-    "timestamp": "2025-12-22T11:56:57.341155",
+    "timestamp": "2025-12-22T19:08:49.774688",
     "api_base_url": "http://localhost:8000"
   },
   "test_cases": [
     {
-      "paper_id": "2512.16046v1",
-      "paper_title": "CauSTream: Causal Spatio-Temporal Representation Learning for Streamflow Forecasting",
+      "paper_id": "2512.16875v1",
+      "paper_title": "Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery",
       "categories": [
-        "stat.ML",
+        "cs.DS",
         "cs.LG",
-        "cs.AI",
-        "cs.CE"
+        "math.ST",
+        "stat.ML"
       ],
       "question_results": [
         {
-          "question": "Describe the approach taken in this paper.",
-          "question_id": "2512.16046v1_q_1",
+          "question": "Describe the approach taken in 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery'.",
+          "question_id": "2512.16875v1_q_1",
           "difficulty": "hard",
           "expected_answer_type": "methodology",
-          "response_time_ms": 2074.213743209839,
-          "answer": "The paper \"CauSTream: Causal Spatio-Temporal Representation Learning for Streamflow Forecasting\" by Shu Wan et al. focuses on streamflow forecasting, which is essential for water resource management. The authors propose a causal spatio-temporal representation learning approach to improve forecasting accuracy by capturing the intricate relationships between spatial and temporal factors affecting streamflow.",
-          "retrieved_count": 10,
+          "response_time_ms": 1890.486717224121,
+          "answer": "The paper \"Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery\" modifies existing reduction techniques to accommodate dimensional slack, which enhances the hardness of robust subspace recovery when there is a small dimension gap. The authors establish that many points are close to a low-dimensional subspace and argue for the existence of such a subspace under these conditions.",
+          "retrieved_count": 1,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
             "mrr": 1.0,
             "recall": 1.0
           },
@@ -35,62 +35,30 @@
             "context_relevancy": 0.7,
             "completeness": 0.8,
             "safety": 1.0,
-            "faithfulness": 0.997541069984436,
-            "hallucination_probability": 0.002458930015563965,
-            "overall_score": 0.8742623209953307
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "Who are the authors of 'CauSTream: Causal Spatio-Temporal Representation Learning for Streamflow Forecasting' and what institutions are they affiliated with?",
-          "question_id": "2512.16046v1_q_2",
-          "difficulty": "hard",
-          "expected_answer_type": "author",
-          "response_time_ms": 1224.971055984497,
-          "answer": "The authors of \"CauSTream: Causal Spatio-Temporal Representation Learning for Streamflow Forecasting\" are Shu Wan, Reepal Shah, John Sabo, Huan Liu, and K. Sel\u00e7uk Candan. The document does not specify their institutional affiliations.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.853713870048523,
-            "hallucination_probability": 0.14628612995147705,
-            "overall_score": 0.8311141610145568
+            "faithfulness": 0.9686529040336609,
+            "hallucination_probability": 0.03134709596633911,
+            "overall_score": 0.8655958712100982
           },
           "meets_thresholds": {
             "response_time": true,
-            "precision_at_3": true,
+            "precision_at_3": false,
             "answer_relevancy": true,
             "faithfulness": true
           }
         },
         {
-          "question": "What metrics were used to measure performance?",
-          "question_id": "2512.16046v1_q_3",
+          "question": "What problem does 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery' address?",
+          "question_id": "2512.16875v1_q_2",
           "difficulty": "medium",
-          "expected_answer_type": "results",
-          "response_time_ms": 1070.847988128662,
-          "answer": "The documents do not provide specific details on the metrics used to measure performance. However, Document 3 mentions that more details on metrics can be found in supplementary material, indicating that performance metrics were discussed but not explicitly listed in the provided content.",
-          "retrieved_count": 10,
+          "expected_answer_type": "problem",
+          "response_time_ms": 1259.8598003387451,
+          "answer": "The paper \"Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery\" addresses the problem of robust subspace recovery, particularly focusing on how to tolerate dimensional slack and strengthen hardness results in scenarios where many points are close to a low-dimensional subspace.",
+          "retrieved_count": 1,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
             "mrr": 1.0,
             "recall": 1.0
           },
@@ -99,711 +67,30 @@
             "context_relevancy": 0.7,
             "completeness": 0.8,
             "safety": 1.0,
-            "faithfulness": 0.3184953033924103,
-            "hallucination_probability": 0.6815046966075897,
-            "overall_score": 0.670548591017723
+            "faithfulness": 0.9889941811561584,
+            "hallucination_probability": 0.011005818843841553,
+            "overall_score": 0.8716982543468474
           },
           "meets_thresholds": {
             "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What are the practical applications of this research?",
-          "question_id": "2512.16046v1_q_4",
-          "difficulty": "medium",
-          "expected_answer_type": "application",
-          "response_time_ms": 1548.7840175628662,
-          "answer": "The research in \"CauSTream: Causal Spatio-Temporal Representation Learning for Streamflow Forecasting\" by Shu Wan et al. focuses on streamflow forecasting, which is essential for water resource management and risk mitigation. Additionally, the study \"Abacus: Self-Supervised Event Counting-Aligned Distributional Pretraining\" by Sullivan Castro et al. addresses user purchase behavior modeling, which is crucial for improving display advertising effectiveness. These applications highlight the importance of accurate predictions in resource management and marketing strategies.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.9266762733459473,
-            "hallucination_probability": 0.07332372665405273,
-            "overall_score": 0.853002882003784
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
+            "precision_at_3": false,
             "answer_relevancy": true,
             "faithfulness": true
           }
         },
         {
-          "question": "How does 'CauSTream: Causal Spatio-Temporal Representation Learning for Streamflow Forecasting' advance the field of stat.ML?",
-          "question_id": "2512.16046v1_q_5",
-          "difficulty": "medium",
-          "expected_answer_type": "contribution",
-          "response_time_ms": 1412.806749343872,
-          "answer": "The paper \"CauSTream: Causal Spatio-Temporal Representation Learning for Streamflow Forecasting\" by Shu Wan et al. advances the field of statistical machine learning (stat.ML) by introducing a novel approach for streamflow forecasting that emphasizes causal relationships in spatio-temporal data. This method enhances the accuracy of predictions crucial for water resource management and risk mitigation, addressing the complexities of temporal dependencies and spatial contexts in streamflow data.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.993057370185852,
-            "hallucination_probability": 0.006942629814147949,
-            "overall_score": 0.8729172110557555
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        }
-      ]
-    },
-    {
-      "paper_id": "2512.11743v1",
-      "paper_title": "CogniSNN: Enabling Neuron-Expandability, Pathway-Reusability, and Dynamic-Configurability with Random Graph Architectures in Spiking Neural Networks",
-      "categories": [
-        "cs.NE",
-        "cs.AI"
-      ],
-      "question_results": [
-        {
-          "question": "What are the main experimental results of this paper?",
-          "question_id": "2512.11743v1_q_1",
-          "difficulty": "hard",
-          "expected_answer_type": "results",
-          "response_time_ms": 1733.5569858551025,
-          "answer": "The documents provided do not include specific experimental results for any of the papers. They primarily contain titles, authors, and abstracts without detailed findings or data. For example, \"CogniSNN\" discusses neuron-expandability and dynamic-configurability in spiking neural networks, but does not present experimental results. To find specific results, one would need to access the full papers.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.5,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.9484936594963074,
-            "hallucination_probability": 0.05150634050369263,
-            "overall_score": 0.8295480978488923
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "What future work is suggested in this paper?",
-          "question_id": "2512.11743v1_q_2",
-          "difficulty": "medium",
-          "expected_answer_type": "future_work",
-          "response_time_ms": 902.8370380401611,
-          "answer": "The documents provided do not explicitly mention future work or suggestions for future research. They primarily focus on the methodologies and findings of the respective studies. For specific future work recommendations, one would need to refer to the full text of each paper.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.45597389340400696,
-            "hallucination_probability": 0.544026106595993,
-            "overall_score": 0.711792168021202
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What are the practical applications of this research?",
-          "question_id": "2512.11743v1_q_3",
-          "difficulty": "hard",
-          "expected_answer_type": "application",
-          "response_time_ms": 1874.3221759796143,
-          "answer": "The research in these documents focuses on enhancing Spiking Neural Networks (SNNs) for various applications. For instance, \"CogniSNN\" (Document 1) aims to improve neuron-expandability and dynamic configurability, which can be beneficial in adaptive learning systems. \"Improving Low-Latency Learning Performance\" (Document 2) addresses efficient learning in real-time applications, while \"Self-Motivated Growing Neural Network\" (Document 3) explores adaptive architectures for reinforcement learning, potentially useful in robotics and autonomous systems. Overall, these advancements can lead to more efficient and robust AI systems in fields like robotics, real-time data processing, and adaptive learning environments.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.920350193977356,
-            "hallucination_probability": 0.07964980602264404,
-            "overall_score": 0.8511050581932067
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "What improvements does this approach achieve over existing methods?",
-          "question_id": "2512.11743v1_q_4",
-          "difficulty": "hard",
-          "expected_answer_type": "comparison",
-          "response_time_ms": 1706.2327861785889,
-          "answer": "The document titled \"Improving Low-Latency Learning Performance in Spiking Neural Networks via a Change-Perceptive Dendrite-Soma-Axon Neuron\" by Zeyu Huang et al. focuses on enhancing low-latency learning performance in spiking neural networks. This approach introduces a change-perceptive neuron model that likely improves the responsiveness and efficiency of learning compared to traditional methods, although specific performance metrics are not detailed in the provided content.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.8842979073524475,
-            "hallucination_probability": 0.11570209264755249,
-            "overall_score": 0.8402893722057342
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "What is the main contribution of 'CogniSNN: Enabling Neuron-Expandability, Pathway-Reusability, and Dynamic-Configurability with Random Graph Architectures in Spiking Neural Networks'?",
-          "question_id": "2512.11743v1_q_5",
-          "difficulty": "medium",
-          "expected_answer_type": "contribution",
-          "response_time_ms": 1709.8050117492676,
-          "answer": "The main contribution of \"CogniSNN: Enabling Neuron-Expandability, Pathway-Reusability, and Dynamic-Configurability with Random Graph Architectures in Spiking Neural Networks\" by Yongsheng Huang et al. is the introduction of a framework that allows for neuron-expandability, pathway-reusability, and dynamic-configurability in spiking neural networks using random graph architectures. This approach enhances the flexibility and adaptability of spiking neural networks in various applications.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.9791610836982727,
-            "hallucination_probability": 0.020838916301727295,
-            "overall_score": 0.8687483251094817
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        }
-      ]
-    },
-    {
-      "paper_id": "2512.15643v1",
-      "paper_title": "Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation",
-      "categories": [
-        "stat.ML",
-        "stat.ME"
-      ],
-      "question_results": [
-        {
-          "question": "How can the findings of 'Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation' be applied in real-world scenarios?",
-          "question_id": "2512.15643v1_q_1",
-          "difficulty": "medium",
-          "expected_answer_type": "application",
-          "response_time_ms": 1525.9630680084229,
-          "answer": "The findings of \"Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation\" by Jairo F\u00faquene-Pati\u00f1o can be applied in real-world scenarios such as improving the accuracy of estimates in small geographic areas, which is crucial for resource allocation and policy-making. The Bayesian model proposed allows for better handling of uncertainty in small area estimates, making it valuable in fields like public health, economics, and social sciences where precise local data is often limited.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.9818400740623474,
-            "hallucination_probability": 0.018159925937652588,
-            "overall_score": 0.8695520222187041
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "Describe the approach taken in this paper.",
-          "question_id": "2512.15643v1_q_2",
-          "difficulty": "easy",
-          "expected_answer_type": "methodology",
-          "response_time_ms": 1229.3062210083008,
-          "answer": "The paper \"Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation\" by Jairo F\u00faquene-Pati\u00f1o proposes a new Bayesian model specifically for Small Area Estimation, leveraging machine learning techniques. The approach focuses on incorporating uncertainty quantification into the spectral clustering process to enhance the reliability of estimates in small areas.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.3,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.9978607296943665,
-            "hallucination_probability": 0.002139270305633545,
-            "overall_score": 0.81435821890831
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "What improvements does this approach achieve over existing methods?",
-          "question_id": "2512.15643v1_q_3",
-          "difficulty": "easy",
-          "expected_answer_type": "comparison",
-          "response_time_ms": 1539.3781661987305,
-          "answer": "The document titled \"Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation\" by Jairo F\u00faquene-Pati\u00f1o proposes a new Bayesian model that improves upon existing methods by incorporating uncertainty quantification, which enhances the reliability of Small Area Estimation. This approach allows for better handling of variability in data, leading to more accurate estimates compared to traditional methods that do not account for uncertainty.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.9674028158187866,
-            "hallucination_probability": 0.03259718418121338,
-            "overall_score": 0.865220844745636
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "What are the limitations mentioned by the authors?",
-          "question_id": "2512.15643v1_q_4",
-          "difficulty": "easy",
-          "expected_answer_type": "future_work",
-          "response_time_ms": 1627.2199153900146,
-          "answer": "The limitations mentioned in the documents include the challenges of estimating intractable expectations over discrete domains in \"BayesSum: Bayesian Quadrature in Discrete Spaces\" by Sophia Seulkee, and the fundamental limitations of Partial Least Squares (PLS) in \"High-Dimensional Partial Least Squares: Spectral Analysis and Fundamental Limitations\" by Victor L\u00e9ger and Florent Chatelain, which discusses issues related to data integration and latent component extraction. Specific details on limitations are not provided in the abstracts, but these papers address significant computational and methodological challenges in their respective fields.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.5,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.17662334442138672,
-            "hallucination_probability": 0.8233766555786133,
-            "overall_score": 0.5979870033264161
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "How does 'Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation' advance the field of stat.ML?",
-          "question_id": "2512.15643v1_q_5",
-          "difficulty": "medium",
-          "expected_answer_type": "contribution",
-          "response_time_ms": 1304.2078018188477,
-          "answer": "The paper \"Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation\" by Jairo F\u00faquene-Pati\u00f1o proposes a new Bayesian model that enhances Small Area Estimation by incorporating uncertainty quantification. This advancement allows for more robust statistical inference in small area contexts, addressing limitations in existing methods and improving the reliability of estimates in machine learning applications.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.9964147806167603,
-            "hallucination_probability": 0.003585219383239746,
-            "overall_score": 0.8739244341850281
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        }
-      ]
-    },
-    {
-      "paper_id": "2512.15965v1",
-      "paper_title": "xtdml: Double Machine Learning Estimation to Static Panel Data Models with Fixed Effects in R",
-      "categories": [
-        "stat.ML",
-        "econ.EM",
-        "stat.ME"
-      ],
-      "question_results": [
-        {
-          "question": "How does this paper compare to previous work in stat.ML?",
-          "question_id": "2512.15965v1_q_1",
-          "difficulty": "hard",
-          "expected_answer_type": "comparison",
-          "response_time_ms": 1655.1918983459473,
-          "answer": "The paper \"xtdml: Double Machine Learning Estimation to Static Panel Data Models with Fixed Effects in R\" by Annalivia Polselli introduces a double machine learning (DML) method that enhances statistical estimation by integrating machine learning techniques, which is a significant advancement in the field of statistical machine learning (stat.ML). This contrasts with previous work that may not have effectively combined predictive power with statistical rigor, as seen in the other documents that focus on different aspects of machine learning, such as transfer learning and conformal prediction.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.9153331518173218,
-            "hallucination_probability": 0.08466684818267822,
-            "overall_score": 0.8495999455451965
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "Describe the approach taken in this paper.",
-          "question_id": "2512.15965v1_q_2",
-          "difficulty": "easy",
-          "expected_answer_type": "methodology",
-          "response_time_ms": 1356.1298847198486,
-          "answer": "The paper titled \"xtdml: Double Machine Learning Estimation to Static Panel Data Models with Fixed Effects in R\" by Annalivia Polselli employs a double machine learning (DML) method that integrates machine learning's predictive capabilities with statistical estimation techniques. This approach is designed to enhance the estimation of static panel data models, particularly those with fixed effects, by leveraging the strengths of both machine learning and traditional econometric methods.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.9990767240524292,
-            "hallucination_probability": 0.0009232759475708008,
-            "overall_score": 0.8747230172157288
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "What metrics were used to measure performance?",
-          "question_id": "2512.15965v1_q_3",
-          "difficulty": "easy",
-          "expected_answer_type": "results",
-          "response_time_ms": 1471.2872505187988,
-          "answer": "The documents provided do not specify particular metrics used to measure performance in their respective studies. Document 1 discusses double machine learning estimation methods, while Document 2 addresses transfer learning for individual treatment effects, and Document 3 focuses on multivariate conformal prediction. However, none of these documents detail specific performance metrics.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.3,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.8760043382644653,
-            "hallucination_probability": 0.12399566173553467,
-            "overall_score": 0.7778013014793397
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "What are the limitations mentioned by the authors?",
-          "question_id": "2512.15965v1_q_4",
-          "difficulty": "medium",
-          "expected_answer_type": "future_work",
-          "response_time_ms": 1212.998867034912,
-          "answer": "In Document 2, titled \"Advantages and limitations in the use of transfer learning for individual treatment effects in causal machine learning\" by Seyda Betul Aydin and Holger Brandt, the authors discuss challenges in generalizing causal knowledge across diverse environments. They highlight limitations such as the difficulty in ensuring that transfer learning effectively captures the nuances of individual treatment effects, which can lead to inaccurate estimations in new contexts.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.9153593182563782,
-            "hallucination_probability": 0.08464068174362183,
-            "overall_score": 0.8496077954769135
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "How does 'xtdml: Double Machine Learning Estimation to Static Panel Data Models with Fixed Effects in R' advance the field of stat.ML?",
-          "question_id": "2512.15965v1_q_5",
-          "difficulty": "easy",
-          "expected_answer_type": "contribution",
-          "response_time_ms": 1290.126085281372,
-          "answer": "The paper \"xtdml: Double Machine Learning Estimation to Static Panel Data Models with Fixed Effects in R\" by Annalivia Polselli introduces a double machine learning (DML) method that integrates machine learning's predictive capabilities with statistical estimation for static panel data models. This advancement allows for more accurate estimation of causal effects in the presence of fixed effects, enhancing the robustness and applicability of statistical methods in econometrics and machine learning.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.997480571269989,
-            "hallucination_probability": 0.0025194287300109863,
-            "overall_score": 0.8742441713809966
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        }
-      ]
-    },
-    {
-      "paper_id": "2512.16105v1",
-      "paper_title": "BayesSum: Bayesian Quadrature in Discrete Spaces",
-      "categories": [
-        "stat.ML",
-        "cs.LG"
-      ],
-      "question_results": [
-        {
-          "question": "What are the key innovations introduced in this paper?",
-          "question_id": "2512.16105v1_q_1",
-          "difficulty": "medium",
-          "expected_answer_type": "contribution",
-          "response_time_ms": 1542.8030490875244,
-          "answer": "The key innovations introduced in the paper \"BayesSum: Bayesian Quadrature in Discrete Spaces\" by Sophia Seulkee Kang et al. include a novel approach to estimating intractable expectations over discrete domains using Bayesian quadrature methods. This work addresses computational challenges in statistical machine learning and contributes to the field by providing a framework that enhances the efficiency of expectation estimation in discrete settings.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.9507625102996826,
-            "hallucination_probability": 0.04923748970031738,
-            "overall_score": 0.8602287530899047
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "How can the findings of 'BayesSum: Bayesian Quadrature in Discrete Spaces' be applied in real-world scenarios?",
-          "question_id": "2512.16105v1_q_2",
-          "difficulty": "easy",
-          "expected_answer_type": "application",
-          "response_time_ms": 1220.2579975128174,
-          "answer": "The findings of \"BayesSum: Bayesian Quadrature in Discrete Spaces\" by Sophia Seulkee can be applied in real-world scenarios that require estimating intractable expectations over discrete domains, such as in decision-making processes in finance, machine learning, and operations research. The Bayesian approach allows for more efficient and accurate computations in these complex environments, enhancing predictive modeling and uncertainty quantification.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.9253900647163391,
-            "hallucination_probability": 0.07460993528366089,
-            "overall_score": 0.8526170194149016
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "What datasets were used to evaluate this approach?",
-          "question_id": "2512.16105v1_q_3",
-          "difficulty": "medium",
-          "expected_answer_type": "results",
-          "response_time_ms": 874.690055847168,
-          "answer": "The documents provided do not specify any datasets used to evaluate the approaches discussed in the papers. They focus on methodologies and theoretical frameworks rather than detailing specific datasets for evaluation.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.9128105044364929,
-            "hallucination_probability": 0.08718949556350708,
-            "overall_score": 0.8488431513309478
-          },
-          "meets_thresholds": {
-            "response_time": true,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": true
-          }
-        },
-        {
-          "question": "What is the core algorithm or model proposed?",
-          "question_id": "2512.16105v1_q_4",
+          "question": "What methods are used in 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery'?",
+          "question_id": "2512.16875v1_q_3",
           "difficulty": "medium",
           "expected_answer_type": "methodology",
-          "response_time_ms": 2063.950777053833,
-          "answer": "The core algorithm proposed in Document 1, \"BayesSum: Bayesian Quadrature in Discrete Spaces\" by Sophia Seulkee, is a Bayesian quadrature method designed for estimating intractable expectations over discrete domains. In Document 2, \"Fully Bayesian Spectral Clustering and Benchmarking with Uncertainty Quantification for Small Area Estimation\" by Jairo F\u00faquene-Pati\u00f1o, a new Bayesian model for Small Area Estimation is introduced. Document 3, \"Multivariate Uncertainty Quantification with Tomographic Quantile Forests\" by Takuya Kanazawa, presents a method for quantifying predictive uncertainty using tomographic quantile forests. Document 4, \"BAMBO: Construct Ability and Efficiency LLM Pareto Set via Bayesian Adaptive Multi-objective Block-wise Optimization\" by Kesheng Chen et al., proposes a Bayesian adaptive multi-objective optimization approach for constructing a Pareto set.",
-          "retrieved_count": 10,
+          "response_time_ms": 1146.859884262085,
+          "answer": "The document discusses modifications to existing reductions to accommodate dimensional slack, which enhances the hardness of robust subspace recovery with a small dimension gap. It also emphasizes the need to demonstrate that many points are close to a low-dimensional subspace, although specific methods are not detailed in the provided content.",
+          "retrieved_count": 1,
           "retrieval_metrics": {
             "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
             "mrr": 1.0,
             "recall": 1.0
           },
@@ -812,45 +99,77 @@
             "context_relevancy": 0.7,
             "completeness": 0.8,
             "safety": 1.0,
-            "faithfulness": 0.5935799479484558,
-            "hallucination_probability": 0.4064200520515442,
-            "overall_score": 0.7530739843845367
-          },
-          "meets_thresholds": {
-            "response_time": false,
-            "precision_at_3": true,
-            "answer_relevancy": true,
-            "faithfulness": false
-          }
-        },
-        {
-          "question": "What baselines were compared against in this research?",
-          "question_id": "2512.16105v1_q_5",
-          "difficulty": "easy",
-          "expected_answer_type": "comparison",
-          "response_time_ms": 1323.913812637329,
-          "answer": "The documents provided do not specify the baselines compared against in the research. They focus on different methodologies and applications in Bayesian modeling and uncertainty quantification but do not detail specific comparisons or baseline models used in the studies.",
-          "retrieved_count": 10,
-          "retrieval_metrics": {
-            "precision_at_1": 1.0,
-            "precision_at_3": 0.3333333333333333,
-            "precision_at_5": 0.2,
-            "precision_at_10": 0.1,
-            "mrr": 1.0,
-            "recall": 1.0
-          },
-          "answer_metrics": {
-            "answer_relevancy": 0.8,
-            "context_relevancy": 0.7,
-            "completeness": 0.8,
-            "safety": 1.0,
-            "faithfulness": 0.9688103199005127,
-            "hallucination_probability": 0.031189680099487305,
-            "overall_score": 0.8656430959701538
+            "faithfulness": 0.970268964767456,
+            "hallucination_probability": 0.029731035232543945,
+            "overall_score": 0.8660806894302367
           },
           "meets_thresholds": {
             "response_time": true,
-            "precision_at_3": true,
+            "precision_at_3": false,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What are the key results of 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery'?",
+          "question_id": "2512.16875v1_q_4",
+          "difficulty": "hard",
+          "expected_answer_type": "results",
+          "response_time_ms": 1905.1799774169922,
+          "answer": "The key results of \"Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery\" include a modified reduction that accommodates dimensional slack, leading to a strengthened hardness result for robust subspace recovery with a small dimension gap. The study also establishes that many points are close to a low-dimensional subspace, which is crucial for the argument of existence in the context of robust recovery.",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9979119896888733,
+            "hallucination_probability": 0.002088010311126709,
+            "overall_score": 0.8743735969066619
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What is the main contribution of 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery'?",
+          "question_id": "2512.16875v1_q_5",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1428.6720752716064,
+          "answer": "The main contribution of \"Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery\" is the modification of existing reduction techniques to accommodate dimensional slack, which enhances the hardness of robust subspace recovery when there is a small dimension gap. This work establishes the presence of many points near a low-dimensional subspace, contributing to the theoretical framework for robust recovery methods.",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9871726036071777,
+            "hallucination_probability": 0.012827396392822266,
+            "overall_score": 0.8711517810821532
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
             "answer_relevancy": true,
             "faithfulness": true
           }
@@ -859,32 +178,32 @@
     }
   ],
   "aggregate_metrics": {
-    "total_questions": 25,
-    "overall_pass_rate": 0.8,
-    "average_response_time_ms": 1459.8320960998535,
-    "median_response_time_ms": 1471.2872505187988,
+    "total_questions": 5,
+    "overall_pass_rate": 0.0,
+    "average_response_time_ms": 1526.21169090271,
+    "median_response_time_ms": 1428.6720752716064,
     "threshold_pass_rates": {
-      "response_time": 0.92,
-      "precision_at_3": 1.0,
+      "response_time": 1.0,
+      "precision_at_3": 0.0,
       "answer_relevancy": 1.0,
-      "faithfulness": 0.84
+      "faithfulness": 1.0
     },
     "retrieval_metrics": {
-      "precision_at_3": 0.3333333333333333,
       "precision_at_1": 1.0,
+      "precision_at_5": 0.0,
       "recall": 1.0,
       "mrr": 1.0,
-      "precision_at_5": 0.2,
-      "precision_at_10": 0.1
+      "precision_at_10": 0.0,
+      "precision_at_3": 0.0
     },
     "answer_metrics": {
       "answer_relevancy": 0.8,
-      "context_relevancy": 0.6519999999999999,
+      "context_relevancy": 0.7,
       "completeness": 0.8,
       "safety": 1.0,
-      "faithfulness": 0.858100392818451,
-      "hallucination_probability": 0.14189960718154906,
-      "overall_score": 0.8252301178455352
+      "faithfulness": 0.9826001286506653,
+      "hallucination_probability": 0.017399871349334718,
+      "overall_score": 0.8697800385951995
     }
   }
 }

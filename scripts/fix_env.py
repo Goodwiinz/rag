@@ -34,6 +34,12 @@ AZURE_OPENAI_CHAT_API_VERSION="2024-06-01"
 # Embedding Provider
 EMBEDDING_PROVIDER="azure_openai"
 EMBEDDING_MODEL="text-embedding-3-small"
+
+
+# Cohere Configuration (Reranking)
+COHERE_RERANK_ENDPOINT=https://goodwiinzapi.services.ai.azure.com/providers/cohere/v2/rerank
+COHERE_RERANK_API_KEY=7awsW9wUrULKH9CLPkeh1oeaeeGmKvIotw8HSYjVtjMcIgj0NqyLJQQJ99BIACYeBjFXJ3w3AAABACOG5UHM
+COHERE_RERANK_MODEL=Cohere-rerank-v4.0-pro
 """
 
 with open(".env", "w") as f:

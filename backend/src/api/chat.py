@@ -11,7 +11,7 @@ from datetime import datetime
 
 from ..services.azure_openai_service import azure_openai_service
 from ..services.hybrid_search_service import hybrid_search_service
-from ..models.search import SearchQuery
+from ..models.search_schemas import SearchQuery  # Pydantic schema, not SQLAlchemy model
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +63,15 @@ class ChatCompletionResponse(BaseModel):
 RAG_SYSTEM_PROMPT = """You are an AI research assistant with access to a knowledge base of academic papers and documents. 
 When answering questions, use the provided context from retrieved documents to give accurate, well-cited responses.
 
+IMPORTANT CITATION RULES:
+1. When referencing information from a document, ALWAYS cite it using the format [Doc N] where N is the document number (1, 2, 3, etc.)
+2. Include the paper title when first citing a document, e.g., "According to 'Paper Title' [Doc 1]..."
+3. Use citations inline with your statements, not at the end
+4. If multiple documents support a point, cite all of them, e.g., [Doc 1, Doc 3]
+
 If the context doesn't contain relevant information to answer the question, say so clearly and provide your best general knowledge response.
 
-Always be precise, cite specific papers or documents when relevant, and structure your responses clearly."""
+Always be precise, structure your responses clearly, and ensure every factual claim from the papers is properly cited."""
 
 
 async def retrieve_context(query: str, max_docs: int = 5) -> List[RetrievedContext]:
@@ -77,11 +83,16 @@ async def retrieve_context(query: str, max_docs: int = 5) -> List[RetrievedConte
             search_type="hybrid"
         )
         
-        # Execute hybrid search
-        search_response = await hybrid_search_service.search(
-            search_request=search_request,
-            user_id=None,
-            organization_id=None
+        # Execute hybrid search (sync method, run in thread pool)
+        import asyncio
+        loop = asyncio.get_event_loop()
+        search_response = await loop.run_in_executor(
+            None,
+            lambda: hybrid_search_service.search(
+                search_request=search_request,
+                user_id=None,
+                organization_id=None
+            )
         )
         
         logger.info(f"Hybrid search returned {len(search_response.results)} results")
@@ -93,12 +104,17 @@ async def retrieve_context(query: str, max_docs: int = 5) -> List[RetrievedConte
             doc_id = getattr(result, 'document_id', 'unknown')
             title = getattr(result, 'title', 'Untitled')
             
-            # Prefer content_preview or content_snippet
-            content = getattr(result, 'content_preview', None)
+            # Get metadata - it often contains the full text
+            metadata = getattr(result, 'metadata', {}) or {}
+            
+            # Try to get full content from metadata.text first (contains full chunk)
+            content = metadata.get('text', '')
+            
+            # Fallback to content_preview or content_snippet
+            if not content:
+                content = getattr(result, 'content_preview', None)
             if not content:
                 content = getattr(result, 'content_snippet', None)
-            
-            # Fallback to content if others are missing, but this is likely empty
             if not content:
                 content = getattr(result, 'content', '')
             
@@ -106,9 +122,14 @@ async def retrieve_context(query: str, max_docs: int = 5) -> List[RetrievedConte
             if content is None:
                 content = ""
             
+            # Get title from metadata if not in main object
+            if not title or title == 'Untitled':
+                additional_data = metadata.get('additional_data', {}) or metadata.get('metadata', {}) or {}
+                title = additional_data.get('title', metadata.get('title', 'Untitled'))
+            
             # Limit content length to fit in context window
-            if len(content) > 2000:
-                content = content[:2000] + "..."
+            if len(content) > 3000:
+                content = content[:3000] + "..."
             
             score = getattr(result, 'relevance_score', 0.0)
             
@@ -138,16 +159,19 @@ def build_context_prompt(contexts: List[RetrievedContext]) -> str:
     if not contexts:
         return ""
     
-    context_parts = ["Here are relevant documents from the knowledge base:\n"]
+    context_parts = ["Here are relevant documents from the knowledge base. Use [Doc N] format to cite them:\n"]
     
     for i, ctx in enumerate(contexts, 1):
-        context_parts.append(f"\n--- Document {i}: {ctx.title} ---")
+        context_parts.append(f"\n=== [Doc {i}] ===")
+        context_parts.append(f"Title: {ctx.title}")
+        context_parts.append(f"ArXiv ID: {ctx.document_id}")
         context_parts.append(f"Relevance Score: {ctx.score:.2f}")
         if ctx.source:
             context_parts.append(f"Source: {ctx.source}")
-        context_parts.append(f"\n{ctx.content}")
+        context_parts.append(f"\nContent:\n{ctx.content}")
     
-    context_parts.append("\n\n--- End of Retrieved Context ---\n")
+    context_parts.append("\n\n=== End of Retrieved Documents ===")
+    context_parts.append("Remember to cite sources using [Doc N] format!")
     return "\n".join(context_parts)
 
 

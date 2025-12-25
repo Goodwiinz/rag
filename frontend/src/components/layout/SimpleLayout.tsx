@@ -2,22 +2,71 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { BarChart3, Book, HelpCircle, User as UserIcon, LogOut } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { ReactNode } from 'react';
+import { cn } from '@/lib/utils';
+import {
+  BarChart3,
+  Book,
+  HelpCircle,
+  User as UserIcon,
+  LogOut,
+  Terminal,
+  Settings,
+  ChevronDown,
+  Home,
+  Search,
+  Bot,
+  FileText,
+  Database,
+} from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
+import { ReactNode, useState, useRef, useEffect } from 'react';
 
 interface SimpleLayoutProps {
   children: ReactNode;
   showHeader?: boolean;
 }
 
+// Terminal Observatory Theme
+const PHOSPHOR_GREEN = '#00ff9f';
+const AMBER = '#ffb700';
+
 export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps) {
-  const { user, logout } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const handleLogout = () => {
     logout();
     router.push('/login');
+  };
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const navItems = [
+    { href: '/', label: 'Home', icon: Home },
+    { href: '/search', label: 'Search', icon: Search },
+    { href: '/chat', label: 'Chat', icon: Bot },
+    { href: '/documents/upload', label: 'Documents', icon: FileText },
+    { href: '/arxiv', label: 'ArXiv', icon: Database },
+    { href: '/dashboard', label: 'Dashboard', icon: BarChart3 },
+  ];
+
+  const getInitials = (email: string | undefined) => {
+    if (!email) return 'U';
+    const name = email.split('@')[0];
+    return name.slice(0, 2).toUpperCase();
   };
 
   if (!showHeader) {
@@ -25,74 +74,161 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="flex h-16 items-center justify-between px-6">
+    <div className="min-h-screen bg-[#0a0a0f]">
+      {/* Terminal Observatory Header */}
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a0f]/95 backdrop-blur supports-[backdrop-filter]:bg-[#0a0a0f]/80">
+        <div className="flex h-14 items-center justify-between px-4">
           {/* Logo/Brand */}
-          <div className="flex items-center gap-3">
-            <div className="flex aspect-square size-9 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 shadow-lg shadow-amber-500/25">
-              <span className="text-white font-bold text-lg">RAG</span>
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold">Multimodal RAG System</h1>
-              <p className="text-xs text-muted-foreground">Enterprise</p>
-            </div>
+          <div className="flex items-center gap-6">
+            <Link href="/" className="flex items-center gap-3 group">
+              <div className="flex items-center justify-center w-8 h-8 rounded border border-[#00ff9f]/30 bg-[#00ff9f]/10 group-hover:border-[#00ff9f]/50 group-hover:bg-[#00ff9f]/20 transition-all">
+                <Terminal className="w-4 h-4 text-[#00ff9f]" />
+              </div>
+              <div className="hidden sm:block">
+                <h1 className="text-sm font-mono font-medium text-white/90 group-hover:text-[#00ff9f] transition-colors">
+                  RAG System
+                </h1>
+                <p className="text-[10px] font-mono text-white/40">Terminal Observatory</p>
+              </div>
+            </Link>
+
+            {/* Navigation */}
+            <nav className="hidden md:flex items-center gap-1">
+              {navItems.map((item) => {
+                const isActive = pathname === item.href ||
+                  (item.href !== '/' && pathname?.startsWith(item.href));
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono transition-all",
+                      isActive
+                        ? "text-[#00ff9f] bg-[#00ff9f]/10 border border-[#00ff9f]/30"
+                        : "text-white/50 hover:text-white/80 hover:bg-white/5"
+                    )}
+                  >
+                    <item.icon className="w-3.5 h-3.5" />
+                    <span className="hidden lg:inline">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
           </div>
 
-          {/* Right side actions */}
-          <div className="flex items-center gap-4">
-            <a
-              href="/analytics"
-              className="flex items-center text-xs text-muted-foreground hover:text-foreground gap-1.5 transition-colors"
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span className="hidden sm:inline">Analytics</span>
-            </a>
+          {/* Right side */}
+          <div className="flex items-center gap-3">
+            {/* Quick Links */}
+            <div className="hidden lg:flex items-center gap-2">
+              <Link
+                href="/analytics"
+                className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-mono text-white/40 hover:text-white/70 transition-colors"
+              >
+                <BarChart3 className="w-3 h-3" />
+                Analytics
+              </Link>
+              <a
+                href="#"
+                className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-mono text-white/40 hover:text-white/70 transition-colors"
+              >
+                <Book className="w-3 h-3" />
+                Docs
+              </a>
+            </div>
 
-            <Button variant="ghost" size="sm" className="hidden lg:flex text-xs">
-              Feedback
-            </Button>
-
-            <a
-              href="#"
-              className="flex items-center text-xs text-muted-foreground hover:text-foreground gap-1.5 transition-colors"
-            >
-              <Book className="w-4 h-4" />
-              <span className="hidden sm:inline">Docs</span>
-            </a>
-
-            <a
-              href="#"
-              className="flex items-center text-xs text-muted-foreground hover:text-foreground gap-1.5 transition-colors"
-            >
-              <HelpCircle className="w-4 h-4" />
-              <span className="hidden sm:inline">Support</span>
-            </a>
+            {/* Divider */}
+            <div className="hidden lg:block w-px h-6 bg-white/10" />
 
             {/* User menu */}
-            <div className="flex items-center gap-2 pl-4 border-l">
-              <div className="flex flex-col items-end">
-                <span className="text-xs font-medium leading-none">
-                  {user?.email?.split('@')[0] || 'User'}
-                </span>
-                <span className="text-[10px] text-muted-foreground leading-none mt-0.5">
-                  Admin
-                </span>
+            {isAuthenticated ? (
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded border transition-all",
+                    userMenuOpen
+                      ? "border-[#00ff9f]/40 bg-[#00ff9f]/10"
+                      : "border-white/10 bg-white/[0.02] hover:border-white/20"
+                  )}
+                >
+                  <div className="w-6 h-6 rounded bg-gradient-to-br from-[#00ff9f]/20 to-[#00ff9f]/10 border border-[#00ff9f]/30 flex items-center justify-center">
+                    <span className="text-[10px] font-mono font-medium text-[#00ff9f]">
+                      {getInitials(user?.email)}
+                    </span>
+                  </div>
+                  <div className="hidden sm:block text-left">
+                    <p className="text-xs font-mono text-white/80 leading-none">
+                      {user?.email?.split('@')[0] || 'User'}
+                    </p>
+                    <p className="text-[10px] font-mono text-white/40 leading-none mt-0.5">
+                      Admin
+                    </p>
+                  </div>
+                  <ChevronDown className={cn(
+                    "w-3 h-3 text-white/40 transition-transform",
+                    userMenuOpen && "rotate-180"
+                  )} />
+                </button>
+
+                {/* Dropdown */}
+                {userMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-48 rounded border border-white/10 bg-[#0d0d12] shadow-xl shadow-black/50 overflow-hidden">
+                    {/* User info */}
+                    <div className="px-3 py-2 border-b border-white/10 bg-white/[0.02]">
+                      <p className="text-xs font-mono text-white/80">{user?.email}</p>
+                      <p className="text-[10px] font-mono text-[#00ff9f]">Administrator</p>
+                    </div>
+
+                    {/* Menu items */}
+                    <div className="py-1">
+                      <Link
+                        href="/settings"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2 px-3 py-2 text-xs font-mono text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                      >
+                        <Settings className="w-3.5 h-3.5" />
+                        Settings
+                      </Link>
+                      <Link
+                        href="/analytics"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2 px-3 py-2 text-xs font-mono text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                      >
+                        <BarChart3 className="w-3.5 h-3.5" />
+                        Analytics
+                      </Link>
+                    </div>
+
+                    {/* Logout */}
+                    <div className="border-t border-white/10 py-1">
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          handleLogout();
+                        }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-xs font-mono text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary/10 to-primary/20 border border-primary/20 flex items-center justify-center text-primary hover:border-primary/40 cursor-pointer transition-all group">
-                <UserIcon className="w-4 h-4" />
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={handleLogout}
-                title="Logout"
-              >
-                <LogOut className="w-4 h-4" />
-              </Button>
-            </div>
+            ) : (
+              <Link href="/login">
+                <Button
+                  size="sm"
+                  className={cn(
+                    "h-8 px-4 font-mono text-xs",
+                    "bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30",
+                    "hover:bg-[#00ff9f]/20 hover:border-[#00ff9f]/50"
+                  )}
+                >
+                  Sign In
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </header>

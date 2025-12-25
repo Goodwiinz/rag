@@ -38,6 +38,7 @@ from ..core.database import get_db
 from ..core.config import settings
 from ..models.document import Document, DocumentType as DocType, ProcessingStatus as ProcStatus
 from ..models.search import SearchQuery, SearchResult as SearchResultModel
+from .cohere_rerank_service import cohere_rerank_service
 
 
 # Configuration
@@ -430,39 +431,54 @@ class HybridSearchEngine:
         results: List[SearchResult],
         limit: int = 10
     ) -> List[SearchResult]:
-        """Rerank search results using external service"""
+        """Rerank search results using Cohere reranking API for improved precision"""
         if not results:
             return []
 
         try:
-            # In production, would call actual reranking service
-            # For now, implement simple reranking based on multiple factors
-
+            # Use Cohere reranking if enabled
+            if cohere_rerank_service.is_enabled:
+                await event_logger.log_event(
+                    event_type="rerank_start",
+                    event_data={"query": query, "num_docs": len(results)}
+                )
+                
+                reranked = await cohere_rerank_service.rerank_search_results(
+                    query=query,
+                    results=results,
+                    top_n=limit,
+                    content_field='content_snippet'
+                )
+                
+                await event_logger.log_event(
+                    event_type="rerank_complete",
+                    event_data={"query": query, "num_results": len(reranked)}
+                )
+                
+                return reranked
+            
+            # Fallback: simple heuristic-based reranking
             for result in results:
-                # Calculate combined score
                 base_score = result.relevance_score
 
-                # Boost based on document type (e.g., PDF might be more authoritative)
+                # Boost based on document type
                 type_boost = {
                     DocumentType.PDF: 0.1,
                     DocumentType.TEXT: 0.05,
                     DocumentType.SPREADSHEET: 0.03
                 }.get(result.document_type, 0.0)
 
-                # Boost based on content length (longer content might be more comprehensive)
+                # Boost based on content length
                 content_length = len(result.content_snippet)
                 length_boost = min(content_length / 1000.0, 0.1)
 
-                # Combined score
                 result.relevance_score = min(base_score + type_boost + length_boost, 1.0)
 
-            # Sort by combined score and limit
             results.sort(key=lambda x: x.relevance_score, reverse=True)
             return results[:limit]
 
         except Exception as e:
-            await event_logger.log_error(e, {"operation": "rerank_results"})
-            # Return original results if reranking fails
+            await event_logger.log_error(e, {"operation": "rerank_results", "error": str(e)})
             return results[:limit]
 
     async def hybrid_search(
