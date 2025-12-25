@@ -11,7 +11,7 @@ export function AppNavbar() {
   const pathname = usePathname();
 
   // Hide navbar on dashboard routes
-  if (pathname?.startsWith('/llm-chat') || pathname?.startsWith('/documents/upload')) {
+  if (pathname?.startsWith('/chat') || pathname?.startsWith('/documents/upload')) {
     return null;
   }
 
@@ -23,7 +23,7 @@ export function AppNavbar() {
       description: 'Ask complex questions and retrieve answers with semantic understanding.'
     },
     {
-      href: '/llm-chat',
+      href: '/chat',
       label: 'WebLLM Chat',
       icon: 'MessageSquare',
       description: 'Chat with browser-hosted LLMs to synthesize insights from your corpus.'

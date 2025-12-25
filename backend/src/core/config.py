@@ -138,6 +138,12 @@ class Settings(BaseSettings):
     AZURE_OPENAI_CHAT_API_KEY: Optional[str] = None
     AZURE_OPENAI_EMBEDDING_API_KEY: Optional[str] = None
 
+    # Azure AI Cohere Reranking Configuration
+    COHERE_RERANK_ENDPOINT: Optional[str] = None
+    COHERE_RERANK_API_KEY: Optional[str] = None
+    COHERE_RERANK_MODEL: str = "Cohere-rerank-v4.0-pro"
+    COHERE_RERANK_TOP_N: int = 10
+
     # Processing Configuration
     MAX_CONCURRENT_JOBS: int = 5
     JOB_RETRY_MAX: int = 3

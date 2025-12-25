@@ -20,6 +20,7 @@ export interface APIError {
     type: 'validation_error' | 'processing_error' | 'auth_error' | 'rate_limit' | 'internal_error' | 'http_error';
     details?: Record<string, any>;
     timestamp?: string;
+    silent?: boolean;  // If true, don't show console errors (used for optional endpoints that may not exist)
   };
 }
 

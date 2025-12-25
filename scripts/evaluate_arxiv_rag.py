@@ -207,8 +207,8 @@ Provide a brief, factual answer based on the documents above."""
             ]
             
             # Adjust parameters for GPT-5 model
-            deployment_name = os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME", "gpt-5-nano")
-            is_gpt5 = "gpt-5" in deployment_name.lower()
+            deployment_name = os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME", "gpt-4o-mini")
+            is_gpt5 = "gpt-5" in deployment_name.lower() or "o1" in deployment_name.lower()
             
             # Use temperature=1.0 for GPT-5 (required), lower max_tokens for faster response
             response = client.chat.completions.create(
@@ -311,17 +311,16 @@ Provide a brief, factual answer based on the documents above."""
         # Normalize ground truth IDs too
         normalized_gt = [self._normalize_id(pid) for pid in ground_truth_papers]
         
-        # Debug logging (uncomment to debug)
+        # Debug logging
         # print(f"[DEBUG] Retrieved IDs: {retrieved_ids[:5]}")
         # print(f"[DEBUG] Ground truth: {normalized_gt}")
 
         # Calculate precision@k
         precision_scores = {}
         for k in [1, 3, 5, 10]:
-            if k <= len(retrieved_results):
-                relevant_at_k = sum(1 for paper_id in retrieved_ids[:k]
-                                   if paper_id in normalized_gt)
-                precision_scores[f'precision_at_{k}'] = relevant_at_k / k
+            relevant_at_k = sum(1 for paper_id in retrieved_ids[:k]
+                               if paper_id in normalized_gt)
+            precision_scores[f'precision_at_{k}'] = relevant_at_k / k
 
         # Calculate MRR (Mean Reciprocal Rank)
         mrr = 0.0

@@ -389,7 +389,7 @@ class EmbeddingService:
                 "error": str(e)
             }
 
-    def chunk_text(self, text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:
+    def chunk_text(self, text: str, chunk_size: int = 500, overlap: int = 150) -> List[str]:
         """Split text into chunks for embedding"""
         if not text or not text.strip():
             return []
@@ -411,7 +411,7 @@ class EmbeddingService:
         text: str,
         metadata: Dict[str, Any],
         chunk_size: int = 500,
-        overlap: int = 50
+        overlap: int = 150
     ) -> List[Dict[str, Any]]:
         """Generate embeddings for a full document by chunking"""
         try:

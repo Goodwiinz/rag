@@ -244,3 +244,27 @@ The system tracks:
   - `frontend/app/components/realtime/` - React components for real-time visualization
 - **Database**: Enhanced schema with real-time tracking tables and materialized views
 - **WebSocket**: Enhanced v2 WebSocket API with authentication, channel subscription, and message batching
+
+### ArXiv API Timeout Fix (2025-12-23)
+- **Issue**: ArXiv tracking and extraction API calls timing out after 30 seconds
+- **Root Cause**: ArXiv API operations can take 1-5 minutes due to external API calls
+- **Solution**: Changed `apiClient.post` to `apiClient.postWithLongTimeout` (5 minutes) for ArXiv endpoints
+- **Files Modified**: `frontend/src/components/arxiv/ArxivManagement.tsx`
+- **Endpoints Updated**: `/arxiv/tracking/track-categories`, `/arxiv/extraction/extract-features`, `/arxiv/extraction/bulk-extract`
+
+### Sidebar Navigation Update (2025-12-23)
+- **Issue**: Sidebar showed "Home" linking to `/` instead of "Dashboard" linking to `/dashboard`
+- **Solution**: Updated main navigation to use "Dashboard" with `/dashboard` URL
+- **Files Modified**: `frontend/src/components/layout/AppSidebar.tsx`
+
+### Breadcrumb Logic Fix (2025-12-23)
+- **Issue**: Dashboard page showed redundant "Dashboard / Dashboard" breadcrumb
+- **Solution**: Added conditional rendering - Dashboard page shows single "Dashboard" highlighted in green, other pages show "Dashboard / Page Name"
+- **Files Modified**: `frontend/src/components/layout/SidebarLayout.tsx`
+
+### ArXiv Page Terminal Observatory Theme (2025-12-23)
+- **Issue**: ArXiv management page had light-themed shadcn components clashing with dark Terminal Observatory theme
+- **Solution**: Complete rewrite with custom dark-themed components (ToggleSwitch, ProgressBar, CustomSlider)
+- **Theme Constants**: `PHOSPHOR_GREEN = '#00ff9f'`, `AMBER = '#ffb700'`, `CYAN = '#00d4ff'`
+- **Files Modified**: `frontend/src/components/arxiv/ArxivManagement.tsx`
+- **Features**: Dark terminal chrome container, custom form controls, consistent monospace typography

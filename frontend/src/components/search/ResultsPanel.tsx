@@ -1,9 +1,3 @@
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Separator } from '@/components/ui/separator';
-import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { SearchMetrics, SearchResult, SourceReference } from '@/types/search';
 import {
@@ -24,6 +18,11 @@ import {
     XCircleIcon
 } from '@heroicons/react/24/outline';
 import React, { useCallback, useState } from 'react';
+
+// Terminal Observatory Theme Constants
+const PHOSPHOR_GREEN = '#00ff9f';
+const AMBER = '#ffb700';
+const CYAN = '#00d4ff';
 
 interface ResultsPanelProps {
   result: SearchResult | null;
@@ -50,7 +49,6 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
 
   const handleSubmit = useCallback(async () => {
     if (rating === 0) return;
-
     setIsSubmitting(true);
     try {
       await onSubmit(rating, comment);
@@ -64,15 +62,23 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
     }
   }, [rating, comment, onSubmit, onClose]);
 
+  if (!isOpen) return null;
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Rate this answer</DialogTitle>
-        </DialogHeader>
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="relative z-10 w-full max-w-md p-6 rounded-xl"
+        style={{
+          background: '#0d1117',
+          border: '1px solid #21262d',
+          boxShadow: `0 0 60px ${PHOSPHOR_GREEN}10`,
+        }}
+      >
+        <h3 className="text-lg font-mono font-semibold text-white mb-4">Rate this answer</h3>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-mono text-gray-400 mb-2">
               How helpful was this answer?
             </label>
             <div className="flex space-x-1">
@@ -81,233 +87,139 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
                   key={star}
                   type="button"
                   onClick={() => setRating(star)}
-                  className={cn(
-                    "p-1 hover:scale-110 transition-transform",
-                    star <= rating ? "text-yellow-400" : "text-gray-300"
-                  )}
+                  className="p-1 hover:scale-110 transition-transform"
                 >
-                  <StarIcon className="h-6 w-6 fill-current" />
+                  <StarIcon
+                    className={cn(
+                      "h-6 w-6",
+                      star <= rating ? "text-amber-400 fill-amber-400" : "text-gray-600"
+                    )}
+                  />
                 </button>
               ))}
             </div>
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-mono text-gray-400 mb-2">
               Additional feedback (optional)
             </label>
             <textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Tell us more about your experience..."
+              placeholder="Tell us more..."
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 rounded-lg font-mono text-sm text-white bg-transparent outline-none"
+              style={{ border: '1px solid #21262d' }}
             />
           </div>
-
-          <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+          <div className="flex justify-end space-x-2 pt-2">
+            <button
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-lg font-mono text-sm text-gray-400 hover:text-white transition-colors"
+              style={{ border: '1px solid #21262d' }}
+            >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={handleSubmit}
               disabled={rating === 0 || isSubmitting}
-              className="min-w-[80px]"
+              className="px-4 py-2 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
+              style={{
+                background: `${PHOSPHOR_GREEN}20`,
+                border: `1px solid ${PHOSPHOR_GREEN}50`,
+                color: PHOSPHOR_GREEN,
+              }}
             >
-              {isSubmitting ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-              ) : (
-                'Submit'
-              )}
-            </Button>
+              {isSubmitting ? 'Submitting...' : 'Submit'}
+            </button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 };
 
 const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
   const getScoreColor = (score: number): string => {
-    if (score >= 90) return 'text-green-600';
-    if (score >= 80) return 'text-yellow-600';
-    if (score >= 70) return 'text-orange-600';
-    return 'text-red-600';
+    if (score >= 90) return PHOSPHOR_GREEN;
+    if (score >= 80) return AMBER;
+    if (score >= 70) return '#f97316';
+    return '#ef4444';
   };
 
   const formatScore = (score: number): string => {
     return `${Math.round(score)}%`;
   };
 
+  const metricItems = [
+    { label: 'Answer Relevancy', value: metrics.answer_relevancy },
+    { label: 'Faithfulness', value: metrics.faithfulness_score },
+    { label: 'Context Relevancy', value: metrics.contextual_relevancy },
+    { label: 'Safety Score', value: 100 - metrics.hallucination_score },
+  ];
+
   return (
-    <Card className="bg-muted/30 border-border">
-      <CardHeader className="pb-2">
-        <div className="flex items-center space-x-2">
-          <ChartBarIcon className="h-4 w-4 text-muted-foreground" />
-          <CardTitle className="text-sm font-medium text-foreground">Quality Metrics</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-          <div className="space-y-1.5">
+    <div
+      className="rounded-xl p-4"
+      style={{
+        background: '#0d1117',
+        border: '1px solid #21262d',
+      }}
+    >
+      <div className="flex items-center space-x-2 mb-4">
+        <ChartBarIcon className="h-4 w-4 text-gray-500" />
+        <span className="text-sm font-mono text-gray-400">Quality Metrics</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        {metricItems.map((item) => (
+          <div key={item.label} className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground text-xs">Answer Relevancy</span>
-              <span className={cn("font-mono font-medium text-xs", getScoreColor(metrics.answer_relevancy))}>
-                {formatScore(metrics.answer_relevancy)}
+              <span className="text-xs font-mono text-gray-500">{item.label}</span>
+              <span
+                className="font-mono font-medium text-xs"
+                style={{ color: getScoreColor(item.value) }}
+              >
+                {formatScore(item.value)}
               </span>
             </div>
-            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-              <div className={cn("h-full rounded-full", getScoreColor(metrics.answer_relevancy).replace('text-', 'bg-'))} style={{ width: `${metrics.answer_relevancy}%` }} />
+            <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: '#21262d' }}>
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${item.value}%`,
+                  background: `linear-gradient(90deg, ${getScoreColor(item.value)}80, ${getScoreColor(item.value)})`,
+                }}
+              />
             </div>
           </div>
+        ))}
+      </div>
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground text-xs">Faithfulness</span>
-              <span className={cn("font-mono font-medium text-xs", getScoreColor(metrics.faithfulness_score))}>
-                {formatScore(metrics.faithfulness_score)}
-              </span>
-            </div>
-            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-              <div className={cn("h-full rounded-full", getScoreColor(metrics.faithfulness_score).replace('text-', 'bg-'))} style={{ width: `${metrics.faithfulness_score}%` }} />
-            </div>
-          </div>
+      <div className="border-t pt-4 mt-4" style={{ borderColor: '#21262d' }} />
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground text-xs">Context Relevancy</span>
-              <span className={cn("font-mono font-medium text-xs", getScoreColor(metrics.contextual_relevancy))}>
-                {formatScore(metrics.contextual_relevancy)}
-              </span>
-            </div>
-            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-              <div className={cn("h-full rounded-full", getScoreColor(metrics.contextual_relevancy).replace('text-', 'bg-'))} style={{ width: `${metrics.contextual_relevancy}%` }} />
-            </div>
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'LATENCY', value: `${Math.round(metrics.latency_ms)}ms` },
+          { label: 'DOCS', value: metrics.documents_retrieved },
+          { label: 'ENTITIES', value: metrics.entities_found },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className="flex flex-col items-center p-3 rounded-lg"
+            style={{ background: '#161b22', border: '1px solid #21262d' }}
+          >
+            <span className="font-mono font-medium text-white">{stat.value}</span>
+            <span className="text-[10px] font-mono uppercase tracking-wider mt-0.5 text-gray-500">
+              {stat.label}
+            </span>
           </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground text-xs">Safety Score</span>
-              <span className={cn("font-mono font-medium text-xs", getScoreColor(100 - metrics.hallucination_score))}>
-                {formatScore(100 - metrics.hallucination_score)}
-              </span>
-            </div>
-            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-              <div className={cn("h-full rounded-full", getScoreColor(100 - metrics.hallucination_score).replace('text-', 'bg-'))} style={{ width: `${100 - metrics.hallucination_score}%` }} />
-            </div>
-          </div>
-        </div>
-
-        <Separator className="my-3 bg-border" />
-
-        <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-          <div className="flex flex-col items-center p-2 bg-background rounded border border-border/50">
-            <span className="font-mono font-medium text-foreground">{Math.round(metrics.latency_ms)}ms</span>
-            <span className="text-[10px] uppercase tracking-wider mt-0.5 opacity-70">Latency</span>
-          </div>
-          <div className="flex flex-col items-center p-2 bg-background rounded border border-border/50">
-            <span className="font-mono font-medium text-foreground">{metrics.documents_retrieved}</span>
-            <span className="text-[10px] uppercase tracking-wider mt-0.5 opacity-70">Docs</span>
-          </div>
-          <div className="flex flex-col items-center p-2 bg-background rounded border border-border/50">
-            <span className="font-mono font-medium text-foreground">{metrics.entities_found}</span>
-            <span className="text-[10px] uppercase tracking-wider mt-0.5 opacity-70">Entities</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+        ))}
+      </div>
+    </div>
   );
 };
-
-const ResultsSkeleton = () => (
-  <div className="space-y-6">
-    {/* Answer Skeleton */}
-    <Card className="border-blue-100 shadow-sm overflow-hidden">
-      <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-100">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2 w-full max-w-md">
-            <Skeleton className="h-6 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-          </div>
-          <div className="flex space-x-1">
-            <Skeleton className="h-8 w-8 rounded-md" />
-            <Skeleton className="h-8 w-8 rounded-md" />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-6 space-y-4">
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-5/6" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-4/5" />
-      </CardContent>
-      <CardFooter className="bg-gray-50/50 py-3 border-t border-gray-100">
-        <div className="flex items-center w-full space-x-3">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="flex-1 h-2 rounded-full" />
-          <Skeleton className="h-4 w-8" />
-        </div>
-      </CardFooter>
-    </Card>
-
-    {/* Metrics Skeleton */}
-    <Card className="bg-gray-50/50 border-gray-200">
-      <CardHeader className="pb-2">
-        <Skeleton className="h-5 w-32" />
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="space-y-1">
-              <div className="flex justify-between">
-                <Skeleton className="h-3 w-20" />
-                <Skeleton className="h-3 w-8" />
-              </div>
-              <Skeleton className="h-1.5 w-full rounded-full" />
-            </div>
-          ))}
-        </div>
-        <Separator className="my-3" />
-        <div className="grid grid-cols-3 gap-2">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-12 w-full rounded" />
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-
-    {/* Sources Skeleton */}
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex justify-between">
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-8 w-20" />
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="border border-gray-100 shadow-sm">
-              <CardContent className="p-4">
-                <div className="flex justify-between mb-3">
-                  <div className="flex space-x-3 w-full">
-                    <Skeleton className="h-10 w-10 rounded-lg" />
-                    <div className="space-y-2 flex-1">
-                      <Skeleton className="h-4 w-3/4" />
-                      <Skeleton className="h-3 w-1/3" />
-                    </div>
-                  </div>
-                </div>
-                <Skeleton className="h-16 w-full rounded-md" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  </div>
-);
 
 export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   result,
@@ -321,7 +233,6 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   className,
 }) => {
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
-  const [expandedSources, setExpandedSources] = useState(false);
   const [copiedSource, setCopiedSource] = useState<string | null>(null);
   const [copiedAnswer, setCopiedAnswer] = useState(false);
 
@@ -329,33 +240,33 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
     const iconClass = "h-4 w-4";
     switch (fileType) {
       case 'pdf':
-        return <DocumentTextIcon className={cn(iconClass, "text-red-600")} />;
+        return <DocumentTextIcon className={cn(iconClass)} style={{ color: '#ef4444' }} />;
       case 'txt':
-        return <DocumentTextIcon className={cn(iconClass, "text-blue-600")} />;
+        return <DocumentTextIcon className={cn(iconClass)} style={{ color: '#3b82f6' }} />;
       case 'jpg':
       case 'png':
-        return <PhotoIcon className={cn(iconClass, "text-green-600")} />;
+        return <PhotoIcon className={cn(iconClass)} style={{ color: PHOSPHOR_GREEN }} />;
       case 'mp3':
-        return <MusicalNoteIcon className={cn(iconClass, "text-purple-600")} />;
+        return <MusicalNoteIcon className={cn(iconClass)} style={{ color: '#a855f7' }} />;
       case 'mp4':
-        return <VideoCameraIcon className={cn(iconClass, "text-orange-600")} />;
+        return <VideoCameraIcon className={cn(iconClass)} style={{ color: AMBER }} />;
       default:
-        return <DocumentTextIcon className={cn(iconClass, "text-gray-600")} />;
+        return <DocumentTextIcon className={cn(iconClass)} style={{ color: '#6b7280' }} />;
     }
   };
 
-  const getAnswerTypeColor = (answerType: string) => {
+  const getAnswerTypeConfig = (answerType: string) => {
     switch (answerType) {
       case 'factual':
-        return 'bg-blue-100 text-blue-800';
+        return { color: PHOSPHOR_GREEN, bg: `${PHOSPHOR_GREEN}15`, border: `${PHOSPHOR_GREEN}30` };
       case 'reasoning':
-        return 'bg-purple-100 text-purple-800';
+        return { color: '#a855f7', bg: '#a855f715', border: '#a855f730' };
       case 'summarization':
-        return 'bg-green-100 text-green-800';
+        return { color: CYAN, bg: `${CYAN}15`, border: `${CYAN}30` };
       case 'comparison':
-        return 'bg-orange-100 text-orange-800';
+        return { color: AMBER, bg: `${AMBER}15`, border: `${AMBER}30` };
       default:
-        return 'bg-gray-100 text-gray-800';
+        return { color: '#6b7280', bg: '#6b728015', border: '#6b728030' };
     }
   };
 
@@ -403,17 +314,28 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   };
 
   if (loading) {
-    return <ResultsSkeleton />;
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="h-16 rounded-lg animate-pulse"
+            style={{
+              background: `linear-gradient(90deg, ${PHOSPHOR_GREEN}05 0%, ${PHOSPHOR_GREEN}10 50%, ${PHOSPHOR_GREEN}05 100%)`,
+              border: `1px solid ${PHOSPHOR_GREEN}15`,
+            }}
+          />
+        ))}
+      </div>
+    );
   }
 
   if (error) {
     return (
       <div className={cn("text-center py-8", className)}>
         <XCircleIcon className="h-12 w-12 text-red-500 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">
-          Search failed
-        </h3>
-        <p className="text-gray-600">{error}</p>
+        <h3 className="text-lg font-mono font-medium text-white mb-2">Search failed</h3>
+        <p className="text-gray-400 font-mono text-sm">{error}</p>
       </div>
     );
   }
@@ -421,177 +343,185 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   if (!result) {
     return (
       <div className={cn("text-center py-8", className)}>
-        <div className="h-12 w-12 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
-          <MagnifyingGlassIcon className="h-6 w-6 text-gray-400" />
+        <div
+          className="h-12 w-12 rounded-full mx-auto mb-4 flex items-center justify-center"
+          style={{ background: '#161b22', border: '1px solid #21262d' }}
+        >
+          <MagnifyingGlassIcon className="h-6 w-6 text-gray-500" />
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">
-          Enter a search query
-        </h3>
-        <p className="text-gray-600">
+        <h3 className="text-lg font-mono font-medium text-white mb-2">Enter a search query</h3>
+        <p className="text-gray-500 font-mono text-sm">
           Search your documents using natural language queries
         </p>
       </div>
     );
   }
 
+  const answerTypeConfig = getAnswerTypeConfig(result.answer.answer_type);
+
   return (
-    <div className={cn("space-y-8", className)}>
-      {/* Query and Answer */}
-      <div className="space-y-6">
+    <div className={cn("space-y-6", className)}>
+      {/* Query and Answer Header */}
+      <div className="space-y-4">
         <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold text-foreground tracking-tight">
+          <div className="space-y-2">
+            <h1 className="text-xl font-mono font-semibold text-gray-300 tracking-tight">
               {result.query}
             </h1>
-            <div className="flex items-center space-x-3 text-sm text-muted-foreground">
-              <Badge variant="secondary" className={cn("capitalize font-medium px-2 py-0.5 text-xs", getAnswerTypeColor(result.answer.answer_type))}>
+            <div className="flex items-center flex-wrap gap-3 text-sm">
+              <span
+                className="capitalize font-mono text-xs px-2 py-1 rounded"
+                style={{
+                  background: answerTypeConfig.bg,
+                  border: `1px solid ${answerTypeConfig.border}`,
+                  color: answerTypeConfig.color,
+                }}
+              >
                 {result.answer.answer_type}
-              </Badge>
-              <span className="flex items-center">
+              </span>
+              <span className="flex items-center text-gray-500 font-mono text-xs">
                 <ClockIcon className="h-3.5 w-3.5 mr-1" />
                 {formatDate(result.created_at)}
               </span>
-              <span className="flex items-center">
-                <SparklesIcon className="h-3.5 w-3.5 mr-1 text-primary" />
+              <span className="flex items-center font-mono text-xs" style={{ color: AMBER }}>
+                <SparklesIcon className="h-3.5 w-3.5 mr-1" />
                 {Math.round(result.answer.confidence * 100)}% confidence
               </span>
             </div>
           </div>
 
           <div className="flex items-center space-x-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleCopyAnswer}
-              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              title="Copy Answer"
-            >
-              {copiedAnswer ? (
-                <CheckCircleIcon className="h-4 w-4 text-green-600" />
-              ) : (
-                <ClipboardDocumentIcon className="h-4 w-4" />
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleShare}
-              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              title="Share"
-            >
-              <ShareIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleExport}
-              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              title="Export"
-            >
-              <ArrowDownTrayIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowFeedbackDialog(true)}
-              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              title="Rate Answer"
-            >
-              <StarIcon className="h-4 w-4" />
-            </Button>
+            {[
+              { icon: copiedAnswer ? CheckCircleIcon : ClipboardDocumentIcon, onClick: handleCopyAnswer, title: 'Copy' },
+              { icon: ShareIcon, onClick: handleShare, title: 'Share' },
+              { icon: ArrowDownTrayIcon, onClick: handleExport, title: 'Export' },
+              { icon: StarIcon, onClick: () => setShowFeedbackDialog(true), title: 'Rate' },
+            ].map((action, i) => (
+              <button
+                key={i}
+                onClick={action.onClick}
+                className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
+                title={action.title}
+              >
+                <action.icon className={cn("h-4 w-4", copiedAnswer && i === 0 && "text-green-500")} />
+              </button>
+            ))}
           </div>
         </div>
 
-        <div className="prose prose-lg max-w-none text-foreground leading-relaxed">
-          <p className="text-[17px] text-foreground/90 font-light">{result.answer.text}</p>
-        </div>
+        {/* Answer Text */}
+        <p className="text-gray-300 font-mono text-sm leading-relaxed">
+          {result.answer.text}
+        </p>
 
-        {/* Quality Metrics - Subtle */}
-        <div className="pt-4 border-t border-border/40">
+        {/* Metrics */}
+        <div className="pt-4">
           <MetricsDisplay metrics={result.metrics} />
         </div>
       </div>
 
-      {/* Sources Grid */}
+      {/* Sources Section */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <DocumentTextIcon className="h-5 w-5 text-muted-foreground" />
-            <h2 className="text-lg font-semibold text-foreground">Sources</h2>
-            <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-xs font-mono bg-muted text-muted-foreground">
-              {result.answer.sources.length}
-            </Badge>
-          </div>
+        <div className="flex items-center space-x-2">
+          <DocumentTextIcon className="h-5 w-5 text-gray-500" />
+          <h2 className="text-lg font-mono font-semibold text-gray-300">Sources</h2>
+          <span
+            className="rounded-full px-2 py-0.5 text-xs font-mono"
+            style={{ background: `${CYAN}15`, color: CYAN, border: `1px solid ${CYAN}30` }}
+          >
+            {result.answer.sources.length}
+          </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {result.answer.sources.map((source, index) => (
-            <Card
+            <div
               key={`${source.document_id}-${index}`}
-              className="group border border-border/60 shadow-sm hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer bg-card/50 hover:bg-card"
+              className="group rounded-xl p-4 cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+              style={{
+                background: '#0d1117',
+                border: '1px solid #21262d',
+              }}
               onClick={() => handleSourceClick(source)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = `${PHOSPHOR_GREEN}40`;
+                e.currentTarget.style.boxShadow = `0 0 20px ${PHOSPHOR_GREEN}10`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#21262d';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
             >
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-muted/50 rounded-lg group-hover:bg-primary/10 transition-colors">
-                      {getFileIcon(source.file_type)}
-                    </div>
-                    <div className="space-y-0.5">
-                      <h4 className="text-sm font-medium text-foreground line-clamp-1" title={source.document_title}>
-                        {source.document_title}
-                      </h4>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-border text-muted-foreground uppercase">
-                          {source.file_type}
-                        </Badge>
-                        <span className="text-[10px] text-muted-foreground font-mono">
-                          {Math.round(source.confidence * 100)}%
-                        </span>
-                      </div>
-                    </div>
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center space-x-3">
+                  <div
+                    className="p-2 rounded-lg"
+                    style={{ background: '#161b22' }}
+                  >
+                    {getFileIcon(source.file_type)}
                   </div>
-                </div>
-
-                {/* Source Snippet */}
-                <div className="relative">
-                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 font-mono bg-muted/30 p-2 rounded-md border border-border/30 group-hover:border-border/50 transition-colors">
-                    "{source.snippet}"
-                  </p>
-                </div>
-
-                {/* Footer Actions */}
-                <div className="flex items-center justify-between pt-2 border-t border-border/30">
-                  <div className="flex items-center space-x-2 text-[10px] text-muted-foreground">
-                    {source.page_number && (
-                      <span className="flex items-center bg-muted/50 px-1.5 py-0.5 rounded">
-                        Page {source.page_number}
+                  <div className="space-y-0.5 min-w-0">
+                    <h4
+                      className="text-sm font-mono font-medium text-gray-300 truncate"
+                      title={source.document_title}
+                    >
+                      {source.document_title}
+                    </h4>
+                    <div className="flex items-center space-x-2">
+                      <span
+                        className="text-[10px] px-1.5 py-0.5 rounded uppercase font-mono"
+                        style={{ background: '#21262d', color: '#8b949e' }}
+                      >
+                        {source.file_type}
                       </span>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => { e.stopPropagation(); handleDocumentPreview(source); }}
-                      className="h-6 w-6 text-muted-foreground hover:text-primary"
-                      title="Preview"
-                    >
-                      <EyeIcon className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => { e.stopPropagation(); handleCopySource(source); }}
-                      className="h-6 w-6 text-muted-foreground hover:text-primary"
-                      title="Copy"
-                    >
-                      <ClipboardDocumentIcon className="h-3 w-3" />
-                    </Button>
+                      <span className="text-[10px] font-mono text-gray-500">
+                        {Math.round(source.confidence * 100)}%
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+
+              {/* Source Snippet */}
+              <div
+                className="p-2 rounded-lg mb-3"
+                style={{ background: '#161b22', border: '1px solid #21262d' }}
+              >
+                <p className="text-xs font-mono text-gray-400 leading-relaxed line-clamp-3">
+                  "{source.snippet}"
+                </p>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="flex items-center justify-between pt-2" style={{ borderTop: '1px solid #21262d' }}>
+                <div className="flex items-center space-x-2 text-[10px] text-gray-500 font-mono">
+                  {source.page_number && (
+                    <span
+                      className="px-1.5 py-0.5 rounded"
+                      style={{ background: '#21262d' }}
+                    >
+                      Page {source.page_number}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDocumentPreview(source); }}
+                    className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
+                    title="Preview"
+                  >
+                    <EyeIcon className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleCopySource(source); }}
+                    className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
+                    title="Copy"
+                  >
+                    <ClipboardDocumentIcon className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
           ))}
         </div>
       </div>

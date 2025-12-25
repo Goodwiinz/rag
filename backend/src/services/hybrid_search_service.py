@@ -19,6 +19,7 @@ from ..models.search_schemas import (
     SearchQuery, SearchResponse, SearchResult, SearchType, SearchFilter
 )
 from ..services.fulltext_search_service import fulltext_search_service
+from ..services.cohere_rerank_service import cohere_rerank_service
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,16 @@ class HybridSearchService:
 
             # Fuse and rank results
             fused_results = self._fuse_search_results(source_results, search_request)
+
+            # Apply Cohere reranking if enabled (improves Precision@3/5)
+            if cohere_rerank_service.is_enabled and fused_results:
+                logger.info(f"Applying Cohere reranking to {len(fused_results)} results")
+                reranked = self._apply_cohere_reranking(
+                    search_request.query,
+                    fused_results,
+                    search_request.limit * 2  # Get more for filtering
+                )
+                fused_results = reranked
 
             # Apply final filtering and pagination
             final_results = self._apply_final_filtering(
@@ -564,6 +575,62 @@ class HybridSearchService:
             return boost
 
         return 0.0
+
+    def _apply_cohere_reranking(
+        self,
+        query: str,
+        fused_results: List[RawSearchResult],
+        top_n: int
+    ) -> List[RawSearchResult]:
+        """
+        Apply Cohere reranking to improve precision of results.
+        
+        Args:
+            query: The search query
+            fused_results: List of fused search results
+            top_n: Number of results to return
+            
+        Returns:
+            Reranked list of results
+        """
+        try:
+            # Convert to format expected by reranking service
+            documents = []
+            for result in fused_results:
+                content = ""
+                if result.search_result:
+                    content = result.search_result.content_preview or result.search_result.title or ""
+                
+                documents.append({
+                    'id': result.document_id,
+                    'document_id': result.document_id,
+                    'content': content,
+                    'content_snippet': content[:500],
+                    'relevance_score': result.relevance_score
+                })
+            
+            # Use sync version of reranking for sync context
+            rerank_results = cohere_rerank_service.rerank_sync(query, documents, top_n)
+            
+            # Build reordered results
+            result_map = {r.document_id: r for r in fused_results}
+            reranked = []
+            
+            for rr in rerank_results:
+                if rr.document_id in result_map:
+                    original = result_map[rr.document_id]
+                    # Update score with Cohere's relevance score
+                    original.relevance_score = rr.relevance_score
+                    original.metadata['cohere_score'] = rr.relevance_score
+                    original.metadata['original_score'] = rr.original_score
+                    reranked.append(original)
+            
+            logger.info(f"Cohere reranking complete: {len(fused_results)} -> {len(reranked)} results")
+            return reranked
+            
+        except Exception as e:
+            logger.error(f"Cohere reranking failed, using original order: {e}")
+            return fused_results[:top_n]
 
     def _apply_final_filtering(
         self,

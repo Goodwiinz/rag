@@ -1,17 +1,13 @@
 "use client";
 
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { apiClient } from '@/services/apiClient';
-import { Brain, BookOpen, CheckCircle, Database, FileText, Hash, Link2, Loader2, RefreshCw, TrendingUp, Upload } from 'lucide-react';
+import { Activity, BarChart3, BookOpen, Brain, CheckCircle, CheckSquare, Database, FileText, Hash, Link2, Loader2, RefreshCw, Search, Square, TrendingUp, Upload } from 'lucide-react';
 import React, { useState } from 'react';
+
+// Terminal Observatory Theme Constants
+const PHOSPHOR_GREEN = '#00ff9f';
+const AMBER = '#ffb700';
+const CYAN = '#00d4ff';
 
 interface TrackResult {
   status: string;
@@ -69,6 +65,91 @@ interface ExtractionResult {
   }>;
 }
 
+// ArXiv paper from search results
+interface ArXivPaper {
+  id: string;
+  title: string;
+  authors: string[];
+  abstract: string;
+  published: string;
+  updated: string;
+  categories: string[];
+  primary_category?: string;
+  pdf_url?: string;
+}
+
+// Ingestion result from API
+interface IngestionResult {
+  message: string;
+  paper_count: number;
+  status: string;
+}
+
+// Custom Toggle Switch Component
+const ToggleSwitch: React.FC<{
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  id?: string;
+}> = ({ checked, onCheckedChange, id }) => (
+  <button
+    id={id}
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    onClick={() => onCheckedChange(!checked)}
+    className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200"
+    style={{
+      background: checked ? `${PHOSPHOR_GREEN}40` : '#21262d',
+      border: `1px solid ${checked ? PHOSPHOR_GREEN : '#30363d'}`,
+    }}
+  >
+    <span
+      className="pointer-events-none block h-4 w-4 rounded-full transition-transform duration-200"
+      style={{
+        transform: checked ? 'translateX(16px)' : 'translateX(0)',
+        background: checked ? PHOSPHOR_GREEN : '#8b949e',
+        marginTop: '1px',
+        marginLeft: '1px',
+      }}
+    />
+  </button>
+);
+
+// Custom Progress Bar
+const ProgressBar: React.FC<{ value: number }> = ({ value }) => (
+  <div className="h-2 w-full rounded-full overflow-hidden" style={{ background: '#21262d' }}>
+    <div
+      className="h-full rounded-full transition-all duration-500"
+      style={{
+        width: `${value}%`,
+        background: `linear-gradient(90deg, ${PHOSPHOR_GREEN}80, ${PHOSPHOR_GREEN})`,
+      }}
+    />
+  </div>
+);
+
+// Custom Slider Component
+const CustomSlider: React.FC<{
+  value: number;
+  onChange: (value: number) => void;
+  min: number;
+  max: number;
+  step: number;
+}> = ({ value, onChange, min, max, step }) => (
+  <input
+    type="range"
+    value={value}
+    onChange={(e) => onChange(Number(e.target.value))}
+    min={min}
+    max={max}
+    step={step}
+    className="w-full h-2 rounded-full appearance-none cursor-pointer"
+    style={{
+      background: `linear-gradient(to right, ${PHOSPHOR_GREEN} 0%, ${PHOSPHOR_GREEN} ${((value - min) / (max - min)) * 100}%, #21262d ${((value - min) / (max - min)) * 100}%, #21262d 100%)`,
+    }}
+  />
+);
+
 export default function ArxivManagement() {
   const [isTracking, setIsTracking] = useState(false);
   const [isIngesting, setIsIngesting] = useState(false);
@@ -78,6 +159,7 @@ export default function ArxivManagement() {
   const [extractionResult, setExtractionResult] = useState<ExtractionResult | null>(null);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState('');
+  const [activeTab, setActiveTab] = useState('tracking');
 
   // Form states
   const [selectedCategories, setSelectedCategories] = useState<string[]>(['cs.AI', 'cs.LG', 'cs.CV', 'quant-ph']);
@@ -86,6 +168,13 @@ export default function ArxivManagement() {
   const [updateDatabase, setUpdateDatabase] = useState(true);
   const [extractEntities, setExtractEntities] = useState(true);
   const [downloadPdfs, setDownloadPdfs] = useState(false);
+
+  // Ingest Papers search workflow states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<ArXivPaper[] | null>(null);
+  const [selectedPaperIds, setSelectedPaperIds] = useState<string[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [ingestionResult, setIngestionResult] = useState<IngestionResult | null>(null);
 
   // Extraction form states
   const [extractPaperIds, setExtractPaperIds] = useState('');
@@ -100,6 +189,13 @@ export default function ArxivManagement() {
     'quant-ph', 'stat.ML', 'math.OC', 'physics.data-an', 'eess.IV'
   ];
 
+  const tabs = [
+    { id: 'tracking', label: 'Track Changes', icon: TrendingUp },
+    { id: 'ingest', label: 'Ingest Papers', icon: Upload },
+    { id: 'extract', label: 'Extract Features', icon: Brain },
+    { id: 'stats', label: 'Statistics', icon: BarChart3 },
+  ];
+
   // Handle tracking changes
   const handleTrackChanges = async () => {
     setIsTracking(true);
@@ -108,7 +204,7 @@ export default function ArxivManagement() {
 
     try {
       setProgress(30);
-      const result = await apiClient.post<TrackResult>('/arxiv/tracking/track-categories', {
+      const result = await apiClient.postWithLongTimeout<TrackResult>('/arxiv/tracking/track-categories', {
         categories: selectedCategories,
         days_back: daysBack,
         update_database: updateDatabase
@@ -126,7 +222,6 @@ export default function ArxivManagement() {
       }
       setProgress(100);
 
-      // Refresh stats
       await fetchStats();
     } catch (error: any) {
       console.error('Tracking failed:', error);
@@ -141,28 +236,103 @@ export default function ArxivManagement() {
     }
   };
 
-  // Handle ingestion
-  const handleIngestPapers = async () => {
-    setIsIngesting(true);
-    setMessage('Ingesting papers...');
-    setProgress(0);
+  // Handle searching arXiv papers
+  const handleSearchPapers = async () => {
+    if (!searchQuery.trim()) {
+      setMessage('Please enter a search query');
+      return;
+    }
+
+    setIsSearching(true);
+    setMessage(`Searching arXiv for "${searchQuery}"...`);
+    setProgress(10);
+    setSearchResults(null);
+    setSelectedPaperIds([]);
+    setIngestionResult(null);
 
     try {
-      // This would need to be implemented in the backend
-      // For now, we'll show a placeholder
-      setMessage('Ingestion feature coming soon to API');
-      setProgress(50);
+      setProgress(40);
+      const results = await apiClient.postWithLongTimeout<ArXivPaper[]>('/arxiv/search', {
+        query: searchQuery,
+        max_results: maxResults,
+        categories: selectedCategories.length > 0 ? selectedCategories : null
+      });
 
-      setTimeout(() => {
-        setProgress(100);
-        setIsIngesting(false);
-      }, 2000);
+      setProgress(100);
+      setSearchResults(results);
+      setMessage(`✅ Found ${results.length} papers matching "${searchQuery}"`);
+    } catch (error: any) {
+      console.error('Search failed:', error);
+      setProgress(0);
+      if (error.response?.status === 401) {
+        setMessage('❌ Authentication failed. Please refresh the page and try again.');
+      } else {
+        setMessage(`❌ Search failed: ${error.response?.data?.detail || error.message}`);
+      }
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Handle ingesting selected papers
+  const handleIngestSelected = async () => {
+    if (selectedPaperIds.length === 0) {
+      setMessage('Please select at least one paper to ingest');
+      return;
+    }
+
+    setIsIngesting(true);
+    setMessage(`Ingesting ${selectedPaperIds.length} papers...`);
+    setProgress(10);
+
+    try {
+      setProgress(40);
+      const result = await apiClient.postWithLongTimeout<IngestionResult>('/arxiv/ingest', {
+        paper_ids: selectedPaperIds,
+        download_pdfs: downloadPdfs,
+        extract_content: extractEntities,
+        batch_size: 10
+      });
+
+      setProgress(100);
+      setIngestionResult(result);
+      setMessage(`✅ ${result.message} - ${result.paper_count} papers queued for processing`);
+      
+      // Clear selection after successful ingestion
+      setSelectedPaperIds([]);
     } catch (error: any) {
       console.error('Ingestion failed:', error);
-      setMessage(`Ingestion failed: ${error.message}`);
+      setProgress(0);
+      if (error.response?.status === 401) {
+        setMessage('❌ Authentication failed. Please refresh the page and try again.');
+      } else {
+        setMessage(`❌ Ingestion failed: ${error.response?.data?.detail || error.message}`);
+      }
+    } finally {
       setIsIngesting(false);
     }
   };
+
+  // Toggle paper selection
+  const togglePaperSelection = (paperId: string) => {
+    setSelectedPaperIds(prev => 
+      prev.includes(paperId) 
+        ? prev.filter(id => id !== paperId)
+        : [...prev, paperId]
+    );
+  };
+
+  // Select/deselect all papers
+  const toggleSelectAll = () => {
+    if (searchResults) {
+      if (selectedPaperIds.length === searchResults.length) {
+        setSelectedPaperIds([]);
+      } else {
+        setSelectedPaperIds(searchResults.map(p => p.id));
+      }
+    }
+  };
+
 
   // Fetch statistics
   const fetchStats = async () => {
@@ -195,7 +365,6 @@ export default function ArxivManagement() {
     setProgress(0);
 
     try {
-      // Parse paper IDs
       const paperIds = extractPaperIds
         .split('\n')
         .map(id => id.trim())
@@ -207,7 +376,7 @@ export default function ArxivManagement() {
         return;
       }
 
-      const result = await apiClient.post<ExtractionResult>('/arxiv/extraction/extract-features', {
+      const result = await apiClient.postWithLongTimeout<ExtractionResult>('/arxiv/extraction/extract-features', {
         paper_ids: paperIds,
         extract_entities: extractEntities,
         extract_topics: extractTopics,
@@ -235,7 +404,7 @@ export default function ArxivManagement() {
     setProgress(0);
 
     try {
-      const result = await apiClient.post<any>('/arxiv/extraction/bulk-extract', {
+      const result = await apiClient.postWithLongTimeout<any>('/arxiv/extraction/bulk-extract', {
         categories: selectedCategories,
         days_back: daysBack,
         max_papers: maxResults,
@@ -273,7 +442,6 @@ export default function ArxivManagement() {
     setProgress(0);
 
     try {
-      // Check if we have a valid token before making the request
       const { useAuthStore } = await import('@/stores/authStore');
       const authStore = useAuthStore.getState();
 
@@ -286,7 +454,7 @@ export default function ArxivManagement() {
       setProgress(10);
 
       const response = await apiClient.postWithLongTimeout('/arxiv/local/extract-local-features', {
-        paper_ids: null, // Process all files
+        paper_ids: null,
         extract_entities: extractEntities,
         extract_topics: extractTopics,
         extract_citations: extractCitations,
@@ -298,7 +466,6 @@ export default function ArxivManagement() {
 
       setProgress(80);
 
-      // The response is direct, not wrapped in .data
       const data = response.data || response;
 
       setExtractionResult({
@@ -313,14 +480,11 @@ export default function ArxivManagement() {
     } catch (error: any) {
       console.error('Local PDF extraction failed:', error);
 
-      // Extract error details
       const status = error.response?.status || error.status;
       const detail = error.response?.data?.detail || error.message || error.toString();
 
       if (status === 401) {
         setMessage('❌ Authentication expired. Please refresh the page and log in again.');
-        // Optional: Attempt to refresh token automatically
-        // authStore.refreshToken();
       } else if (status === 403) {
         setMessage('❌ Access denied. You do not have permission to extract PDFs.');
       } else if (status === 404) {
@@ -342,43 +506,79 @@ export default function ArxivManagement() {
   }, []);
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">ArXiv Management</h1>
-          <p className="text-muted-foreground">
-            Track and ingest arXiv papers with knowledge graph integration
-          </p>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="space-y-6 pt-6">
+        <div className="flex items-center gap-4 pl-4">
+          <Activity className="h-7 w-7" style={{ color: PHOSPHOR_GREEN }} />
+          <h1 className="text-2xl font-mono font-bold tracking-tight" style={{ color: PHOSPHOR_GREEN }}>
+            ARXIV MANAGEMENT TERMINAL_
+          </h1>
         </div>
+        <p className="text-white/50 font-mono text-sm pl-12">
+          Track and ingest arXiv papers with knowledge graph integration
+        </p>
       </div>
 
-      <Tabs defaultValue="tracking" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="tracking">Track Changes</TabsTrigger>
-          <TabsTrigger value="ingest">Ingest Papers</TabsTrigger>
-          <TabsTrigger value="extract">Extract Features</TabsTrigger>
-          <TabsTrigger value="stats">Statistics</TabsTrigger>
-        </TabsList>
+      {/* Terminal Chrome Tabs */}
+      <div
+        className="rounded-xl overflow-hidden"
+        style={{
+          background: '#0d1117',
+          border: '1px solid #30363d',
+          boxShadow: '0 4px 24px rgba(0, 0, 0, 0.4)',
+        }}
+      >
+        {/* Tab Bar */}
+        <div
+          className="flex items-center gap-2 px-5 py-4"
+          style={{ borderBottom: '1px solid #30363d', background: '#161b22' }}
+        >
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm transition-all"
+                style={{
+                  background: isActive ? '#0d1117' : 'transparent',
+                  color: isActive ? PHOSPHOR_GREEN : '#8b949e',
+                  borderWidth: '1px',
+                  borderStyle: 'solid',
+                  borderColor: isActive ? `${PHOSPHOR_GREEN}30` : 'transparent',
+                }}
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
 
-        <TabsContent value="tracking" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                Track ArXiv Changes
-              </CardTitle>
-              <CardDescription>
-                Detect new, updated, and deleted papers in selected categories
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
+        {/* Tab Content */}
+        <div className="p-10 pt-8 pl-12">
+          {/* Track Changes Tab */}
+          {activeTab === 'tracking' && (
+            <div className="space-y-10">
+              <div className="space-y-2">
+                <h3 className="text-lg font-mono font-semibold text-white flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" style={{ color: AMBER }} />
+                  Track ArXiv Changes
+                </h3>
+                <p className="text-sm font-mono text-gray-500">
+                  Detect new, updated, and deleted papers in selected categories
+                </p>
+              </div>
+
               {/* Categories Selection */}
-              <div>
-                <Label>Categories to Track</Label>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-2">
+              <div className="space-y-5">
+                <label className="text-sm font-mono text-gray-400 block">Categories to Track</label>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-x-6 gap-y-4">
                   {popularCategories.map((category) => (
-                    <div key={category} className="flex items-center space-x-2">
-                      <Switch
+                    <div key={category} className="flex items-center gap-2">
+                      <ToggleSwitch
                         checked={selectedCategories.includes(category)}
                         onCheckedChange={(checked) => {
                           if (checked) {
@@ -388,517 +588,689 @@ export default function ArxivManagement() {
                           }
                         }}
                       />
-                      <Label className="text-sm">{category}</Label>
+                      <span className="text-sm font-mono text-gray-300">{category}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Days Back */}
-              <div>
-                <Label>Days to look back: {daysBack}</Label>
-                <Slider
-                  value={[daysBack]}
-                  onValueChange={(value) => setDaysBack(value[0])}
-                  max={30}
+              {/* Days Back Slider */}
+              <div className="space-y-5">
+                <label className="text-sm font-mono text-gray-400 block">
+                  Days to look back: <span style={{ color: PHOSPHOR_GREEN }}>{daysBack}</span>
+                </label>
+                <CustomSlider
+                  value={daysBack}
+                  onChange={setDaysBack}
                   min={1}
+                  max={30}
                   step={1}
-                  className="mt-2"
                 />
               </div>
 
-              {/* Update Database */}
-              <div className="flex items-center space-x-2">
-                <Switch
+              {/* Update Database Toggle */}
+              <div className="flex items-center gap-3">
+                <ToggleSwitch
                   id="update-db"
                   checked={updateDatabase}
                   onCheckedChange={setUpdateDatabase}
                 />
-                <Label htmlFor="update-db">Update database with changes</Label>
+                <label htmlFor="update-db" className="text-sm font-mono text-gray-300">
+                  Update database with changes
+                </label>
               </div>
 
-              {/* Action Button */}
+              {/* Action Buttons */}
               <div className="flex items-center gap-4">
-                <Button
+                <button
                   onClick={handleTrackChanges}
                   disabled={isTracking || selectedCategories.length === 0}
-                  className="w-full sm:w-auto"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
+                  style={{
+                    background: `${PHOSPHOR_GREEN}20`,
+                    borderWidth: '1px',
+                    borderStyle: 'solid',
+                    borderColor: `${PHOSPHOR_GREEN}50`,
+                    color: PHOSPHOR_GREEN,
+                  }}
                 >
                   {isTracking ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       Tracking...
                     </>
                   ) : (
                     <>
-                      <RefreshCw className="mr-2 h-4 w-4" />
+                      <RefreshCw className="h-4 w-4" />
                       Track Changes
                     </>
                   )}
-                </Button>
+                </button>
 
-                <Button
-                  variant="outline"
+                <button
                   onClick={handleCleanup}
-                  className="w-full sm:w-auto"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-mono text-sm transition-all"
+                  style={{
+                    background: 'transparent',
+                    borderWidth: '1px',
+                    borderStyle: 'solid',
+                    borderColor: '#30363d',
+                    color: '#8b949e',
+                  }}
                 >
                   Cleanup Old State
-                </Button>
+                </button>
               </div>
 
               {/* Progress */}
               {(isTracking || message) && (
-                <div className="space-y-2">
-                  <Progress value={progress} />
-                  <p className="text-sm text-muted-foreground">{message}</p>
+                <div className="space-y-3">
+                  <ProgressBar value={progress} />
+                  <p className="text-sm font-mono text-gray-400">{message}</p>
                 </div>
               )}
 
               {/* Results */}
               {trackingResult && (
                 <div className="space-y-4">
-                  <Alert>
-                    <CheckCircle className="h-4 w-4" />
-                    <AlertDescription>
+                  <div
+                    className="flex items-start gap-3 p-4 rounded-lg"
+                    style={{
+                      background: `${PHOSPHOR_GREEN}10`,
+                      border: `1px solid ${PHOSPHOR_GREEN}30`,
+                    }}
+                  >
+                    <CheckCircle className="h-5 w-5 mt-0.5" style={{ color: PHOSPHOR_GREEN }} />
+                    <p className="text-sm font-mono" style={{ color: PHOSPHOR_GREEN }}>
                       {trackingResult.result.applied ? (
-                        <span>
-                          ✅ Successfully tracked and updated database!
+                        <>
+                          Successfully tracked and updated database!
                           Found {trackingResult.result.papers_found} papers with {trackingResult.result.changes_detected} changes.
-                        </span>
+                        </>
                       ) : (
-                        <span>
-                          ℹ️ Tracking completed (read-only).
+                        <>
+                          Tracking completed (read-only).
                           Found {trackingResult.result.papers_found} papers with {trackingResult.result.changes_detected} changes.
-                          Enable "Update database" to apply changes.
-                        </span>
+                        </>
                       )}
-                    </AlertDescription>
-                  </Alert>
+                    </p>
+                  </div>
 
                   <div className="grid grid-cols-3 gap-4">
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-green-600">
-                          {trackingResult.result.summary.new}
+                    {[
+                      { label: 'New Papers', value: trackingResult.result.summary.new, color: PHOSPHOR_GREEN },
+                      { label: 'Updated', value: trackingResult.result.summary.updated, color: CYAN },
+                      { label: 'Deleted', value: trackingResult.result.summary.deleted, color: '#ef4444' },
+                    ].map((stat) => (
+                      <div
+                        key={stat.label}
+                        className="p-4 rounded-lg"
+                        style={{ background: '#161b22', border: '1px solid #21262d' }}
+                      >
+                        <div className="text-2xl font-mono font-bold" style={{ color: stat.color }}>
+                          {stat.value}
                         </div>
-                        <p className="text-sm text-muted-foreground">New Papers</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Categories: {trackingResult.result.categories.join(', ')}
-                        </p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-blue-600">
-                          {trackingResult.result.summary.updated}
-                        </div>
-                        <p className="text-sm text-muted-foreground">Updated</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Last {trackingResult.result.period_days} days
-                        </p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-red-600">
-                          {trackingResult.result.summary.deleted}
-                        </div>
-                        <p className="text-sm text-muted-foreground">Deleted</p>
-                      </CardContent>
-                    </Card>
+                        <p className="text-sm font-mono text-gray-500">{stat.label}</p>
+                      </div>
+                    ))}
                   </div>
 
                   {trackingResult.result.applied && (
-                    <Alert className="bg-blue-50 border-blue-200">
-                      <Database className="h-4 w-4 text-blue-600" />
-                      <AlertDescription className="text-blue-800">
+                    <div
+                      className="flex items-start gap-3 p-4 rounded-lg"
+                      style={{
+                        background: `${CYAN}10`,
+                        border: `1px solid ${CYAN}30`,
+                      }}
+                    >
+                      <Database className="h-5 w-5 mt-0.5" style={{ color: CYAN }} />
+                      <p className="text-sm font-mono" style={{ color: CYAN }}>
                         Papers have been added to PostgreSQL and entities/relationships have been extracted to Neo4j knowledge graph.
-                        Visit <a href="http://localhost:7474/browser/" target="_blank" rel="noopener noreferrer" className="underline font-medium">Neo4j Browser</a> to explore the knowledge graph.
-                      </AlertDescription>
-                    </Alert>
+                        Visit{' '}
+                        <a
+                          href="http://localhost:7474/browser/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline"
+                        >
+                          Neo4j Browser
+                        </a>{' '}
+                        to explore the knowledge graph.
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+          )}
 
-        <TabsContent value="ingest" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
-                Ingest ArXiv Papers
-              </CardTitle>
-              <CardDescription>
-                Search and ingest papers from arXiv with knowledge graph extraction
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Search Configuration */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="search-query">Search Query</Label>
+          {/* Ingest Papers Tab */}
+          {activeTab === 'ingest' && (
+            <div className="space-y-10">
+              <div className="space-y-2">
+                <h3 className="text-lg font-mono font-semibold text-white flex items-center gap-2">
+                  <Upload className="h-5 w-5" style={{ color: CYAN }} />
+                  Ingest ArXiv Papers
+                </h3>
+                <p className="text-sm font-mono text-gray-500">
+                  Search and ingest papers from arXiv with knowledge graph extraction
+                </p>
+              </div>
+
+              {/* Search Form */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-mono text-gray-400">Search Query</label>
                   <input
-                    id="search-query"
                     type="text"
-                    placeholder="e.g., quantum computing"
-                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearchPapers()}
+                    placeholder="e.g., quantum computing, machine learning"
+                    className="w-full px-4 py-2.5 rounded-lg font-mono text-sm text-white placeholder:text-gray-600 focus:outline-none"
+                    style={{
+                      background: '#161b22',
+                      border: '1px solid #21262d',
+                    }}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="max-results">Max Results: {maxResults}</Label>
-                  <Slider
-                    id="max-results"
-                    value={[maxResults]}
-                    onValueChange={(value) => setMaxResults(value[0])}
-                    max={100}
+                <div className="space-y-2">
+                  <label className="text-sm font-mono text-gray-400">
+                    Max Results: <span style={{ color: PHOSPHOR_GREEN }}>{maxResults}</span>
+                  </label>
+                  <CustomSlider
+                    value={maxResults}
+                    onChange={setMaxResults}
                     min={1}
+                    max={100}
                     step={1}
-                    className="mt-2"
                   />
                 </div>
               </div>
 
               {/* Options */}
               <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Switch
+                <div className="flex items-center gap-3">
+                  <ToggleSwitch
                     id="extract-entities"
                     checked={extractEntities}
                     onCheckedChange={setExtractEntities}
                   />
-                  <Label htmlFor="extract-entities">Extract entities to knowledge graph</Label>
+                  <label htmlFor="extract-entities" className="text-sm font-mono text-gray-300">
+                    Extract entities to knowledge graph
+                  </label>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Switch
+                <div className="flex items-center gap-3">
+                  <ToggleSwitch
                     id="download-pdfs"
                     checked={downloadPdfs}
                     onCheckedChange={setDownloadPdfs}
                   />
-                  <Label htmlFor="download-pdfs">Download PDF files</Label>
+                  <label htmlFor="download-pdfs" className="text-sm font-mono text-gray-300">
+                    Download PDF files
+                  </label>
                 </div>
               </div>
 
-              {/* Action Button */}
-              <Button
-                onClick={handleIngestPapers}
-                disabled={isIngesting}
-                className="w-full"
+              {/* Search Button */}
+              <button
+                onClick={handleSearchPapers}
+                disabled={isSearching || !searchQuery.trim()}
+                className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
+                style={{
+                  background: `${CYAN}20`,
+                  borderWidth: '1px',
+                  borderStyle: 'solid',
+                  borderColor: `${CYAN}50`,
+                  color: CYAN,
+                }}
               >
-                {isIngesting ? (
+                {isSearching ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Ingesting...
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Searching...
                   </>
                 ) : (
                   <>
-                    <Database className="mr-2 h-4 w-4" />
-                    Start Ingestion
+                    <Search className="h-4 w-4" />
+                    Search ArXiv Papers
                   </>
                 )}
-              </Button>
+              </button>
 
-              {/* Progress */}
-              {(isIngesting || message) && (
-                <div className="space-y-2">
-                  <Progress value={progress} />
-                  <p className="text-sm text-muted-foreground">{message}</p>
+              {/* Progress and Message */}
+              {(isSearching || isIngesting || message) && (
+                <div className="space-y-3">
+                  <ProgressBar value={progress} />
+                  <p className="text-sm font-mono text-gray-400">{message}</p>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="extract" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Brain className="h-5 w-5" />
-                Extract Features from Papers
-              </CardTitle>
-              <CardDescription>
-                Extract entities, topics, key phrases, summaries, and citations from ArXiv papers
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Paper IDs Input */}
-              <div>
-                <Label htmlFor="paper-ids">Paper IDs (one per line)</Label>
+              {/* Search Results */}
+              {searchResults && searchResults.length > 0 && (
+                <div className="space-y-4">
+                  {/* Results Header with Select All */}
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-mono text-gray-400">
+                      {searchResults.length} papers found • {selectedPaperIds.length} selected
+                    </h4>
+                    <button
+                      onClick={toggleSelectAll}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded font-mono text-xs transition-all"
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid #30363d',
+                        color: '#8b949e',
+                      }}
+                    >
+                      {selectedPaperIds.length === searchResults.length ? (
+                        <>
+                          <Square className="h-3 w-3" />
+                          Deselect All
+                        </>
+                      ) : (
+                        <>
+                          <CheckSquare className="h-3 w-3" />
+                          Select All
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Paper List */}
+                  <div 
+                    className="space-y-3 max-h-96 overflow-y-auto pr-2"
+                    style={{ scrollbarWidth: 'thin', scrollbarColor: `${PHOSPHOR_GREEN}40 #161b22` }}
+                  >
+                    {searchResults.map((paper) => (
+                      <div
+                        key={paper.id}
+                        onClick={() => togglePaperSelection(paper.id)}
+                        className="p-4 rounded-lg cursor-pointer transition-all"
+                        style={{
+                          background: selectedPaperIds.includes(paper.id) ? `${PHOSPHOR_GREEN}10` : '#161b22',
+                          border: `1px solid ${selectedPaperIds.includes(paper.id) ? `${PHOSPHOR_GREEN}40` : '#21262d'}`,
+                        }}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="pt-1">
+                            {selectedPaperIds.includes(paper.id) ? (
+                              <CheckSquare className="h-5 w-5" style={{ color: PHOSPHOR_GREEN }} />
+                            ) : (
+                              <Square className="h-5 w-5 text-gray-600" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h5 className="text-sm font-mono text-white font-medium leading-snug">
+                              {paper.title}
+                            </h5>
+                            <p className="text-xs font-mono text-gray-500 mt-1">
+                              {paper.authors.slice(0, 3).join(', ')}
+                              {paper.authors.length > 3 && ` +${paper.authors.length - 3} more`}
+                            </p>
+                            <p className="text-xs font-mono text-gray-600 mt-2 line-clamp-2">
+                              {paper.abstract.slice(0, 200)}...
+                            </p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span 
+                                className="text-xs font-mono px-2 py-0.5 rounded"
+                                style={{ background: `${CYAN}20`, color: CYAN }}
+                              >
+                                {paper.id}
+                              </span>
+                              {paper.categories.slice(0, 2).map((cat) => (
+                                <span 
+                                  key={cat}
+                                  className="text-xs font-mono px-2 py-0.5 rounded"
+                                  style={{ background: `${AMBER}20`, color: AMBER }}
+                                >
+                                  {cat}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Ingest Selected Button */}
+                  {selectedPaperIds.length > 0 && (
+                    <button
+                      onClick={handleIngestSelected}
+                      disabled={isIngesting}
+                      className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
+                      style={{
+                        background: `${PHOSPHOR_GREEN}20`,
+                        borderWidth: '1px',
+                        borderStyle: 'solid',
+                        borderColor: `${PHOSPHOR_GREEN}50`,
+                        color: PHOSPHOR_GREEN,
+                      }}
+                    >
+                      {isIngesting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Ingesting {selectedPaperIds.length} papers...
+                        </>
+                      ) : (
+                        <>
+                          <Database className="h-4 w-4" />
+                          Ingest {selectedPaperIds.length} Selected Paper{selectedPaperIds.length > 1 ? 's' : ''}
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Ingestion Success */}
+              {ingestionResult && (
+                <div
+                  className="flex items-start gap-3 p-4 rounded-lg"
+                  style={{
+                    background: `${PHOSPHOR_GREEN}10`,
+                    border: `1px solid ${PHOSPHOR_GREEN}30`,
+                  }}
+                >
+                  <CheckCircle className="h-5 w-5 mt-0.5" style={{ color: PHOSPHOR_GREEN }} />
+                  <div>
+                    <p className="text-sm font-mono" style={{ color: PHOSPHOR_GREEN }}>
+                      {ingestionResult.message}
+                    </p>
+                    <p className="text-xs font-mono text-gray-500 mt-1">
+                      {ingestionResult.paper_count} papers queued for background processing.
+                      Check the Statistics tab to monitor progress.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Extract Features Tab */}
+          {activeTab === 'extract' && (
+            <div className="space-y-10">
+              <div className="space-y-2">
+                <h3 className="text-lg font-mono font-semibold text-white flex items-center gap-2">
+                  <Brain className="h-5 w-5" style={{ color: AMBER }} />
+                  Extract Features from Papers
+                </h3>
+                <p className="text-sm font-mono text-gray-500">
+                  Extract entities, topics, key phrases, summaries, and citations from ArXiv papers
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-mono text-gray-400">Paper IDs (one per line)</label>
                 <textarea
-                  id="paper-ids"
                   placeholder="e.g.,&#10;2301.07041&#10;2302.08869&#10;2303.12345"
                   value={extractPaperIds}
                   onChange={(e) => setExtractPaperIds(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 border rounded-md h-32 font-mono text-sm"
+                  className="w-full h-32 px-4 py-3 rounded-lg font-mono text-sm text-white placeholder:text-gray-600 focus:outline-none resize-none"
+                  style={{
+                    background: '#161b22',
+                    border: '1px solid #21262d',
+                  }}
                 />
               </div>
 
-              {/* Extraction Options */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium">Features to Extract:</h4>
+              <div className="space-y-4">
+                <h4 className="text-sm font-mono text-gray-400">Features to Extract:</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="extract-entities-feat"
-                      checked={extractEntities}
-                      onCheckedChange={setExtractEntities}
-                    />
-                    <Label htmlFor="extract-entities-feat" className="flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      Entities
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="extract-topics-feat"
-                      checked={extractTopics}
-                      onCheckedChange={setExtractTopics}
-                    />
-                    <Label htmlFor="extract-topics-feat" className="flex items-center gap-2">
-                      <BookOpen className="h-4 w-4" />
-                      Topics
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="extract-keyphrases-feat"
-                      checked={extractKeyphrases}
-                      onCheckedChange={setExtractKeyphrases}
-                    />
-                    <Label htmlFor="extract-keyphrases-feat" className="flex items-center gap-2">
-                      <Hash className="h-4 w-4" />
-                      Key Phrases
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="extract-citations-feat"
-                      checked={extractCitations}
-                      onCheckedChange={setExtractCitations}
-                    />
-                    <Label htmlFor="extract-citations-feat" className="flex items-center gap-2">
-                      <Link2 className="h-4 w-4" />
-                      Citations
-                    </Label>
-                  </div>
+                  {[
+                    { id: 'entities', label: 'Entities', icon: FileText, checked: extractEntities, onChange: setExtractEntities },
+                    { id: 'topics', label: 'Topics', icon: BookOpen, checked: extractTopics, onChange: setExtractTopics },
+                    { id: 'keyphrases', label: 'Key Phrases', icon: Hash, checked: extractKeyphrases, onChange: setExtractKeyphrases },
+                    { id: 'citations', label: 'Citations', icon: Link2, checked: extractCitations, onChange: setExtractCitations },
+                  ].map((feature) => {
+                    const Icon = feature.icon;
+                    return (
+                      <div key={feature.id} className="flex items-center gap-3">
+                        <ToggleSwitch
+                          id={feature.id}
+                          checked={feature.checked}
+                          onCheckedChange={feature.onChange}
+                        />
+                        <label htmlFor={feature.id} className="flex items-center gap-2 text-sm font-mono text-gray-300">
+                          <Icon className="h-4 w-4 text-gray-500" />
+                          {feature.label}
+                        </label>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="extract-summaries-feat"
+                <div className="flex items-center gap-3">
+                  <ToggleSwitch
+                    id="summaries"
                     checked={extractSummaries}
                     onCheckedChange={setExtractSummaries}
                   />
-                  <Label htmlFor="extract-summaries-feat">Generate Summaries</Label>
+                  <label htmlFor="summaries" className="text-sm font-mono text-gray-300">
+                    Generate Summaries
+                  </label>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="update-kg-feat"
+                <div className="flex items-center gap-3">
+                  <ToggleSwitch
+                    id="update-kg"
                     checked={updateKG}
                     onCheckedChange={setUpdateKG}
                   />
-                  <Label htmlFor="update-kg-feat">Update Knowledge Graph</Label>
+                  <label htmlFor="update-kg" className="text-sm font-mono text-gray-300">
+                    Update Knowledge Graph
+                  </label>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center gap-4">
-                <Button
+              <div className="flex flex-wrap items-center gap-4">
+                <button
                   onClick={handleExtractFeatures}
                   disabled={isExtracting || extractPaperIds.trim().length === 0}
-                  className="w-full sm:w-auto"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
+                  style={{
+                    background: `${AMBER}20`,
+                    borderWidth: '1px',
+                    borderStyle: 'solid',
+                    borderColor: `${AMBER}50`,
+                    color: AMBER,
+                  }}
                 >
                   {isExtracting ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       Extracting...
                     </>
                   ) : (
                     <>
-                      <Brain className="mr-2 h-4 w-4" />
+                      <Brain className="h-4 w-4" />
                       Extract Features
                     </>
                   )}
-                </Button>
+                </button>
 
-                <Button
-                  variant="outline"
+                <button
                   onClick={handleBulkExtract}
                   disabled={isExtracting}
-                  className="w-full sm:w-auto"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
+                  style={{
+                    background: 'transparent',
+                    borderWidth: '1px',
+                    borderStyle: 'solid',
+                    borderColor: '#30363d',
+                    color: '#8b949e',
+                  }}
                 >
                   Bulk Extract from Categories
-                </Button>
+                </button>
 
-                <Button
-                  variant="secondary"
+                <button
                   onClick={handleExtractLocalPdfs}
                   disabled={isExtracting}
-                  className="w-full sm:w-auto"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
+                  style={{
+                    background: '#161b22',
+                    borderWidth: '1px',
+                    borderStyle: 'solid',
+                    borderColor: '#30363d',
+                    color: '#8b949e',
+                  }}
                 >
                   Extract from Local PDFs
-                </Button>
+                </button>
               </div>
 
-              {/* Progress */}
               {(isExtracting || message) && (
-                <div className="space-y-2">
-                  <Progress value={progress} />
-                  <p className="text-sm text-muted-foreground">{message}</p>
+                <div className="space-y-3">
+                  <ProgressBar value={progress} />
+                  <p className="text-sm font-mono text-gray-400">{message}</p>
                 </div>
               )}
 
-              {/* Extraction Results */}
               {extractionResult && (
                 <div className="space-y-4">
-                  <Alert>
-                    <CheckCircle className="h-4 w-4" />
-                    <AlertDescription>
+                  <div
+                    className="flex items-start gap-3 p-4 rounded-lg"
+                    style={{
+                      background: `${PHOSPHOR_GREEN}10`,
+                      border: `1px solid ${PHOSPHOR_GREEN}30`,
+                    }}
+                  >
+                    <CheckCircle className="h-5 w-5 mt-0.5" style={{ color: PHOSPHOR_GREEN }} />
+                    <p className="text-sm font-mono" style={{ color: PHOSPHOR_GREEN }}>
                       {extractionResult.message}
-                    </AlertDescription>
-                  </Alert>
+                    </p>
+                  </div>
 
-                  {/* Results Grid */}
-                  <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-3">
                     {extractionResult.results.map((result, index) => (
-                      <Card key={index}>
-                        <CardHeader className="pb-3">
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="text-sm truncate flex-1 mr-2">
+                      <div
+                        key={index}
+                        className="p-4 rounded-lg"
+                        style={{ background: '#161b22', border: '1px solid #21262d' }}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1 min-w-0 mr-3">
+                            <h4 className="text-sm font-mono font-medium text-white truncate">
                               {result.title}
-                            </CardTitle>
-                            <Badge variant={result.extraction_status === 'completed' ? 'default' : 'destructive'}>
-                              {result.extraction_status}
-                            </Badge>
+                            </h4>
+                            <p className="text-xs font-mono text-gray-500">{result.paper_id}</p>
                           </div>
-                          <p className="text-xs text-muted-foreground">{result.paper_id}</p>
-                        </CardHeader>
+                          <span
+                            className="text-xs font-mono px-2 py-1 rounded"
+                            style={{
+                              background: result.extraction_status === 'completed' ? `${PHOSPHOR_GREEN}20` : '#ef444420',
+                              color: result.extraction_status === 'completed' ? PHOSPHOR_GREEN : '#ef4444',
+                            }}
+                          >
+                            {result.extraction_status}
+                          </span>
+                        </div>
+
                         {result.error && (
-                          <CardContent className="pt-0">
-                            <Alert>
-                              <AlertDescription className="text-xs">
-                                Error: {result.error}
-                              </AlertDescription>
-                            </Alert>
-                          </CardContent>
+                          <p className="text-xs font-mono text-red-400 mt-2">Error: {result.error}</p>
                         )}
+
                         {result.extraction_status === 'completed' && (
-                          <CardContent className="pt-0">
-                            <div className="space-y-2">
-                              {result.features.topics && Array.isArray(result.features.topics) && (
-                                <div>
-                                  <p className="text-xs font-medium mb-1">Topics:</p>
-                                  <div className="flex flex-wrap gap-1">
-                                    {result.features.topics.map((topic, i) => (
-                                      <Badge key={i} variant="secondary" className="text-xs">
-                                        {topic}
-                                      </Badge>
-                                    ))}
-                                  </div>
+                          <div className="space-y-2 mt-3">
+                            {result.features.topics && Array.isArray(result.features.topics) && (
+                              <div>
+                                <p className="text-xs font-mono text-gray-500 mb-1">Topics:</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {result.features.topics.map((topic, i) => (
+                                    <span
+                                      key={i}
+                                      className="text-xs font-mono px-2 py-0.5 rounded"
+                                      style={{ background: '#21262d', color: '#8b949e' }}
+                                    >
+                                      {topic}
+                                    </span>
+                                  ))}
                                 </div>
-                              )}
-                              {result.features.keyphrases && Array.isArray(result.features.keyphrases) && (
-                                <div>
-                                  <p className="text-xs font-medium mb-1">Key Phrases:</p>
-                                  <p className="text-xs text-muted-foreground truncate">
-                                    {result.features.keyphrases.join(', ')}
-                                  </p>
-                                </div>
-                              )}
-                              {result.features.summary && typeof result.features.summary === 'string' && (
-                                <div>
-                                  <p className="text-xs font-medium mb-1">Summary:</p>
-                                  <p className="text-xs text-muted-foreground line-clamp-3">
-                                    {result.features.summary}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          </CardContent>
+                              </div>
+                            )}
+                            {result.features.keyphrases && Array.isArray(result.features.keyphrases) && (
+                              <div>
+                                <p className="text-xs font-mono text-gray-500 mb-1">Key Phrases:</p>
+                                <p className="text-xs font-mono text-gray-400 truncate">
+                                  {result.features.keyphrases.join(', ')}
+                                </p>
+                              </div>
+                            )}
+                            {result.features.summary && typeof result.features.summary === 'string' && (
+                              <div>
+                                <p className="text-xs font-mono text-gray-500 mb-1">Summary:</p>
+                                <p className="text-xs font-mono text-gray-400 line-clamp-3">
+                                  {result.features.summary}
+                                </p>
+                              </div>
+                            )}
+                          </div>
                         )}
-                        {result.extraction_status === 'completed' && (
-                          <CardContent className="pt-0">
-                            <div className="space-y-2">
-                              {result.features.topics && !Array.isArray(result.features.topics) && (
-                                <div className="text-xs text-red-500">
-                                  Topics: {(result.features.topics as { error: string }).error}
-                                </div>
-                              )}
-                              {result.features.keyphrases && !Array.isArray(result.features.keyphrases) && (
-                                <div className="text-xs text-red-500">
-                                  Key Phrases: {(result.features.keyphrases as { error: string }).error}
-                                </div>
-                              )}
-                              {result.features.summary && typeof result.features.summary !== 'string' && (
-                                <div className="text-xs text-red-500">
-                                  Summary: {(result.features.summary as { error: string }).error}
-                                </div>
-                              )}
-                            </div>
-                          </CardContent>
-                        )}
-                      </Card>
+                      </div>
                     ))}
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="stats" className="space-y-4">
-          {stats && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold">
-                    {stats.statistics.total_papers_tracked}
-                  </div>
-                  <p className="text-sm text-muted-foreground">Total Papers Tracked</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-green-600">
-                    {stats.statistics.active_papers}
-                  </div>
-                  <p className="text-sm text-muted-foreground">Active Papers</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {stats.statistics.categories_tracked}
-                  </div>
-                  <p className="text-sm text-muted-foreground">Categories Tracked</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-orange-600">
-                    {stats.statistics.recent_changes_week.new || 0}
-                  </div>
-                  <p className="text-sm text-muted-foreground">New This Week</p>
-                </CardContent>
-              </Card>
             </div>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Top Categories</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {stats?.statistics.top_categories?.map(([category, count]) => (
-                <div key={category} className="flex items-center justify-between py-2">
-                  <Badge variant="secondary">{category}</Badge>
-                  <span className="text-sm font-medium">{count} papers</span>
+          {/* Statistics Tab */}
+          {activeTab === 'stats' && (
+            <div className="space-y-10">
+              {stats && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[
+                    { label: 'Total Papers Tracked', value: stats.statistics.total_papers_tracked, color: '#8b949e' },
+                    { label: 'Active Papers', value: stats.statistics.active_papers, color: PHOSPHOR_GREEN },
+                    { label: 'Categories Tracked', value: stats.statistics.categories_tracked, color: CYAN },
+                    { label: 'New This Week', value: stats.statistics.recent_changes_week?.new || 0, color: AMBER },
+                  ].map((stat) => (
+                    <div
+                      key={stat.label}
+                      className="p-5 rounded-lg"
+                      style={{ background: '#161b22', border: '1px solid #21262d' }}
+                    >
+                      <div className="text-3xl font-mono font-bold" style={{ color: stat.color }}>
+                        {stat.value}
+                      </div>
+                      <p className="text-sm font-mono text-gray-500 mt-1">{stat.label}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              )}
+
+              <div
+                className="p-5 rounded-lg"
+                style={{ background: '#161b22', border: '1px solid #21262d' }}
+              >
+                <h3 className="text-lg font-mono font-semibold text-white mb-4">Top Categories</h3>
+                <div className="space-y-3">
+                  {stats?.statistics.top_categories?.map(([category, count]) => (
+                    <div
+                      key={category}
+                      className="flex items-center justify-between py-2"
+                      style={{ borderBottom: '1px solid #21262d' }}
+                    >
+                      <span
+                        className="text-sm font-mono px-2 py-1 rounded"
+                        style={{ background: '#21262d', color: '#8b949e' }}
+                      >
+                        {category}
+                      </span>
+                      <span className="text-sm font-mono" style={{ color: PHOSPHOR_GREEN }}>
+                        {count} papers
+                      </span>
+                    </div>
+                  ))}
+                  {(!stats?.statistics.top_categories || stats.statistics.top_categories.length === 0) && (
+                    <p className="text-sm font-mono text-gray-500">No categories tracked yet</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
