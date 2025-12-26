@@ -223,7 +223,74 @@ plt.close()
 
 # 7. Insights
 print("\n💡 Generating Insights...")
-cluster_pass_rates = {}
 papers_df['cluster'] = kmeans.labels_
 
-print("Done! Analysis script finished.")
+# Extract main category from primary_category (e.g., "cs.LG" -> "cs")
+papers_df['main_category'] = papers_df['primary_category'].apply(
+    lambda x: x.split('.')[0] if '.' in str(x) else str(x)
+)
+
+# Calculate cluster-category alignment
+from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
+from sklearn.preprocessing import LabelEncoder
+
+le = LabelEncoder()
+category_labels = le.fit_transform(papers_df['main_category'])
+ari = adjusted_rand_score(category_labels, kmeans.labels_)
+nmi = normalized_mutual_info_score(category_labels, kmeans.labels_)
+
+print(f"\n📊 Cluster-Category Alignment:")
+print(f"   Adjusted Rand Index: {ari:.3f}")
+print(f"   Normalized Mutual Info: {nmi:.3f}")
+
+# Analyze cluster composition
+print(f"\n🔍 Cluster Composition Analysis:")
+for cluster_id in range(OPTIMAL_K):
+    cluster_papers = papers_df[papers_df['cluster'] == cluster_id]
+    category_dist = cluster_papers['main_category'].value_counts()
+    dominant_cat = category_dist.index[0] if len(category_dist) > 0 else 'Unknown'
+    purity = category_dist.iloc[0] / len(cluster_papers) if len(cluster_papers) > 0 else 0
+    
+    print(f"\n   Cluster {cluster_id} ({len(cluster_papers)} papers):")
+    print(f"   • Dominant category: {dominant_cat} ({purity:.1%} purity)")
+    for cat, count in category_dist.head(3).items():
+        print(f"     - {cat}: {count} papers ({count/len(cluster_papers):.1%})")
+
+# Key insights summary
+print("\n" + "=" * 60)
+print("📈 KEY INSIGHTS")
+print("=" * 60)
+
+category_counts = papers_df['main_category'].value_counts()
+print(f"\n1. DATASET COMPOSITION:")
+for cat, count in category_counts.items():
+    print(f"   • {cat}: {count} papers ({count/len(papers_df):.1%})")
+
+print(f"\n2. CLUSTERING QUALITY:")
+print(f"   • Optimal K: {OPTIMAL_K} clusters")
+print(f"   • Silhouette Score: {max(silhouette_scores):.3f}")
+print(f"   • K-Means outperforms Ward clustering" if metrics_df.iloc[0]['Silhouette'] > metrics_df.iloc[1]['Silhouette'] else "   • Ward clustering outperforms K-Means")
+
+print(f"\n3. CATEGORY ALIGNMENT:")
+if ari > 0.3:
+    print(f"   ✅ Strong alignment between clusters and categories (ARI={ari:.3f})")
+elif ari > 0.1:
+    print(f"   ⚠️ Moderate alignment between clusters and categories (ARI={ari:.3f})")
+else:
+    print(f"   ❌ Weak alignment - clusters don't strongly correspond to categories (ARI={ari:.3f})")
+    print(f"   → This suggests embeddings capture semantic similarity beyond category labels")
+
+print(f"\n4. EMBEDDING INSIGHTS:")
+print(f"   • Embeddings dimension: {doc_embeddings.shape[1]}")
+print(f"   • Papers with embeddings: {len(papers_df)}")
+print(f"   • Mean chunks per paper: {len(points) / len(papers_df):.1f}")
+
+print("\n" + "=" * 60)
+print("✅ Analysis Complete!")
+print("=" * 60)
+print("\nOutput files generated:")
+print("  • clustering_elbow_analysis.png")
+print("  • clustering_methods_comparison.png")
+print("  • clustering_metrics_comparison.csv")
+print("  • hierarchical_dendrogram.png")
+print("  • document_clustering_tsne.png")

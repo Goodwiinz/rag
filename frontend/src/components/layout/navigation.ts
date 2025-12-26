@@ -31,7 +31,7 @@ export const mainNavigation: NavigationItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Documents', href: '/documents', icon: FileText },
   { name: 'Search', href: '/search', icon: Search },
-  { name: 'LLM Chat', href: '/llm-chat', icon: MessageSquare },
+  { name: 'AI Chat', href: '/chat', icon: MessageSquare },
   { name: 'Knowledge Graph', href: '/graph', icon: Network },
   { name: 'Analytics', href: '/analytics/overview', icon: BarChart3 },
   { name: 'Evaluations', href: '/evaluation', icon: ClipboardList },

@@ -495,8 +495,11 @@ class PerformanceApiService {
         avgResponseTime: response.avg_response_time || 0,
         errorRate: response.error_rate || 0,
       };
-    } catch (error) {
-      console.error('Failed to fetch dashboard overview:', error);
+    } catch (error: any) {
+      // Only log non-silent errors (404s from optional endpoints are silent)
+      if (!error?.error?.silent) {
+        console.error('Failed to fetch dashboard overview:', error);
+      }
       return { totalUsers: 0, activeUsers: 0, totalSessions: 0, totalSearches: 0, avgResponseTime: 0, errorRate: 0 };
     }
   }
@@ -516,8 +519,10 @@ class PerformanceApiService {
         error_rate: response.error_rate || 0,
         response_time: response.response_time || 0,
       };
-    } catch (error) {
-      console.error('Failed to fetch system health:', error);
+    } catch (error: any) {
+      if (!error?.error?.silent) {
+        console.error('Failed to fetch system health:', error);
+      }
       return { cpu_usage: 0, memory_usage: 0, disk_usage: 0, active_connections: 0, request_rate: 0, error_rate: 0, response_time: 0 };
     }
   }
@@ -541,8 +546,10 @@ class PerformanceApiService {
         bounceRate: response.bounce_rate || 0,
         pageViews: response.page_views || 0,
       };
-    } catch (error) {
-      console.error('Failed to fetch user engagement:', error);
+    } catch (error: any) {
+      if (!error?.error?.silent) {
+        console.error('Failed to fetch user engagement:', error);
+      }
       return { dailyActiveUsers: 0, weeklyActiveUsers: 0, avgSessionDuration: 0, bounceRate: 0, pageViews: 0 };
     }
   }
@@ -564,8 +571,10 @@ class PerformanceApiService {
         processingFiles: response.processing_files || response.realtime?.processing_files || 0,
         requestsPerMinute: response.requests_per_minute || response.realtime?.requests_per_minute || 0,
       };
-    } catch (error) {
-      console.error('Failed to fetch realtime metrics:', error);
+    } catch (error: any) {
+      if (!error?.error?.silent) {
+        console.error('Failed to fetch realtime metrics:', error);
+      }
       return { activeUsers: 0, currentSearches: 0, processingFiles: 0, requestsPerMinute: 0 };
     }
   }
@@ -590,8 +599,10 @@ class PerformanceApiService {
       }
       
       return [];
-    } catch (error) {
-      console.error('Failed to fetch trend data:', error);
+    } catch (error: any) {
+      if (!error?.error?.silent) {
+        console.error('Failed to fetch trend data:', error);
+      }
       return [];
     }
   }

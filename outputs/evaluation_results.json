@@ -1,0 +1,209 @@
+{
+  "evaluation_info": {
+    "timestamp": "2025-12-22T19:08:49.774688",
+    "api_base_url": "http://localhost:8000"
+  },
+  "test_cases": [
+    {
+      "paper_id": "2512.16875v1",
+      "paper_title": "Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery",
+      "categories": [
+        "cs.DS",
+        "cs.LG",
+        "math.ST",
+        "stat.ML"
+      ],
+      "question_results": [
+        {
+          "question": "Describe the approach taken in 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery'.",
+          "question_id": "2512.16875v1_q_1",
+          "difficulty": "hard",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 1890.486717224121,
+          "answer": "The paper \"Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery\" modifies existing reduction techniques to accommodate dimensional slack, which enhances the hardness of robust subspace recovery when there is a small dimension gap. The authors establish that many points are close to a low-dimensional subspace and argue for the existence of such a subspace under these conditions.",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9686529040336609,
+            "hallucination_probability": 0.03134709596633911,
+            "overall_score": 0.8655958712100982
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What problem does 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery' address?",
+          "question_id": "2512.16875v1_q_2",
+          "difficulty": "medium",
+          "expected_answer_type": "problem",
+          "response_time_ms": 1259.8598003387451,
+          "answer": "The paper \"Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery\" addresses the problem of robust subspace recovery, particularly focusing on how to tolerate dimensional slack and strengthen hardness results in scenarios where many points are close to a low-dimensional subspace.",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9889941811561584,
+            "hallucination_probability": 0.011005818843841553,
+            "overall_score": 0.8716982543468474
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What methods are used in 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery'?",
+          "question_id": "2512.16875v1_q_3",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 1146.859884262085,
+          "answer": "The document discusses modifications to existing reductions to accommodate dimensional slack, which enhances the hardness of robust subspace recovery with a small dimension gap. It also emphasizes the need to demonstrate that many points are close to a low-dimensional subspace, although specific methods are not detailed in the provided content.",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.970268964767456,
+            "hallucination_probability": 0.029731035232543945,
+            "overall_score": 0.8660806894302367
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What are the key results of 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery'?",
+          "question_id": "2512.16875v1_q_4",
+          "difficulty": "hard",
+          "expected_answer_type": "results",
+          "response_time_ms": 1905.1799774169922,
+          "answer": "The key results of \"Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery\" include a modified reduction that accommodates dimensional slack, leading to a strengthened hardness result for robust subspace recovery with a small dimension gap. The study also establishes that many points are close to a low-dimensional subspace, which is crucial for the argument of existence in the context of robust recovery.",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9979119896888733,
+            "hallucination_probability": 0.002088010311126709,
+            "overall_score": 0.8743735969066619
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What is the main contribution of 'Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery'?",
+          "question_id": "2512.16875v1_q_5",
+          "difficulty": "medium",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 1428.6720752716064,
+          "answer": "The main contribution of \"Learning Confidence Ellipsoids and Applications to Robust Subspace Recovery\" is the modification of existing reduction techniques to accommodate dimensional slack, which enhances the hardness of robust subspace recovery when there is a small dimension gap. This work establishes the presence of many points near a low-dimensional subspace, contributing to the theoretical framework for robust recovery methods.",
+          "retrieved_count": 1,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.8,
+            "context_relevancy": 0.7,
+            "completeness": 0.8,
+            "safety": 1.0,
+            "faithfulness": 0.9871726036071777,
+            "hallucination_probability": 0.012827396392822266,
+            "overall_score": 0.8711517810821532
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": true,
+            "faithfulness": true
+          }
+        }
+      ]
+    }
+  ],
+  "aggregate_metrics": {
+    "total_questions": 5,
+    "overall_pass_rate": 0.0,
+    "average_response_time_ms": 1526.21169090271,
+    "median_response_time_ms": 1428.6720752716064,
+    "threshold_pass_rates": {
+      "response_time": 1.0,
+      "precision_at_3": 0.0,
+      "answer_relevancy": 1.0,
+      "faithfulness": 1.0
+    },
+    "retrieval_metrics": {
+      "precision_at_1": 1.0,
+      "precision_at_5": 0.0,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "precision_at_10": 0.0,
+      "precision_at_3": 0.0
+    },
+    "answer_metrics": {
+      "answer_relevancy": 0.8,
+      "context_relevancy": 0.7,
+      "completeness": 0.8,
+      "safety": 1.0,
+      "faithfulness": 0.9826001286506653,
+      "hallucination_probability": 0.017399871349334718,
+      "overall_score": 0.8697800385951995
+    }
+  }
+}
