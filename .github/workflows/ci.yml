@@ -84,7 +84,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build backend image
-        run: docker build -t backend:test ./backend
+        run: docker build -f backend/Dockerfile.simple -t backend:test ./backend
 
       - name: Build frontend image
-        run: docker build -t frontend:test ./frontend
+        run: docker build --target development -t frontend:test ./frontend
