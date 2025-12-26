@@ -174,7 +174,7 @@ jobs:
           --junit-xml=test-results/error-handling.xml
 
     - name: Upload test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: websocket-unit-test-results
@@ -259,7 +259,7 @@ jobs:
           --junit-xml=test-results/rest-api-status.xml
 
     - name: Upload test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: rest-api-test-results
@@ -297,7 +297,7 @@ jobs:
         safety check --json --output safety-results.json
 
     - name: Upload security scan results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: security-scan-results
