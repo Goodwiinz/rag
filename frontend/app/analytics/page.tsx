@@ -1,6 +1,5 @@
 'use client';
 
-import { SimpleLayout } from '@/components/layout/SimpleLayout';
 import { AnalyticsDashboard } from '@/components/analytics/AnalyticsDashboard';
 import { initializeAnalytics } from '@/lib/analytics';
 import { useEffect } from 'react';
@@ -19,10 +18,8 @@ export default function AnalyticsPage() {
   }, []);
 
   return (
-    <SimpleLayout>
-      <div className="p-6">
-        <AnalyticsDashboard />
-      </div>
-    </SimpleLayout>
+    <div className="min-h-screen bg-[#0a0a0f] p-6">
+      <AnalyticsDashboard />
+    </div>
   );
 }

@@ -11,6 +11,8 @@ from contextlib import asynccontextmanager
 import logging
 import time
 import os
+from typing import Optional
+import redis # Added this line
 
 # Setup basic logging
 logger = logging.getLogger(__name__)
@@ -46,6 +48,7 @@ from src.api.arxiv_change_tracking import router as arxiv_change_router
 from src.api.arxiv_extraction import router as arxiv_extraction_router
 from src.api.arxiv_local import router as arxiv_local_router
 # from src.api.arxiv_local_batch import router as arxiv_batch_router  # Temporarily disabled due to import error
+from src.api.chat import router as chat_router
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.core.database import engine
 # from src.services.file_service import redis_client  # Not exported, not needed here
@@ -69,6 +72,17 @@ except ImportError as e:
     def instrument_services():
         pass
 
+# Global Redis client instance
+redis_client: Optional[redis.Redis] = None
+
+try:
+    redis_client = redis.from_url(settings.REDIS_URL)
+    # We don't ping here to avoid blocking startup if Redis is down, 
+    # but the client object is created so middleware can use it (and fail gracefully later).
+except Exception as e:
+    logger.warning(f"Failed to create Redis client: {e}. Rate limiting will use in-memory storage.")
+    redis_client = None
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
@@ -82,6 +96,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to create database tables: {e}")
         raise
+
+    # Check Redis connection
+    if redis_client:
+        try:
+            redis_client.ping()  # Test connection
+            logger.info("Redis client connected successfully")
+        except redis.RedisError as e:
+            logger.warning(f"Redis connection failed: {e}. Rate limiting may not persist across restarts.")
 
     # Initialize WebSocket services
     try:
@@ -98,6 +120,14 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down Multimodal RAG System...")
+
+    # Close Redis client
+    if redis_client:
+        try:
+            redis_client.close()
+            logger.info("Redis client closed successfully")
+        except redis.RedisError as e:
+            logger.error(f"Error closing Redis client: {e}")
 
     # Shutdown WebSocket services
     try:
@@ -143,7 +173,7 @@ app.add_middleware(
 )
 
 # Add rate limiting middleware for analytics endpoints
-app.add_middleware(AnalyticsRateLimitMiddleware)
+app.add_middleware(AnalyticsRateLimitMiddleware, redis_client=redis_client)
 
 # Add trusted host middleware for production
 if not settings.DEBUG:
@@ -215,6 +245,7 @@ app.include_router(arxiv_change_router, prefix="/api/v1/arxiv/tracking")  # ArXi
 app.include_router(arxiv_extraction_router, prefix="/api/v1/arxiv/extraction")  # ArXiv Feature Extraction endpoints
 app.include_router(arxiv_local_router, prefix="/api/v1/arxiv/local")  # Local ArXiv PDF processing endpoints
 # app.include_router(arxiv_batch_router, prefix="/api/v1/arxiv/batch")  # Temporarily disabled due to import error
+app.include_router(chat_router, prefix="/api/v1")  # Chat completion endpoints
 
 # Health check endpoint
 @app.get("/health")
