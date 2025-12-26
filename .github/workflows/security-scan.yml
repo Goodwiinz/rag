@@ -74,7 +74,7 @@ jobs:
 
     - name: Run Bandit security scan
       run: |
-        bandit -r . -f json -o bandit-report.json || true
+        bandit -r backend/ -f json -o bandit-report.json || true
 
     - name: Run Safety dependency check
       run: |
@@ -86,7 +86,7 @@ jobs:
 
     - name: Run MyPy type checking
       run: |
-        mypy src/ --ignore-missing-imports --non-interactive || true
+        mypy backend/src/ --ignore-missing-imports --non-interactive || true
 
     - name: Upload security reports
       uses: actions/upload-artifact@v3
