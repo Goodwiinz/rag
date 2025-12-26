@@ -100,6 +100,7 @@ services:
       - REACT_APP_ENVIRONMENT=development
       - REACT_APP_ENABLE_DEBUG=true
       - CHOKIDAR_USEPOLLING=true
+      - NODE_OPTIONS=--max-old-space-size=4096
     volumes:
       - ../../frontend:/app
       - /app/node_modules
@@ -109,6 +110,8 @@ services:
     networks:
       - multimodal-rag-network
     restart: unless-stopped
+    mem_limit: 4g
+    memswap_limit: 4g
 
   # PostgreSQL Database
   postgres:
