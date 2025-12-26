@@ -132,9 +132,12 @@ public
 uploads/
 temp/
 
-# ML Models
-models/
+# ML Models (downloaded weights, not source code)
+/models/
 .huggingface/
+
+# But track SQLAlchemy models in backend
+!backend/src/models/
 
 # Testing
 .coverage
