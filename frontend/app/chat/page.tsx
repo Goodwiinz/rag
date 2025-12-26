@@ -2,11 +2,19 @@
 
 import {
   ChatSettings,
-  Conversation,
   Model,
 } from '@/components/chat';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
+import { workspaceService } from '@/services/workspaceService';
+import apiClient from '@/services/apiClient';
+import {
+  Workspace,
+  Conversation as DBConversation,
+  Thread,
+  ChatMessage as DBChatMessage,
+  MessageRole,
+} from '@/types/workspace';
 import { CreateMLCEngine, InitProgressReport, MLCEngine } from "@mlc-ai/web-llm";
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -16,6 +24,7 @@ import {
   ChevronDown,
   Cpu,
   FileText,
+  Loader2,
   Mic,
   Paperclip,
   Radio,
@@ -24,7 +33,7 @@ import {
   Square,
   Zap,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -45,10 +54,23 @@ interface Citation {
 }
 
 interface Message {
+  id?: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
   citations?: Citation[];
+}
+
+// UI Conversation type (mapped from DB Thread)
+interface Conversation {
+  id: string;
+  title: string;
+  messages: Message[];
+  modelId?: string;
+  createdAt: number;
+  updatedAt: number;
+  threadId: string; // Links to DB Thread
+  conversationId: string; // Links to DB Conversation
 }
 
 // ============================================
@@ -167,8 +189,7 @@ const DEFAULT_SETTINGS: ChatSettings = {
   shareAnalytics: false,
 };
 
-const STORAGE_KEY = 'terminal-observatory-conversations';
-const ACTIVE_CONV_KEY = 'terminal-observatory-active-conversation';
+// Database-backed storage - no more localStorage for conversations
 
 const STARTER_PROMPTS = [
   {
@@ -911,6 +932,13 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [selectedModel, setSelectedModel] = useState<string>('');
 
+  // Database state
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [dbConversation, setDbConversation] = useState<DBConversation | null>(null);
+  const [activeThread, setActiveThread] = useState<Thread | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [initError, setInitError] = useState<string | null>(null);
+
   // Loading states
   const [isLoading, setIsLoading] = useState(false);
   const [isModelLoading, setIsModelLoading] = useState(false);
@@ -926,66 +954,105 @@ export default function ChatPage() {
   const isHydratedRef = useRef(false);
 
   // Auth
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, token } = useAuthStore();
 
-  // Load conversations and active conversation from localStorage (runs first on mount)
-  useEffect(() => {
-    try {
-      // Load conversations
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setConversations(parsed);
-          console.log('[Chat] Loaded', parsed.length, 'conversations from storage');
-
-          // Load and restore active conversation
-          const activeId = localStorage.getItem(ACTIVE_CONV_KEY);
-          if (activeId && parsed.some((c: Conversation) => c.id === activeId)) {
-            setActiveConversationId(activeId);
-            const activeConv = parsed.find((c: Conversation) => c.id === activeId);
-            if (activeConv) {
-              setMessages(activeConv.messages);
-              console.log('[Chat] Restored active conversation:', activeConv.title);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error('[Chat] Failed to parse conversations:', e);
-    }
-    // Delay setting hydrated flag until after React flushes state updates
-    // This prevents the save effect from running with stale state
-    setTimeout(() => {
-      isHydratedRef.current = true;
-      console.log('[Chat] Hydration complete');
-    }, 0);
+  // Map DB messages to UI messages
+  const mapDbMessageToUiMessage = useCallback((dbMsg: DBChatMessage): Message => {
+    return {
+      id: dbMsg.id,
+      role: dbMsg.role === MessageRole.USER ? 'user' : 'assistant',
+      content: dbMsg.content,
+      timestamp: new Date(dbMsg.created_at).getTime(),
+      citations: dbMsg.citations?.map((c) => ({
+        documentId: c.document_id,
+        title: c.document_title || 'Unknown Document',
+        score: c.score || 0,
+      })),
+    };
   }, []);
 
-  // Save conversations to localStorage (only after hydration)
-  useEffect(() => {
-    // Skip saving during initial hydration to prevent overwriting stored data
-    if (!isHydratedRef.current) {
-      return;
-    }
-    // Save conversations (including empty array to clear storage when all deleted)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
-    console.log('[Chat] Saved', conversations.length, 'conversations to storage');
-  }, [conversations]);
+  // Load threads and messages from database
+  const loadThreadsFromDb = useCallback(async (conversationId: string) => {
+    try {
+      console.log('[Chat] Loading threads from database for conversation:', conversationId);
+      const threadResponse = await workspaceService.listThreads(conversationId, { limit: 50 });
 
-  // Save active conversation ID
-  useEffect(() => {
-    if (!isHydratedRef.current) {
-      return;
-    }
-    if (activeConversationId) {
-      localStorage.setItem(ACTIVE_CONV_KEY, activeConversationId);
-    } else {
-      localStorage.removeItem(ACTIVE_CONV_KEY);
-    }
-  }, [activeConversationId]);
+      // Map threads to UI conversations
+      const uiConversations: Conversation[] = await Promise.all(
+        threadResponse.threads.map(async (thread) => {
+          // Load messages for each thread
+          const msgResponse = await workspaceService.listMessages(thread.id, { limit: 100 });
+          const uiMessages = msgResponse.messages.map(mapDbMessageToUiMessage);
 
-  // Load active conversation
+          return {
+            id: thread.id,
+            title: thread.title || 'New Chat',
+            messages: uiMessages,
+            createdAt: new Date(thread.created_at).getTime(),
+            updatedAt: new Date(thread.updated_at).getTime(),
+            threadId: thread.id,
+            conversationId: conversationId,
+          };
+        })
+      );
+
+      setConversations(uiConversations);
+      console.log('[Chat] Loaded', uiConversations.length, 'threads from database');
+
+      // Restore active thread if exists
+      if (uiConversations.length > 0) {
+        const firstConv = uiConversations[0];
+        setActiveConversationId(firstConv.id);
+        setMessages(firstConv.messages);
+        console.log('[Chat] Restored active thread:', firstConv.title);
+      }
+    } catch (error) {
+      console.error('[Chat] Failed to load threads from database:', error);
+      throw error;
+    }
+  }, [mapDbMessageToUiMessage]);
+
+  // Initialize workspace and conversation from database
+  useEffect(() => {
+    const initializeFromDb = async () => {
+      if (!isAuthenticated || !token) {
+        console.log('[Chat] Not authenticated, skipping database initialization');
+        setIsInitializing(false);
+        return;
+      }
+
+      try {
+        console.log('[Chat] Initializing from database...');
+        setIsInitializing(true);
+        setInitError(null);
+
+        // Get or create default workspace
+        const ws = await workspaceService.getOrCreateDefaultWorkspace();
+        setWorkspace(ws);
+        console.log('[Chat] Workspace:', ws.name);
+
+        // Get or create default conversation
+        const conv = await workspaceService.getOrCreateDefaultConversation(ws.id);
+        setDbConversation(conv);
+        console.log('[Chat] DB Conversation:', conv.title);
+
+        // Load threads
+        await loadThreadsFromDb(conv.id);
+
+        isHydratedRef.current = true;
+        console.log('[Chat] Database initialization complete');
+      } catch (error) {
+        console.error('[Chat] Failed to initialize from database:', error);
+        setInitError(error instanceof Error ? error.message : 'Failed to load chat data');
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    initializeFromDb();
+  }, [isAuthenticated, token, loadThreadsFromDb]);
+
+  // Load messages when active conversation changes
   useEffect(() => {
     if (activeConversationId) {
       const conv = conversations.find((c) => c.id === activeConversationId);
@@ -1060,20 +1127,57 @@ export default function ChatPage() {
     setInput('');
     setIsLoading(true);
 
-    // Create new conversation if needed
+    // Create new thread if needed (when no active conversation)
     let currentConversationId = activeConversationId;
-    if (!currentConversationId) {
-      const newConv: Conversation = {
-        id: crypto.randomUUID(),
-        title: input.trim().substring(0, 50),
-        messages: newMessages,
-        modelId: selectedModel,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      currentConversationId = newConv.id;
-      setConversations((prev) => [newConv, ...prev]);
-      setActiveConversationId(newConv.id);
+    let currentThreadId = activeConversationId; // In our mapping, conversation ID = thread ID
+
+    if (!currentConversationId && dbConversation) {
+      try {
+        // Create new thread in database
+        console.log('[Chat] Creating new thread in database');
+        const newThread = await workspaceService.createThread({
+          conversation_id: dbConversation.id,
+          title: input.trim().substring(0, 50),
+          initial_message: input.trim(),
+        });
+
+        currentConversationId = newThread.id;
+        currentThreadId = newThread.id;
+
+        const newConv: Conversation = {
+          id: newThread.id,
+          title: newThread.title || input.trim().substring(0, 50),
+          messages: newMessages,
+          modelId: selectedModel,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          threadId: newThread.id,
+          conversationId: dbConversation.id,
+        };
+
+        setConversations((prev) => [newConv, ...prev]);
+        setActiveConversationId(newConv.id);
+        setActiveThread(newThread);
+        console.log('[Chat] Created new thread:', newThread.id);
+      } catch (error) {
+        console.error('[Chat] Failed to create thread:', error);
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    // Save user message to database
+    if (currentThreadId && isAuthenticated) {
+      try {
+        await workspaceService.createMessage({
+          thread_id: currentThreadId,
+          content: input.trim(),
+          role: MessageRole.USER,
+        });
+        console.log('[Chat] Saved user message to database');
+      } catch (error) {
+        console.error('[Chat] Failed to save user message:', error);
+      }
     }
 
     try {
@@ -1081,28 +1185,29 @@ export default function ChatPage() {
 
       if (isCloudModel) {
         // Use backend API for cloud models (GPT-4o mini via Azure OpenAI)
-        const response = await fetch('/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
-            model: selectedModel,
-            temperature: settings.temperature,
-            max_tokens: settings.maxTokens,
-            system_prompt: settings.systemPrompt,
-            use_rag: true,
-            max_context_docs: 5,
-          }),
+        const data = await apiClient.post<{
+          message: { role: string; content: string };
+          model: string;
+          usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+          finish_reason: string;
+          timestamp: string;
+          rag_enabled: boolean;
+          retrieved_contexts?: Array<{
+            document_id: string;
+            title: string;
+            content: string;
+            score: number;
+            source?: string;
+          }>;
+        }>('/chat/completions', {
+          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+          model: selectedModel,
+          temperature: settings.temperature,
+          max_tokens: settings.maxTokens,
+          system_prompt: settings.systemPrompt,
+          use_rag: true,
+          max_context_docs: 5,
         });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.detail || 'API error: ' + response.status);
-        }
-
-        const data = await response.json();
         assistantMessage = data.message?.content || 'No response from the model.';
 
         // Extract citations from retrieved contexts
@@ -1111,6 +1216,20 @@ export default function ChatPage() {
           title: ctx.title,
           score: ctx.score,
         }));
+
+        // Save assistant message to database
+        if (currentThreadId && isAuthenticated) {
+          try {
+            await workspaceService.createMessage({
+              thread_id: currentThreadId,
+              content: assistantMessage,
+              role: MessageRole.ASSISTANT,
+            });
+            console.log('[Chat] Saved assistant message to database');
+          } catch (error) {
+            console.error('[Chat] Failed to save assistant message:', error);
+          }
+        }
 
         // Update messages with assistant response
         const finalMessages: Message[] = [
@@ -1159,6 +1278,20 @@ export default function ChatPage() {
           ]);
         }
 
+        // Save assistant message to database (for local models too)
+        if (currentThreadId && isAuthenticated) {
+          try {
+            await workspaceService.createMessage({
+              thread_id: currentThreadId,
+              content: assistantMessage,
+              role: MessageRole.ASSISTANT,
+            });
+            console.log('[Chat] Saved local model response to database');
+          } catch (error) {
+            console.error('[Chat] Failed to save assistant message:', error);
+          }
+        }
+
         const finalMessages: Message[] = [
           ...newMessages,
           {
@@ -1181,11 +1314,13 @@ export default function ChatPage() {
       }
     } catch (err) {
       console.error('Failed to send message:', err);
+      const errorMessage = 'Error: ' + (err instanceof Error ? err.message : 'Failed to get response');
+
       setMessages([
         ...newMessages,
         {
           role: 'assistant',
-          content: 'Error: ' + (err instanceof Error ? err.message : 'Failed to get response'),
+          content: errorMessage,
           timestamp: Date.now(),
         },
       ]);
@@ -1215,7 +1350,110 @@ export default function ChatPage() {
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto terminal-scrollbar">
-        {messages.length === 0 ? (
+        {/* Authentication Required State */}
+        {!isAuthenticated ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center max-w-md"
+            >
+              <div className="relative w-20 h-20 mx-auto mb-6">
+                <div className="absolute inset-0 rounded-full bg-[var(--amber-gold)]/10" />
+                <div className="absolute inset-2 rounded-full border-2 border-[var(--amber-gold)]/30 flex items-center justify-center">
+                  <Shield className="w-8 h-8 text-[var(--amber-gold)]" />
+                </div>
+              </div>
+              <h2
+                className="text-xl text-[var(--amber-gold)] mb-3"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                AUTHENTICATION REQUIRED
+              </h2>
+              <p
+                className="text-sm text-[var(--terminal-text-muted)] mb-6"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                Please log in to access the chat interface and persist your conversations to the database.
+              </p>
+              <a
+                href="/login"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[var(--amber-gold)] text-[var(--terminal-bg)] text-sm font-medium hover:shadow-[0_0_20px_var(--amber-gold)] transition-all"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                <Shield className="w-4 h-4" />
+                AUTHENTICATE
+              </a>
+            </motion.div>
+          </div>
+        ) : isInitializing ? (
+          /* Loading State */
+          <div className="flex-1 flex flex-col items-center justify-center p-8">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center"
+            >
+              <div className="relative w-16 h-16 mx-auto mb-6">
+                <Loader2 className="w-16 h-16 text-[var(--phosphor-green)] animate-spin" />
+              </div>
+              <h2
+                className="text-lg text-[var(--phosphor-green)] mb-2"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                ESTABLISHING DATABASE LINK...
+              </h2>
+              <p
+                className="text-sm text-[var(--terminal-text-muted)]"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                Loading workspace and conversations
+              </p>
+            </motion.div>
+          </div>
+        ) : initError ? (
+          /* Error State */
+          <div className="flex-1 flex flex-col items-center justify-center p-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center max-w-md"
+            >
+              <div className="relative w-20 h-20 mx-auto mb-6">
+                <div className="absolute inset-0 rounded-full bg-[var(--error-red)]/10" />
+                <div className="absolute inset-2 rounded-full border-2 border-[var(--error-red)]/30 flex items-center justify-center">
+                  <Activity className="w-8 h-8 text-[var(--error-red)]" />
+                </div>
+              </div>
+              <h2
+                className="text-xl text-[var(--error-red)] mb-3"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                CONNECTION ERROR
+              </h2>
+              <p
+                className="text-sm text-[var(--terminal-text-muted)] mb-2"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                Failed to establish database connection:
+              </p>
+              <p
+                className="text-xs text-[var(--error-red)] mb-6 p-3 rounded bg-[var(--error-red)]/10 border border-[var(--error-red)]/20"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                {initError}
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--terminal-text)] text-sm font-medium hover:border-[var(--phosphor-green)]/30 transition-all"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                <Activity className="w-4 h-4" />
+                RETRY CONNECTION
+              </button>
+            </motion.div>
+          </div>
+        ) : messages.length === 0 ? (
           <WelcomeState onPromptSelect={handlePromptSelect} selectedModel={selectedModel} />
         ) : (
           <div className="max-w-4xl mx-auto p-4">
