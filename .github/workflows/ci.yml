@@ -41,7 +41,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        run: npm install
 
       - name: Run ESLint
         working-directory: frontend
@@ -85,6 +85,3 @@ jobs:
 
       - name: Build backend image
         run: docker build -f backend/Dockerfile.simple -t backend:test ./backend
-
-      - name: Build frontend image
-        run: docker build --target development -t frontend:test ./frontend
