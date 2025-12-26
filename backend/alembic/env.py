@@ -14,28 +14,35 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 # Import models and database configuration
 from src.models.base import Base
-from src.models import *  # Import all models to ensure they are registered
 
 # Import all models to ensure they are registered with Base.metadata
-from src.models.user import User
-from src.models.organization import Organization
-from src.models.document import Document
-from src.models.entity import Entity
-from src.models.search import SearchQuery, SearchResult
-from src.models.processing import ProcessingJob
-from src.models.quality import QualityMetric
-from src.models.document_processing import (
+# The __init__.py exports all SQLAlchemy models
+from src.models import (
+    # Core models
+    User, Organization, Document, Entity,
+    # Search models
+    SearchQuery, SearchResult, SearchSession,
+    # Processing models
+    ProcessingJob,
+    # Quality models
+    QualityMetric,
+    # Document processing models
     ProcessingHistory, DocumentVersion, MultimodalContent,
-    DocumentQualityMetrics, DocumentAccessLog
+    DocumentQualityMetrics, DocumentAccessLog,
+    # Session and analytics models
+    UserSession, AnalyticsEvent, PerformanceLog,
+    # Security models
+    EncryptedUserProfile, EncryptedOrganizationProfile, EncryptionAuditLog,
+    # Permission models
+    Permission, Role, UserRoleAssignment,
+    # Audit models
+    AuditEvent, ComplianceReport, DataRetentionPolicy, SecurityIncident,
+    # Thread-centric chat models (Terminal Observatory)
+    Workspace, WorkspaceMember,
+    Conversation, Thread, ChatMessage,
+    Collection, CollectionDocument,
+    Citation, MessageAttachment,
 )
-from src.models.vector import VectorEmbedding
-from src.models.graph import KnowledgeGraph
-from src.models.user_session import UserSession, SearchSession, SearchEvent
-from src.models.analytics_event import AnalyticsEvent
-from src.models.performance_log import PerformanceLog
-from src.models.encrypted_user import EncryptedUserProfile, EncryptedOrganizationProfile
-from src.models.quality_metrics import QualityMetrics, EvaluationMetrics
-from src.models.utils import StringArray
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
