@@ -383,14 +383,14 @@ export default function LoginPage() {
               <div className="flex gap-2 text-[10px] font-mono">
                 <button
                   type="button"
-                  onClick={() => setFormData({ email: 'admin@multimodal-rag.com', password: 'REDACTED' })}
+                  onClick={() => setFormData({ email: 'admin@multimodal-rag.com', password: 'SecurePass123$' })}
                   className="flex-1 py-1.5 rounded border border-white/10 text-white/40 hover:text-white/60 hover:bg-white/5 transition-colors"
                 >
                   Admin
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFormData({ email: 'demo@multimodal-rag.com', password: 'demo123' })}
+                  onClick={() => setFormData({ email: 'demo@multimodal-rag.com', password: 'SecurePass123$' })}
                   className="flex-1 py-1.5 rounded border border-white/10 text-white/40 hover:text-white/60 hover:bg-white/5 transition-colors"
                 >
                   Demo

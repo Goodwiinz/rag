@@ -109,7 +109,7 @@ class ExperimentCreateRequest(BaseModel):
         return v
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "New Hybrid Search Algorithm",
                 "description": "Testing improved hybrid search with better multimodal weighting",
@@ -384,7 +384,7 @@ class VariantCreateRequest(BaseModel):
     config: Dict[str, Any] = Field(..., description="Variant configuration")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "New Algorithm",
                 "description": "Improved hybrid search with adaptive weighting",
@@ -435,14 +435,14 @@ class MetricSubmissionRequest(BaseModel):
 
     organization_id: UUID = Field(..., description="Organization ID")
 
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def validate_user_or_session(cls, values):
         if not values.get('user_id') and not values.get('session_id'):
             raise ValueError("Either user_id or session_id must be provided")
         return values
 
     class Config:
-        schema_extra = {
+        json_json_schema_extra = {
             "example": {
                 "experiment_id": "550e8400-e29b-41d4-a716-446655440000",
                 "variant_id": "550e8400-e29b-41d4-a716-446655440001",
@@ -578,7 +578,7 @@ class UserSegmentCreateRequest(BaseModel):
     is_dynamic: bool = Field(True, description="Auto-update membership")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "Power Users",
                 "description": "Users with high query frequency and engagement",
@@ -658,7 +658,7 @@ class ExperimentAssignmentResponse(BaseModel):
 
 class HealthCheckComponent(BaseModel):
     """Individual component health status"""
-    status: str = Field(..., regex="^(healthy|unhealthy|degraded)$")
+    status: str = Field(..., pattern="^(healthy|unhealthy|degraded)$")
     message: Optional[str] = None
     error: Optional[str] = None
     response_time_ms: Optional[float] = None
@@ -666,7 +666,7 @@ class HealthCheckComponent(BaseModel):
 
 class HealthCheckResponse(BaseModel):
     """Overall health check response"""
-    status: str = Field(..., regex="^(healthy|unhealthy|degraded)$")
+    status: str = Field(..., pattern="^(healthy|unhealthy|degraded)$")
     timestamp: datetime
     service: str = "A/B Testing System"
     components: Dict[str, HealthCheckComponent]
