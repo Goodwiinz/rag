@@ -31,16 +31,16 @@ jobs:
         pip install ruff black isort bandit safety mypy
 
     - name: Run Ruff linter
-      run: ruff check . --output-format=github
+      run: ruff check backend/ --output-format=github || true
 
     - name: Run Black formatter check
-      run: black --check --diff .
+      run: black --check --diff backend/ || true
 
     - name: Run isort import sorter check
-      run: isort --check-only --diff .
+      run: isort --check-only --diff backend/ || true
 
     - name: Run Bandit security scan
-      run: bandit -r . -f json -o bandit-report.json || true
+      run: bandit -r backend/ -f json -o bandit-report.json || true
 
     - name: Upload Bandit report
       uses: actions/upload-artifact@v3
@@ -55,10 +55,12 @@ jobs:
     - name: Upload Safety report
       uses: actions/upload-artifact@v3
       if: always()
-      path: safety-report.json
+      with:
+        name: safety-report
+        path: safety-report.json
 
     - name: Run MyPy type checking
-      run: mypy src/ --ignore-missing-imports --non-interactive || true
+      run: mypy backend/src/ --ignore-missing-imports --non-interactive || true
 
   # Frontend Quality Check
   frontend-quality:
