@@ -307,7 +307,7 @@ class CollectionBase(BaseModel):
     """Base collection schema"""
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
-    color: Optional[str] = Field(None, regex=r'^#[0-9A-Fa-f]{6}$')
+    color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
     icon: Optional[str] = Field(None, max_length=50)
 
 
@@ -321,7 +321,7 @@ class CollectionUpdate(BaseModel):
     """Update collection request"""
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
-    color: Optional[str] = Field(None, regex=r'^#[0-9A-Fa-f]{6}$')
+    color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
     icon: Optional[str] = Field(None, max_length=50)
 
 
