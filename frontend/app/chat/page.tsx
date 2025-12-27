@@ -6,6 +6,7 @@ import {
 } from '@/components/chat';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
+import { useChatStore } from '@/store/chat-store';
 import { workspaceService } from '@/services/workspaceService';
 import apiClient from '@/services/apiClient';
 import {
@@ -19,24 +20,78 @@ import { CreateMLCEngine, InitProgressReport, MLCEngine } from "@mlc-ai/web-llm"
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity,
+  ArrowDown,
   ArrowUp,
   BookOpen,
+  Check,
   ChevronDown,
+  Copy,
   Cpu,
   FileText,
   Loader2,
   Mic,
   Paperclip,
   Radio,
+  RefreshCw,
   Shield,
   Sparkles,
   Square,
   Zap,
 } from 'lucide-react';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { Suspense, useEffect, useRef, useState, useCallback } from 'react';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+// ============================================
+// HELPERS
+// ============================================
+
+/**
+ * Generate a dynamic conversation title from the first message
+ * Creates a clean, readable title instead of just truncating
+ */
+function generateConversationTitle(message: string): string {
+  // Clean up the message
+  let title = message.trim();
+
+  // Remove common prefixes that don't add meaning
+  const prefixesToRemove = [
+    /^(hi|hello|hey|good morning|good afternoon|good evening)[,!\s]*/i,
+    /^(can you|could you|would you|please|i need|i want|i'd like)[,\s]*/i,
+    /^(help me|assist me|tell me|show me|explain)[,\s]*/i,
+  ];
+
+  for (const prefix of prefixesToRemove) {
+    title = title.replace(prefix, '');
+  }
+
+  // Capitalize first letter
+  title = title.charAt(0).toUpperCase() + title.slice(1);
+
+  // If the message is a question, keep the question mark
+  const isQuestion = message.trim().endsWith('?');
+
+  // Truncate to reasonable length (40 chars) at word boundary
+  if (title.length > 40) {
+    const truncated = title.substring(0, 40);
+    const lastSpace = truncated.lastIndexOf(' ');
+    if (lastSpace > 20) {
+      title = truncated.substring(0, lastSpace) + '...';
+    } else {
+      title = truncated + '...';
+    }
+  }
+
+  // If we stripped too much and title is too short, use a default approach
+  if (title.length < 3) {
+    title = message.trim().substring(0, 40);
+    if (message.length > 40) title += '...';
+  }
+
+  return title;
+}
 
 // ============================================
 // TYPES
@@ -223,13 +278,16 @@ function ChatMessage({
   index,
   modelName,
   isTyping,
+  onRetry,
 }: {
   message: Message;
   index: number;
   modelName?: string;
   isTyping?: boolean;
+  onRetry?: () => void;
 }) {
   const isUser = message.role === 'user';
+  const [copied, setCopied] = useState(false);
   const timestamp = message.timestamp
     ? new Date(message.timestamp).toLocaleTimeString('en-US', {
         hour: '2-digit',
@@ -238,22 +296,32 @@ function ChatMessage({
       })
     : '--:--';
 
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(message.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.02 }}
-      className={cn('group relative mb-6', isUser ? 'ml-16' : 'mr-16')}
+      initial={{ opacity: 0, y: 20, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{
+        duration: 0.4,
+        delay: index * 0.03,
+        ease: [0.25, 0.46, 0.45, 0.94]
+      }}
+      className={cn('group relative mb-6', isUser ? 'ml-12 sm:ml-16' : 'mr-12 sm:mr-16')}
     >
-      {/* Transmission Line */}
+      {/* Transmission Line with glow effect */}
       <div
         className={cn(
-          'absolute top-0 h-full w-[2px]',
+          'absolute top-0 h-full w-[2px] transition-all duration-300',
           isUser
-            ? 'right-0 bg-gradient-to-b from-[var(--amber-gold)] to-transparent'
-            : 'left-0 bg-gradient-to-b from-[var(--phosphor-green)] to-transparent'
+            ? 'right-0 bg-gradient-to-b from-[var(--amber-gold)] via-[var(--amber-gold)]/50 to-transparent group-hover:shadow-[0_0_8px_var(--amber-gold)]'
+            : 'left-0 bg-gradient-to-b from-[var(--phosphor-green)] via-[var(--phosphor-green)]/50 to-transparent group-hover:shadow-[0_0_8px_var(--phosphor-green)]'
         )}
-        style={{ opacity: 0.4 }}
+        style={{ opacity: 0.5 }}
       />
 
       {/* Message Header */}
@@ -267,7 +335,10 @@ function ChatMessage({
         {!isUser && (
           <>
             <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)] signal-active" />
+              <div className={cn(
+                "w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)]",
+                isTyping ? "animate-pulse" : "signal-active"
+              )} />
               <span className="text-[var(--phosphor-green)] uppercase tracking-wider">
                 {isTyping ? 'STREAMING' : 'RESPONSE'}
               </span>
@@ -283,6 +354,29 @@ function ChatMessage({
           </span>
         )}
         <span className="text-[var(--terminal-text-muted)]">{timestamp}</span>
+
+        {/* Quick Actions - visible on hover */}
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <button
+            onClick={handleCopy}
+            className={cn(
+              "p-1 rounded hover:bg-[var(--terminal-elevated)] transition-all",
+              copied ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)]"
+            )}
+            title={copied ? "Copied!" : "Copy message"}
+          >
+            {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+          </button>
+          {isUser && onRetry && (
+            <button
+              onClick={onRetry}
+              className="p-1 rounded hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] transition-all"
+              title="Retry"
+            >
+              <RefreshCw className="w-3 h-3" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Message Content */}
@@ -299,11 +393,15 @@ function ChatMessage({
         <div className="relative p-4">
           {isTyping && !message.content ? (
             <div
-              className="flex items-center gap-2 text-[var(--phosphor-green)] text-sm"
+              className="flex items-center gap-3 text-[var(--phosphor-green)] text-sm"
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
-              <span className="transmission-cursor">Processing</span>
-              <Activity className="w-4 h-4 animate-pulse" />
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="opacity-70">Generating response...</span>
             </div>
           ) : (
             <div
@@ -626,6 +724,7 @@ function ChatInput({
   onModelChange: (id: string) => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -644,17 +743,31 @@ function ChatInput({
   };
 
   const isDisabled = !selectedModel || isModelLoading;
+  const charCount = value.length;
+  const maxChars = 4000;
+  const isNearLimit = charCount > maxChars * 0.8;
 
   return (
     <div className="border-t border-[var(--terminal-border)] bg-[var(--terminal-bg)]/95 backdrop-blur-xl">
       <div className="max-w-4xl mx-auto p-4">
-        <div className="terminal-window p-3">
+        <motion.div
+          className={cn(
+            "terminal-window p-3 transition-all duration-300",
+            isFocused && "ring-1 ring-[var(--phosphor-green)]/30 shadow-[0_0_20px_rgba(0,255,159,0.1)]"
+          )}
+          animate={{
+            borderColor: isFocused ? 'rgba(0, 255, 159, 0.3)' : 'var(--terminal-border)'
+          }}
+        >
           {/* Textarea */}
           <textarea
             ref={textareaRef}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            placeholder={selectedModel ? "Type your message..." : "Select a model to start..."}
             rows={1}
             className="w-full bg-transparent text-[var(--terminal-text)] text-sm resize-none outline-none"
             style={{
@@ -690,10 +803,13 @@ function ChatInput({
 
             <div className="flex items-center gap-2">
               <span
-                className="text-[10px] text-[var(--terminal-text-muted)]"
+                className={cn(
+                  "text-[10px] transition-colors",
+                  isNearLimit ? "text-[var(--amber-gold)]" : "text-[var(--terminal-text-muted)]"
+                )}
                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
               >
-                {value.length} chars
+                {charCount.toLocaleString()}{isNearLimit && ` / ${maxChars.toLocaleString()}`}
               </span>
               {isLoading ? (
                 <button
@@ -722,26 +838,34 @@ function ChatInput({
               )}
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Keyboard Hint */}
-        <div
+        {/* Keyboard Hint - fades when focused */}
+        <motion.div
+          initial={{ opacity: 0.7 }}
+          animate={{ opacity: isFocused ? 0.4 : 0.7 }}
           className="flex items-center justify-center gap-4 mt-2 text-[10px] text-[var(--terminal-text-muted)]"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
           <span>
-            <kbd className="px-1 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)]">
+            <kbd className="px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)]">
               Enter
             </kbd>{' '}
-            to send
+            send
           </span>
           <span>
-            <kbd className="px-1 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)]">
+            <kbd className="px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)]">
               Shift+Enter
             </kbd>{' '}
-            for new line
+            new line
           </span>
-        </div>
+          <span className="hidden sm:inline">
+            <kbd className="px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)]">
+              /
+            </kbd>{' '}
+            commands
+          </span>
+        </motion.div>
       </div>
     </div>
   );
@@ -924,7 +1048,7 @@ function ModelLoadingProgress({
 // MAIN PAGE COMPONENT
 // ============================================
 
-export default function ChatPage() {
+function ChatPageContent() {
   // Core state
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -951,10 +1075,64 @@ export default function ChatPage() {
   // Refs
   const engineRef = useRef<MLCEngine | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isHydratedRef = useRef(false);
+  const hasRestoredThreadRef = useRef(false);
+
+  // Scroll state
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   // Auth
   const { isAuthenticated, token } = useAuthStore();
+
+  // Get setCurrentThread from chat store to sync sidebar highlighting
+  const setCurrentThread = useChatStore((state) => state.setCurrentThread);
+
+  // Navigation detection
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Reset refs when user changes (logout/login)
+  useEffect(() => {
+    if (!isAuthenticated) {
+      hasRestoredThreadRef.current = false;
+      isHydratedRef.current = false;
+    }
+  }, [isAuthenticated]);
+
+  // Handle thread switching from URL query param or sessionStorage (when navigating from sidebar)
+  // This runs whenever we're on /chat and checks for pending thread switch
+  useEffect(() => {
+    if (conversations.length === 0 || isInitializing) {
+      return;
+    }
+
+    // Check URL query param first (most reliable), then sessionStorage
+    const threadFromUrl = searchParams.get('thread');
+    const threadFromStorage = sessionStorage.getItem('activeThreadId');
+    const targetThreadId = threadFromUrl || threadFromStorage;
+
+    if (targetThreadId) {
+      console.log('[Chat] Thread switch requested:', targetThreadId, 'source:', threadFromUrl ? 'URL' : 'sessionStorage');
+      const targetConv = conversations.find(c => c.id === targetThreadId);
+
+      if (targetConv) {
+        if (targetConv.id !== activeConversationId) {
+          setActiveConversationId(targetConv.id);
+          setMessages(targetConv.messages);
+          // Also update the Zustand store so sidebar highlights correctly
+          setCurrentThread(targetConv.id);
+          console.log('[Chat] Switched to thread:', targetConv.title);
+        }
+      } else {
+        console.log('[Chat] Thread not found in conversations:', targetThreadId);
+      }
+
+      // Clear sessionStorage (URL param stays for bookmarking/sharing)
+      sessionStorage.removeItem('activeThreadId');
+    }
+  }, [searchParams, conversations, isInitializing, activeConversationId, setCurrentThread]);
 
   // Map DB messages to UI messages
   const mapDbMessageToUiMessage = useCallback((dbMsg: DBChatMessage): Message => {
@@ -999,18 +1177,40 @@ export default function ChatPage() {
       setConversations(uiConversations);
       console.log('[Chat] Loaded', uiConversations.length, 'threads from database');
 
-      // Restore active thread if exists
+      // Restore active thread - check sessionStorage first, then use first conversation
       if (uiConversations.length > 0) {
-        const firstConv = uiConversations[0];
-        setActiveConversationId(firstConv.id);
-        setMessages(firstConv.messages);
-        console.log('[Chat] Restored active thread:', firstConv.title);
+        // Only set state if we haven't already done so
+        // This prevents React Strict Mode double-execution from overwriting correct state
+        if (hasRestoredThreadRef.current) {
+          console.log('[Chat] Skipping thread restore (already done, preventing Strict Mode duplicate)');
+          return;
+        }
+
+        let selectedConv = uiConversations[0];
+        const savedThreadId = sessionStorage.getItem('activeThreadId');
+
+        if (savedThreadId) {
+          const savedConv = uiConversations.find(c => c.id === savedThreadId);
+          if (savedConv) {
+            selectedConv = savedConv;
+            console.log('[Chat] Restored thread from sessionStorage:', savedConv.title);
+          }
+          // Clear the sessionStorage after using it
+          sessionStorage.removeItem('activeThreadId');
+        }
+
+        hasRestoredThreadRef.current = true;
+        setActiveConversationId(selectedConv.id);
+        setMessages(selectedConv.messages);
+        // Sync with Zustand store for sidebar highlighting
+        setCurrentThread(selectedConv.id);
+        console.log('[Chat] Active thread:', selectedConv.title);
       }
     } catch (error) {
       console.error('[Chat] Failed to load threads from database:', error);
       throw error;
     }
-  }, [mapDbMessageToUiMessage]);
+  }, [mapDbMessageToUiMessage, setCurrentThread]);
 
   // Initialize workspace and conversation from database
   useEffect(() => {
@@ -1062,10 +1262,28 @@ export default function ChatPage() {
     }
   }, [activeConversationId, conversations]);
 
-  // Auto-scroll
+  // Auto-scroll when new messages arrive
   useEffect(() => {
+    if (!showScrollButton) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, showScrollButton]);
+
+  // Handle scroll to detect if user scrolled up
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+    setShowScrollButton(!isNearBottom && messages.length > 0);
+  }, [messages.length]);
+
+  // Scroll to bottom function
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    setShowScrollButton(false);
+  }, []);
 
   // Model initialization
   const initProgressCallback = (report: InitProgressReport) => {
@@ -1133,11 +1351,12 @@ export default function ChatPage() {
 
     if (!currentConversationId && dbConversation) {
       try {
-        // Create new thread in database
-        console.log('[Chat] Creating new thread in database');
+        // Create new thread in database with dynamic title
+        const dynamicTitle = generateConversationTitle(input);
+        console.log('[Chat] Creating new thread in database with title:', dynamicTitle);
         const newThread = await workspaceService.createThread({
           conversation_id: dbConversation.id,
-          title: input.trim().substring(0, 50),
+          title: dynamicTitle,
           initial_message: input.trim(),
         });
 
@@ -1146,7 +1365,7 @@ export default function ChatPage() {
 
         const newConv: Conversation = {
           id: newThread.id,
-          title: newThread.title || input.trim().substring(0, 50),
+          title: newThread.title || dynamicTitle,
           messages: newMessages,
           modelId: selectedModel,
           createdAt: Date.now(),
@@ -1349,7 +1568,27 @@ export default function ChatPage() {
       </AnimatePresence>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto terminal-scrollbar">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto terminal-scrollbar relative"
+      >
+        {/* Scroll to bottom button */}
+        <AnimatePresence>
+          {showScrollButton && (
+            <motion.button
+              initial={{ opacity: 0, y: 10, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.9 }}
+              onClick={scrollToBottom}
+              className="fixed bottom-32 right-8 z-10 flex items-center gap-2 px-3 py-2 rounded-full bg-[var(--phosphor-green)] text-[var(--terminal-bg)] text-xs font-medium shadow-lg hover:shadow-[0_0_20px_var(--phosphor-green-glow)] transition-all"
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            >
+              <ArrowDown className="w-4 h-4" />
+              <span className="hidden sm:inline">New messages</span>
+            </motion.button>
+          )}
+        </AnimatePresence>
         {/* Authentication Required State */}
         {!isAuthenticated ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8">
@@ -1486,5 +1725,23 @@ export default function ChatPage() {
         onModelChange={handleModelChange}
       />
     </div>
+  );
+}
+
+// Wrapper component with Suspense boundary for useSearchParams
+export default function ChatPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex-1 flex flex-col items-center justify-center p-8">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-[var(--phosphor-green)] animate-spin mx-auto mb-4" />
+          <p className="text-sm font-mono text-[var(--terminal-text-muted)]">
+            Loading chat...
+          </p>
+        </div>
+      </div>
+    }>
+      <ChatPageContent />
+    </Suspense>
   );
 }

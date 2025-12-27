@@ -13,7 +13,7 @@ import {
   FileText,
   FolderOpen,
   Hash,
-  Hexagon,
+  Loader2,
   LogOut,
   Menu,
   MessageSquare,
@@ -26,7 +26,6 @@ import {
   Share2,
   Sparkles,
   Sun,
-  Terminal,
   User,
   Users,
   X,
@@ -34,7 +33,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { useChatPersistence, UIConversation } from '@/hooks';
 
 // ============================================
 // TYPES
@@ -282,22 +282,6 @@ function WorkspaceBar({
             <Menu className="w-5 h-5" />
           </button>
 
-          <Link href="/" className="flex items-center gap-3">
-            <div className="relative">
-              <Hexagon className="w-7 h-7 text-[var(--phosphor-green)]" />
-              <Terminal className="absolute inset-0 m-auto w-3.5 h-3.5 text-[var(--phosphor-green)]" />
-            </div>
-            <div className="hidden sm:block">
-              <h1 className="text-xs font-semibold text-[var(--terminal-text)] tracking-wider"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                TERMINAL OBSERVATORY
-              </h1>
-              <p className="text-[9px] text-[var(--terminal-text-muted)]"
-                 style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                GENAI RESEARCH PLATFORM
-              </p>
-            </div>
-          </Link>
 
           {/* Workspace Picker */}
           <div className="relative hidden md:block">
@@ -412,21 +396,32 @@ function ConversationSidebar({
     recent: true,
     collections: true,
   });
+  const [isCreatingChat, setIsCreatingChat] = useState(false);
 
-  // Mock data
-  const conversations: Conversation[] = [
-    { id: '1', title: 'Research Paper Summary', preview: 'Analyzing the BIT paper...', timestamp: new Date(), isPinned: true, messageCount: 12 },
-    { id: '2', title: 'RAG Optimization Guide', preview: 'Key findings from the...', timestamp: new Date(), isPinned: true, messageCount: 8 },
-    { id: '3', title: 'How does BIT improve RAG precision?', preview: 'Based on the analysis...', timestamp: new Date(), messageCount: 5 },
-    { id: '4', title: 'Compare BAAI/bge vs OpenAI', preview: 'Comparing embedding models...', timestamp: new Date(), messageCount: 15 },
-    { id: '5', title: 'Prompt injection defense', preview: 'Defense strategies include...', timestamp: new Date(Date.now() - 86400000), messageCount: 7 },
-  ];
+  const router = useRouter();
 
-  const collections: Collection[] = [
-    { id: '1', name: 'ML Research', icon: '📁', count: 12 },
-    { id: '2', name: 'Project: BIT Defense', icon: '📁', count: 5 },
-    { id: '3', name: 'Paper Notes', icon: '📁', count: 23 },
-  ];
+  // Get real conversations from chat store
+  const { conversations: uiConversations, isLoading, isInitialized, currentThreadId, currentConversationId, selectConversation, createNewChat } = useChatPersistence();
+
+  // Only show loading spinner when actively initializing (not just when empty)
+  const showLoading = isLoading && !isInitialized;
+
+  // Map UI conversations to the sidebar format
+  const conversations: Conversation[] = useMemo(() => {
+    return uiConversations.map((conv: UIConversation) => ({
+      id: conv.threadId,
+      title: conv.title || 'New Chat',
+      preview: conv.messages.length > 0
+        ? conv.messages[conv.messages.length - 1].content.substring(0, 50) + '...'
+        : 'No messages yet',
+      timestamp: new Date(conv.updatedAt),
+      isPinned: conv.isBookmarked || false,
+      messageCount: conv.messages.length,
+    }));
+  }, [uiConversations]);
+
+  // Collections remain as placeholder for now (can be extended later)
+  const collections: Collection[] = [];
 
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -435,47 +430,84 @@ function ConversationSidebar({
   const pinnedConversations = conversations.filter((c) => c.isPinned);
   const recentConversations = conversations.filter((c) => !c.isPinned);
 
+  // Filter conversations based on search
+  const filteredConversations = searchQuery
+    ? recentConversations.filter(c =>
+        c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.preview.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : recentConversations;
+
   const sidebarContent = (
     <div className="h-full flex flex-col bg-[var(--terminal-bg)]">
-      {/* Search */}
-      <div className="p-3 border-b border-[var(--terminal-border)]">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--terminal-text-muted)]" />
+      {/* New Chat Button - More prominent */}
+      <div className="p-4 pb-3">
+        <button
+          disabled={isCreatingChat}
+          onClick={async () => {
+            setIsCreatingChat(true);
+            try {
+              const threadId = await createNewChat();
+              if (threadId) {
+                router.push(`/chat?thread=${threadId}`);
+              } else {
+                console.error('[Sidebar] Failed to create new chat - no threadId returned');
+              }
+            } catch (error) {
+              console.error('[Sidebar] Error creating new chat:', error);
+            } finally {
+              setIsCreatingChat(false);
+            }
+          }}
+          className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-[var(--phosphor-green)] text-[var(--terminal-bg)] text-xs font-medium hover:shadow-[0_0_25px_var(--phosphor-green-glow)] hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          {isCreatingChat ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Plus className="w-4 h-4" />
+          )}
+          {isCreatingChat ? 'CREATING...' : 'NEW CHAT'}
+        </button>
+      </div>
+
+      {/* Search - Cleaner design */}
+      <div className="px-4 pb-3">
+        <div className="relative group">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--terminal-text-muted)] group-focus-within:text-[var(--phosphor-green)] transition-colors" />
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-xs text-[var(--terminal-text)] outline-none focus:border-[var(--phosphor-green)]/30"
+            placeholder="Search conversations..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-xs text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)] outline-none focus:border-[var(--phosphor-green)]/40 focus:bg-[var(--terminal-elevated)] transition-all"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* New Chat Button */}
-      <div className="px-3 py-2">
-        <Link
-          href="/chat/new"
-          className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg bg-[var(--phosphor-green)] text-[var(--terminal-bg)] text-xs font-medium hover:shadow-[0_0_20px_var(--phosphor-green-glow)] transition-all"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        >
-          <Plus className="w-4 h-4" />
-          NEW CHAT
-        </Link>
-      </div>
-
       {/* Conversation List */}
-      <div className="flex-1 overflow-y-auto terminal-scrollbar">
-        {/* Pinned */}
+      <div className="flex-1 overflow-y-auto terminal-scrollbar px-2">
+        {/* Pinned Section */}
         {pinnedConversations.length > 0 && (
-          <div className="px-2 py-2">
+          <div className="mb-2">
             <button
               onClick={() => toggleSection('pinned')}
-              className="flex items-center gap-2 w-full px-2 py-1.5 text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-wider hover:text-[var(--terminal-text-dim)]"
+              className="flex items-center gap-2 w-full px-3 py-2 text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
               <Pin className="w-3 h-3" />
-              Pinned
+              <span>Pinned</span>
+              <span className="ml-auto text-[var(--terminal-text-dim)]">{pinnedConversations.length}</span>
               <ChevronRight className={cn(
-                "w-3 h-3 ml-auto transition-transform",
+                "w-3 h-3 transition-transform duration-200",
                 expandedSections.pinned && "rotate-90"
               )} />
             </button>
@@ -485,9 +517,11 @@ function ConversationSidebar({
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-1"
                 >
                   {pinnedConversations.map((conv) => (
-                    <ConversationItem key={conv.id} conversation={conv} isActive={pathname === `/chat/${conv.id}`} />
+                    <ConversationItem key={conv.id} conversation={conv} isActive={currentThreadId === conv.id || pathname === `/chat/${conv.id}`} />
                   ))}
                 </motion.div>
               )}
@@ -495,17 +529,22 @@ function ConversationSidebar({
           </div>
         )}
 
-        {/* Recent */}
-        <div className="px-2 py-2">
+        {/* Recent Section */}
+        <div className="mb-2">
           <button
             onClick={() => toggleSection('recent')}
-            className="flex items-center gap-2 w-full px-2 py-1.5 text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-wider hover:text-[var(--terminal-text-dim)]"
+            className="flex items-center gap-2 w-full px-3 py-2 text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           >
             <Clock className="w-3 h-3" />
-            Recent
+            <span>{searchQuery ? 'Results' : 'Recent'}</span>
+            {showLoading ? (
+              <Loader2 className="w-3 h-3 ml-1 animate-spin" />
+            ) : (
+              <span className="ml-auto text-[var(--terminal-text-dim)]">{filteredConversations.length}</span>
+            )}
             <ChevronRight className={cn(
-              "w-3 h-3 ml-auto transition-transform",
+              "w-3 h-3 transition-transform duration-200",
               expandedSections.recent && "rotate-90"
             )} />
           </button>
@@ -515,26 +554,54 @@ function ConversationSidebar({
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-1"
               >
-                {recentConversations.map((conv) => (
-                  <ConversationItem key={conv.id} conversation={conv} isActive={pathname === `/chat/${conv.id}`} />
-                ))}
+                {showLoading ? (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <Loader2 className="w-5 h-5 animate-spin text-[var(--phosphor-green)] mb-2" />
+                    <p className="text-[10px] text-[var(--terminal-text-muted)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                      Loading conversations...
+                    </p>
+                  </div>
+                ) : filteredConversations.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 px-4">
+                    <div className="w-10 h-10 rounded-full bg-[var(--terminal-surface)] flex items-center justify-center mb-3">
+                      <MessageSquare className="w-5 h-5 text-[var(--terminal-text-muted)]" />
+                    </div>
+                    <p className="text-xs text-[var(--terminal-text-muted)] text-center" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                      {searchQuery ? 'No matching conversations' : 'Start a new conversation'}
+                    </p>
+                  </div>
+                ) : (
+                  filteredConversations.map((conv, index) => (
+                    <motion.div
+                      key={conv.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.02 }}
+                    >
+                      <ConversationItem conversation={conv} isActive={currentThreadId === conv.id || pathname === `/chat/${conv.id}`} />
+                    </motion.div>
+                  ))
+                )}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Collections */}
-        <div className="px-2 py-2 border-t border-[var(--terminal-border)]">
+        {/* Collections Section */}
+        <div className="border-t border-[var(--terminal-border)] pt-2 mt-2">
           <button
             onClick={() => toggleSection('collections')}
-            className="flex items-center gap-2 w-full px-2 py-1.5 text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-wider hover:text-[var(--terminal-text-dim)]"
+            className="flex items-center gap-2 w-full px-3 py-2 text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           >
             <FolderOpen className="w-3 h-3" />
-            Collections
+            <span>Collections</span>
+            <span className="ml-auto text-[var(--terminal-text-dim)]">{collections.length}</span>
             <ChevronRight className={cn(
-              "w-3 h-3 ml-auto transition-transform",
+              "w-3 h-3 transition-transform duration-200",
               expandedSections.collections && "rotate-90"
             )} />
           </button>
@@ -544,35 +611,45 @@ function ConversationSidebar({
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-1"
               >
-                {collections.map((collection) => (
-                  <button
-                    key={collection.id}
-                    className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-left hover:bg-[var(--terminal-elevated)] transition-colors"
-                  >
-                    <span>{collection.icon}</span>
-                    <span className="flex-1 text-xs text-[var(--terminal-text)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                      {collection.name}
-                    </span>
-                    <span className="text-[10px] text-[var(--terminal-text-muted)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                      {collection.count}
-                    </span>
-                  </button>
-                ))}
+                {collections.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-6 px-4">
+                    <p className="text-[10px] text-[var(--terminal-text-muted)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                      No collections yet
+                    </p>
+                  </div>
+                ) : (
+                  collections.map((collection) => (
+                    <button
+                      key={collection.id}
+                      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left hover:bg-[var(--terminal-elevated)] transition-colors"
+                    >
+                      <span>{collection.icon}</span>
+                      <span className="flex-1 text-xs text-[var(--terminal-text)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                        {collection.name}
+                      </span>
+                      <span className="text-[10px] text-[var(--terminal-text-muted)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                        {collection.count}
+                      </span>
+                    </button>
+                  ))
+                )}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Footer - Settings */}
       <div className="p-3 border-t border-[var(--terminal-border)]">
         <Link
           href="/settings"
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-[var(--terminal-text-dim)] hover:bg-[var(--terminal-elevated)] hover:text-[var(--terminal-text)] transition-colors"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs text-[var(--terminal-text-dim)] hover:bg-[var(--terminal-elevated)] hover:text-[var(--phosphor-green)] transition-all group"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
-          <Settings className="w-4 h-4" />
+          <Settings className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" />
           Settings
         </Link>
       </div>
@@ -619,6 +696,21 @@ function ConversationSidebar({
   );
 }
 
+// Helper function for relative time
+function getRelativeTime(timestamp: number): string {
+  const now = Date.now();
+  const diff = now - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m`;
+  if (hours < 24) return `${hours}h`;
+  if (days < 7) return `${days}d`;
+  return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 function ConversationItem({
   conversation,
   isActive,
@@ -626,32 +718,63 @@ function ConversationItem({
   conversation: Conversation;
   isActive: boolean;
 }) {
+  const messageCount = conversation.messageCount || 0;
+  const relativeTime = getRelativeTime(conversation.timestamp.getTime());
+
   return (
     <Link
-      href={`/chat/${conversation.id}`}
+      href={`/chat?thread=${conversation.id}`}
       className={cn(
-        "block px-3 py-2.5 rounded-lg my-0.5 transition-all group",
+        "block px-3 py-3 rounded-xl transition-all group relative",
         isActive
-          ? "bg-[var(--phosphor-green)]/10 border-l-2 border-[var(--phosphor-green)]"
+          ? "bg-[var(--phosphor-green)]/10"
           : "hover:bg-[var(--terminal-elevated)]"
       )}
     >
+      {/* Active indicator */}
+      {isActive && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full bg-[var(--phosphor-green)]" />
+      )}
+
       <div className="flex items-start gap-3">
-        <MessageSquare className={cn(
-          "w-4 h-4 mt-0.5 flex-shrink-0",
-          isActive ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text-muted)]"
-        )} />
+        <div className={cn(
+          "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors",
+          isActive
+            ? "bg-[var(--phosphor-green)]/20"
+            : "bg-[var(--terminal-surface)] group-hover:bg-[var(--terminal-elevated)]"
+        )}>
+          <MessageSquare className={cn(
+            "w-4 h-4",
+            isActive ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text-muted)]"
+          )} />
+        </div>
+
         <div className="flex-1 min-w-0">
-          <p className={cn(
-            "text-xs truncate",
-            isActive ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text)]"
-          )} style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-            {conversation.title}
-          </p>
-          <p className="text-[10px] text-[var(--terminal-text-muted)] truncate mt-0.5"
-             style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-            {conversation.preview}
-          </p>
+          {/* Title row with time */}
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <p className={cn(
+              "text-xs font-medium truncate",
+              isActive ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text)]"
+            )} style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              {conversation.title || 'New Chat'}
+            </p>
+            <span className="text-[9px] text-[var(--terminal-text-dim)] flex-shrink-0" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              {relativeTime}
+            </span>
+          </div>
+
+          {/* Preview and message count */}
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] text-[var(--terminal-text-muted)] truncate flex-1"
+               style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              {conversation.preview || 'No messages yet'}
+            </p>
+            {messageCount > 0 && (
+              <span className="text-[9px] text-[var(--terminal-text-dim)] flex-shrink-0 px-1.5 py-0.5 rounded bg-[var(--terminal-surface)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                {messageCount}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </Link>

@@ -50,30 +50,30 @@ import {
   Users,
   CreditCard,
   Key,
+  MessageSquare,
+  LayoutDashboard,
+  Files,
+  FlaskConical,
+  Cog,
 } from 'lucide-react';
 
-// Navigation items organized by groups
+// Navigation items organized by groups - cleaner structure
 const mainNavItems = [
-  { title: 'Dashboard', url: '/dashboard', icon: Home },
-  { title: 'Search', url: '/search', icon: Search },
-  { title: 'AI Chat', url: '/chat', icon: Bot },
+  { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard, description: 'Overview & stats' },
+  { title: 'AI Chat', url: '/chat', icon: MessageSquare, description: 'Chat with AI' },
+  { title: 'Search', url: '/search', icon: Search, description: 'Search documents' },
 ];
 
 const documentsNavItems = [
-  { title: 'Upload', url: '/documents/upload', icon: Upload },
-  { title: 'My Documents', url: '/documents', icon: FolderOpen },
-  { title: 'ArXiv Papers', url: '/arxiv', icon: Database },
+  { title: 'All Documents', url: '/documents', icon: Files, description: 'Browse files' },
+  { title: 'Upload', url: '/documents/upload', icon: Upload, description: 'Add new files' },
+  { title: 'ArXiv Papers', url: '/arxiv', icon: FlaskConical, description: 'Research papers' },
 ];
 
-const analyticsNavItems = [
-  { title: 'Dashboard', url: '/dashboard', icon: BarChart3 },
-  { title: 'Real-time', url: '/realtime', icon: Zap },
-];
-
-const settingsNavItems = [
-  { title: 'Settings', url: '/settings', icon: Settings },
-  { title: 'Team', url: '/team', icon: Users },
-  { title: 'API Keys', url: '/secrets', icon: Key },
+const systemNavItems = [
+  { title: 'Real-time', url: '/realtime', icon: Activity, description: 'Live metrics' },
+  { title: 'Settings', url: '/settings', icon: Cog, description: 'Preferences' },
+  { title: 'API Keys', url: '/secrets', icon: Key, description: 'Credentials' },
 ];
 
 export function AppSidebar() {
@@ -100,28 +100,61 @@ export function AppSidebar() {
   const displayName = user?.email?.split('@')[0] || 'User';
   const displayEmail = user?.email || 'Not signed in';
 
+  // Reusable NavItem component for cleaner code
+  const NavItem = ({ item }: { item: { title: string; url: string; icon: any; description?: string } }) => {
+    const active = isActive(item.url);
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          asChild
+          isActive={active}
+          tooltip={item.title}
+          className={cn(
+            'font-mono text-sm transition-all duration-200 rounded-lg relative group/item h-10',
+            active
+              ? '!bg-[#00ff9f]/10 !text-[#00ff9f]'
+              : 'text-white/60 hover:!text-white hover:!bg-white/5'
+          )}
+        >
+          <Link href={item.url} className="flex items-center gap-3 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+            {/* Active indicator - only show in expanded mode */}
+            {active && (
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-[#00ff9f] group-data-[collapsible=icon]:hidden" />
+            )}
+            <item.icon className={cn(
+              'w-5 h-5 flex-shrink-0 transition-all duration-200',
+              active ? 'text-[#00ff9f]' : 'text-white/50 group-hover/item:text-white/70'
+            )} />
+            <span className="truncate group-data-[collapsible=icon]:hidden">{item.title}</span>
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  };
+
   return (
     <Sidebar
       collapsible="icon"
       className="border-r border-[#00ff9f]/10 !bg-[#0a0a0f]"
     >
-      {/* Header with Logo */}
-      <SidebarHeader className="border-b border-[#00ff9f]/10 !bg-[#0a0a0f] px-2">
+      {/* Header with Logo - Cleaner design */}
+      <SidebarHeader className="border-b border-[#00ff9f]/10 !bg-[#0a0a0f] p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
               asChild
-              className="hover:!bg-[#00ff9f]/10 data-[active=true]:!bg-[#00ff9f]/10"
+              tooltip="RAG System"
+              className="hover:!bg-[#00ff9f]/10 data-[active=true]:!bg-[#00ff9f]/10 rounded-lg h-12"
             >
-              <Link href="/" className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-8 h-8 rounded border border-[#00ff9f]/30 bg-[#00ff9f]/10 shadow-lg shadow-[#00ff9f]/10">
+              <Link href="/dashboard" className="flex items-center gap-3 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg border border-[#00ff9f]/30 bg-gradient-to-br from-[#00ff9f]/20 to-[#00ff9f]/5 shadow-lg shadow-[#00ff9f]/10 flex-shrink-0">
                   <Terminal className="w-4 h-4 text-[#00ff9f]" />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
-                  <span className="font-mono font-semibold text-white/90">RAG System</span>
-                  <span className="text-[10px] font-mono text-[#00ff9f]/70">
-                    Terminal Observatory
+                  <span className="font-mono font-bold text-white/95 text-sm">RAG System</span>
+                  <span className="text-[9px] font-mono text-[#00ff9f]/60 uppercase tracking-wider">
+                    v2.0
                   </span>
                 </div>
               </Link>
@@ -130,147 +163,48 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent className="!bg-[#0a0a0f] px-2">
+      <SidebarContent className="!bg-[#0a0a0f] py-3">
         {/* Main Navigation */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] font-mono uppercase tracking-wider text-[#00ff9f]/50 px-2">
-            Navigation
+        <SidebarGroup className="py-1 px-2 group-data-[collapsible=icon]:px-0">
+          <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-widest text-white/30 px-1 mb-2 group-data-[collapsible=icon]:sr-only">
+            Main
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-1">
               {mainNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    tooltip={item.title}
-                    className={cn(
-                      'font-mono text-sm transition-all rounded-md',
-                      isActive(item.url)
-                        ? '!bg-[#00ff9f]/15 !text-[#00ff9f] border-l-2 border-[#00ff9f]'
-                        : 'text-white/60 hover:!text-white hover:!bg-white/5'
-                    )}
-                  >
-                    <Link href={item.url}>
-                      <item.icon className={cn(
-                        'w-4 h-4',
-                        isActive(item.url) ? 'text-[#00ff9f]' : 'text-white/50'
-                      )} />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <NavItem key={item.title} item={item} />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator className="!bg-white/5 mx-2" />
+        <SidebarSeparator className="!bg-white/5 mx-3 my-3 group-data-[collapsible=icon]:mx-2" />
 
         {/* Documents */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] font-mono uppercase tracking-wider text-[#00ff9f]/50 px-2 flex items-center gap-1">
-            <FileText className="w-3 h-3" />
-            <span className="group-data-[collapsible=icon]:hidden">Documents</span>
+        <SidebarGroup className="py-1 px-2 group-data-[collapsible=icon]:px-0">
+          <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-widest text-white/30 px-1 mb-2 group-data-[collapsible=icon]:sr-only">
+            Documents
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-1">
               {documentsNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    tooltip={item.title}
-                    className={cn(
-                      'font-mono text-sm transition-all rounded-md',
-                      isActive(item.url)
-                        ? '!bg-[#00ff9f]/15 !text-[#00ff9f] border-l-2 border-[#00ff9f]'
-                        : 'text-white/60 hover:!text-white hover:!bg-white/5'
-                    )}
-                  >
-                    <Link href={item.url}>
-                      <item.icon className={cn(
-                        'w-4 h-4',
-                        isActive(item.url) ? 'text-[#00ff9f]' : 'text-white/50'
-                      )} />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <NavItem key={item.title} item={item} />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator className="!bg-white/5 mx-2" />
+        <SidebarSeparator className="!bg-white/5 mx-3 my-3 group-data-[collapsible=icon]:mx-2" />
 
-        {/* Analytics */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] font-mono uppercase tracking-wider text-[#00ff9f]/50 px-2 flex items-center gap-1">
-            <Activity className="w-3 h-3" />
-            <span className="group-data-[collapsible=icon]:hidden">Analytics</span>
+        {/* System */}
+        <SidebarGroup className="py-1 px-2 group-data-[collapsible=icon]:px-0">
+          <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-widest text-white/30 px-1 mb-2 group-data-[collapsible=icon]:sr-only">
+            System
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {analyticsNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    tooltip={item.title}
-                    className={cn(
-                      'font-mono text-sm transition-all rounded-md',
-                      isActive(item.url)
-                        ? '!bg-[#00ff9f]/15 !text-[#00ff9f] border-l-2 border-[#00ff9f]'
-                        : 'text-white/60 hover:!text-white hover:!bg-white/5'
-                    )}
-                  >
-                    <Link href={item.url}>
-                      <item.icon className={cn(
-                        'w-4 h-4',
-                        isActive(item.url) ? 'text-[#00ff9f]' : 'text-white/50'
-                      )} />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarSeparator className="!bg-white/5 mx-2" />
-
-        {/* Settings */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] font-mono uppercase tracking-wider text-[#00ff9f]/50 px-2 flex items-center gap-1">
-            <Sparkles className="w-3 h-3" />
-            <span className="group-data-[collapsible=icon]:hidden">Configuration</span>
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {settingsNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    tooltip={item.title}
-                    className={cn(
-                      'font-mono text-sm transition-all rounded-md',
-                      isActive(item.url)
-                        ? '!bg-[#00ff9f]/15 !text-[#00ff9f] border-l-2 border-[#00ff9f]'
-                        : 'text-white/60 hover:!text-white hover:!bg-white/5'
-                    )}
-                  >
-                    <Link href={item.url}>
-                      <item.icon className={cn(
-                        'w-4 h-4',
-                        isActive(item.url) ? 'text-[#00ff9f]' : 'text-white/50'
-                      )} />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+            <SidebarMenu className="space-y-1">
+              {systemNavItems.map((item) => (
+                <NavItem key={item.title} item={item} />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
@@ -278,7 +212,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       {/* Footer with User Menu */}
-      <SidebarFooter className="border-t border-[#00ff9f]/10 !bg-[#0a0a0f] px-2">
+      <SidebarFooter className="border-t border-[#00ff9f]/10 !bg-[#0a0a0f] p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             {isAuthenticated ? (
