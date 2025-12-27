@@ -57,9 +57,43 @@ All features are built with test specifications first:
 - Type-safe API calls
 
 ## Theme: Terminal Observatory
-Custom dark theme for specialized pages (e.g., ArXiv):
-- `PHOSPHOR_GREEN = '#00ff9f'`
-- `AMBER = '#ffb700'`
-- `CYAN = '#00d4ff'`
-- Dark terminal chrome container
-- Monospace typography
+Custom dark theme for specialized pages (Dashboard, Settings, ArXiv):
+- `PHOSPHOR_GREEN = '#00ff9f'` - Primary accent
+- `AMBER = '#ffb700'` - Warning/secondary accent
+- `CYAN = '#00d4ff'` - Info/tertiary accent
+- Dark background: `#0a0a0f`
+- Dark terminal chrome container with CRT effects
+- Monospace typography (JetBrains Mono, system mono)
+- Custom toggle switches and form controls
+- Consistent across Dashboard, Settings, and ArXiv pages
+
+## Chat Persistence Architecture
+
+### Hierarchy
+- **Workspace** → Contains multiple conversations
+- **Conversation** → Contains multiple threads
+- **Thread** → Contains multiple messages
+
+### State Management
+- `chat-store.ts` - Zustand store for chat state
+  - Manages workspaces, conversations, threads, messages
+  - Handles CRUD operations with backend API
+  - Optimistic updates with error recovery
+
+### Bridge Hook Pattern
+- `useChatPersistence.ts` - React hook bridging store to UI
+  - Maps internal Thread/Message types to UI-friendly formats
+  - Provides simplified interface for chat components
+  - Handles initialization, message sending, conversation management
+  - Auto-creates workspace/conversation/thread as needed
+
+### API Services
+- `workspaceService.ts` - Workspace CRUD operations
+- Backend endpoints: `/conversations`, `/threads`
+- Chat service layer for business logic
+
+## Sidebar Component Pattern
+- Collapsible sidebar using shadcn/ui Sidebar primitives
+- `group-data-[collapsible=icon]:` classes for collapsed state styling
+- Icon centering with `justify-center` in collapsed mode
+- Label hiding with `sr-only` class when collapsed
