@@ -10,3 +10,9 @@ export type {
 
 export { useDocuments } from './useDocuments';
 export { useWebSocket } from './useWebSocket';
+
+export { useChatPersistence } from './useChatPersistence';
+export type {
+  UIMessage,
+  UIConversation,
+} from './useChatPersistence';

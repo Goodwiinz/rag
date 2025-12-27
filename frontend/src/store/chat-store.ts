@@ -1,0 +1,689 @@
+/**
+ * Chat Store - Zustand store for Terminal Observatory thread-centric chat system
+ * Manages workspace, conversation, thread, and message state with persistence
+ */
+
+import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { immer } from 'zustand/middleware/immer';
+import {
+  Workspace,
+  WorkspaceCreate,
+  WorkspaceUpdate,
+  Conversation,
+  ConversationCreate,
+  ConversationUpdate,
+  Thread,
+  ThreadCreate,
+  ThreadUpdate,
+  ThreadDetail,
+  ChatMessage,
+  ChatMessageCreate,
+  ChatMessageUpdate,
+  ThreadStatus,
+} from '@/types/workspace';
+import { workspaceService } from '@/services/workspaceService';
+
+// ============================================================================
+// State Types
+// ============================================================================
+
+interface ChatState {
+  // Current selections
+  currentWorkspaceId: string | null;
+  currentConversationId: string | null;
+  currentThreadId: string | null;
+
+  // Data
+  workspaces: Workspace[];
+  conversations: Record<string, Conversation[]>; // keyed by workspace_id
+  threads: Record<string, Thread[]>; // keyed by conversation_id
+  messages: Record<string, ChatMessage[]>; // keyed by thread_id
+
+  // Loading states
+  isLoadingWorkspaces: boolean;
+  isLoadingConversations: boolean;
+  isLoadingThreads: boolean;
+  isLoadingMessages: boolean;
+  isSendingMessage: boolean;
+
+  // Error states
+  error: string | null;
+
+  // UI states
+  shortcutsDialogOpen: boolean;
+  copiedMessageId: string | null;
+  sidebarCollapsed: boolean;
+}
+
+interface ChatActions {
+  // Selection actions
+  setCurrentWorkspace: (workspaceId: string | null) => void;
+  setCurrentConversation: (conversationId: string | null) => void;
+  setCurrentThread: (threadId: string | null) => void;
+
+  // Workspace actions
+  loadWorkspaces: () => Promise<void>;
+  createWorkspace: (data: WorkspaceCreate) => Promise<Workspace | null>;
+  updateWorkspace: (id: string, data: WorkspaceUpdate) => Promise<Workspace | null>;
+  deleteWorkspace: (id: string) => Promise<boolean>;
+
+  // Conversation actions
+  loadConversations: (workspaceId: string) => Promise<void>;
+  createConversation: (data: ConversationCreate) => Promise<Conversation | null>;
+  updateConversation: (id: string, data: ConversationUpdate) => Promise<Conversation | null>;
+  deleteConversation: (id: string) => Promise<boolean>;
+
+  // Thread actions
+  loadThreads: (conversationId: string) => Promise<void>;
+  createThread: (data: ThreadCreate) => Promise<Thread | null>;
+  updateThread: (id: string, data: ThreadUpdate) => Promise<Thread | null>;
+  deleteThread: (id: string) => Promise<boolean>;
+  resolveThread: (id: string) => Promise<Thread | null>;
+  reopenThread: (id: string) => Promise<Thread | null>;
+
+  // Message actions
+  loadMessages: (threadId: string) => Promise<void>;
+  sendMessage: (content: string, threadId?: string) => Promise<ChatMessage | null>;
+  updateMessageFeedback: (id: string, data: ChatMessageUpdate) => Promise<ChatMessage | null>;
+  deleteMessage: (id: string) => Promise<boolean>;
+
+  // UI actions
+  setShortcutsDialogOpen: (open: boolean) => void;
+  setCopiedMessageId: (id: string | null) => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+
+  // Utility actions
+  clearError: () => void;
+  reset: () => void;
+  initializeDefaultWorkspace: () => Promise<void>;
+}
+
+type ChatStore = ChatState & ChatActions;
+
+// ============================================================================
+// Initial State
+// ============================================================================
+
+const initialState: ChatState = {
+  currentWorkspaceId: null,
+  currentConversationId: null,
+  currentThreadId: null,
+  workspaces: [],
+  conversations: {},
+  threads: {},
+  messages: {},
+  isLoadingWorkspaces: false,
+  isLoadingConversations: false,
+  isLoadingThreads: false,
+  isLoadingMessages: false,
+  isSendingMessage: false,
+  error: null,
+  shortcutsDialogOpen: false,
+  copiedMessageId: null,
+  sidebarCollapsed: false,
+};
+
+// ============================================================================
+// Store
+// ============================================================================
+
+export const useChatStore = create<ChatStore>()(
+  persist(
+    immer((set, get) => ({
+      ...initialState,
+
+      // ========================================================================
+      // Selection Actions
+      // ========================================================================
+
+      setCurrentWorkspace: (workspaceId) => {
+        set((state) => {
+          state.currentWorkspaceId = workspaceId;
+          // Clear downstream selections when workspace changes
+          state.currentConversationId = null;
+          state.currentThreadId = null;
+        });
+
+        // Load conversations for new workspace
+        if (workspaceId) {
+          get().loadConversations(workspaceId);
+        }
+      },
+
+      setCurrentConversation: (conversationId) => {
+        set((state) => {
+          state.currentConversationId = conversationId;
+          // Clear thread selection when conversation changes
+          state.currentThreadId = null;
+        });
+
+        // Load threads for new conversation
+        if (conversationId) {
+          get().loadThreads(conversationId);
+        }
+      },
+
+      setCurrentThread: (threadId) => {
+        set((state) => {
+          state.currentThreadId = threadId;
+        });
+
+        // Load messages for new thread
+        if (threadId) {
+          get().loadMessages(threadId);
+        }
+      },
+
+      // ========================================================================
+      // Workspace Actions
+      // ========================================================================
+
+      loadWorkspaces: async () => {
+        set((state) => {
+          state.isLoadingWorkspaces = true;
+          state.error = null;
+        });
+
+        try {
+          const workspaces = await workspaceService.listWorkspaces();
+          set((state) => {
+            state.workspaces = workspaces;
+            state.isLoadingWorkspaces = false;
+          });
+        } catch (error) {
+          console.error('[ChatStore] Error loading workspaces:', error);
+          set((state) => {
+            state.error = 'Failed to load workspaces';
+            state.isLoadingWorkspaces = false;
+          });
+        }
+      },
+
+      createWorkspace: async (data) => {
+        try {
+          const workspace = await workspaceService.createWorkspace(data);
+          set((state) => {
+            state.workspaces.unshift(workspace);
+          });
+          return workspace;
+        } catch (error) {
+          console.error('[ChatStore] Error creating workspace:', error);
+          set((state) => {
+            state.error = 'Failed to create workspace';
+          });
+          return null;
+        }
+      },
+
+      updateWorkspace: async (id, data) => {
+        try {
+          const workspace = await workspaceService.updateWorkspace(id, data);
+          set((state) => {
+            const index = state.workspaces.findIndex((w) => w.id === id);
+            if (index !== -1) {
+              state.workspaces[index] = workspace;
+            }
+          });
+          return workspace;
+        } catch (error) {
+          console.error('[ChatStore] Error updating workspace:', error);
+          set((state) => {
+            state.error = 'Failed to update workspace';
+          });
+          return null;
+        }
+      },
+
+      deleteWorkspace: async (id) => {
+        try {
+          await workspaceService.deleteWorkspace(id);
+          set((state) => {
+            state.workspaces = state.workspaces.filter((w) => w.id !== id);
+            if (state.currentWorkspaceId === id) {
+              state.currentWorkspaceId = null;
+              state.currentConversationId = null;
+              state.currentThreadId = null;
+            }
+          });
+          return true;
+        } catch (error) {
+          console.error('[ChatStore] Error deleting workspace:', error);
+          set((state) => {
+            state.error = 'Failed to delete workspace';
+          });
+          return false;
+        }
+      },
+
+      // ========================================================================
+      // Conversation Actions
+      // ========================================================================
+
+      loadConversations: async (workspaceId) => {
+        set((state) => {
+          state.isLoadingConversations = true;
+          state.error = null;
+        });
+
+        try {
+          const response = await workspaceService.listConversations(workspaceId);
+          set((state) => {
+            state.conversations[workspaceId] = response.conversations;
+            state.isLoadingConversations = false;
+          });
+        } catch (error) {
+          console.error('[ChatStore] Error loading conversations:', error);
+          set((state) => {
+            state.error = 'Failed to load conversations';
+            state.isLoadingConversations = false;
+          });
+        }
+      },
+
+      createConversation: async (data) => {
+        try {
+          const conversation = await workspaceService.createConversation(data);
+          set((state) => {
+            const workspaceId = data.workspace_id;
+            if (!state.conversations[workspaceId]) {
+              state.conversations[workspaceId] = [];
+            }
+            state.conversations[workspaceId].unshift(conversation);
+          });
+          return conversation;
+        } catch (error) {
+          console.error('[ChatStore] Error creating conversation:', error);
+          set((state) => {
+            state.error = 'Failed to create conversation';
+          });
+          return null;
+        }
+      },
+
+      updateConversation: async (id, data) => {
+        try {
+          const conversation = await workspaceService.updateConversation(id, data);
+          set((state) => {
+            const workspaceId = conversation.workspace_id;
+            const convs = state.conversations[workspaceId] || [];
+            const index = convs.findIndex((c) => c.id === id);
+            if (index !== -1) {
+              state.conversations[workspaceId][index] = conversation;
+            }
+          });
+          return conversation;
+        } catch (error) {
+          console.error('[ChatStore] Error updating conversation:', error);
+          set((state) => {
+            state.error = 'Failed to update conversation';
+          });
+          return null;
+        }
+      },
+
+      deleteConversation: async (id) => {
+        const state = get();
+        try {
+          await workspaceService.deleteConversation(id);
+          set((state) => {
+            // Find and remove from the correct workspace
+            for (const workspaceId of Object.keys(state.conversations)) {
+              const index = state.conversations[workspaceId]?.findIndex((c) => c.id === id);
+              if (index !== undefined && index !== -1) {
+                state.conversations[workspaceId].splice(index, 1);
+                break;
+              }
+            }
+            if (state.currentConversationId === id) {
+              state.currentConversationId = null;
+              state.currentThreadId = null;
+            }
+          });
+          return true;
+        } catch (error) {
+          console.error('[ChatStore] Error deleting conversation:', error);
+          set((state) => {
+            state.error = 'Failed to delete conversation';
+          });
+          return false;
+        }
+      },
+
+      // ========================================================================
+      // Thread Actions
+      // ========================================================================
+
+      loadThreads: async (conversationId) => {
+        set((state) => {
+          state.isLoadingThreads = true;
+          state.error = null;
+        });
+
+        try {
+          console.log('[ChatStore] Loading threads for conversation:', conversationId);
+          const response = await workspaceService.listThreads(conversationId);
+          console.log('[ChatStore] Loaded threads:', response.threads.length, response.threads);
+          set((state) => {
+            state.threads[conversationId] = response.threads;
+            state.isLoadingThreads = false;
+          });
+        } catch (error) {
+          console.error('[ChatStore] Error loading threads:', error);
+          set((state) => {
+            state.error = 'Failed to load threads';
+            state.isLoadingThreads = false;
+          });
+        }
+      },
+
+      createThread: async (data) => {
+        try {
+          const thread = await workspaceService.createThread(data);
+          set((state) => {
+            const conversationId = data.conversation_id;
+            if (!state.threads[conversationId]) {
+              state.threads[conversationId] = [];
+            }
+            state.threads[conversationId].unshift(thread);
+          });
+          return thread;
+        } catch (error) {
+          console.error('[ChatStore] Error creating thread:', error);
+          set((state) => {
+            state.error = 'Failed to create thread';
+          });
+          return null;
+        }
+      },
+
+      updateThread: async (id, data) => {
+        try {
+          const thread = await workspaceService.updateThread(id, data);
+          set((state) => {
+            const conversationId = thread.conversation_id;
+            const threads = state.threads[conversationId] || [];
+            const index = threads.findIndex((t) => t.id === id);
+            if (index !== -1) {
+              state.threads[conversationId][index] = thread;
+            }
+          });
+          return thread;
+        } catch (error) {
+          console.error('[ChatStore] Error updating thread:', error);
+          set((state) => {
+            state.error = 'Failed to update thread';
+          });
+          return null;
+        }
+      },
+
+      deleteThread: async (id) => {
+        try {
+          await workspaceService.deleteThread(id);
+          set((state) => {
+            // Find and remove from the correct conversation
+            for (const conversationId of Object.keys(state.threads)) {
+              const index = state.threads[conversationId]?.findIndex((t) => t.id === id);
+              if (index !== undefined && index !== -1) {
+                state.threads[conversationId].splice(index, 1);
+                break;
+              }
+            }
+            if (state.currentThreadId === id) {
+              state.currentThreadId = null;
+            }
+          });
+          return true;
+        } catch (error) {
+          console.error('[ChatStore] Error deleting thread:', error);
+          set((state) => {
+            state.error = 'Failed to delete thread';
+          });
+          return false;
+        }
+      },
+
+      resolveThread: async (id) => {
+        return get().updateThread(id, { status: ThreadStatus.RESOLVED });
+      },
+
+      reopenThread: async (id) => {
+        return get().updateThread(id, { status: ThreadStatus.ACTIVE });
+      },
+
+      // ========================================================================
+      // Message Actions
+      // ========================================================================
+
+      loadMessages: async (threadId) => {
+        set((state) => {
+          state.isLoadingMessages = true;
+          state.error = null;
+        });
+
+        try {
+          const response = await workspaceService.listMessages(threadId);
+          set((state) => {
+            state.messages[threadId] = response.messages;
+            state.isLoadingMessages = false;
+          });
+        } catch (error) {
+          console.error('[ChatStore] Error loading messages:', error);
+          set((state) => {
+            state.error = 'Failed to load messages';
+            state.isLoadingMessages = false;
+          });
+        }
+      },
+
+      sendMessage: async (content, threadId) => {
+        const state = get();
+        const targetThreadId = threadId || state.currentThreadId;
+
+        if (!targetThreadId) {
+          console.error('[ChatStore] No thread selected for sending message');
+          return null;
+        }
+
+        set((state) => {
+          state.isSendingMessage = true;
+          state.error = null;
+        });
+
+        try {
+          const message = await workspaceService.createMessage({
+            thread_id: targetThreadId,
+            content,
+          });
+
+          set((state) => {
+            if (!state.messages[targetThreadId]) {
+              state.messages[targetThreadId] = [];
+            }
+            state.messages[targetThreadId].push(message);
+            state.isSendingMessage = false;
+          });
+
+          return message;
+        } catch (error) {
+          console.error('[ChatStore] Error sending message:', error);
+          set((state) => {
+            state.error = 'Failed to send message';
+            state.isSendingMessage = false;
+          });
+          return null;
+        }
+      },
+
+      updateMessageFeedback: async (id, data) => {
+        try {
+          const message = await workspaceService.updateMessage(id, data);
+          set((state) => {
+            const threadId = message.thread_id;
+            const messages = state.messages[threadId] || [];
+            const index = messages.findIndex((m) => m.id === id);
+            if (index !== -1) {
+              state.messages[threadId][index] = message;
+            }
+          });
+          return message;
+        } catch (error) {
+          console.error('[ChatStore] Error updating message feedback:', error);
+          set((state) => {
+            state.error = 'Failed to update message feedback';
+          });
+          return null;
+        }
+      },
+
+      deleteMessage: async (id) => {
+        try {
+          await workspaceService.deleteMessage(id);
+          set((state) => {
+            // Find and remove from the correct thread
+            for (const threadId of Object.keys(state.messages)) {
+              const index = state.messages[threadId]?.findIndex((m) => m.id === id);
+              if (index !== undefined && index !== -1) {
+                state.messages[threadId].splice(index, 1);
+                break;
+              }
+            }
+          });
+          return true;
+        } catch (error) {
+          console.error('[ChatStore] Error deleting message:', error);
+          set((state) => {
+            state.error = 'Failed to delete message';
+          });
+          return false;
+        }
+      },
+
+      // ========================================================================
+      // UI Actions
+      // ========================================================================
+
+      setShortcutsDialogOpen: (open) => {
+        set((state) => {
+          state.shortcutsDialogOpen = open;
+        });
+      },
+
+      setCopiedMessageId: (id) => {
+        set((state) => {
+          state.copiedMessageId = id;
+        });
+      },
+
+      setSidebarCollapsed: (collapsed) => {
+        set((state) => {
+          state.sidebarCollapsed = collapsed;
+        });
+      },
+
+      // ========================================================================
+      // Utility Actions
+      // ========================================================================
+
+      clearError: () => {
+        set((state) => {
+          state.error = null;
+        });
+      },
+
+      reset: () => {
+        set(initialState);
+      },
+
+      initializeDefaultWorkspace: async () => {
+        const state = get();
+
+        // If already has a current workspace, skip
+        if (state.currentWorkspaceId) {
+          return;
+        }
+
+        try {
+          // Load workspaces first
+          await get().loadWorkspaces();
+
+          const { workspaces } = get();
+
+          let workspace: Workspace;
+
+          if (workspaces.length > 0) {
+            // Use first workspace
+            workspace = workspaces[0];
+          } else {
+            // Create default workspace
+            const created = await get().createWorkspace({
+              name: 'My Workspace',
+              description: 'Default workspace for Terminal Observatory',
+              is_public: false,
+            });
+            if (!created) {
+              throw new Error('Failed to create default workspace');
+            }
+            workspace = created;
+          }
+
+          // Set current workspace (this will trigger loadConversations)
+          get().setCurrentWorkspace(workspace.id);
+        } catch (error) {
+          console.error('[ChatStore] Error initializing default workspace:', error);
+          set((state) => {
+            state.error = 'Failed to initialize workspace';
+          });
+        }
+      },
+    })),
+    {
+      name: 'chat-storage',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        // Only persist these fields
+        currentWorkspaceId: state.currentWorkspaceId,
+        currentConversationId: state.currentConversationId,
+        currentThreadId: state.currentThreadId,
+        sidebarCollapsed: state.sidebarCollapsed,
+      }),
+    }
+  )
+);
+
+// ============================================================================
+// Selectors (for performance optimization)
+// ============================================================================
+
+export const selectCurrentWorkspace = (state: ChatStore) =>
+  state.workspaces.find((w) => w.id === state.currentWorkspaceId) || null;
+
+export const selectCurrentConversation = (state: ChatStore) => {
+  if (!state.currentWorkspaceId || !state.currentConversationId) return null;
+  const conversations = state.conversations[state.currentWorkspaceId] || [];
+  return conversations.find((c) => c.id === state.currentConversationId) || null;
+};
+
+export const selectCurrentThread = (state: ChatStore) => {
+  if (!state.currentConversationId || !state.currentThreadId) return null;
+  const threads = state.threads[state.currentConversationId] || [];
+  return threads.find((t) => t.id === state.currentThreadId) || null;
+};
+
+export const selectCurrentMessages = (state: ChatStore) => {
+  if (!state.currentThreadId) return [];
+  return state.messages[state.currentThreadId] || [];
+};
+
+export const selectConversationsForCurrentWorkspace = (state: ChatStore) => {
+  if (!state.currentWorkspaceId) return [];
+  return state.conversations[state.currentWorkspaceId] || [];
+};
+
+export const selectThreadsForCurrentConversation = (state: ChatStore) => {
+  if (!state.currentConversationId) return [];
+  return state.threads[state.currentConversationId] || [];
+};
+
+export default useChatStore;
