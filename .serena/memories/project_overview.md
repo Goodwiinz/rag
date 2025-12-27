@@ -35,3 +35,7 @@ Multimodal Enterprise RAG (Retrieval-Augmented Generation) System that processes
 - Real-time WebSocket document processing
 - RAG evaluation with DeepEval
 - Multimodal file processing (PDF, images, audio, video)
+- Chat persistence with workspace/conversation/thread hierarchy
+- ArXiv paper tracking and feature extraction
+- Terminal Observatory theme (Dashboard, Settings, ArXiv)
+- Settings page with profile, appearance, notifications, security controls
