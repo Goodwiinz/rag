@@ -22,6 +22,7 @@ interface QuickAction {
   icon: React.ElementType;
   color: string;
   bgGradient: string;
+  glowColor: string;
 }
 
 const quickActions: QuickAction[] = [
@@ -54,9 +55,6 @@ const quickActions: QuickAction[] = [
   },
 ];
 
-interface QuickAction extends QuickAction {
-  glowColor: string;
-}
 
 interface QuickActionsGridProps {
   className?: string;
@@ -96,7 +94,7 @@ export function QuickActionsGrid({ className }: QuickActionsGridProps) {
       scale: 1,
       y: 0,
       transition: {
-        type: "spring",
+        type: "spring" as const,
         stiffness: 100,
         damping: 10,
       },
@@ -242,6 +240,8 @@ export function QuickActionsGrid({ className }: QuickActionsGridProps) {
                           className="absolute w-1 h-1 rounded-full"
                           style={{
                             backgroundColor: action.glowColor === 'amber' ? '#f59e0b' : action.glowColor === 'blue' ? '#3b82f6' : action.glowColor === 'emerald' ? '#10b981' : '#9333ea',
+                            left: `${Math.random() * 80 + 10}%`,
+                            top: `${Math.random() * 80 + 10}%`,
                           }}
                           animate={{
                             y: [0, -30, 0],
@@ -252,10 +252,6 @@ export function QuickActionsGrid({ className }: QuickActionsGridProps) {
                             duration: 2 + Math.random(),
                             repeat: Infinity,
                             delay: Math.random() * 0.5,
-                          }}
-                          style={{
-                            left: `${Math.random() * 80 + 10}%`,
-                            top: `${Math.random() * 80 + 10}%`,
                           }}
                         />
                       ))}

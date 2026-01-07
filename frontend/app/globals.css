@@ -1156,3 +1156,46 @@ input:-webkit-autofill ~ button svg {
   animation: scan-beam 4s ease-in-out infinite;
   pointer-events: none;
 }
+
+/* ============================================
+   ACCESSIBILITY: Reduced Motion Support
+   ============================================
+   Respects user's motion preferences for vestibular disorders,
+   motion sensitivity, and battery conservation.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Disable specific Terminal Observatory animations */
+  .crt-flicker,
+  .phosphor-pulse,
+  .scan-lines,
+  .radar-sweep,
+  .terminal-glow,
+  .ambient-orb,
+  .ambient-orb-delayed,
+  .scan-beam,
+  .holo-shimmer,
+  .signal-active,
+  .transmission-line {
+    animation: none !important;
+  }
+
+  /* Remove parallax and floating effects */
+  .floating,
+  .parallax {
+    transform: none !important;
+  }
+
+  /* Keep essential visual feedback without animation */
+  .hover-glow:hover {
+    box-shadow: 0 0 10px var(--phosphor-green);
+  }
+}

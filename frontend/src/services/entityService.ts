@@ -6,6 +6,7 @@
  */
 
 import { Entity, EntityResponse, GraphEdge } from '@/types/entity';
+import { EntityDetails, GraphNode } from '@/types/graph-api';
 import { apiClient } from './apiClient';
 
 export interface EntityUpdateRequest {
@@ -152,6 +153,43 @@ class EntityService {
    */
   async deleteRelationship(relationshipId: string): Promise<void> {
     await apiClient.delete(`${this.baseUrl}/relationships/${relationshipId}`);
+  }
+
+  /**
+   * Get entity details with extended metadata, relationships, and documents
+   */
+  async getEntityDetails(entityId: string): Promise<EntityDetails> {
+    const response = await apiClient.get<EntityDetails>(
+      `${this.baseUrl}/entities/${entityId}/details`
+    );
+    return response;
+  }
+
+  /**
+   * Find similar entities based on embedding similarity
+   */
+  async findSimilarEntities(
+    entityId: string,
+    limit: number = 10,
+    minSimilarity: number = 0.5
+  ): Promise<Array<{ entity: GraphNode; similarity: number }>> {
+    const response = await apiClient.get<Array<{ entity: GraphNode; similarity: number }>>(
+      `${this.baseUrl}/entities/${entityId}/similar`,
+      {
+        params: { limit, min_similarity: minSimilarity }
+      }
+    );
+    return response;
+  }
+
+  /**
+   * Get entity timeline events
+   */
+  async getEntityTimeline(entityId: string): Promise<EntityTimeline> {
+    const response = await apiClient.get<EntityTimeline>(
+      `${this.baseUrl}/entities/${entityId}/timeline`
+    );
+    return response;
   }
 }
 

@@ -34,8 +34,12 @@ class Thread(BaseModel):
     title = Column(String(500), nullable=True)  # Optional - can be auto-generated
     summary = Column(Text, nullable=True)  # AI-generated summary of thread
 
-    # State
-    status = Column(Enum(ThreadStatus), nullable=False, default=ThreadStatus.ACTIVE)
+    # State - Use values_callable to use lowercase enum values matching the database
+    status = Column(
+        Enum(ThreadStatus, values_callable=lambda x: [e.value for e in x], native_enum=True, name='threadstatus'),
+        nullable=False,
+        default=ThreadStatus.ACTIVE
+    )
 
     # Metadata
     last_message_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

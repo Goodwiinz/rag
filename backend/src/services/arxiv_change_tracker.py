@@ -265,70 +265,29 @@ class ArXivChangeTracker:
 
     async def _ingest_new_paper(self, db: AsyncSession, paper: Dict[str, Any], update_kg: bool):
         """Ingest a new paper into the database"""
-        # Check if paper already exists
-        stmt = select(Document).where(Document.external_id == paper['id'])
-        result = await db.execute(stmt)
-        existing = result.scalar_one_or_none()
+        # TODO: The Document model doesn't have external_id, source, or content fields.
+        # ArXiv papers need a dedicated ArXivPaper model or Document model updates.
+        # For now, we only add to knowledge graph if requested.
+        logger.info(f"Paper {paper['id']} tracked (DB persistence not yet implemented for ArXiv papers)")
 
-        if not existing:
-            # Create new document record
-            doc = Document(
-                title=paper.get('title', ''),
-                content=paper.get('abstract', ''),
-                external_id=paper['id'],
-                source='arxiv',
-                document_type=DocumentType.RESEARCH_PAPER,
-                metadata={
-                    'authors': paper.get('authors', []),
-                    'categories': paper.get('categories', []),
-                    'primary_category': paper.get('primary_category'),
-                    'published': paper.get('published'),
-                    'doi': paper.get('doi'),
-                    'arxiv_url': paper.get('arxiv_url'),
-                    'pdf_url': paper.get('pdf_url')
-                },
-                processing_status='indexed'
-            )
-            db.add(doc)
-            await db.commit()
-
-            # Add to knowledge graph if requested
-            if update_kg:
-                try:
-                    logger.info(f"Adding paper {paper['id']} to knowledge graph...")
-                    async with ArXivKnowledgeGraphIntegration() as kg:
-                        result = await kg.process_paper_kg_integration(paper)
-                        if result:
-                            logger.info(f"Successfully added {paper['id']} to KG with {len(result.get('entities', []))} entities")
-                        else:
-                            logger.warning(f"No result returned from KG integration for {paper['id']}")
-                except Exception as e:
-                    logger.error(f"Failed to add paper {paper['id']} to KG: {e}", exc_info=True)
+        # Add to knowledge graph if requested
+        if update_kg:
+            try:
+                logger.info(f"Adding paper {paper['id']} to knowledge graph...")
+                async with ArXivKnowledgeGraphIntegration() as kg:
+                    result = await kg.process_paper_kg_integration(paper)
+                    if result:
+                        logger.info(f"Successfully added {paper['id']} to KG with {len(result.get('entities', []))} entities")
+                    else:
+                        logger.warning(f"No result returned from KG integration for {paper['id']}")
+            except Exception as e:
+                logger.error(f"Failed to add paper {paper['id']} to KG: {e}", exc_info=True)
 
     async def _update_existing_paper(self, db: AsyncSession, paper: Dict[str, Any], changed_fields: List[str]):
         """Update an existing paper in the database"""
-        stmt = select(Document).where(Document.external_id == paper['id'])
-        result = await db.execute(stmt)
-        doc = result.scalar_one_or_none()
-
-        if doc:
-            # Update fields that changed
-            if 'title' in changed_fields:
-                doc.title = paper.get('title', doc.title)
-            if 'abstract' in changed_fields:
-                doc.content = paper.get('abstract', doc.content)
-
-            # Update metadata
-            doc.metadata.update({
-                'authors': paper.get('authors', []),
-                'categories': paper.get('categories', []),
-                'primary_category': paper.get('primary_category'),
-                'published': paper.get('published'),
-                'doi': paper.get('doi'),
-                'last_updated': datetime.now(timezone.utc).isoformat()
-            })
-
-            await db.commit()
+        # TODO: The Document model doesn't have external_id field.
+        # ArXiv papers need a dedicated ArXivPaper model or Document model updates.
+        logger.info(f"Paper {paper['id']} update tracked (DB persistence not yet implemented for ArXiv papers)")
 
     async def _update_knowledge_graph(self, paper: Dict[str, Any]):
         """Update knowledge graph with changed paper"""
@@ -341,16 +300,9 @@ class ArXivChangeTracker:
 
     async def _mark_paper_deleted(self, db: AsyncSession, paper_id: str):
         """Mark a paper as deleted in the database"""
-        stmt = select(Document).where(Document.external_id == paper_id)
-        result = await db.execute(stmt)
-        doc = result.scalar_one_or_none()
-
-        if doc:
-            # Soft delete by updating metadata
-            doc.metadata['deleted'] = True
-            doc.metadata['deleted_date'] = datetime.now(timezone.utc).isoformat()
-            doc.processing_status = 'deleted'
-            await db.commit()
+        # TODO: The Document model doesn't have external_id field.
+        # ArXiv papers need a dedicated ArXivPaper model or Document model updates.
+        logger.info(f"Paper {paper_id} deletion tracked (DB persistence not yet implemented for ArXiv papers)")
 
     async def track_category_changes(
         self,
@@ -377,7 +329,7 @@ class ArXivChangeTracker:
             for category in categories:
                 papers = await service.search_papers(
                     query=f"cat:{category}",
-                    max_results=1000,
+                    max_results=20,  # Small batch for fast response - increase for production
                     date_from=datetime.now(timezone.utc) - timedelta(days=days_back)
                 )
                 all_papers.extend(papers)

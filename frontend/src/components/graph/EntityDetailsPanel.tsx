@@ -11,9 +11,25 @@ import { entityService } from '../../services/entityService';
 import {
   EntityDetails,
   GraphNode,
-  GraphEdge,
-  GraphFilters
+  GraphEdge
 } from '../../types/graph-api';
+
+// Local types for entity details data
+interface DocumentReference {
+  id: string;
+  title: string;
+  snippet?: string;
+  page_number?: number;
+  confidence: number;
+  relevance_score: number;
+}
+
+interface TimelineEvent {
+  timestamp: string;
+  type: string;
+  description: string;
+  metadata?: Record<string, unknown>;
+}
 
 interface EntityDetailsPanelProps {
   entityId: string;
@@ -138,7 +154,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
         <div>
           <h4 className="font-semibold mb-2">Similar Entities</h4>
           <div className="space-y-2">
-            {similarEntities.map(({ entity: similarEntity, similarity }) => (
+            {similarEntities.map(({ entity: similarEntity, similarity }: { entity: GraphNode; similarity: number }) => (
               <div
                 key={similarEntity.id}
                 className="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 cursor-pointer"
@@ -169,7 +185,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
           No relationships found for this entity
         </div>
       ) : (
-        relationships.map((relationship) => (
+        relationships.map((relationship: GraphEdge) => (
           <div
             key={relationship.id}
             className="border border-gray-200 rounded-lg p-3 hover:border-blue-300 cursor-pointer"
@@ -213,7 +229,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
           No documents found for this entity
         </div>
       ) : (
-        documents.map((doc, index) => (
+        documents.map((doc: DocumentReference, index: number) => (
           <div key={doc.id || index} className="border border-gray-200 rounded-lg p-3">
             <div className="font-medium text-sm mb-1">{doc.title}</div>
             <div className="text-xs text-gray-600 mb-2">
@@ -238,12 +254,12 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
           No timeline events available
         </div>
       ) : (
-        timeline.map((event, index) => (
+        timeline.map((event: TimelineEvent, index: number) => (
           <div key={index} className="flex items-start space-x-3">
             <div className="flex-shrink-0 w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-gray-900">
-                {event.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                {event.type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
               </div>
               <div className="text-xs text-gray-500">
                 {new Date(event.timestamp).toLocaleString()}

@@ -1,8 +1,8 @@
 import {
-  WebSocketMessage,
-  DocumentProcessingUpdate,
-  QueryStatusUpdate,
-  SystemNotification
+    DocumentProcessingUpdate,
+    QueryStatusUpdate,
+    SystemNotification,
+    WebSocketMessage
 } from '@/types';
 
 // Re-export types that are needed by other modules

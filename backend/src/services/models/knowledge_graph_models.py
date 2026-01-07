@@ -23,6 +23,10 @@ class EntityType(str, Enum):
     URL = "URL"
     JOB_TITLE = "JOB_TITLE"
     CONCEPT = "CONCEPT"
+    DOCUMENT = "DOCUMENT"
+    TOPIC = "TOPIC"
+    TECHNOLOGY = "TECHNOLOGY"
+    RESEARCH = "RESEARCH"
     OTHER = "OTHER"
 
 
@@ -57,6 +61,7 @@ class ExtractionMethod(str, Enum):
     LLM_EXTRACTION = "llm_extraction"
     RULE_BASED = "rule_based"
     HYBRID = "hybrid"
+    UNKNOWN = "unknown"  # Default for None or unknown extraction methods
 
 
 # Entity Models

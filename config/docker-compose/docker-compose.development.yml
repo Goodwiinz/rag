@@ -4,7 +4,7 @@ services:
   # Backend API Service
   backend:
     build:
-      context: ../../backend
+      context: ./backend
       dockerfile: Dockerfile.simple
     ports:
       - "8000:8000"
@@ -67,9 +67,9 @@ services:
       - ENABLE_CACHING=${ENABLE_CACHING:-true}
       - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-3600}
     volumes:
-      - ../../backend:/app
-      - ../../uploads:/app/uploads
-      - ../../models:/app/models
+      - ./backend:/app
+      - ./uploads:/app/uploads
+      - ./models:/app/models
     depends_on:
       postgres:
         condition: service_healthy
@@ -90,7 +90,7 @@ services:
   # Frontend Service
   frontend:
     build:
-      context: ../../frontend
+      context: ./frontend
       dockerfile: Dockerfile
       target: development
     ports:
@@ -102,7 +102,7 @@ services:
       - CHOKIDAR_USEPOLLING=true
       - NODE_OPTIONS=--max-old-space-size=4096
     volumes:
-      - ../../frontend:/app
+      - ./frontend:/app
       - /app/node_modules
     depends_on:
       backend:
@@ -209,7 +209,7 @@ services:
   celery-worker:
     container_name: rag-celery-worker-dev
     build:
-      context: ../../backend
+      context: ./backend
       dockerfile: Dockerfile.simple
     command: celery -A src.tasks.celery_app worker --loglevel=debug --concurrency=${WORKER_CONCURRENCY:-4} --hostname=worker@rag-celery-worker-dev
     environment:
@@ -264,9 +264,9 @@ services:
       - ENABLE_CACHING=${ENABLE_CACHING:-true}
       - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-3600}
     volumes:
-      - ../../backend:/app
-      - ../../uploads:/app/uploads
-      - ../../models:/app/models
+      - ./backend:/app
+      - ./uploads:/app/uploads
+      - ./models:/app/models
     depends_on:
       postgres:
         condition: service_healthy
@@ -281,7 +281,7 @@ services:
   # Celery Beat Scheduler
   celery-beat:
     build:
-      context: ../../backend
+      context: ./backend
       dockerfile: Dockerfile.simple
     command: celery -A src.tasks.celery_app beat --loglevel=debug
     environment:
@@ -295,7 +295,7 @@ services:
       - ENVIRONMENT=development
       - LOG_LEVEL=DEBUG
     volumes:
-      - ../../backend:/app
+      - ./backend:/app
       - celerybeat_dev_data:/app/celerybeat
     depends_on:
       postgres:
@@ -310,7 +310,7 @@ services:
   flower:
     container_name: rag-flower-dev
     build:
-      context: ../../backend
+      context: ./backend
       dockerfile: Dockerfile.simple
     command: python -m celery --broker=redis://redis:6379/0 -A src.tasks.celery_app flower --port=5555 --max_tasks=10000 --purge_offline_workers=60
     ports:

@@ -120,8 +120,7 @@ export const useAuthStore = create<AuthState>()(
 
           set({
             user: data.user,
-            organization: data.organization,
-            organization: data.organization,
+            organization: data.organization ?? null,
             token: data.access_token,
             refreshTokenValue: data.refresh_token,
             isAuthenticated: true,
@@ -143,8 +142,7 @@ export const useAuthStore = create<AuthState>()(
 
           set({
             user: data.user,
-            organization: data.organization,
-            organization: data.organization,
+            organization: data.organization ?? null,
             token: data.access_token,
             refreshTokenValue: data.refresh_token,
             isAuthenticated: true,
@@ -222,7 +220,6 @@ export const useAuthStore = create<AuthState>()(
       name: 'auth-storage',
       partialize: (state) => ({
         user: state.user,
-        organization: state.organization,
         organization: state.organization,
         token: state.token,
         refreshTokenValue: state.refreshTokenValue,

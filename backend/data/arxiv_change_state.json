@@ -1,0 +1,2199 @@
+{
+  "2512.21336v1": {
+    "hash": "2a4d67890a3aec25f52f33b21536abb5dae59aaff9c25b022c304a4fe3e9947e",
+    "last_seen": "2025-12-29T01:38:19.191374+00:00",
+    "paper_metadata": {
+      "title": "Optimizing Decoding Paths in Masked Diffusion Models by Quantifying Uncertainty",
+      "authors": [
+        "Ziyu Chen",
+        "Xinbei Jiang",
+        "Peng Sun",
+        "Tao Lin"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:39:43.027481+00:00"
+  },
+  "2512.21332v1": {
+    "hash": "addd71cd950b794ba37ae7427367b7b74fd2b23a808f5f8e4260d70d7f26c6e7",
+    "last_seen": "2025-12-29T01:38:19.191390+00:00",
+    "paper_metadata": {
+      "title": "C2LLM Technical Report: A New Frontier in Code Retrieval via Adaptive Cross-Attention Pooling",
+      "authors": [
+        "Jin Qin",
+        "Zihan Liao",
+        "Ziyin Zhang",
+        "Hang Yu",
+        "Peng Di"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:39:43.027497+00:00"
+  },
+  "2512.21326v1": {
+    "hash": "30cd6a21f2f3bc3555881166d809ed38961beab5350a4802394c301fa1e3467d",
+    "last_seen": "2025-12-29T01:38:19.191397+00:00",
+    "paper_metadata": {
+      "title": "Measuring all the noises of LLM Evals",
+      "authors": [
+        "Sida Wang"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:39:43.027418+00:00"
+  },
+  "2512.21316v1": {
+    "hash": "1135fb301da8f3c4caf909b2b5de772f2daf5260b6c24b1dc0aa16f5b674ffd1",
+    "last_seen": "2025-12-29T01:38:19.191403+00:00",
+    "paper_metadata": {
+      "title": "Scaling Laws for Economic Productivity: Experimental Evidence in LLM-Assisted Consulting, Data Analyst, and Management Tasks",
+      "authors": [
+        "Ali Merali"
+      ],
+      "primary_category": "econ.GN"
+    },
+    "deleted": "2025-12-29T01:39:43.027514+00:00"
+  },
+  "2512.21288v1": {
+    "hash": "d6acd8fbd3cf0a0b3e64caaa7bc783079eb4b408375486f270fb7704c75def0d",
+    "last_seen": "2025-12-29T01:38:19.191411+00:00",
+    "paper_metadata": {
+      "title": "Model Merging via Multi-Teacher Knowledge Distillation",
+      "authors": [
+        "Seyed Arshan Dalili",
+        "Mehrdad Mahdavi"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:39:43.027555+00:00"
+  },
+  "2512.21280v1": {
+    "hash": "23a09904dda24db1a3435c2edaded3f07501b9ef0de16313bffcad6db5acb99b",
+    "last_seen": "2025-12-29T01:38:19.191419+00:00",
+    "paper_metadata": {
+      "title": "SMART SLM: Structured Memory and Reasoning Transformer, A Small Language Model for Accurate Document Assistance",
+      "authors": [
+        "Divij Dudeja",
+        "Mayukha Pal"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:39:43.027437+00:00"
+  },
+  "2512.21246v1": {
+    "hash": "8b9a9576f4a540749e488a0eec62d6da61ffd2d3fff7dda9b23f2675ab522da1",
+    "last_seen": "2025-12-29T01:38:19.191427+00:00",
+    "paper_metadata": {
+      "title": "Learning Factors in AI-Augmented Education: A Comparative Study of Middle and High School Students",
+      "authors": [
+        "Gaia Ebli",
+        "Bianca Raimondi",
+        "Maurizio Gabbrielli"
+      ],
+      "primary_category": "cs.HC"
+    },
+    "deleted": "2025-12-29T01:39:43.027510+00:00"
+  },
+  "2512.21243v1": {
+    "hash": "df25e960d371f4afc49226f42fc817b825e2c4b463cedf6130cd0257000147bf",
+    "last_seen": "2025-12-29T01:38:19.191436+00:00",
+    "paper_metadata": {
+      "title": "LookPlanGraph: Embodied Instruction Following Method with VLM Graph Augmentation",
+      "authors": [
+        "Anatoly O. Onishchenko",
+        "Alexey K. Kovalev",
+        "Aleksandr I. Panov"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:39:43.027535+00:00"
+  },
+  "2512.21241v1": {
+    "hash": "5c1204fc143efde68a1be0e608087514f639006562baa7b61af5dd972e1918c1",
+    "last_seen": "2025-12-29T01:38:19.191443+00:00",
+    "paper_metadata": {
+      "title": "Improving the Convergence Rate of Ray Search Optimization for Query-Efficient Hard-Label Attacks",
+      "authors": [
+        "Xinjie Xu",
+        "Shuyu Cheng",
+        "Dongwei Xu",
+        "Qi Xuan",
+        "Chen Ma"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:39:43.027518+00:00"
+  },
+  "2512.21236v1": {
+    "hash": "269867e543ff00f277e64ea5307a5a5489c6e585261d0cb4ac092fd41f6e79ad",
+    "last_seen": "2025-12-29T01:38:19.191450+00:00",
+    "paper_metadata": {
+      "title": "Casting a SPELL: Sentence Pairing Exploration for LLM Limitation-breaking",
+      "authors": [
+        "Yifan Huang",
+        "Xiaojun Jia",
+        "Wenbo Guo",
+        "Yuqiang Sun",
+        "Yihao Huang"
+      ],
+      "primary_category": "cs.CR"
+    },
+    "deleted": "2025-12-29T01:39:43.027547+00:00"
+  },
+  "2512.21227v1": {
+    "hash": "bf59de6fcdc5628aef4fdcaed26ac917c1e5164e5cd15a25207b3a70ddaf512a",
+    "last_seen": "2025-12-29T01:38:19.191458+00:00",
+    "paper_metadata": {
+      "title": "PhononBench:A Large-Scale Phonon-Based Benchmark for Dynamical Stability in Crystal Generation",
+      "authors": [
+        "Xiao-Qi Han",
+        "Ze-Feng Gao",
+        "Peng-Jie Guo",
+        "Zhong-Yi Lu"
+      ],
+      "primary_category": "cond-mat.mtrl-sci"
+    },
+    "deleted": "2025-12-29T01:39:43.027543+00:00"
+  },
+  "2512.21221v1": {
+    "hash": "703c4c116278cf04279acb5ba99239db8f73df7587301fdd21cc8a08d670d1c8",
+    "last_seen": "2025-12-29T01:38:19.191466+00:00",
+    "paper_metadata": {
+      "title": "Leveraging Lightweight Entity Extraction for Scalable Event-Based Image Retrieval",
+      "authors": [
+        "Dao Sy Duy Minh",
+        "Huynh Trung Kiet",
+        "Nguyen Lam Phu Quy",
+        "Phu-Hoa Pham",
+        "Tran Chi Nguyen"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:39:43.027526+00:00"
+  },
+  "2512.21220v1": {
+    "hash": "769b9659cc9a5c6531975b498487f1be03ae983037ef38eb6c1b627637c093dd",
+    "last_seen": "2025-12-29T01:38:19.191475+00:00",
+    "paper_metadata": {
+      "title": "RoboSafe: Safeguarding Embodied Agents via Executable Safety Logic",
+      "authors": [
+        "Le Wang",
+        "Zonghao Ying",
+        "Xiao Yang",
+        "Quanchen Zou",
+        "Zhenfei Yin"
+      ],
+      "primary_category": "cs.AI"
+    },
+    "deleted": "2025-12-29T01:39:43.027567+00:00"
+  },
+  "2512.21204v1": {
+    "hash": "5335e88e9ea73b5e6561a3acb742e4b99e02bc26729f9e5943fcb1a6a85abfc3",
+    "last_seen": "2025-12-29T01:38:19.191485+00:00",
+    "paper_metadata": {
+      "title": "SpidR-Adapt: A Universal Speech Representation Model for Few-Shot Adaptation",
+      "authors": [
+        "Mahi Luthra",
+        "Jiayi Shen",
+        "Maxime Poli",
+        "Angelo Ortiz",
+        "Yosuke Higuchi"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:39:43.027492+00:00"
+  },
+  "2512.21201v1": {
+    "hash": "d97c1750b7d1ad9c471c252b882e23dbd185a77dd9e18eb513542ab53aa2a565",
+    "last_seen": "2025-12-29T01:38:19.191493+00:00",
+    "paper_metadata": {
+      "title": "Schr\u00f6dinger's Navigator: Imagining an Ensemble of Futures for Zero-Shot Object Navigation",
+      "authors": [
+        "Yu He",
+        "Da Huang",
+        "Zhenyang Liu",
+        "Zixiao Gu",
+        "Qiang Sun"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:39:43.027551+00:00"
+  },
+  "2512.21165v1": {
+    "hash": "f5009fee2f2f829d9c70c5fb3f389fff5dd6a6d8db565b0d8bc926ae4e08ab63",
+    "last_seen": "2025-12-29T01:38:19.191500+00:00",
+    "paper_metadata": {
+      "title": "BALLAST: Bandit-Assisted Learning for Latency-Aware Stable Timeouts in Raft",
+      "authors": [
+        "Qizhi Wang"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:39:43.027505+00:00"
+  },
+  "2512.21152v1": {
+    "hash": "d9e726b27a452f28c2405b0e013bc8b199e99ba9df6cf3247e0eecd5b0c23a87",
+    "last_seen": "2025-12-29T01:38:19.191507+00:00",
+    "paper_metadata": {
+      "title": "MODE: Multi-Objective Adaptive Coreset Selection",
+      "authors": [
+        "Tanmoy Mukherjee",
+        "Pierre Marquis",
+        "Zied Bouraoui"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:39:43.027531+00:00"
+  },
+  "2512.21135v1": {
+    "hash": "986a2810c45593e3b595901319d9bce39d37b8e922b8fb98621ae1e0ae2ef1ff",
+    "last_seen": "2025-12-29T01:38:19.191514+00:00",
+    "paper_metadata": {
+      "title": "TGC-Net: A Structure-Aware and Semantically-Aligned Framework for Text-Guided Medical Image Segmentation",
+      "authors": [
+        "Gaoren Lin",
+        "Huangxuan Zhao",
+        "Yuan Xiong",
+        "Lefei Zhang",
+        "Bo Du"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:39:43.027539+00:00"
+  },
+  "2512.21132v1": {
+    "hash": "0ad8cf093027a90a92aecee6e6ae39980c6c064bd62d7048764108d6a67755d7",
+    "last_seen": "2025-12-29T01:38:19.191521+00:00",
+    "paper_metadata": {
+      "title": "AutoBaxBuilder: Bootstrapping Code Security Benchmarking",
+      "authors": [
+        "Tobias von Arx",
+        "Niels M\u00fcndler",
+        "Mark Vero",
+        "Maximilian Baader",
+        "Martin Vechev"
+      ],
+      "primary_category": "cs.CR"
+    },
+    "deleted": "2025-12-29T01:39:43.027522+00:00"
+  },
+  "2512.21127v1": {
+    "hash": "def083e19cf0ec6ea530619ce31fd0188c75591d458e9c3bc14a636ba51740b9",
+    "last_seen": "2025-12-29T01:38:19.191528+00:00",
+    "paper_metadata": {
+      "title": "A Real-World Evaluation of LLM Medication Safety Reviews in NHS Primary Care",
+      "authors": [
+        "Oliver Normand",
+        "Esther Borsi",
+        "Mitch Fruin",
+        "Lauren E Walker",
+        "Jamie Heagerty"
+      ],
+      "primary_category": "cs.AI"
+    },
+    "deleted": "2025-12-29T01:39:43.027501+00:00"
+  },
+  "2512.21335v1": {
+    "hash": "3e1fc63a0bc43626f4800b486ff07da249afd62b05bd1b90dae57be7b2a6e393",
+    "last_seen": "2025-12-29T01:43:08.966107+00:00",
+    "paper_metadata": {
+      "title": "Autonomous Uncertainty Quantification for Computational Point-of-care Sensors",
+      "authors": [
+        "Artem Goncharov",
+        "Rajesh Ghosh",
+        "Hyou-Arm Joung",
+        "Dino Di Carlo",
+        "Aydogan Ozcan"
+      ],
+      "primary_category": "physics.med-ph"
+    },
+    "deleted": "2025-12-29T01:44:03.075237+00:00"
+  },
+  "2512.21323v1": {
+    "hash": "d18c3d71a43d89fc4fd13649f832b59d72c0efb48a7b266e24eb534b6a490801",
+    "last_seen": "2025-12-29T01:43:08.966125+00:00",
+    "paper_metadata": {
+      "title": "Parallel Token Prediction for Language Models",
+      "authors": [
+        "Felix Draxler",
+        "Justus Will",
+        "Farrin Marouf Sofian",
+        "Theofanis Karaletsos",
+        "Sameer Singh"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:44:03.075215+00:00"
+  },
+  "2512.21319v1": {
+    "hash": "942a40c11fab100eac8e73e3ecc815ee53dd7cd80577b15b5f732c1d0e03bb26",
+    "last_seen": "2025-12-29T01:43:08.966136+00:00",
+    "paper_metadata": {
+      "title": "Variationally correct operator learning: Reduced basis neural operator with a posteriori error estimation",
+      "authors": [
+        "Yuan Qiu",
+        "Wolfgang Dahmen",
+        "Peng Chen"
+      ],
+      "primary_category": "math.NA"
+    },
+    "deleted": "2025-12-29T01:44:03.075204+00:00"
+  },
+  "2512.21315v1": {
+    "hash": "7150e6b5a5c700028e9cb54e970230c3dc7418dd03e3b8c6c4dfdebadffb7d88",
+    "last_seen": "2025-12-29T01:43:08.966149+00:00",
+    "paper_metadata": {
+      "title": "Does the Data Processing Inequality Reflect Practice? On the Utility of Low-Level Tasks",
+      "authors": [
+        "Roy Turgeman",
+        "Tom Tirer"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:44:03.075195+00:00"
+  },
+  "2512.21311v1": {
+    "hash": "02cefb767088305e3cd0ee83b7bb3adb9e7661e6f1b0805f2dac449371ff00ae",
+    "last_seen": "2025-12-29T01:43:08.966160+00:00",
+    "paper_metadata": {
+      "title": "Learning to Solve PDEs on Neural Shape Representations",
+      "authors": [
+        "Lilian Welschinger",
+        "Yilin Liu",
+        "Zican Wang",
+        "Niloy Mitra"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:44:03.075211+00:00"
+  },
+  "2512.21301v1": {
+    "hash": "383de1976166897bdeea9b40e3643fd0145f34db331ce6b469bfff1ee6651042",
+    "last_seen": "2025-12-29T01:43:08.966170+00:00",
+    "paper_metadata": {
+      "title": "Transcriptome-Conditioned Personalized De Novo Drug Generation for AML Using Metaheuristic Assembly and Target-Driven Filtering",
+      "authors": [
+        "Abdullah G. Elafifi",
+        "Basma Mamdouh",
+        "Mariam Hanafy",
+        "Muhammed Alaa Eldin",
+        "Yosef Khaled"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:44:03.075208+00:00"
+  },
+  "2512.21238v1": {
+    "hash": "8d8c2944d9d665e3ab938c16d21b61f4596691355833861c9e42b9499698003f",
+    "last_seen": "2025-12-29T01:43:08.966179+00:00",
+    "paper_metadata": {
+      "title": "Assessing the Software Security Comprehension of Large Language Models",
+      "authors": [
+        "Mohammed Latif Siddiq",
+        "Natalie Sekerak",
+        "Antonio Karam",
+        "Maria Leal",
+        "Arvin Islam-Gomes"
+      ],
+      "primary_category": "cs.SE"
+    },
+    "deleted": "2025-12-29T01:44:03.075230+00:00"
+  },
+  "2512.21231v1": {
+    "hash": "438b1df169dfc24c1ad75d80178bf6604d76c6f1a3275a4686e87bfc46bf399c",
+    "last_seen": "2025-12-29T01:43:08.966189+00:00",
+    "paper_metadata": {
+      "title": "MiST: Understanding the Role of Mid-Stage Scientific Training in Developing Chemical Reasoning Models",
+      "authors": [
+        "Andres M Bran",
+        "Tong Xie",
+        "Shai Pranesh",
+        "Jeffrey Meng",
+        "Xuan Vu Nguyen"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:44:03.075233+00:00"
+  },
+  "2512.21211v1": {
+    "hash": "4f05bd31d4524e7c99dce9ca51d46d0eb2d76ae3c37fdc1349190c29a51d6de1",
+    "last_seen": "2025-12-29T01:43:08.966196+00:00",
+    "paper_metadata": {
+      "title": "Causal-driven attribution (CDA): Estimating channel influence without user-level data",
+      "authors": [
+        "Georgios Filippou",
+        "Boi Mai Quach",
+        "Diana Lenghel",
+        "Arthur White",
+        "Ashish Kumar Jha"
+      ],
+      "primary_category": "stat.ML"
+    },
+    "deleted": "2025-12-29T01:44:03.075226+00:00"
+  },
+  "2512.21208v1": {
+    "hash": "b306e4faf0d9a1dfe473476c416110c43ab268c087b23777b87fc5a029671e63",
+    "last_seen": "2025-12-29T01:43:08.966204+00:00",
+    "paper_metadata": {
+      "title": "Analytic and Variational Stability of Deep Learning Systems",
+      "authors": [
+        "Ronald Katende"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:44:03.075219+00:00"
+  },
+  "2512.21170v1": {
+    "hash": "d846e3aed374e1d5faa14dad82d28b4edbf9a4b67b4f8a4b6bac511747a15a80",
+    "last_seen": "2025-12-29T01:43:08.966212+00:00",
+    "paper_metadata": {
+      "title": "A Unified Framework for EEG Seizure Detection Using Universum-Integrated Generalized Eigenvalues Proximal Support Vector Machine",
+      "authors": [
+        "Yogesh Kumar",
+        "Vrushank Ahire",
+        "M. A. Ganaie"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:44:03.075200+00:00"
+  },
+  "2512.21166v1": {
+    "hash": "ee7711191588aa5f6f7e8cb978d34a7bb72c122e6d016d880009b2887145c373",
+    "last_seen": "2025-12-29T01:43:08.966219+00:00",
+    "paper_metadata": {
+      "title": "A Community-Enhanced Graph Representation Model for Link Prediction",
+      "authors": [
+        "Lei Wang",
+        "Darong Lai"
+      ],
+      "primary_category": "cs.SI"
+    },
+    "deleted": "2025-12-29T01:44:03.075222+00:00"
+  },
+  "2512.21153v1": {
+    "hash": "39917fcf57dcc99177db63568d06a93035faff2520faa0ebeb974e264120123b",
+    "last_seen": "2025-12-29T01:43:08.966227+00:00",
+    "paper_metadata": {
+      "title": "ElfCore: A 28nm Neural Processor Enabling Dynamic Structured Sparse Training and Online Self-Supervised Learning with Activity-Dependent Weight Update",
+      "authors": [
+        "Zhe Su",
+        "Giacomo Indiveri"
+      ],
+      "primary_category": "cs.AR"
+    },
+    "deleted": "2025-12-29T01:44:03.075176+00:00"
+  },
+  "2512.21338v1": {
+    "hash": "33fd27bdf3f137c37a7b6dd21d0971cc9c54bfa33b1db8bc0edc3bbd25a1931e",
+    "last_seen": "2025-12-29T01:44:36.664074+00:00",
+    "paper_metadata": {
+      "title": "HiStream: Efficient High-Resolution Video Generation via Redundancy-Eliminated Streaming",
+      "authors": [
+        "Haonan Qiu",
+        "Shikun Liu",
+        "Zijian Zhou",
+        "Zhaochong An",
+        "Weiming Ren"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777624+00:00"
+  },
+  "2512.21337v1": {
+    "hash": "8b9cb93727c0595c164ab580fcdd4b78d02610c42b58ac655f9cae942f9bd926",
+    "last_seen": "2025-12-29T01:44:36.664112+00:00",
+    "paper_metadata": {
+      "title": "Beyond Memorization: A Multi-Modal Ordinal Regression Benchmark to Expose Popularity Bias in Vision-Language Models",
+      "authors": [
+        "Li-Zhong Szu-Tu",
+        "Ting-Lin Wu",
+        "Chia-Jui Chang",
+        "He Syu",
+        "Yu-Lun Liu"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777874+00:00"
+  },
+  "2512.21334v1": {
+    "hash": "ba260ca6d66c2e52f469f2f9b685678db1cb62ffd5366b04e19860a3dd8e5e18",
+    "last_seen": "2025-12-29T01:44:36.664121+00:00",
+    "paper_metadata": {
+      "title": "Streaming Video Instruction Tuning",
+      "authors": [
+        "Jiaer Xia",
+        "Peixian Chen",
+        "Mengdan Zhang",
+        "Xing Sun",
+        "Kaiyang Zhou"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777437+00:00"
+  },
+  "2512.21333v1": {
+    "hash": "55741f57571d892c5f8d4409aae5302d35a6e5fa24badcb83d81a747d2ca5e4d",
+    "last_seen": "2025-12-29T01:44:36.664130+00:00",
+    "paper_metadata": {
+      "title": "Fast SAM2 with Text-Driven Token Pruning",
+      "authors": [
+        "Avilasha Mandal",
+        "Chaoning Zhang",
+        "Fachrina Dewi Puspitasari",
+        "Xudong Wang",
+        "Jiaquan Zhang"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777792+00:00"
+  },
+  "2512.21331v1": {
+    "hash": "1b0d0183d73abfa9a527e15555a4c93884fd1f80cf3065010d870760034d1009",
+    "last_seen": "2025-12-29T01:44:36.664140+00:00",
+    "paper_metadata": {
+      "title": "TICON: A Slide-Level Tile Contextualizer for Histopathology Representation Learning",
+      "authors": [
+        "Varun Belagali",
+        "Saarthak Kapse",
+        "Pierre Marza",
+        "Srijan Das",
+        "Zilinghan Li"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777714+00:00"
+  },
+  "2512.21302v1": {
+    "hash": "60178946ef50cc2a407a2c82cc5829ebd657cd9d7e3276caaf12b2beca7fda3b",
+    "last_seen": "2025-12-29T01:44:36.664148+00:00",
+    "paper_metadata": {
+      "title": "AndroidLens: Long-latency Evaluation with Nested Sub-targets for Android GUI Agents",
+      "authors": [
+        "Yue Cao",
+        "Yingyao Wang",
+        "Pi Bu",
+        "Jingxuan Xing",
+        "Wei Jiang"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777725+00:00"
+  },
+  "2512.21287v1": {
+    "hash": "b09f2cf2338024064b907aff7d1ac3df6c4a62f1924c86df5f07554861f97a03",
+    "last_seen": "2025-12-29T01:44:36.664155+00:00",
+    "paper_metadata": {
+      "title": "Post-Processing Mask-Based Table Segmentation for Structural Coordinate Extraction",
+      "authors": [
+        "Suren Bandara"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777422+00:00"
+  },
+  "2512.21284v1": {
+    "hash": "53e77ed439919e73f67a8e1d1d389621ef59ec926f0f9d1473e976b55fcabc0f",
+    "last_seen": "2025-12-29T01:44:36.664168+00:00",
+    "paper_metadata": {
+      "title": "Surgical Scene Segmentation using a Spike-Driven Video Transformer with Real-Time Potential",
+      "authors": [
+        "Shihao Zou",
+        "Jingjing Li",
+        "Wei Ji",
+        "Jincai Huang",
+        "Kai Wang"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777570+00:00"
+  },
+  "2512.21276v1": {
+    "hash": "1c955dcf462b004982da796defbe1def3660c0f9462bfaa2df1c663a158bcd1f",
+    "last_seen": "2025-12-29T01:44:36.664177+00:00",
+    "paper_metadata": {
+      "title": "GriDiT: Factorized Grid-Based Diffusion for Efficient Long Image Sequence Generation",
+      "authors": [
+        "Snehal Singh Tomar",
+        "Alexandros Graikos",
+        "Arjun Krishna",
+        "Dimitris Samaras",
+        "Klaus Mueller"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777489+00:00"
+  },
+  "2512.21268v1": {
+    "hash": "6ad0927abd7404ac3b034ef3e7463301cce616e42e48093765d04f1705c037ea",
+    "last_seen": "2025-12-29T01:44:36.664184+00:00",
+    "paper_metadata": {
+      "title": "ACD: Direct Conditional Control for Video Diffusion Models via Attention Supervision",
+      "authors": [
+        "Weiqi Li",
+        "Zehao Zhang",
+        "Liang Lin",
+        "Guangrun Wang"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777574+00:00"
+  },
+  "2512.21264v1": {
+    "hash": "5fcc7b60faa9f935fd49db838b65b9b53d1e4baf2df33b273e7156f91555ee4a",
+    "last_seen": "2025-12-29T01:44:36.664192+00:00",
+    "paper_metadata": {
+      "title": "AnyAD: Unified Any-Modality Anomaly Detection in Incomplete Multi-Sequence MRI",
+      "authors": [
+        "Changwei Wu",
+        "Yifei Chen",
+        "Yuxin Du",
+        "Mingxuan Liu",
+        "Jinying Zong"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777492+00:00"
+  },
+  "2512.21252v1": {
+    "hash": "85a7878cf7c1280158a58bffc9a6a534fee44792e452766b46ba33eb6f4f856b",
+    "last_seen": "2025-12-29T01:44:36.664199+00:00",
+    "paper_metadata": {
+      "title": "DreaMontage: Arbitrary Frame-Guided One-Shot Video Generation",
+      "authors": [
+        "Jiawei Liu",
+        "Junqiao Li",
+        "Jiangfan Deng",
+        "Gen Li",
+        "Siyu Zhou"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777649+00:00"
+  },
+  "2512.21237v1": {
+    "hash": "c459c18c96d42f3cb12385a2d9cb9f883f64313b2dfbdc8748f57a4f526b989a",
+    "last_seen": "2025-12-29T01:44:36.664220+00:00",
+    "paper_metadata": {
+      "title": "SegMo: Segment-aligned Text to 3D Human Motion Generation",
+      "authors": [
+        "Bowen Dang",
+        "Lin Wu",
+        "Xiaohang Yang",
+        "Zheng Yuan",
+        "Zhixiang Chen"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777428+00:00"
+  },
+  "2512.21218v1": {
+    "hash": "8d60e3c75c5019c170a6199512f4b110670266a08bb03ad20608a3a8248a0b81",
+    "last_seen": "2025-12-29T01:44:36.664228+00:00",
+    "paper_metadata": {
+      "title": "Latent Implicit Visual Reasoning",
+      "authors": [
+        "Kelvin Li",
+        "Chuyi Shang",
+        "Leonid Karlinsky",
+        "Rogerio Feris",
+        "Trevor Darrell"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777581+00:00"
+  },
+  "2512.21209v1": {
+    "hash": "a0c14f9ef40d3abccd0d54995f4a4a9f12a64dcba02fa6e6e8ba27008d57a369",
+    "last_seen": "2025-12-29T01:44:36.664234+00:00",
+    "paper_metadata": {
+      "title": "Human Motion Estimation with Everyday Wearables",
+      "authors": [
+        "Siqi Zhu",
+        "Yixuan Li",
+        "Junfu Li",
+        "Qi Wu",
+        "Zan Wang"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777636+00:00"
+  },
+  "2512.21313v1": {
+    "hash": "1855d9b95b926976383841bf5b95e339ed1d4845f44d7fb973e3ec4a443f4196",
+    "last_seen": "2025-12-29T01:44:36.664252+00:00",
+    "paper_metadata": {
+      "title": "Universality of equilibration dynamics after quantum quenches",
+      "authors": [
+        "Vincenzo Alba",
+        "Sanam Azarnia",
+        "Gianluca Lagnese",
+        "Federico Rottoli"
+      ],
+      "primary_category": "cond-mat.stat-mech"
+    },
+    "deleted": "2025-12-29T01:52:36.777527+00:00"
+  },
+  "2512.21310v1": {
+    "hash": "49f84b355d6805225af4f93229a647b8a087cd1a90ffc4050a514aca79d6fa94",
+    "last_seen": "2025-12-29T01:44:36.664268+00:00",
+    "paper_metadata": {
+      "title": "Optimizing Quantum State Transformation Under Locality Constraint",
+      "authors": [
+        "Sasan Sarbishegi",
+        "Maryam Sadat Mirkamali"
+      ],
+      "primary_category": "quant-ph"
+    },
+    "deleted": "2025-12-29T01:52:36.777632+00:00"
+  },
+  "2512.21304v1": {
+    "hash": "fb0ec11ba1ce241ff1fd6761a990324397bc742cd719c6382f9a3f109b4a0d28",
+    "last_seen": "2025-12-29T01:44:36.664275+00:00",
+    "paper_metadata": {
+      "title": "A Note on Publicly Verifiable Quantum Money with Low Quantum Computational Resources",
+      "authors": [
+        "Fabrizio Genovese",
+        "Lev Stambler"
+      ],
+      "primary_category": "quant-ph"
+    },
+    "deleted": "2025-12-29T01:52:36.777588+00:00"
+  },
+  "2512.21282v1": {
+    "hash": "c130349af648cb49ac199d4da4b6809e8557d7f702c7f4cfca230b6cbc4c7fc0",
+    "last_seen": "2025-12-29T01:44:36.664281+00:00",
+    "paper_metadata": {
+      "title": "Quantum computation of mass gap in an asymptotically free theory",
+      "authors": [
+        "Paulo F. Bedaque",
+        "Edison M. Murairi",
+        "Gautam Rupak",
+        "Valery S. Simonyan"
+      ],
+      "primary_category": "quant-ph"
+    },
+    "deleted": "2025-12-29T01:52:36.777805+00:00"
+  },
+  "2512.21281v1": {
+    "hash": "23ee52bc1be8a704abb8271677ed1a8148b6c57a98ce10c0c93fe562b68c6f87",
+    "last_seen": "2025-12-29T01:44:36.664287+00:00",
+    "paper_metadata": {
+      "title": "Hamilton-Jacobi as model reduction, extension to Newtonian particle mechanics, and a wave mechanical curiosity",
+      "authors": [
+        "Amit Acharya"
+      ],
+      "primary_category": "math-ph"
+    },
+    "deleted": "2025-12-29T01:52:36.777531+00:00"
+  },
+  "2512.21272v1": {
+    "hash": "507a22e431d805887daa2c3e32aa145560630dbe9e4118bd22ae6065ce1fc349",
+    "last_seen": "2025-12-29T01:44:36.664293+00:00",
+    "paper_metadata": {
+      "title": "Characterizing quantum synchronization in the van der Pol oscillator via tomogram and photon correlation",
+      "authors": [
+        "Kingshuk Adhikary",
+        "K. M. Athira",
+        "M. Rohith"
+      ],
+      "primary_category": "quant-ph"
+    },
+    "deleted": "2025-12-29T01:52:36.777541+00:00"
+  },
+  "2512.21263v1": {
+    "hash": "59b58289ad2b6f80cb30c5576d5d61b8d824924b93f8e1c6f2ecd2d7c0c845de",
+    "last_seen": "2025-12-29T01:44:36.664300+00:00",
+    "paper_metadata": {
+      "title": "Observation of the Aharonov-Bohm Effect in Pilot-Wave Hydrodynamics",
+      "authors": [
+        "Georgi Gary Rozenman",
+        "Kyle I. McKee",
+        "Arnaud Lazarus",
+        "Valeri Frumkin",
+        "John W M Bush"
+      ],
+      "primary_category": "physics.flu-dyn"
+    },
+    "deleted": "2025-12-29T01:52:36.777613+00:00"
+  },
+  "2512.21260v1": {
+    "hash": "d00926a899ae851872de383bb69c7ca1b6f68451eb2c4bb7648a705a42cc2f91",
+    "last_seen": "2025-12-29T01:44:36.664306+00:00",
+    "paper_metadata": {
+      "title": "Random dilation superchannel",
+      "authors": [
+        "Satoshi Yoshida",
+        "Ryotaro Niwa",
+        "Mio Murao"
+      ],
+      "primary_category": "quant-ph"
+    },
+    "deleted": "2025-12-29T01:52:36.777718+00:00"
+  },
+  "2512.21229v1": {
+    "hash": "1c26190440b107437b6857d930715bd920a388daa697933df19970bb9fbaf6ce",
+    "last_seen": "2025-12-29T01:44:36.664313+00:00",
+    "paper_metadata": {
+      "title": "Squeezed quantum multiplets: properties and phase space representation",
+      "authors": [
+        "Juan Pablo Paz",
+        "Corina R\u00e9vora",
+        "Christian Tom\u00e1s Schmiegelow"
+      ],
+      "primary_category": "quant-ph"
+    },
+    "deleted": "2025-12-29T01:52:36.777645+00:00"
+  },
+  "2512.21228v1": {
+    "hash": "7446407316aff6768e3955aab3d576365c7b225f052e109bc1215eb267eb0d73",
+    "last_seen": "2025-12-29T01:44:36.664320+00:00",
+    "paper_metadata": {
+      "title": "Quantum entanglement between partons in a strongly coupled quantum field theory",
+      "authors": [
+        "Wenyu Zhang",
+        "Wenyang Qian",
+        "Yiyu Zhou",
+        "Yang Li",
+        "Qun Wang"
+      ],
+      "primary_category": "hep-ph"
+    },
+    "deleted": "2025-12-29T01:52:36.777877+00:00"
+  },
+  "2512.21213v1": {
+    "hash": "d764c5b3c0d4700d146efbf449d4b95df6d78e78f42d02225634e592941d7d31",
+    "last_seen": "2025-12-29T01:44:36.664333+00:00",
+    "paper_metadata": {
+      "title": "3D cavity-based graphene superconducting quantum circuits in two-qubit architectures",
+      "authors": [
+        "Kuei-Lin Chiu",
+        "Avishma J. Lasrado",
+        "Cheng-Han Lo",
+        "Yen-Chih Chen",
+        "Shih-Po Shih"
+      ],
+      "primary_category": "quant-ph"
+    },
+    "deleted": "2025-12-29T01:52:36.777523+00:00"
+  },
+  "2512.21199v1": {
+    "hash": "d410bce1d6aefe945de717c627666d6b0138919293fec602b34437343c98f51f",
+    "last_seen": "2025-12-29T01:44:36.664341+00:00",
+    "paper_metadata": {
+      "title": "All-optical control and multiplexed readout of multiple superconducting qubits",
+      "authors": [
+        "Xiaoxuan Pan",
+        "Chuanlong Ma",
+        "Jia-Qi Wang",
+        "Zheng-Xu Zhu",
+        "Linze Li"
+      ],
+      "primary_category": "quant-ph"
+    },
+    "deleted": "2025-12-29T01:52:36.777653+00:00"
+  },
+  "2512.21197v1": {
+    "hash": "8d32a655d9d447fc5f4bda6852ebd56a9c548c9024c5215e1244757ce7a7e1c5",
+    "last_seen": "2025-12-29T01:44:36.664347+00:00",
+    "paper_metadata": {
+      "title": "Controlling photothermal forces and backaction in nano-optomechanical resonators through strain engineering",
+      "authors": [
+        "Menno H. Jansen",
+        "Cau\u00ea M. Kersul",
+        "Ewold Verhagen"
+      ],
+      "primary_category": "physics.optics"
+    },
+    "deleted": "2025-12-29T01:52:36.777737+00:00"
+  },
+  "2512.21189v1": {
+    "hash": "2af07c3d08651ad86579b312098d718b18928b32a703461745cfd61767db9e3d",
+    "last_seen": "2025-12-29T01:44:36.664353+00:00",
+    "paper_metadata": {
+      "title": "Interaction-Resilient Scalable Fluxonium Architecture with All-Microwave Gates",
+      "authors": [
+        "Andrei A. Kugut",
+        "Grigoriy S. Mazhorin",
+        "Ilya A. Simakov"
+      ],
+      "primary_category": "quant-ph"
+    },
+    "deleted": "2025-12-29T01:52:36.777788+00:00"
+  },
+  "2512.21181v1": {
+    "hash": "d5d10d491196dc085b23bd0b9fe0d9d85b711b2fe6c169258fbae4fc7999df8d",
+    "last_seen": "2025-12-29T01:44:36.664359+00:00",
+    "paper_metadata": {
+      "title": "Quantum Approximate Optimization Algorithm with Fixed Number of Parameters",
+      "authors": [
+        "Sebasti\u00e1n Saavedra-Pino",
+        "Ricardo Quispe-Mendiz\u00e1bal",
+        "Gabriel Alvarado Barrios",
+        "Enrique Solano",
+        "Juan Carlos Retamal"
+      ],
+      "primary_category": "quant-ph"
+    },
+    "deleted": "2025-12-29T01:52:36.777578+00:00"
+  },
+  "2512.21179v1": {
+    "hash": "aee34a2d2259aaccb700ad31c7a282b69196ec44697b9fe65af1507ae17b417d",
+    "last_seen": "2025-12-29T01:44:36.664365+00:00",
+    "paper_metadata": {
+      "title": "Coupled-wire construction of non-Abelian higher-order topological phases",
+      "authors": [
+        "Jiaxin Pan",
+        "Longwen Zhou"
+      ],
+      "primary_category": "cond-mat.mes-hall"
+    },
+    "deleted": "2025-12-29T01:52:36.777770+00:00"
+  },
+  "2512.21157v1": {
+    "hash": "10e707a421b87e05f32c8f5d21ff654ec41b9415931f175f3d1e1cec1b060241",
+    "last_seen": "2025-12-29T01:44:36.664371+00:00",
+    "paper_metadata": {
+      "title": "Information-Scrambling-Enhanced Quantum Sensing Beyond the Standard Quantum Limit",
+      "authors": [
+        "Yangyang Ge",
+        "Haoyu Zhou",
+        "Wen Zheng",
+        "Xiang-Min Yu",
+        "Wei Fang"
+      ],
+      "primary_category": "quant-ph"
+    },
+    "deleted": "2025-12-29T01:52:36.777656+00:00"
+  },
+  "2512.21148v1": {
+    "hash": "c41d5b9f41f8962516936c413189091877582d2b64a98a0fda4ec74761b7deac",
+    "last_seen": "2025-12-29T01:44:36.664378+00:00",
+    "paper_metadata": {
+      "title": "Bridging Microscopic Constructions and Continuum Topological Field Theory of Three-Dimensional Non-Abelian Topological Order",
+      "authors": [
+        "Yizhou Huang",
+        "Zhi-Feng Zhang",
+        "Qing-Rui Wang",
+        "Peng Ye"
+      ],
+      "primary_category": "cond-mat.str-el"
+    },
+    "deleted": "2025-12-29T01:52:36.777485+00:00"
+  },
+  "2512.21142v1": {
+    "hash": "174b1c6036c74fb4ddc7a024d2ed24814baab2e83cfac61f7ebeecefce6d2d99",
+    "last_seen": "2025-12-29T01:44:36.664385+00:00",
+    "paper_metadata": {
+      "title": "Thermodynamic sampling of materials using neutral-atom quantum computers",
+      "authors": [
+        "Bruno Camino",
+        "Mao Lin",
+        "John Buckeridge",
+        "Scott M. Woodley"
+      ],
+      "primary_category": "quant-ph"
+    },
+    "deleted": "2025-12-29T01:52:36.777519+00:00"
+  },
+  "2512.21125v1": {
+    "hash": "d8f936dec81400497392dadc84bf366ad5e8e6fd860033e904d2fdaed40f3b13",
+    "last_seen": "2025-12-29T01:44:36.664391+00:00",
+    "paper_metadata": {
+      "title": "Photoexcitation of moir\u00e9-trapped interlayer excitons via chiral phonons",
+      "authors": [
+        "A. Borel",
+        "T. V. Ivanova",
+        "J. Cervantes-Villanueva",
+        "P. Thor",
+        "H. Baek"
+      ],
+      "primary_category": "quant-ph"
+    },
+    "deleted": "2025-12-29T01:52:36.777500+00:00"
+  },
+  "2512.21275v1": {
+    "hash": "b3863fdeaef45892c33a2f1b0dda2e371dbc621bbb89896256b94adaa7f6b23d",
+    "last_seen": "2025-12-29T01:44:36.664397+00:00",
+    "paper_metadata": {
+      "title": "Impulsive delay differential inclusions applied to optimization problems",
+      "authors": [
+        "Irene Benedetti",
+        "Paola Rubbioni"
+      ],
+      "primary_category": "math.OC"
+    },
+    "deleted": "2025-12-29T01:52:36.777683+00:00"
+  },
+  "2512.21269v1": {
+    "hash": "12e5e63f1126df72c6f957b5e21e705c37893792cd7ad140ca87c332963d027c",
+    "last_seen": "2025-12-29T01:44:36.664403+00:00",
+    "paper_metadata": {
+      "title": "The Dynamical Anatomy of Anderson Acceleration:From Adaptive Momentum to Variable-Mass ODEs",
+      "authors": [
+        "Kewang Chen",
+        "Yongqiu Jiang",
+        "Kees Vuik"
+      ],
+      "primary_category": "math.OC"
+    },
+    "deleted": "2025-12-29T01:52:36.777820+00:00"
+  },
+  "2512.21266v1": {
+    "hash": "a1b7abc03de8434c1698f6e9e1dfe806c3ea4a1c2386a2f1cc860081a4011683",
+    "last_seen": "2025-12-29T01:44:36.664411+00:00",
+    "paper_metadata": {
+      "title": "$\\mathcal{K}$-Lorentzian Polynomials, Semipositive Cones, and Cone-Stable EVI Systems",
+      "authors": [
+        "Papri Dey"
+      ],
+      "primary_category": "math.OC"
+    },
+    "deleted": "2025-12-29T01:52:36.777516+00:00"
+  },
+  "2512.21261v1": {
+    "hash": "178d08c78ecb54a9f8fe68744f51dc956ae4d582ab0666965b8c8c88439bcd13",
+    "last_seen": "2025-12-29T01:44:36.664418+00:00",
+    "paper_metadata": {
+      "title": "Marginal flows of non-entropic weak Schr\u00f6dinger bridges",
+      "authors": [
+        "Camilo Hern\u00e1ndez",
+        "Ludovic Tangpi"
+      ],
+      "primary_category": "math.PR"
+    },
+    "deleted": "2025-12-29T01:52:36.777451+00:00"
+  },
+  "2512.21149v1": {
+    "hash": "019f24778afede7983a64a187c25f0e3edeeaf7f83792d6f42c0f68fe5d1bfe0",
+    "last_seen": "2025-12-29T01:44:36.664425+00:00",
+    "paper_metadata": {
+      "title": "Equilibrium investment under dynamic preference uncertainty",
+      "authors": [
+        "Luca De Gennaro Aquino",
+        "Sascha Desmettre",
+        "Yevhen Havrylenko",
+        "Mogens Steffensen"
+      ],
+      "primary_category": "q-fin.MF"
+    },
+    "deleted": "2025-12-29T01:52:36.777847+00:00"
+  },
+  "2512.21096v1": {
+    "hash": "dc343a70d8fcd8e022acdf8f656d2eb7d9a5684401a2bed938c18301af65ce2d",
+    "last_seen": "2025-12-29T01:44:36.664431+00:00",
+    "paper_metadata": {
+      "title": "Identification with Orthogonal Basis Functions: Convergence Speed, Asymptotic Bias, and Rate-Optimal Pole Selection",
+      "authors": [
+        "Jiayun Li",
+        "Yiwen Lu",
+        "Yilin Mo",
+        "Jie Chen"
+      ],
+      "primary_category": "math.OC"
+    },
+    "deleted": "2025-12-29T01:52:36.777567+00:00"
+  },
+  "2512.21051v1": {
+    "hash": "be816bb2b5daa509c65631f4c15371cc643baaf2641f15140af24c87013e38e6",
+    "last_seen": "2025-12-29T01:44:36.664437+00:00",
+    "paper_metadata": {
+      "title": "Energy-Gain Control of Time-Varying Systems: Receding Horizon Approximation",
+      "authors": [
+        "Jintao Sun",
+        "Michael Cantoni"
+      ],
+      "primary_category": "math.OC"
+    },
+    "deleted": "2025-12-29T01:52:36.777698+00:00"
+  },
+  "2512.20911v1": {
+    "hash": "e91e26bb37217eb6f1a219ae2458d2931b419f10df3f99392410ad48188acbc9",
+    "last_seen": "2025-12-29T01:44:36.664442+00:00",
+    "paper_metadata": {
+      "title": "Model-free stochastic linear quadratic control for discrete-time systems with multiplicative and additive noises via semidefinite programming",
+      "authors": [
+        "Jing Guo",
+        "Xiushan Jiang",
+        "Weihai Zhang"
+      ],
+      "primary_category": "math.OC"
+    },
+    "deleted": "2025-12-29T01:52:36.777406+00:00"
+  },
+  "2512.20826v1": {
+    "hash": "33da01f74d10a58c467114173f41be9aa573be4014d2ee6c345b502640bdd06a",
+    "last_seen": "2025-12-29T01:44:36.664448+00:00",
+    "paper_metadata": {
+      "title": "Optimal Algorithms for Nonlinear Estimation with Convex Models",
+      "authors": [
+        "Simon Foucart"
+      ],
+      "primary_category": "math.FA"
+    },
+    "deleted": "2025-12-29T01:52:36.777813+00:00"
+  },
+  "2512.20791v1": {
+    "hash": "792ed5364401fe2df7e649b3ca511c911f19642245f36d3037c8e739c615a0a0",
+    "last_seen": "2025-12-29T01:44:36.664460+00:00",
+    "paper_metadata": {
+      "title": "Extragradient methods with complexity guarantees for hierarchical variational inequalities",
+      "authors": [
+        "Pavel Dvurechensky",
+        "Meggie Marschner",
+        "Shimrit Shtern",
+        "Mathias Staudigl"
+      ],
+      "primary_category": "math.OC"
+    },
+    "deleted": "2025-12-29T01:52:36.777552+00:00"
+  },
+  "2512.20772v1": {
+    "hash": "18c2f413d67158622f33caf3175867f8539d007a359fc9348f02c85c571abc17",
+    "last_seen": "2025-12-29T01:44:36.664467+00:00",
+    "paper_metadata": {
+      "title": "Regularization methods for solving hierarchical variational inequalities with complexity guarantees",
+      "authors": [
+        "Daniel Cortild",
+        "Meggie Marschner",
+        "Mathias Staudigl"
+      ],
+      "primary_category": "math.OC"
+    },
+    "deleted": "2025-12-29T01:52:36.777496+00:00"
+  },
+  "2512.20748v1": {
+    "hash": "46a5932164494dd72447da43c6199c41fbfd9b96387d06d850ff9b685b0d3f77",
+    "last_seen": "2025-12-29T01:44:36.664473+00:00",
+    "paper_metadata": {
+      "title": "Fixed-time control with prescribed performance for path following of underwater gliders",
+      "authors": [
+        "Hanzhi Yang",
+        "Nina Mahmoudian"
+      ],
+      "primary_category": "eess.SY"
+    },
+    "deleted": "2025-12-29T01:52:36.777473+00:00"
+  },
+  "2512.20589v1": {
+    "hash": "a9b2f0d95e427f3bbbd13e13814ee1974ef0ed1e3c4bedd4c4effa01d0664bc3",
+    "last_seen": "2025-12-29T01:44:36.664480+00:00",
+    "paper_metadata": {
+      "title": "Leveraging High-Fidelity Digital Models and Reinforcement Learning for Mission Engineering: A Case Study of Aerial Firefighting Under Perfect Information",
+      "authors": [
+        "\u0130brahim O\u011fuz \u00c7etinkaya",
+        "Sajad Khodadadian",
+        "Taylan G. Top\u00e7u"
+      ],
+      "primary_category": "cs.CY"
+    },
+    "deleted": "2025-12-29T01:52:36.777455+00:00"
+  },
+  "2512.20582v1": {
+    "hash": "671267985ebacdec49adae027c1605375df9f4e776cddb312259ee1e6b9440fb",
+    "last_seen": "2025-12-29T01:44:36.664486+00:00",
+    "paper_metadata": {
+      "title": "Relu and softplus neural nets as zero-sum turn-based games",
+      "authors": [
+        "Stephane Gaubert",
+        "Yiannis Vlassopoulos"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:52:36.777537+00:00"
+  },
+  "2512.20576v1": {
+    "hash": "9c01aaf2fd127d98d131b5b545184cac33e40262099c922412495fb1a6626bfd",
+    "last_seen": "2025-12-29T01:44:36.664498+00:00",
+    "paper_metadata": {
+      "title": "Performative Policy Gradient: Optimality in Performative Reinforcement Learning",
+      "authors": [
+        "Debabrota Basu",
+        "Udvas Das",
+        "Brahim Driss",
+        "Uddalak Mukherjee"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:52:36.777824+00:00"
+  },
+  "2512.20566v1": {
+    "hash": "6568ad884928815886499a1ed4bcfba13b80bf4b457e312d75717897c81f0a76",
+    "last_seen": "2025-12-29T01:44:36.664515+00:00",
+    "paper_metadata": {
+      "title": "Random Gradient-Free Optimization in Infinite Dimensional Spaces",
+      "authors": [
+        "Caio Lins Peixoto",
+        "Daniel Csillag",
+        "Bernardo F. P. da Costa",
+        "Yuri F. Saporito"
+      ],
+      "primary_category": "math.OC"
+    },
+    "deleted": "2025-12-29T01:52:36.777467+00:00"
+  },
+  "2512.20562v1": {
+    "hash": "4b2c524a93e76cdea7529d26b7cb16e9a9cdfd533f37290560022f8e720cf0ff",
+    "last_seen": "2025-12-29T01:44:36.664523+00:00",
+    "paper_metadata": {
+      "title": "Shallow Neural Networks Learn Low-Degree Spherical Polynomials with Learnable Channel Attention",
+      "authors": [
+        "Yingzhen Yang"
+      ],
+      "primary_category": "stat.ML"
+    },
+    "deleted": "2025-12-29T01:52:36.777672+00:00"
+  },
+  "2512.20547v1": {
+    "hash": "5ba0c2cf45e74f266fb6078c39480f1134688b09d87d94ba1b5c2f623c37790e",
+    "last_seen": "2025-12-29T01:44:36.664529+00:00",
+    "paper_metadata": {
+      "title": "Behavioral patterns and mean-field games in epidemiological models",
+      "authors": [
+        "Finnegan Buckley",
+        "Alexander Vladimirsky"
+      ],
+      "primary_category": "q-bio.PE"
+    },
+    "deleted": "2025-12-29T01:52:36.777866+00:00"
+  },
+  "2512.20505v1": {
+    "hash": "4afb592524211300b5fc5a7349d513ad5e52079fa8f2ce59838722b85584f10e",
+    "last_seen": "2025-12-29T01:44:36.664538+00:00",
+    "paper_metadata": {
+      "title": "Optimality Conditions for Control Systems Governed by Monotone Stochastic Evolution Equations",
+      "authors": [
+        "Ioana Ciotir",
+        "Nicolas Forcadel",
+        "Piero Visconti",
+        "Hasnaa Zidani"
+      ],
+      "primary_category": "math.OC"
+    },
+    "deleted": "2025-12-29T01:52:36.777785+00:00"
+  },
+  "2512.21329v1": {
+    "hash": "b13e47026b1d2e81d28bbd157a5e15a44a3251c924aec5fa0ef434a229dc7478",
+    "last_seen": "2025-12-29T01:44:36.664551+00:00",
+    "paper_metadata": {
+      "title": "Your Reasoning Benchmark May Not Test Reasoning: Revealing Perception Bottleneck in Abstract Reasoning Benchmarks",
+      "authors": [
+        "Xinhe Wang",
+        "Jin Huang",
+        "Xingjian Zhang",
+        "Tianhao Wang",
+        "Jiaqi W. Ma"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:52:36.777478+00:00"
+  },
+  "2512.21257v1": {
+    "hash": "83fa2449be6f70f72f5cd49683e8e0f50a886174e3125ddbd84b0bac574ed265",
+    "last_seen": "2025-12-29T01:44:36.664560+00:00",
+    "paper_metadata": {
+      "title": "ReaSeq: Unleashing World Knowledge via Reasoning for Sequential Modeling",
+      "authors": [
+        "Chuan Wang",
+        "Gaoming Yang",
+        "Han Wu",
+        "Jiakai Tang",
+        "Jiahao Yu"
+      ],
+      "primary_category": "cs.IR"
+    },
+    "deleted": "2025-12-29T01:52:36.777810+00:00"
+  },
+  "2512.21120v1": {
+    "hash": "a4762c480edd6ab08326c866d71c3bd5d99a2f1d98a3d1a53bf429cf35c30440",
+    "last_seen": "2025-12-29T01:44:36.664566+00:00",
+    "paper_metadata": {
+      "title": "ClarifyMT-Bench: Benchmarking and Improving Multi-Turn Clarification for Conversational Large Language Models",
+      "authors": [
+        "Sichun Luo",
+        "Yi Huang",
+        "Mukai Li",
+        "Shichang Meng",
+        "Fengyuan Liu"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:52:36.777641+00:00"
+  },
+  "2512.21110v1": {
+    "hash": "afb657e250272cafca40eff5bfeff49ae3950b4ae742931a4981a63c0d236aa5",
+    "last_seen": "2025-12-29T01:44:36.664572+00:00",
+    "paper_metadata": {
+      "title": "Beyond Context: Large Language Models Failure to Grasp Users Intent",
+      "authors": [
+        "Ahmed M. Hussain",
+        "Salahuddin Salahuddin",
+        "Panos Papadimitratos"
+      ],
+      "primary_category": "cs.AI"
+    },
+    "deleted": "2025-12-29T01:52:36.777862+00:00"
+  },
+  "2512.21107v1": {
+    "hash": "045db60890a0f3e45d8bb116795f09bdc1aa983761b6cc8b5aa44d947a57c9c7",
+    "last_seen": "2025-12-29T01:44:36.664578+00:00",
+    "paper_metadata": {
+      "title": "Semi-Supervised Learning for Large Language Models Safety and Content Moderation",
+      "authors": [
+        "Eduard Stefan Dinuta",
+        "Iustin Sirbu",
+        "Traian Rebedea"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:52:36.777748+00:00"
+  },
+  "2512.21106v1": {
+    "hash": "d8a350308456e0b8de94a85d17a039127be549a22c99ae2724298eef2a273cc2",
+    "last_seen": "2025-12-29T01:44:36.664598+00:00",
+    "paper_metadata": {
+      "title": "Semantic Refinement with LLMs for Graph Representations",
+      "authors": [
+        "Safal Thapaliya",
+        "Zehong Wang",
+        "Jiazheng Li",
+        "Ziming Li",
+        "Yanfang Ye"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:52:36.777795+00:00"
+  },
+  "2512.21017v1": {
+    "hash": "337ecae1b760be1c41c12f0992ddd0dfc7e6fc3ad09ac180c0014ef4a5fa259a",
+    "last_seen": "2025-12-29T01:44:36.664614+00:00",
+    "paper_metadata": {
+      "title": "Rethinking Supervised Fine-Tuning: Emphasizing Key Answer Tokens for Improved LLM Accuracy",
+      "authors": [
+        "Xiaofeng Shi",
+        "Qian Kou",
+        "Yuduo Li",
+        "Hua Zhou"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:52:36.777859+00:00"
+  },
+  "2512.21002v1": {
+    "hash": "bb4dadba3da61ef758e9825cc0bf5d05982d8ea921ce1d5db81483751c5df22c",
+    "last_seen": "2025-12-29T01:44:36.664620+00:00",
+    "paper_metadata": {
+      "title": "Distilling the Essence: Efficient Reasoning Distillation via Sequence Truncation",
+      "authors": [
+        "Wei-Rui Chen",
+        "Vignesh Kothapalli",
+        "Ata Fatahibaarzi",
+        "Hejian Sang",
+        "Shao Tang"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:52:36.777852+00:00"
+  },
+  "2512.20983v1": {
+    "hash": "c4e19c00021aa39d8c841e33e955426d1c34ea516a27dd1a3c99203f65d95fb6",
+    "last_seen": "2025-12-29T01:44:36.664626+00:00",
+    "paper_metadata": {
+      "title": "Automatic Replication of LLM Mistakes in Medical Conversations",
+      "authors": [
+        "Oleksii Proniakin",
+        "Diego Fajardo",
+        "Ruslan Nazarenko",
+        "Razvan Marinescu"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:52:36.777773+00:00"
+  },
+  "2512.20954v1": {
+    "hash": "8bef35daaead457bdf701b62c3e0ba61315565b85d5ceb3304990ad4723886e8",
+    "last_seen": "2025-12-29T01:44:36.664633+00:00",
+    "paper_metadata": {
+      "title": "Reflection Pretraining Enables Token-Level Self-Correction in Biological Sequence Models",
+      "authors": [
+        "Xiang Zhang",
+        "Jiaqi Wei",
+        "Yuejin Yang",
+        "Zijie Qiu",
+        "Yuhan Chen"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:52:36.777544+00:00"
+  },
+  "2512.20950v1": {
+    "hash": "b83822afbd08c066b354a1afde48064c39ca9af3df1ee8957e3e761e54cd15ad",
+    "last_seen": "2025-12-29T01:44:36.664639+00:00",
+    "paper_metadata": {
+      "title": "MultiMind at SemEval-2025 Task 7: Crosslingual Fact-Checked Claim Retrieval via Multi-Source Alignment",
+      "authors": [
+        "Mohammad Mahdi Abootorabi",
+        "Alireza Ghahramani Kure",
+        "Mohammadali Mohammadkhani",
+        "Sina Elahimanesh",
+        "Mohammad Ali Ali Panah"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:52:36.777629+00:00"
+  },
+  "2512.20949v1": {
+    "hash": "690dbfb58e21f5a7062bf33a6bcb94d8b691ed1376c6c1838f91c87a97118f4e",
+    "last_seen": "2025-12-29T01:44:36.664646+00:00",
+    "paper_metadata": {
+      "title": "Neural Probe-Based Hallucination Detection for Large Language Models",
+      "authors": [
+        "Shize Liang",
+        "Hongzhi Wang"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:52:36.777763+00:00"
+  },
+  "2512.20948v1": {
+    "hash": "50c32c4e09e437b86601eac1384f18efc489da8f4fdf6e4d9eef2d02ca4ea233",
+    "last_seen": "2025-12-29T01:44:36.664652+00:00",
+    "paper_metadata": {
+      "title": "Foundation Model-based Evaluation of Neuropsychiatric Disorders: A Lifespan-Inclusive, Multi-Modal, and Multi-Lingual Study",
+      "authors": [
+        "Zhongren Dong",
+        "Haotian Guo",
+        "Weixiang Xu",
+        "Huan Zhao",
+        "Zixing Zhang"
+      ],
+      "primary_category": "cs.CL"
+    },
+    "deleted": "2025-12-29T01:52:36.777595+00:00"
+  },
+  "2512.20934v1": {
+    "hash": "0a6157010cad1a0855251c88f9a27b1fe98acdd004f4260314d18b1cf88e9db5",
+    "last_seen": "2025-12-29T01:44:36.664658+00:00",
+    "paper_metadata": {
+      "title": "Transductive Visual Programming: Evolving Tool Libraries from Experience for Spatial Reasoning",
+      "authors": [
+        "Shengguang Wu",
+        "Xiaohan Wang",
+        "Yuhui Zhang",
+        "Hao Zhu",
+        "Serena Yeung-Levy"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777660+00:00"
+  },
+  "2512.21129v1": {
+    "hash": "efcd9633cf92cb303eb038257fba37b6faa6edca640b46288f0ab2ac6f14d525",
+    "last_seen": "2025-12-29T01:44:36.664664+00:00",
+    "paper_metadata": {
+      "title": "Active inference and artificial reasoning",
+      "authors": [
+        "Karl Friston",
+        "Lancelot Da Costa",
+        "Alexander Tschantz",
+        "Conor Heins",
+        "Christopher Buckley"
+      ],
+      "primary_category": "q-bio.NC"
+    },
+    "deleted": "2025-12-29T01:52:36.777563+00:00"
+  },
+  "2512.20415v1": {
+    "hash": "2ba01e78e62c591ee7b2fa2093e634bfe0c8634bc3832f54d738146b36bf626a",
+    "last_seen": "2025-12-29T01:44:36.664669+00:00",
+    "paper_metadata": {
+      "title": "Resolution and Robustness Bounds for Reconstructive Spectrometers",
+      "authors": [
+        "Changyan Zhu",
+        "Hsuan Lo",
+        "Jianbo Yu",
+        "Qijie Wang",
+        "Y. D. Chong"
+      ],
+      "primary_category": "physics.optics"
+    },
+    "deleted": "2025-12-29T01:52:36.777605+00:00"
+  },
+  "2512.21111v1": {
+    "hash": "8d858cbd99f5cbc7ba05d3fca04ba8cbe08af7b4589d30b567fc2c69203efb0c",
+    "last_seen": "2025-12-29T01:44:36.664677+00:00",
+    "paper_metadata": {
+      "title": "Statistical and computational challenges in ranking",
+      "authors": [
+        "Alexandra Carpentier",
+        "Nicolas Verzelen"
+      ],
+      "primary_category": "math.ST"
+    },
+    "deleted": "2025-12-29T01:52:36.777836+00:00"
+  },
+  "2512.21075v1": {
+    "hash": "87f4d265199b8bb82385f36818d8e46d2a2e0dd7107afdf2b64641369d0def0a",
+    "last_seen": "2025-12-29T01:44:36.664693+00:00",
+    "paper_metadata": {
+      "title": "Understanding Scaling Laws in Deep Neural Networks via Feature Learning Dynamics",
+      "authors": [
+        "Zihan Yao",
+        "Ruoyu Wu",
+        "Tianxiang Gao"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:52:36.777687+00:00"
+  },
+  "2512.21020v1": {
+    "hash": "8cbc6545963daac770d8a6e71aadef31609e8218a4eb370d1f4ea7ef405da8d1",
+    "last_seen": "2025-12-29T01:44:36.664699+00:00",
+    "paper_metadata": {
+      "title": "Enhancing diffusion models with Gaussianization preprocessing",
+      "authors": [
+        "Li Cunzhi",
+        "Louis Kang",
+        "Hideaki Shimazaki"
+      ],
+      "primary_category": "stat.ML"
+    },
+    "deleted": "2025-12-29T01:52:36.777740+00:00"
+  },
+  "2512.21005v1": {
+    "hash": "f147f076761bc3644b344b91b09e866b661a2d40f400f32cc4c709313d666fc0",
+    "last_seen": "2025-12-29T01:44:36.664705+00:00",
+    "paper_metadata": {
+      "title": "Learning from Neighbors with PHIBP: Predicting Infectious Disease Dynamics in Data-Sparse Environments",
+      "authors": [
+        "Edwin Fong",
+        "Lancelot F. James",
+        "Juho Lee"
+      ],
+      "primary_category": "stat.ML"
+    },
+    "deleted": "2025-12-29T01:52:36.777816+00:00"
+  },
+  "2512.20914v1": {
+    "hash": "09a09e859efb8df7fcefb4dd9f143201a7326ff2dec920cd89543a8062d6429f",
+    "last_seen": "2025-12-29T01:44:36.664712+00:00",
+    "paper_metadata": {
+      "title": "Invariant Feature Extraction Through Conditional Independence and the Optimal Transport Barycenter Problem: the Gaussian case",
+      "authors": [
+        "Ian Bounos",
+        "Pablo Groisman",
+        "Mariela Sued",
+        "Esteban Tabak"
+      ],
+      "primary_category": "math.ST"
+    },
+    "deleted": "2025-12-29T01:52:36.777669+00:00"
+  },
+  "2512.20811v1": {
+    "hash": "2fd35d618360cd4d4a3fc22252ec65870d98643ac2b7c43fe12a67a07b987a87",
+    "last_seen": "2025-12-29T01:44:36.664725+00:00",
+    "paper_metadata": {
+      "title": "Weighted MCC: A Robust Measure of Multiclass Classifier Performance for Observations with Individual Weights",
+      "authors": [
+        "Rommel Cortez",
+        "Bala Krishnamoorthy"
+      ],
+      "primary_category": "stat.ML"
+    },
+    "deleted": "2025-12-29T01:52:36.777855+00:00"
+  },
+  "2512.20762v1": {
+    "hash": "c7698f185c624d2efbe55f467b34d362088d8194d19a40488a869c2dbedfba27",
+    "last_seen": "2025-12-29T01:44:36.664734+00:00",
+    "paper_metadata": {
+      "title": "Subgroup Discovery with the Cox Model",
+      "authors": [
+        "Zachary Izzo",
+        "Iain Melvin"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:52:36.777828+00:00"
+  },
+  "2512.20552v1": {
+    "hash": "11b0b350363e4f01047525f1c53b8696c8d0bc3c2fb63b9d6c756125d00b5013",
+    "last_seen": "2025-12-29T01:44:36.664741+00:00",
+    "paper_metadata": {
+      "title": "Information-theoretic signatures of causality in Bayesian networks and hypergraphs",
+      "authors": [
+        "Sung En Chiang",
+        "Zhaolu Liu",
+        "Robert L. Peach",
+        "Mauricio Barahona"
+      ],
+      "primary_category": "cs.IT"
+    },
+    "deleted": "2025-12-29T01:52:36.777728+00:00"
+  },
+  "2512.20523v1": {
+    "hash": "4cd2d6d6df084a7f822680ea0deb4f22b4eeded08afc0e455be55d66b367340e",
+    "last_seen": "2025-12-29T01:44:36.664757+00:00",
+    "paper_metadata": {
+      "title": "ScoreMatchingRiesz: Auto-DML with Infinitesimal Classification",
+      "authors": [
+        "Masahiro Kato"
+      ],
+      "primary_category": "econ.EM"
+    },
+    "deleted": "2025-12-29T01:52:36.777692+00:00"
+  },
+  "2512.20432v1": {
+    "hash": "384df120783de3818eb098cfc716399d9c5e01e5a7eacf8f4a55ed0bde3ff032",
+    "last_seen": "2025-12-29T01:44:36.664762+00:00",
+    "paper_metadata": {
+      "title": "High Dimensional Data Decomposition for Anomaly Detection of Textured Images",
+      "authors": [
+        "Ji Song",
+        "Xing Wang",
+        "Jianguo Wu",
+        "Xiaowei Yue"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777433+00:00"
+  },
+  "2512.20368v1": {
+    "hash": "d65ea714d8cc8d3b1301fac2eadc1c1fac5f197d8dfc2f5370a5d9b57785a3f1",
+    "last_seen": "2025-12-29T01:44:36.664769+00:00",
+    "paper_metadata": {
+      "title": "Avoiding the Price of Adaptivity: Inference in Linear Contextual Bandits via Stability",
+      "authors": [
+        "Samya Praharaj",
+        "Koulik Khamaru"
+      ],
+      "primary_category": "stat.ML"
+    },
+    "deleted": "2025-12-29T01:52:36.777766+00:00"
+  },
+  "2512.20363v1": {
+    "hash": "64e0ea58cb35f36f8eff9a39b4900465991d47ca75c935641f66a925abf7593b",
+    "last_seen": "2025-12-29T01:44:36.664775+00:00",
+    "paper_metadata": {
+      "title": "Clust-PSI-PFL: A Population Stability Index Approach for Clustered Non-IID Personalized Federated Learning",
+      "authors": [
+        "Daniel M. Jimenez-Gutierrez",
+        "Mehrdad Hassanzadeh",
+        "Aris Anagnostopoulos",
+        "Ioannis Chatzigiannakis",
+        "Andrea Vitaletti"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:52:36.777679+00:00"
+  },
+  "2512.20305v1": {
+    "hash": "8a8c1c6ff663478770b6f0a0feec1a332ba89cc2b5bd5f444e464fda37699dd6",
+    "last_seen": "2025-12-29T01:44:36.664781+00:00",
+    "paper_metadata": {
+      "title": "KAN-AFT: An Interpretable Nonlinear Survival Model Integrating Kolmogorov-Arnold Networks with Accelerated Failure Time Analysis",
+      "authors": [
+        "Mebin Jose",
+        "Jisha Francis",
+        "Sudheesh Kumar Kattumannil"
+      ],
+      "primary_category": "stat.ML"
+    },
+    "deleted": "2025-12-29T01:52:36.777840+00:00"
+  },
+  "2512.20169v1": {
+    "hash": "ab438caf47bbb22a8cda7d3f060142196f94f855baff705dd7de320fa1752897",
+    "last_seen": "2025-12-29T01:44:36.664787+00:00",
+    "paper_metadata": {
+      "title": "Learning to Reason in LLMs by Expectation Maximization",
+      "authors": [
+        "Junghyun Lee",
+        "Branislav Kveton",
+        "Sunav Choudhary",
+        "Subhojyoti Mukherjee",
+        "Anup Rao"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:52:36.777556+00:00"
+  },
+  "2512.21293v1": {
+    "hash": "cd52640fae5a782ccfd411c793d136ad6792bc9c461fccce5a6d73466d133b30",
+    "last_seen": "2025-12-29T01:44:36.664793+00:00",
+    "paper_metadata": {
+      "title": "Quadrupped-Legged Robot Movement Plan Generation using Large Language Model",
+      "authors": [
+        " Muhtadin",
+        "Vincentius Gusti Putu A. B. M.",
+        "Ahmad Zaini",
+        "Mauridhi Hery Purnomo",
+        "I Ketut Eddy Purnama"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777870+00:00"
+  },
+  "2512.21235v1": {
+    "hash": "1a8cc3e9524c59a061358cd9ff4cfab9c9df2aa361390b7d7add8ab7e6d55aa6",
+    "last_seen": "2025-12-29T01:44:36.664799+00:00",
+    "paper_metadata": {
+      "title": "RoboCade: Gamifying Robot Data Collection",
+      "authors": [
+        "Suvir Mirchandani",
+        "Mia Tang",
+        "Jiafei Duan",
+        "Jubayer Ibn Hamid",
+        "Michael Cho"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777745+00:00"
+  },
+  "2512.21233v1": {
+    "hash": "fc63fee3dc91fe6c2fdd30091c074a5ef6c1e3a49dd2b956cfed6489d78320cd",
+    "last_seen": "2025-12-29T01:44:36.664805+00:00",
+    "paper_metadata": {
+      "title": "UniTacHand: Unified Spatio-Tactile Representation for Human to Robotic Hand Skill Transfer",
+      "authors": [
+        "Chi Zhang",
+        "Penglin Cai",
+        "Haoqi Yuan",
+        "Chaoyi Xu",
+        "Zongqing Lu"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777592+00:00"
+  },
+  "2512.21226v1": {
+    "hash": "9899023a0cb254c93bef32ce91a77252c06b866b2e0a724572467957be1c3c6f",
+    "last_seen": "2025-12-29T01:44:36.664810+00:00",
+    "paper_metadata": {
+      "title": "Relative Localization System Design for SnailBot: A Modular Self-reconfigurable Robot",
+      "authors": [
+        "Shuhan Zhang",
+        "Tin Lun Lam"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777777+00:00"
+  },
+  "2512.21219v1": {
+    "hash": "83573567fe2e3e309e852684cd7ed1c66498c1cda03ccc83faa2ec16a620ddfb",
+    "last_seen": "2025-12-29T01:44:36.664816+00:00",
+    "paper_metadata": {
+      "title": "Wireless Center of Pressure Feedback System for Humanoid Robot Balance Control using ESP32-C3",
+      "authors": [
+        " Muhtadin",
+        "Faris Rafi Pramana",
+        "Dion Hayu Fandiantoro",
+        "Moh Ismarintan Zazuli",
+        "Atar Fuady Babgei"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777446+00:00"
+  },
+  "2512.21196v1": {
+    "hash": "ba55f219752f5e5b94b05185d1e5c1ae59164df31469d75316d87731948721c8",
+    "last_seen": "2025-12-29T01:44:36.664821+00:00",
+    "paper_metadata": {
+      "title": "Flocking phase transition and threat responses in bio-inspired autonomous drone swarms",
+      "authors": [
+        "Matthieu Verdoucq",
+        "Dari Trendafilov",
+        "Cl\u00e9ment Sire",
+        "Ram\u00f3n Escobedo",
+        "Guy Theraulaz"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777599+00:00"
+  },
+  "2512.21133v1": {
+    "hash": "5a56415823c4523ec9a473810d0438321339d6186ed98fc1bce3a7427a51d597",
+    "last_seen": "2025-12-29T01:44:36.664828+00:00",
+    "paper_metadata": {
+      "title": "SparScene: Efficient Traffic Scene Representation via Sparse Graph Learning for Large-Scale Trajectory Generation",
+      "authors": [
+        "Xiaoyu Mo",
+        "Jintian Ge",
+        "Zifan Wang",
+        "Chen Lv",
+        "Karl Henrik Johansson"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777701+00:00"
+  },
+  "2512.21109v1": {
+    "hash": "8fe23b0ab7623e64eddd9e5d81de42679d191adc201dbb5d175072e62e78c605",
+    "last_seen": "2025-12-29T01:44:36.664843+00:00",
+    "paper_metadata": {
+      "title": "Robust and Efficient MuJoCo-based Model Predictive Control via Web of Affine Spaces Derivatives",
+      "authors": [
+        "Chen Liang",
+        "Daniel Rakita"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777534+00:00"
+  },
+  "2512.21085v1": {
+    "hash": "5ed904093030e8b12651a85fa192f90509ad6679aa407e64e03849d761ebd565",
+    "last_seen": "2025-12-29T01:44:36.664848+00:00",
+    "paper_metadata": {
+      "title": "Global End-Effector Pose Control of an Underactuated Aerial Manipulator via Reinforcement Learning",
+      "authors": [
+        "Shlok Deshmukh",
+        "Javier Alonso-Mora",
+        "Sihao Sun"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777831+00:00"
+  },
+  "2512.21065v1": {
+    "hash": "4d610b09d58388372c01fc56495b89de23cebd04f861f0e351fc44b503030987",
+    "last_seen": "2025-12-29T01:44:36.664864+00:00",
+    "paper_metadata": {
+      "title": "Language-Guided Grasp Detection with Coarse-to-Fine Learning for Robotic Manipulation",
+      "authors": [
+        "Zebin Jiang",
+        "Tianle Jin",
+        "Xiangtong Yao",
+        "Alois Knoll",
+        "Hu Cao"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777695+00:00"
+  },
+  "2512.21043v1": {
+    "hash": "b249d6bd9b549a9b4c61205d8431c60c87a2dbb83f90860cc484aafe7d368a2d",
+    "last_seen": "2025-12-29T01:44:36.664869+00:00",
+    "paper_metadata": {
+      "title": "Tracing Energy Flow: Learning Tactile-based Grasping Force Control to Prevent Slippage in Dynamic Object Interaction",
+      "authors": [
+        "Cheng-Yu Kuo",
+        "Hirofumi Shin",
+        "Takamitsu Matsubara"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777781+00:00"
+  },
+  "2512.20992v1": {
+    "hash": "47b6f2b1947f213d5ee9613fcfedb3ae408da7e31c2519d063440e41597f5a5e",
+    "last_seen": "2025-12-29T01:44:36.664875+00:00",
+    "paper_metadata": {
+      "title": "Multimodal Sensing for Robot-Assisted Sub-Tissue Feature Detection in Physiotherapy Palpation",
+      "authors": [
+        "Tian-Ao Ren",
+        "Jorge Garcia",
+        "Seongheon Hong",
+        "Jared Grinberg",
+        "Hojung Choi"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777705+00:00"
+  },
+  "2512.20974v1": {
+    "hash": "37141799d24ad39d4012552f71fa7d8005fc6e0d95c0809a3f1c2d3c32e5a243",
+    "last_seen": "2025-12-29T01:44:36.664881+00:00",
+    "paper_metadata": {
+      "title": "Generalised Linear Models in Deep Bayesian RL with Learnable Basis Functions",
+      "authors": [
+        "Jingyang You",
+        "Hanna Kurniawati"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:52:36.777676+00:00"
+  },
+  "2512.20951v1": {
+    "hash": "f725987ff0b14c8f8faea13c18b6823502898ca85f38071dcd2c3ba1b71f83dc",
+    "last_seen": "2025-12-29T01:44:36.664887+00:00",
+    "paper_metadata": {
+      "title": "From Human Bias to Robot Choice: How Occupational Contexts and Racial Priming Shape Robot Selection",
+      "authors": [
+        "Jiangen He",
+        "Wanqi Zhang",
+        "Jessica Barfield"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777843+00:00"
+  },
+  "2512.20940v1": {
+    "hash": "503decd0daa20c9c8c374a59eac4957e2a24cca40891c9fd71834651b6488cbb",
+    "last_seen": "2025-12-29T01:44:36.664893+00:00",
+    "paper_metadata": {
+      "title": "ETP-R1: Evolving Topological Planning with Reinforcement Fine-tuning for Vision-Language Navigation in Continuous Environments",
+      "authors": [
+        "Shuhao Ye",
+        "Sitong Mao",
+        "Yuxiang Cui",
+        "Xuan Yu",
+        "Shichao Zhai"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777722+00:00"
+  },
+  "2512.20931v1": {
+    "hash": "43c5596bf6c24787b9bb6166efaf994618eb005a88cf3a01dd61f5bb1fb86c94",
+    "last_seen": "2025-12-29T01:44:36.664899+00:00",
+    "paper_metadata": {
+      "title": "Certifiable Alignment of GNSS and Local Frames via Lagrangian Duality",
+      "authors": [
+        "Baoshan Song",
+        "Matthew Giamou",
+        "Penggao Yan",
+        "Chunxi Xia",
+        "Li-Ta Hsu"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777508+00:00"
+  },
+  "2512.20888v1": {
+    "hash": "d9cbe2118958be9850c283052849bcd393bf13bd4e834794d494a24099a30605",
+    "last_seen": "2025-12-29T01:44:36.664905+00:00",
+    "paper_metadata": {
+      "title": "Stretchable and High-Precision Optical Tactile Sensor for Trajectory Tracking of Parallel Mechanisms",
+      "authors": [
+        "Yiding Nie",
+        "Dongliang Fan",
+        "Jiatai Huang",
+        "Chunyu Liu",
+        "Jian S. Dai"
+      ],
+      "primary_category": "cs.RO"
+    },
+    "deleted": "2025-12-29T01:52:36.777481+00:00"
+  },
+  "2512.20981v1": {
+    "hash": "8bbea76b801277ffd7f91896ba4d01f1799206abfa9fa53acc33816c00ddff0d",
+    "last_seen": "2025-12-29T01:44:36.664910+00:00",
+    "paper_metadata": {
+      "title": "Leveraging Overfitting for Low-Complexity and Modality-Agnostic Joint Source-Channel Coding",
+      "authors": [
+        "Haotian Wu",
+        "Gen Li",
+        "Pier Luigi Dragotti",
+        "Deniz G\u00fcnd\u00fcz"
+      ],
+      "primary_category": "eess.IV"
+    },
+    "deleted": "2025-12-29T01:52:36.777798+00:00"
+  },
+  "2512.20943v1": {
+    "hash": "975ffc2cf9ff6f3565acc5c4548530c3970bb3a1682461220f3cf951c20c1f9f",
+    "last_seen": "2025-12-29T01:44:36.664917+00:00",
+    "paper_metadata": {
+      "title": "AirGS: Real-Time 4D Gaussian Streaming for Free-Viewpoint Video Experiences",
+      "authors": [
+        "Zhe Wang",
+        "Jinghang Li",
+        "Yifei Zhu"
+      ],
+      "primary_category": "cs.GR"
+    },
+    "deleted": "2025-12-29T01:52:36.777511+00:00"
+  },
+  "2512.20871v1": {
+    "hash": "c4422c391e095034102f14eccef0ea4bbe339e87d87e313bff6a682e66e3fb67",
+    "last_seen": "2025-12-29T01:44:36.664922+00:00",
+    "paper_metadata": {
+      "title": "NeRV360: Neural Representation for 360-Degree Videos with a Viewport Decoder",
+      "authors": [
+        "Daichi Arai",
+        "Kyohei Unno",
+        "Yasuko Sugito",
+        "Yuichi Kusakabe"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777759+00:00"
+  },
+  "2512.20830v1": {
+    "hash": "58ae071303743d89e3550162f96c87a39ffdb71b60dcb7251e4ec6b18f9c199f",
+    "last_seen": "2025-12-29T01:44:36.664928+00:00",
+    "paper_metadata": {
+      "title": "The Area Signal-to-Noise Ratio: A Robust Alternative to Peak-Based SNR in Spectroscopic Analysis",
+      "authors": [
+        "Alex Yu",
+        "Huaqing Zhao",
+        "Lin Z. Li"
+      ],
+      "primary_category": "eess.SP"
+    },
+    "deleted": "2025-12-29T01:52:36.777710+00:00"
+  },
+  "2512.20741v1": {
+    "hash": "d2514446e12afc661b1f484b670ad07ea7a808245a099380a2624ca89a6996cb",
+    "last_seen": "2025-12-29T01:44:36.664935+00:00",
+    "paper_metadata": {
+      "title": "ASCHOPLEX encounters Dafne: a federated continuous learning project for the generalizability of the Choroid Plexus automatic segmentation",
+      "authors": [
+        "Valentina Visani",
+        "Marco Pinamonti",
+        "Valentina Sammassimo",
+        "Manuela Moretto",
+        "Mattia Veronese"
+      ],
+      "primary_category": "eess.IV"
+    },
+    "deleted": "2025-12-29T01:52:36.777664+00:00"
+  },
+  "2512.20436v1": {
+    "hash": "071eb873e94e68fca50dfd8fad8ff283661e6b240778ae59590be5d1f01af07e",
+    "last_seen": "2025-12-29T01:44:36.664941+00:00",
+    "paper_metadata": {
+      "title": "Dual-Encoder Transformer-Based Multimodal Learning for Ischemic Stroke Lesion Segmentation Using Diffusion MRI",
+      "authors": [
+        "Muhammad Usman",
+        "Azka Rehman",
+        "Muhammad Mutti Ur Rehman",
+        "Abd Ur Rehman",
+        "Muhammad Umar Farooq"
+      ],
+      "primary_category": "eess.IV"
+    },
+    "deleted": "2025-12-29T01:52:36.777585+00:00"
+  },
+  "2512.20374v1": {
+    "hash": "79ff7a17fb984852c2c678d068dc18b0d5457ef19181ad536c332550c7c7f459",
+    "last_seen": "2025-12-29T01:44:36.664946+00:00",
+    "paper_metadata": {
+      "title": "CLIP Based Region-Aware Feature Fusion for Automated BBPS Scoring in Colonoscopy Images",
+      "authors": [
+        "Yujia Fu",
+        "Zhiyu Dong",
+        "Tianwen Qian",
+        "Chenye Zheng",
+        "Danian Ji"
+      ],
+      "primary_category": "eess.IV"
+    },
+    "deleted": "2025-12-29T01:52:36.777755+00:00"
+  },
+  "2512.20330v1": {
+    "hash": "85f2a4fa1dd04e9b62d43fa917239877b7bfc006d4a13517b93ce684fe0351ea",
+    "last_seen": "2025-12-29T01:44:36.664952+00:00",
+    "paper_metadata": {
+      "title": "Branch Learning in MRI: More Data, More Models, More Training",
+      "authors": [
+        "Yuyang Li",
+        "Yipin Deng",
+        "Zijian Zhou",
+        "Peng Hu"
+      ],
+      "primary_category": "eess.IV"
+    },
+    "deleted": "2025-12-29T01:52:36.777504+00:00"
+  },
+  "2512.20296v1": {
+    "hash": "befc236ee931a148f6db49501c8d21b229a42126e214eb2968dbe05b992a5b0f",
+    "last_seen": "2025-12-29T01:44:36.664957+00:00",
+    "paper_metadata": {
+      "title": "TAVID: Text-Driven Audio-Visual Interactive Dialogue Generation",
+      "authors": [
+        "Ji-Hoon Kim",
+        "Junseok Ahn",
+        "Doyeop Kwak",
+        "Joon Son Chung",
+        "Shinji Watanabe"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777609+00:00"
+  },
+  "2512.20251v1": {
+    "hash": "975d148b6c294fb421b84a849b5918c8cef421116dd07b310dad06764dadbb29",
+    "last_seen": "2025-12-29T01:44:36.664963+00:00",
+    "paper_metadata": {
+      "title": "Degradation-Aware Metric Prompting for Hyperspectral Image Restoration",
+      "authors": [
+        "Binfeng Wang",
+        "Di Wang",
+        "Haonan Guo",
+        "Ying Fu",
+        "Jing Zhang"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777801+00:00"
+  },
+  "2512.20249v1": {
+    "hash": "a0cb60a336d81770ebc42aaf4d787e0f6f8937084e1da8d9e13a770e7408e06e",
+    "last_seen": "2025-12-29T01:44:36.664968+00:00",
+    "paper_metadata": {
+      "title": "Unified Multimodal Brain Decoding via Cross-Subject Soft-ROI Fusion",
+      "authors": [
+        "Xuanyu Hu"
+      ],
+      "primary_category": "cs.LG"
+    },
+    "deleted": "2025-12-29T01:52:36.777733+00:00"
+  },
+  "2512.20194v1": {
+    "hash": "719e525119f7aef14c7af24783d6a67121c36897b5b9158f673ae5cb56e34811",
+    "last_seen": "2025-12-29T01:44:36.664977+00:00",
+    "paper_metadata": {
+      "title": "Generative Latent Coding for Ultra-Low Bitrate Image Compression",
+      "authors": [
+        "Zhaoyang Jia",
+        "Jiahao Li",
+        "Bin Li",
+        "Houqiang Li",
+        "Yan Lu"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777548+00:00"
+  },
+  "2512.20113v1": {
+    "hash": "c2181822c0e39fdd53e74f21765ac5091e1f307281d1b1503d881d07437569b0",
+    "last_seen": "2025-12-29T01:44:36.664983+00:00",
+    "paper_metadata": {
+      "title": "Multi Modal Attention Networks with Uncertainty Quantification for Automated Concrete Bridge Deck Delamination Detection",
+      "authors": [
+        "Alireza Moayedikia",
+        "Sattar Dorafshan"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777559+00:00"
+  },
+  "2512.20093v1": {
+    "hash": "b4b19f6baf6a45461a91e789d0d225e1639df596941bcbd49cd7e8306073e459",
+    "last_seen": "2025-12-29T01:44:36.664989+00:00",
+    "paper_metadata": {
+      "title": "Neural Compression of 360-Degree Equirectangular Videos using Quality Parameter Adaptation",
+      "authors": [
+        "Daichi Arai",
+        "Yuichi Kondo",
+        "Kyohei Unno",
+        "Yasuko Sugito",
+        "Yuichi Kusakabe"
+      ],
+      "primary_category": "eess.IV"
+    },
+    "deleted": "2025-12-29T01:52:36.777602+00:00"
+  },
+  "2512.20070v1": {
+    "hash": "a63c08c356e0d9b47330ade2060c1e6f427ed89822baa17c4452d37afb3aa527",
+    "last_seen": "2025-12-29T01:44:36.664994+00:00",
+    "paper_metadata": {
+      "title": "Progressive Learned Image Compression for Machine Perception",
+      "authors": [
+        "Jungwoo Kim",
+        "Jun-Hyuk Kim",
+        "Jong-Seok Lee"
+      ],
+      "primary_category": "cs.CV"
+    },
+    "deleted": "2025-12-29T01:52:36.777751+00:00"
+  }
+}

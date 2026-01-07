@@ -1,3 +1,12 @@
+/**
+ * @deprecated This file is deprecated. Please migrate to the new unified API client.
+ * Import from '@/services/api-client' instead.
+ * 
+ * Migration guide:
+ * - Replace `apiClient` imports with `getAPIClient()` or `api` from api-client
+ * - The new client has similar methods (get, post, put, patch, delete, upload)
+ * - Includes retry logic, timeout handling, and better error types
+ */
 
 import { API_CONFIG, APIErrorClass, DEFAULT_HEADERS, getAuthHeaders } from '@/types/api';
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';

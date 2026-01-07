@@ -33,7 +33,7 @@ class ChatMessage(BaseModel):
 
     # Sender
     user_id = Column(GUID(), ForeignKey("users.id"), nullable=True)  # Nullable for AI/system messages
-    role = Column(Enum(MessageRole), nullable=False)
+    role = Column(Enum(MessageRole, values_callable=lambda obj: [e.value for e in obj]), nullable=False)
 
     # Content
     content = Column(Text, nullable=False)

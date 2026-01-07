@@ -453,7 +453,18 @@ export default function ArxivManagement() {
 
       setProgress(10);
 
-      const response = await apiClient.postWithLongTimeout('/arxiv/local/extract-local-features', {
+      const response = await apiClient.postWithLongTimeout<{
+        data?: {
+          status: string;
+          message: string;
+          processed_count: number;
+          results?: Array<any>;
+        };
+        status?: string;
+        message?: string;
+        processed_count?: number;
+        results?: Array<any>;
+      }>('/arxiv/local/extract-local-features', {
         paper_ids: null,
         extract_entities: extractEntities,
         extract_topics: extractTopics,
@@ -469,9 +480,9 @@ export default function ArxivManagement() {
       const data = response.data || response;
 
       setExtractionResult({
-        status: data.status,
-        message: data.message,
-        processed_count: data.processed_count,
+        status: data.status ?? 'unknown',
+        message: data.message ?? 'Extraction completed',
+        processed_count: data.processed_count ?? 0,
         results: data.results || []
       });
 

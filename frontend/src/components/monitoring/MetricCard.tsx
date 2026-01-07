@@ -9,8 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { TrendData } from '@/types/monitoring';
 import {
-  TrendingUpIcon,
-  TrendingDownIcon,
+  ArrowTrendingUpIcon,
+  ArrowTrendingDownIcon,
   MinusIcon,
   InformationCircleIcon,
   ExclamationTriangleIcon,
@@ -18,7 +18,7 @@ import {
   XCircleIcon
 } from '@heroicons/react/24/outline';
 
-interface MetricCardProps {
+export interface MetricCardProps {
   title: string;
   value: number | string;
   unit?: string;
@@ -222,8 +222,8 @@ const MetricCard: React.FC<MetricCardProps> = ({
   const renderTrend = () => {
     if (!trend) return null;
 
-    const TrendIcon = trend.direction === 'up' ? TrendingUpIcon :
-                     trend.direction === 'down' ? TrendingDownIcon : MinusIcon;
+    const TrendIcon = trend.direction === 'up' ? ArrowTrendingUpIcon :
+                     trend.direction === 'down' ? ArrowTrendingDownIcon : MinusIcon;
     const trendColor = trend.direction === 'up' ? 'text-green-600' :
                       trend.direction === 'down' ? 'text-red-600' : 'text-gray-500';
 

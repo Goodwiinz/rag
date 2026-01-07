@@ -135,6 +135,8 @@ export const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   useEffect(() => {
     if (!enableRealTimeUpdates) return;
 
+    let unsubscribe: (() => void) | undefined;
+
     const setupWebSocket = async () => {
       try {
         const connection = await websocketService.connectToGraphUpdates(filters);
@@ -156,7 +158,7 @@ export const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       }
     };
 
-    const unsubscribe = setupWebSocket();
+    setupWebSocket();
 
     return () => {
       if (unsubscribe) unsubscribe();
@@ -232,6 +234,7 @@ export const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       elements: cytoscapeElements,
 
       // Style configuration - visual only
+      // Cast to any because we use function mappers for dynamic styles
       style: [
         {
           selector: 'node',
@@ -352,7 +355,8 @@ export const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
 
     // Create Cytoscape instance
     if (!cyRef.current) {
-      cyRef.current = cytoscape(config);
+      // Cast config as any because we use function mappers in style which aren't compatible with StylesheetJson type
+      cyRef.current = cytoscape(config as any);
       setIsInitialized(true);
 
       // Setup event handlers
@@ -503,29 +507,37 @@ export const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
 
     try {
       switch (format) {
-        case 'png':
-          const pngBlob = await cyRef.current.png({
+        case 'png': {
+          // cy.png() returns a data URL string
+          const pngDataUrl = cyRef.current.png({
             scale: 2,
             full: true,
             bg: 'white'
           });
+          // Convert data URL to blob
+          const response = await fetch(pngDataUrl);
+          const pngBlob = await response.blob();
           downloadBlob(pngBlob, 'knowledge-graph.png');
           break;
+        }
 
-        case 'svg':
-          const svgBlob = await cyRef.current.svg({
+        case 'svg': {
+          // cy.svg() returns SVG string
+          const svgString = (cyRef.current as any).svg({
             scale: 1,
             full: true,
             bg: 'white'
           });
-          downloadBlob(new Blob([svgBlob], { type: 'image/svg+xml' }), 'knowledge-graph.svg');
+          downloadBlob(new Blob([svgString], { type: 'image/svg+xml' }), 'knowledge-graph.svg');
           break;
+        }
 
-        case 'json':
+        case 'json': {
           const jsonData = JSON.stringify(graphData, null, 2);
           const jsonBlob = new Blob([jsonData], { type: 'application/json' });
           downloadBlob(jsonBlob, 'knowledge-graph.json');
           break;
+        }
       }
     } catch (error) {
       console.error('Export failed:', error);

@@ -18,9 +18,9 @@ type SidebarContextType = {
   collapseSidebar: () => void;
   setMiniMode: () => void;
 
-  // Computed
-  isOpen: boolean;
-  shouldShowTooltips: boolean;
+  // Computed (getter functions)
+  isOpen: () => boolean;
+  shouldShowTooltips: () => boolean;
   getWidth: () => string;
 } & {
   // Additional context-specific values

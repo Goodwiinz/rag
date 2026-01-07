@@ -31,7 +31,7 @@ const triggerVariants = {
     scale: 1.05,
     transition: {
       duration: 0.2,
-      ease: [0.4, 0, 0.2, 1],
+      ease: [0.4, 0, 0.2, 1] as const,
     },
   },
   tap: {
@@ -82,11 +82,11 @@ export const EnhancedSidebarTrigger = React.forwardRef<
     >
       <motion.div
         animate={{
-          rotate: state === 'mini' ? 0 : isOpen ? 180 : 0,
+          rotate: state === 'mini' ? 0 : isOpen() ? 180 : 0,
         }}
         transition={{
           duration: 0.3,
-          ease: [0.4, 0, 0.2, 1],
+          ease: [0.4, 0, 0.2, 1] as const,
         }}
       >
         <Icon className="h-4 w-4" />
@@ -164,7 +164,7 @@ export const MobileSidebarTrigger = React.forwardRef<
       y: 6,
       transition: {
         duration: 0.2,
-        ease: [0.4, 0, 0.2, 1],
+        ease: [0.4, 0, 0.2, 1] as const,
       },
     },
     closed: {
@@ -172,7 +172,7 @@ export const MobileSidebarTrigger = React.forwardRef<
       y: 0,
       transition: {
         duration: 0.2,
-        ease: [0.4, 0, 0.2, 1],
+        ease: [0.4, 0, 0.2, 1] as const,
       },
     },
   };
@@ -199,7 +199,7 @@ export const MobileSidebarTrigger = React.forwardRef<
       y: -6,
       transition: {
         duration: 0.2,
-        ease: [0.4, 0, 0.2, 1],
+        ease: [0.4, 0, 0.2, 1] as const,
       },
     },
     closed: {
@@ -207,7 +207,7 @@ export const MobileSidebarTrigger = React.forwardRef<
       y: 0,
       transition: {
         duration: 0.2,
-        ease: [0.4, 0, 0.2, 1],
+        ease: [0.4, 0, 0.2, 1] as const,
       },
     },
   };

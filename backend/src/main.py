@@ -48,6 +48,8 @@ from src.api.arxiv_change_tracking import router as arxiv_change_router
 from src.api.arxiv_extraction import router as arxiv_extraction_router
 from src.api.arxiv_local import router as arxiv_local_router
 # from src.api.arxiv_local_batch import router as arxiv_batch_router  # Temporarily disabled due to import error
+from src.api.arxiv_bulk import router as arxiv_bulk_router
+from src.api.arxiv_llm_bulk import router as arxiv_llm_bulk_router
 from src.api.chat import router as chat_router
 from src.api.workspaces import router as workspaces_router, standalone_router as workspaces_standalone_router
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
@@ -146,6 +148,7 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
+    redirect_slashes=False,  # Prevent 307 redirects that strip Authorization headers
 )
 
 # Instrument application with observability
@@ -246,6 +249,8 @@ app.include_router(arxiv_change_router, prefix="/api/v1/arxiv/tracking")  # ArXi
 app.include_router(arxiv_extraction_router, prefix="/api/v1/arxiv/extraction")  # ArXiv Feature Extraction endpoints
 app.include_router(arxiv_local_router, prefix="/api/v1/arxiv/local")  # Local ArXiv PDF processing endpoints
 # app.include_router(arxiv_batch_router, prefix="/api/v1/arxiv/batch")  # Temporarily disabled due to import error
+app.include_router(arxiv_bulk_router, prefix="/api/v1")  # Kaggle bulk ingestion endpoints
+app.include_router(arxiv_llm_bulk_router, prefix="/api/v1")  # LLM-powered bulk ingestion with embeddings
 app.include_router(chat_router, prefix="/api/v1")  # Chat completion endpoints
 app.include_router(workspaces_router)  # Thread-centric workspace/conversation/thread/message API
 app.include_router(workspaces_standalone_router)  # Flat API routes for workspaces (used by frontend)

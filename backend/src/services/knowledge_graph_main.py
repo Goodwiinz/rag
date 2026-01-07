@@ -150,6 +150,29 @@ def parse_metadata(metadata_str: str) -> Dict[str, Any]:
     except (ValueError, json.JSONDecodeError):
         return {}
 
+
+def safe_entity_type(value: Optional[str]) -> EntityType:
+    """Safely convert string to EntityType, falling back to OTHER for unknown values"""
+    if not value:
+        return EntityType.OTHER
+    try:
+        return EntityType(value)
+    except ValueError:
+        logger.debug(f"Unknown EntityType '{value}', using OTHER")
+        return EntityType.OTHER
+
+
+def safe_extraction_method(value: Optional[str]) -> ExtractionMethod:
+    """Safely convert string to ExtractionMethod, falling back to UNKNOWN for None/unknown values"""
+    if not value:
+        return ExtractionMethod.UNKNOWN
+    try:
+        return ExtractionMethod(value)
+    except ValueError:
+        logger.debug(f"Unknown ExtractionMethod '{value}', using UNKNOWN")
+        return ExtractionMethod.UNKNOWN
+
+
 # Entity Management Endpoints
 @app.post("/entities", response_model=EntityResponse)
 async def create_entity(
@@ -278,9 +301,9 @@ async def get_entity(
         entity_response = EntityResponse(
             id=e["id"],
             name=e["name"],
-            entity_type=EntityType(e["type"]),
+            entity_type=safe_entity_type(e["type"]),
             confidence_score=e["confidence_score"],
-            extraction_method=ExtractionMethod(e["extraction_method"]),
+            extraction_method=safe_extraction_method(e["extraction_method"]),
             position=e.get("position"),
             context=e.get("context"),
             metadata=parse_metadata(e.get("metadata", "{}")),
@@ -351,9 +374,9 @@ async def update_entity(
         entity_response = EntityResponse(
             id=e["id"],
             name=e["name"],
-            entity_type=EntityType(e["type"]),
+            entity_type=safe_entity_type(e["type"]),
             confidence_score=e["confidence_score"],
-            extraction_method=ExtractionMethod(e["extraction_method"]),
+            extraction_method=safe_extraction_method(e["extraction_method"]),
             position=e.get("position"),
             context=e.get("context"),
             metadata=parse_metadata(e.get("metadata", "{}")),

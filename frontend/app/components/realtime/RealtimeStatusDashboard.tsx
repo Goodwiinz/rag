@@ -45,7 +45,7 @@ import {
 } from 'lucide-react';
 
 import { useRealtimeStore, useConnectionStatus, useDocuments, useSystemMetrics, useRealtimeActions } from '@/store/realtime-store';
-import { DocumentProcessingState, ProcessingStatus, WebSocketConnectionState } from '@/types/realtime-processing';
+import { DocumentProcessingState, ProcessingStatus, WebSocketConnectionState, Channel, UpdateFrequency } from '@/types/realtime-processing';
 import { formatFileSize, formatDuration, formatRelativeTime } from '@/lib/format-utils';
 
 interface RealtimeStatusDashboardProps {
@@ -66,7 +66,7 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
   const connectionStatus = useConnectionStatus();
   const documents = useDocuments();
   const systemMetrics = useSystemMetrics();
-  const { connect, disconnect, subscribeToDocument, unsubscribeFromDocument } = useRealtimeActions();
+  const { connect, disconnect, reconnect, subscribeToDocument, unsubscribeFromDocument } = useRealtimeActions();
 
   const [activeTab, setActiveTab] = useState('queue');
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
@@ -83,8 +83,8 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
       const token = localStorage.getItem('auth_token');
       if (token) {
         connect(token, {
-          channels: ['document_processing', 'system_status', 'user_notifications'],
-          frequency: 'realtime' as any
+          channels: [Channel.DOCUMENT_PROCESSING, Channel.SYSTEM_STATUS, Channel.USER_NOTIFICATIONS],
+          frequency: UpdateFrequency.REALTIME
         }).catch(console.error);
       }
     }
@@ -119,16 +119,18 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
 
     return filtered.sort((a, b) => {
       // Sort by status priority and creation time
-      const statusOrder = {
+      const statusOrder: Record<ProcessingStatus, number> = {
         'processing': 0,
-        'queued': 1,
-        'failed': 2,
-        'completed': 3,
-        'pending': 4
+        'uploading': 1,
+        'queued': 2,
+        'paused': 3,
+        'failed': 4,
+        'cancelled': 5,
+        'completed': 6
       };
 
-      const aPriority = statusOrder[a.status] || 999;
-      const bPriority = statusOrder[b.status] || 999;
+      const aPriority = statusOrder[a.status] ?? 999;
+      const bPriority = statusOrder[b.status] ?? 999;
 
       if (aPriority !== bPriority) {
         return aPriority - bPriority;
@@ -141,7 +143,7 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
   // Calculate statistics
   const statistics = useMemo(() => {
     const total = filteredDocuments.length;
-    const queued = filteredDocuments.filter(doc => doc.status === 'pending').length;
+    const queued = filteredDocuments.filter(doc => doc.status === 'queued').length;
     const processing = filteredDocuments.filter(doc => doc.status === 'processing').length;
     const completed = filteredDocuments.filter(doc => doc.status === 'completed').length;
     const failed = filteredDocuments.filter(doc => doc.status === 'failed').length;
@@ -173,7 +175,7 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
         return 'secondary';
       case 'failed':
         return 'destructive';
-      case 'pending':
+      case 'queued':
         return 'outline';
       default:
         return 'default';
@@ -188,7 +190,7 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
         return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
       case 'failed':
         return <XCircle className="h-4 w-4 text-red-500" />;
-      case 'pending':
+      case 'queued':
         return <Clock className="h-4 w-4 text-gray-500" />;
       default:
         return <FileText className="h-4 w-4 text-gray-500" />;
@@ -344,11 +346,11 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
         <div className="flex items-center gap-2">
           <select
             value={filter.status}
-            onChange={(e) => setFilter(prev => ({ ...prev, status: e.target.value as any }))}
+            onChange={(e) => setFilter(prev => ({ ...prev, status: e.target.value as ProcessingStatus | 'all' }))}
             className="px-3 py-2 border rounded-md"
           >
             <option value="all">All Status</option>
-            <option value="pending">Pending</option>
+            <option value="queued">Queued</option>
             <option value="processing">Processing</option>
             <option value="completed">Completed</option>
             <option value="failed">Failed</option>
@@ -425,7 +427,9 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
                 </TableCell>
                 <TableCell>
                   <p className="text-sm text-muted-foreground">
-                    {formatDuration(document.metadata.processingStartedAt)}
+                    {document.metadata.processingStartedAt
+                      ? formatRelativeTime(document.metadata.processingStartedAt)
+                      : '-'}
                   </p>
                 </TableCell>
                 <TableCell>

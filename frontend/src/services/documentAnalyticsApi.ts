@@ -118,9 +118,10 @@ class DocumentAnalyticsApiService {
     }
 
     const queryString = queryParams.toString();
-    const url = queryString 
-      ? `${this.documentsPath}?${queryString}` 
-      : this.documentsPath;
+    // Use trailing slash to avoid 307 redirect which drops Authorization header
+    const url = queryString
+      ? `${this.documentsPath}/?${queryString}`
+      : `${this.documentsPath}/`;
 
     return apiClient.get<DocumentListResponse>(url);
   }

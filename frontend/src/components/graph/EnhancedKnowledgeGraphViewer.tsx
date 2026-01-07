@@ -28,8 +28,10 @@ import {
   GraphFilters,
   GraphVisualizationState,
   WebSocketGraphUpdate,
-  GraphAnalyticsDashboard as GraphAnalyticsData
+  GraphAnalyticsDashboard as GraphAnalyticsData,
+  GraphLayout
 } from '../../types/knowledge-graph';
+import { GraphLayoutData } from '../../types/graph-api';
 
 // Enhanced component props
 interface EnhancedKnowledgeGraphViewerProps {
@@ -277,7 +279,8 @@ export const EnhancedKnowledgeGraphViewer: React.FC<EnhancedKnowledgeGraphViewer
         to: { enabled: true, scaleFactor: 0.8 }
       },
       smooth: {
-        type: 'continuous' as const,
+        enabled: true,
+        type: 'continuous',
         roundness: 0.5
       },
       chosen: {
@@ -363,7 +366,8 @@ export const EnhancedKnowledgeGraphViewer: React.FC<EnhancedKnowledgeGraphViewer
       width: 2,
       selectionWidth: 3,
       smooth: {
-        type: 'continuous' as const,
+        enabled: true,
+        type: 'continuous',
         roundness: 0.5
       },
       shadow: {
@@ -485,7 +489,7 @@ export const EnhancedKnowledgeGraphViewer: React.FC<EnhancedKnowledgeGraphViewer
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         if (networkRef.current) {
-          networkRef.current.setSize(width, height);
+          networkRef.current.setSize(String(width), String(height));
           networkRef.current.redraw();
         }
       }
@@ -560,7 +564,8 @@ export const EnhancedKnowledgeGraphViewer: React.FC<EnhancedKnowledgeGraphViewer
       }
     };
 
-    return themes[theme as keyof typeof themes]?.[type] || themes.light.document;
+    const themeColors = themes[theme as keyof typeof themes] || themes.light;
+    return (themeColors as Record<string, string>)[type] || themeColors.document;
   };
 
   const getNodeSize = (node: GraphNode, ui: GraphVisualizationState['ui']): number => {
@@ -632,18 +637,28 @@ export const EnhancedKnowledgeGraphViewer: React.FC<EnhancedKnowledgeGraphViewer
     return `${baseInfo}\n${weight}\n${confidence}`;
   };
 
-  const updateGraphLayout = (newLayout: KnowledgeGraphData) => {
-    if (!networkRef.current || !newLayout?.layout) return;
+  const updateGraphLayout = (newLayout: GraphLayout | GraphLayoutData) => {
+    if (!networkRef.current) return;
 
-    // Update node positions from backend layout
-    const positions: Record<string, { x: number; y: number }> = {};
-    newLayout.nodes.forEach(node => {
-      if (node.position) {
-        positions[node.id] = node.position;
-      }
-    });
+    // Handle both GraphLayout (layout config only) and GraphLayoutData (full data with nodes)
+    const layoutData = newLayout as GraphLayoutData;
+    if (layoutData.nodes && Array.isArray(layoutData.nodes)) {
+      // Full GraphLayoutData - update node positions
+      const positions: Record<string, { x: number; y: number }> = {};
+      layoutData.nodes.forEach(node => {
+        if (node.position) {
+          positions[node.id] = node.position;
+        }
+      });
 
-    networkRef.current.moveNode(positions);
+      // Move each node to its position
+      Object.entries(positions).forEach(([nodeId, pos]) => {
+        if (networkRef.current && pos) {
+          networkRef.current.moveNode(nodeId, pos.x, pos.y);
+        }
+      });
+    }
+    // For GraphLayout (config only), the layout algorithm change is handled elsewhere
   };
 
   const focusNodeAndNeighbors = async (nodeId: string) => {
@@ -785,7 +800,7 @@ export const EnhancedKnowledgeGraphViewer: React.FC<EnhancedKnowledgeGraphViewer
             Failed to load graph data
           </h3>
           <p className="text-sm mb-4">
-            {(error || queryError as Error)?.message || 'Unknown error occurred'}
+            {error || (queryError instanceof Error ? queryError.message : String(queryError || 'Unknown error occurred'))}
           </p>
           <button
             onClick={() => refetch()}

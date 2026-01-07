@@ -24,10 +24,10 @@ import { entityService } from '@/services/entityService';
 import toast from 'react-hot-toast';
 
 export default function EntityManagementPage() {
-  const [entities, setEntities] = useState<EntityResponse[]>([]);
-  const [filteredEntities, setFilteredEntities] = useState<EntityResponse[]>([]);
+  const [entities, setEntities] = useState<Entity[]>([]);
+  const [filteredEntities, setFilteredEntities] = useState<Entity[]>([]);
   const [relationships, setRelationships] = useState<GraphEdge[]>([]);
-  const [selectedEntity, setSelectedEntity] = useState<EntityResponse | null>(null);
+  const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<EntityType | 'all'>('all');
@@ -76,12 +76,15 @@ export default function EntityManagementPage() {
       }
 
       // Convert EntityResponse to Entity format for display
-      const convertedEntities = entitiesData.map(entity => ({
+      const convertedEntities: Entity[] = entitiesData.map(entity => ({
         id: entity.id,
         name: entity.name,
         type: entity.entity_type,
         confidence: entity.confidence_score,
         confidence_score: entity.confidence_score,
+        extraction_method: entity.extraction_method,
+        position: entity.position,
+        context: entity.context,
         metadata: entity.metadata,
         created_at: entity.created_at,
         updated_at: entity.updated_at,

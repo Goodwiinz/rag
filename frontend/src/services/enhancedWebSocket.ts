@@ -1,4 +1,14 @@
 /**
+ * @deprecated This file is deprecated. Please migrate to the new unified WebSocket client.
+ * Import from '@/services/websocket-client' instead.
+ * 
+ * Migration guide:
+ * - Replace `EnhancedWebSocketService` with `WebSocketClient` from websocket-client
+ * - Use `initializeWebSocketClient()` for singleton setup
+ * - The new client includes all enhanced features (buffering, latency, priority queues)
+ */
+
+/**
  * Enhanced WebSocket Service for Real-Time Document Processing
  *
  * This service extends the existing WebSocket functionality with additional
@@ -10,15 +20,11 @@
  * - Event-driven architecture
  */
 
+import {
+    WebSocketMessage
+} from '@/types/realtime-processing';
 import { EventEmitter } from 'events';
 import { WebSocketManager } from './websocket';
-import {
-  DocumentUpdateMessage,
-  QueueUpdateMessage,
-  SystemMetricsMessage,
-  NotificationMessage,
-  WebSocketMessage
-} from '@/types/realtime-processing';
 
 // Enhanced configuration options
 export interface EnhancedWebSocketConfig {

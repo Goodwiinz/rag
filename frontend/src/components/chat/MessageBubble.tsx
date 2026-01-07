@@ -204,11 +204,13 @@ export function MessageBubble({
               ) : (
                 <ReactMarkdown
                   components={{
-                    code({ node, inline, className, children, ...props }) {
+                    code({ node, className, children, ...props }) {
                       const match = /language-(\w+)/.exec(className || '');
                       const language = match ? match[1] : '';
+                      // Detect inline code by checking if there's no language specified
+                      const isInline = !language;
 
-                      return !inline && language ? (
+                      return !isInline && language ? (
                         <div className="relative group">
                           <div className="flex items-center justify-between bg-muted px-4 py-2 border-b border-border rounded-t-lg">
                             <span className="text-xs font-medium text-muted-foreground">
@@ -224,11 +226,10 @@ export function MessageBubble({
                             </Button>
                           </div>
                           <SyntaxHighlighter
-                            style={oneDark}
+                            style={oneDark as { [key: string]: React.CSSProperties }}
                             language={language}
                             PreTag="div"
                             className="!mt-0 !rounded-t-none"
-                            {...props}
                           >
                             {String(children).replace(/\n$/, '')}
                           </SyntaxHighlighter>
@@ -237,7 +238,7 @@ export function MessageBubble({
                         <code
                           className={cn(
                             "rounded-md bg-muted px-1.5 py-0.5 text-xs font-mono",
-                            !inline && "block"
+                            !isInline && "block"
                           )}
                           {...props}
                         >

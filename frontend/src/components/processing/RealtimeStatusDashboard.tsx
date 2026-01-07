@@ -23,8 +23,8 @@ import {
   SignalIcon,
   BellIcon,
   FunnelIcon,
-  ViewListIcon,
-  ViewGridIcon,
+  ListBulletIcon,
+  Squares2X2Icon,
   ArrowsUpDownIcon,
   MagnifyingGlassIcon,
   XMarkIcon,
@@ -622,7 +622,7 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
                   viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'
                 )}
               >
-                <ViewListIcon className="h-5 w-5" />
+                <ListBulletIcon className="h-5 w-5" />
               </button>
               <button
                 onClick={() => setViewMode('grid')}
@@ -631,7 +631,7 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
                   viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'
                 )}
               >
-                <ViewGridIcon className="h-5 w-5" />
+                <Squares2X2Icon className="h-5 w-5" />
               </button>
             </div>
           </div>

@@ -266,7 +266,7 @@ export function ChatAnalytics({
           value={formatNumber(metrics.totalTokensUsed)}
           icon={<Hash className="w-5 h-5" />}
           subtitle={`Avg: ${Math.round(metrics.averageTokensPerMessage)}/msg`}
-          color="purple"
+          color="default"
           tooltip="Total tokens processed by the AI"
         />
       </div>

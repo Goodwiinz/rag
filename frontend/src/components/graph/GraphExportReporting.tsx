@@ -212,8 +212,8 @@ export const GraphExportReporting: React.FC<GraphExportReportingProps> = ({
   const graphStatistics = useMemo(() => {
     const totalEntities = entities.length;
     const totalRelationships = relationships.length;
-    const entityTypes = [...new Set(entities.map(e => e.type))];
-    const relationshipTypes = [...new Set(relationships.map(r => r.relationship_type))];
+    const entityTypes = Array.from(new Set(entities.map(e => e.type)));
+    const relationshipTypes = Array.from(new Set(relationships.map(r => r.relationship_type)));
 
     const avgDegree = totalEntities > 0
       ? relationships.reduce((sum, rel) => sum + 2, 0) / totalEntities

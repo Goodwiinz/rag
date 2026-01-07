@@ -1,28 +1,35 @@
+/**
+ * @deprecated This file is deprecated. Please migrate to the new unified API client.
+ * Import from '@/services/api-client' instead.
+ * 
+ * Migration guide:
+ * - Replace `apiClient` with `getAPIClient()` or `api` from api-client
+ * - Use `api.get()`, `api.post()`, etc. for direct HTTP methods
+ * - The new client includes retry logic, timeout handling, and better error types
+ */
+
 import {
-  APIResponse,
-  APIError,
-  APIErrorClass,
-  API_CONFIG,
-  DEFAULT_HEADERS,
-  getAuthHeaders,
-  Document,
-  DocumentListResponse,
-  DocumentFilters,
-  UploadProgress,
-  SearchRequest,
-  SearchResult,
-  QuerySuggestions,
-  QueryHistory,
-  GraphData,
-  EntityDetails,
-  EvaluationMetrics,
-  PerformanceAnalytics,
-  UserFeedback,
-  LoginRequest,
-  LoginResponse,
-  RegisterRequest,
-  User,
-  AuthResponse
+    APIErrorClass,
+    API_CONFIG,
+    AuthResponse,
+    DEFAULT_HEADERS,
+    Document,
+    DocumentListResponse,
+    EntityDetails,
+    EvaluationMetrics,
+    GraphData,
+    LoginRequest,
+    LoginResponse,
+    PerformanceAnalytics,
+    QueryHistory,
+    QuerySuggestions,
+    RegisterRequest,
+    SearchRequest,
+    SearchResult,
+    UploadProgress,
+    User,
+    UserFeedback,
+    getAuthHeaders
 } from '@/types';
 
 export class RAGAPIClient {
@@ -249,12 +256,13 @@ export class RAGAPIClient {
     }
 
     const queryParams = new URLSearchParams(filteredParams).toString();
-    const endpoint = `/documents/${queryParams ? `?${queryParams}` : ''}/`;
+    // Use trailing slash to avoid 307 redirect which drops Authorization header
+    const endpoint = `/documents/${queryParams ? `?${queryParams}` : ''}`;
 
     // For development, use mock service directly to ensure documents are visible
     try {
       const { mockDocumentService } = await import('./mockDocumentService');
-      return mockDocumentService.getDocuments(params);
+      return mockDocumentService.getDocuments(params || {});
     } catch (mockError) {
       // If mock service fails, try real backend
       console.warn('Mock service failed, trying real backend:', mockError);

@@ -318,7 +318,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
               <CardTitle>Entity Metadata</CardTitle>
             </CardHeader>
             <CardContent>
-              {renderMetadata(entity.metadata)}
+              {renderMetadata(entity.metadata ?? {})}
             </CardContent>
           </Card>
         </TabsContent>

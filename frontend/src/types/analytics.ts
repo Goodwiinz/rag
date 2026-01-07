@@ -1,6 +1,62 @@
 // Analytics Types for RAG System
 import type { ReactNode } from 'react';
 
+// Analytics tracking types
+export type AnalyticsProvider = 'google-analytics' | 'plausible' | 'custom' | 'none';
+
+export interface AnalyticsConfig {
+  enabled?: boolean;
+  trackingId?: string;
+  debug?: boolean;
+  anonymizeIp?: boolean;
+  sampleRate?: number;
+  // Extended properties for lib/analytics.ts
+  provider?: AnalyticsProvider;
+  measurementId?: string;
+  customEndpoint?: string;
+  trackPageViews?: boolean;
+  trackEvents?: boolean;
+  enableDebug?: boolean;
+}
+
+export interface AnalyticsEvent {
+  name?: string;
+  event?: string; // Alternative to name for AnalyticsService
+  category?: string;
+  action?: string;
+  label?: string;
+  value?: number;
+  properties?: Record<string, unknown>;
+  timestamp?: string;
+  // Extended properties used by AnalyticsService
+  userId?: string;
+  sessionId?: string;
+  page?: string;
+  userAgent?: string;
+  referrer?: string;
+}
+
+export interface PageView {
+  path: string;
+  title?: string;
+  referrer?: string;
+  properties?: Record<string, unknown>;
+  timestamp?: string;
+  // Extended properties used by AnalyticsService
+  userId?: string;
+  sessionId?: string;
+  userAgent?: string;
+}
+
+export interface UserSession {
+  id: string;
+  userId?: string;
+  startTime: string;
+  endTime?: string;
+  pageViews: PageView[];
+  events: AnalyticsEvent[];
+}
+
 export interface RAGTriadMetrics {
   context_relevance: MetricScore;
   answer_relevance: MetricScore;
