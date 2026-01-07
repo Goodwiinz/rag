@@ -1,7 +1,8 @@
 # Frontend UX Improvements - Detailed Implementation Plan
+
 **Priority:** HIGH
 **Timeline:** Weeks 2-4
-**Status:** Planning
+**Status:** Completed
 
 ---
 
@@ -22,6 +23,7 @@ The frontend analysis identified UX issues across component architecture, user f
 **Implementation:**
 
 **File:** `frontend/src/components/ui/icon-button.tsx`
+
 ```typescript
 import * as React from "react";
 import { Button, ButtonProps } from "@/components/ui/button";
@@ -95,26 +97,23 @@ IconButton.displayName = "IconButton";
 export const IconButtonSm = React.forwardRef<
   HTMLButtonElement,
   IconButtonProps
->((props, ref) => (
-  <IconButton ref={ref} className="h-7 w-7" {...props} />
-));
+>((props, ref) => <IconButton ref={ref} className="h-7 w-7" {...props} />);
 
 export const IconButtonLg = React.forwardRef<
   HTMLButtonElement,
   IconButtonProps
->((props, ref) => (
-  <IconButton ref={ref} className="h-10 w-10" {...props} />
-));
+>((props, ref) => <IconButton ref={ref} className="h-10 w-10" {...props} />);
 ```
 
 **Usage Updates:**
 
 **File:** `frontend/src/components/chat/ChatInput.tsx`
+
 ```typescript
 // Before:
 <Button variant="ghost" size="sm" onClick={handleBold}>
   <Bold className="w-4 h-4" />
-</Button>
+</Button>;
 
 // After:
 import { IconButton } from "@/components/ui/icon-button";
@@ -124,7 +123,7 @@ import { IconButton } from "@/components/ui/icon-button";
   label="Bold (Ctrl+B)"
   onClick={handleBold}
   className="h-7 w-7"
-/>
+/>;
 ```
 
 ### 1.2 Show Character Count When Near Limit
@@ -134,6 +133,7 @@ import { IconButton } from "@/components/ui/icon-button";
 **Effort:** 1 hour
 
 **File:** `frontend/src/components/chat/ChatInput.tsx`
+
 ```typescript
 // Add state for character tracking
 const charCount = value.length;
@@ -149,7 +149,7 @@ const showCharCount = charPercentage > 70 || isFocused;
     maxLength={maxLength}
     // ... other props
   />
-  
+
   {/* Character count - always visible when >70% or focused */}
   <div
     className={cn(
@@ -171,7 +171,7 @@ const showCharCount = charPercentage > 70 || isFocused;
       </span>
     )}
   </div>
-</div>
+</div>;
 ```
 
 ### 1.3 Fix Sidebar Active Indicator in Collapsed State
@@ -181,13 +181,14 @@ const showCharCount = charPercentage > 70 || isFocused;
 **Effort:** 1 hour
 
 **File:** `frontend/src/components/layout/AppSidebar.tsx`
+
 ```typescript
 // Find the NavItem component and update:
 
 const NavItem = ({ item }: { item: NavItemType }) => {
   const pathname = usePathname();
   const isActive = pathname === item.url || pathname.startsWith(`${item.url}/`);
-  
+
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -211,12 +212,9 @@ const NavItem = ({ item }: { item: NavItemType }) => {
               aria-hidden="true"
             />
           )}
-          
+
           <item.icon
-            className={cn(
-              "h-4 w-4 shrink-0",
-              isActive && "text-[#00ff9f]"
-            )}
+            className={cn("h-4 w-4 shrink-0", isActive && "text-[#00ff9f]")}
           />
           <span className="truncate">{item.title}</span>
         </Link>
@@ -233,6 +231,7 @@ const NavItem = ({ item }: { item: NavItemType }) => {
 **Effort:** 2 hours
 
 **File:** `frontend/src/components/ui/confirm-dialog.tsx` (new)
+
 ```typescript
 import * as React from "react";
 import {
@@ -332,21 +331,19 @@ export function DeleteConfirmDialog({
 ```
 
 **Usage in EnhancedDocumentUploadZone:**
+
 ```typescript
 import { DeleteConfirmDialog } from "@/components/ui/confirm-dialog";
 
 // Replace direct remove button:
-<DeleteConfirmDialog
-  itemName="file"
-  onConfirm={() => removeFile(file.id)}
->
+<DeleteConfirmDialog itemName="file" onConfirm={() => removeFile(file.id)}>
   <IconButton
     icon={<X className="h-3 w-3" />}
     label="Remove file"
     variant="ghost"
     className="h-6 w-6 text-muted-foreground hover:text-destructive"
   />
-</DeleteConfirmDialog>
+</DeleteConfirmDialog>;
 ```
 
 ---
@@ -360,6 +357,7 @@ import { DeleteConfirmDialog } from "@/components/ui/confirm-dialog";
 **Effort:** 4 hours
 
 **File:** `frontend/src/components/ui/form-field.tsx`
+
 ```typescript
 import * as React from "react";
 import { Label } from "@/components/ui/label";
@@ -432,13 +430,11 @@ export const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
             ref={ref}
             id={fieldId}
             aria-invalid={!!displayError}
-            aria-describedby={cn(
-              displayError && errorId,
-              hint && hintId
-            )}
+            aria-describedby={cn(displayError && errorId, hint && hintId)}
             className={cn(
               "pr-10",
-              displayError && "border-destructive focus-visible:ring-destructive",
+              displayError &&
+                "border-destructive focus-visible:ring-destructive",
               isValid && "border-green-500 focus-visible:ring-green-500",
               className
             )}
@@ -487,10 +483,13 @@ FormField.displayName = "FormField";
 
 **Common Validators:**
 **File:** `frontend/src/lib/validators.ts`
+
 ```typescript
 export const validators = {
-  required: (message = "This field is required") => (value: string) =>
-    !value?.trim() ? message : undefined,
+  required:
+    (message = "This field is required") =>
+    (value: string) =>
+      !value?.trim() ? message : undefined,
 
   minLength: (min: number, message?: string) => (value: string) =>
     value && value.length < min
@@ -502,18 +501,22 @@ export const validators = {
       ? message || `Must be no more than ${max} characters`
       : undefined,
 
-  email: (message = "Invalid email address") => (value: string) =>
-    value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? message : undefined,
+  email:
+    (message = "Invalid email address") =>
+    (value: string) =>
+      value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? message : undefined,
 
-  url: (message = "Invalid URL") => (value: string) => {
-    if (!value) return undefined;
-    try {
-      new URL(value);
-      return undefined;
-    } catch {
-      return message;
-    }
-  },
+  url:
+    (message = "Invalid URL") =>
+    (value: string) => {
+      if (!value) return undefined;
+      try {
+        new URL(value);
+        return undefined;
+      } catch {
+        return message;
+      }
+    },
 
   pattern: (regex: RegExp, message: string) => (value: string) =>
     value && !regex.test(value) ? message : undefined,
@@ -531,6 +534,7 @@ export const validators = {
 ```
 
 **Usage in EntityForm:**
+
 ```typescript
 import { FormField } from "@/components/ui/form-field";
 import { validators } from "@/lib/validators";
@@ -546,7 +550,7 @@ import { validators } from "@/lib/validators";
     validators.maxLength(100)
   )}
   hint="Enter a descriptive name for this entity"
-/>
+/>;
 ```
 
 ### 2.2 Add Optimistic Updates for Document Upload
@@ -556,6 +560,7 @@ import { validators } from "@/lib/validators";
 **Effort:** 4 hours
 
 **File:** `frontend/src/hooks/useOptimisticUpload.ts`
+
 ```typescript
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { v4 as uuidv4 } from "uuid";
@@ -624,7 +629,9 @@ export function useOptimisticUpload() {
       // Replace optimistic document with real one
       queryClient.setQueryData<Document[]>(["documents"], (old) =>
         old?.map((doc) =>
-          doc.id === context?.optimisticId ? { ...data, isOptimistic: false } : doc
+          doc.id === context?.optimisticId
+            ? { ...data, isOptimistic: false }
+            : doc
         )
       );
     },
@@ -667,6 +674,7 @@ export function useOptimisticUpload() {
 **Effort:** 2 hours
 
 **File:** `frontend/src/components/chat/ChatInput.tsx`
+
 ```typescript
 // Update toolbar visibility classes:
 <div
@@ -694,11 +702,13 @@ export function useOptimisticUpload() {
 
 ### 3.2 Add Touch Interactions for Knowledge Graph
 
+**Status:** Completed
 **Problem:** Knowledge graph has no touch support
 **Impact:** Mobile users can't navigate graph
 **Effort:** 4 hours
 
 **File:** `frontend/src/components/graph/KnowledgeGraphViewer.tsx`
+
 ```typescript
 // Add touch gesture handlers
 import { useGesture } from "@use-gesture/react";
@@ -801,34 +811,35 @@ const KnowledgeGraphViewer: React.FC<Props> = ({ data }) => {
 **Effort:** 3 hours
 
 **File:** `frontend/src/theme/constants.ts`
+
 ```typescript
 export const THEME = {
   colors: {
     // Terminal Observatory palette
-    primary: "#00ff9f",      // Phosphor Green
+    primary: "#00ff9f", // Phosphor Green
     primaryMuted: "#00ff9f33",
-    accent: "#ffb700",       // Amber
+    accent: "#ffb700", // Amber
     accentMuted: "#ffb70033",
-    secondary: "#00d4ff",    // Cyan
+    secondary: "#00d4ff", // Cyan
     secondaryMuted: "#00d4ff33",
-    
+
     // Status colors
     success: "#22c55e",
     warning: "#f59e0b",
     error: "#ef4444",
     info: "#3b82f6",
-    
+
     // Backgrounds
     background: "#0a0a0f",
     surface: "#0d0d12",
     surfaceHover: "#141419",
-    
+
     // Text
     text: "#ffffff",
     textMuted: "#8b949e",
     textSubtle: "#484f58",
   },
-  
+
   // Animation durations
   transitions: {
     fast: "150ms",
@@ -836,7 +847,7 @@ export const THEME = {
     slow: "300ms",
     verySlow: "500ms",
   },
-  
+
   // Border radius
   radius: {
     sm: "0.25rem",
@@ -861,6 +872,7 @@ export const cssVariables = {
 ```
 
 **File:** `frontend/src/theme/useTheme.ts`
+
 ```typescript
 import { THEME, ThemeColor, getColor } from "./constants";
 
@@ -870,7 +882,7 @@ export function useTheme() {
     transitions: THEME.transitions,
     radius: THEME.radius,
     getColor,
-    
+
     // Utility for conditional colors
     statusColor: (status: "success" | "warning" | "error" | "info") => {
       const map = {
@@ -890,31 +902,34 @@ export function useTheme() {
 ## Summary Checklist
 
 ### Week 2: Quick Wins & Forms
-- [ ] Create IconButton component
-- [ ] Update ChatInput with IconButton
-- [ ] Update ProcessingStatus with IconButton
-- [ ] Add character count visibility
-- [ ] Fix sidebar active indicator
-- [ ] Create ConfirmDialog component
-- [ ] Add delete confirmations
-- [ ] Create FormField component
-- [ ] Add validators library
-- [ ] Implement optimistic uploads
+
+- [x] Create IconButton component
+- [x] Update ChatInput with IconButton
+- [x] Update ProcessingStatus with IconButton
+- [x] Add character count visibility
+- [x] Fix sidebar active indicator
+- [x] Create ConfirmDialog component
+- [x] Add delete confirmations
+- [x] Create FormField component
+- [x] Add validators library
+- [x] Implement optimistic uploads
 
 ### Week 3: Mobile & Responsive
-- [ ] Fix mobile toolbar visibility
-- [ ] Add mobile formatting toggle
-- [ ] Add touch gestures to graph
-- [ ] Add zoom controls
-- [ ] Test on mobile devices
-- [ ] Add responsive breakpoints
+
+- [x] Fix mobile toolbar visibility
+- [x] Add mobile formatting toggle
+- [x] Add touch gestures to graph
+- [x] Add zoom controls
+- [x] Test on mobile devices
+- [x] Add responsive breakpoints
 
 ### Week 4: Theme & Polish
-- [ ] Create theme constants file
-- [ ] Create useTheme hook
-- [ ] Update DashboardCharts to use theme
-- [ ] Update ArxivManagement (verify)
-- [ ] Audit all hardcoded colors
-- [ ] Add animation consistency
-- [ ] Add ESLint a11y rules
-- [ ] Run accessibility audit
+
+- [x] Create theme constants file
+- [x] Create useTheme hook
+- [x] Update DashboardCharts to use theme
+- [x] Update ArxivManagement (verify)
+- [x] Audit all hardcoded colors
+- [x] Add animation consistency
+- [x] Add ESLint a11y rules
+- [x] Run accessibility audit

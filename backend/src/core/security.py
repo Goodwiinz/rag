@@ -24,6 +24,7 @@ class TokenData(BaseModel):
     organization_id: Optional[str] = None
     role: Optional[str] = None
     exp: Optional[datetime] = None
+    remember_me: bool = False  # Indicates if session should persist for 30 days
 
 class Token(BaseModel):
     """Token response model"""
@@ -85,19 +86,31 @@ def create_access_token(
 
 def create_refresh_token(
     data: dict,
-    expires_delta: Optional[timedelta] = None
+    expires_delta: Optional[timedelta] = None,
+    remember_me: bool = False
 ) -> str:
-    """Create JWT refresh token"""
+    """Create JWT refresh token
+
+    Args:
+        data: Token payload data
+        expires_delta: Custom expiration time
+        remember_me: If True, use extended 30-day expiration for persistent sessions
+    """
     to_encode = data.copy()
 
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
+    elif remember_me:
+        # Extended session for "Remember Me" - 30 days
+        expire = datetime.utcnow() + timedelta(days=settings.REMEMBER_ME_REFRESH_TOKEN_DAYS)
     else:
-        expire = datetime.utcnow() + timedelta(days=7)  # 7 days for refresh token
+        # Default refresh token lifetime
+        expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
     to_encode.update({
         "exp": expire,
-        "type": "refresh"
+        "type": "refresh",
+        "remember_me": remember_me  # Track if this is an extended session
     })
     encoded_jwt = jwt.encode(
         to_encode,
@@ -153,7 +166,10 @@ def verify_refresh_token(token: str) -> Optional[TokenData]:
         if user_id is None:
             return None
 
-        return TokenData(user_id=user_id)
+        # Preserve the remember_me flag from the original refresh token
+        remember_me: bool = payload.get("remember_me", False)
+
+        return TokenData(user_id=user_id, remember_me=remember_me)
 
     except JWTError:
         return None

@@ -3,13 +3,13 @@
  * Interactive visualization of entities and their relationships
  */
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Entity, GraphEdge } from '@/types/entity';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ZoomIn, ZoomOut, Download, RefreshCw } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { THEME } from '@/theme/constants';
+import { Entity, GraphEdge } from '@/types/entity';
+import { Download, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface EntityGraphProps {
   entities: Entity[];
@@ -32,9 +32,9 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
   const typeColors: Record<string, string> = {
     PERSON: '#3B82F6',
     ORGANIZATION: '#10B981',
-    LOCATION: '#F59E0B',
+    LOCATION: THEME.colors.warning, // Amber
     CONCEPT: '#8B5CF6',
-    EVENT: '#EF4444',
+    EVENT: THEME.colors.error,
     PRODUCT: '#6366F1',
     DATE: '#6B7280',
     TECHNOLOGY: '#EC4899',
@@ -182,7 +182,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
       .attr('text-anchor', 'middle')
       .style('font-size', '12px')
       .style('font-weight', 'bold')
-      .style('fill', '#374151')
+      .style('fill', THEME.colors.textSubtle)
       .style('pointer-events', 'none');
 
     // Add type labels

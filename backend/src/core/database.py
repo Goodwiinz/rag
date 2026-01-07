@@ -34,7 +34,10 @@ ASYNC_DATABASE_URL = os.getenv("ASYNC_DATABASE_URL", DATABASE_URL.replace("postg
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
-    pool_recycle=300,
+    pool_recycle=3600,  # Recycle connections after 1 hour (reduced connection churn)
+    pool_size=10,       # Base pool size
+    max_overflow=20,    # Allow up to 30 total connections
+    pool_timeout=30,    # Wait 30s for available connection
     echo=os.getenv("ENVIRONMENT") == "development"
 )
 
@@ -42,7 +45,10 @@ engine = create_engine(
 async_engine = create_async_engine(
     ASYNC_DATABASE_URL,
     pool_pre_ping=True,
-    pool_recycle=300,
+    pool_recycle=3600,  # Recycle connections after 1 hour (reduced connection churn)
+    pool_size=10,       # Base pool size
+    max_overflow=20,    # Allow up to 30 total connections
+    pool_timeout=30,    # Wait 30s for available connection
     echo=os.getenv("ENVIRONMENT") == "development"
 )
 

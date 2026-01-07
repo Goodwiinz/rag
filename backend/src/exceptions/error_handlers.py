@@ -1,5 +1,5 @@
 """
-Global error handlers for analytics exceptions
+Global error handlers for RAG system exceptions
 Provides consistent error responses across the application
 """
 
@@ -11,6 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.exceptions import RAGException
 from src.exceptions.analytics_exceptions import (
     AnalyticsException,
     PermissionDeniedException,
@@ -25,6 +26,61 @@ from src.exceptions.analytics_exceptions import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def rag_exception_handler(request: Request, exc: RAGException) -> JSONResponse:
+    """
+    Handle all RAG system exceptions with consistent error responses.
+    
+    Logs errors appropriately based on severity and returns
+    a structured error response without leaking internal details.
+    """
+    # Log with appropriate level based on status code
+    if exc.status_code >= 500:
+        logger.error(
+            f"RAG exception: {exc.error_code} - {exc.message}",
+            extra={
+                "error_code": exc.error_code,
+                "status_code": exc.status_code,
+                "details": exc.details,
+                "path": str(request.url),
+                "method": request.method,
+                "user_id": getattr(request.state, "user_id", None),
+                "organization_id": getattr(request.state, "organization_id", None),
+            },
+            exc_info=exc.cause if exc.cause else True
+        )
+    else:
+        logger.warning(
+            f"RAG exception: {exc.error_code} - {exc.message}",
+            extra={
+                "error_code": exc.error_code,
+                "status_code": exc.status_code,
+                "details": exc.details,
+                "path": str(request.url),
+                "method": request.method,
+            }
+        )
+    
+    # Build error response
+    error_response = {
+        "error": {
+            "code": exc.error_code,
+            "message": exc.message,
+            "details": exc.details,
+            "path": str(request.url.path),
+            "method": request.method,
+        }
+    }
+    
+    # Add request ID if available
+    if hasattr(request.state, "request_id"):
+        error_response["error"]["request_id"] = request.state.request_id
+    
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=error_response
+    )
 
 
 async def analytics_exception_handler(request: Request, exc: AnalyticsException) -> JSONResponse:
@@ -244,6 +300,9 @@ def setup_error_handlers(app):
     """
     Register all error handlers with the FastAPI application
     """
+    # RAG system exceptions (base class catches all)
+    app.add_exception_handler(RAGException, rag_exception_handler)
+    
     # Analytics-specific exceptions
     app.add_exception_handler(AnalyticsException, analytics_exception_handler)
     app.add_exception_handler(PermissionDeniedException, analytics_exception_handler)

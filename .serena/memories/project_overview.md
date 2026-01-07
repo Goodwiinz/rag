@@ -39,3 +39,4 @@ Multimodal Enterprise RAG (Retrieval-Augmented Generation) System that processes
 - ArXiv paper tracking and feature extraction
 - Terminal Observatory theme (Dashboard, Settings, ArXiv)
 - Settings page with profile, appearance, notifications, security controls
+- **30-day session persistence with "Remember Me" functionality**

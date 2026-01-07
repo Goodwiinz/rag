@@ -1,31 +1,30 @@
-import React from 'react';
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import { THEME } from '@/theme/constants';
 import {
-  ArrowTrendingUpIcon,
-  ArrowTrendingDownIcon,
-  MinusIcon,
-  ChartBarIcon
+    ArrowTrendingDownIcon,
+    ArrowTrendingUpIcon,
+    ChartBarIcon,
+    MinusIcon
 } from '@heroicons/react/24/outline';
+import React from 'react';
+import {
+    Bar,
+    BarChart,
+    CartesianGrid,
+    Cell,
+    Legend,
+    Line,
+    LineChart,
+    Pie,
+    PieChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis
+} from 'recharts';
 
 interface RAGTriadMetricsDisplayProps {
   metrics: {
@@ -55,7 +54,13 @@ interface RAGTriadMetricsDisplayProps {
   className?: string;
 }
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
+const COLORS = [
+  THEME.colors.primary,
+  THEME.colors.secondary,
+  THEME.colors.accent,
+  THEME.colors.info,
+  THEME.colors.success
+];
 
 export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
   metrics,
@@ -296,7 +301,7 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
                 <Line
                   type="monotone"
                   dataKey="answerRelevancy"
-                  stroke="#8884d8"
+                  stroke={THEME.colors.primary}
                   strokeWidth={2}
                   dot={{ r: 4 }}
                   name="Answer Relevancy"
@@ -305,7 +310,7 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
                 <Line
                   type="monotone"
                   dataKey="faithfulness"
-                  stroke="#82ca9d"
+                  stroke={THEME.colors.secondary}
                   strokeWidth={2}
                   dot={{ r: 4 }}
                   name="Faithfulness"
@@ -314,7 +319,7 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
                 <Line
                   type="monotone"
                   dataKey="contextualRelevancy"
-                  stroke="#ffc658"
+                  stroke={THEME.colors.accent}
                   strokeWidth={2}
                   dot={{ r: 4 }}
                   name="Contextual Relevancy"
@@ -346,7 +351,7 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
                   />
                   <YAxis tick={{ fontSize: 10 }} />
                   <Tooltip />
-                  <Bar dataKey="count" fill="#8884d8" />
+                  <Bar dataKey="count" fill={THEME.colors.primary} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -371,7 +376,7 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
                   />
                   <YAxis tick={{ fontSize: 10 }} />
                   <Tooltip />
-                  <Bar dataKey="count" fill="#82ca9d" />
+                  <Bar dataKey="count" fill={THEME.colors.secondary} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -396,7 +401,7 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
                   />
                   <YAxis tick={{ fontSize: 10 }} />
                   <Tooltip />
-                  <Bar dataKey="count" fill="#ffc658" />
+                  <Bar dataKey="count" fill={THEME.colors.accent} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

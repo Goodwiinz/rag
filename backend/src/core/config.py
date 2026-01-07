@@ -29,6 +29,19 @@ class Settings(BaseSettings):
 
     # CORS Configuration (comma-separated string from env, parsed to list)
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+    CORS_ALLOWED_HEADERS: str = (
+        "Authorization,"
+        "Content-Type,"
+        "Accept,"
+        "Origin,"
+        "X-Request-ID,"
+        "X-Correlation-ID,"
+        "X-Organization-ID,"
+        "Cache-Control"
+    )
+    CORS_ALLOWED_METHODS: str = "GET,POST,PUT,DELETE,PATCH,OPTIONS,HEAD"
+    CORS_EXPOSE_HEADERS: str = "X-Request-ID,X-Correlation-ID,X-Process-Time"
+    CORS_MAX_AGE: int = 86400  # 24 hours preflight cache
 
     @property
     def cors_origins_list(self) -> List[str]:
@@ -36,6 +49,21 @@ class Settings(BaseSettings):
         if not self.CORS_ORIGINS:
             return ["http://localhost:3000"]
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def cors_headers_list(self) -> List[str]:
+        """Parse CORS_ALLOWED_HEADERS string into a list."""
+        return [h.strip() for h in self.CORS_ALLOWED_HEADERS.split(",") if h.strip()]
+
+    @property
+    def cors_methods_list(self) -> List[str]:
+        """Parse CORS_ALLOWED_METHODS string into a list."""
+        return [m.strip() for m in self.CORS_ALLOWED_METHODS.split(",") if m.strip()]
+
+    @property
+    def cors_expose_list(self) -> List[str]:
+        """Parse CORS_EXPOSE_HEADERS string into a list."""
+        return [h.strip() for h in self.CORS_EXPOSE_HEADERS.split(",") if h.strip()]
 
     # Database
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev"
@@ -55,6 +83,8 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_HOURS: int = 24
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Default refresh token lifetime
+    REMEMBER_ME_REFRESH_TOKEN_DAYS: int = 30  # Extended session for "Remember Me"
 
     @field_validator("SECRET_KEY", mode="before")
     @classmethod

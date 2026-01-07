@@ -166,14 +166,16 @@ if OBSERVABILITY_ENABLED:
         instrument_services(sql_engine=engine)
 
 # Add CORS middleware
-# SECURITY: Never use allow_origins=["*"] in production - always specify explicit origins
+# SECURITY: Strict CORS configuration - only allow specified origins, headers, and methods
+# Never use allow_origins=["*"] or allow_headers=["*"] in production
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
-    allow_headers=["*"],  # Allow all headers for flexibility with custom headers like X-Organization-ID
-    expose_headers=["X-Process-Time", "X-Request-ID"],
+    allow_methods=settings.cors_methods_list,
+    allow_headers=settings.cors_headers_list,
+    expose_headers=settings.cors_expose_list,
+    max_age=settings.CORS_MAX_AGE,  # Cache preflight for 24 hours
 )
 
 # Add rate limiting middleware for analytics endpoints

@@ -458,6 +458,7 @@ body {
   --phosphor-green-dim: #00cc7a;
   --phosphor-green-glow: rgba(0, 255, 159, 0.15);
   --phosphor-green-intense: rgba(0, 255, 159, 0.4);
+  --phosphor-green-muted: rgba(0, 255, 159, 0.1);
 
   --amber-gold: #ffb700;
   --amber-gold-dim: #cc9200;
@@ -466,6 +467,9 @@ body {
   --terminal-text: #e0e0e8;
   --terminal-text-dim: #6a6a7a;
   --terminal-text-muted: #3a3a4a;
+  --terminal-text-subtle: #4a4a5a;
+
+  --terminal-surface-hover: #18181f;
 
   --scan-line-opacity: 0.03;
   --crt-flicker-intensity: 0.02;

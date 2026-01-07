@@ -24,6 +24,8 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str
     expires_in: int
+    refresh_expires_in: Optional[int] = None  # Refresh token expiration in seconds
+    remember_me: bool = False  # Indicates if this is an extended 30-day session
     user: dict
 
 class RefreshTokenRequest(BaseModel):
@@ -40,6 +42,7 @@ class UserRegistration(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    remember_me: bool = False  # If True, session persists for 30 days instead of 7
 
 class PasswordChange(BaseModel):
     current_password: str
@@ -99,14 +102,21 @@ async def login(
     request: Request,
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    """Login user and return tokens"""
+    """Login user and return tokens
+
+    Args:
+        user_credentials: Email, password, and optional remember_me flag
+            - remember_me=True: Session persists for 30 days
+            - remember_me=False (default): Session persists for 7 days
+    """
     # Get client IP for rate limiting
     client_ip = request.client.host
 
     try:
         token_data = auth_service.login_user(
             email=user_credentials.email,
-            password=user_credentials.password
+            password=user_credentials.password,
+            remember_me=user_credentials.remember_me
         )
 
         return token_data
@@ -145,6 +155,21 @@ async def get_current_user_info(
     """Get current user information"""
     return {
         "user": current_user.to_dict(exclude_sensitive=True)
+    }
+
+@router.get("/session")
+async def get_session_info(
+    current_user: User = Depends(get_current_user)
+):
+    """Get current session configuration info
+
+    Returns session duration settings so frontend can configure proactive refresh.
+    """
+    return {
+        "access_token_expires_minutes": settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+        "refresh_token_expires_days": settings.REFRESH_TOKEN_EXPIRE_DAYS,
+        "remember_me_expires_days": settings.REMEMBER_ME_REFRESH_TOKEN_DAYS,
+        "user_id": str(current_user.id)
     }
 
 @router.put("/me")

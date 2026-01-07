@@ -7,7 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a **Multimodal Enterprise RAG System** that processes text, images, audio, and video files. It follows an evaluation-first architecture with comprehensive testing and metrics tracking.
 
 ### Documentation
+
 Comprehensive documentation is available in the [`docs/`](docs/) directory, organized by category:
+
 - **[Architecture](docs/architecture/)** - System design and component architecture
 - **[Deployment](docs/deployment/)** - Deployment strategies and CI/CD guides
 - **[Database](docs/database/)** - Database schema, setup, and migration guides
@@ -34,6 +36,7 @@ The system is built with several key components:
 ## Development Commands
 
 ### Environment Setup
+
 ```bash
 # Start Docker services (use development compose file)
 docker-compose -f docker-compose.development.yml up -d
@@ -46,6 +49,7 @@ pip install -r requirements.txt
 ```
 
 ### Testing
+
 ```bash
 # Run all tests
 pytest tests/ --cov=src --cov-report=html
@@ -66,6 +70,7 @@ pytest tests/specs/test_websocket_connections.py -v
 ```
 
 ### Running the Application
+
 ```bash
 # FastAPI backend (development)
 docker-compose -f docker-compose.development.yml up --build backend
@@ -86,21 +91,25 @@ jupyter notebook notebooks/demo.ipynb
 ## Key Design Patterns
 
 ### Evaluation-First Development
+
 - All features are built with test specifications first using spec-kit philosophy
 - Success criteria are defined in `src/evaluation/success_criteria.py`
 - RAG Triad metrics: Answer Relevancy (>70%), Faithfulness (>90%), Contextual Relevancy (>70%)
 
 ### Multi-Agent Architecture
+
 - Agents are specialized: orchestrator, retrieval, graph, vector, QA, synthesis
 - Workflow types: factual_lookup, reasoning, multimodal
 - Uses CrewAI for agent coordination and task execution
 
 ### Hybrid Search System
+
 - Parallel execution of vector, graph, and keyword search
 - Results are combined, deduplicated, and reranked
 - Supports filtering by modality and other metadata
 
 ### Real-time Document Processing
+
 - **WebSocket Infrastructure**: Enterprise-grade WebSocket connection manager supporting 10,000+ concurrent connections
 - **Live Status Updates**: Real-time document processing progress with multi-stage visualization
 - **Event Broadcasting**: Automatic status change notifications to subscribed clients
@@ -111,18 +120,21 @@ jupyter notebook notebooks/demo.ipynb
 ## Configuration
 
 ### Environment Variables
+
 - `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`: Neo4j connection
 - `QDRANT_URL`, `QDRANT_API_KEY`: Qdrant vector store
 - `REDIS_URL`: Redis caching
 - `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`: LLM providers
 
 ### Database Connections
+
 - PostgreSQL: `postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev` (development)
 - Neo4j: `bolt://localhost:7687` (default)
 - Qdrant: `http://localhost:6333` (default)
 - Redis: `redis://localhost:6379` (default)
 
 ### Default Users (Development)
+
 - Admin: `admin@multimodal-rag.com` / `admin123`
 - Demo: `demo@multimodal-rag.com` / `demo123`
 - Lab Admin: `lab-admin@multimodal-rag.com` / `lab123`
@@ -130,6 +142,7 @@ jupyter notebook notebooks/demo.ipynb
 ## File Processing
 
 The system supports multiple file formats:
+
 - **Text**: PDF (with OCR), TXT
 - **Images**: JPG, PNG (with captioning and object detection)
 - **Audio**: MP3, WAV (with Whisper transcription)
@@ -140,13 +153,18 @@ All processing includes metadata enrichment, entity extraction, and domain taggi
 ## Security Considerations
 
 - Input validation on all file uploads
-- Query sanitization and injection prevention
+- Query sanitization and injection prevention via validated enums (`src/shared/enums.py`)
 - Role-based access control in `src/security/`
 - Audit logging for compliance
+- **WebSocket Security**: JWT tokens passed via `Sec-WebSocket-Protocol` header (not URL params)
+- **CORS Protection**: Explicit allowlists for origins, headers, methods (no wildcards)
+- **Secret Key Validation**: Production environments require strong secrets (32+ chars)
+- **Accessibility**: IconButton component enforces `aria-label` requirements
 
 ## Performance Metrics
 
 The system tracks:
+
 - **Answer Relevancy**: >70% threshold
 - **Faithfulness**: >90% threshold
 - **Contextual Relevancy**: >70% threshold
@@ -157,39 +175,50 @@ The system tracks:
 ## Common Issues
 
 ### Docker Services Not Starting
+
 - Check port conflicts (Neo4j: 7474/7687, Qdrant: 6333/6334, Redis: 6379, PostgreSQL: 5432)
 - Ensure Docker is running and has sufficient resources
 - Use development compose file: `docker-compose -f docker-compose.development.yml`
 
 ### Backend Issues
+
 - If backend fails to start, check if gunicorn is installed in requirements.txt
 - Backend runs on port 8000, ensure it's not occupied
 - Check logs: `docker-compose -f docker-compose.development.yml logs backend`
 
 ### Frontend Issues
+
 - Frontend runs on port 3000, ensure it's not occupied
 - Check API connectivity to backend at http://localhost:8000
 - Authentication tokens expire after 24 hours - re-login if needed
 
 ### Database Connection Issues
+
 - Database name is `multimodal_rag_dev` in development environment
 - PostgreSQL runs on port 5432 with default credentials: `postgres/postgres`
 - Container name is `rag-postgres-1` (not `rag-db-dev`)
 
 ### Document Processing Status Issues
+
 - If documents show incorrect status on frontend, check the `get_mapped_status()` method in `src/models/document.py`
 - Status mapping uses lowercase enum values: 'pending' → 'queued', 'failed' → 'failed', 'completed' → 'indexed'
 - Backend API endpoint is `/api/v1/documents/` (not `/documents` or `/api/documents`)
 
 ### Real-time WebSocket Connection Issues
-- WebSocket endpoint: `ws://localhost:8000/api/v2/ws/connect?token=JWT_TOKEN`
-- Connection requires valid JWT authentication token
+
+- WebSocket endpoint: `ws://localhost:8000/api/v2/ws/connect`
+- **Authentication**: JWT tokens are passed via `Sec-WebSocket-Protocol` header (NOT in URL query params for security)
+  - Frontend sends: `new WebSocket(url, ['auth', token])`
+  - Backend extracts from: `Sec-WebSocket-Protocol: auth, <token>`
+- Alternative auth methods: `Authorization: Bearer <token>` header or `access_token` cookie
 - Check WebSocket status: `GET /api/v2/ws/status` for service health
 - Real-time status API: `GET /api/v2/realtime/documents/{id}/status` for enhanced status
 - Frontend WebSocket service: `frontend/src/services/realtime-websocket-service.ts`
 - State management: `frontend/src/store/realtime-store.ts` with Zustand
+- **Security**: `backend/src/core/websocket_auth.py` handles secure token extraction
 
 ### Model Downloads
+
 - First run may take time to download models (sentence-transformers, Whisper)
 - Models are cached in `models/` directory
 
@@ -205,6 +234,7 @@ The system tracks:
 ## Recent Fixes and Improvements
 
 ### Document Status Mapping Fix (2025-11-09)
+
 - **Issue**: All documents showing "queued" or "Unknown status" on frontend regardless of actual processing status
 - **Root Cause**: Status mapping in `get_mapped_status()` method used uppercase keys but enum values are lowercase
 - **Solution**: Updated status mapping to use lowercase keys: 'pending' → 'queued', 'failed' → 'failed', 'completed' → 'indexed'
@@ -212,24 +242,28 @@ The system tracks:
 - **Impact**: Documents now display correct status on frontend (queued, processing, indexed, failed)
 
 ### Backend Container Issues (2025-11-09)
+
 - **Issue**: Backend container failing with "gunicorn: executable file not found in $PATH"
 - **Root Cause**: Missing gunicorn dependency in requirements.txt
 - **Solution**: Added `gunicorn==21.2.0` to backend/requirements.txt
 - **Files Modified**: `backend/requirements.txt`
 
 ### Frontend API Error Handling (2025-11-09)
+
 - **Issue**: APIErrorClass constructor failing due to missing timestamp field
 - **Root Cause**: APIError interface expected required timestamp field
 - **Solution**: Made timestamp optional and auto-generated in constructor
 - **Files Modified**: `frontend/src/types/api.ts`
 
 ### Pydantic Validation Fix (2025-11-09)
+
 - **Issue**: Documents API returning 500 error for None tags field
 - **Root Cause**: DocumentResponse model expected List[str] but received None from database
 - **Solution**: Made tags field optional with default factory
 - **Files Modified**: `backend/src/shared/schemas.py`, `backend/src/api/documents.py`
 
 ### Real-time Document Processing Implementation (2025-11-21)
+
 - **Added**: Complete WebSocket-based real-time document processing status system
 - **Features**: Enterprise-grade WebSocket manager supporting 10,000+ concurrent connections
 - **Components**: Real-time status APIs, event broadcasting, progress tracking, connection management
@@ -246,6 +280,7 @@ The system tracks:
 - **WebSocket**: Enhanced v2 WebSocket API with authentication, channel subscription, and message batching
 
 ### ArXiv API Timeout Fix (2025-12-23)
+
 - **Issue**: ArXiv tracking and extraction API calls timing out after 30 seconds
 - **Root Cause**: ArXiv API operations can take 1-5 minutes due to external API calls
 - **Solution**: Changed `apiClient.post` to `apiClient.postWithLongTimeout` (5 minutes) for ArXiv endpoints
@@ -253,18 +288,65 @@ The system tracks:
 - **Endpoints Updated**: `/arxiv/tracking/track-categories`, `/arxiv/extraction/extract-features`, `/arxiv/extraction/bulk-extract`
 
 ### Sidebar Navigation Update (2025-12-23)
+
 - **Issue**: Sidebar showed "Home" linking to `/` instead of "Dashboard" linking to `/dashboard`
 - **Solution**: Updated main navigation to use "Dashboard" with `/dashboard` URL
 - **Files Modified**: `frontend/src/components/layout/AppSidebar.tsx`
 
 ### Breadcrumb Logic Fix (2025-12-23)
+
 - **Issue**: Dashboard page showed redundant "Dashboard / Dashboard" breadcrumb
 - **Solution**: Added conditional rendering - Dashboard page shows single "Dashboard" highlighted in green, other pages show "Dashboard / Page Name"
 - **Files Modified**: `frontend/src/components/layout/SidebarLayout.tsx`
 
 ### ArXiv Page Terminal Observatory Theme (2025-12-23)
+
 - **Issue**: ArXiv management page had light-themed shadcn components clashing with dark Terminal Observatory theme
 - **Solution**: Complete rewrite with custom dark-themed components (ToggleSwitch, ProgressBar, CustomSlider)
 - **Theme Constants**: `PHOSPHOR_GREEN = '#00ff9f'`, `AMBER = '#ffb700'`, `CYAN = '#00d4ff'`
 - **Files Modified**: `frontend/src/components/arxiv/ArxivManagement.tsx`
 - **Features**: Dark terminal chrome container, custom form controls, consistent monospace typography
+
+### Critical Security Fixes (2026-01-07)
+
+- **Issue 1 - JWT Token Exposure**: WebSocket connections passed JWT tokens in URL query parameters, which are logged in server access logs, browser history, and network proxies
+- **Solution**: Implemented secure WebSocket authentication using:
+  - `Authorization` header (Bearer token)
+  - `Sec-WebSocket-Protocol` header (browser-compatible subprotocol)
+  - Cookie fallback for legacy clients
+- **Files Created**:
+  - `backend/src/core/websocket_auth.py` - WebSocketAuthenticator class with secure token extraction
+- **Files Modified**:
+
+  - `backend/src/api/websocket_v2.py` - Uses new secure authentication
+  - `backend/src/services/websocket_manager.py` - Added `connect_authenticated()` method
+  - `frontend/src/services/websocket-client.ts` - Uses Sec-WebSocket-Protocol
+  - `frontend/src/services/realtime-websocket-service.ts` - Uses Sec-WebSocket-Protocol
+  - `frontend/src/services/websocket.ts` - Uses Sec-WebSocket-Protocol
+
+- **Issue 2 - SQL Injection via sort_by**: Document listing accepted arbitrary strings for sort_by parameter
+- **Solution**: Created validated enum types for all sort fields
+- **Files Created**:
+  - `backend/src/shared/enums.py` - DocumentSortField, SortOrder, EntitySortField, etc.
+  - `backend/src/shared/__init__.py` - Module exports
+- **Files Modified**:
+
+  - `backend/src/api/documents.py` - Uses DocumentSortField and SortOrder enums
+
+- **Issue 3 - Overly Permissive CORS**: CORS configuration could allow unintended cross-origin access
+- **Solution**: Explicit allowlists for origins, headers, and methods (no wildcards)
+- **Files Modified**:
+
+  - `backend/src/core/config.py` - Added CORS configuration properties
+  - `backend/src/main.py` - Uses config-driven CORS settings
+
+- **Issue 4 - Accessibility (IconButton)**: Icon-only buttons lacked accessible labels
+- **Solution**: Created IconButton component that enforces aria-label with optional tooltip
+- **Files Created**:
+  - `frontend/src/components/ui/icon-button.tsx` - Accessible IconButton component
+- **Files Modified**:
+
+  - `frontend/src/components/ui/index.ts` - Exports IconButton
+
+- **Security Tests Added**:
+  - `backend/src/tests/test_security.py` - Tests for WebSocket auth, SQL injection prevention, CORS, secret validation

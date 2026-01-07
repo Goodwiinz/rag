@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { THEME } from '@/theme/constants';
 import {
     Activity,
     BarChart3,
@@ -79,12 +80,12 @@ const CHART_COLORS = [
 ];
 
 const DEFAULT_COLORS = [
-  '#f59e0b', // Amber-500
-  '#3b82f6', // Blue-500
-  '#10b981', // Green-500
-  '#8b5cf6', // Purple-500
-  '#f97316', // Orange-500
-  '#ec4899', // Pink-500
+  THEME.colors.primary, // Primary
+  THEME.colors.secondary, // Secondary
+  THEME.colors.success, // Success
+  THEME.colors.info, // Info
+  THEME.colors.accent, // Accent
+  THEME.colors.error, // Error
 ];
 
 export function AnalyticsChart({

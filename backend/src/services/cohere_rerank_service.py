@@ -13,6 +13,7 @@ from dataclasses import dataclass
 import httpx
 
 from ..core.config import settings
+from ..core.circuit_breaker import get_circuit_breaker, ServiceUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -60,28 +61,34 @@ class CohereRerankService:
     ) -> List[RerankResult]:
         """
         Rerank documents based on query relevance using Cohere API.
-        
+
         Args:
             query: The search query
             documents: List of documents with 'content' and 'id' fields
             top_n: Number of top results to return (default: settings.COHERE_RERANK_TOP_N)
             return_documents: Whether to include document text in response
-            
+
         Returns:
             List of RerankResult sorted by relevance score (highest first)
         """
         if not self._enabled:
             logger.debug("Reranking disabled, returning original order")
             return self._fallback_rerank(documents, top_n)
-        
+
         if not documents:
             return []
-        
+
+        # Check circuit breaker before making Cohere API call
+        breaker = get_circuit_breaker("cohere")
+        if breaker and not breaker.can_execute():
+            logger.warning("Cohere circuit breaker is open - using fallback reranking")
+            return self._fallback_rerank(documents, top_n)
+
         top_n = top_n or self.default_top_n
         top_n = min(top_n, len(documents))
-        
+
         start_time = time.time()
-        
+
         try:
             # Prepare documents for Cohere API
             doc_texts = []
@@ -135,15 +142,25 @@ class CohereRerankService:
             
             # Sort by relevance score (highest first)
             rerank_results.sort(key=lambda x: x.relevance_score, reverse=True)
-            
+
+            # Record circuit breaker success
+            if breaker:
+                breaker.record_success()
+
             return rerank_results
-            
+
         except httpx.HTTPStatusError as e:
             logger.error(f"Cohere API error: {e.response.status_code} - {e.response.text}")
+            # Record circuit breaker failure
+            if breaker:
+                breaker.record_failure(e)
             return self._fallback_rerank(documents, top_n)
-            
+
         except Exception as e:
             logger.error(f"Cohere rerank failed: {e}")
+            # Record circuit breaker failure
+            if breaker:
+                breaker.record_failure(e)
             return self._fallback_rerank(documents, top_n)
     
     def _fallback_rerank(
@@ -176,28 +193,34 @@ class CohereRerankService:
     ) -> List[RerankResult]:
         """
         Synchronous version of rerank for use in non-async contexts.
-        
+
         Args:
             query: The search query
             documents: List of documents with 'content' and 'id' fields
             top_n: Number of top results to return
             return_documents: Whether to include document text in response
-            
+
         Returns:
             List of RerankResult sorted by relevance score (highest first)
         """
         if not self._enabled:
             logger.debug("Reranking disabled, returning original order")
             return self._fallback_rerank(documents, top_n)
-        
+
         if not documents:
             return []
-        
+
+        # Check circuit breaker before making Cohere API call
+        breaker = get_circuit_breaker("cohere")
+        if breaker and not breaker.can_execute():
+            logger.warning("Cohere circuit breaker is open - using fallback reranking")
+            return self._fallback_rerank(documents, top_n)
+
         top_n = top_n or self.default_top_n
         top_n = min(top_n, len(documents))
-        
+
         start_time = time.time()
-        
+
         try:
             # Prepare documents for Cohere API
             doc_texts = []
@@ -249,16 +272,27 @@ class CohereRerankService:
                 ))
             
             rerank_results.sort(key=lambda x: x.relevance_score, reverse=True)
+
+            # Record circuit breaker success
+            if breaker:
+                breaker.record_success()
+
             return rerank_results
-            
+
         except httpx.HTTPStatusError as e:
             logger.error(f"Cohere API error: {e.response.status_code} - {e.response.text}")
+            # Record circuit breaker failure
+            if breaker:
+                breaker.record_failure(e)
             return self._fallback_rerank(documents, top_n)
-            
+
         except Exception as e:
             logger.error(f"Cohere rerank (sync) failed: {e}")
+            # Record circuit breaker failure
+            if breaker:
+                breaker.record_failure(e)
             return self._fallback_rerank(documents, top_n)
-    
+
     async def rerank_search_results(
         self,
         query: str,

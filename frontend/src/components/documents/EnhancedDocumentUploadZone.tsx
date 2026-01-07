@@ -4,44 +4,44 @@
  * quality assessment, security scanning, and knowledge graph integration
  */
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { useDropzone } from 'react-dropzone';
 import {
-  CloudArrowUpIcon,
-  DocumentPlusIcon,
-  XMarkIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  ClockIcon,
-  ShieldCheckIcon,
-  SparklesIcon,
-  ChartBarIcon,
-  ArrowPathIcon,
-  TrashIcon,
-  Cog6ToothIcon,
-  DocumentArrowUpIcon,
-  FolderOpenIcon
+    CheckCircleIcon,
+    ClockIcon,
+    CloudArrowUpIcon,
+    Cog6ToothIcon,
+    DocumentArrowUpIcon,
+    DocumentPlusIcon,
+    ExclamationTriangleIcon,
+    FolderOpenIcon,
+    ShieldCheckIcon,
+    SparklesIcon,
+    TrashIcon,
+    XMarkIcon
 } from '@heroicons/react/24/outline';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useDropzone } from 'react-dropzone';
 import { v4 as uuidv4 } from 'uuid';
 
-import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { DeleteConfirmDialog } from '@/components/ui/confirm-dialog';
+import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
-import { enhancedDocumentService, DocumentUploadRequest, WebSocketProgressUpdate } from '@/services/enhancedDocumentService';
+import { DocumentUploadRequest, enhancedDocumentService, WebSocketProgressUpdate } from '@/services/enhancedDocumentService';
 import { mockDocumentService } from '@/services/mockDocumentService';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -866,14 +866,17 @@ export const EnhancedDocumentUploadZone: React.FC<EnhancedDocumentUploadZoneProp
                           )}
 
                           {(file.status === 'pending' || file.status === 'failed') && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeFile(file.id)}
-                              aria-label="Remove file"
+                            <DeleteConfirmDialog
+                              itemName="file"
+                              onConfirm={() => removeFile(file.id)}
                             >
-                              <TrashIcon className="h-4 w-4" />
-                            </Button>
+                              <IconButton
+                                icon={<TrashIcon className="h-4 w-4" />}
+                                label="Remove file"
+                                variant="ghost"
+                                size="sm"
+                              />
+                            </DeleteConfirmDialog>
                           )}
                         </div>
                       </div>

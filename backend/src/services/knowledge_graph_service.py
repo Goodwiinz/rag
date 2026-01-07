@@ -9,9 +9,14 @@ import uuid
 from typing import List, Dict, Any, Optional, Tuple, Union
 from datetime import datetime
 from neo4j import GraphDatabase, Driver, Session
+from neo4j.exceptions import ServiceUnavailable, SessionExpired
 from contextlib import contextmanager
 
 from ..core.config import settings
+from ..core.circuit_breaker import (
+    get_circuit_breaker,
+    ServiceUnavailableError as CircuitBreakerError
+)
 from ..models.graph import (
     Entity, EntityResponse, CreateEntityRequest, UpdateEntityRequest,
     Relationship, RelationshipResponse, CreateRelationshipRequest,
@@ -121,16 +126,34 @@ class KnowledgeGraphService:
 
     @contextmanager
     def get_session(self, database: str = "neo4j") -> Session:
-        """Context manager for database sessions"""
+        """Context manager for database sessions with circuit breaker protection"""
+        # Check circuit breaker before attempting connection
+        breaker = get_circuit_breaker("neo4j")
+        if breaker and not breaker.can_execute():
+            raise CircuitBreakerError(
+                "neo4j",
+                "Neo4j circuit breaker is open - service unavailable"
+            )
+
         if not self.driver:
             self._connect()
-        
+
         if not self.driver:
+            if breaker:
+                breaker.record_failure()
             raise RuntimeError("Neo4j driver not initialized")
-            
+
         session = self.driver.session(database=database)
         try:
             yield session
+            # Record success on clean exit
+            if breaker:
+                breaker.record_success()
+        except (ServiceUnavailable, SessionExpired) as e:
+            # Record failure for connection-related errors
+            if breaker:
+                breaker.record_failure(e)
+            raise
         finally:
             session.close()
 

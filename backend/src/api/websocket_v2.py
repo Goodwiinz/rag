@@ -57,18 +57,24 @@ class ConnectionStatusResponse(BaseModel):
     messages_received: int
 
 @router.websocket("/connect")
-async def websocket_connect_v2(
+async def websocket_connect_v2_secure(
     websocket: WebSocket,
-    token: str = Query(..., description="JWT authentication token"),
     channels: str = Query("", description="Comma-separated list of channels to subscribe to"),
     frequency: str = Query("normal", description="Update frequency"),
     client_info: str = Query("", description="JSON-encoded client information")
 ):
     """
-    Enhanced WebSocket connection endpoint with comprehensive features
+    Secure WebSocket connection endpoint with comprehensive features.
+
+    SECURITY: Authentication is performed via headers, NOT URL parameters.
+
+    Authentication Methods (in priority order):
+    1. Authorization header: `Authorization: Bearer <token>`
+    2. Sec-WebSocket-Protocol: `auth, <token>` (browser workaround)
+    3. Cookie: `access_token=<token>` (session-based auth)
 
     Features:
-    - JWT authentication
+    - Secure JWT authentication (no token in URL)
     - Channel subscription
     - Message filtering
     - Automatic reconnection support
@@ -77,7 +83,6 @@ async def websocket_connect_v2(
     - Graceful degradation
 
     Query Parameters:
-    - token: JWT authentication token (required)
     - channels: Comma-separated list of channels (e.g., "document_processing,job_status")
     - frequency: Update frequency - realtime, frequent, normal, periodic
     - client_info: JSON-encoded client information (browser, version, etc.)
@@ -115,6 +120,26 @@ async def websocket_connect_v2(
     - system_notification: System notifications and alerts
     - connection_status: Connection status updates
     """
+    # Authenticate using secure methods (headers/protocol/cookie)
+    try:
+        user_payload = await WebSocketAuthenticator.authenticate(websocket)
+    except WebSocketAuthError as e:
+        logger.warning(f"WebSocket authentication failed: {e.message}")
+        await websocket.close(code=e.code, reason=e.message)
+        return
+
+    # Get subprotocol for response if using protocol-based auth
+    subprotocol = WebSocketAuthenticator.get_subprotocol_response(websocket)
+
+    # Extract user info from authenticated payload
+    user_id = user_payload.get("sub")
+    organization_id = user_payload.get("organization_id", "default")
+
+    if not user_id:
+        logger.error("Authentication succeeded but user_id (sub) missing from payload")
+        await websocket.close(code=4003, reason="Invalid token payload: missing user ID")
+        return
+
     # Parse client information
     client_info_dict = {}
     if client_info:
@@ -133,18 +158,21 @@ async def websocket_connect_v2(
         update_frequency = UpdateFrequency.NORMAL
         logger.warning(f"Invalid frequency '{frequency}', using normal")
 
-    # Add client info to metadata
+    # Add client info and auth metadata
     client_info_dict.update({
         "requested_channels": channel_list,
         "update_frequency": update_frequency.value,
-        "connected_at": datetime.now(dt_timezone.utc).isoformat()
+        "connected_at": datetime.now(dt_timezone.utc).isoformat(),
+        "auth_method": user_payload.get("_auth_method", "unknown")
     })
 
-    # Establish connection
-    connection_id = await connection_manager.connect(
+    # Establish connection using secure authenticated method
+    connection_id = await connection_manager.connect_authenticated(
         websocket=websocket,
-        token=token,
-        client_info=client_info_dict
+        user_id=user_id,
+        organization_id=organization_id,
+        client_info=client_info_dict,
+        subprotocol=subprotocol
     )
 
     if not connection_id:

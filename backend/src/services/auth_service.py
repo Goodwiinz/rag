@@ -67,8 +67,14 @@ class AuthService:
 
         return user
 
-    def login_user(self, email: str, password: str) -> Dict[str, Any]:
-        """Login user and return tokens"""
+    def login_user(self, email: str, password: str, remember_me: bool = False) -> Dict[str, Any]:
+        """Login user and return tokens
+
+        Args:
+            email: User email
+            password: User password
+            remember_me: If True, creates a 30-day session instead of 7-day
+        """
         user = self.authenticate_user(email, password)
 
         # Load organization relationship
@@ -91,9 +97,16 @@ class AuthService:
             expires_delta=access_token_expires
         )
 
-        # Create refresh token
+        # Create refresh token (30 days if remember_me, 7 days otherwise)
         refresh_token = create_refresh_token(
-            data={"sub": str(user.id)}
+            data={"sub": str(user.id)},
+            remember_me=remember_me
+        )
+
+        # Calculate refresh token expiration for frontend
+        refresh_token_days = (
+            settings.REMEMBER_ME_REFRESH_TOKEN_DAYS if remember_me
+            else settings.REFRESH_TOKEN_EXPIRE_DAYS
         )
 
         return {
@@ -101,12 +114,19 @@ class AuthService:
             "refresh_token": refresh_token,
             "token_type": "bearer",
             "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "refresh_expires_in": refresh_token_days * 24 * 60 * 60,  # In seconds
+            "remember_me": remember_me,
             "user": user.to_dict(exclude_sensitive=True),
             "organization": organization_data
         }
 
-    def refresh_access_token(self, refresh_token: str) -> Dict[str, Any]:
-        """Refresh access token using refresh token"""
+    def refresh_access_token(self, refresh_token: str, rotate_refresh: bool = True) -> Dict[str, Any]:
+        """Refresh access token using refresh token
+
+        Args:
+            refresh_token: The refresh token to validate
+            rotate_refresh: If True, also issue a new refresh token (recommended for security)
+        """
         token_data = verify_refresh_token(refresh_token)
 
         if not token_data:
@@ -137,11 +157,30 @@ class AuthService:
             expires_delta=access_token_expires
         )
 
-        return {
+        # Preserve the remember_me setting from the original refresh token
+        remember_me = token_data.remember_me
+
+        result = {
             "access_token": access_token,
             "token_type": "bearer",
-            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "remember_me": remember_me
         }
+
+        # Optionally rotate refresh token (recommended for security)
+        if rotate_refresh:
+            new_refresh_token = create_refresh_token(
+                data={"sub": str(user.id)},
+                remember_me=remember_me
+            )
+            refresh_token_days = (
+                settings.REMEMBER_ME_REFRESH_TOKEN_DAYS if remember_me
+                else settings.REFRESH_TOKEN_EXPIRE_DAYS
+            )
+            result["refresh_token"] = new_refresh_token
+            result["refresh_expires_in"] = refresh_token_days * 24 * 60 * 60
+
+        return result
 
     def register_user(
         self,

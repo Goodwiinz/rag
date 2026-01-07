@@ -3,33 +3,33 @@
  * Communicates with backend /api/v2/workspaces/* endpoints
  */
 
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import {
-  Workspace,
-  WorkspaceCreate,
-  WorkspaceUpdate,
-  WorkspaceDetail,
-  Conversation,
-  ConversationCreate,
-  ConversationUpdate,
-  ConversationListResponse,
-  Thread,
-  ThreadCreate,
-  ThreadUpdate,
-  ThreadDetail,
-  ThreadListResponse,
-  ChatMessage,
-  ChatMessageCreate,
-  ChatMessageUpdate,
-  ChatMessageListResponse,
-  Collection,
-  CollectionCreate,
-  CollectionUpdate,
-  CollectionDetail,
-  CollectionListResponse,
-  ChatCompletionRequest,
-  ChatCompletionResponse,
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    ChatMessage,
+    ChatMessageCreate,
+    ChatMessageListResponse,
+    ChatMessageUpdate,
+    Collection,
+    CollectionCreate,
+    CollectionDetail,
+    CollectionListResponse,
+    CollectionUpdate,
+    Conversation,
+    ConversationCreate,
+    ConversationListResponse,
+    ConversationUpdate,
+    Thread,
+    ThreadCreate,
+    ThreadDetail,
+    ThreadListResponse,
+    ThreadUpdate,
+    Workspace,
+    WorkspaceCreate,
+    WorkspaceDetail,
+    WorkspaceUpdate,
 } from '@/types/workspace';
+import axios, { AxiosInstance } from 'axios';
 
 // Create a dedicated axios instance for v2 API
 // Use empty baseURL to work with relative paths (goes through Next.js proxy)
@@ -103,7 +103,10 @@ v2Client.interceptors.response.use(
 
     // If it's a 401/403, the user needs to re-authenticate
     if (error.response?.status === 401 || error.response?.status === 403) {
-      console.warn('[WorkspaceService] Authentication error - user may need to log in again');
+      console.warn('[WorkspaceService] Authentication error - redirecting to login');
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
     }
 
     return Promise.reject(error);

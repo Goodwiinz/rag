@@ -12,6 +12,7 @@ eggs/
 .eggs/
 lib/
 !frontend/lib/
+!frontend/src/lib/
 lib64/
 parts/
 sdist/
@@ -171,3 +172,4 @@ actions-runner/
 
 # Auto Claude data directory
 .auto-claude/
+serena_repo/

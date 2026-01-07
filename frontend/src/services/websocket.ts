@@ -32,12 +32,16 @@ export class WebSocketManager {
 
     return new Promise((resolve, reject) => {
       try {
-        // Construct URL with authentication parameters
+        // SECURITY: Only pass non-sensitive parameters in URL
         const wsUrl = new URL(this.url);
-        wsUrl.searchParams.append('token', this.token);
         wsUrl.searchParams.append('organization_id', this.organizationId);
 
-        this.ws = new WebSocket(wsUrl.toString());
+        // SECURITY: Use Sec-WebSocket-Protocol for token authentication
+        // Browser WebSocket API doesn't support custom headers, but the subprotocol
+        // header is a secure way to pass authentication tokens (not logged/cached)
+        const protocols = this.token ? ['auth', this.token] : undefined;
+
+        this.ws = new WebSocket(wsUrl.toString(), protocols);
 
         this.ws.onopen = () => {
           console.log('WebSocket connected');
