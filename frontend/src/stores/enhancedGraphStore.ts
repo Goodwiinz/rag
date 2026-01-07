@@ -389,8 +389,8 @@ export const useGraphStore = create<GraphState & GraphActions>()(
           set((state) => {
             state.highlightedNodes.clear();
             state.highlightedEdges.clear();
-            state.visualizationState.selection.highlighted_nodes.clear();
-            state.visualizationState.selection.highlighted_edges.clear();
+            state.visualizationState.selection.highlighted_nodes?.clear();
+            state.visualizationState.selection.highlighted_edges?.clear();
           }),
 
         highlightPath: (nodeIds) =>
@@ -500,9 +500,10 @@ export const useGraphStore = create<GraphState & GraphActions>()(
             switch (type) {
               case 'node_added':
                 if (data.node && state.graphData) {
-                  const existingNode = state.graphData.nodes.find(n => n.id === data.node.id);
+                  const nodeToAdd = data.node;
+                  const existingNode = state.graphData.nodes.find(n => n.id === nodeToAdd.id);
                   if (!existingNode) {
-                    state.graphData.nodes.push(data.node);
+                    state.graphData.nodes.push(nodeToAdd);
                   }
                 }
                 break;
@@ -523,18 +524,20 @@ export const useGraphStore = create<GraphState & GraphActions>()(
 
               case 'node_updated':
                 if (data.node && state.graphData) {
-                  const nodeIndex = state.graphData.nodes.findIndex(n => n.id === data.node.id);
+                  const nodeToUpdate = data.node;
+                  const nodeIndex = state.graphData.nodes.findIndex(n => n.id === nodeToUpdate.id);
                   if (nodeIndex !== -1) {
-                    state.graphData.nodes[nodeIndex] = data.node;
+                    state.graphData.nodes[nodeIndex] = nodeToUpdate;
                   }
                 }
                 break;
 
               case 'edge_added':
                 if (data.edge && state.graphData) {
-                  const existingEdge = state.graphData.edges.find(e => e.id === data.edge.id);
+                  const edgeToAdd = data.edge;
+                  const existingEdge = state.graphData.edges.find(e => e.id === edgeToAdd.id);
                   if (!existingEdge) {
-                    state.graphData.edges.push(data.edge);
+                    state.graphData.edges.push(edgeToAdd);
                   }
                 }
                 break;
@@ -549,9 +552,10 @@ export const useGraphStore = create<GraphState & GraphActions>()(
 
               case 'edge_updated':
                 if (data.edge && state.graphData) {
-                  const edgeIndex = state.graphData.edges.findIndex(e => e.id === data.edge.id);
+                  const edgeToUpdate = data.edge;
+                  const edgeIndex = state.graphData.edges.findIndex(e => e.id === edgeToUpdate.id);
                   if (edgeIndex !== -1) {
-                    state.graphData.edges[edgeIndex] = data.edge;
+                    state.graphData.edges[edgeIndex] = edgeToUpdate;
                   }
                 }
                 break;
@@ -835,7 +839,7 @@ export const useGraphStats = () => useGraphStore((state) => {
   if (!state.graphData) {
     return {
       nodeCount: 0,
-      edgeCount: number,
+      edgeCount: 0,
       selectedNodeCount: state.selectedNodes.size,
       selectedEdgeCount: state.selectedEdges.size,
       highlightedNodeCount: state.highlightedNodes.size,

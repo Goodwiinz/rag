@@ -96,7 +96,11 @@ class WorkspaceMember(BaseModel):
 
     workspace_id = Column(GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    role = Column(Enum(WorkspaceRole), nullable=False, default=WorkspaceRole.VIEWER)
+    role = Column(
+        Enum(WorkspaceRole, values_callable=lambda x: [e.value for e in x], native_enum=True, name='workspacerole'),
+        nullable=False,
+        default=WorkspaceRole.VIEWER
+    )
 
     # Tracking
     joined_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

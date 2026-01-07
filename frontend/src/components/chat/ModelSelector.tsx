@@ -276,7 +276,7 @@ export function ModelSelector({
   const ModelComparison = () => {
     const comparisonModels = selectedModels.length > 0
       ? models.filter(m => selectedModels.includes(m.id))
-      : [selectedModel, ...models.slice(0, 2)].filter(Boolean);
+      : [selectedModel, ...models.slice(0, 2)].filter((m): m is Model => Boolean(m));
 
     return (
       <div className="space-y-4">

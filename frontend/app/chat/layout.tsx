@@ -521,7 +521,7 @@ function ConversationSidebar({
                   className="space-y-1"
                 >
                   {pinnedConversations.map((conv) => (
-                    <ConversationItem key={conv.id} conversation={conv} isActive={currentThreadId === conv.id || pathname === `/chat/${conv.id}`} />
+                    <ConversationItem key={conv.id} conversation={conv} isActive={currentThreadId === conv.id || pathname === `/chat/${conv.id}`} onSelect={selectConversation} />
                   ))}
                 </motion.div>
               )}
@@ -581,7 +581,7 @@ function ConversationSidebar({
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.02 }}
                     >
-                      <ConversationItem conversation={conv} isActive={currentThreadId === conv.id || pathname === `/chat/${conv.id}`} />
+                      <ConversationItem conversation={conv} isActive={currentThreadId === conv.id || pathname === `/chat/${conv.id}`} onSelect={selectConversation} />
                     </motion.div>
                   ))
                 )}
@@ -714,18 +714,31 @@ function getRelativeTime(timestamp: number): string {
 function ConversationItem({
   conversation,
   isActive,
+  onSelect,
 }: {
   conversation: Conversation;
   isActive: boolean;
+  onSelect?: (id: string) => void;
 }) {
   const messageCount = conversation.messageCount || 0;
   const relativeTime = getRelativeTime(conversation.timestamp.getTime());
+  const router = useRouter();
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // Update Zustand store first, then navigate
+    if (onSelect) {
+      onSelect(conversation.id);
+    }
+    router.push(`/chat?thread=${conversation.id}`);
+  };
 
   return (
-    <Link
+    <a
       href={`/chat?thread=${conversation.id}`}
+      onClick={handleClick}
       className={cn(
-        "block px-3 py-3 rounded-xl transition-all group relative",
+        "block px-3 py-3 rounded-xl transition-all group relative cursor-pointer",
         isActive
           ? "bg-[var(--phosphor-green)]/10"
           : "hover:bg-[var(--terminal-elevated)]"
@@ -777,7 +790,7 @@ function ConversationItem({
           </div>
         </div>
       </div>
-    </Link>
+    </a>
   );
 }
 

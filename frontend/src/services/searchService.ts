@@ -29,7 +29,7 @@ export class SearchService {
         filters: request.filters ? {
           // Transform filters if needed
           document_types: request.filters.modalities,
-          tags: request.filters.tags,
+          // tags: not in SearchRequest filters type
           file_size_min: undefined,
           file_size_max: undefined,
           date_from: request.filters.date_range?.start,
@@ -40,7 +40,13 @@ export class SearchService {
         include_snippets: true,
       };
 
-      const response = await apiClient.post(`${this.basePath}/`, backendRequest);
+      const response = await apiClient.post(`${this.basePath}/`, backendRequest) as {
+        search_id?: string;
+        query?: string;
+        results?: Array<{ document_id: string; title: string; content_preview?: string; relevance_score?: number; document_type?: string }>;
+        search_time_ms?: number;
+        total_results?: number;
+      };
 
       // Transform backend response to match frontend expectations
       const transformedResult: SearchResult = {
@@ -107,7 +113,7 @@ export class SearchService {
       // Backend returns suggestions array directly
       const response = await apiClient.get(`${this.basePath}/suggestions`, {
         params: { q: query, limit },
-      });
+      }) as string[];
 
       // Transform to match expected format
       const suggestions: QuerySuggestions = {

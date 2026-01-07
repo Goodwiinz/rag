@@ -76,7 +76,7 @@ class ArXivIngestionService:
         logger.info(f"Params: {params}")
 
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=60)  # 60 second timeout
             logger.info(f"Response object: {response}")
             logger.info(f"Response status: {response.status_code}")
 
@@ -90,6 +90,9 @@ class ArXivIngestionService:
             logger.info(f"Response length: {len(response.text) if response.text else 0}")
 
             return response.text
+        except requests.Timeout:
+            logger.error("Request to arXiv API timed out after 60 seconds")
+            raise IngestionError("ArXiv API request timed out")
         except Exception as e:
             logger.error(f"Error in _make_sync_request: {e}")
             logger.error(f"Exception type: {type(e)}")
@@ -159,14 +162,15 @@ class ArXivIngestionService:
         logger.info(f"ArXiv API URL: {self.ARXIV_API_BASE}")
 
         papers = []
-        total_fetched = 0
+        api_offset = 0  # Tracks pagination offset for API calls
+        max_api_results = max_results * 5  # Limit total API fetches to prevent infinite loop
 
-        while total_fetched < max_results:
-            params['start'] = total_fetched
-            params['max_results'] = min(self.BATCH_SIZE, max_results - total_fetched)
+        while len(papers) < max_results and api_offset < max_api_results:
+            params['start'] = api_offset
+            params['max_results'] = min(self.BATCH_SIZE, max_results - len(papers))
 
             try:
-                logger.info(f"Making request to arXiv API...")
+                logger.info(f"Making request to arXiv API... (offset={api_offset}, have {len(papers)} papers)")
 
                 # Use requests in a thread executor for simplicity
                 import concurrent.futures
@@ -196,7 +200,9 @@ class ArXivIngestionService:
                 }
 
                 # Extract entries
+                entries_in_batch = 0
                 for entry in root.findall('atom:entry', namespaces):
+                    entries_in_batch += 1
                     paper_data = self._parse_arxiv_entry(entry, namespaces)
 
                     # Apply date filtering if specified
@@ -218,18 +224,25 @@ class ArXivIngestionService:
                             continue
 
                     papers.append(paper_data)
-                    total_fetched += 1
+                    if len(papers) >= max_results:
+                        break
 
-                # Check if we got all results
+                # Update API offset for next batch
+                api_offset += entries_in_batch
+
+                # Check if we got all available results from ArXiv
                 total_results_elem = root.find('opensearch:totalResults', {'opensearch': 'http://a9.com/-/spec/opensearch/1.1/'})
                 if total_results_elem is not None:
-                    total_results = int(total_results_elem.text)
-                    if total_fetched >= total_results or total_fetched >= max_results:
+                    total_available = int(total_results_elem.text)
+                    logger.info(f"ArXiv reports {total_available} total results, fetched {api_offset} so far")
+                    if api_offset >= total_available:
+                        logger.info(f"Reached end of available results")
                         break
-                else:
-                    # If we can't find totalResults, just continue until max_results
-                    if total_fetched >= max_results:
-                        break
+
+                # If we got 0 entries in this batch, we've exhausted results
+                if entries_in_batch == 0:
+                    logger.info(f"No entries in batch, stopping")
+                    break
 
             except Exception as e:
                 logger.error(f"Error fetching arXiv papers: {e}")

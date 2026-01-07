@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 
 import { DocumentProcessingState, ProcessingStage, EnhancedProcessingStage } from '@/types/realtime-processing';
-import { formatDuration, formatFileSize } from '@/lib/format-utils';
+import { formatDuration, formatFileSize, formatRelativeTime } from '@/lib/format-utils';
 
 interface DocumentProgressVisualizerProps {
   document: DocumentProcessingState;
@@ -51,11 +51,11 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
   compact = false,
   className = ''
 }) => {
-  const { stages } = useMemo(() => {
+  const stages = useMemo((): ProcessingStage[] => {
     // Ensure stages are properly ordered
     return [...document.stages].sort((a, b) => {
       if ('stage_order' in a && 'stage_order' in b) {
-        return (a as any).stage_order - (b as any).stage_order;
+        return (a as EnhancedProcessingStage).stage_order - (b as EnhancedProcessingStage).stage_order;
       }
       return 0;
     });
@@ -135,6 +135,25 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
     }
   };
 
+  const getDocumentStatusBadgeVariant = (status: DocumentProcessingState['status']) => {
+    switch (status) {
+      case 'completed':
+        return 'default';
+      case 'processing':
+      case 'uploading':
+        return 'secondary';
+      case 'failed':
+        return 'destructive';
+      case 'queued':
+      case 'paused':
+        return 'outline';
+      case 'cancelled':
+        return 'secondary';
+      default:
+        return 'outline';
+    }
+  };
+
   const calculateStageProgress = (stage: ProcessingStage) => {
     if (stage.status === 'completed') return 100;
     if (stage.status === 'failed' || stage.status === 'skipped' || stage.status === 'cancelled') return 0;
@@ -145,13 +164,13 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
     if (stages.length === 0) return document.overallProgress;
 
     // Weight stages by their progress weight or equal weighting if not specified
-    const totalWeight = stages.reduce((sum, stage) => {
-      const weight = (stage as any).progressWeight || 1;
+    const totalWeight = stages.reduce((sum: number, stage: ProcessingStage) => {
+      const weight = (stage as EnhancedProcessingStage & { progressWeight?: number }).progressWeight || 1;
       return sum + weight;
     }, 0);
 
-    const weightedProgress = stages.reduce((sum, stage) => {
-      const weight = (stage as any).progressWeight || 1;
+    const weightedProgress = stages.reduce((sum: number, stage: ProcessingStage) => {
+      const weight = (stage as EnhancedProcessingStage & { progressWeight?: number }).progressWeight || 1;
       const progress = calculateStageProgress(stage);
       return sum + (progress * weight);
     }, 0);
@@ -166,7 +185,7 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
 
       {/* Stages */}
       <div className="relative flex justify-between">
-        {stages.map((stage, index) => (
+        {stages.map((stage: ProcessingStage, index: number) => (
           <div
             key={stage.id}
             className={`relative flex flex-col items-center ${compact ? 'w-12' : 'w-16'}`}
@@ -217,7 +236,7 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
 
   const renderDetailedStages = () => (
     <div className="space-y-4">
-      {stages.map((stage, index) => (
+      {stages.map((stage: ProcessingStage, index: number) => (
         <Card key={stage.id} className="transition-all duration-200">
           <CardContent className="p-4">
             <div className="flex items-start gap-4">
@@ -307,7 +326,7 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
           <div className="flex-1 space-y-1">
             <div className="flex items-center justify-between">
               <h4 className="font-medium truncate">{document.filename}</h4>
-              <Badge variant={getStatusBadgeVariant(document.status)}>
+              <Badge variant={getDocumentStatusBadgeVariant(document.status)}>
                 {document.status.toUpperCase()}
               </Badge>
             </div>

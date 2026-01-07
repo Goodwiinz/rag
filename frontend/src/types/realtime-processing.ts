@@ -1,14 +1,46 @@
 // Real-time Processing Types
+
+// Status types defined explicitly to avoid circular references
+export type ProcessingStatus = 'queued' | 'uploading' | 'processing' | 'completed' | 'failed' | 'paused' | 'cancelled';
+
+// Performance Metrics for WebSocket/processing components
+export interface PerformanceMetrics {
+  connectionLatency: number;
+  messageRate: number;
+  errorRate: number;
+  reconnectionCount: number;
+  uptime: number;
+  lastMessageTimestamp: number;
+  activeJobs?: number;
+  cpuUsage?: number;
+  memoryUsage?: number;
+  averageJobDuration?: number;
+}
+
+export interface SystemMetrics {
+  concurrentConnections: number;
+  memoryUsage: number;
+  cpuUsage: number;
+  diskSpace: number;
+  activeJobs: number;
+  queuedJobs: number;
+  completedJobs: number;
+  averageJobDuration: number;
+}
+
+export type StageStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped' | 'cancelled';
+
 export interface ProcessingStage {
   id: string;
   name: string;
   description: string;
   progress: number; // 0-100
-  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped';
+  status: StageStatus;
   startedAt?: string;
   completedAt?: string;
   duration?: number; // milliseconds
   error?: string;
+  stage_metadata?: Record<string, unknown>;
 }
 
 export interface DocumentProcessingState {
@@ -18,7 +50,7 @@ export interface DocumentProcessingState {
   overallProgress: number; // 0-100
   currentStage: ProcessingStage;
   stages: ProcessingStage[];
-  status: 'queued' | 'uploading' | 'processing' | 'completed' | 'failed' | 'paused' | 'cancelled';
+  status: ProcessingStatus;
   uploadProgress: number; // 0-100
   metadata: {
     fileSize: number;

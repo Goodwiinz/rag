@@ -3,7 +3,10 @@
 import {
   ChatSettings,
   Model,
+  CitationRenderer,
+  CitationPanel,
 } from '@/components/chat';
+import { Citation } from '@/utils/citationParser';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/store/chat-store';
@@ -102,11 +105,7 @@ interface ExtendedModel extends Model {
   provider?: 'openai' | 'local';
 }
 
-interface Citation {
-  documentId: string;
-  title: string;
-  score: number;
-}
+// Citation type is imported from '@/utils/citationParser'
 
 interface Message {
   id?: string;
@@ -279,12 +278,14 @@ function ChatMessage({
   modelName,
   isTyping,
   onRetry,
+  onCitationClick,
 }: {
   message: Message;
   index: number;
   modelName?: string;
   isTyping?: boolean;
   onRetry?: () => void;
+  onCitationClick?: (citations: Citation[], clickedCitation: Citation) => void;
 }) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
@@ -414,116 +415,15 @@ function ChatMessage({
               {isUser ? (
                 <p className="whitespace-pre-wrap">{message.content}</p>
               ) : (
-                <ReactMarkdown
-                  components={{
-                    code({
-                      inline,
-                      className,
-                      children,
-                      ...props
-                    }: {
-                      inline?: boolean;
-                      className?: string;
-                      children?: React.ReactNode;
-                    }) {
-                      const match = /language-(\w+)/.exec(className || '');
-                      const language = match ? match[1] : '';
-
-                      return !inline && language ? (
-                        <div className="my-3 rounded overflow-hidden border border-[var(--terminal-border)]">
-                          <div className="flex items-center justify-between bg-[var(--terminal-bg)] px-3 py-2 border-b border-[var(--terminal-border)]">
-                            <span
-                              className="text-[10px] text-[var(--phosphor-green)] uppercase tracking-wider"
-                              style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                            >
-                              {language}
-                            </span>
-                            <button
-                              onClick={() =>
-                                navigator.clipboard.writeText(
-                                  String(children).replace(/\n$/, '')
-                                )
-                              }
-                              className="text-[10px] text-[var(--terminal-text-muted)] hover:text-[var(--phosphor-green)] transition-colors"
-                              style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                            >
-                              [COPY]
-                            </button>
-                          </div>
-                          <SyntaxHighlighter
-                            style={atomDark}
-                            language={language}
-                            PreTag="div"
-                            customStyle={{
-                              margin: 0,
-                              background: 'var(--terminal-bg)',
-                              fontSize: '12px',
-                              fontFamily: "'JetBrains Mono', monospace",
-                            }}
-                            {...props}
-                          >
-                            {String(children).replace(/\n$/, '')}
-                          </SyntaxHighlighter>
-                        </div>
-                      ) : (
-                        <code
-                          className="px-1.5 py-0.5 rounded bg-[var(--terminal-border)] text-[var(--phosphor-green)] text-xs"
-                          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                          {...props}
-                        >
-                          {children}
-                        </code>
-                      );
-                    },
-                    a: ({
-                      href,
-                      children,
-                    }: {
-                      href?: string;
-                      children?: React.ReactNode;
-                    }) => (
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[var(--phosphor-green)] hover:text-[var(--phosphor-green-dim)] underline underline-offset-2"
-                      >
-                        {children}
-                      </a>
-                    ),
-                    blockquote: ({ children }: { children?: React.ReactNode }) => (
-                      <blockquote className="border-l-2 border-[var(--phosphor-green)] pl-4 my-2 italic text-[var(--terminal-text-muted)]">
-                        {children}
-                      </blockquote>
-                    ),
-                    h1: ({ children }: { children?: React.ReactNode }) => (
-                      <h1 className="text-xl font-bold text-[var(--phosphor-green)] mt-4 mb-2">
-                        {children}
-                      </h1>
-                    ),
-                    h2: ({ children }: { children?: React.ReactNode }) => (
-                      <h2 className="text-lg font-bold text-[var(--phosphor-green)] mt-3 mb-2">
-                        {children}
-                      </h2>
-                    ),
-                    h3: ({ children }: { children?: React.ReactNode }) => (
-                      <h3 className="text-base font-semibold text-[var(--phosphor-green)] mt-2 mb-1">
-                        {children}
-                      </h3>
-                    ),
-                    ul: ({ children }: { children?: React.ReactNode }) => (
-                      <ul className="list-none space-y-1 my-2">{children}</ul>
-                    ),
-                    li: ({ children }: { children?: React.ReactNode }) => (
-                      <li className="flex items-start gap-2">
-                        <span className="text-[var(--phosphor-green)] mt-1">▷</span>
-                        <span>{children}</span>
-                      </li>
-                    ),
+                <CitationRenderer
+                  content={message.content}
+                  citations={message.citations as Citation[]}
+                  onCitationClick={(citation) => {
+                    if (onCitationClick && message.citations) {
+                      onCitationClick(message.citations as Citation[], citation);
+                    }
                   }}
-                >
-                  {message.content}
-                </ReactMarkdown>
+                />
               )}
             </div>
           )}
@@ -1082,11 +982,18 @@ function ChatPageContent() {
   // Scroll state
   const [showScrollButton, setShowScrollButton] = useState(false);
 
+  // Citation panel state
+  const [isCitationPanelOpen, setIsCitationPanelOpen] = useState(false);
+  const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[]>([]);
+  const [activeCitationId, setActiveCitationId] = useState<string | undefined>(undefined);
+
   // Auth
   const { isAuthenticated, token } = useAuthStore();
 
-  // Get setCurrentThread from chat store to sync sidebar highlighting
+  // Get currentThreadId and setCurrentThread from chat store to sync with sidebar
+  const currentThreadIdFromStore = useChatStore((state) => state.currentThreadId);
   const setCurrentThread = useChatStore((state) => state.setCurrentThread);
+  const storeMessages = useChatStore((state) => state.messages);
 
   // Navigation detection
   const pathname = usePathname();
@@ -1134,6 +1041,52 @@ function ChatPageContent() {
     }
   }, [searchParams, conversations, isInitializing, activeConversationId, setCurrentThread]);
 
+  // Sync with Zustand store's currentThreadId (triggered by sidebar clicks via useChatPersistence)
+  // This ensures the chat page updates when sidebar selection changes the store
+  useEffect(() => {
+    if (!currentThreadIdFromStore || isInitializing || conversations.length === 0) {
+      return;
+    }
+
+    // Only update if the store's thread is different from our local state
+    if (currentThreadIdFromStore !== activeConversationId) {
+      console.log('[Chat] Store thread changed:', currentThreadIdFromStore, '(local:', activeConversationId, ')');
+
+      // Try to find the thread in local conversations first
+      const targetConv = conversations.find(c => c.id === currentThreadIdFromStore);
+
+      if (targetConv) {
+        console.log('[Chat] Found thread in local state, syncing:', targetConv.title);
+        setActiveConversationId(targetConv.id);
+        setMessages(targetConv.messages);
+      } else {
+        // Thread not in local conversations, try to load from store messages
+        const messagesFromStore = storeMessages[currentThreadIdFromStore];
+        if (messagesFromStore && messagesFromStore.length > 0) {
+          console.log('[Chat] Loading messages from store for thread:', currentThreadIdFromStore);
+          setActiveConversationId(currentThreadIdFromStore);
+          // Map store messages to UI format inline
+          setMessages(messagesFromStore.map((dbMsg) => ({
+            id: dbMsg.id,
+            role: dbMsg.role === MessageRole.USER ? 'user' as const : 'assistant' as const,
+            content: dbMsg.content,
+            timestamp: new Date(dbMsg.created_at).getTime(),
+            citations: dbMsg.citations?.map((c) => ({
+              documentId: c.document_id,
+              title: c.document_title || 'Unknown Document',
+              score: c.score || 0,
+            })),
+          })));
+        } else {
+          // Thread exists but no messages yet - still switch to it
+          console.log('[Chat] Switching to thread with no messages:', currentThreadIdFromStore);
+          setActiveConversationId(currentThreadIdFromStore);
+          setMessages([]);
+        }
+      }
+    }
+  }, [currentThreadIdFromStore, conversations, isInitializing, activeConversationId, storeMessages]);
+
   // Map DB messages to UI messages
   const mapDbMessageToUiMessage = useCallback((dbMsg: DBChatMessage): Message => {
     return {
@@ -1150,7 +1103,7 @@ function ChatPageContent() {
   }, []);
 
   // Load threads and messages from database
-  const loadThreadsFromDb = useCallback(async (conversationId: string) => {
+  const loadThreadsFromDb = useCallback(async (conversationId: string, isRetry = false): Promise<boolean> => {
     try {
       console.log('[Chat] Loading threads from database for conversation:', conversationId);
       const threadResponse = await workspaceService.listThreads(conversationId, { limit: 50 });
@@ -1183,7 +1136,7 @@ function ChatPageContent() {
         // This prevents React Strict Mode double-execution from overwriting correct state
         if (hasRestoredThreadRef.current) {
           console.log('[Chat] Skipping thread restore (already done, preventing Strict Mode duplicate)');
-          return;
+          return true;
         }
 
         let selectedConv = uiConversations[0];
@@ -1206,8 +1159,21 @@ function ChatPageContent() {
         setCurrentThread(selectedConv.id);
         console.log('[Chat] Active thread:', selectedConv.title);
       }
-    } catch (error) {
+      return true;
+    } catch (error: any) {
       console.error('[Chat] Failed to load threads from database:', error);
+
+      // Handle 404 - conversation not found (stale data)
+      if (error?.response?.status === 404 || error?.status_code === 404) {
+        console.warn('[Chat] Conversation not found (404) - clearing stale data');
+        // Clear stale localStorage data
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('default-workspace-id');
+          localStorage.removeItem('default-conversation-id');
+        }
+        return false; // Signal to caller to retry with fresh data
+      }
+
       throw error;
     }
   }, [mapDbMessageToUiMessage, setCurrentThread]);
@@ -1236,13 +1202,60 @@ function ChatPageContent() {
         setDbConversation(conv);
         console.log('[Chat] DB Conversation:', conv.title);
 
-        // Load threads
-        await loadThreadsFromDb(conv.id);
+        // Load threads - handle stale conversation data
+        const loadSuccess = await loadThreadsFromDb(conv.id);
+
+        // If load failed due to 404, create fresh conversation
+        if (!loadSuccess) {
+          console.log('[Chat] Retrying with fresh conversation...');
+          const freshConv = await workspaceService.createConversation({
+            workspace_id: ws.id,
+            title: 'New Chat',
+            description: 'A new conversation',
+          });
+          setDbConversation(freshConv);
+          console.log('[Chat] Created fresh conversation:', freshConv.title);
+
+          // Try loading threads again (should be empty for new conversation)
+          await loadThreadsFromDb(freshConv.id);
+        }
 
         isHydratedRef.current = true;
         console.log('[Chat] Database initialization complete');
-      } catch (error) {
+      } catch (error: any) {
         console.error('[Chat] Failed to initialize from database:', error);
+
+        // Handle 404 by clearing stale data and retrying once
+        if (error?.response?.status === 404) {
+          console.warn('[Chat] Stale data detected, clearing and retrying...');
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('default-workspace-id');
+            localStorage.removeItem('default-conversation-id');
+          }
+          // Retry once after clearing stale data
+          try {
+            const ws = await workspaceService.getOrCreateDefaultWorkspace();
+            setWorkspace(ws);
+            const conv = await workspaceService.createConversation({
+              workspace_id: ws.id,
+              title: 'New Chat',
+              description: 'A new conversation',
+            });
+            setDbConversation(conv);
+            setConversations([]);
+            setMessages([]);
+            console.log('[Chat] Created fresh workspace and conversation');
+            isHydratedRef.current = true;
+            setIsInitializing(false);
+            return;
+          } catch (retryError) {
+            console.error('[Chat] Retry failed:', retryError);
+            setInitError('Failed to create new chat session. Please refresh the page.');
+            setIsInitializing(false);
+            return;
+          }
+        }
+
         setInitError(error instanceof Error ? error.message : 'Failed to load chat data');
       } finally {
         setIsInitializing(false);
@@ -1704,6 +1717,11 @@ function ChatPageContent() {
                   index={index}
                   modelName={message.role === 'assistant' ? currentModel?.name : undefined}
                   isTyping={index === messages.length - 1 && isLoading && message.role === 'assistant'}
+                  onCitationClick={(citations, clickedCitation) => {
+                    setCitationPanelCitations(citations);
+                    setActiveCitationId(clickedCitation.documentId);
+                    setIsCitationPanelOpen(true);
+                  }}
                 />
               ))}
             </AnimatePresence>
@@ -1723,6 +1741,19 @@ function ChatPageContent() {
         selectedModel={selectedModel}
         models={AVAILABLE_MODELS}
         onModelChange={handleModelChange}
+      />
+
+      {/* Citation Panel Sidebar */}
+      <CitationPanel
+        citations={citationPanelCitations}
+        isOpen={isCitationPanelOpen}
+        onClose={() => setIsCitationPanelOpen(false)}
+        onCitationClick={(citation) => {
+          setActiveCitationId(citation.documentId);
+          // Navigate to document detail page
+          router.push(`/documents/${citation.documentId}`);
+        }}
+        activeCitationId={activeCitationId}
       />
     </div>
   );

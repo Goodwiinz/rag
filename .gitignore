@@ -168,3 +168,6 @@ dump.rdb
 
 # GitHub Actions Runner
 actions-runner/
+
+# Auto Claude data directory
+.auto-claude/

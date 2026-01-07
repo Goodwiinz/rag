@@ -48,7 +48,7 @@ export const StatsCardEnhanced: React.FC<{ stat: StatItem; index: number }> = ({
       transition: {
         duration: 0.5,
         delay: index * 0.1,
-        type: "spring",
+        type: "spring" as const,
         stiffness: 100,
       },
     },

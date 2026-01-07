@@ -43,6 +43,28 @@ def _convert_datetime(dt) -> datetime:
     return datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second)
 
 
+def _safe_entity_type(value: Optional[str]) -> EntityType:
+    """Safely convert string to EntityType, falling back to OTHER for unknown values"""
+    if not value:
+        return EntityType.OTHER
+    try:
+        return EntityType(value)
+    except ValueError:
+        logger.debug(f"Unknown EntityType '{value}', using OTHER")
+        return EntityType.OTHER
+
+
+def _safe_extraction_method(value: Optional[str]) -> ExtractionMethod:
+    """Safely convert string to ExtractionMethod, falling back to UNKNOWN for None/unknown values"""
+    if not value:
+        return ExtractionMethod.UNKNOWN
+    try:
+        return ExtractionMethod(value)
+    except ValueError:
+        logger.debug(f"Unknown ExtractionMethod '{value}', using UNKNOWN")
+        return ExtractionMethod.UNKNOWN
+
+
 class KnowledgeGraphService:
     """Service for managing knowledge graph operations using Neo4j"""
 
@@ -242,9 +264,9 @@ class KnowledgeGraphService:
                 return EntityResponse(
                     id=e["id"],
                     name=e["name"],
-                    entity_type=EntityType(e["type"]),
+                    entity_type=_safe_entity_type(e["type"]),
                     confidence_score=e["confidence_score"],
-                    extraction_method=ExtractionMethod(e["extraction_method"]),
+                    extraction_method=_safe_extraction_method(e["extraction_method"]),
                     position=e.get("position"),
                     context=e.get("context"),
                     metadata=_parse_metadata(e.get("metadata", "{}")),
@@ -298,9 +320,9 @@ class KnowledgeGraphService:
                 return EntityResponse(
                     id=e["id"],
                     name=e["name"],
-                    entity_type=EntityType(e["type"]),
+                    entity_type=_safe_entity_type(e["type"]),
                     confidence_score=e["confidence_score"],
-                    extraction_method=ExtractionMethod(e["extraction_method"]),
+                    extraction_method=_safe_extraction_method(e["extraction_method"]),
                     position=e.get("position"),
                     context=e.get("context"),
                     metadata=_parse_metadata(e.get("metadata", "{}")),
@@ -366,9 +388,9 @@ class KnowledgeGraphService:
                     entities.append(EntityResponse(
                         id=e["id"],
                         name=e["name"],
-                        entity_type=EntityType(e["type"]),
+                        entity_type=_safe_entity_type(e["type"]),
                         confidence_score=e["confidence_score"],
-                        extraction_method=ExtractionMethod(e["extraction_method"]),
+                        extraction_method=_safe_extraction_method(e["extraction_method"]),
                         position=e.get("position"),
                         context=e.get("context"),
                         metadata=_parse_metadata(e.get("metadata", "{}")),
@@ -423,7 +445,7 @@ class KnowledgeGraphService:
 
                     # Determine entity type from labels or properties
                     if "type" in e:
-                        entity_type = EntityType(e["type"])
+                        entity_type = _safe_entity_type(e["type"])
                     elif labels:
                         # Map label to entity type
                         label_map = {
@@ -624,9 +646,9 @@ class KnowledgeGraphService:
                         entities.append(EntityResponse(
                             id=e["id"],
                             name=e["name"],
-                            entity_type=EntityType(e["type"]),
+                            entity_type=_safe_entity_type(e["type"]),
                             confidence_score=e["confidence_score"],
-                            extraction_method=ExtractionMethod(e["extraction_method"]),
+                            extraction_method=_safe_extraction_method(e["extraction_method"]),
                             position=e.get("position"),
                             context=e.get("context"),
                             metadata=_parse_metadata(e.get("metadata", "{}")),
@@ -675,9 +697,9 @@ class KnowledgeGraphService:
                         entities.append(EntityResponse(
                             id=e["id"],
                             name=e["name"],
-                            entity_type=EntityType(e["type"]),
+                            entity_type=_safe_entity_type(e["type"]),
                             confidence_score=e["confidence_score"],
-                            extraction_method=ExtractionMethod(e["extraction_method"]),
+                            extraction_method=_safe_extraction_method(e["extraction_method"]),
                             position=e.get("position"),
                             context=e.get("context"),
                             metadata=_parse_metadata(e.get("metadata", "{}")),

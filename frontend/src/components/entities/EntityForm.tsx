@@ -50,7 +50,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
     confidence: 0.8,
     metadata: {
       description: '',
-      aliases: [],
+      aliases: [] as string[],
       category: '',
       properties: {} as Record<string, any>
     }

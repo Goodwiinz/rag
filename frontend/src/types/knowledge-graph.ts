@@ -220,7 +220,7 @@ export interface MentionContext {
 export interface WebSocketGraphUpdate {
   type: 'node_added' | 'node_removed' | 'node_updated' |
         'edge_added' | 'edge_removed' | 'edge_updated' |
-        'layout_updated' | 'analytics_updated';
+        'layout_updated' | 'analytics_updated' | 'batch_updated';
   timestamp: string;
   session_id: string;
   data: {
@@ -228,11 +228,8 @@ export interface WebSocketGraphUpdate {
     edge?: GraphEdge;
     nodeId?: string;
     edgeId?: string;
-    layout?: GraphLayout;
-    analytics?: {
-      node_id: string;
-      analytics: NodeAnalytics;
-    };
+    layout?: KnowledgeGraphData; // Changed from GraphLayout to KnowledgeGraphData
+    analytics?: GraphAnalyticsDashboard; // Changed from inline type
     batch_updates?: {
       nodes?: GraphNode[];
       edges?: GraphEdge[];
@@ -426,7 +423,7 @@ export interface GraphExportOptions {
 
 // Re-export commonly used types with simpler names
 export type EntityType = import('./search').Entity['type'];
-export type RelationshipType = import('./search').Relationship['type'];
+export type RelationshipType = import('./search').Relationship['relationship_type'];
 
 // Layout algorithm options
 export interface LayoutOptions {

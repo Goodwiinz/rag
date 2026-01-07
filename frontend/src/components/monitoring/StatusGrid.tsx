@@ -18,7 +18,7 @@ import {
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
 
-interface StatusGridProps {
+export interface StatusGridProps {
   components: ComponentHealth[];
   title?: string;
   description?: string;

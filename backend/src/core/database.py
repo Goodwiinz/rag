@@ -4,6 +4,7 @@ Database configuration and connection management
 
 import os
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
@@ -21,6 +22,12 @@ logger = logging.getLogger(__name__)
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev")
+
+# Seed user passwords - MUST be set in production via environment variables
+# In development, uses defaults for convenience (warning will be shown)
+SEED_ADMIN_PASSWORD = os.getenv("SEED_ADMIN_PASSWORD", "")
+SEED_DEMO_PASSWORD = os.getenv("SEED_DEMO_PASSWORD", "")
+SEED_LAB_ADMIN_PASSWORD = os.getenv("SEED_LAB_ADMIN_PASSWORD", "")
 ASYNC_DATABASE_URL = os.getenv("ASYNC_DATABASE_URL", DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"))
 
 # Create engine with appropriate settings
@@ -57,6 +64,7 @@ def get_db() -> Session:
     finally:
         db.close()
 
+@asynccontextmanager
 async def get_async_session() -> AsyncSession:
     """Get async database session"""
     async with AsyncSessionLocal() as session:
@@ -110,7 +118,9 @@ def init_database():
             organization_id=default_org.id,
             is_active=True
         )
-        admin_user.set_password("REDACTED")  # Change this in production!
+        # Use environment variable or generate secure random password
+        admin_password = SEED_ADMIN_PASSWORD or f"dev-admin-{uuid.uuid4().hex[:8]}"
+        admin_user.set_password(admin_password)
         db.add(admin_user)
         db.flush()
         print(f"Created admin user: {admin_user.email}")
@@ -124,7 +134,9 @@ def init_database():
             organization_id=default_org.id,
             is_active=True
         )
-        demo_user.set_password("demo123")
+        # Use environment variable or generate secure random password
+        demo_password = SEED_DEMO_PASSWORD or f"dev-demo-{uuid.uuid4().hex[:8]}"
+        demo_user.set_password(demo_password)
         db.add(demo_user)
         db.flush()
         print(f"Created demo user: {demo_user.email}")
@@ -149,7 +161,9 @@ def init_database():
             organization_id=demo_org.id,
             is_active=True
         )
-        lab_admin.set_password("lab123")
+        # Use environment variable or generate secure random password
+        lab_password = SEED_LAB_ADMIN_PASSWORD or f"dev-lab-{uuid.uuid4().hex[:8]}"
+        lab_admin.set_password(lab_password)
         db.add(lab_admin)
         db.flush()
         print(f"Created lab admin user: {lab_admin.email}")
@@ -157,23 +171,34 @@ def init_database():
         # Commit all changes
         db.commit()
         print("\n✅ Database initialized successfully!")
-        print("\n📋 Default Users Created:")
-        print("   Admin User:")
-        print("   ├── Email: admin@multimodal-rag.com")
-        print("   ├── Password: REDACTED")
+        # Show generated passwords for development
+        if not SEED_ADMIN_PASSWORD:
+            print(f"   ├── Password: {admin_password} (auto-generated)")
+            print("   │   ⚠️  Set SEED_ADMIN_PASSWORD env var for consistent password")
+        else:
+            print("   ├── Password: (set via SEED_ADMIN_PASSWORD env var)")
         print("   └── Role: System Administrator")
         print()
         print("   Demo User:")
         print("   ├── Email: demo@multimodal-rag.com")
-        print("   ├── Password: demo123")
+        if not SEED_DEMO_PASSWORD:
+            print(f"   ├── Password: {demo_password} (auto-generated)")
+            print("   │   ⚠️  Set SEED_DEMO_PASSWORD env var for consistent password")
+        else:
+            print("   ├── Password: (set via SEED_DEMO_PASSWORD env var)")
         print("   └── Role: Regular User")
         print()
         print("   Lab Admin:")
         print("   ├── Email: lab-admin@multimodal-rag.com")
-        print("   ├── Password: lab123")
+        if not SEED_LAB_ADMIN_PASSWORD:
+            print(f"   ├── Password: {lab_password} (auto-generated)")
+            print("   │   ⚠️  Set SEED_LAB_ADMIN_PASSWORD env var for consistent password")
+        else:
+            print("   ├── Password: (set via SEED_LAB_ADMIN_PASSWORD env var)")
         print("   └── Role: Organization Admin")
         print()
-        print("⚠️  IMPORTANT: Change default passwords in production!")
+        if not all([SEED_ADMIN_PASSWORD, SEED_DEMO_PASSWORD, SEED_LAB_ADMIN_PASSWORD]):
+            print("⚠️  IMPORTANT: Set SEED_*_PASSWORD environment variables in production!")
 
     except SQLAlchemyError as e:
         db.rollback()

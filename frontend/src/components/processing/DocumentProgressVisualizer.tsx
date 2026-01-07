@@ -14,7 +14,7 @@ import {
   MusicalNoteIcon,
   QueueListIcon,
   CpuChipIcon,
-  DatabaseIcon,
+  CircleStackIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
   ClockIcon,
@@ -241,9 +241,9 @@ const StageIcon: React.FC<StageIconProps> = ({
       case 'processing':
         return DocumentTextIcon;
       case 'embedding':
-        return DatabaseIcon;
+        return CircleStackIcon;
       case 'indexing':
-        return DatabaseIcon;
+        return CircleStackIcon;
       case 'completed':
         return CheckCircleIcon;
       default:

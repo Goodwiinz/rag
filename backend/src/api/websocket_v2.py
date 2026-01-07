@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from ..services.websocket_manager import connection_manager, WebSocketMessage, MessageType, Priority
 from ..services.status_update_service import status_update_service, Channel, UpdateFrequency
 from ..core.config import settings
+from ..core.websocket_auth import WebSocketAuthenticator, WebSocketAuthError
 from ..models.user import User
 from ..api.auth import get_current_user
 

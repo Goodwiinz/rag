@@ -366,7 +366,14 @@ export function AnalyticsChart({
         );
 
       default:
-        return null;
+        // Return a placeholder for unsupported chart types
+        return (
+          <LineChart data={processedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            {showGrid && <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />}
+            <XAxis dataKey="name" tickLine={false} className="text-xs" />
+            <YAxis tickLine={false} className="text-xs" />
+          </LineChart>
+        );
     }
   };
 

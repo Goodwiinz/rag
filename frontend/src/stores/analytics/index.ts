@@ -14,17 +14,11 @@ export type {
 
 // Graph Visualization Store
 export { useGraphVisualizationStore } from './graphStore';
-export type {
-  GraphVisualizationState,
-  GraphVisualizationActions,
-} from './graphStore';
+// Note: GraphVisualizationState and GraphVisualizationActions are internal types
 
 // Real-time Store
 export { useRealtimeStore } from './realtimeStore';
-export type {
-  RealtimeState,
-  RealtimeActions,
-} from './realtimeStore';
+// Note: RealtimeState and RealtimeActions are internal types
 
 // Utility hooks for store combinations
 export const useAnalyticsState = () => {

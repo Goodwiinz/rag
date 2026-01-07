@@ -3,6 +3,19 @@ import { Document, DocumentFilters, APIErrorClass } from '@/types';
 import { apiClient } from '@/services/apiClient';
 import { useAuth } from '@/hooks/useAuth';
 
+// Type for the API response from /documents/ endpoint
+interface DocumentsApiResponse {
+  documents: any[];
+  pagination: {
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages?: number;
+    has_next: boolean;
+    has_prev: boolean;
+  };
+}
+
 // Transform backend document response to frontend Document type
 const transformDocument = (backendDoc: any): Document => {
   return {
@@ -112,9 +125,9 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
       authLoading
     });
 
-    let actualPage: number;
-    let actualPageSize: number;
-    let actualFilters: DocumentFilters;
+    let actualPage: number = page ?? 1;
+    let actualPageSize: number = pageSize ?? 20;
+    let actualFilters: DocumentFilters = filters ?? {};
 
     // Get current values and set loading state atomically
     setState(prev => {
@@ -146,7 +159,7 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
       }
 
       console.log('Making API call to getDocuments with params:', params);
-      const response = await apiClient.get('/documents/', { params });  // Added trailing slash to avoid 307 redirect
+      const response = await apiClient.get('/documents/', { params }) as DocumentsApiResponse;  // Added trailing slash to avoid 307 redirect
       console.log('API response received:', response);
 
       // Check if response has the expected structure

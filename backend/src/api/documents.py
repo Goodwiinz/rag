@@ -18,7 +18,7 @@ from src.models.entity import Entity
 from src.models.processing import ProcessingJob, JobStatus
 from src.services.file_service import FileService, get_file_service
 
-router = APIRouter(prefix="/documents", tags=["documents"])
+router = APIRouter(prefix="/documents", tags=["documents"], redirect_slashes=False)
 
 # Request/Response Models
 class DocumentResponse(BaseModel):
@@ -97,6 +97,7 @@ class BulkDocumentResponse(BaseModel):
     success_count: int
     failure_count: int
 
+@router.get("", response_model=DocumentListResponse)
 @router.get("/", response_model=DocumentListResponse)
 async def list_documents(
     page: int = Query(1, ge=1, description="Page number"),

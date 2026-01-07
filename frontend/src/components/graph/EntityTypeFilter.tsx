@@ -276,7 +276,7 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
       .map(e => e.id);
 
     if (enableMultiSelect) {
-      const newSelected = [...new Set([...filters.selectedEntityIds, ...typeEntityIds])];
+      const newSelected = Array.from(new Set([...filters.selectedEntityIds, ...typeEntityIds]));
       updateFilters({ selectedEntityIds: newSelected });
       onEntitiesSelected?.(newSelected);
     }

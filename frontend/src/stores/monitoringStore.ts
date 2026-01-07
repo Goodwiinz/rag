@@ -109,7 +109,7 @@ interface MonitoringState {
   // Time Range Actions
   setTimeRange: (timeRange: TimeRange, scope?: 'performance' | 'business' | 'userAnalytics' | 'global') => void;
   setPresetTimeRange: (preset: TimeRangePreset) => void;
-  setTimeRangeForScope: (scope: string, timeRange: TimeRange) => void;
+  setTimeRangeForScope: (scope: 'performance' | 'business' | 'userAnalytics' | 'global', timeRange: TimeRange) => void;
 
   // Real-time Actions
   addRealTimeUpdate: (update: RealTimeUpdate) => void;

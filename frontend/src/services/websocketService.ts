@@ -1,4 +1,14 @@
 /**
+ * @deprecated This file is deprecated. Please migrate to the new unified WebSocket client.
+ * Import from '@/services/websocket-client' instead.
+ * 
+ * Migration guide:
+ * - Replace `websocketService` with `WebSocketClient` from websocket-client
+ * - Use `initializeWebSocketClient()` for singleton setup
+ * - The new client includes message buffering, latency monitoring, and priority queues
+ */
+
+/**
  * WebSocket Service - Real-time Graph Updates
  *
  * Handles real-time updates from backend graph services.

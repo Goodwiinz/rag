@@ -31,11 +31,11 @@ import {
   ChatCompletionResponse,
 } from '@/types/workspace';
 
-// Create a dedicated axios instance for v2 API (not using apiClient which has /api/v1 base)
-const API_V2_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:8000';
-
+// Create a dedicated axios instance for v2 API
+// Use empty baseURL to work with relative paths (goes through Next.js proxy)
+// The API_PREFIX handles the /api/v2 path
 const v2Client: AxiosInstance = axios.create({
-  baseURL: API_V2_BASE,
+  baseURL: '',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -85,6 +85,30 @@ v2Client.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Add response interceptor for better error handling
+v2Client.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Log detailed error info to help diagnose "Network Error" issues
+    console.error('[WorkspaceService] Request failed:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message,
+      code: error.code,
+    });
+
+    // If it's a 401/403, the user needs to re-authenticate
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      console.warn('[WorkspaceService] Authentication error - user may need to log in again');
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 const API_PREFIX = '/api/v2';
 
@@ -329,7 +353,17 @@ export const workspaceService = {
       if (response.conversations.length > 0) {
         return response.conversations[0];
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Handle 404 - workspace not found or stale data
+      if (error?.response?.status === 404) {
+        console.warn('[WorkspaceService] Workspace not found (404), clearing stale data');
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('default-workspace-id');
+          localStorage.removeItem('default-conversation-id');
+        }
+        // Let the caller handle retry with fresh workspace
+        throw error;
+      }
       console.warn('[WorkspaceService] Error listing conversations:', error);
     }
 

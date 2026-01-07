@@ -24,12 +24,12 @@ import {
   UserIcon,
   TagIcon,
   FunnelIcon,
-  SearchIcon,
+  MagnifyingGlassIcon,
   ChevronDownIcon,
   ChevronRightIcon
 } from '@heroicons/react/24/outline';
 
-interface AlertListProps {
+export interface AlertListProps {
   alerts?: Alert[];
   title?: string;
   showFilters?: boolean;
@@ -451,7 +451,7 @@ const AlertList: React.FC<AlertListProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
               {/* Search */}
               <div className="relative">
-                <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
                   placeholder="Search alerts..."
                   value={filters.search || ''}

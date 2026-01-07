@@ -130,7 +130,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
       .selectAll('g')
       .data(nodes)
       .enter().append('g')
-      .call(d3.drag<SVGGElement, any>()
+      .call((d3.drag() as d3.DragBehavior<SVGGElement, any, any>)
         .on('start', (event: any, d: any) => {
           if (!event.active) simulation.alphaTarget(0.3).restart();
           d.fx = d.x;
@@ -161,13 +161,13 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
           onEntityClick?.(entity);
         }
       })
-      .on('mouseover', function(event: any, d: any) {
+      .on('mouseover', function(this: SVGCircleElement, event: any, d: any) {
         d3.select(this)
           .transition()
           .duration(200)
           .attr('r', d.radius * 1.2);
       })
-      .on('mouseout', function(event: any, d: any) {
+      .on('mouseout', function(this: SVGCircleElement, event: any, d: any) {
         d3.select(this)
           .transition()
           .duration(200)

@@ -172,7 +172,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                     </TableCell>
                     <TableCell>
                       <div className="text-sm text-gray-600 max-w-md truncate">
-                        {formatMetadata(entity.metadata)}
+                        {formatMetadata(entity.metadata ?? {})}
                       </div>
                     </TableCell>
                     <TableCell>

@@ -312,7 +312,8 @@ export class TypeSafeAPIClient {
     search?: string;
   }): Promise<schemas.DocumentListResponse> {
     const searchParams = buildSearchParams(params || {});
-    const endpoint = `/documents${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+    // Use trailing slash to avoid 307 redirect which drops Authorization header
+    const endpoint = `/documents/${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
 
     return this.get(endpoint, schemas.DocumentListResponseSchema);
   }
