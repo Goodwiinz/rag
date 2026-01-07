@@ -9,15 +9,19 @@ interface LoginResponse {
   refresh_token: string;
   token_type: string;
   expires_in: number;
+  refresh_expires_in?: number;  // Refresh token expiration in seconds
+  remember_me: boolean;  // Indicates if this is a 30-day session
   user: User;
   organization?: Organization;
 }
 
 interface RefreshResponse {
   access_token: string;
-  refresh_token: string;
+  refresh_token?: string;  // New refresh token if rotated
   token_type: string;
   expires_in: number;
+  refresh_expires_in?: number;
+  remember_me?: boolean;
   user?: User;
 }
 
@@ -34,10 +38,14 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  // Session persistence state
+  rememberMe: boolean;  // If true, session persists for 30 days
+  tokenExpiresAt: number | null;  // Unix timestamp when access token expires
+  refreshExpiresAt: number | null;  // Unix timestamp when refresh token expires
 
   // Actions
   initializeFromStorage: () => void;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (userData: { email: string; password: string; full_name?: string }) => Promise<void>;
   logout: () => void;
   refreshToken: () => Promise<void>;
@@ -45,7 +53,17 @@ interface AuthState {
   switchOrganization: (organizationId: string) => Promise<void>;
   clearError: () => void;
   setLoading: (loading: boolean) => void;
+  // Session management
+  startProactiveRefresh: () => void;
+  stopProactiveRefresh: () => void;
+  getSessionTimeRemaining: () => { accessRemaining: number; refreshRemaining: number };
 }
+
+// Global refresh timer reference
+let proactiveRefreshTimer: NodeJS.Timeout | null = null;
+
+// Refresh token 5 minutes before expiration
+const REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -58,6 +76,10 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      // Session persistence state
+      rememberMe: false,
+      tokenExpiresAt: null,
+      refreshExpiresAt: null,
 
       // Initialize auth state from localStorage (for synchronization with useAuth)
       initializeFromStorage: () => {
@@ -97,6 +119,9 @@ export const useAuthStore = create<AuthState>()(
               error: null,
             });
 
+            // Start proactive token refresh if authenticated
+            get().startProactiveRefresh();
+
             console.log('✅ AuthStore: State synchronized with localStorage');
           } else {
             console.log('ℹ️ AuthStore: No auth data found in localStorage');
@@ -109,14 +134,21 @@ export const useAuthStore = create<AuthState>()(
       },
 
       // Actions
-      login: async (email: string, password: string) => {
+      login: async (email: string, password: string, rememberMe: boolean = false) => {
         set({ isLoading: true, error: null });
 
         try {
           const data: LoginResponse = await apiClient.post('/auth/login', {
             email,
             password,
+            remember_me: rememberMe,
           });
+
+          const now = Date.now();
+          const tokenExpiresAt = now + (data.expires_in * 1000);
+          const refreshExpiresAt = data.refresh_expires_in
+            ? now + (data.refresh_expires_in * 1000)
+            : now + (rememberMe ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000);
 
           set({
             user: data.user,
@@ -125,7 +157,15 @@ export const useAuthStore = create<AuthState>()(
             refreshTokenValue: data.refresh_token,
             isAuthenticated: true,
             isLoading: false,
+            rememberMe: data.remember_me || rememberMe,
+            tokenExpiresAt,
+            refreshExpiresAt,
           });
+
+          // Start proactive token refresh
+          get().startProactiveRefresh();
+
+          console.log(`🔐 Login successful - Session: ${rememberMe ? '30 days' : '7 days'}`);
         } catch (error) {
           set({
             error: error instanceof Error ? error.message : 'Login failed',
@@ -157,6 +197,9 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        // Stop proactive refresh timer
+        get().stopProactiveRefresh();
+
         set({
           user: null,
           organization: null,
@@ -164,24 +207,52 @@ export const useAuthStore = create<AuthState>()(
           refreshTokenValue: null,
           isAuthenticated: false,
           error: null,
+          rememberMe: false,
+          tokenExpiresAt: null,
+          refreshExpiresAt: null,
         });
+
+        console.log('🔓 Logged out - Session cleared');
       },
 
       refreshToken: async () => {
-        const { token } = get();
-        if (!token) return;
+        const { token, refreshTokenValue, rememberMe } = get();
+        if (!token && !refreshTokenValue) return;
 
         try {
           const data: RefreshResponse = await apiClient.post('/auth/refresh', {
-            refresh_token: get().refreshTokenValue || token, // Use stored refresh token or fall back to access token
+            refresh_token: refreshTokenValue || token,
           });
 
-          set({ 
+          const now = Date.now();
+          const tokenExpiresAt = now + (data.expires_in * 1000);
+
+          const updates: Partial<AuthState> = {
             token: data.access_token,
-            // Update refresh token if provided in response (rotation)
-            ...(data.refresh_token && { refreshTokenValue: data.refresh_token })
-          });
+            tokenExpiresAt,
+          };
+
+          // Update refresh token if rotated
+          if (data.refresh_token) {
+            updates.refreshTokenValue = data.refresh_token;
+            if (data.refresh_expires_in) {
+              updates.refreshExpiresAt = now + (data.refresh_expires_in * 1000);
+            }
+          }
+
+          // Preserve remember_me setting
+          if (data.remember_me !== undefined) {
+            updates.rememberMe = data.remember_me;
+          }
+
+          set(updates as any);
+
+          // Reschedule proactive refresh with new expiration
+          get().startProactiveRefresh();
+
+          console.log('🔄 Token refreshed successfully');
         } catch (error) {
+          console.error('❌ Token refresh failed:', error);
           get().logout();
         }
       },
@@ -215,6 +286,50 @@ export const useAuthStore = create<AuthState>()(
 
       clearError: () => set({ error: null }),
       setLoading: (loading: boolean) => set({ isLoading: loading }),
+
+      // Session management - Proactive token refresh
+      startProactiveRefresh: () => {
+        const { tokenExpiresAt, isAuthenticated } = get();
+
+        // Clear any existing timer
+        if (proactiveRefreshTimer) {
+          clearTimeout(proactiveRefreshTimer);
+          proactiveRefreshTimer = null;
+        }
+
+        if (!isAuthenticated || !tokenExpiresAt) {
+          return;
+        }
+
+        const now = Date.now();
+        const timeUntilExpiry = tokenExpiresAt - now;
+        const refreshIn = Math.max(timeUntilExpiry - REFRESH_BUFFER_MS, 60000); // At least 1 minute
+
+        console.log(`⏰ Proactive refresh scheduled in ${Math.round(refreshIn / 60000)} minutes`);
+
+        proactiveRefreshTimer = setTimeout(async () => {
+          console.log('🔄 Proactive token refresh triggered');
+          await get().refreshToken();
+        }, refreshIn);
+      },
+
+      stopProactiveRefresh: () => {
+        if (proactiveRefreshTimer) {
+          clearTimeout(proactiveRefreshTimer);
+          proactiveRefreshTimer = null;
+          console.log('⏹️ Proactive refresh stopped');
+        }
+      },
+
+      getSessionTimeRemaining: () => {
+        const { tokenExpiresAt, refreshExpiresAt } = get();
+        const now = Date.now();
+
+        return {
+          accessRemaining: tokenExpiresAt ? Math.max(0, tokenExpiresAt - now) : 0,
+          refreshRemaining: refreshExpiresAt ? Math.max(0, refreshExpiresAt - now) : 0,
+        };
+      },
     }),
     {
       name: 'auth-storage',
@@ -224,7 +339,30 @@ export const useAuthStore = create<AuthState>()(
         token: state.token,
         refreshTokenValue: state.refreshTokenValue,
         isAuthenticated: state.isAuthenticated,
+        // Persist session state for 30-day sessions
+        rememberMe: state.rememberMe,
+        tokenExpiresAt: state.tokenExpiresAt,
+        refreshExpiresAt: state.refreshExpiresAt,
       }),
+      // Rehydrate session on app load
+      onRehydrateStorage: () => (state) => {
+        if (state?.isAuthenticated && state?.tokenExpiresAt) {
+          // Check if refresh token is still valid
+          const now = Date.now();
+          if (state.refreshExpiresAt && state.refreshExpiresAt < now) {
+            // Refresh token expired, logout
+            console.log('⚠️ Session expired during offline period');
+            state.logout();
+          } else if (state.tokenExpiresAt < now) {
+            // Access token expired but refresh token valid - refresh immediately
+            console.log('🔄 Access token expired, refreshing...');
+            state.refreshToken();
+          } else {
+            // Tokens still valid, start proactive refresh
+            state.startProactiveRefresh();
+          }
+        }
+      },
     }
   )
 );

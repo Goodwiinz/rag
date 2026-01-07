@@ -25,6 +25,7 @@ from qdrant_client.models import (
 )
 
 from ..core.config import settings
+from ..core.circuit_breaker import get_circuit_breaker, ServiceUnavailableError
 from ..models.vector import (
     VectorCollectionType,
     VectorSearchRequest,
@@ -224,8 +225,20 @@ class VectorService:
             )
 
     def search_vectors(self, request: VectorSearchRequest, query_vector: List[float]) -> VectorSearchResponse:
-        """Search for similar vectors"""
+        """Search for similar vectors with circuit breaker protection"""
         start_time = time.time()
+
+        # Check circuit breaker before making Qdrant call
+        breaker = get_circuit_breaker("qdrant")
+        if breaker and not breaker.can_execute():
+            logger.warning("Qdrant circuit breaker is open - returning empty results")
+            return VectorSearchResponse(
+                results=[],
+                total_found=0,
+                search_time=0.0,
+                query=request.query,
+                collection=request.collection
+            )
 
         try:
             collection_name = request.collection.value
@@ -308,6 +321,10 @@ class VectorService:
             processing_time = time.time() - start_time
             logger.info(f"Found {len(vector_results)} results in {collection_name}")
 
+            # Record circuit breaker success
+            if breaker:
+                breaker.record_success()
+
             return VectorSearchResponse(
                 results=vector_results,
                 total_found=len(vector_results),
@@ -319,6 +336,11 @@ class VectorService:
         except Exception as e:
             processing_time = time.time() - start_time
             logger.error(f"Error searching in {request.collection.value}: {e}")
+
+            # Record circuit breaker failure
+            if breaker:
+                breaker.record_failure(e)
+
             # Return empty result on error
             return VectorSearchResponse(
                 results=[],

@@ -5,6 +5,7 @@ import { Navigate, Link } from 'react-router-dom';
 interface LoginFormData {
   email: string;
   password: string;
+  rememberMe: boolean;
 }
 
 export const LoginPage: React.FC = () => {
@@ -12,6 +13,7 @@ export const LoginPage: React.FC = () => {
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
+    rememberMe: false,
   });
   const [error, setError] = useState<string>('');
 
@@ -32,16 +34,17 @@ export const LoginPage: React.FC = () => {
     setError('');
 
     try {
-      await login(formData.email, formData.password);
+      await login(formData.email, formData.password, formData.rememberMe);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [name]: type === 'checkbox' ? checked : value,
     }));
   };
 
@@ -105,13 +108,15 @@ export const LoginPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <input
-                id="remember-me"
-                name="remember-me"
+                id="rememberMe"
+                name="rememberMe"
                 type="checkbox"
+                checked={formData.rememberMe}
+                onChange={handleChange}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
-              <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
-                Remember me
+              <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-900">
+                Remember me for 30 days
               </label>
             </div>
 

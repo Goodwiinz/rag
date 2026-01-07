@@ -131,14 +131,20 @@ export class WebSocketClient {
 
       try {
         const wsUrl = new URL(this.config.url);
-        if (this.config.token) {
-          wsUrl.searchParams.append('token', this.config.token);
-        }
+        // SECURITY: Only pass non-sensitive parameters in URL
         if (this.config.organizationId) {
           wsUrl.searchParams.append('organization_id', this.config.organizationId);
         }
 
-        this.ws = new WebSocket(wsUrl.toString());
+        // SECURITY: Use Sec-WebSocket-Protocol for token authentication
+        // Browser WebSocket API doesn't support custom headers, but the subprotocol
+        // header is a secure way to pass authentication tokens (not logged/cached)
+        // Format: ["auth", token] where "auth" indicates auth protocol
+        const protocols = this.config.token
+          ? ['auth', this.config.token]
+          : undefined;
+
+        this.ws = new WebSocket(wsUrl.toString(), protocols);
 
         this.ws.onopen = () => {
           clearTimeout(timeout);

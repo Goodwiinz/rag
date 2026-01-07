@@ -5,11 +5,13 @@ import { useAuthStore } from '@/stores/authStore';
 import { cleanupWebSocket } from '@/services/websocket';
 
 interface AuthContextType extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (userData: RegisterRequest) => Promise<void>;
   logout: () => void;
   refreshToken: () => Promise<void>;
   handleAuthError: () => void;
+  rememberMe: boolean;
+  sessionTimeRemaining: () => { accessRemaining: number; refreshRemaining: number };
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -25,11 +27,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated,
     isLoading,
     error,
+    rememberMe,
     login: storeLogin,
     register: storeRegister,
     logout: storeLogout,
     refreshToken,
     initializeFromStorage,
+    getSessionTimeRemaining,
   } = useAuthStore();
 
   const [authState, setAuthState] = useState<AuthState>({
@@ -116,9 +120,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [token, user, setAuth, clearAuth]);
 
-  // Login function
-  const login = useCallback(async (email: string, password: string) => {
-    await storeLogin(email, password);
+  // Login function with optional rememberMe for 30-day sessions
+  const login = useCallback(async (email: string, password: string, rememberMe: boolean = false) => {
+    await storeLogin(email, password, rememberMe);
   }, [storeLogin]);
 
   // Register function
@@ -144,6 +148,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     refreshToken: refreshTokenCallback,
     handleAuthError,
+    rememberMe,
+    sessionTimeRemaining: getSessionTimeRemaining,
   };
 
   return React.createElement(

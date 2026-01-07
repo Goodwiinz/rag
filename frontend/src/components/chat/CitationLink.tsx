@@ -1,16 +1,16 @@
 'use client';
 
-import React from 'react';
-import { motion } from 'framer-motion';
+import { Badge } from '@/components/ui/badge';
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
-import { Badge } from '@/components/ui/badge';
-import { FileText, ExternalLink, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Citation, getScoreColor, truncateText } from '@/utils/citationParser';
+import { motion } from 'framer-motion';
+import { ExternalLink, FileText, TrendingUp } from 'lucide-react';
+import React from 'react';
 
 interface CitationLinkProps {
   /** The citation number (1-based, matches [Doc N]) */
@@ -63,9 +63,9 @@ export function CitationLink({
         // Terminal Observatory theme colors
         citation
           ? isActive
-            ? 'bg-[#00ff9f]/30 text-[#00ff9f] border-[#00ff9f]/50 shadow-[0_0_8px_rgba(0,255,159,0.3)]'
-            : 'bg-[#00ff9f]/15 text-[#00ff9f] hover:bg-[#00ff9f]/25 hover:border-[#00ff9f]/30'
-          : 'bg-gray-800/50 text-gray-500 cursor-not-allowed',
+            ? 'bg-primary/30 text-primary border-primary/50 shadow-[0_0_8px_rgba(0,255,159,0.3)]'
+            : 'bg-primary/15 text-primary hover:bg-primary/25 hover:border-primary/30'
+          : 'bg-muted/50 text-muted-foreground cursor-not-allowed',
         className
       )}
       aria-label={citation ? `Citation ${citationNumber}: ${citation.title}` : `Citation ${citationNumber}`}
@@ -89,14 +89,14 @@ export function CitationLink({
         side="top"
         className={cn(
           'w-80 p-0 overflow-hidden',
-          'bg-[#0a0a0a] border border-[#00ff9f]/20',
+          'bg-card border border-primary/20',
           'shadow-[0_0_20px_rgba(0,255,159,0.1)]'
         )}
       >
         {/* Header */}
-        <div className="px-3 py-2 bg-[#0f0f0f] border-b border-[#00ff9f]/10">
+        <div className="px-3 py-2 bg-background border-b border-primary/10">
           <div className="flex items-start gap-2">
-            <FileText className="w-4 h-4 mt-0.5 text-[#00ff9f] shrink-0" />
+            <FileText className="w-4 h-4 mt-0.5 text-primary shrink-0" />
             <div className="flex-1 min-w-0">
               <h4 className="text-sm font-medium text-white truncate">
                 {citation.title}
@@ -112,7 +112,8 @@ export function CitationLink({
 
         {/* Content preview */}
         {citation.content && (
-          <div className="px-3 py-2 border-b border-[#00ff9f]/10">
+
+          <div className="px-3 py-2 border-b border-primary/10">
             <p className="text-xs text-gray-400 leading-relaxed">
               {truncateText(citation.content, 200)}
             </p>
@@ -120,7 +121,7 @@ export function CitationLink({
         )}
 
         {/* Footer with score and action */}
-        <div className="px-3 py-2 flex items-center justify-between bg-[#080808]">
+        <div className="px-3 py-2 flex items-center justify-between bg-card/50">
           <div className="flex items-center gap-2">
             <TrendingUp className={cn('w-3 h-3', scoreColorClass)} />
             <Badge
@@ -143,7 +144,7 @@ export function CitationLink({
             onClick={handleClick}
             className={cn(
               'flex items-center gap-1 text-xs',
-              'text-[#00ff9f]/70 hover:text-[#00ff9f]',
+              'text-primary/70 hover:text-primary',
               'transition-colors'
             )}
           >

@@ -313,6 +313,94 @@ class EnhancedConnectionManager(BaseService):
         logger.info(f"WebSocket connection established: {connection_id} for user {connection_info.user_id}")
         return connection_id
 
+    async def connect_authenticated(
+        self,
+        websocket: WebSocket,
+        user_id: str,
+        organization_id: str,
+        client_info: Dict[str, Any] = None,
+        subprotocol: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Accept and manage a pre-authenticated WebSocket connection.
+
+        This method is used when authentication has already been performed
+        (e.g., via the WebSocketAuthenticator helper) to avoid token exposure
+        in URL query parameters.
+
+        Args:
+            websocket: The WebSocket connection
+            user_id: Authenticated user's ID
+            organization_id: User's organization ID
+            client_info: Optional client metadata
+            subprotocol: Optional subprotocol to respond with
+
+        Returns:
+            Connection ID if successful, None otherwise
+        """
+        # Check connection limits
+        if len(self.active_connections) >= self.max_connections:
+            await websocket.close(
+                code=status.WS_1013_TRY_AGAIN_LATER,
+                reason="Server at maximum capacity"
+            )
+            return None
+
+        # Accept connection with appropriate subprotocol
+        if subprotocol:
+            await websocket.accept(subprotocol=subprotocol)
+        else:
+            await websocket.accept()
+
+        # Generate connection ID
+        connection_id = str(uuid.uuid4())
+
+        # Create connection info
+        connection_info = ConnectionInfo(
+            user_id=user_id,
+            organization_id=organization_id,
+            connection_id=connection_id,
+            websocket=websocket,
+            connected_at=datetime.now(dt_timezone.utc),
+            last_heartbeat=datetime.now(dt_timezone.utc),
+            subscribed_channels=set(),
+            message_filter=client_info.get("message_filter") if client_info else None,
+            client_info=client_info or {}
+        )
+
+        # Store connection
+        self.active_connections[connection_id] = connection_info
+        self.user_connections[user_id].add(connection_id)
+        self.organization_connections[organization_id].add(connection_id)
+
+        # Log connection to database
+        await self._log_connection_event(
+            connection_id=connection_id,
+            event_type="connect",
+            user_id=user_id,
+            organization_id=organization_id,
+            client_info=client_info
+        )
+
+        # Send welcome message
+        welcome_message = WebSocketMessage(
+            type=MessageType.CONNECT,
+            data={
+                "connection_id": connection_id,
+                "user_id": user_id,
+                "organization_id": organization_id,
+                "server_time": datetime.now(dt_timezone.utc).isoformat(),
+                "heartbeat_interval": self.heartbeat_interval,
+                "auth_method": "secure"  # Indicate secure authentication was used
+            },
+            timestamp=datetime.now(dt_timezone.utc)
+        )
+
+        await self.send_message_to_connection(connection_id, welcome_message)
+
+        logger.info(f"WebSocket connection established (secure auth): {connection_id} for user {user_id}")
+        return connection_id
+
     async def disconnect(self, connection_id: str, reason: str = None):
         """Handle WebSocket disconnection"""
         if connection_id not in self.active_connections:

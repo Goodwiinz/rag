@@ -20,9 +20,7 @@ import {
 import React, { useCallback, useState } from 'react';
 
 // Terminal Observatory Theme Constants
-const PHOSPHOR_GREEN = '#00ff9f';
-const AMBER = '#ffb700';
-const CYAN = '#00d4ff';
+import { THEME } from '@/theme/constants';
 
 interface ResultsPanelProps {
   result: SearchResult | null;
@@ -70,9 +68,9 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
       <div
         className="relative z-10 w-full max-w-md p-6 rounded-xl"
         style={{
-          background: '#0d1117',
-          border: '1px solid #21262d',
-          boxShadow: `0 0 60px ${PHOSPHOR_GREEN}10`,
+          background: THEME.colors.card,
+          border: `1px solid ${THEME.colors.border}`,
+          boxShadow: `0 0 60px ${THEME.colors.primary}10`,
         }}
       >
         <h3 className="text-lg font-mono font-semibold text-white mb-4">Rate this answer</h3>
@@ -109,7 +107,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
               placeholder="Tell us more..."
               rows={3}
               className="w-full px-3 py-2 rounded-lg font-mono text-sm text-white bg-transparent outline-none"
-              style={{ border: '1px solid #21262d' }}
+              style={{ border: `1px solid ${THEME.colors.border}` }}
             />
           </div>
           <div className="flex justify-end space-x-2 pt-2">
@@ -117,7 +115,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
               onClick={onClose}
               disabled={isSubmitting}
               className="px-4 py-2 rounded-lg font-mono text-sm text-gray-400 hover:text-white transition-colors"
-              style={{ border: '1px solid #21262d' }}
+              style={{ border: `1px solid ${THEME.colors.border}` }}
             >
               Cancel
             </button>
@@ -126,9 +124,9 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
               disabled={rating === 0 || isSubmitting}
               className="px-4 py-2 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
               style={{
-                background: `${PHOSPHOR_GREEN}20`,
-                border: `1px solid ${PHOSPHOR_GREEN}50`,
-                color: PHOSPHOR_GREEN,
+                background: `${THEME.colors.primary}20`,
+                border: `1px solid ${THEME.colors.primary}50`,
+                color: THEME.colors.primary,
               }}
             >
               {isSubmitting ? 'Submitting...' : 'Submit'}
@@ -142,10 +140,10 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
 
 const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
   const getScoreColor = (score: number): string => {
-    if (score >= 90) return PHOSPHOR_GREEN;
-    if (score >= 80) return AMBER;
+    if (score >= 90) return THEME.colors.primary;
+    if (score >= 80) return THEME.colors.accent;
     if (score >= 70) return '#f97316';
-    return '#ef4444';
+    return THEME.colors.error;
   };
 
   const formatScore = (score: number): string => {
@@ -163,8 +161,8 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
     <div
       className="rounded-xl p-4"
       style={{
-        background: '#0d1117',
-        border: '1px solid #21262d',
+        background: THEME.colors.card,
+        border: `1px solid ${THEME.colors.border}`,
       }}
     >
       <div className="flex items-center space-x-2 mb-4">
@@ -184,7 +182,7 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
                 {formatScore(item.value)}
               </span>
             </div>
-            <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: '#21262d' }}>
+            <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: THEME.colors.border }}>
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{
@@ -197,7 +195,7 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
         ))}
       </div>
 
-      <div className="border-t pt-4 mt-4" style={{ borderColor: '#21262d' }} />
+      <div className="border-t pt-4 mt-4" style={{ borderColor: THEME.colors.border }} />
 
       <div className="grid grid-cols-3 gap-3">
         {[
@@ -208,7 +206,7 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
           <div
             key={stat.label}
             className="flex flex-col items-center p-3 rounded-lg"
-            style={{ background: '#161b22', border: '1px solid #21262d' }}
+            style={{ background: '#161b22', border: `1px solid ${THEME.colors.border}` }}
           >
             <span className="font-mono font-medium text-white">{stat.value}</span>
             <span className="text-[10px] font-mono uppercase tracking-wider mt-0.5 text-gray-500">
@@ -245,11 +243,11 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
         return <DocumentTextIcon className={cn(iconClass)} style={{ color: '#3b82f6' }} />;
       case 'jpg':
       case 'png':
-        return <PhotoIcon className={cn(iconClass)} style={{ color: PHOSPHOR_GREEN }} />;
+        return <PhotoIcon className={cn(iconClass)} style={{ color: THEME.colors.primary }} />;
       case 'mp3':
         return <MusicalNoteIcon className={cn(iconClass)} style={{ color: '#a855f7' }} />;
       case 'mp4':
-        return <VideoCameraIcon className={cn(iconClass)} style={{ color: AMBER }} />;
+        return <VideoCameraIcon className={cn(iconClass)} style={{ color: THEME.colors.accent }} />;
       default:
         return <DocumentTextIcon className={cn(iconClass)} style={{ color: '#6b7280' }} />;
     }
@@ -258,13 +256,13 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   const getAnswerTypeConfig = (answerType: string) => {
     switch (answerType) {
       case 'factual':
-        return { color: PHOSPHOR_GREEN, bg: `${PHOSPHOR_GREEN}15`, border: `${PHOSPHOR_GREEN}30` };
+        return { color: THEME.colors.primary, bg: `${THEME.colors.primary}15`, border: `${THEME.colors.primary}30` };
       case 'reasoning':
         return { color: '#a855f7', bg: '#a855f715', border: '#a855f730' };
       case 'summarization':
-        return { color: CYAN, bg: `${CYAN}15`, border: `${CYAN}30` };
+        return { color: THEME.colors.secondary, bg: `${THEME.colors.secondary}15`, border: `${THEME.colors.secondary}30` };
       case 'comparison':
-        return { color: AMBER, bg: `${AMBER}15`, border: `${AMBER}30` };
+        return { color: THEME.colors.accent, bg: `${THEME.colors.accent}15`, border: `${THEME.colors.accent}30` };
       default:
         return { color: '#6b7280', bg: '#6b728015', border: '#6b728030' };
     }
@@ -321,8 +319,8 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
             key={i}
             className="h-16 rounded-lg animate-pulse"
             style={{
-              background: `linear-gradient(90deg, ${PHOSPHOR_GREEN}05 0%, ${PHOSPHOR_GREEN}10 50%, ${PHOSPHOR_GREEN}05 100%)`,
-              border: `1px solid ${PHOSPHOR_GREEN}15`,
+              background: `linear-gradient(90deg, ${THEME.colors.primary}05 0%, ${THEME.colors.primary}10 50%, ${THEME.colors.primary}05 100%)`,
+              border: `1px solid ${THEME.colors.primary}15`,
             }}
           />
         ))}
@@ -345,7 +343,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
       <div className={cn("text-center py-8", className)}>
         <div
           className="h-12 w-12 rounded-full mx-auto mb-4 flex items-center justify-center"
-          style={{ background: '#161b22', border: '1px solid #21262d' }}
+          style={{ background: '#161b22', border: `1px solid ${THEME.colors.border}` }}
         >
           <MagnifyingGlassIcon className="h-6 w-6 text-gray-500" />
         </div>
@@ -383,7 +381,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                 <ClockIcon className="h-3.5 w-3.5 mr-1" />
                 {formatDate(result.created_at)}
               </span>
-              <span className="flex items-center font-mono text-xs" style={{ color: AMBER }}>
+              <span className="flex items-center font-mono text-xs" style={{ color: THEME.colors.accent }}>
                 <SparklesIcon className="h-3.5 w-3.5 mr-1" />
                 {Math.round(result.answer.confidence * 100)}% confidence
               </span>
@@ -427,7 +425,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
           <h2 className="text-lg font-mono font-semibold text-gray-300">Sources</h2>
           <span
             className="rounded-full px-2 py-0.5 text-xs font-mono"
-            style={{ background: `${CYAN}15`, color: CYAN, border: `1px solid ${CYAN}30` }}
+            style={{ background: `${THEME.colors.secondary}15`, color: THEME.colors.secondary, border: `1px solid ${THEME.colors.secondary}30` }}
           >
             {result.answer.sources.length}
           </span>
@@ -439,16 +437,16 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               key={`${source.document_id}-${index}`}
               className="group rounded-xl p-4 cursor-pointer transition-all duration-200 hover:scale-[1.02]"
               style={{
-                background: '#0d1117',
-                border: '1px solid #21262d',
+                background: THEME.colors.card,
+                border: `1px solid ${THEME.colors.border}`,
               }}
               onClick={() => handleSourceClick(source)}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = `${PHOSPHOR_GREEN}40`;
-                e.currentTarget.style.boxShadow = `0 0 20px ${PHOSPHOR_GREEN}10`;
+                e.currentTarget.style.borderColor = `${THEME.colors.primary}40`;
+                e.currentTarget.style.boxShadow = `0 0 20px ${THEME.colors.primary}10`;
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#21262d';
+                e.currentTarget.style.borderColor = THEME.colors.border;
                 e.currentTarget.style.boxShadow = 'none';
               }}
             >
@@ -485,15 +483,15 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               {/* Source Snippet */}
               <div
                 className="p-2 rounded-lg mb-3"
-                style={{ background: '#161b22', border: '1px solid #21262d' }}
+                style={{ background: '#161b22', border: `1px solid ${THEME.colors.border}` }}
               >
                 <p className="text-xs font-mono text-gray-400 leading-relaxed line-clamp-3">
-                  "{source.snippet}"
+                  &quot;{source.snippet}&quot;
                 </p>
               </div>
 
               {/* Footer Actions */}
-              <div className="flex items-center justify-between pt-2" style={{ borderTop: '1px solid #21262d' }}>
+              <div className="flex items-center justify-between pt-2" style={{ borderTop: `1px solid ${THEME.colors.border}` }}>
                 <div className="flex items-center space-x-2 text-[10px] text-gray-500 font-mono">
                   {source.page_number && (
                     <span

@@ -5,9 +5,8 @@ import { Activity, BarChart3, BookOpen, Brain, CheckCircle, CheckSquare, Databas
 import React, { useState } from 'react';
 
 // Terminal Observatory Theme Constants
-const PHOSPHOR_GREEN = '#00ff9f';
-const AMBER = '#ffb700';
-const CYAN = '#00d4ff';
+// Using centralized theme constants
+import { THEME } from '@/theme/constants';
 
 interface TrackResult {
   status: string;
@@ -99,15 +98,15 @@ const ToggleSwitch: React.FC<{
     onClick={() => onCheckedChange(!checked)}
     className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200"
     style={{
-      background: checked ? `${PHOSPHOR_GREEN}40` : '#21262d',
-      border: `1px solid ${checked ? PHOSPHOR_GREEN : '#30363d'}`,
+      background: checked ? `${THEME.colors.primary}40` : '#21262d',
+      border: `1px solid ${checked ? THEME.colors.primary : '#30363d'}`,
     }}
   >
     <span
       className="pointer-events-none block h-4 w-4 rounded-full transition-transform duration-200"
       style={{
         transform: checked ? 'translateX(16px)' : 'translateX(0)',
-        background: checked ? PHOSPHOR_GREEN : '#8b949e',
+        background: checked ? THEME.colors.primary : '#8b949e',
         marginTop: '1px',
         marginLeft: '1px',
       }}
@@ -122,7 +121,7 @@ const ProgressBar: React.FC<{ value: number }> = ({ value }) => (
       className="h-full rounded-full transition-all duration-500"
       style={{
         width: `${value}%`,
-        background: `linear-gradient(90deg, ${PHOSPHOR_GREEN}80, ${PHOSPHOR_GREEN})`,
+        background: `linear-gradient(90deg, ${THEME.colors.primary}80, ${THEME.colors.primary})`,
       }}
     />
   </div>
@@ -145,7 +144,7 @@ const CustomSlider: React.FC<{
     step={step}
     className="w-full h-2 rounded-full appearance-none cursor-pointer"
     style={{
-      background: `linear-gradient(to right, ${PHOSPHOR_GREEN} 0%, ${PHOSPHOR_GREEN} ${((value - min) / (max - min)) * 100}%, #21262d ${((value - min) / (max - min)) * 100}%, #21262d 100%)`,
+      background: `linear-gradient(to right, ${THEME.colors.primary} 0%, ${THEME.colors.primary} ${((value - min) / (max - min)) * 100}%, #21262d ${((value - min) / (max - min)) * 100}%, #21262d 100%)`,
     }}
   />
 );
@@ -521,8 +520,8 @@ export default function ArxivManagement() {
       {/* Header */}
       <div className="space-y-6 pt-6">
         <div className="flex items-center gap-4 pl-4">
-          <Activity className="h-7 w-7" style={{ color: PHOSPHOR_GREEN }} />
-          <h1 className="text-2xl font-mono font-bold tracking-tight" style={{ color: PHOSPHOR_GREEN }}>
+          <Activity className="h-7 w-7" style={{ color: THEME.colors.primary }} />
+          <h1 className="text-2xl font-mono font-bold tracking-tight" style={{ color: THEME.colors.primary }}>
             ARXIV MANAGEMENT TERMINAL_
           </h1>
         </div>
@@ -555,10 +554,10 @@ export default function ArxivManagement() {
                 className="flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm transition-all"
                 style={{
                   background: isActive ? '#0d1117' : 'transparent',
-                  color: isActive ? PHOSPHOR_GREEN : '#8b949e',
+                  color: isActive ? THEME.colors.primary : '#8b949e',
                   borderWidth: '1px',
                   borderStyle: 'solid',
-                  borderColor: isActive ? `${PHOSPHOR_GREEN}30` : 'transparent',
+                  borderColor: isActive ? `${THEME.colors.primary}30` : 'transparent',
                 }}
               >
                 <Icon className="h-4 w-4" />
@@ -575,7 +574,7 @@ export default function ArxivManagement() {
             <div className="space-y-10">
               <div className="space-y-2">
                 <h3 className="text-lg font-mono font-semibold text-white flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" style={{ color: AMBER }} />
+                  <TrendingUp className="h-5 w-5" style={{ color: THEME.colors.accent }} />
                   Track ArXiv Changes
                 </h3>
                 <p className="text-sm font-mono text-gray-500">
@@ -608,7 +607,7 @@ export default function ArxivManagement() {
               {/* Days Back Slider */}
               <div className="space-y-5">
                 <label className="text-sm font-mono text-gray-400 block">
-                  Days to look back: <span style={{ color: PHOSPHOR_GREEN }}>{daysBack}</span>
+                  Days to look back: <span style={{ color: THEME.colors.primary }}>{daysBack}</span>
                 </label>
                 <CustomSlider
                   value={daysBack}
@@ -638,11 +637,11 @@ export default function ArxivManagement() {
                   disabled={isTracking || selectedCategories.length === 0}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
                   style={{
-                    background: `${PHOSPHOR_GREEN}20`,
+                    background: `${THEME.colors.primary}20`,
                     borderWidth: '1px',
                     borderStyle: 'solid',
-                    borderColor: `${PHOSPHOR_GREEN}50`,
-                    color: PHOSPHOR_GREEN,
+                    borderColor: `${THEME.colors.primary}50`,
+                    color: THEME.colors.primary,
                   }}
                 >
                   {isTracking ? (
@@ -684,34 +683,34 @@ export default function ArxivManagement() {
               {/* Results */}
               {trackingResult && (
                 <div className="space-y-4">
-                  <div
-                    className="flex items-start gap-3 p-4 rounded-lg"
-                    style={{
-                      background: `${PHOSPHOR_GREEN}10`,
-                      border: `1px solid ${PHOSPHOR_GREEN}30`,
-                    }}
-                  >
-                    <CheckCircle className="h-5 w-5 mt-0.5" style={{ color: PHOSPHOR_GREEN }} />
-                    <p className="text-sm font-mono" style={{ color: PHOSPHOR_GREEN }}>
-                      {trackingResult.result.applied ? (
-                        <>
-                          Successfully tracked and updated database!
-                          Found {trackingResult.result.papers_found} papers with {trackingResult.result.changes_detected} changes.
-                        </>
-                      ) : (
-                        <>
-                          Tracking completed (read-only).
-                          Found {trackingResult.result.papers_found} papers with {trackingResult.result.changes_detected} changes.
-                        </>
-                      )}
+                    <div
+                      className="flex items-start gap-3 p-4 rounded-lg"
+                      style={{
+                        background: `${THEME.colors.primary}10`,
+                        border: `1px solid ${THEME.colors.primary}30`,
+                      }}
+                    >
+                      <CheckCircle className="h-5 w-5 mt-0.5" style={{ color: THEME.colors.primary }} />
+                      <p className="text-sm font-mono" style={{ color: THEME.colors.primary }}>
+                        {trackingResult.result.applied ? (
+                          <>
+                            Successfully tracked and updated database!
+                            Found {trackingResult.result.papers_found} papers with {trackingResult.result.changes_detected} changes.
+                          </>
+                        ) : (
+                          <>
+                            Tracking completed (read-only).
+                            Found {trackingResult.result.papers_found} papers with {trackingResult.result.changes_detected} changes.
+                          </>
+                        )}
                     </p>
                   </div>
 
                   <div className="grid grid-cols-3 gap-4">
                     {[
-                      { label: 'New Papers', value: trackingResult.result.summary.new, color: PHOSPHOR_GREEN },
-                      { label: 'Updated', value: trackingResult.result.summary.updated, color: CYAN },
-                      { label: 'Deleted', value: trackingResult.result.summary.deleted, color: '#ef4444' },
+                      { label: 'New Papers', value: trackingResult.result.summary.new, color: THEME.colors.primary },
+                      { label: 'Updated', value: trackingResult.result.summary.updated, color: THEME.colors.secondary },
+                      { label: 'Deleted', value: trackingResult.result.summary.deleted, color: THEME.colors.error },
                     ].map((stat) => (
                       <div
                         key={stat.label}
@@ -730,12 +729,12 @@ export default function ArxivManagement() {
                     <div
                       className="flex items-start gap-3 p-4 rounded-lg"
                       style={{
-                        background: `${CYAN}10`,
-                        border: `1px solid ${CYAN}30`,
+                        background: `${THEME.colors.secondary}10`,
+                        border: `1px solid ${THEME.colors.secondary}30`,
                       }}
                     >
-                      <Database className="h-5 w-5 mt-0.5" style={{ color: CYAN }} />
-                      <p className="text-sm font-mono" style={{ color: CYAN }}>
+                      <Database className="h-5 w-5 mt-0.5" style={{ color: THEME.colors.secondary }} />
+                      <p className="text-sm font-mono" style={{ color: THEME.colors.secondary }}>
                         Papers have been added to PostgreSQL and entities/relationships have been extracted to Neo4j knowledge graph.
                         Visit{' '}
                         <a
@@ -760,7 +759,7 @@ export default function ArxivManagement() {
             <div className="space-y-10">
               <div className="space-y-2">
                 <h3 className="text-lg font-mono font-semibold text-white flex items-center gap-2">
-                  <Upload className="h-5 w-5" style={{ color: CYAN }} />
+                  <Upload className="h-5 w-5" style={{ color: THEME.colors.secondary }} />
                   Ingest ArXiv Papers
                 </h3>
                 <p className="text-sm font-mono text-gray-500">
@@ -787,7 +786,7 @@ export default function ArxivManagement() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-mono text-gray-400">
-                    Max Results: <span style={{ color: PHOSPHOR_GREEN }}>{maxResults}</span>
+                    Max Results: <span style={{ color: THEME.colors.primary }}>{maxResults}</span>
                   </label>
                   <CustomSlider
                     value={maxResults}
@@ -829,11 +828,11 @@ export default function ArxivManagement() {
                 disabled={isSearching || !searchQuery.trim()}
                 className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
                 style={{
-                  background: `${CYAN}20`,
+                  background: `${THEME.colors.secondary}20`,
                   borderWidth: '1px',
                   borderStyle: 'solid',
-                  borderColor: `${CYAN}50`,
-                  color: CYAN,
+                  borderColor: `${THEME.colors.secondary}50`,
+                  color: THEME.colors.secondary,
                 }}
               >
                 {isSearching ? (
@@ -891,7 +890,7 @@ export default function ArxivManagement() {
                   {/* Paper List */}
                   <div 
                     className="space-y-3 max-h-96 overflow-y-auto pr-2"
-                    style={{ scrollbarWidth: 'thin', scrollbarColor: `${PHOSPHOR_GREEN}40 #161b22` }}
+                    style={{ scrollbarWidth: 'thin', scrollbarColor: `${THEME.colors.primary}40 #161b22` }}
                   >
                     {searchResults.map((paper) => (
                       <div
@@ -899,14 +898,14 @@ export default function ArxivManagement() {
                         onClick={() => togglePaperSelection(paper.id)}
                         className="p-4 rounded-lg cursor-pointer transition-all"
                         style={{
-                          background: selectedPaperIds.includes(paper.id) ? `${PHOSPHOR_GREEN}10` : '#161b22',
-                          border: `1px solid ${selectedPaperIds.includes(paper.id) ? `${PHOSPHOR_GREEN}40` : '#21262d'}`,
+                          background: selectedPaperIds.includes(paper.id) ? `${THEME.colors.primary}10` : '#161b22',
+                          border: `1px solid ${selectedPaperIds.includes(paper.id) ? `${THEME.colors.primary}40` : '#21262d'}`,
                         }}
                       >
                         <div className="flex items-start gap-3">
                           <div className="pt-1">
                             {selectedPaperIds.includes(paper.id) ? (
-                              <CheckSquare className="h-5 w-5" style={{ color: PHOSPHOR_GREEN }} />
+                              <CheckSquare className="h-5 w-5" style={{ color: THEME.colors.primary }} />
                             ) : (
                               <Square className="h-5 w-5 text-gray-600" />
                             )}
@@ -925,7 +924,7 @@ export default function ArxivManagement() {
                             <div className="flex items-center gap-2 mt-2">
                               <span 
                                 className="text-xs font-mono px-2 py-0.5 rounded"
-                                style={{ background: `${CYAN}20`, color: CYAN }}
+                                style={{ background: `${THEME.colors.secondary}20`, color: THEME.colors.secondary }}
                               >
                                 {paper.id}
                               </span>
@@ -933,7 +932,7 @@ export default function ArxivManagement() {
                                 <span 
                                   key={cat}
                                   className="text-xs font-mono px-2 py-0.5 rounded"
-                                  style={{ background: `${AMBER}20`, color: AMBER }}
+                                  style={{ background: `${THEME.colors.accent}20`, color: THEME.colors.accent }}
                                 >
                                   {cat}
                                 </span>
@@ -952,11 +951,11 @@ export default function ArxivManagement() {
                       disabled={isIngesting}
                       className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
                       style={{
-                        background: `${PHOSPHOR_GREEN}20`,
+                        background: `${THEME.colors.primary}20`,
                         borderWidth: '1px',
                         borderStyle: 'solid',
-                        borderColor: `${PHOSPHOR_GREEN}50`,
-                        color: PHOSPHOR_GREEN,
+                        borderColor: `${THEME.colors.primary}50`,
+                        color: THEME.colors.primary,
                       }}
                     >
                       {isIngesting ? (
@@ -977,18 +976,18 @@ export default function ArxivManagement() {
 
               {/* Ingestion Success */}
               {ingestionResult && (
-                <div
-                  className="flex items-start gap-3 p-4 rounded-lg"
-                  style={{
-                    background: `${PHOSPHOR_GREEN}10`,
-                    border: `1px solid ${PHOSPHOR_GREEN}30`,
-                  }}
-                >
-                  <CheckCircle className="h-5 w-5 mt-0.5" style={{ color: PHOSPHOR_GREEN }} />
-                  <div>
-                    <p className="text-sm font-mono" style={{ color: PHOSPHOR_GREEN }}>
-                      {ingestionResult.message}
-                    </p>
+                  <div
+                    className="flex items-start gap-3 p-4 rounded-lg"
+                    style={{
+                      background: `${THEME.colors.primary}10`,
+                      border: `1px solid ${THEME.colors.primary}30`,
+                    }}
+                  >
+                    <CheckCircle className="h-5 w-5 mt-0.5" style={{ color: THEME.colors.primary }} />
+                    <div>
+                      <p className="text-sm font-mono" style={{ color: THEME.colors.primary }}>
+                        {ingestionResult.message}
+                      </p>
                     <p className="text-xs font-mono text-gray-500 mt-1">
                       {ingestionResult.paper_count} papers queued for background processing.
                       Check the Statistics tab to monitor progress.
@@ -1004,7 +1003,7 @@ export default function ArxivManagement() {
             <div className="space-y-10">
               <div className="space-y-2">
                 <h3 className="text-lg font-mono font-semibold text-white flex items-center gap-2">
-                  <Brain className="h-5 w-5" style={{ color: AMBER }} />
+                  <Brain className="h-5 w-5" style={{ color: THEME.colors.accent }} />
                   Extract Features from Papers
                 </h3>
                 <p className="text-sm font-mono text-gray-500">
@@ -1079,11 +1078,11 @@ export default function ArxivManagement() {
                   disabled={isExtracting || extractPaperIds.trim().length === 0}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
                   style={{
-                    background: `${AMBER}20`,
+                    background: `${THEME.colors.accent}20`,
                     borderWidth: '1px',
                     borderStyle: 'solid',
-                    borderColor: `${AMBER}50`,
-                    color: AMBER,
+                    borderColor: `${THEME.colors.accent}50`,
+                    color: THEME.colors.accent,
                   }}
                 >
                   {isExtracting ? (
@@ -1142,12 +1141,12 @@ export default function ArxivManagement() {
                   <div
                     className="flex items-start gap-3 p-4 rounded-lg"
                     style={{
-                      background: `${PHOSPHOR_GREEN}10`,
-                      border: `1px solid ${PHOSPHOR_GREEN}30`,
+                      background: `${THEME.colors.primary}10`,
+                      border: `1px solid ${THEME.colors.primary}30`,
                     }}
                   >
-                    <CheckCircle className="h-5 w-5 mt-0.5" style={{ color: PHOSPHOR_GREEN }} />
-                    <p className="text-sm font-mono" style={{ color: PHOSPHOR_GREEN }}>
+                    <CheckCircle className="h-5 w-5 mt-0.5" style={{ color: THEME.colors.primary }} />
+                    <p className="text-sm font-mono" style={{ color: THEME.colors.primary }}>
                       {extractionResult.message}
                     </p>
                   </div>
@@ -1169,8 +1168,8 @@ export default function ArxivManagement() {
                           <span
                             className="text-xs font-mono px-2 py-1 rounded"
                             style={{
-                              background: result.extraction_status === 'completed' ? `${PHOSPHOR_GREEN}20` : '#ef444420',
-                              color: result.extraction_status === 'completed' ? PHOSPHOR_GREEN : '#ef4444',
+                              background: result.extraction_status === 'completed' ? `${THEME.colors.primary}20` : '#ef444420',
+                              color: result.extraction_status === 'completed' ? THEME.colors.primary : '#ef4444',
                             }}
                           >
                             {result.extraction_status}
@@ -1232,9 +1231,9 @@ export default function ArxivManagement() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {[
                     { label: 'Total Papers Tracked', value: stats.statistics.total_papers_tracked, color: '#8b949e' },
-                    { label: 'Active Papers', value: stats.statistics.active_papers, color: PHOSPHOR_GREEN },
-                    { label: 'Categories Tracked', value: stats.statistics.categories_tracked, color: CYAN },
-                    { label: 'New This Week', value: stats.statistics.recent_changes_week?.new || 0, color: AMBER },
+                    { label: 'Active Papers', value: stats.statistics.active_papers, color: THEME.colors.primary },
+                    { label: 'Categories Tracked', value: stats.statistics.categories_tracked, color: THEME.colors.secondary },
+                    { label: 'New This Week', value: stats.statistics.recent_changes_week?.new || 0, color: THEME.colors.accent },
                   ].map((stat) => (
                     <div
                       key={stat.label}
@@ -1268,7 +1267,7 @@ export default function ArxivManagement() {
                       >
                         {category}
                       </span>
-                      <span className="text-sm font-mono" style={{ color: PHOSPHOR_GREEN }}>
+                      <span className="text-sm font-mono" style={{ color: THEME.colors.primary }}>
                         {count} papers
                       </span>
                     </div>

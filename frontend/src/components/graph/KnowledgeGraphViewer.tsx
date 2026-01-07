@@ -14,19 +14,21 @@
  * - Real-time WebSocket updates
  */
 
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import cytoscape, { Core, NodeSingular, EdgeSingular, Layouts } from 'cytoscape';
+import { IconButton } from '@/components/ui/icon-button';
 import { useQuery } from '@tanstack/react-query';
+import { useGesture } from '@use-gesture/react';
+import cytoscape, { Core, EdgeSingular, NodeSingular } from 'cytoscape';
+import { Maximize2, Minus, Plus } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { graphService } from '../../services/graphService';
 import { websocketService } from '../../services/websocketService';
 import { useGraphStore } from '../../stores/graphStore';
 import {
-  KnowledgeGraphData,
-  GraphNode,
-  GraphEdge,
-  GraphFilters,
-  WebSocketGraphUpdate,
-  GraphVisualizationState
+    GraphEdge,
+    GraphFilters,
+    GraphNode,
+    GraphVisualizationState,
+    WebSocketGraphUpdate
 } from '../../types/knowledge-graph';
 
 interface KnowledgeGraphViewerProps {
@@ -93,6 +95,63 @@ export const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     renderTime: 0,
     lastRendered: null as string | null
   });
+
+  // Touch/Gesture state
+  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+  const containerWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Gesture handling
+  const bind = useGesture(
+    {
+      onDrag: ({ offset: [x, y] }) => {
+        setTransform((t) => ({ ...t, x, y }));
+      },
+      onPinch: ({ offset: [scale] }) => {
+        setTransform((t) => ({
+          ...t,
+          scale: Math.min(Math.max(scale, 0.5), 3),
+        }));
+      },
+      onWheel: ({ delta: [, dy] }) => {
+        // Optional: enable wheel zooming for the container transform too?
+        // Usually wheel is handled by cytoscape itself for desktop.
+        // We act conditionally or just let cytoscape handle wheel?
+        // Plan snippet included wheel. I will include it but verify it doesn't conflict.
+        // If we want this to be "touch support", maybe wheel is redundant if mouse works.
+        // But let's stick to the plan snippet.
+        setTransform((t) => ({
+          ...t,
+          scale: Math.min(Math.max(t.scale - dy * 0.001, 0.5), 3),
+        }));
+      },
+    },
+    {
+      drag: { from: () => [transform.x, transform.y] },
+      pinch: { from: () => [transform.scale, 0] },
+      // Filter so we don't block scrolling unless interacting
+    }
+  );
+
+  const handleDoubleTap = (e: React.TouchEvent | React.MouseEvent) => {
+    // Only handle if targeting the background/container, not a node?
+    // Cytoscape catches events too.
+    // Simple implementation as per plan.
+    const rect = containerWrapperRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    // Use page client coordinates if available
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+    setTransform((t) => ({
+      x: x - (x - t.x) * 2,
+      y: y - (y - t.y) * 2,
+      scale: t.scale < 1.5 ? 2 : 1,
+    }));
+  };
 
   // Fetch graph data from backend - NO processing logic
   const {
@@ -716,62 +775,96 @@ export const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
 
       {/* Main Graph Container */}
       <div
-        ref={containerRef}
-        className="w-full h-full border border-gray-200 rounded-lg bg-white"
-        style={{
-          minHeight: '400px'
-        }}
-        role="img"
-        aria-label="Knowledge graph visualization showing entities and relationships"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          // Keyboard navigation
-          if (!cyRef.current) return;
+        ref={containerWrapperRef}
+        {...bind()}
+        className="w-full h-full touch-none overflow-hidden relative"
+        onDoubleClick={handleDoubleTap}
+      >
+        <div
+          ref={containerRef}
+          className="w-full h-full border border-gray-200 rounded-lg bg-white origin-top-left"
+          style={{
+            transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
+            minHeight: '400px'
+          }}
+          role="img"
+          aria-label="Knowledge graph visualization showing entities and relationships"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            // Keyboard navigation
+            if (!cyRef.current) return;
 
-          switch (e.key) {
-            case 'ArrowLeft':
-            case 'ArrowRight':
-            case 'ArrowUp':
-            case 'ArrowDown':
-              // Pan the graph
-              const pan = cyRef.current.pan();
-              const step = 20;
-              switch (e.key) {
-                case 'ArrowLeft':
-                  cyRef.current.pan({ x: pan.x - step, y: pan.y });
-                  break;
-                case 'ArrowRight':
-                  cyRef.current.pan({ x: pan.x + step, y: pan.y });
-                  break;
-                case 'ArrowUp':
-                  cyRef.current.pan({ x: pan.x, y: pan.y - step });
-                  break;
-                case 'ArrowDown':
-                  cyRef.current.pan({ x: pan.x, y: pan.y + step });
-                  break;
-              }
-              e.preventDefault();
-              break;
-            case '+':
-            case '=':
-              // Zoom in
-              cyRef.current.zoom(cyRef.current.zoom() * 1.2);
-              e.preventDefault();
-              break;
-            case '-':
-            case '_':
-              // Zoom out
-              cyRef.current.zoom(cyRef.current.zoom() / 1.2);
-              e.preventDefault();
-              break;
-            case '0':
-              // Reset zoom and fit
-              cyRef.current.fit();
-              e.preventDefault();
-              break;
+            switch (e.key) {
+              case 'ArrowLeft':
+              case 'ArrowRight':
+              case 'ArrowUp':
+              case 'ArrowDown':
+                // Pan the graph
+                const pan = cyRef.current.pan();
+                const step = 20;
+                switch (e.key) {
+                  case 'ArrowLeft':
+                    cyRef.current.pan({ x: pan.x - step, y: pan.y });
+                    break;
+                  case 'ArrowRight':
+                    cyRef.current.pan({ x: pan.x + step, y: pan.y });
+                    break;
+                  case 'ArrowUp':
+                    cyRef.current.pan({ x: pan.x, y: pan.y - step });
+                    break;
+                  case 'ArrowDown':
+                    cyRef.current.pan({ x: pan.x, y: pan.y + step });
+                    break;
+                }
+                e.preventDefault();
+                break;
+              case '+':
+              case '=':
+                // Zoom in
+                cyRef.current.zoom(cyRef.current.zoom() * 1.2);
+                e.preventDefault();
+                break;
+              case '-':
+              case '_':
+                // Zoom out
+                cyRef.current.zoom(cyRef.current.zoom() / 1.2);
+                e.preventDefault();
+                break;
+              case '0':
+                // Reset zoom and fit
+                cyRef.current.fit();
+                e.preventDefault();
+                break;
+            }
+          }}
+        />
+      </div>
+
+      {/* New Zoom Controls */}
+      <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-20">
+        <IconButton
+          icon={<Plus className="h-4 w-4" />}
+          label="Zoom in"
+          onClick={() =>
+            setTransform((t) => ({ ...t, scale: Math.min(t.scale + 0.2, 3) }))
           }
-        }}
-      />
+          className="bg-white shadow hover:bg-gray-100"
+        />
+        <IconButton
+          icon={<Minus className="h-4 w-4" />}
+          label="Zoom out"
+          onClick={() =>
+            setTransform((t) => ({ ...t, scale: Math.max(t.scale - 0.2, 0.5) }))
+          }
+          className="bg-white shadow hover:bg-gray-100"
+        />
+        <IconButton
+          icon={<Maximize2 className="h-4 w-4" />}
+          label="Reset view"
+          onClick={() => setTransform({ x: 0, y: 0, scale: 1 })}
+          className="bg-white shadow hover:bg-gray-100"
+        />
+      </div>
 
       {/* Loading overlay for progressive loading */}
       {enablePerformanceOptimization && graphData.nodes.length > 200 && !isInitialized && (

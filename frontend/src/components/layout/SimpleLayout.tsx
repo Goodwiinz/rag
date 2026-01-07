@@ -1,26 +1,24 @@
 'use client';
 
-import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import {
-  BarChart3,
-  Book,
-  HelpCircle,
-  User as UserIcon,
-  LogOut,
-  Terminal,
-  Settings,
-  ChevronDown,
-  Home,
-  Search,
-  Bot,
-  FileText,
-  Database,
+    BarChart3,
+    Book,
+    Bot,
+    ChevronDown,
+    Database,
+    FileText,
+    Home,
+    LogOut,
+    Search,
+    Settings,
+    Terminal
 } from 'lucide-react';
-import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { ReactNode, useState, useRef, useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 
 interface SimpleLayoutProps {
   children: ReactNode;
@@ -28,8 +26,6 @@ interface SimpleLayoutProps {
 }
 
 // Terminal Observatory Theme
-const PHOSPHOR_GREEN = '#00ff9f';
-const AMBER = '#ffb700';
 
 export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps) {
   const { user, isAuthenticated, logout } = useAuth();
@@ -74,18 +70,18 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f]">
+    <div className="min-h-screen bg-background">
       {/* Terminal Observatory Header */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a0f]/95 backdrop-blur supports-[backdrop-filter]:bg-[#0a0a0f]/80">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="flex h-14 items-center justify-between px-4">
           {/* Logo/Brand */}
           <div className="flex items-center gap-6">
             <Link href="/" className="flex items-center gap-3 group">
-              <div className="flex items-center justify-center w-8 h-8 rounded border border-[#00ff9f]/30 bg-[#00ff9f]/10 group-hover:border-[#00ff9f]/50 group-hover:bg-[#00ff9f]/20 transition-all">
-                <Terminal className="w-4 h-4 text-[#00ff9f]" />
+              <div className="flex items-center justify-center w-8 h-8 rounded border border-primary/30 bg-primary/10 group-hover:border-primary/50 group-hover:bg-primary/20 transition-all">
+                <Terminal className="w-4 h-4 text-primary" />
               </div>
               <div className="hidden sm:block">
-                <h1 className="text-sm font-mono font-medium text-white/90 group-hover:text-[#00ff9f] transition-colors">
+                <h1 className="text-sm font-mono font-medium text-white/90 group-hover:text-primary transition-colors">
                   RAG System
                 </h1>
                 <p className="text-[10px] font-mono text-white/40">Terminal Observatory</p>
@@ -104,7 +100,7 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
                     className={cn(
                       "flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono transition-all",
                       isActive
-                        ? "text-[#00ff9f] bg-[#00ff9f]/10 border border-[#00ff9f]/30"
+                        ? "text-primary bg-primary/10 border border-primary/30"
                         : "text-white/50 hover:text-white/80 hover:bg-white/5"
                     )}
                   >
@@ -147,12 +143,12 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
                   className={cn(
                     "flex items-center gap-2 px-3 py-1.5 rounded border transition-all",
                     userMenuOpen
-                      ? "border-[#00ff9f]/40 bg-[#00ff9f]/10"
+                      ? "border-primary/40 bg-primary/10"
                       : "border-white/10 bg-white/[0.02] hover:border-white/20"
                   )}
                 >
-                  <div className="w-6 h-6 rounded bg-gradient-to-br from-[#00ff9f]/20 to-[#00ff9f]/10 border border-[#00ff9f]/30 flex items-center justify-center">
-                    <span className="text-[10px] font-mono font-medium text-[#00ff9f]">
+                  <div className="w-6 h-6 rounded bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/30 flex items-center justify-center">
+                    <span className="text-[10px] font-mono font-medium text-primary">
                       {getInitials(user?.email)}
                     </span>
                   </div>
@@ -172,11 +168,11 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
 
                 {/* Dropdown */}
                 {userMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-48 rounded border border-white/10 bg-[#0d0d12] shadow-xl shadow-black/50 overflow-hidden">
+                  <div className="absolute right-0 top-full mt-2 w-48 rounded border border-white/10 bg-card shadow-xl shadow-black/50 overflow-hidden">
                     {/* User info */}
                     <div className="px-3 py-2 border-b border-white/10 bg-white/[0.02]">
                       <p className="text-xs font-mono text-white/80">{user?.email}</p>
-                      <p className="text-[10px] font-mono text-[#00ff9f]">Administrator</p>
+                      <p className="text-[10px] font-mono text-primary">Administrator</p>
                     </div>
 
                     {/* Menu items */}
@@ -221,8 +217,8 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
                   size="sm"
                   className={cn(
                     "h-8 px-4 font-mono text-xs",
-                    "bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30",
-                    "hover:bg-[#00ff9f]/20 hover:border-[#00ff9f]/50"
+                    "bg-primary/10 text-primary border border-primary/30",
+                    "hover:bg-primary/20 hover:border-primary/50"
                   )}
                 >
                   Sign In

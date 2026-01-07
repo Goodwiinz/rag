@@ -1,10 +1,13 @@
 'use client';
 
-import * as React from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Sidebar,
   SidebarContent,
@@ -19,43 +22,27 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from '@/components/ui/sidebar';
+import { useAuth } from '@/hooks/useAuth';
+import { cn } from '@/lib/utils';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  Home,
-  Search,
-  Bot,
-  FileText,
-  Database,
-  BarChart3,
-  Settings,
-  HelpCircle,
-  LogOut,
-  Terminal,
-  ChevronUp,
-  Sparkles,
-  Upload,
-  FolderOpen,
   Activity,
-  Zap,
-  BookOpen,
   Bell,
-  Shield,
-  Users,
-  CreditCard,
-  Key,
-  MessageSquare,
-  LayoutDashboard,
+  ChevronUp,
+  Cog,
   Files,
   FlaskConical,
-  Cog,
+  HelpCircle,
+  Key,
+  LayoutDashboard,
+  LogOut,
+  MessageSquare,
+  Search,
+  Settings,
+  Terminal,
+  Upload
 } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 
 // Navigation items organized by groups - cleaner structure
 const mainNavItems = [
@@ -100,7 +87,8 @@ export function AppSidebar() {
   const displayName = user?.email?.split('@')[0] || 'User';
   const displayEmail = user?.email || 'Not signed in';
 
-  // Reusable NavItem component for cleaner code
+  // Reusable NavItem component for cleaner code - Terminal Observatory Theme
+  // Using centralized CSS variables from @/theme/constants
   const NavItem = ({ item }: { item: { title: string; url: string; icon: any; description?: string } }) => {
     const active = isActive(item.url);
     return (
@@ -112,18 +100,18 @@ export function AppSidebar() {
           className={cn(
             'font-mono text-sm transition-all duration-200 rounded-lg relative group/item h-10',
             active
-              ? '!bg-[#00ff9f]/10 !text-[#00ff9f]'
-              : 'text-white/60 hover:!text-white hover:!bg-white/5'
+              ? '!bg-[var(--phosphor-green-muted)] !text-[var(--phosphor-green)]'
+              : '!text-[var(--terminal-text-muted)] hover:!text-[var(--terminal-text)] hover:!bg-[var(--terminal-surface-hover)]'
           )}
         >
           <Link href={item.url} className="flex items-center gap-3 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-            {/* Active indicator - only show in expanded mode */}
+            {/* Active indicator - visible in both states */}
             {active && (
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-[#00ff9f] group-data-[collapsible=icon]:hidden" />
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-[var(--phosphor-green)] transition-opacity duration-200" />
             )}
             <item.icon className={cn(
               'w-5 h-5 flex-shrink-0 transition-all duration-200',
-              active ? 'text-[#00ff9f]' : 'text-white/50 group-hover/item:text-white/70'
+              active ? 'text-[var(--phosphor-green)]' : 'text-[var(--terminal-text-subtle)] group-hover/item:text-[var(--terminal-text-muted)]'
             )} />
             <span className="truncate group-data-[collapsible=icon]:hidden">{item.title}</span>
           </Link>
@@ -135,25 +123,25 @@ export function AppSidebar() {
   return (
     <Sidebar
       collapsible="icon"
-      className="border-r border-[#00ff9f]/10 !bg-[#0a0a0f]"
+      className="border-r border-[var(--terminal-border)]"
     >
-      {/* Header with Logo - Cleaner design */}
-      <SidebarHeader className="border-b border-[#00ff9f]/10 !bg-[#0a0a0f] p-2">
+      {/* Header with Logo - Terminal Observatory Theme */}
+      <SidebarHeader className="border-b border-[var(--terminal-border)] p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
               asChild
               tooltip="RAG System"
-              className="hover:!bg-[#00ff9f]/10 data-[active=true]:!bg-[#00ff9f]/10 rounded-lg h-12"
+              className="hover:bg-[var(--phosphor-green)]/10 data-[active=true]:bg-[var(--phosphor-green)]/10 rounded-lg h-12"
             >
               <Link href="/dashboard" className="flex items-center gap-3 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg border border-[#00ff9f]/30 bg-gradient-to-br from-[#00ff9f]/20 to-[#00ff9f]/5 shadow-lg shadow-[#00ff9f]/10 flex-shrink-0">
-                  <Terminal className="w-4 h-4 text-[#00ff9f]" />
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg border border-[var(--phosphor-green)]/30 bg-gradient-to-br from-[var(--phosphor-green)]/20 to-[var(--phosphor-green)]/5 shadow-lg shadow-[var(--phosphor-green-glow)] flex-shrink-0">
+                  <Terminal className="w-4 h-4 text-[var(--phosphor-green)]" />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
-                  <span className="font-mono font-bold text-white/95 text-sm">RAG System</span>
-                  <span className="text-[9px] font-mono text-[#00ff9f]/60 uppercase tracking-wider">
+                  <span className="font-mono font-bold text-[var(--terminal-text)] text-sm">RAG System</span>
+                  <span className="text-[9px] font-mono text-[var(--phosphor-green)]/60 uppercase tracking-wider">
                     v2.0
                   </span>
                 </div>
@@ -163,10 +151,10 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent className="!bg-[#0a0a0f] py-3">
+      <SidebarContent className="py-3">
         {/* Main Navigation */}
         <SidebarGroup className="py-1 px-2 group-data-[collapsible=icon]:px-0">
-          <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-widest text-white/30 px-1 mb-2 group-data-[collapsible=icon]:sr-only">
+          <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-widest text-[var(--terminal-text-muted)] px-1 mb-2 group-data-[collapsible=icon]:sr-only">
             Main
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -178,11 +166,11 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator className="!bg-white/5 mx-3 my-3 group-data-[collapsible=icon]:mx-2" />
+        <SidebarSeparator className="!bg-[var(--terminal-border)] mx-3 my-3 group-data-[collapsible=icon]:mx-2" />
 
         {/* Documents */}
         <SidebarGroup className="py-1 px-2 group-data-[collapsible=icon]:px-0">
-          <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-widest text-white/30 px-1 mb-2 group-data-[collapsible=icon]:sr-only">
+          <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-widest text-[var(--terminal-text-muted)] px-1 mb-2 group-data-[collapsible=icon]:sr-only">
             Documents
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -194,11 +182,11 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator className="!bg-white/5 mx-3 my-3 group-data-[collapsible=icon]:mx-2" />
+        <SidebarSeparator className="!bg-[var(--terminal-border)] mx-3 my-3 group-data-[collapsible=icon]:mx-2" />
 
         {/* System */}
         <SidebarGroup className="py-1 px-2 group-data-[collapsible=icon]:px-0">
-          <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-widest text-white/30 px-1 mb-2 group-data-[collapsible=icon]:sr-only">
+          <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-widest text-[var(--terminal-text-muted)] px-1 mb-2 group-data-[collapsible=icon]:sr-only">
             System
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -211,8 +199,8 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* Footer with User Menu */}
-      <SidebarFooter className="border-t border-[#00ff9f]/10 !bg-[#0a0a0f] p-2">
+      {/* Footer with User Menu - Terminal Observatory Theme */}
+      <SidebarFooter className="border-t border-[var(--terminal-border)] p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             {isAuthenticated ? (
@@ -220,59 +208,59 @@ export function AppSidebar() {
                 <DropdownMenuTrigger asChild>
                   <SidebarMenuButton
                     size="lg"
-                    className="hover:!bg-white/5 data-[state=open]:!bg-white/5"
+                    className="hover:bg-[var(--terminal-elevated)] data-[state=open]:bg-[var(--terminal-elevated)]"
                   >
-                    <div className="flex items-center justify-center w-8 h-8 rounded bg-gradient-to-br from-[#00ff9f]/20 to-[#00ff9f]/10 border border-[#00ff9f]/30">
-                      <span className="text-xs font-mono font-medium text-[#00ff9f]">
+                    <div className="flex items-center justify-center w-8 h-8 rounded bg-gradient-to-br from-[var(--phosphor-green)]/20 to-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30">
+                      <span className="text-xs font-mono font-medium text-[var(--phosphor-green)]">
                         {getInitials(user?.email)}
                       </span>
                     </div>
                     <div className="flex flex-col gap-0.5 leading-none text-left group-data-[collapsible=icon]:hidden">
-                      <span className="font-mono text-sm text-white/80 truncate">
+                      <span className="font-mono text-sm text-[var(--terminal-text)] truncate">
                         {displayName}
                       </span>
-                      <span className="text-[10px] font-mono text-[#00ff9f]/70 truncate">
+                      <span className="text-[10px] font-mono text-[var(--phosphor-green)]/70 truncate">
                         Administrator
                       </span>
                     </div>
-                    <ChevronUp className="ml-auto w-4 h-4 text-white/40 group-data-[collapsible=icon]:hidden" />
+                    <ChevronUp className="ml-auto w-4 h-4 text-[var(--terminal-text-muted)] group-data-[collapsible=icon]:hidden" />
                   </SidebarMenuButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
-                  className="w-56 bg-[#0d0d12] border-white/10 font-mono"
+                  className="w-56 bg-[var(--terminal-surface)] border-[var(--terminal-border)] font-mono"
                   side="top"
                   align="start"
                   sideOffset={4}
                 >
-                  <DropdownMenuLabel className="text-white/60 text-xs font-normal">
+                  <DropdownMenuLabel className="text-[var(--terminal-text-dim)] text-xs font-normal">
                     <div className="flex flex-col gap-1">
-                      <span className="text-white/80 font-medium">{displayName}</span>
-                      <span className="text-white/40 text-[10px]">{displayEmail}</span>
+                      <span className="text-[var(--terminal-text)] font-medium">{displayName}</span>
+                      <span className="text-[var(--terminal-text-muted)] text-[10px]">{displayEmail}</span>
                     </div>
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-white/10" />
-                  <DropdownMenuItem asChild className="hover:!bg-white/5 focus:!bg-white/5 cursor-pointer">
-                    <Link href="/settings" className="flex items-center gap-2 text-white/70 hover:text-white">
+                  <DropdownMenuSeparator className="bg-[var(--terminal-border)]" />
+                  <DropdownMenuItem asChild className="hover:bg-[var(--terminal-elevated)] focus:bg-[var(--terminal-elevated)] cursor-pointer">
+                    <Link href="/settings" className="flex items-center gap-2 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]">
                       <Settings className="w-4 h-4" />
                       Settings
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild className="hover:!bg-white/5 focus:!bg-white/5 cursor-pointer">
-                    <Link href="/notifications" className="flex items-center gap-2 text-white/70 hover:text-white">
+                  <DropdownMenuItem asChild className="hover:bg-[var(--terminal-elevated)] focus:bg-[var(--terminal-elevated)] cursor-pointer">
+                    <Link href="/notifications" className="flex items-center gap-2 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]">
                       <Bell className="w-4 h-4" />
                       Notifications
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild className="hover:!bg-white/5 focus:!bg-white/5 cursor-pointer">
-                    <Link href="/help" className="flex items-center gap-2 text-white/70 hover:text-white">
+                  <DropdownMenuItem asChild className="hover:bg-[var(--terminal-elevated)] focus:bg-[var(--terminal-elevated)] cursor-pointer">
+                    <Link href="/help" className="flex items-center gap-2 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]">
                       <HelpCircle className="w-4 h-4" />
                       Help Center
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuSeparator className="bg-[var(--terminal-border)]" />
                   <DropdownMenuItem
                     onClick={handleLogout}
-                    className="text-red-400 hover:!text-red-300 hover:!bg-red-500/10 focus:!bg-red-500/10 cursor-pointer"
+                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 focus:bg-red-500/10 cursor-pointer"
                   >
                     <LogOut className="w-4 h-4 mr-2" />
                     Sign Out
@@ -283,7 +271,7 @@ export function AppSidebar() {
               <SidebarMenuButton
                 asChild
                 size="lg"
-                className="!bg-[#00ff9f]/10 !text-[#00ff9f] border border-[#00ff9f]/30 hover:!bg-[#00ff9f]/20"
+                className="bg-[var(--phosphor-green)]/10 text-[var(--phosphor-green)] border border-[var(--phosphor-green)]/30 hover:bg-[var(--phosphor-green)]/20"
               >
                 <Link href="/login" className="flex items-center gap-2">
                   <LogOut className="w-4 h-4" />
@@ -295,7 +283,7 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarFooter>
 
-      <SidebarRail className="hover:after:!bg-[#00ff9f]/30" />
+      <SidebarRail className="hover:after:bg-[var(--phosphor-green)]/30" />
     </Sidebar>
   );
 }

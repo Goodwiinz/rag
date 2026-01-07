@@ -11,10 +11,11 @@ Security improvements:
 """
 
 import logging
-from typing import Optional, Dict, Any
-from fastapi import WebSocket, HTTPException, status
-import jwt
 from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+
+from fastapi import HTTPException, WebSocket, status
+from jose import jwt
 
 from .config import settings
 
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 class WebSocketAuthError(Exception):
     """Custom exception for WebSocket authentication errors."""
+
     def __init__(self, message: str, code: int = 4001):
         self.message = message
         self.code = code
@@ -96,14 +98,12 @@ class WebSocketAuthenticator:
             raise WebSocketAuthError(
                 "No authentication token provided. Use Authorization header, "
                 "Sec-WebSocket-Protocol, or access_token cookie.",
-                code=4001
+                code=4001,
             )
 
         try:
             payload = jwt.decode(
-                token,
-                settings.JWT_SECRET_KEY,
-                algorithms=[settings.JWT_ALGORITHM]
+                token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
             )
 
             # Add authentication metadata
@@ -119,13 +119,12 @@ class WebSocketAuthenticator:
             logger.warning("WebSocket authentication failed: Token expired")
             raise WebSocketAuthError(
                 "Authentication token has expired. Please refresh and reconnect.",
-                code=4002
+                code=4002,
             )
         except jwt.InvalidTokenError as e:
             logger.warning(f"WebSocket authentication failed: Invalid token - {e}")
             raise WebSocketAuthError(
-                f"Invalid authentication token: {str(e)}",
-                code=4003
+                f"Invalid authentication token: {str(e)}", code=4003
             )
 
     @staticmethod
@@ -149,7 +148,7 @@ class WebSocketAuthenticator:
 
     @staticmethod
     async def authenticate_and_accept(
-        websocket: WebSocket
+        websocket: WebSocket,
     ) -> tuple[Dict[str, Any], bool]:
         """
         Authenticate and accept WebSocket connection in one operation.

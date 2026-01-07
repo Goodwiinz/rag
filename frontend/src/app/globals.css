@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 body {
   background: var(--background);
@@ -33,6 +33,16 @@ body {
     --chart-4: 160 60% 45.1%;
     --chart-5: 280 64.7% 60%;
 
+    /* Sidebar Variables - Force dark theme for Terminal Observatory */
+    --sidebar-background: 240 20% 5%; /* #0a0a0f */
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 157 100% 50%; /* Phosphor green */
+    --sidebar-primary-foreground: 240 20% 5%;
+    --sidebar-accent: 157 100% 50% / 0.1;
+    --sidebar-accent-foreground: 157 100% 50%;
+    --sidebar-border: 157 100% 50% / 0.1;
+    --sidebar-ring: 157 100% 50%;
+
     /* Tambo Specific Variables needed for tambo components */
     --radius: 0.5rem;
     --container: 210 29% 97%;
@@ -44,29 +54,76 @@ body {
   }
   .dark {
     /* Default Tailwind CSS Variables customized with tambo colors */
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
+    /* Terminal Observatory Palette (Dark Mode) */
+    --background: 240 20% 5%; /* #0a0a0f */
+    --foreground: 0 0% 100%; /* #ffffff */
+    --card: 240 16% 6%; /* #0d0d12 */
+    --card-foreground: 0 0% 100%;
+    --popover: 240 16% 6%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 157 100% 50%; /* #00ff9f */
+    --primary-foreground: 240 20% 5%;
+    --secondary: 190 100% 50%; /* #00d4ff */
+    --secondary-foreground: 240 20% 5%;
     --muted: 240 3.7% 15.9%;
     --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --accent: 43 100% 50%; /* #ffb700 */
+    --accent-foreground: 240 20% 5%;
+    --destructive: 0 84% 60%; /* #ef4444 */
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
-    --chart-1: 30 80% 54.9%;
-    --chart-2: 339.8 74.8% 54.9%;
-    --chart-3: 219.9 70.2% 50%;
-    --chart-4: 160 60% 45.1%;
-    --chart-5: 280 64.7% 60%;
+    --ring: 157 100% 50%;
+    --chart-1: 157 100% 50%;
+    --chart-2: 190 100% 50%;
+    --chart-3: 43 100% 50%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+
+    /* =================================================================
+       Terminal Observatory Theme Variables
+       These are the centralized CSS variables for the Terminal Observatory
+       theme. Values are defined in @/theme/constants.ts
+       ================================================================= */
+
+    /* Primary Brand Colors */
+    --phosphor-green: #00ff9f;
+    --phosphor-green-dim: #00ff9f80;
+    --phosphor-green-muted: #00ff9f33;
+    --phosphor-green-glow: rgba(0, 255, 159, 0.15);
+
+    --amber-gold: #ffb700;
+    --amber-gold-dim: #ffb70080;
+    --amber-gold-muted: #ffb70033;
+
+    --cyan: #00d4ff;
+    --cyan-dim: #00d4ff80;
+    --cyan-muted: #00d4ff33;
+
+    /* Terminal Backgrounds */
+    --terminal-bg: #0a0a0f;
+    --terminal-surface: #0d0d12;
+    --terminal-surface-hover: #141419;
+    --terminal-elevated: #1a1a20;
+
+    /* Terminal Borders */
+    --terminal-border: #30363d;
+    --terminal-border-muted: #21262d;
+
+    /* Terminal Text */
+    --terminal-text: #ffffff;
+    --terminal-text-dim: #c0c0c8;
+    --terminal-text-muted: #8b949e;
+    --terminal-text-subtle: #484f58;
+
+    /* Sidebar Variables - Terminal Observatory Theme */
+    --sidebar-background: 240 20% 5%; /* Same as background - #0a0a0f */
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 157 100% 50%; /* Phosphor green */
+    --sidebar-primary-foreground: 240 20% 5%;
+    --sidebar-accent: 157 100% 50% / 0.1; /* Phosphor green 10% */
+    --sidebar-accent-foreground: 157 100% 50%;
+    --sidebar-border: 157 100% 50% / 0.1; /* Phosphor green 10% */
+    --sidebar-ring: 157 100% 50%;
 
     /* Tambo Specific Variables needed for tambo components */
     --radius: 0.5rem;
@@ -115,6 +172,26 @@ body {
   }
   .bg-border {
     background-color: hsl(var(--border));
+  }
+
+  /* Sidebar Utilities */
+  .bg-sidebar {
+    background-color: hsl(var(--sidebar-background));
+  }
+  .bg-sidebar-accent {
+    background-color: hsl(var(--sidebar-accent));
+  }
+  .text-sidebar-foreground {
+    color: hsl(var(--sidebar-foreground));
+  }
+  .text-sidebar-accent-foreground {
+    color: hsl(var(--sidebar-accent-foreground));
+  }
+  .border-sidebar-border {
+    border-color: hsl(var(--sidebar-border));
+  }
+  .ring-sidebar-ring {
+    --tw-ring-color: hsl(var(--sidebar-ring));
   }
 
   /* Text Utilities */
@@ -214,7 +291,7 @@ Animated gradient for thinking text, creates a shimmering effect that moves acro
 }
 
 /* Glass Morphism Styles */
-@import "../styles/glassmorphism.css";
+@import '../styles/glassmorphism.css';
 
 /* Additional gradient utilities */
 .gradient-orange-amber {

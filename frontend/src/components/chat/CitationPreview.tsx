@@ -1,21 +1,20 @@
 'use client';
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  ChevronDown,
-  ChevronUp,
-  FileText,
-  ExternalLink,
-  TrendingUp,
-  Copy,
-  Check,
-  X,
-} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Citation, getScoreColor } from '@/utils/citationParser';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  FileText,
+  TrendingUp,
+  X
+} from 'lucide-react';
+import { useState } from 'react';
 
 interface CitationPreviewProps {
   citation: Citation;
@@ -67,8 +66,8 @@ export function CitationPreview({
       exit={{ opacity: 0, y: -10 }}
       className={cn(
         'rounded-lg overflow-hidden',
-        'bg-[#0a0a0a] border border-[#00ff9f]/20',
-        'shadow-[0_0_15px_rgba(0,255,159,0.08)]',
+        'bg-card border border-primary/20',
+        'shadow-[0_0_15px_hsl(var(--primary)/0.08)]',
         className
       )}
     >
@@ -76,17 +75,17 @@ export function CitationPreview({
       <div
         className={cn(
           'flex items-center justify-between gap-3 px-4 py-3',
-          'bg-[#0f0f0f] border-b border-[#00ff9f]/10',
-          'cursor-pointer hover:bg-[#141414] transition-colors'
+          'bg-muted/30 border-b border-primary/10',
+          'cursor-pointer hover:bg-muted/50 transition-colors'
         )}
         onClick={onToggle}
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className={cn(
             'flex items-center justify-center w-8 h-8 rounded-md',
-            'bg-[#00ff9f]/10 border border-[#00ff9f]/20'
+            'bg-primary/10 border border-primary/20'
           )}>
-            <FileText className="w-4 h-4 text-[#00ff9f]" />
+            <FileText className="w-4 h-4 text-primary" />
           </div>
 
           <div className="flex-1 min-w-0">
@@ -154,9 +153,9 @@ export function CitationPreview({
           >
             {/* Content preview */}
             {citation.content && (
-              <div className="px-4 py-3 border-b border-[#00ff9f]/10">
+              <div className="px-4 py-3 border-b border-primary/10">
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="text-xs text-[#00ff9f]/60 font-mono">
+                  <span className="text-xs text-primary/60 font-mono">
                     CONTENT
                   </span>
                   <button
@@ -165,7 +164,7 @@ export function CitationPreview({
                     title="Copy content"
                   >
                     {copied ? (
-                      <Check className="w-3 h-3 text-[#00ff9f]" />
+                      <Check className="w-3 h-3 text-primary" />
                     ) : (
                       <Copy className="w-3 h-3 text-gray-500 hover:text-gray-300" />
                     )}
@@ -173,7 +172,8 @@ export function CitationPreview({
                 </div>
                 <div className={cn(
                   'p-3 rounded-md',
-                  'bg-[#080808] border border-[#1a1a1a]',
+                  'p-3 rounded-md',
+                  'bg-muted/20 border border-border',
                   'max-h-48 overflow-y-auto',
                   'scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent'
                 )}>
@@ -185,10 +185,10 @@ export function CitationPreview({
             )}
 
             {/* Footer with actions */}
-            <div className="px-4 py-3 flex items-center justify-between bg-[#080808]">
+            <div className="px-4 py-3 flex items-center justify-between bg-muted/10">
               <div className="flex items-center gap-2 text-xs text-gray-500">
                 <span className="font-mono">ID:</span>
-                <code className="px-1.5 py-0.5 rounded bg-[#1a1a1a] text-gray-400">
+                <code className="px-1.5 py-0.5 rounded bg-muted/30 text-gray-400">
                   {citation.documentId.slice(0, 12)}...
                 </code>
               </div>
@@ -199,8 +199,9 @@ export function CitationPreview({
                 onClick={handleNavigate}
                 className={cn(
                   'h-7 text-xs',
-                  'text-[#00ff9f]/70 hover:text-[#00ff9f]',
-                  'hover:bg-[#00ff9f]/10'
+                  'h-7 text-xs',
+                  'text-primary/70 hover:text-primary',
+                  'hover:bg-primary/10'
                 )}
               >
                 View Full Document

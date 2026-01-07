@@ -91,7 +91,8 @@ class RealtimeWebSocketService {
 
     return new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket(this.buildWebSocketUrl());
+        // SECURITY: Pass token via Sec-WebSocket-Protocol, not URL
+        this.ws = new WebSocket(this.buildWebSocketUrl(), this.buildWebSocketProtocols());
         this.connectionStartTime = Date.now();
 
         this.ws.onopen = () => {
@@ -134,17 +135,26 @@ class RealtimeWebSocketService {
       throw new Error('Configuration not set');
     }
 
-    const { url, token, channels = [], frequency = UpdateFrequency.NORMAL } = this.config;
+    const { url, channels = [], frequency = UpdateFrequency.NORMAL } = this.config;
 
-    // Build query parameters
+    // SECURITY: Build query parameters WITHOUT the token
+    // Token is passed via Sec-WebSocket-Protocol header for security
     const params = new URLSearchParams({
-      token,
       channels: channels.join(','),
       frequency: frequency,
       client_info: JSON.stringify(this.config.clientInfo || {})
     });
 
     return `${url}?${params.toString()}`;
+  }
+
+  private buildWebSocketProtocols(): string[] | undefined {
+    if (!this.config?.token) {
+      return undefined;
+    }
+    // SECURITY: Use Sec-WebSocket-Protocol for token authentication
+    // Format: ["auth", token] where "auth" indicates auth protocol
+    return ['auth', this.config.token];
   }
 
   private setupConnectionInfo(): void {
