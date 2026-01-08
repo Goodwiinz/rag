@@ -223,10 +223,26 @@ class ChatMessageBase(BaseModel):
     role: MessageRole = MessageRole.USER
 
 
+class CitationCreate(BaseModel):
+    """Citation input for creating messages with sources"""
+    document_id: Optional[UUID] = None  # Optional: may not have a database UUID
+    external_reference_id: Optional[str] = None  # For non-UUID references (e.g., arXiv IDs)
+    chunk_index: Optional[int] = None
+    chunk_id: Optional[str] = None
+    snippet: Optional[str] = None
+    snippet_preview: Optional[str] = None
+    page_number: Optional[int] = None
+    score: Optional[float] = None
+    rerank_score: Optional[float] = None
+    document_title: Optional[str] = None
+    document_type: Optional[str] = None
+
+
 class ChatMessageCreate(ChatMessageBase):
     """Create chat message request"""
     thread_id: UUID
     attachment_ids: Optional[List[UUID]] = None  # Document IDs to attach
+    citations: Optional[List[CitationCreate]] = None  # Citations from RAG retrieval
 
 
 class ChatMessageUpdate(BaseModel):
@@ -238,7 +254,8 @@ class ChatMessageUpdate(BaseModel):
 class CitationResponse(BaseModel):
     """Citation in a message"""
     id: UUID
-    document_id: UUID
+    document_id: Optional[UUID] = None  # Optional: may not have a database reference
+    external_reference_id: Optional[str] = None  # For non-database references (e.g., arXiv IDs)
     chunk_index: Optional[int] = None
     chunk_id: Optional[str] = None
     snippet: Optional[str] = None
@@ -247,7 +264,7 @@ class CitationResponse(BaseModel):
     score: Optional[float] = None
     rerank_score: Optional[float] = None
 
-    # Document info (populated by API)
+    # Document info (populated by API or stored directly for external refs)
     document_title: Optional[str] = None
     document_type: Optional[str] = None
 

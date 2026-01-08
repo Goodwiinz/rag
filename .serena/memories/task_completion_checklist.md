@@ -1,5 +1,26 @@
 # Task Completion Checklist
 
+## Recent Fixes (2026-01-07)
+
+### Citation UI & Data Persistence Fix
+**Status**: ✅ Completed
+
+**Issues Fixed**:
+1. **Citation Data Persistence** - Citations now save `document_title`, `document_type`, `external_reference_id` to database
+2. **Terminal Observatory Theme** - All citation components updated with phosphor green (#00ff9f) and amber (#ffb700) colors
+
+**Files Modified**:
+- `backend/src/services/chat_service.py` - Added missing fields to Citation creation
+- `frontend/src/components/chat/CitationPreview.tsx` - Sources panel cards
+- `frontend/src/components/chat/CitationPanel.tsx` - Sources sidebar panel
+- `frontend/src/components/chat/CitationLink.tsx` - Inline [1] hover preview
+- `frontend/app/chat/layout.tsx` - Citations tab in Context Panel
+
+**Note**: Old citations in DB won't have titles; only new messages will display properly.
+
+---
+
+
 ## Before Committing Code
 
 ### Backend (Python)

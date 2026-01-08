@@ -1,40 +1,43 @@
 'use client';
 
+import {
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
+import { Separator } from '@/components/ui/separator';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import { UIConversation, useChatPersistence } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Activity,
-  BookOpen,
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Command,
-  Cpu,
-  FileText,
-  FolderOpen,
-  Hash,
-  Loader2,
-  LogOut,
-  Menu,
-  MessageSquare,
-  Moon,
-  Pin,
-  Plus,
-  Radio,
-  Search,
-  Settings,
-  Share2,
-  Sparkles,
-  Sun,
-  User,
-  Users,
-  X,
-  Zap,
+    Activity,
+    BookOpen,
+    ChevronDown,
+    ChevronRight,
+    Clock,
+    Cpu,
+    FileText,
+    FolderOpen,
+    Loader2,
+    Menu,
+    MessageSquare,
+    Pin,
+    Plus,
+    Search,
+    Settings,
+    Share2,
+    Sparkles,
+    Sun,
+    Users,
+    X
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { useChatPersistence, UIConversation } from '@/hooks';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 // ============================================
 // TYPES
@@ -281,6 +284,31 @@ function WorkspaceBar({
           >
             <Menu className="w-5 h-5" />
           </button>
+
+          {/* Breadcrumb Bar */}
+          <div className="hidden md:flex items-center gap-2">
+            <SidebarTrigger className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)]" />
+            <Separator orientation="vertical" className="h-4 bg-[var(--terminal-border)]" />
+            <Breadcrumb>
+              <BreadcrumbList className="font-mono text-xs">
+                <BreadcrumbItem>
+                  <BreadcrumbLink
+                    href="/dashboard"
+                    className="text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
+                  >
+                    Dashboard
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator className="text-[var(--terminal-text-dim)]">/</BreadcrumbSeparator>
+                <BreadcrumbItem>
+                  <BreadcrumbPage className="text-[var(--phosphor-green)]">
+                    Chat
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
+
 
 
           {/* Workspace Picker */}
@@ -795,6 +823,184 @@ function ConversationItem({
 }
 
 // ============================================
+// CITATIONS TAB CONTENT
+// ============================================
+
+// Terminal Observatory theme colors
+const PHOSPHOR_GREEN = '#00ff9f';
+const AMBER = '#ffb700';
+
+interface CitationItem {
+  id?: string;
+  documentId?: string;
+  externalReferenceId?: string;
+  title?: string;
+  snippet?: string;
+  score?: number;
+  source?: string;
+}
+
+function CitationsTabContent() {
+  const { conversations, currentThreadId } = useChatPersistence();
+
+  // Get citations from the current conversation's messages
+  const citations = useMemo(() => {
+    if (!currentThreadId) return [];
+
+    const currentConv = conversations.find(c => c.threadId === currentThreadId);
+    if (!currentConv) return [];
+
+    // Collect all citations from assistant messages
+    const allCitations: CitationItem[] = [];
+    const seenIds = new Set<string>();
+
+    currentConv.messages.forEach(msg => {
+      if (msg.role === 'assistant' && msg.citations) {
+        (msg.citations as CitationItem[]).forEach((cit) => {
+          const citId = cit.documentId || cit.externalReferenceId || cit.id;
+          if (citId && !seenIds.has(citId)) {
+            seenIds.add(citId);
+            allCitations.push(cit);
+          }
+        });
+      }
+    });
+
+    return allCitations;
+  }, [conversations, currentThreadId]);
+
+  if (citations.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 px-4">
+        <div
+          className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
+          style={{ backgroundColor: `${PHOSPHOR_GREEN}10`, border: `1px solid ${PHOSPHOR_GREEN}20` }}
+        >
+          <BookOpen className="w-6 h-6" style={{ color: PHOSPHOR_GREEN }} />
+        </div>
+        <p
+          className="text-xs text-center mb-2"
+          style={{ color: 'var(--terminal-text-muted)', fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          No citations yet
+        </p>
+        <p
+          className="text-[10px] text-center max-w-[200px]"
+          style={{ color: 'var(--terminal-text-dim)', fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          Citations from RAG search results will appear here as you chat
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div
+        className="text-[10px] uppercase tracking-wider mb-3"
+        style={{ color: `${PHOSPHOR_GREEN}80`, fontFamily: "'JetBrains Mono', monospace" }}
+      >
+        {citations.length} Source{citations.length !== 1 ? 's' : ''} Referenced
+      </div>
+
+      {citations.map((citation, idx) => {
+        const isExternal = !citation.documentId;
+        const scorePercent = citation.score ? Math.round(citation.score * 100) : 0;
+
+        return (
+          <div
+            key={citation.id || idx}
+            className="rounded-lg overflow-hidden transition-colors"
+            style={{
+              backgroundColor: '#0a0a0a',
+              border: '1px solid #1a1a1a'
+            }}
+          >
+            <div className="p-3">
+              <div className="flex items-start gap-3">
+                {/* Icon */}
+                <div
+                  className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
+                  style={{
+                    backgroundColor: isExternal ? `${AMBER}10` : `${PHOSPHOR_GREEN}10`,
+                    border: `1px solid ${isExternal ? AMBER : PHOSPHOR_GREEN}20`
+                  }}
+                >
+                  {isExternal ? (
+                    <BookOpen className="w-3.5 h-3.5" style={{ color: AMBER }} />
+                  ) : (
+                    <FileText className="w-3.5 h-3.5" style={{ color: PHOSPHOR_GREEN }} />
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <p
+                    className="text-xs font-medium leading-tight line-clamp-2 mb-1"
+                    style={{ color: isExternal ? AMBER : PHOSPHOR_GREEN, fontFamily: "'JetBrains Mono', monospace" }}
+                  >
+                    {citation.title || 'Untitled Source'}
+                  </p>
+
+                  <div className="flex items-center gap-2">
+                    {citation.source && (
+                      <span
+                        className="text-[9px] px-1.5 py-0.5 rounded"
+                        style={{
+                          backgroundColor: '#1a1a1a',
+                          color: 'var(--terminal-text-dim)',
+                          fontFamily: "'JetBrains Mono', monospace"
+                        }}
+                      >
+                        {citation.source}
+                      </span>
+                    )}
+                    {isExternal && (
+                      <span
+                        className="text-[9px] px-1.5 py-0.5 rounded"
+                        style={{
+                          backgroundColor: `${AMBER}15`,
+                          color: AMBER,
+                          fontFamily: "'JetBrains Mono', monospace"
+                        }}
+                      >
+                        External
+                      </span>
+                    )}
+                    {scorePercent > 0 && (
+                      <span
+                        className="text-[9px] px-1.5 py-0.5 rounded ml-auto"
+                        style={{
+                          backgroundColor: scorePercent >= 70 ? 'rgba(34, 197, 94, 0.15)' : scorePercent >= 50 ? 'rgba(234, 179, 8, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                          color: scorePercent >= 70 ? '#22c55e' : scorePercent >= 50 ? '#eab308' : '#ef4444',
+                          fontFamily: "'JetBrains Mono', monospace"
+                        }}
+                      >
+                        {scorePercent}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Snippet preview */}
+              {citation.snippet && (
+                <p
+                  className="text-[10px] mt-2 line-clamp-2 leading-relaxed"
+                  style={{ color: 'var(--terminal-text-muted)', fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  {citation.snippet}
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================
 // CONTEXT PANEL (RIGHT)
 // ============================================
 
@@ -906,11 +1112,7 @@ function ContextPanel() {
         )}
 
         {activeTab === 'citations' && (
-          <div className="space-y-3">
-            <p className="text-xs text-[var(--terminal-text-muted)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-              Citations from current conversation will appear here.
-            </p>
-          </div>
+          <CitationsTabContent />
         )}
 
         {activeTab === 'settings' && (

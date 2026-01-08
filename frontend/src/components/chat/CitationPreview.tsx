@@ -3,7 +3,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Citation, getScoreColor } from '@/utils/citationParser';
+import { Citation, getScoreColor, getCitationIdentifier, isNavigableCitation } from '@/utils/citationParser';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Check,
@@ -15,6 +15,10 @@ import {
   X
 } from 'lucide-react';
 import { useState } from 'react';
+
+// Terminal Observatory theme colors
+const PHOSPHOR_GREEN = '#00ff9f';
+const AMBER = '#ffb700';
 
 interface CitationPreviewProps {
   citation: Citation;
@@ -28,6 +32,7 @@ interface CitationPreviewProps {
 /**
  * Expandable citation preview component
  * Shows full document content with expand/collapse animation
+ * Terminal Observatory themed
  */
 export function CitationPreview({
   citation,
@@ -58,6 +63,9 @@ export function CitationPreview({
     }
   };
 
+  // Determine if this is an external source (no database document)
+  const isExternal = !isNavigableCitation(citation);
+
   return (
     <motion.div
       layout
@@ -66,42 +74,66 @@ export function CitationPreview({
       exit={{ opacity: 0, y: -10 }}
       className={cn(
         'rounded-lg overflow-hidden',
-        'bg-card border border-primary/20',
-        'shadow-[0_0_15px_hsl(var(--primary)/0.08)]',
+        'bg-[#0a0a0a] border border-[#1a1a1a]',
+        'hover:border-[#00ff9f]/30 transition-colors',
         className
       )}
     >
       {/* Header - Always visible */}
       <div
         className={cn(
-          'flex items-center justify-between gap-3 px-4 py-3',
-          'bg-muted/30 border-b border-primary/10',
-          'cursor-pointer hover:bg-muted/50 transition-colors'
+          'flex items-start gap-3 px-3 py-3',
+          'cursor-pointer hover:bg-[#111] transition-colors'
         )}
         onClick={onToggle}
       >
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className={cn(
-            'flex items-center justify-center w-8 h-8 rounded-md',
-            'bg-primary/10 border border-primary/20'
-          )}>
-            <FileText className="w-4 h-4 text-primary" />
-          </div>
+        {/* Icon */}
+        <div className={cn(
+          'flex items-center justify-center w-8 h-8 rounded-md shrink-0 mt-0.5',
+          'bg-[#00ff9f]/10 border border-[#00ff9f]/20'
+        )}>
+          <FileText className="w-4 h-4" style={{ color: PHOSPHOR_GREEN }} />
+        </div>
 
-          <div className="flex-1 min-w-0">
-            <h4 className="text-sm font-medium text-white truncate">
-              {citation.title}
-            </h4>
+        {/* Title and metadata */}
+        <div className="flex-1 min-w-0">
+          {/* Main title */}
+          <h4
+            className="text-sm font-medium leading-tight line-clamp-2"
+            style={{ color: PHOSPHOR_GREEN }}
+          >
+            {citation.title}
+          </h4>
+
+          {/* Source type badge and score in same row */}
+          <div className="flex items-center gap-2 mt-1.5">
             {citation.source && (
-              <p className="text-xs text-gray-500 truncate mt-0.5">
+              <Badge
+                variant="outline"
+                className="text-[9px] px-1.5 py-0 h-4 bg-[#1a1a1a] text-gray-400 border-[#2a2a2a]"
+              >
                 {citation.source}
-              </p>
+              </Badge>
+            )}
+            {isExternal && (
+              <Badge
+                variant="outline"
+                className="text-[9px] px-1.5 py-0 h-4"
+                style={{
+                  backgroundColor: `${AMBER}15`,
+                  color: AMBER,
+                  borderColor: `${AMBER}30`
+                }}
+              >
+                External
+              </Badge>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Relevance score badge */}
+        {/* Right side - score and controls */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Relevance score */}
           <Badge
             variant="outline"
             className={cn(
@@ -119,12 +151,12 @@ export function CitationPreview({
             {scorePercent}%
           </Badge>
 
-          {/* Expand/Collapse button */}
+          {/* Expand/Collapse chevron */}
           <motion.div
             animate={{ rotate: isExpanded ? 180 : 0 }}
             transition={{ duration: 0.2 }}
           >
-            <ChevronDown className="w-4 h-4 text-gray-400" />
+            <ChevronDown className="w-4 h-4 text-gray-500" />
           </motion.div>
 
           {/* Close button */}
@@ -134,7 +166,7 @@ export function CitationPreview({
                 e.stopPropagation();
                 onClose();
               }}
-              className="p-1 rounded hover:bg-gray-800 transition-colors"
+              className="p-1 rounded hover:bg-[#1a1a1a] transition-colors"
             >
               <X className="w-4 h-4 text-gray-500 hover:text-gray-300" />
             </button>
@@ -153,18 +185,21 @@ export function CitationPreview({
           >
             {/* Content preview */}
             {citation.content && (
-              <div className="px-4 py-3 border-b border-primary/10">
+              <div className="px-3 py-3 border-t border-[#1a1a1a]">
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="text-xs text-primary/60 font-mono">
-                    CONTENT
+                  <span
+                    className="text-[10px] font-mono uppercase tracking-wider"
+                    style={{ color: `${PHOSPHOR_GREEN}80` }}
+                  >
+                    Content Preview
                   </span>
                   <button
                     onClick={handleCopy}
-                    className="p-1 rounded hover:bg-gray-800 transition-colors"
+                    className="p-1 rounded hover:bg-[#1a1a1a] transition-colors"
                     title="Copy content"
                   >
                     {copied ? (
-                      <Check className="w-3 h-3 text-primary" />
+                      <Check className="w-3 h-3" style={{ color: PHOSPHOR_GREEN }} />
                     ) : (
                       <Copy className="w-3 h-3 text-gray-500 hover:text-gray-300" />
                     )}
@@ -172,41 +207,42 @@ export function CitationPreview({
                 </div>
                 <div className={cn(
                   'p-3 rounded-md',
-                  'p-3 rounded-md',
-                  'bg-muted/20 border border-border',
+                  'bg-[#080808] border border-[#1a1a1a]',
                   'max-h-48 overflow-y-auto',
                   'scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent'
                 )}>
-                  <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+                  <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap font-mono">
                     {citation.content}
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Footer with actions */}
-            <div className="px-4 py-3 flex items-center justify-between bg-muted/10">
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <span className="font-mono">ID:</span>
-                <code className="px-1.5 py-0.5 rounded bg-muted/30 text-gray-400">
-                  {citation.documentId.slice(0, 12)}...
+            {/* Footer with ID and actions */}
+            <div className="px-3 py-2.5 flex items-center justify-between border-t border-[#1a1a1a] bg-[#080808]">
+              <div className="flex items-center gap-2 text-[10px] text-gray-600">
+                <span className="font-mono">REF:</span>
+                <code className="px-1.5 py-0.5 rounded bg-[#111] text-gray-500 font-mono">
+                  {getCitationIdentifier(citation).slice(0, 16)}
                 </code>
               </div>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleNavigate}
-                className={cn(
-                  'h-7 text-xs',
-                  'h-7 text-xs',
-                  'text-primary/70 hover:text-primary',
-                  'hover:bg-primary/10'
-                )}
-              >
-                View Full Document
-                <ExternalLink className="w-3 h-3 ml-1.5" />
-              </Button>
+              {isNavigableCitation(citation) ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleNavigate}
+                  className="h-6 text-[10px] px-2 hover:bg-[#00ff9f]/10"
+                  style={{ color: PHOSPHOR_GREEN }}
+                >
+                  View Document
+                  <ExternalLink className="w-3 h-3 ml-1" />
+                </Button>
+              ) : (
+                <span className="text-[10px] font-mono" style={{ color: `${AMBER}80` }}>
+                  External source
+                </span>
+              )}
             </div>
           </motion.div>
         )}

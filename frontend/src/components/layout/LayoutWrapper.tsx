@@ -1,8 +1,8 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { SidebarLayout } from './SidebarLayout';
 import { ReactNode } from 'react';
+import { SidebarLayout } from './SidebarLayout';
 
 interface LayoutWrapperProps {
   children: ReactNode;
@@ -23,6 +23,12 @@ const NO_BREADCRUMB_PAGES = [
   '/',
 ];
 
+// Pages that should not show the default sidebar layout header (e.g. chat has its own)
+const NO_HEADER_PAGES = [
+  '/chat',
+  '/llm-chat',
+];
+
 export function LayoutWrapper({ children }: LayoutWrapperProps) {
   const pathname = usePathname();
 
@@ -34,6 +40,11 @@ export function LayoutWrapper({ children }: LayoutWrapperProps) {
   // Check if current page should show breadcrumb
   const shouldShowBreadcrumb = !NO_BREADCRUMB_PAGES.includes(pathname || '');
 
+  // Check if current page should show header
+  const shouldShowHeader = !NO_HEADER_PAGES.some(
+    page => pathname === page || pathname?.startsWith(page + '/')
+  );
+
   if (!shouldShowSidebar) {
     // Return children wrapped in a basic dark container for auth pages
     return (
@@ -44,7 +55,10 @@ export function LayoutWrapper({ children }: LayoutWrapperProps) {
   }
 
   return (
-    <SidebarLayout showBreadcrumb={shouldShowBreadcrumb}>
+    <SidebarLayout 
+      showBreadcrumb={shouldShowBreadcrumb}
+      showHeader={shouldShowHeader}
+    >
       {children}
     </SidebarLayout>
   );

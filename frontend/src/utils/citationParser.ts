@@ -6,11 +6,26 @@
  */
 
 export interface Citation {
-  documentId: string;
+  documentId?: string;  // Optional: may be undefined for external references
+  externalReferenceId?: string;  // For non-database references (e.g., arXiv IDs)
   title: string;
   score: number;
   content?: string;
   source?: string;
+}
+
+/**
+ * Check if citation has a navigable document (database reference)
+ */
+export function isNavigableCitation(citation: Citation): boolean {
+  return !!citation.documentId;
+}
+
+/**
+ * Get the display identifier for a citation
+ */
+export function getCitationIdentifier(citation: Citation): string {
+  return citation.documentId || citation.externalReferenceId || 'unknown';
 }
 
 export interface ParsedSegment {

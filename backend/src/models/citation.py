@@ -15,13 +15,22 @@ class Citation(BaseModel):
     When the RAG system generates a response using retrieved context,
     each source chunk is recorded as a citation for transparency and
     verification.
+    
+    Citations may reference either:
+    - A document in the database (document_id)
+    - An external reference like an arXiv paper (external_reference_id)
     """
 
     __tablename__ = "citations"
 
     # Parent relationships
     message_id = Column(GUID(), ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=False, index=True)
-    document_id = Column(GUID(), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    document_id = Column(GUID(), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True, index=True)
+    
+    # External reference (for sources not in database, e.g., arXiv papers)
+    external_reference_id = Column(String(255), nullable=True, index=True)
+    document_title = Column(String(500), nullable=True)  # Store title for external refs
+    document_type = Column(String(100), nullable=True)  # Store type for external refs
 
     # Chunk information
     chunk_index = Column(Integer, nullable=True)  # Index of the vector chunk
@@ -44,7 +53,8 @@ class Citation(BaseModel):
     document = relationship("Document")
 
     def __repr__(self):
-        return f"<Citation(message_id={self.message_id}, document_id={self.document_id}, score={self.score})>"
+        ref = self.document_id or self.external_reference_id or "unknown"
+        return f"<Citation(message_id={self.message_id}, ref={ref}, score={self.score})>"
 
     @property
     def snippet_preview(self) -> str:
@@ -59,13 +69,18 @@ class Citation(BaseModel):
         """Convert to dictionary"""
         data = super().to_dict()
         data['snippet_preview'] = self.snippet_preview
+        data['external_reference_id'] = self.external_reference_id
+        data['document_title'] = self.document_title
+        data['document_type'] = self.document_type
         return data
 
     def to_frontend_format(self) -> dict:
         """Convert to format suitable for frontend display"""
         return {
             "id": str(self.id),
-            "document_id": str(self.document_id),
+            "document_id": str(self.document_id) if self.document_id else None,
+            "external_reference_id": self.external_reference_id,
+            "document_title": self.document_title,
             "snippet": self.snippet,
             "snippet_preview": self.snippet_preview,
             "page_number": self.page_number,

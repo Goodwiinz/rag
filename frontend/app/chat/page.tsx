@@ -18,6 +18,7 @@ import {
   Thread,
   ChatMessage as DBChatMessage,
   MessageRole,
+  CitationCreate,
 } from '@/types/workspace';
 import { CreateMLCEngine, InitProgressReport, MLCEngine } from "@mlc-ai/web-llm";
 import { AnimatePresence, motion } from 'framer-motion';
@@ -106,6 +107,34 @@ interface ExtendedModel extends Model {
 }
 
 // Citation type is imported from '@/utils/citationParser'
+// Database citations use snake_case (document_id, document_title)
+// Parser citations use camelCase (documentId, title)
+import { Citation as DBCitation } from '@/types/workspace';
+
+/**
+ * Normalize a citation from any format (database snake_case or API camelCase)
+ * to the citationParser format expected by CitationRenderer and CitationLink.
+ *
+ * This handles the mismatch between:
+ * - Database format: { document_id, external_reference_id, document_title, snippet, score }
+ * - Parser format: { documentId, externalReferenceId, title, score, content, source }
+ */
+function normalizeCitation(citation: DBCitation | Citation | Record<string, any>): Citation {
+  // Handle both snake_case (from DB) and camelCase (from API response)
+  const documentId = (citation as any).documentId || (citation as any).document_id;
+  const externalReferenceId = (citation as any).externalReferenceId || (citation as any).external_reference_id;
+
+  return {
+    // Only set documentId if it's a valid non-empty value
+    documentId: documentId || undefined,
+    // Support external references (e.g., arXiv paper IDs)
+    externalReferenceId: externalReferenceId || undefined,
+    title: (citation as any).title || (citation as any).document_title || 'Unknown Document',
+    score: (citation as any).score ?? 0,
+    content: (citation as any).content || (citation as any).snippet,
+    source: (citation as any).source || (citation as any).document_type,
+  };
+}
 
 interface Message {
   id?: string;
@@ -1065,17 +1094,13 @@ function ChatPageContent() {
         if (messagesFromStore && messagesFromStore.length > 0) {
           console.log('[Chat] Loading messages from store for thread:', currentThreadIdFromStore);
           setActiveConversationId(currentThreadIdFromStore);
-          // Map store messages to UI format inline
+          // Map store messages to UI format using normalizeCitation
           setMessages(messagesFromStore.map((dbMsg) => ({
             id: dbMsg.id,
             role: dbMsg.role === MessageRole.USER ? 'user' as const : 'assistant' as const,
             content: dbMsg.content,
             timestamp: new Date(dbMsg.created_at).getTime(),
-            citations: dbMsg.citations?.map((c) => ({
-              documentId: c.document_id,
-              title: c.document_title || 'Unknown Document',
-              score: c.score || 0,
-            })),
+            citations: dbMsg.citations?.map(normalizeCitation),
           })));
         } else {
           // Thread exists but no messages yet - still switch to it
@@ -1094,11 +1119,8 @@ function ChatPageContent() {
       role: dbMsg.role === MessageRole.USER ? 'user' : 'assistant',
       content: dbMsg.content,
       timestamp: new Date(dbMsg.created_at).getTime(),
-      citations: dbMsg.citations?.map((c) => ({
-        documentId: c.document_id,
-        title: c.document_title || 'Unknown Document',
-        score: c.score || 0,
-      })),
+      // Use normalizeCitation to handle both DB and API citation formats
+      citations: dbMsg.citations?.map(normalizeCitation),
     };
   }, []);
 
@@ -1442,22 +1464,50 @@ function ChatPageContent() {
         });
         assistantMessage = data.message?.content || 'No response from the model.';
 
-        // Extract citations from retrieved contexts
-        const citations: Citation[] = (data.retrieved_contexts || []).map((ctx: any) => ({
-          documentId: ctx.document_id,
-          title: ctx.title,
-          score: ctx.score,
-        }));
+        // Extract citations from retrieved contexts and normalize to parser format
+        const citations: Citation[] = (data.retrieved_contexts || []).map((ctx: any) =>
+          normalizeCitation({
+            document_id: ctx.document_id,
+            document_title: ctx.title,
+            snippet: ctx.content,
+            score: ctx.score,
+            document_type: ctx.source,
+          })
+        );
 
-        // Save assistant message to database
+        // Helper to check if a string is a valid UUID
+        const isValidUUID = (str: string): boolean => {
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          return uuidRegex.test(str);
+        };
+
+        // Create database-formatted citations for persistence
+        // Support both UUID document_ids and external references (e.g., arXiv IDs)
+        const dbCitations: CitationCreate[] = (data.retrieved_contexts || [])
+          .filter((ctx: any) => ctx.document_id) // Must have some identifier
+          .map((ctx: any) => {
+            const docId = ctx.document_id;
+            const isUUID = isValidUUID(docId);
+            return {
+              document_id: isUUID ? docId : undefined, // Only set if valid UUID
+              external_reference_id: isUUID ? undefined : docId, // External ref for non-UUIDs
+              document_title: ctx.title,
+              document_type: ctx.source,
+              snippet: ctx.content,
+              score: ctx.score,
+            };
+          });
+
+        // Save assistant message to database with citations
         if (currentThreadId && isAuthenticated) {
           try {
             await workspaceService.createMessage({
               thread_id: currentThreadId,
               content: assistantMessage,
               role: MessageRole.ASSISTANT,
+              citations: dbCitations.length > 0 ? dbCitations : undefined,
             });
-            console.log('[Chat] Saved assistant message to database');
+            console.log('[Chat] Saved assistant message to database with', dbCitations.length, 'citations');
           } catch (error) {
             console.error('[Chat] Failed to save assistant message:', error);
           }

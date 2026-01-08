@@ -165,7 +165,8 @@ export interface ThreadListResponse {
 
 export interface Citation {
   id: string;
-  document_id: string;
+  document_id?: string;  // Optional: may not have a database UUID
+  external_reference_id?: string;  // For non-database references (e.g., arXiv IDs)
   chunk_index?: number;
   chunk_id?: string;
   snippet?: string;
@@ -187,11 +188,27 @@ export interface MessageAttachment {
   mime_type?: string;
 }
 
+// Citation input for creating messages with RAG sources
+export interface CitationCreate {
+  document_id?: string;  // Optional: may not have a database UUID
+  external_reference_id?: string;  // For non-database references (e.g., arXiv IDs)
+  chunk_index?: number;
+  chunk_id?: string;
+  snippet?: string;
+  snippet_preview?: string;
+  page_number?: number;
+  score?: number;
+  rerank_score?: number;
+  document_title?: string;
+  document_type?: string;
+}
+
 export interface ChatMessageCreate {
   thread_id: string;
   content: string;
   role?: MessageRole;
   attachment_ids?: string[];
+  citations?: CitationCreate[];  // Citations from RAG retrieval
 }
 
 export interface ChatMessageUpdate {
