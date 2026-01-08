@@ -1,10 +1,5 @@
 'use client';
 
-import * as React from 'react';
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
-import { AppSidebar } from './AppSidebar';
-import { cn } from '@/lib/utils';
-import { Separator } from '@/components/ui/separator';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -13,11 +8,16 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
+import { Separator } from '@/components/ui/separator';
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { usePathname } from 'next/navigation';
+import * as React from 'react';
+import { AppSidebar } from './AppSidebar';
 
 interface SidebarLayoutProps {
   children: React.ReactNode;
   showBreadcrumb?: boolean;
+  showHeader?: boolean;
 }
 
 // Map paths to readable names
@@ -38,9 +38,10 @@ const pathNameMap: Record<string, string> = {
   'help': 'Help Center',
   'login': 'Sign In',
   'register': 'Register',
+  'chat': 'Chat',
 };
 
-export function SidebarLayout({ children, showBreadcrumb = true }: SidebarLayoutProps) {
+export function SidebarLayout({ children, showBreadcrumb = true, showHeader = true }: SidebarLayoutProps) {
   const pathname = usePathname();
 
   // Generate breadcrumb items from pathname
@@ -62,6 +63,7 @@ export function SidebarLayout({ children, showBreadcrumb = true }: SidebarLayout
       <AppSidebar />
       <SidebarInset className="!bg-[#0a0a0f]">
         {/* Top Header Bar */}
+        {showHeader && (
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 bg-[#0a0a0f]/95 backdrop-blur supports-[backdrop-filter]:bg-[#0a0a0f]/80 px-4">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="h-7 w-7 text-white/60 hover:text-white hover:bg-white/5" />
@@ -117,6 +119,7 @@ export function SidebarLayout({ children, showBreadcrumb = true }: SidebarLayout
             <span className="text-sm font-mono text-white/80">{currentPage}</span>
           </div>
         </header>
+        )}
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto">

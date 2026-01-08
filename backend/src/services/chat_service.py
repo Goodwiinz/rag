@@ -400,7 +400,7 @@ class ChatService:
 
         if include_messages:
             query = query.options(
-                joinedload(Thread.messages).joinedload(ChatMessage.citations),
+                joinedload(Thread.messages).joinedload(ChatMessage.citations).joinedload(Citation.document),
                 joinedload(Thread.messages).joinedload(ChatMessage.attachments)
             )
 
@@ -532,6 +532,25 @@ class ChatService:
                 )
                 self.db.add(attachment)
 
+        # Handle citations (for assistant messages with RAG sources)
+        if data.citations:
+            for cit in data.citations:
+                citation = Citation(
+                    message_id=message.id,
+                    document_id=cit.document_id,
+                    external_reference_id=cit.external_reference_id,
+                    chunk_index=cit.chunk_index,
+                    chunk_id=cit.chunk_id,
+                    snippet=cit.snippet,
+                    snippet_preview=cit.snippet_preview,
+                    page_number=cit.page_number,
+                    score=cit.score,
+                    rerank_score=cit.rerank_score,
+                    document_title=cit.document_title,
+                    document_type=cit.document_type
+                )
+                self.db.add(citation)
+
         # Update thread stats
         thread.message_count += 1
         thread.last_message_at = datetime.utcnow()
@@ -569,13 +588,16 @@ class ChatService:
                 citation = Citation(
                     message_id=message.id,
                     document_id=cit.get('document_id'),
+                    external_reference_id=cit.get('external_reference_id'),
                     chunk_index=cit.get('chunk_index'),
                     chunk_id=cit.get('chunk_id'),
                     snippet=cit.get('snippet'),
                     snippet_preview=cit.get('snippet_preview'),
                     page_number=cit.get('page_number'),
                     score=cit.get('score'),
-                    rerank_score=cit.get('rerank_score')
+                    rerank_score=cit.get('rerank_score'),
+                    document_title=cit.get('document_title'),
+                    document_type=cit.get('document_type')
                 )
                 self.db.add(citation)
 
@@ -599,7 +621,7 @@ class ChatService:
     ) -> Optional[ChatMessage]:
         """Get message by ID"""
         message = self.db.query(ChatMessage).options(
-            joinedload(ChatMessage.citations),
+            joinedload(ChatMessage.citations).joinedload(Citation.document),
             joinedload(ChatMessage.attachments),
             joinedload(ChatMessage.thread).joinedload(Thread.conversation).joinedload(Conversation.workspace)
         ).filter(
@@ -631,7 +653,7 @@ class ChatService:
             return [], 0
 
         query = self.db.query(ChatMessage).options(
-            joinedload(ChatMessage.citations),
+            joinedload(ChatMessage.citations).joinedload(Citation.document),
             joinedload(ChatMessage.attachments)
         ).filter(
             ChatMessage.thread_id == thread_id,

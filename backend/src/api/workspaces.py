@@ -19,6 +19,7 @@ from src.models.workspace import Workspace, WorkspaceMember, WorkspaceRole
 from src.models.conversation import Conversation
 from src.models.thread import Thread, ThreadStatus
 from src.models.chat_message import ChatMessage, MessageRole
+from src.models.citation import Citation
 from src.models.collection import Collection, CollectionDocument
 from src.models.document import Document
 from src.schemas.chat import (
@@ -571,6 +572,25 @@ async def create_message(
         content=request.content
     )
     db.add(message)
+    db.flush()  # Flush to get message.id for citations
+
+    # Handle citations (for assistant messages with RAG sources)
+    if request.citations:
+        for cit in request.citations:
+            citation = Citation(
+                message_id=message.id,
+                document_id=cit.document_id,  # May be None for external refs
+                external_reference_id=cit.external_reference_id,
+                document_title=cit.document_title,
+                document_type=cit.document_type,
+                chunk_index=cit.chunk_index,
+                chunk_id=cit.chunk_id,
+                snippet=cit.snippet,
+                page_number=cit.page_number,
+                score=cit.score,
+                rerank_score=cit.rerank_score
+            )
+            db.add(citation)
 
     # Update thread stats
     thread.message_count = (thread.message_count or 0) + 1
@@ -580,7 +600,12 @@ async def create_message(
     thread.conversation.last_activity_at = datetime.utcnow()
 
     db.commit()
-    db.refresh(message)
+    
+    # Re-query with eager loading to get citations with document info
+    message = db.query(ChatMessage).options(
+        joinedload(ChatMessage.citations).joinedload(Citation.document),
+        joinedload(ChatMessage.attachments)
+    ).filter(ChatMessage.id == message.id).first()
 
     return _message_to_response(message)
 
@@ -598,14 +623,21 @@ async def list_messages(
     """List messages in a thread"""
     thread = _get_thread_or_404(db, workspace_id, conversation_id, thread_id, current_user)
 
-    query = db.query(ChatMessage).filter(
+    # Count total messages first (without joinedload for efficiency)
+    total = db.query(ChatMessage).filter(
         ChatMessage.thread_id == thread_id,
         ChatMessage.is_deleted == False
-    )
+    ).count()
 
-    total = query.count()
+    # Query with eager loading of citations and their documents
     offset = (page - 1) * limit
-    messages = query.order_by(ChatMessage.created_at.asc()).offset(offset).limit(limit).all()
+    messages = db.query(ChatMessage).options(
+        joinedload(ChatMessage.citations).joinedload(Citation.document),
+        joinedload(ChatMessage.attachments)
+    ).filter(
+        ChatMessage.thread_id == thread_id,
+        ChatMessage.is_deleted == False
+    ).order_by(ChatMessage.created_at.asc()).offset(offset).limit(limit).all()
 
     return ChatMessageListResponse(
         messages=[_message_to_response(m) for m in messages],
@@ -1415,14 +1447,21 @@ async def list_messages_standalone(
 
     workspace = _get_workspace_or_404(db, conversation.workspace_id, current_user)
 
-    query = db.query(ChatMessage).filter(
+    # Count total messages first (without joinedload for efficiency)
+    total = db.query(ChatMessage).filter(
         ChatMessage.thread_id == thread_id,
         ChatMessage.is_deleted == False
-    )
+    ).count()
 
-    total = query.count()
+    # Query with eager loading of citations and their documents
     offset = (page - 1) * limit
-    messages = query.order_by(ChatMessage.created_at.asc()).offset(offset).limit(limit).all()
+    messages = db.query(ChatMessage).options(
+        joinedload(ChatMessage.citations).joinedload(Citation.document),
+        joinedload(ChatMessage.attachments)
+    ).filter(
+        ChatMessage.thread_id == thread_id,
+        ChatMessage.is_deleted == False
+    ).order_by(ChatMessage.created_at.asc()).offset(offset).limit(limit).all()
 
     return ChatMessageListResponse(
         messages=[_message_to_response(m) for m in messages],
@@ -1468,6 +1507,25 @@ async def create_message_standalone(
         content=request.content
     )
     db.add(message)
+    db.flush()  # Flush to get message.id for citations
+
+    # Handle citations (for assistant messages with RAG sources)
+    if request.citations:
+        for cit in request.citations:
+            citation = Citation(
+                message_id=message.id,
+                document_id=cit.document_id,  # May be None for external refs
+                external_reference_id=cit.external_reference_id,
+                document_title=cit.document_title,
+                document_type=cit.document_type,
+                chunk_index=cit.chunk_index,
+                chunk_id=cit.chunk_id,
+                snippet=cit.snippet,
+                page_number=cit.page_number,
+                score=cit.score,
+                rerank_score=cit.rerank_score
+            )
+            db.add(citation)
 
     # Update thread stats
     thread.message_count = (thread.message_count or 0) + 1
@@ -1477,7 +1535,12 @@ async def create_message_standalone(
     conversation.last_activity_at = datetime.utcnow()
 
     db.commit()
-    db.refresh(message)
+    
+    # Re-query with eager loading to get citations with document info
+    message = db.query(ChatMessage).options(
+        joinedload(ChatMessage.citations).joinedload(Citation.document),
+        joinedload(ChatMessage.attachments)
+    ).filter(ChatMessage.id == message.id).first()
 
     return _message_to_response(message)
 

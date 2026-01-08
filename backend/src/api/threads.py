@@ -475,6 +475,7 @@ def _format_message_response(message) -> ChatMessageResponse:
             CitationResponse(
                 id=c.id,
                 document_id=c.document_id,
+                external_reference_id=c.external_reference_id,  # For arXiv IDs, etc.
                 chunk_index=c.chunk_index,
                 chunk_id=c.chunk_id,
                 snippet=c.snippet,
@@ -482,8 +483,9 @@ def _format_message_response(message) -> ChatMessageResponse:
                 page_number=c.page_number,
                 score=c.score,
                 rerank_score=c.rerank_score,
-                document_title=c.document.title if hasattr(c, 'document') and c.document else None,
-                document_type=c.document.type.value if hasattr(c, 'document') and c.document and c.document.type else None
+                # Use stored title/type for external refs, or get from document relationship
+                document_title=c.document_title or (c.document.title if hasattr(c, 'document') and c.document else None),
+                document_type=c.document_type or (c.document.type.value if hasattr(c, 'document') and c.document and c.document.type else None)
             )
             for c in message.citations
         ]

@@ -23,7 +23,8 @@ export interface UIMessage {
   content: string;
   timestamp: number;
   citations?: Array<{
-    documentId: string;
+    documentId?: string;  // Optional: may be undefined for external references
+    externalReferenceId?: string;  // For non-database references (e.g., arXiv IDs)
     title: string;
     score: number;
   }>;
@@ -79,7 +80,8 @@ function mapDbMessageToUI(dbMsg: ChatMessage): UIMessage {
     content: dbMsg.content,
     timestamp: new Date(dbMsg.created_at).getTime(),
     citations: dbMsg.citations?.map((c) => ({
-      documentId: c.document_id,
+      documentId: c.document_id || undefined,  // May be undefined for external refs
+      externalReferenceId: c.external_reference_id || undefined,  // For arXiv IDs, etc.
       title: c.document_title || 'Unknown Document',
       score: c.score || 0,
     })),

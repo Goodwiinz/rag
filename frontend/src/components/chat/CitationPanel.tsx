@@ -14,8 +14,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { Citation } from '@/utils/citationParser';
+import { Citation, getCitationIdentifier } from '@/utils/citationParser';
 import { CitationPreview } from './CitationPreview';
+
+// Terminal Observatory theme colors
+const PHOSPHOR_GREEN = '#00ff9f';
 
 interface CitationPanelProps {
   citations: Citation[];
@@ -32,6 +35,7 @@ type SortOrder = 'asc' | 'desc';
 /**
  * Citation panel sidebar component
  * Shows all citations for a message with filtering and sorting
+ * Terminal Observatory themed
  */
 export function CitationPanel({
   citations,
@@ -99,21 +103,32 @@ export function CitationPanel({
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
           className={cn(
             'fixed right-0 top-0 bottom-0 z-50',
-            'w-96 max-w-[90vw]',
-            'bg-[#0a0a0a] border-l border-[#00ff9f]/20',
-            'shadow-[-10px_0_30px_rgba(0,255,159,0.05)]',
+            'w-[400px] max-w-[90vw]',
+            'bg-[#050505] border-l border-[#1a1a1a]',
             'flex flex-col',
             className
           )}
+          style={{
+            boxShadow: `-20px 0 60px rgba(0, 255, 159, 0.03)`
+          }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[#00ff9f]/10 bg-[#0f0f0f]">
+          <div
+            className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]"
+            style={{ backgroundColor: '#0a0a0a' }}
+          >
             <div className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-[#00ff9f]" />
-              <h2 className="text-sm font-medium text-white">Sources</h2>
+              <BookOpen className="w-5 h-5" style={{ color: PHOSPHOR_GREEN }} />
+              <h2 className="text-sm font-medium" style={{ color: PHOSPHOR_GREEN }}>
+                Sources
+              </h2>
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0 h-5 bg-[#00ff9f]/10 text-[#00ff9f] border-[#00ff9f]/20"
+                className="text-[10px] px-1.5 py-0 h-5 border-0"
+                style={{
+                  backgroundColor: `${PHOSPHOR_GREEN}15`,
+                  color: PHOSPHOR_GREEN
+                }}
               >
                 {citations.length}
               </Badge>
@@ -122,39 +137,39 @@ export function CitationPanel({
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-gray-800"
+              className="h-8 w-8 p-0 text-gray-500 hover:text-white hover:bg-[#1a1a1a]"
             >
               <X className="w-4 h-4" />
             </Button>
           </div>
 
           {/* Search and Sort */}
-          <div className="px-4 py-3 border-b border-[#00ff9f]/10 space-y-2">
+          <div className="px-4 py-3 border-b border-[#1a1a1a] space-y-3" style={{ backgroundColor: '#080808' }}>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
               <Input
                 type="text"
                 placeholder="Search sources..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={cn(
-                  'pl-9 h-9 text-sm',
-                  'bg-[#080808] border-[#1a1a1a]',
-                  'text-white placeholder:text-gray-500',
+                  'pl-9 h-9 text-sm font-mono',
+                  'bg-[#0a0a0a] border-[#1a1a1a]',
+                  'text-gray-300 placeholder:text-gray-600',
                   'focus:border-[#00ff9f]/30 focus:ring-[#00ff9f]/10'
                 )}
               />
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">
+              <span className="text-[10px] text-gray-600 font-mono">
                 {filteredCitations.length} of {citations.length} sources
               </span>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={toggleSort}
-                className="h-7 text-xs text-gray-400 hover:text-white"
+                className="h-7 text-[10px] text-gray-500 hover:text-white hover:bg-[#1a1a1a] font-mono"
               >
                 {sortBy === 'relevance' ? 'By Relevance' : 'By Title'}
                 {sortOrder === 'desc' ? (
@@ -167,35 +182,41 @@ export function CitationPanel({
           </div>
 
           {/* Citations List */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-[#1a1a1a] scrollbar-track-transparent">
             {filteredCitations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-40 text-center">
-                <FileText className="w-10 h-10 text-gray-600 mb-2" />
-                <p className="text-sm text-gray-500">
+                <FileText className="w-10 h-10 text-gray-700 mb-2" />
+                <p className="text-xs text-gray-600 font-mono">
                   {searchQuery ? 'No sources match your search' : 'No sources available'}
                 </p>
               </div>
             ) : (
-              filteredCitations.map((citation) => (
-                <CitationPreview
-                  key={citation.documentId}
-                  citation={citation}
-                  isExpanded={expandedCitationId === citation.documentId}
-                  onToggle={() => handleCitationToggle(citation.documentId)}
-                  onNavigate={onCitationClick}
-                  className={cn(
-                    activeCitationId === citation.documentId &&
-                      'ring-1 ring-[#00ff9f]/50'
-                  )}
-                />
-              ))
+              filteredCitations.map((citation, index) => {
+                const citationId = getCitationIdentifier(citation);
+                return (
+                  <CitationPreview
+                    key={`${citationId}-${index}`}
+                    citation={citation}
+                    isExpanded={expandedCitationId === citationId}
+                    onToggle={() => handleCitationToggle(citationId)}
+                    onNavigate={onCitationClick}
+                    className={cn(
+                      activeCitationId === citationId &&
+                        'ring-1 ring-[#00ff9f]/50'
+                    )}
+                  />
+                );
+              })
             )}
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-3 border-t border-[#00ff9f]/10 bg-[#080808]">
-            <p className="text-[10px] text-gray-600 text-center font-mono">
-              SOURCES RETRIEVED VIA RAG PIPELINE
+          <div className="px-4 py-2.5 border-t border-[#1a1a1a]" style={{ backgroundColor: '#050505' }}>
+            <p
+              className="text-[9px] text-center font-mono uppercase tracking-widest"
+              style={{ color: `${PHOSPHOR_GREEN}40` }}
+            >
+              Sources Retrieved via RAG Pipeline
             </p>
           </div>
         </motion.div>
