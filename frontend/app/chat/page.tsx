@@ -112,6 +112,29 @@ interface ExtendedModel extends Model {
 import { Citation as DBCitation } from '@/types/workspace';
 
 /**
+ * Extract title from snippet content (for legacy citations without document_title)
+ * Handles formats like "Title: Some Title Authors: ..." or plain text
+ */
+function extractTitleFromSnippet(snippet?: string): string | null {
+  if (!snippet) return null;
+
+  // Try to extract "Title: <title>" pattern (common in arXiv papers)
+  const titleMatch = snippet.match(/^Title:\s*(.+?)(?:\s*Authors:|$)/i);
+  if (titleMatch && titleMatch[1]) {
+    return titleMatch[1].trim();
+  }
+
+  // Fallback: use first line or first 100 chars as title
+  const firstLine = snippet.split('\n')[0].trim();
+  if (firstLine.length > 0 && firstLine.length <= 200) {
+    return firstLine;
+  }
+
+  // Last resort: truncate snippet
+  return snippet.length > 80 ? snippet.slice(0, 80).trim() + '...' : snippet;
+}
+
+/**
  * Normalize a citation from any format (database snake_case or API camelCase)
  * to the citationParser format expected by CitationRenderer and CitationLink.
  *
@@ -123,15 +146,17 @@ function normalizeCitation(citation: DBCitation | Citation | Record<string, any>
   // Handle both snake_case (from DB) and camelCase (from API response)
   const documentId = (citation as any).documentId || (citation as any).document_id;
   const externalReferenceId = (citation as any).externalReferenceId || (citation as any).external_reference_id;
+  const snippet = (citation as any).content || (citation as any).snippet || (citation as any).snippet_preview;
 
   return {
     // Only set documentId if it's a valid non-empty value
     documentId: documentId || undefined,
     // Support external references (e.g., arXiv paper IDs)
     externalReferenceId: externalReferenceId || undefined,
-    title: (citation as any).title || (citation as any).document_title || 'Unknown Document',
+    // Extract title from snippet if document_title is missing
+    title: (citation as any).title || (citation as any).document_title || extractTitleFromSnippet(snippet) || 'Unknown Document',
     score: (citation as any).score ?? 0,
-    content: (citation as any).content || (citation as any).snippet,
+    content: snippet,
     source: (citation as any).source || (citation as any).document_type,
   };
 }
