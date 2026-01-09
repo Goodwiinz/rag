@@ -110,6 +110,88 @@ type ChatStore = ChatState & ChatActions;
 // Maximum retry attempts for reinitialization to prevent infinite loops
 const MAX_REINIT_RETRIES = 3;
 
+// Helper type for the recovery handler
+type RecoveryResult = { shouldProceed: false } | { shouldProceed: true; triggerReinit: () => void };
+
+/**
+ * Helper to handle stale data recovery (404 errors) atomically.
+ * Performs guard check and state update in a single set() call to prevent race conditions.
+ * 
+ * @param get - Zustand get function
+ * @param set - Zustand set function (immer-wrapped)
+ * @param context - Context string for logging
+ * @param options - Additional options for state clearing
+ * @returns RecoveryResult with shouldProceed and optional reinit trigger
+ */
+function handleStaleDataRecovery(
+  get: () => ChatState & ChatActions,
+  set: (fn: (state: ChatState) => void) => void,
+  context: string,
+  options: {
+    clearWorkspaces?: boolean;
+    loadingKey?: 'isLoadingConversations' | 'isLoadingThreads' | 'isLoadingMessages';
+  } = {}
+): RecoveryResult {
+  const { clearWorkspaces = true, loadingKey } = options;
+  
+  let shouldReinit = false;
+  let maxRetriesReached = false;
+  
+  // Perform guard check AND state update atomically in a single set() call
+  set((state) => {
+    // Guard against concurrent/repeated reinitialization and infinite loops
+    if (state.isReinitializing || state.reinitRetryCount >= MAX_REINIT_RETRIES) {
+      console.warn(`[ChatStore] Skipping reinitialization for ${context} (already in progress or max retries reached)`);
+      maxRetriesReached = state.reinitRetryCount >= MAX_REINIT_RETRIES;
+      if (loadingKey) {
+        state[loadingKey] = false;
+      }
+      if (maxRetriesReached) {
+        state.error = 'Failed to initialize workspace after multiple attempts';
+      }
+      return;
+    }
+    
+    // Clear stale data and set reinitialization flag atomically
+    shouldReinit = true;
+    state.currentWorkspaceId = null;
+    state.currentConversationId = null;
+    state.currentThreadId = null;
+    if (clearWorkspaces) {
+      state.workspaces = [];
+    }
+    if (loadingKey) {
+      state[loadingKey] = false;
+    }
+    state.isReinitializing = true;
+    state.reinitRetryCount += 1;
+    state.error = null;
+  });
+  
+  if (!shouldReinit) {
+    return { shouldProceed: false };
+  }
+  
+  // Return a trigger function that the caller can use to start reinitialization
+  return {
+    shouldProceed: true,
+    triggerReinit: () => {
+      // Use Promise-based approach instead of fire-and-forget setTimeout
+      (async () => {
+        try {
+          await get().initializeDefaultWorkspace();
+        } catch (err) {
+          console.error(`[ChatStore] Reinitialization failed for ${context}:`, err);
+        } finally {
+          set((state) => {
+            state.isReinitializing = false;
+          });
+        }
+      })();
+    }
+  };
+}
+
 const initialState: ChatState = {
   currentWorkspaceId: null,
   currentConversationId: null,
@@ -285,41 +367,13 @@ export const useChatStore = create<ChatStore>()(
           // Handle 404 - workspace not found (stale data)
           if (error?.response?.status === 404) {
             console.warn('[ChatStore] Workspace not found (404) - clearing stale data');
-            const { isReinitializing, reinitRetryCount } = get();
-
-            // Guard against concurrent/repeated reinitialization and infinite loops
-            if (isReinitializing || reinitRetryCount >= MAX_REINIT_RETRIES) {
-              console.warn('[ChatStore] Skipping reinitialization (already in progress or max retries reached)');
-              set((state) => {
-                state.isLoadingConversations = false;
-                state.error = reinitRetryCount >= MAX_REINIT_RETRIES
-                  ? 'Failed to initialize workspace after multiple attempts'
-                  : null;
-              });
-              return;
-            }
-
-            set((state) => {
-              state.currentWorkspaceId = null;
-              state.currentConversationId = null;
-              state.currentThreadId = null;
-              state.workspaces = [];
-              state.isLoadingConversations = false;
-              state.isReinitializing = true;
-              state.reinitRetryCount += 1;
-              state.error = null; // Don't show error, will reinitialize
+            const result = handleStaleDataRecovery(get, set, 'loadConversations', {
+              clearWorkspaces: true,
+              loadingKey: 'isLoadingConversations'
             });
-
-            // Trigger reinitialization with guard
-            setTimeout(async () => {
-              try {
-                await get().initializeDefaultWorkspace();
-              } finally {
-                set((state) => {
-                  state.isReinitializing = false;
-                });
-              }
-            }, 100);
+            if (result.shouldProceed) {
+              result.triggerReinit();
+            }
             return;
           }
 
@@ -347,34 +401,12 @@ export const useChatStore = create<ChatStore>()(
           // Handle 404 - workspace not found (stale data)
           if (error?.response?.status === 404) {
             console.warn('[ChatStore] Workspace not found (404) while creating conversation - clearing stale data');
-            const { isReinitializing, reinitRetryCount } = get();
-
-            // Guard against concurrent/repeated reinitialization
-            if (isReinitializing || reinitRetryCount >= MAX_REINIT_RETRIES) {
-              console.warn('[ChatStore] Skipping reinitialization (already in progress or max retries reached)');
-              return null;
-            }
-
-            set((state) => {
-              state.currentWorkspaceId = null;
-              state.currentConversationId = null;
-              state.currentThreadId = null;
-              state.workspaces = [];
-              state.isReinitializing = true;
-              state.reinitRetryCount += 1;
-              state.error = null;
+            const result = handleStaleDataRecovery(get, set, 'createConversation', {
+              clearWorkspaces: true
             });
-
-            // Trigger reinitialization with guard
-            setTimeout(async () => {
-              try {
-                await get().initializeDefaultWorkspace();
-              } finally {
-                set((state) => {
-                  state.isReinitializing = false;
-                });
-              }
-            }, 100);
+            if (result.shouldProceed) {
+              result.triggerReinit();
+            }
             return null;
           }
 
@@ -457,39 +489,14 @@ export const useChatStore = create<ChatStore>()(
           // Handle 404 - conversation not found (stale data)
           if (error?.response?.status === 404) {
             console.warn('[ChatStore] Conversation not found (404) - clearing stale data');
-            const { isReinitializing, reinitRetryCount } = get();
-
-            // Guard against concurrent/repeated reinitialization
-            if (isReinitializing || reinitRetryCount >= MAX_REINIT_RETRIES) {
-              console.warn('[ChatStore] Skipping reinitialization (already in progress or max retries reached)');
-              set((state) => {
-                state.isLoadingThreads = false;
-                state.error = reinitRetryCount >= MAX_REINIT_RETRIES
-                  ? 'Failed to initialize workspace after multiple attempts'
-                  : null;
-              });
-              return;
-            }
-
-            set((state) => {
-              state.currentConversationId = null;
-              state.currentThreadId = null;
-              state.isLoadingThreads = false;
-              state.isReinitializing = true;
-              state.reinitRetryCount += 1;
-              state.error = null; // Don't show error, will reinitialize
+            // Clear workspaces for consistency with loadConversations since we're triggering full reinit
+            const result = handleStaleDataRecovery(get, set, 'loadThreads', {
+              clearWorkspaces: true,
+              loadingKey: 'isLoadingThreads'
             });
-
-            // Trigger reinitialization with guard
-            setTimeout(async () => {
-              try {
-                await get().initializeDefaultWorkspace();
-              } finally {
-                set((state) => {
-                  state.isReinitializing = false;
-                });
-              }
-            }, 100);
+            if (result.shouldProceed) {
+              result.triggerReinit();
+            }
             return;
           }
 
