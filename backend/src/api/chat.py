@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from ..core.dependencies import get_current_user, require_admin
 from ..models.user import User, UserRole
 from typing import List, Optional, Dict, Any
+import hashlib
 import logging
 import json
 import re
@@ -236,12 +237,27 @@ async def chat_completions(
         logger.info(f"Chat completion request with {len(messages)} messages, RAG={'enabled' if request.use_rag else 'disabled'}")
         
         # Generate cache key based on the full conversation context
-        # For RAG queries, include context document IDs in cache consideration
+        # Include conversation history to differentiate identical queries in different contexts
+        # Use last 3 messages (excluding current query) to capture conversation context
+        context_messages = []
+        if len(request.messages) > 1:
+            # Get previous messages for context (up to 3, excluding current query)
+            prev_messages = request.messages[:-1][-3:]
+            context_messages = [f"{m.role}:{m.content[:100]}" for m in prev_messages]
+        
+        conversation_context_hash = ""
+        if context_messages:
+            context_str = "||".join(context_messages)
+            conversation_context_hash = hashlib.sha256(context_str.encode()).hexdigest()[:16]
+        
         cache_query = last_query
+        if conversation_context_hash:
+            cache_query = f"{last_query}||conv:{conversation_context_hash}"
+        
         if request.use_rag and retrieved_contexts:
             # Include context doc IDs to differentiate responses with different context
             context_ids = "|".join(sorted([c.document_id for c in retrieved_contexts]))
-            cache_query = f"{last_query}||ctx:{context_ids}"
+            cache_query = f"{cache_query}||ctx:{context_ids}"
         
         # Check LLM response cache (only for single-turn or last message caching)
         # Skip cache for high-temperature (more creative) requests
