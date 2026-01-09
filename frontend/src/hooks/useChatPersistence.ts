@@ -27,6 +27,8 @@ export interface UIMessage {
     externalReferenceId?: string;  // For non-database references (e.g., arXiv IDs)
     title: string;
     score: number;
+    content?: string;  // Snippet content for preview
+    source?: string;   // Document type/source
   }>;
 }
 
@@ -71,6 +73,29 @@ interface UseChatPersistenceReturn {
 }
 
 /**
+ * Extract title from snippet content (for legacy citations without document_title)
+ * Handles formats like "Title: Some Title Authors: ..." or plain text
+ */
+function extractTitleFromSnippet(snippet?: string): string | null {
+  if (!snippet) return null;
+
+  // Try to extract "Title: <title>" pattern (common in arXiv papers)
+  const titleMatch = snippet.match(/^Title:\s*(.+?)(?:\s*Authors:|$)/i);
+  if (titleMatch && titleMatch[1]) {
+    return titleMatch[1].trim();
+  }
+
+  // Fallback: use first line (up to 200 chars) as title
+  const firstLine = snippet.split('\n')[0].trim();
+  if (firstLine.length > 0 && firstLine.length <= 200) {
+    return firstLine;
+  }
+
+  // Last resort: truncate snippet
+  return snippet.length > 80 ? snippet.slice(0, 80).trim() + '...' : snippet;
+}
+
+/**
  * Map database message to UI message format
  */
 function mapDbMessageToUI(dbMsg: ChatMessage): UIMessage {
@@ -79,12 +104,27 @@ function mapDbMessageToUI(dbMsg: ChatMessage): UIMessage {
     role: dbMsg.role === MessageRole.USER ? 'user' : 'assistant',
     content: dbMsg.content,
     timestamp: new Date(dbMsg.created_at).getTime(),
-    citations: dbMsg.citations?.map((c) => ({
-      documentId: c.document_id || undefined,  // May be undefined for external refs
-      externalReferenceId: c.external_reference_id || undefined,  // For arXiv IDs, etc.
-      title: c.document_title || 'Unknown Document',
-      score: c.score || 0,
-    })),
+    citations: dbMsg.citations?.map((c) => {
+      // Build title with proper fallback chain:
+      // 1. Explicit document_title from DB
+      // 2. Extracted from snippet content
+      // 3. External reference ID (e.g., arXiv ID like "2401.12345")
+      // 4. Generic fallback
+      const extractedTitle = extractTitleFromSnippet(c.snippet) || extractTitleFromSnippet(c.snippet_preview);
+      const title = c.document_title
+        ?? extractedTitle
+        ?? (c.external_reference_id ? `Reference: ${c.external_reference_id}` : null)
+        ?? 'Untitled Document';
+
+      return {
+        documentId: c.document_id || undefined,  // May be undefined for external refs
+        externalReferenceId: c.external_reference_id || undefined,  // For arXiv IDs, etc.
+        title,
+        score: c.score || 0,
+        content: c.snippet || c.snippet_preview,
+        source: c.document_type,
+      };
+    }),
   };
 }
 
@@ -232,6 +272,15 @@ export function useChatPersistence(): UseChatPersistenceReturn {
         if (conversationId) {
           console.log('[useChatPersistence] Loading threads for conversation:', conversationId);
           await loadThreads(conversationId);
+
+          // Select the first thread to load its messages (including citations)
+          const threadsState = useChatStore.getState();
+          const conversationThreads = threadsState.threads[conversationId] || [];
+          if (conversationThreads.length > 0 && !threadsState.currentThreadId) {
+            const firstThread = conversationThreads[0];
+            console.log('[useChatPersistence] Selecting first thread:', firstThread.id);
+            setCurrentThread(firstThread.id); // This triggers loadMessages
+          }
         } else {
           console.log('[useChatPersistence] No conversationId to load threads for');
         }
@@ -245,7 +294,7 @@ export function useChatPersistence(): UseChatPersistenceReturn {
       console.error('[useChatPersistence] Initialization failed:', error);
       initializationRef.current.started = false; // Allow retry on error
     }
-  }, [isAuthenticated, token, initializeDefaultWorkspace, loadConversations, loadThreads, setCurrentConversation, createConversation]);
+  }, [isAuthenticated, token, initializeDefaultWorkspace, loadConversations, loadThreads, setCurrentConversation, setCurrentThread, createConversation]);
 
   // Create new chat (thread)
   const createNewChat = useCallback(async (): Promise<string | null> => {

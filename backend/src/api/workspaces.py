@@ -1103,11 +1103,12 @@ def _message_to_response(message: ChatMessage) -> ChatMessageResponse:
     )
 
 
-def _citation_to_response(citation) -> CitationResponse:
+def _citation_to_response(citation: Citation) -> CitationResponse:
     """Convert Citation model to response schema"""
     return CitationResponse(
         id=citation.id,
         document_id=citation.document_id,
+        external_reference_id=citation.external_reference_id,  # For arXiv IDs, etc.
         chunk_index=citation.chunk_index,
         chunk_id=citation.chunk_id,
         snippet=citation.snippet,
@@ -1115,8 +1116,9 @@ def _citation_to_response(citation) -> CitationResponse:
         page_number=citation.page_number,
         score=citation.score,
         rerank_score=citation.rerank_score,
-        document_title=citation.document.title if citation.document else None,
-        document_type=citation.document.document_type.value if citation.document and citation.document.document_type else None
+        # Use stored title/type for external refs, or get from document relationship
+        document_title=citation.document_title or (citation.document.title if citation.document else None),
+        document_type=citation.document_type or (citation.document.document_type.value if citation.document and citation.document.document_type else None)
     )
 
 

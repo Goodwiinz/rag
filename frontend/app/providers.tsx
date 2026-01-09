@@ -11,7 +11,7 @@ interface ProvidersProps {
   children: React.ReactNode;
 }
 
-export const Providers: React.FC<ProvidersProps> = ({ children }) => {
+export function Providers({ children }: ProvidersProps) {
   return (
     <AuthProvider>
       <AuthSyncProvider>
@@ -30,4 +30,6 @@ export const Providers: React.FC<ProvidersProps> = ({ children }) => {
       </AuthSyncProvider>
     </AuthProvider>
   );
-};
+}
+
+export default Providers;
