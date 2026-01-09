@@ -420,12 +420,15 @@ class LLMResponseCache:
                             "retrieved_contexts": semantic_match.retrieved_contexts,
                         }
             
-            self._stats["misses"] += 1
+            # Use lock for thread-safe stats update
+            async with self._lock:
+                self._stats["misses"] += 1
             return None
             
         except Exception as e:
             logger.error(f"LLM cache get error: {e}")
-            self._stats["errors"] += 1
+            async with self._lock:
+                self._stats["errors"] += 1
             return None
     
     async def set(
@@ -505,13 +508,15 @@ class LLMResponseCache:
                 except Exception as e:
                     logger.warning(f"Redis set error: {e}")
             
-            self._stats["sets"] += 1
+            async with self._lock:
+                self._stats["sets"] += 1
             logger.debug(f"LLM response cached with key {query_hash[:8]}...")
             return True
             
         except Exception as e:
             logger.error(f"LLM cache set error: {e}")
-            self._stats["errors"] += 1
+            async with self._lock:
+                self._stats["errors"] += 1
             return False
     
     async def _evict_entries(self):
@@ -545,10 +550,11 @@ class LLMResponseCache:
         Returns:
             Number of entries cleared
         """
-        # Clear in-memory cache
-        memory_count = len(self._memory_cache)
-        self._memory_cache.clear()
-        self._embedding_index.clear()
+        # Clear in-memory cache with lock for thread safety
+        async with self._lock:
+            memory_count = len(self._memory_cache)
+            self._memory_cache.clear()
+            self._embedding_index.clear()
 
         redis_count = 0
         redis = await self._get_redis()
