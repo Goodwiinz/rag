@@ -16,9 +16,7 @@ import {
   Thread,
   ThreadCreate,
   ThreadUpdate,
-  ThreadDetail,
   ChatMessage,
-  ChatMessageCreate,
   ChatMessageUpdate,
   ThreadStatus,
 } from '@/types/workspace';
@@ -46,6 +44,10 @@ interface ChatState {
   isLoadingThreads: boolean;
   isLoadingMessages: boolean;
   isSendingMessage: boolean;
+
+  // Reinitialization guard for 404 recovery
+  isReinitializing: boolean;
+  reinitRetryCount: number;
 
   // Error states
   error: string | null;
@@ -105,6 +107,9 @@ type ChatStore = ChatState & ChatActions;
 // Initial State
 // ============================================================================
 
+// Maximum retry attempts for reinitialization to prevent infinite loops
+const MAX_REINIT_RETRIES = 3;
+
 const initialState: ChatState = {
   currentWorkspaceId: null,
   currentConversationId: null,
@@ -118,6 +123,8 @@ const initialState: ChatState = {
   isLoadingThreads: false,
   isLoadingMessages: false,
   isSendingMessage: false,
+  isReinitializing: false,
+  reinitRetryCount: 0,
   error: null,
   shortcutsDialogOpen: false,
   copiedMessageId: null,
@@ -272,8 +279,50 @@ export const useChatStore = create<ChatStore>()(
             state.conversations[workspaceId] = response.conversations;
             state.isLoadingConversations = false;
           });
-        } catch (error) {
+        } catch (error: any) {
           console.error('[ChatStore] Error loading conversations:', error);
+
+          // Handle 404 - workspace not found (stale data)
+          if (error?.response?.status === 404) {
+            console.warn('[ChatStore] Workspace not found (404) - clearing stale data');
+            const { isReinitializing, reinitRetryCount } = get();
+
+            // Guard against concurrent/repeated reinitialization and infinite loops
+            if (isReinitializing || reinitRetryCount >= MAX_REINIT_RETRIES) {
+              console.warn('[ChatStore] Skipping reinitialization (already in progress or max retries reached)');
+              set((state) => {
+                state.isLoadingConversations = false;
+                state.error = reinitRetryCount >= MAX_REINIT_RETRIES
+                  ? 'Failed to initialize workspace after multiple attempts'
+                  : null;
+              });
+              return;
+            }
+
+            set((state) => {
+              state.currentWorkspaceId = null;
+              state.currentConversationId = null;
+              state.currentThreadId = null;
+              state.workspaces = [];
+              state.isLoadingConversations = false;
+              state.isReinitializing = true;
+              state.reinitRetryCount += 1;
+              state.error = null; // Don't show error, will reinitialize
+            });
+
+            // Trigger reinitialization with guard
+            setTimeout(async () => {
+              try {
+                await get().initializeDefaultWorkspace();
+              } finally {
+                set((state) => {
+                  state.isReinitializing = false;
+                });
+              }
+            }, 100);
+            return;
+          }
+
           set((state) => {
             state.error = 'Failed to load conversations';
             state.isLoadingConversations = false;
@@ -292,8 +341,43 @@ export const useChatStore = create<ChatStore>()(
             state.conversations[workspaceId].unshift(conversation);
           });
           return conversation;
-        } catch (error) {
+        } catch (error: any) {
           console.error('[ChatStore] Error creating conversation:', error);
+
+          // Handle 404 - workspace not found (stale data)
+          if (error?.response?.status === 404) {
+            console.warn('[ChatStore] Workspace not found (404) while creating conversation - clearing stale data');
+            const { isReinitializing, reinitRetryCount } = get();
+
+            // Guard against concurrent/repeated reinitialization
+            if (isReinitializing || reinitRetryCount >= MAX_REINIT_RETRIES) {
+              console.warn('[ChatStore] Skipping reinitialization (already in progress or max retries reached)');
+              return null;
+            }
+
+            set((state) => {
+              state.currentWorkspaceId = null;
+              state.currentConversationId = null;
+              state.currentThreadId = null;
+              state.workspaces = [];
+              state.isReinitializing = true;
+              state.reinitRetryCount += 1;
+              state.error = null;
+            });
+
+            // Trigger reinitialization with guard
+            setTimeout(async () => {
+              try {
+                await get().initializeDefaultWorkspace();
+              } finally {
+                set((state) => {
+                  state.isReinitializing = false;
+                });
+              }
+            }, 100);
+            return null;
+          }
+
           set((state) => {
             state.error = 'Failed to create conversation';
           });
@@ -323,7 +407,6 @@ export const useChatStore = create<ChatStore>()(
       },
 
       deleteConversation: async (id) => {
-        const state = get();
         try {
           await workspaceService.deleteConversation(id);
           set((state) => {
@@ -368,8 +451,48 @@ export const useChatStore = create<ChatStore>()(
             state.threads[conversationId] = response.threads;
             state.isLoadingThreads = false;
           });
-        } catch (error) {
+        } catch (error: any) {
           console.error('[ChatStore] Error loading threads:', error);
+
+          // Handle 404 - conversation not found (stale data)
+          if (error?.response?.status === 404) {
+            console.warn('[ChatStore] Conversation not found (404) - clearing stale data');
+            const { isReinitializing, reinitRetryCount } = get();
+
+            // Guard against concurrent/repeated reinitialization
+            if (isReinitializing || reinitRetryCount >= MAX_REINIT_RETRIES) {
+              console.warn('[ChatStore] Skipping reinitialization (already in progress or max retries reached)');
+              set((state) => {
+                state.isLoadingThreads = false;
+                state.error = reinitRetryCount >= MAX_REINIT_RETRIES
+                  ? 'Failed to initialize workspace after multiple attempts'
+                  : null;
+              });
+              return;
+            }
+
+            set((state) => {
+              state.currentConversationId = null;
+              state.currentThreadId = null;
+              state.isLoadingThreads = false;
+              state.isReinitializing = true;
+              state.reinitRetryCount += 1;
+              state.error = null; // Don't show error, will reinitialize
+            });
+
+            // Trigger reinitialization with guard
+            setTimeout(async () => {
+              try {
+                await get().initializeDefaultWorkspace();
+              } finally {
+                set((state) => {
+                  state.isReinitializing = false;
+                });
+              }
+            }, 100);
+            return;
+          }
+
           set((state) => {
             state.error = 'Failed to load threads';
             state.isLoadingThreads = false;
@@ -597,26 +720,42 @@ export const useChatStore = create<ChatStore>()(
       },
 
       initializeDefaultWorkspace: async () => {
-        const state = get();
-
-        // If already has a current workspace, skip
-        if (state.currentWorkspaceId) {
-          return;
-        }
-
         try {
-          // Load workspaces first
+          console.log('[ChatStore] Initializing default workspace...');
+          // Load workspaces first - MUST happen before stale ID check
           await get().loadWorkspaces();
 
-          const { workspaces } = get();
+          const { workspaces, currentWorkspaceId } = get();
+
+          // Now check if current workspace is valid AFTER loading workspaces
+          if (currentWorkspaceId && workspaces.some(w => w.id === currentWorkspaceId)) {
+            console.log('[ChatStore] Workspace already initialized:', currentWorkspaceId);
+            // Reset retry counter on successful validation
+            set((s) => {
+              s.reinitRetryCount = 0;
+            });
+            return;
+          }
+
+          // Clear stale IDs if workspace doesn't exist in loaded workspaces
+          if (currentWorkspaceId) {
+            console.warn('[ChatStore] Clearing stale workspace ID:', currentWorkspaceId);
+            set((s) => {
+              s.currentWorkspaceId = null;
+              s.currentConversationId = null;
+              s.currentThreadId = null;
+            });
+          }
 
           let workspace: Workspace;
 
           if (workspaces.length > 0) {
             // Use first workspace
             workspace = workspaces[0];
+            console.log('[ChatStore] Using existing workspace:', workspace.id, workspace.name);
           } else {
             // Create default workspace
+            console.log('[ChatStore] Creating default workspace...');
             const created = await get().createWorkspace({
               name: 'My Workspace',
               description: 'Default workspace for Terminal Observatory',
@@ -626,10 +765,16 @@ export const useChatStore = create<ChatStore>()(
               throw new Error('Failed to create default workspace');
             }
             workspace = created;
+            console.log('[ChatStore] Created workspace:', workspace.id, workspace.name);
           }
 
           // Set current workspace (this will trigger loadConversations)
           get().setCurrentWorkspace(workspace.id);
+
+          // Reset retry counter on successful initialization
+          set((s) => {
+            s.reinitRetryCount = 0;
+          });
         } catch (error) {
           console.error('[ChatStore] Error initializing default workspace:', error);
           set((state) => {

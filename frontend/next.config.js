@@ -59,15 +59,17 @@ const nextConfig = {
 
   // API configuration
   async rewrites() {
+    // Use BACKEND_URL env var if set (for Docker), otherwise default to localhost
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
     return [
       // API rewrites for backend integration
       {
         source: '/api/v1/:path*',
-        destination: 'http://localhost:8000/api/v1/:path*',
+        destination: `${backendUrl}/api/v1/:path*`,
       },
       {
         source: '/api/v2/:path*',
-        destination: 'http://localhost:8000/api/v2/:path*',
+        destination: `${backendUrl}/api/v2/:path*`,
       },
     ];
   },

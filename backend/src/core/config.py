@@ -187,6 +187,13 @@ class Settings(BaseSettings):
     # Embedding Provider Configuration
     EMBEDDING_PROVIDER: str = "sentence_transformers"  # sentence_transformers, azure_openai, auto
 
+    # LLM Response Cache Configuration
+    LLM_CACHE_ENABLED: bool = True
+    LLM_CACHE_TTL_SECONDS: int = 3600  # 1 hour default
+    LLM_CACHE_MAX_ENTRIES: int = 5000
+    LLM_CACHE_SEMANTIC_ENABLED: bool = True
+    LLM_CACHE_SIMILARITY_THRESHOLD: float = 0.92  # 0.0-1.0, higher = stricter matching
+
     # Monitoring
     ENABLE_METRICS: bool = True
     LOG_LEVEL: str = "INFO"
@@ -218,6 +225,27 @@ class Settings(BaseSettings):
     def validate_max_file_size(cls, v):
         if v <= 0 or v > 1000:  # Max 1GB
             raise ValueError("MAX_FILE_SIZE_MB must be between 1 and 1000")
+        return v
+
+    @field_validator("LLM_CACHE_TTL_SECONDS")
+    @classmethod
+    def validate_cache_ttl(cls, v):
+        if v <= 0:
+            raise ValueError("LLM_CACHE_TTL_SECONDS must be positive")
+        return v
+
+    @field_validator("LLM_CACHE_MAX_ENTRIES")
+    @classmethod
+    def validate_cache_max_entries(cls, v):
+        if v <= 0:
+            raise ValueError("LLM_CACHE_MAX_ENTRIES must be positive")
+        return v
+
+    @field_validator("LLM_CACHE_SIMILARITY_THRESHOLD")
+    @classmethod
+    def validate_cache_similarity_threshold(cls, v):
+        if v < 0.0 or v > 1.0:
+            raise ValueError("LLM_CACHE_SIMILARITY_THRESHOLD must be between 0.0 and 1.0")
         return v
 
     @field_validator("FREE_TIER_STORAGE_GB")

@@ -1,1 +1,13 @@
-{"mcpServers":{"shadcn-ui":{"command":"npx","args":["@jpisnice/shadcn-ui-mcp-server","--framework","react"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"YOUR_GITHUB_TOKEN"}},"shadcn":{"url":"https://www.shadcn.io/api/mcp","command":"npx","args":["shadcn@latest","mcp"]},"MCP_DOCKER":{"command":"docker","args":["mcp","gateway","run"],"type":"stdio"}}}
+{
+  "mcpServers": {
+    "shadcn": {
+      "url": "https://www.shadcn.io/api/mcp",
+      "command": "npx",
+      "args": ["shadcn@latest", "mcp"]
+    },
+    "redis": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-redis", "redis://localhost:6379"]
+    }
+  }
+}

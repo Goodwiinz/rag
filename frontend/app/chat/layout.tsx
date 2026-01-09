@@ -11,6 +11,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { UIConversation, useChatPersistence } from '@/hooks';
+import { extractCitationIndices } from '@/utils/citationParser';
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -37,7 +38,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 // ============================================
 // TYPES
@@ -844,19 +845,31 @@ function CitationsTabContent() {
   const { conversations, currentThreadId } = useChatPersistence();
 
   // Get citations from the current conversation's messages
+  // Only include citations that are actually referenced in the response text
   const citations = useMemo(() => {
     if (!currentThreadId) return [];
 
     const currentConv = conversations.find(c => c.threadId === currentThreadId);
     if (!currentConv) return [];
 
-    // Collect all citations from assistant messages
+    // Collect only citations that are actually referenced in assistant messages
     const allCitations: CitationItem[] = [];
     const seenIds = new Set<string>();
 
     currentConv.messages.forEach(msg => {
       if (msg.role === 'assistant' && msg.citations) {
-        (msg.citations as CitationItem[]).forEach((cit) => {
+        const msgCitations = msg.citations as CitationItem[];
+
+        // Extract which citations are actually referenced in the text (e.g., [Doc 1], [Doc 3])
+        const referencedIndices = extractCitationIndices(msg.content);
+
+        // If AI used inline citations, filter to only referenced ones
+        // Otherwise fall back to showing all (for responses without inline refs)
+        const citationsToShow = referencedIndices.length > 0
+          ? msgCitations.filter((_, idx) => referencedIndices.includes(idx + 1))
+          : msgCitations;
+
+        citationsToShow.forEach((cit) => {
           const citId = cit.documentId || cit.externalReferenceId || cit.id;
           if (citId && !seenIds.has(citId)) {
             seenIds.add(citId);
@@ -1006,6 +1019,109 @@ function CitationsTabContent() {
 
 function ContextPanel() {
   const [activeTab, setActiveTab] = useState<'context' | 'citations' | 'settings'>('context');
+  const { conversations, currentThreadId, messages } = useChatPersistence();
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const lastMessageIdRef = useRef<string | null>(null);
+
+  // Get the most relevant document (highest score citation)
+  const activeDocument = useMemo((): CitationItem | null => {
+    if (!currentThreadId) return null;
+    const currentConv = conversations.find(c => c.threadId === currentThreadId);
+    if (!currentConv) return null;
+
+    let highestScoreCitation: CitationItem | null = null;
+    let highestScore = 0;
+
+    currentConv.messages.forEach(msg => {
+      if (msg.role === 'assistant' && msg.citations) {
+        (msg.citations as CitationItem[]).forEach(cit => {
+          if ((cit.score || 0) > highestScore) {
+            highestScore = cit.score || 0;
+            highestScoreCitation = cit;
+          }
+        });
+      }
+    });
+
+    return highestScoreCitation;
+  }, [conversations, currentThreadId]);
+
+  // Get all related results (deduplicated citations sorted by score)
+  const relatedResults = useMemo((): CitationItem[] => {
+    if (!currentThreadId) return [];
+    const currentConv = conversations.find(c => c.threadId === currentThreadId);
+    if (!currentConv) return [];
+
+    const allCitations: CitationItem[] = [];
+    const seenIds = new Set<string>();
+
+    currentConv.messages.forEach(msg => {
+      if (msg.role === 'assistant' && msg.citations) {
+        (msg.citations as CitationItem[]).forEach(cit => {
+          const citId = cit.documentId || cit.externalReferenceId;
+          if (citId && !seenIds.has(citId)) {
+            seenIds.add(citId);
+            allCitations.push(cit);
+          }
+        });
+      }
+    });
+
+    return allCitations
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
+      .slice(0, 5);
+  }, [conversations, currentThreadId]);
+
+  // Fetch AI-generated suggestions when a new assistant message appears
+  const fetchSuggestions = useCallback(async (lastAssistantContent: string, lastCitations: CitationItem[]) => {
+    setLoadingSuggestions(true);
+    try {
+      const response = await fetch('/api/v1/chat/suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'assistant', content: lastAssistantContent }],
+          citations: lastCitations.map(c => ({
+            document_id: c.documentId || '',
+            title: c.title || '',
+            content: c.snippet || '',
+            score: c.score || 0,
+            source: c.source || '',
+          })),
+          count: 3
+        })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSuggestions(data.suggestions || []);
+      } else {
+        setSuggestions([]);
+      }
+    } catch {
+      setSuggestions([]);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }, []);
+
+  // Watch for new assistant messages and fetch suggestions
+  useEffect(() => {
+    if (!currentThreadId) return;
+    const currentConv = conversations.find(c => c.threadId === currentThreadId);
+    if (!currentConv) return;
+
+    const assistantMessages = currentConv.messages.filter(m => m.role === 'assistant');
+    const lastAssistant = assistantMessages[assistantMessages.length - 1];
+
+    if (lastAssistant && lastAssistant.id !== lastMessageIdRef.current) {
+      lastMessageIdRef.current = lastAssistant.id || null;
+      const citations = (lastAssistant.citations || []) as CitationItem[];
+      if (lastAssistant.content) {
+        fetchSuggestions(lastAssistant.content, citations);
+      }
+    }
+  }, [conversations, currentThreadId, fetchSuggestions]);
 
   return (
     <aside className="hidden xl:block w-80 border-l border-[var(--terminal-border)] bg-[var(--terminal-bg)] flex-shrink-0">
@@ -1037,54 +1153,76 @@ function ContextPanel() {
       <div className="p-4 overflow-y-auto terminal-scrollbar h-[calc(100%-48px)]">
         {activeTab === 'context' && (
           <div className="space-y-4">
-            {/* Document Inspector */}
+            {/* Document Inspector - Most Relevant RAG Result */}
             <div className="terminal-window p-3">
               <div className="text-[10px] text-[var(--phosphor-green)] uppercase tracking-wider mb-3"
                    style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                 📄 Active Document
               </div>
-              <div className="space-y-2 text-[11px]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                <div className="flex items-center justify-between">
-                  <span className="text-[var(--terminal-text-muted)]">File</span>
-                  <span className="text-[var(--terminal-text)]">research-paper.pdf</span>
+              {activeDocument ? (
+                <div className="space-y-2 text-[11px]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[var(--terminal-text-muted)] shrink-0">Title</span>
+                    <span className="text-[var(--terminal-text)] text-right truncate" title={activeDocument.title}>
+                      {activeDocument.title ? (activeDocument.title.length > 30 ? activeDocument.title.slice(0, 30) + '...' : activeDocument.title) : 'Untitled'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[var(--terminal-text-muted)]">Relevance</span>
+                    <span className="text-[var(--phosphor-green)]">
+                      {activeDocument.score ? Math.round(activeDocument.score * 100) : 0}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[var(--terminal-text-muted)]">Source</span>
+                    <span className="text-[var(--terminal-text)] capitalize">
+                      {activeDocument.source || 'document'}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[var(--terminal-text-muted)]">Tokens</span>
-                  <span className="text-[var(--phosphor-green)]">8,243</span>
+              ) : (
+                <div className="text-[11px] text-[var(--terminal-text-muted)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  No active document yet
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[var(--terminal-text-muted)]">Embedding</span>
-                  <span className="text-[var(--terminal-text)]">bge-large-en</span>
-                </div>
-              </div>
+              )}
             </div>
 
-            {/* Related Documents */}
+            {/* Related Documents - From RAG Citations */}
             <div>
               <div className="text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-wider mb-2"
                    style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                 🔍 Related Results
               </div>
-              {[
-                { title: 'RAG Optimization', score: 85 },
-                { title: 'Embedding Fine-tuning', score: 72 },
-                { title: 'BIT Defense Strategies', score: 68 },
-              ].map((doc, idx) => (
-                <button
-                  key={idx}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-[var(--terminal-border)] hover:border-[var(--phosphor-green)]/30 transition-colors mb-2 text-left"
-                >
-                  <FileText className="w-4 h-4 text-[var(--terminal-text-muted)]" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-[var(--terminal-text)] truncate" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                      {doc.title}
-                    </p>
-                    <p className="text-[10px] text-[var(--phosphor-green)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                      {doc.score}% match
-                    </p>
-                  </div>
-                </button>
-              ))}
+              {relatedResults.length > 0 ? (
+                relatedResults.map((doc, idx) => {
+                  const scorePercent = doc.score ? Math.round(doc.score * 100) : 0;
+                  const isExternal = !doc.documentId;
+                  return (
+                    <button
+                      key={doc.documentId || doc.externalReferenceId || idx}
+                      className="w-full flex items-center gap-3 p-3 rounded-lg border border-[var(--terminal-border)] hover:border-[var(--phosphor-green)]/30 transition-colors mb-2 text-left"
+                    >
+                      {isExternal ? (
+                        <BookOpen className="w-4 h-4" style={{ color: AMBER }} />
+                      ) : (
+                        <FileText className="w-4 h-4 text-[var(--terminal-text-muted)]" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-[var(--terminal-text)] truncate" style={{ fontFamily: "'JetBrains Mono', monospace" }} title={doc.title}>
+                          {doc.title || 'Untitled Document'}
+                        </p>
+                        <p className="text-[10px]" style={{ fontFamily: "'JetBrains Mono', monospace", color: scorePercent >= 70 ? PHOSPHOR_GREEN : scorePercent >= 50 ? AMBER : 'var(--terminal-text-muted)' }}>
+                          {scorePercent}% match
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="text-[11px] text-[var(--terminal-text-muted)] py-3" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  No related documents yet
+                </div>
+              )}
             </div>
 
             {/* AI Suggestions */}
@@ -1093,20 +1231,31 @@ function ContextPanel() {
                    style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                 💬 Follow-up Suggestions
               </div>
-              {[
-                'Compare with Transformer models',
-                'Evaluate on benchmark datasets',
-                'Generate test cases for defense',
-              ].map((suggestion, idx) => (
-                <button
-                  key={idx}
-                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-xs text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)] transition-colors mb-1"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  <Sparkles className="w-3 h-3 text-[var(--amber-gold)]" />
-                  {suggestion}
-                </button>
-              ))}
+              {loadingSuggestions ? (
+                <div className="flex items-center gap-2 py-3 text-[11px] text-[var(--terminal-text-muted)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  <Loader2 className="w-3 h-3 animate-spin" style={{ color: PHOSPHOR_GREEN }} />
+                  Generating suggestions...
+                </div>
+              ) : suggestions.length > 0 ? (
+                suggestions.map((suggestion, idx) => (
+                  <button
+                    key={idx}
+                    className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-xs text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)] transition-colors mb-1"
+                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                    onClick={() => {
+                      // Dispatch custom event to populate chat input
+                      window.dispatchEvent(new CustomEvent('populate-chat-input', { detail: suggestion }));
+                    }}
+                  >
+                    <Sparkles className="w-3 h-3 shrink-0" style={{ color: AMBER }} />
+                    <span className="truncate">{suggestion}</span>
+                  </button>
+                ))
+              ) : (
+                <div className="text-[11px] text-[var(--terminal-text-muted)] py-3" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  Ask a question to get suggestions
+                </div>
+              )}
             </div>
           </div>
         )}

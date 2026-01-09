@@ -91,7 +91,7 @@ v2Client.interceptors.response.use(
   (response) => response,
   (error) => {
     // Log detailed error info to help diagnose "Network Error" issues
-    console.error('[WorkspaceService] Request failed:', {
+    const errorInfo = {
       url: error.config?.url,
       method: error.config?.method,
       status: error.response?.status,
@@ -99,7 +99,20 @@ v2Client.interceptors.response.use(
       data: error.response?.data,
       message: error.message,
       code: error.code,
-    });
+      name: error.name,
+    };
+
+    // Filter out undefined values for cleaner logging
+    const cleanedInfo = Object.fromEntries(
+      Object.entries(errorInfo).filter(([_, v]) => v !== undefined)
+    );
+
+    // If no useful info, it's likely a network-level error
+    if (Object.keys(cleanedInfo).length === 0) {
+      console.error('[WorkspaceService] Network error - backend may be unreachable:', error.toString?.() || error);
+    } else {
+      console.error('[WorkspaceService] Request failed:', cleanedInfo);
+    }
 
     // If it's a 401/403, the user needs to re-authenticate
     if (error.response?.status === 401 || error.response?.status === 403) {

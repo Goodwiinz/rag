@@ -96,6 +96,9 @@ node_modules/
 .cache
 .parcel-cache
 
+# TypeScript
+*.tsbuildinfo
+
 # Next.js build output
 .next
 

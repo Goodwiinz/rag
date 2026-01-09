@@ -171,5 +171,173 @@
     "theme_source": "https://tweakcn.com/r/themes/cmfpmqrqh000004i8emy711eq",
     "design_inspiration": ["Stripe", "Vercel", "Linear", "Radix"],
     "target_aesthetic": "Clean minimalism with modern gradients"
+  },
+  "coderabbit_linear_workflow": {
+    "description": "Automated code review to issue tracking workflow using CodeRabbit CLI and Linear",
+    "agents": {
+      "review-orchestrator": {
+        "name": "Review Orchestrator",
+        "description": "Coordinates the complete code review lifecycle: review → categorize → create issues → fix → verify",
+        "role": "Code Review Workflow Coordinator",
+        "capabilities": [
+          "Run CodeRabbit CLI reviews",
+          "Parse and categorize findings",
+          "Create Linear issues with proper structure",
+          "Coordinate auto-fixes",
+          "Update project memory",
+          "Semantic pattern search with Serena",
+          "Duplicate detection via memory"
+        ],
+        "tools": [
+          "Bash",
+          "mcp__plugin_linear_linear__list_teams",
+          "mcp__plugin_linear_linear__create_issue",
+          "mcp__plugin_linear_linear__update_issue",
+          "mcp__serena__search_for_pattern",
+          "mcp__serena__find_symbol",
+          "mcp__serena__get_symbols_overview",
+          "mcp__serena__read_memory",
+          "mcp__serena__write_memory",
+          "mcp__serena__read_file",
+          "mcp__serena__list_dir",
+          "Read",
+          "Grep",
+          "Glob"
+        ]
+      },
+      "issue-creator": {
+        "name": "Linear Issue Creator",
+        "description": "Transforms code review findings into well-structured Linear issues",
+        "role": "Issue Creation Specialist",
+        "capabilities": [
+          "Parse CodeRabbit output",
+          "Categorize and prioritize issues",
+          "Create detailed Linear issues",
+          "Group related findings",
+          "Apply proper labels and priority",
+          "Duplicate detection via Serena memory"
+        ],
+        "tools": [
+          "mcp__plugin_linear_linear__list_teams",
+          "mcp__plugin_linear_linear__create_issue",
+          "mcp__plugin_linear_linear__list_issue_labels",
+          "mcp__serena__read_memory",
+          "mcp__serena__write_memory"
+        ]
+      },
+      "coderabbit-auto-fixer": {
+        "name": "CodeRabbit Auto-Fixer",
+        "description": "Automatically applies CodeRabbit-recommended fixes safely using semantic code analysis",
+        "role": "Automated Code Fixer",
+        "capabilities": [
+          "Analyze proposed fixes",
+          "Apply fixes safely with verification",
+          "Run linters and type checks",
+          "Update Linear issue status",
+          "Handle fix failures gracefully",
+          "Semantic symbol-level refactoring",
+          "Impact analysis via referencing symbols",
+          "Reusable fix patterns from memory"
+        ],
+        "tools": [
+          "mcp__serena__find_symbol",
+          "mcp__serena__find_referencing_symbols",
+          "mcp__serena__get_symbols_overview",
+          "mcp__serena__replace_symbol_body",
+          "mcp__serena__replace_content",
+          "mcp__serena__read_file",
+          "mcp__serena__read_memory",
+          "mcp__serena__write_memory",
+          "Read",
+          "Edit",
+          "Bash",
+          "mcp__plugin_linear_linear__update_issue",
+          "mcp__plugin_linear_linear__create_comment"
+        ]
+      }
+    },
+    "workflows": {
+      "review-and-track": {
+        "description": "Complete workflow: run CodeRabbit review, create Linear issues, optionally auto-fix",
+        "trigger": "/review-and-track",
+        "steps": [
+          {
+            "agent": "review-orchestrator",
+            "action": "Run CodeRabbit review",
+            "command": "coderabbit review --type uncommitted --plain"
+          },
+          {
+            "agent": "issue-creator",
+            "action": "Create Linear issues for each finding"
+          },
+          {
+            "agent": "coderabbit-auto-fixer",
+            "action": "Auto-fix issues where possible",
+            "optional": true
+          },
+          {
+            "agent": "review-orchestrator",
+            "action": "Update memory and generate summary"
+          }
+        ]
+      },
+      "fix-from-linear": {
+        "description": "Fix a specific issue from Linear",
+        "trigger": "/fix-linear <issue-id>",
+        "steps": [
+          {
+            "agent": "coderabbit-auto-fixer",
+            "action": "Fetch issue details from Linear"
+          },
+          {
+            "agent": "coderabbit-auto-fixer",
+            "action": "Apply the fix and verify"
+          },
+          {
+            "agent": "coderabbit-auto-fixer",
+            "action": "Update Linear issue status"
+          }
+        ]
+      },
+      "sync-status": {
+        "description": "Sync Linear issue status with actual code state",
+        "trigger": "/sync-linear-status",
+        "steps": [
+          {
+            "agent": "review-orchestrator",
+            "action": "List open issues tagged from CodeRabbit"
+          },
+          {
+            "agent": "review-orchestrator",
+            "action": "Re-run targeted review on affected files"
+          },
+          {
+            "agent": "review-orchestrator",
+            "action": "Auto-close resolved issues"
+          }
+        ]
+      }
+    },
+    "config": {
+      "auto_fix_enabled": true,
+      "create_pr_on_complete": false,
+      "update_memory": true,
+      "severity_mapping": {
+        "critical_security": { "priority": 1, "labels": ["security", "critical"] },
+        "potential_issue": { "priority": 2, "labels": ["bug"] },
+        "refactor_suggestion": { "priority": 3, "labels": ["improvement"] },
+        "performance": { "priority": 3, "labels": ["performance"] }
+      },
+      "linear_team": "Goodwiinz",
+      "serena_integration": {
+        "enabled": true,
+        "memory_files": {
+          "findings": "coderabbit_findings.md",
+          "fix_patterns": "auto_fix_patterns.md"
+        },
+        "prefer_semantic_tools": true,
+        "auto_update_memory": true
+      }
+    }
   }
 }

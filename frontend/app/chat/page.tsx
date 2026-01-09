@@ -1489,22 +1489,26 @@ function ChatPageContent() {
         });
         assistantMessage = data.message?.content || 'No response from the model.';
 
-        // Extract citations from retrieved contexts and normalize to parser format
-        const citations: Citation[] = (data.retrieved_contexts || []).map((ctx: any) =>
-          normalizeCitation({
-            document_id: ctx.document_id,
-            document_title: ctx.title,
-            snippet: ctx.content,
-            score: ctx.score,
-            document_type: ctx.source,
-          })
-        );
-
         // Helper to check if a string is a valid UUID
         const isValidUUID = (str: string): boolean => {
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
           return uuidRegex.test(str);
         };
+
+        // Extract citations from retrieved contexts and normalize to parser format
+        // Properly distinguish between database document IDs (UUIDs) and external references (e.g., arXiv IDs)
+        const citations: Citation[] = (data.retrieved_contexts || []).map((ctx: any) => {
+          const docId = ctx.document_id;
+          const isUUID = docId && isValidUUID(docId);
+          return normalizeCitation({
+            document_id: isUUID ? docId : undefined, // Only set if valid UUID
+            external_reference_id: isUUID ? undefined : docId, // External ref for non-UUIDs
+            document_title: ctx.title,
+            snippet: ctx.content,
+            score: ctx.score,
+            document_type: ctx.source,
+          });
+        });
 
         // Create database-formatted citations for persistence
         // Support both UUID document_ids and external references (e.g., arXiv IDs)
