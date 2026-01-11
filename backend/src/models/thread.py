@@ -99,18 +99,22 @@ class Thread(BaseModel):
         return data
 
     def generate_title(self) -> str:
-        """Generate a title from the first user message"""
+        """Generate a smart title from the first user message.
+
+        Uses heuristics to create meaningful titles:
+        - Removes greeting patterns
+        - Extracts question topics
+        - Title cases the result
+        """
         if self.title:
             return self.title
 
         if self.messages:
             from .chat_message import MessageRole
+            from ..services.thread_title_generator import generate_title_sync
+
             for msg in self.messages:
                 if msg.role == MessageRole.USER and msg.content:
-                    # Take first 50 characters of user message
-                    title = msg.content[:50]
-                    if len(msg.content) > 50:
-                        title += "..."
-                    return title
+                    return generate_title_sync(msg.content)
 
         return f"Thread {str(self.id)[:8]}"

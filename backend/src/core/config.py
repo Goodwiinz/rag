@@ -7,7 +7,7 @@ variables. Default values are only used for local development.
 
 import os
 import secrets
-from typing import Optional, List
+from typing import Optional, List, Dict
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
@@ -90,7 +90,7 @@ class Settings(BaseSettings):
     @classmethod
     def validate_secret_key(cls, v, info):
         """Validate SECRET_KEY - require in production, generate for dev."""
-        weak_patterns = ["change-in-production", "your-secret", "changeme", "secret-key"]
+        weak_patterns = ["change-in-production", "your-secret", "changeme", "secret-key", "dev-secret"]
         is_weak = not v or any(pattern in (v or "").lower() for pattern in weak_patterns)
         
         if is_weak:
@@ -108,7 +108,7 @@ class Settings(BaseSettings):
     @classmethod
     def validate_jwt_secret_key(cls, v, info):
         """Validate JWT_SECRET_KEY - require in production, generate for dev."""
-        weak_patterns = ["change-in-production", "your-secret", "changeme", "jwt-secret"]
+        weak_patterns = ["change-in-production", "your-secret", "changeme", "jwt-secret", "dev-jwt-persistent"]
         is_weak = not v or any(pattern in (v or "").lower() for pattern in weak_patterns)
         
         if is_weak:
@@ -194,6 +194,25 @@ class Settings(BaseSettings):
     LLM_CACHE_SEMANTIC_ENABLED: bool = True
     LLM_CACHE_SIMILARITY_THRESHOLD: float = 0.92  # 0.0-1.0, higher = stricter matching
 
+    # Thread Context Window Configuration
+    # Model-aware defaults for context windows
+    THREAD_DEFAULT_MAX_MESSAGES: int = 20  # Default messages to include in context
+    THREAD_DEFAULT_MAX_TOKENS: int = 4000  # Default token limit for context
+    THREAD_CONTEXT_WARN_THRESHOLD: float = 0.9  # Warn when context usage exceeds this ratio
+
+    # Model-specific token limits (used for model-aware defaults)
+    MODEL_CONTEXT_LIMITS: Dict[str, int] = {
+        "gpt-3.5-turbo": 16385,
+        "gpt-4": 8192,
+        "gpt-4-32k": 32768,
+        "gpt-4-turbo": 128000,
+        "gpt-4o": 128000,
+        "claude-3-haiku": 200000,
+        "claude-3-sonnet": 200000,
+        "claude-3-opus": 200000,
+        "claude-3-5-sonnet": 200000,
+    }
+
     # Monitoring
     ENABLE_METRICS: bool = True
     LOG_LEVEL: str = "INFO"
@@ -246,6 +265,27 @@ class Settings(BaseSettings):
     def validate_cache_similarity_threshold(cls, v):
         if v < 0.0 or v > 1.0:
             raise ValueError("LLM_CACHE_SIMILARITY_THRESHOLD must be between 0.0 and 1.0")
+        return v
+
+    @field_validator("THREAD_DEFAULT_MAX_MESSAGES")
+    @classmethod
+    def validate_thread_max_messages(cls, v):
+        if v < 1 or v > 1000:
+            raise ValueError("THREAD_DEFAULT_MAX_MESSAGES must be between 1 and 1000")
+        return v
+
+    @field_validator("THREAD_DEFAULT_MAX_TOKENS")
+    @classmethod
+    def validate_thread_max_tokens(cls, v):
+        if v < 1 or v > 200000:
+            raise ValueError("THREAD_DEFAULT_MAX_TOKENS must be between 1 and 200000")
+        return v
+
+    @field_validator("THREAD_CONTEXT_WARN_THRESHOLD")
+    @classmethod
+    def validate_thread_warn_threshold(cls, v):
+        if v < 0.0 or v > 1.0:
+            raise ValueError("THREAD_CONTEXT_WARN_THRESHOLD must be between 0.0 and 1.0")
         return v
 
     @field_validator("FREE_TIER_STORAGE_GB")

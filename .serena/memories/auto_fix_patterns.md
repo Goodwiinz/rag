@@ -1,216 +1,298 @@
-# Auto-Fix Patterns for CodeRabbit Findings
+# Auto-Fix Patterns
 
-This memory contains reusable fix patterns for common CodeRabbit findings.
+Reusable patterns for the coderabbit-auto-fixer agent. These patterns are safe to apply automatically.
 
-## Purpose
-- Provide templates for consistent fixes
-- Enable automated fixing of common issues
-- Document Serena tool usage for each pattern
+## Pattern Categories
+
+| Category | Auto-Fix Safe | Confidence |
+|----------|---------------|------------|
+| Security - Credentials | ✅ Yes | High |
+| Bash - Return Values | ✅ Yes | High |
+| Python - Defensive Checks | ⚠️ Partial | Medium |
+| Python - Validation | ⚠️ Partial | Medium |
+| Documentation | ✅ Yes | High |
+| Error Handling | ⚠️ Partial | Medium |
 
 ---
 
-## Security Patterns
+## 1. Security: Remove Hardcoded Credentials
 
-### Pattern: Hardcoded API Key
-**Finding Type**: critical_security
-**Detection**: `search_for_pattern` with regex for API key formats
+**Pattern ID**: `SEC-001`
+**Risk Level**: Critical
+**Auto-Fix Safe**: ✅ Yes
 
-```python
-# Before
-"API_KEY": "sk_live_xxxxx"
-
-# After  
-"API_KEY": "${API_KEY_ENV_VAR}"
+### Detection
+```regex
+(password|secret|api_key|token)\s*[:=]\s*[`"'][\w\-]+[`"']
 ```
 
-**Serena Tools**:
-1. `search_for_pattern(substring_pattern="['\"]\\w+_KEY['\"]:\\s*['\"][^$]")` - Find hardcoded keys
-2. `read_file` - Get context
-3. `replace_content` - Apply fix
+### Fix Template
+Replace hardcoded values with environment variable references:
+
+**Before:**
+```markdown
+- User: `neo4j`
+- Password: `password`
+```
+
+**After:**
+```markdown
+- User: Environment variable `NEO4J_USER` (default: `neo4j` for dev)
+- Password: Environment variable `NEO4J_PASSWORD` (set in docker-compose)
+
+> **Note**: Never commit actual credentials. Use environment variables or a secrets manager.
+```
+
+### Shell Command Pattern
+**Before:**
+```bash
+-u neo4j -p password
+```
+
+**After:**
+```bash
+-u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-password}
+```
 
 ---
 
-### Pattern: Missing Authentication
-**Finding Type**: critical_security
-**Detection**: Endpoint without `Depends(get_current_user)`
+## 2. Bash: Separate Declaration and Assignment
 
+**Pattern ID**: `BASH-001`
+**Risk Level**: Medium
+**Auto-Fix Safe**: ✅ Yes
+
+### Detection
+```regex
+local\s+(\w+)=\$\(
+```
+
+### Problem
+Combining `local` with command substitution masks the exit code.
+
+### Fix Template
+**Before:**
+```bash
+local file_type=$(detect_file_type "$FILE_PATH")
+```
+
+**After:**
+```bash
+local file_type
+file_type=$(detect_file_type "$FILE_PATH")
+```
+
+### Serena Command
+```
+replace_content with regex:
+  needle: local\s+(\w+)=\$\((.+)\)
+  repl: local $!1\n$!1=$($!2)
+```
+
+---
+
+## 3. Python: Defensive API Response Checks
+
+**Pattern ID**: `PY-001`
+**Risk Level**: High
+**Auto-Fix Safe**: ⚠️ Partial (review context)
+
+### Detection - OpenAI
+```python
+response.choices[0].message.content
+```
+
+### Fix Template - OpenAI
+**Before:**
+```python
+title = response.choices[0].message.content.strip()
+```
+
+**After:**
+```python
+if not response.choices or not response.choices[0].message.content:
+    logger.warning("OpenAI returned empty response")
+    return None
+title = response.choices[0].message.content.strip()
+```
+
+### Detection - Anthropic
+```python
+response.content[0].text
+```
+
+### Fix Template - Anthropic
+**Before:**
+```python
+title = response.content[0].text.strip()
+```
+
+**After:**
+```python
+if not response.content or not response.content[0].text:
+    logger.warning("Anthropic returned empty response")
+    return None
+title = response.content[0].text.strip()
+```
+
+---
+
+## 4. Python: WebSocket Broadcast Error Handling
+
+**Pattern ID**: `PY-002`
+**Risk Level**: Medium
+**Auto-Fix Safe**: ⚠️ Partial (review imports)
+
+### Detection
+```python
+await.*broadcast_.*\(
+```
+
+### Problem
+WebSocket broadcast failures should not fail the API endpoint.
+
+### Fix Template
+**Before:**
+```python
+await thread_event_service.broadcast_thread_created(
+    thread_id=str(thread.id),
+    conversation_id=str(thread.conversation_id),
+    user_id=str(current_user.id),
+    title=thread.title,
+)
+```
+
+**After:**
+```python
+try:
+    await thread_event_service.broadcast_thread_created(
+        thread_id=str(thread.id),
+        conversation_id=str(thread.conversation_id),
+        user_id=str(current_user.id),
+        title=thread.title,
+    )
+except Exception as e:
+    logger.error(f"Failed to broadcast thread_created event: {e}")
+```
+
+---
+
+## 5. Python: Pydantic Field/Validator Alignment
+
+**Pattern ID**: `PY-003`
+**Risk Level**: Medium
+**Auto-Fix Safe**: ⚠️ Partial (check logic)
+
+### Problem A: Inconsistent Limits
+Field max_length doesn't match validator limit.
+
+**Fix**: Align Field constraint with validator:
+```python
+# If validator limits to 10, Field should too
+contexts: List[str] = Field(default_factory=list, max_length=10)
+```
+
+### Problem B: Required Field with None Check
+Field is required but validator checks for None (unreachable).
+
+**Fix**: Make field optional for auto-calculation:
 ```python
 # Before
-@router.post("/endpoint")
-async def my_endpoint(request: Request):
+overall_score: float = Field(..., ge=0.0, le=1.0)
 
 # After
-@router.post("/endpoint")
-async def my_endpoint(
-    request: Request,
-    current_user: User = Depends(get_current_user)
-):
+overall_score: Optional[float] = Field(None, ge=0.0, le=1.0)
 ```
-
-**Serena Tools**:
-1. `find_symbol(name_path_pattern="my_endpoint")` - Locate function
-2. `get_symbols_overview` - Check file imports
-3. `replace_symbol_body` - Add auth parameter
 
 ---
 
-### Pattern: PII in Logs
-**Finding Type**: critical_security
-**Detection**: Logging with `email`, `password`, `ssn`, etc.
+## 6. Documentation: Docstring/Export Alignment
 
+**Pattern ID**: `DOC-001`
+**Risk Level**: Low
+**Auto-Fix Safe**: ✅ Yes
+
+### Problem
+Docstring usage examples reference symbols not in `__all__`.
+
+### Fix Options
+1. Update docstring to match actual exports
+2. Add missing symbols to `__all__`
+
+### Example Fix
 ```python
-# Before
-logger.info("User action", extra={"user_email": user.email})
-
-# After
-logger.info("User action", extra={"user_id": str(user.id)})
+"""
+Usage:
+    from src.core.ai import AIClient, EmbeddingClient, CompletionResponse
+"""
 ```
-
-**Serena Tools**:
-1. `search_for_pattern(substring_pattern="user_email|user\\.email")` - Find PII logging
-2. `replace_content` - Remove PII fields
 
 ---
 
-## Code Quality Patterns
+## 7. Python: Config Field Validators
 
-### Pattern: Thread Safety for Shared State
-**Finding Type**: potential_issue
-**Detection**: Mutable class attributes without locks
+**Pattern ID**: `PY-004`
+**Risk Level**: Low
+**Auto-Fix Safe**: ✅ Yes
 
+### Pattern
+Add validators for numeric/float config fields.
+
+### Template
 ```python
-# Before
-class Cache:
-    def __init__(self):
-        self._data = {}
-    
-    async def set(self, key, value):
-        self._data[key] = value
-
-# After
-class Cache:
-    def __init__(self):
-        self._data = {}
-        self._lock = asyncio.Lock()
-    
-    async def set(self, key, value):
-        async with self._lock:
-            self._data[key] = value
+@field_validator("FIELD_NAME")
+@classmethod
+def validate_field_name(cls, v):
+    if v < MIN or v > MAX:
+        raise ValueError(f"FIELD_NAME must be between {MIN} and {MAX}")
+    return v
 ```
 
-**Serena Tools**:
-1. `find_symbol(name_path_pattern="Cache")` - Locate class
-2. `get_symbols_overview(depth=1)` - List methods
-3. `replace_symbol_body` - Add lock to __init__ and methods
-
----
-
-### Pattern: Timezone-Naive Datetime
-**Finding Type**: potential_issue
-**Detection**: `datetime.fromisoformat()` without timezone check
-
-```python
-# Before
-created_at = datetime.fromisoformat(data["created_at"])
-
-# After
-created_at = datetime.fromisoformat(data["created_at"])
-if created_at.tzinfo is None:
-    created_at = created_at.replace(tzinfo=timezone.utc)
-```
-
-**Serena Tools**:
-1. `search_for_pattern(substring_pattern="fromisoformat")` - Find datetime parsing
-2. `replace_content` - Add timezone check
-
----
-
-### Pattern: Missing Pydantic Validators
-**Finding Type**: refactor_suggestion
-**Detection**: Numeric config fields without validation
-
-```python
-# Before
-class Settings(BaseSettings):
-    CACHE_TTL: int = 3600
-
-# After
-class Settings(BaseSettings):
-    CACHE_TTL: int = 3600
-    
-    @field_validator("CACHE_TTL")
-    @classmethod
-    def validate_cache_ttl(cls, v):
-        if v <= 0:
-            raise ValueError("CACHE_TTL must be positive")
-        return v
-```
-
-**Serena Tools**:
-1. `find_symbol(name_path_pattern="Settings")` - Locate settings class
-2. `insert_after_symbol` - Add validator after field
-
----
-
-## TypeScript/Frontend Patterns
-
-### Pattern: Comment-Code Inconsistency
-**Finding Type**: refactor_suggestion
-**Detection**: Comments that don't match implementation
-
-```typescript
-// Before
-// Fallback: use first 100 chars
-if (text.length <= 200) {
-
-// After
-// Fallback: use first 200 chars
-if (text.length <= 200) {
-```
-
-**Serena Tools**:
-1. `search_for_pattern` - Find inconsistent comments
-2. `replace_content` - Update comment
-
----
-
-### Pattern: Build Artifacts in Git
-**Finding Type**: refactor_suggestion
-**Detection**: `.tsbuildinfo`, `.cache`, etc. tracked in git
-
-**Fix Steps**:
-1. Add to `.gitignore`
-2. Run `git rm --cached <file>`
-
-**Serena Tools**:
-1. `read_file(".gitignore")` - Check current ignores
-2. `replace_content` - Add new ignore pattern
-3. `execute_shell_command("git rm --cached ...")` - Remove from tracking
+### Common Validations
+| Field Type | Min | Max |
+|------------|-----|-----|
+| max_messages | 1 | 1000 |
+| max_tokens | 1 | 200000 |
+| threshold (float) | 0.0 | 1.0 |
 
 ---
 
 ## Usage Guide
 
-### When to Use These Patterns
-1. CodeRabbit identifies an issue
-2. Check this memory for matching pattern
-3. Apply the fix using documented Serena tools
-4. Update `coderabbit_findings.md` with resolution
+### Applying a Pattern
 
-### Adding New Patterns
-When you discover a new fixable pattern:
-1. Document the before/after code
-2. List the Serena tools needed
-3. Add to appropriate category
-4. Test on sample code before adding
+1. **Identify pattern** from CodeRabbit finding type
+2. **Check auto-fix safety** in the table above
+3. **Use Serena tools**:
+   - `replace_content` with regex for simple patterns
+   - `replace_symbol_body` for function/method changes
+   - `insert_before_symbol` / `insert_after_symbol` for adding code
+
+### Example Workflow
+
+```
+1. Read issue from Linear: mcp__plugin_linear_linear__get_issue
+2. Read affected file: mcp__serena__read_file
+3. Find pattern match in this file
+4. Apply fix using appropriate Serena tool
+5. Verify with: mcp__serena__read_file (check changes)
+6. Update Linear: mcp__plugin_linear_linear__update_issue
+```
 
 ---
 
-## Pattern Statistics
+## Fix History
 
-| Category | Patterns | Auto-Fixable |
-|----------|----------|--------------|
-| Security | 3 | 3 |
-| Code Quality | 3 | 3 |
-| Frontend | 2 | 2 |
-| **Total** | **8** | **8** |
+| Date | Pattern | Issue | File | Status |
+|------|---------|-------|------|--------|
+| 2026-01-11 | SEC-001 | GOO-68 | .serena/memories/database_fixes_and_indexing.md | ✅ Fixed |
+| 2026-01-11 | BASH-001 | GOO-69 | scripts/verify-fix.sh | ✅ Fixed |
+| 2026-01-11 | PY-001 | GOO-70 | backend/src/services/thread_title_generator.py | ✅ Fixed |
+| 2026-01-11 | PY-003 | GOO-71 | backend/src/core/ai/schemas.py | ✅ Fixed |
+| 2026-01-11 | PY-002 | GOO-72 | backend/src/api/threads.py | ✅ Fixed |
+| 2026-01-11 | DOC-001 | GOO-73 | backend/src/core/ai/__init__.py | ✅ Fixed |
+| 2026-01-11 | PY-004 | GOO-74 | backend/src/core/config.py | ✅ Fixed |
+
+---
+
+*Last updated: 2026-01-11*

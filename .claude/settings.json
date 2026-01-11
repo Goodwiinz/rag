@@ -1,0 +1,17 @@
+{
+  "agents": {
+    "review-orchestrator": {
+      "enabled": true
+    },
+    "issue-creator": {
+      "enabled": true
+    },
+    "coderabbit-auto-fixer": {
+      "enabled": true
+    }
+  },
+  "memory": {
+    "enabled": true,
+    "path": ".serena/memories"
+  }
+}
