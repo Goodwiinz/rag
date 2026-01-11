@@ -4,6 +4,7 @@ Threads API endpoints for Terminal Observatory chat system.
 Provides REST endpoints for thread and message management.
 """
 
+import logging
 from typing import Optional, List
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -30,6 +31,8 @@ from ..schemas.chat import (
     CitationResponse,
     MessageAttachmentResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/threads", tags=["Threads"])
 

@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "created": "2026-01-11T01:57:27.598Z",
-  "updated": "2026-01-11T02:04:05.746Z",
+  "updated": "2026-01-11T02:25:41.217Z",
   "hashes": {
     "01c4064ecc9b4551": {
       "partition": "2026-01",
@@ -84,8 +84,8 @@
   },
   "byIssue": {},
   "stats": {
-    "totalFindings": 24,
+    "totalFindings": 40,
     "uniqueFindings": 8,
-    "duplicatesSkipped": 16
+    "duplicatesSkipped": 32
   }
 }
