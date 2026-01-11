@@ -98,7 +98,7 @@ def mock_qdrant_client():
     client.get_collection = Mock(return_value=Mock())
     client.delete_collection = Mock(return_value=Mock())
     client.count = Mock(return_value=Mock(count=0))
-    client.scroll = Mock(return_value=([], None)))
+    client.scroll = Mock(return_value=([], None))
 
     return client
 

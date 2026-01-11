@@ -23,6 +23,9 @@ services:
 
       # Application Configuration
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      # WARNING: Set JWT_SECRET_KEY in .env for production! Default is for development only.
+      # Generate with: openssl rand -base64 32
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-jwt-persistent-secret-key-32chars!}
       - ENVIRONMENT=development
       - DEBUG=true
       - LOG_LEVEL=DEBUG
@@ -232,6 +235,7 @@ services:
 
       # Application Configuration
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-jwt-persistent-secret-key-32chars!}
       - ENVIRONMENT=development
       - LOG_LEVEL=DEBUG
       - UPLOAD_DIR=/app/uploads
@@ -297,7 +301,8 @@ services:
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=password
       - QDRANT_URL=http://qdrant:6333
-      - SECRET_KEY=dev-secret-key-change-in-production
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-jwt-persistent-secret-key-32chars!}
       - ENVIRONMENT=development
       - LOG_LEVEL=DEBUG
     volumes:
@@ -324,7 +329,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag_dev
       - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=dev-secret-key-change-in-production
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-jwt-persistent-secret-key-32chars!}
       - ENVIRONMENT=development
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0

@@ -515,11 +515,16 @@ class ChatService:
         if not thread.conversation.workspace.can_user_edit(str(user_id)):
             return None
 
+        # Count tokens for the message
+        from ..utils.token_counter import count_message_tokens
+        message_token_count = count_message_tokens(data.content, data.role.value)
+
         message = ChatMessage(
             thread_id=data.thread_id,
             user_id=user_id if data.role == MessageRole.USER else None,
             role=data.role,
-            content=data.content
+            content=data.content,
+            token_count=message_token_count
         )
         self.db.add(message)
 
@@ -553,6 +558,7 @@ class ChatService:
 
         # Update thread stats
         thread.message_count += 1
+        thread.token_count += message_token_count
         thread.last_message_at = datetime.utcnow()
 
         # Update conversation activity
@@ -897,39 +903,86 @@ class ChatService:
         self,
         thread_id: UUID,
         user_id: UUID,
-        max_messages: int = 20,
-        max_tokens: int = 4000
-    ) -> List[dict]:
+        max_messages: Optional[int] = None,
+        max_tokens: Optional[int] = None,
+        model: Optional[str] = None
+    ) -> dict:
         """
         Get thread messages formatted for LLM context.
 
-        Returns messages in chronological order, limited by count or tokens.
+        Returns messages in chronological order, limited by count or tokens,
+        with metadata about context usage and truncation.
+
+        Args:
+            thread_id: Thread UUID
+            user_id: User UUID for access control
+            max_messages: Override default max messages (uses config if None)
+            max_tokens: Override default max tokens (uses config if None)
+            model: Model name for model-aware token limits
+
+        Returns:
+            Dictionary with messages and context metadata
         """
+        from ..core.config import settings
+        from ..utils.token_counter import count_tokens
+
+        # Use config defaults if not specified
+        effective_max_messages = max_messages or settings.THREAD_DEFAULT_MAX_MESSAGES
+        effective_max_tokens = max_tokens or settings.THREAD_DEFAULT_MAX_TOKENS
+
+        # If model specified, use model-aware token limit
+        if model and max_tokens is None:
+            model_key = model.lower()
+            for key, limit in settings.MODEL_CONTEXT_LIMITS.items():
+                if key in model_key:
+                    # Use 75% of model limit for context (leave room for response)
+                    effective_max_tokens = int(limit * 0.75)
+                    break
+
         thread = self.get_thread(thread_id, user_id, include_messages=True)
         if not thread:
-            return []
+            return {"messages": [], "metadata": {"truncated": False, "total_tokens": 0}}
 
         messages = []
         total_tokens = 0
+        all_message_count = len([m for m in thread.messages if not m.is_deleted])
+        truncated = False
 
         # Get messages in reverse order (newest first) for token limiting
         for msg in reversed(thread.messages):
             if msg.is_deleted:
                 continue
 
-            # Rough token estimate (4 chars per token)
-            msg_tokens = len(msg.content) // 4
+            # Use accurate token counting
+            msg_tokens = count_tokens(msg.content) if msg.content else 0
 
-            if total_tokens + msg_tokens > max_tokens:
+            if total_tokens + msg_tokens > effective_max_tokens:
+                truncated = True
                 break
 
             messages.insert(0, msg.to_llm_format())
             total_tokens += msg_tokens
 
-            if len(messages) >= max_messages:
+            if len(messages) >= effective_max_messages:
+                truncated = True
                 break
 
-        return messages
+        # Calculate context usage ratio for warning
+        usage_ratio = total_tokens / effective_max_tokens if effective_max_tokens > 0 else 0
+        approaching_limit = usage_ratio >= settings.THREAD_CONTEXT_WARN_THRESHOLD
+
+        return {
+            "messages": messages,
+            "metadata": {
+                "truncated": truncated,
+                "total_tokens": total_tokens,
+                "max_tokens": effective_max_tokens,
+                "message_count": len(messages),
+                "total_messages": all_message_count,
+                "usage_ratio": round(usage_ratio, 2),
+                "approaching_limit": approaching_limit,
+            }
+        }
 
     def search_conversations(
         self,

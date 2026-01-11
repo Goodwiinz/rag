@@ -47,6 +47,13 @@ class MessageType(Enum):
     DOCUMENT_PROCESSING = "document_processing"
     JOB_STATUS = "job_status"
     SYSTEM_NOTIFICATION = "system_notification"
+    # Thread activity events
+    THREAD_CREATED = "thread_created"
+    THREAD_UPDATED = "thread_updated"
+    THREAD_DELETED = "thread_deleted"
+    MESSAGE_CREATED = "message_created"
+    MESSAGE_UPDATED = "message_updated"
+    CONVERSATION_UPDATED = "conversation_updated"
 
 @dataclass
 class WebSocketMessage:

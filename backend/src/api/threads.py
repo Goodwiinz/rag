@@ -14,6 +14,7 @@ from ..core.dependencies import get_current_user
 from ..models.user import User
 from ..models.thread import ThreadStatus
 from ..services.chat_service import ChatService, get_chat_service
+from ..services.thread_event_service import thread_event_service
 from ..schemas.chat import (
     # Thread schemas
     ThreadCreate,
@@ -57,6 +58,17 @@ async def create_thread(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Conversation not found or insufficient permissions"
         )
+
+    # Broadcast thread creation event via WebSocket
+    try:
+        await thread_event_service.broadcast_thread_created(
+            thread_id=str(thread.id),
+            conversation_id=str(thread.conversation_id),
+            user_id=str(current_user.id),
+            title=thread.title,
+        )
+    except Exception as e:
+        logger.error(f"Failed to broadcast thread_created event: {e}")
 
     return ThreadResponse(
         id=thread.id,
@@ -183,6 +195,18 @@ async def update_thread(
             detail="Thread not found or insufficient permissions"
         )
 
+    # Broadcast thread update event via WebSocket
+    changes = data.model_dump(exclude_unset=True)
+    try:
+        await thread_event_service.broadcast_thread_updated(
+            thread_id=str(thread.id),
+            conversation_id=str(thread.conversation_id),
+            user_id=str(current_user.id),
+            changes=changes,
+        )
+    except Exception as e:
+        logger.error(f"Failed to broadcast thread_updated event: {e}")
+
     return ThreadResponse(
         id=thread.id,
         conversation_id=thread.conversation_id,
@@ -208,6 +232,16 @@ async def delete_thread(
     Delete a thread (soft delete).
     """
     service = get_chat_service(db)
+
+    # Get thread info before deletion for broadcasting
+    thread = service.get_thread(thread_id, current_user.id)
+    if not thread:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Thread not found or insufficient permissions"
+        )
+
+    conversation_id = str(thread.conversation_id)
     success = service.delete_thread(thread_id, current_user.id)
 
     if not success:
@@ -215,6 +249,13 @@ async def delete_thread(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Thread not found or insufficient permissions"
         )
+
+    # Broadcast thread deletion event via WebSocket
+    await thread_event_service.broadcast_thread_deleted(
+        thread_id=str(thread_id),
+        conversation_id=conversation_id,
+        user_id=str(current_user.id),
+    )
 
 
 @router.post("/{thread_id}/resolve", response_model=ThreadResponse)
@@ -334,6 +375,22 @@ async def create_message(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Thread not found or insufficient permissions"
         )
+
+    # Broadcast message creation event via WebSocket
+    try:
+        thread = service.get_thread(thread_id, current_user.id)
+        if thread:
+            await thread_event_service.broadcast_message_created(
+                message_id=str(message.id),
+                thread_id=str(thread_id),
+                conversation_id=str(thread.conversation_id),
+                user_id=str(current_user.id),
+                role=message.role.value if hasattr(message.role, 'value') else str(message.role),
+                content_preview=message.content[:100] if message.content else None,
+                has_citations=bool(message.citations),
+            )
+    except Exception as e:
+        logger.error(f"Failed to broadcast message_created event: {e}")
 
     return _format_message_response(message)
 

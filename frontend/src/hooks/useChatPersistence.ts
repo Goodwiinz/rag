@@ -74,25 +74,71 @@ interface UseChatPersistenceReturn {
 
 /**
  * Extract title from snippet content (for legacy citations without document_title)
- * Handles formats like "Title: Some Title Authors: ..." or plain text
+ * Handles various formats:
+ * - "Title: Some Title Authors: ..." (arXiv structured format)
+ * - "arXiv:2401.12345 - Paper Title" or "[2401.12345] Title"
+ * - "DOI: 10.xxxx/xxxxx - Title"
+ * - Plain text (first meaningful line)
  */
 function extractTitleFromSnippet(snippet?: string): string | null {
   if (!snippet) return null;
 
-  // Try to extract "Title: <title>" pattern (common in arXiv papers)
-  const titleMatch = snippet.match(/^Title:\s*(.+?)(?:\s*Authors:|$)/i);
+  const trimmedSnippet = snippet.trim();
+
+  // 1. Try to extract "Title: <title>" pattern (common in arXiv papers)
+  const titleMatch = trimmedSnippet.match(/^Title:\s*(.+?)(?:\s*Authors:|$)/i);
   if (titleMatch && titleMatch[1]) {
     return titleMatch[1].trim();
   }
 
-  // Fallback: use first line (up to 200 chars) as title
-  const firstLine = snippet.split('\n')[0].trim();
-  if (firstLine.length > 0 && firstLine.length <= 200) {
-    return firstLine;
+  // 2. Try arXiv ID formats: "arXiv:2401.12345 - Title" or "[2401.12345] Title"
+  const arxivPatterns = [
+    /arXiv:\d{4}\.\d{4,5}(?:v\d+)?\s*[-:]\s*(.+?)(?:\n|$)/i,
+    /\[\d{4}\.\d{4,5}(?:v\d+)?\]\s*(.+?)(?:\n|$)/,
+    /arXiv:\d{4}\.\d{4,5}(?:v\d+)?\s+(.+?)(?:\n|$)/i,
+  ];
+  for (const pattern of arxivPatterns) {
+    const match = trimmedSnippet.match(pattern);
+    if (match && match[1] && match[1].length > 5) {
+      const extracted = match[1].trim();
+      // Skip if it looks like an author list
+      if (!extracted.match(/^[A-Z][a-z]+(?:\s+[A-Z]\.?\s*)+(?:,|and)/)) {
+        return extracted.length > 150 ? extracted.slice(0, 147) + '...' : extracted;
+      }
+    }
   }
 
-  // Last resort: truncate snippet
-  return snippet.length > 80 ? snippet.slice(0, 80).trim() + '...' : snippet;
+  // 3. Try DOI format: "DOI: 10.xxxx/xxxxx" followed by title
+  const doiMatch = trimmedSnippet.match(/DOI:\s*10\.\S+\s*[-:]\s*(.+?)(?:\n|$)/i);
+  if (doiMatch && doiMatch[1] && doiMatch[1].length > 5) {
+    const extracted = doiMatch[1].trim();
+    return extracted.length > 150 ? extracted.slice(0, 147) + '...' : extracted;
+  }
+
+  // 4. Try to skip metadata lines and find first content line
+  const lines = trimmedSnippet.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  for (const line of lines) {
+    // Skip lines that look like metadata
+    if (line.match(/^(Authors?:|Date:|Published:|Source:|URL:|Abstract:)/i)) {
+      continue;
+    }
+    // Skip lines that are just IDs or URLs
+    if (line.match(/^(arXiv:|DOI:|https?:\/\/)/i)) {
+      continue;
+    }
+    // Skip very short lines (likely not titles)
+    if (line.length < 10) {
+      continue;
+    }
+    // Use this line as title
+    if (line.length <= 150) {
+      return line;
+    }
+    return line.slice(0, 147) + '...';
+  }
+
+  // 5. Last resort: truncate snippet
+  return trimmedSnippet.length > 80 ? trimmedSnippet.slice(0, 77) + '...' : trimmedSnippet;
 }
 
 /**

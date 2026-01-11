@@ -1,5 +1,25 @@
 # Suggested Commands for RAG_system
 
+## Document Indexing & Vector Database
+```bash
+# Index ArXiv papers to Qdrant
+source .venv/bin/activate
+python scripts/index_full_papers.py \
+  --dataset "backend/data/arxiv/evaluation_dataset_improved.json" \
+  --pdf-dir "backend/data/arxiv" \
+  --clear  # Optional: clears existing collection
+
+# Setup all databases (PostgreSQL, Neo4j, Qdrant, Redis)
+python scripts/setup_databases.py
+
+# Check Qdrant collections
+curl -s http://localhost:6333/collections | python3 -m json.tool
+
+# Check Neo4j (via Docker)
+docker exec docker-compose-neo4j-1 cypher-shell -u neo4j -p password \
+  "MATCH ()-[r]->() RETURN count(r) as relations"
+```
+
 ## Docker Services (Development)
 ```bash
 # Start all services

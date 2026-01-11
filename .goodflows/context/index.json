@@ -1,0 +1,91 @@
+{
+  "version": "1.0.0",
+  "created": "2026-01-11T01:57:27.598Z",
+  "updated": "2026-01-11T02:04:05.746Z",
+  "hashes": {
+    "01c4064ecc9b4551": {
+      "partition": "2026-01",
+      "type": "File"
+    },
+    "21d7d45123872d86": {
+      "partition": "2026-01",
+      "type": ".serena/memories/database_fixes_and_indexing.md"
+    },
+    "688da53859083935": {
+      "partition": "2026-01",
+      "type": "scripts/verify-fix.sh"
+    },
+    "9b0ec59d2b69259f": {
+      "partition": "2026-01",
+      "type": "backend/src/services/thread_title_generator.py"
+    },
+    "0e20b6d631787764": {
+      "partition": "2026-01",
+      "type": "backend/src/core/ai/schemas.py"
+    },
+    "a6f214abfa638a68": {
+      "partition": "2026-01",
+      "type": "backend/src/api/threads.py"
+    },
+    "c219c5679075d88f": {
+      "partition": "2026-01",
+      "type": "backend/src/core/ai/__init__.py"
+    },
+    "30e0e4db82927841": {
+      "partition": "2026-01",
+      "type": "backend/src/core/config.py"
+    }
+  },
+  "byFile": {
+    "Type": [
+      "01c4064ecc9b4551"
+    ],
+    "security": [
+      "21d7d45123872d86"
+    ],
+    "bug": [
+      "688da53859083935",
+      "9b0ec59d2b69259f",
+      "0e20b6d631787764",
+      "a6f214abfa638a68"
+    ],
+    "docs": [
+      "c219c5679075d88f"
+    ],
+    "refactor": [
+      "30e0e4db82927841"
+    ]
+  },
+  "byType": {
+    "File": [
+      "01c4064ecc9b4551"
+    ],
+    ".serena/memories/database_fixes_and_indexing.md": [
+      "21d7d45123872d86"
+    ],
+    "scripts/verify-fix.sh": [
+      "688da53859083935"
+    ],
+    "backend/src/services/thread_title_generator.py": [
+      "9b0ec59d2b69259f"
+    ],
+    "backend/src/core/ai/schemas.py": [
+      "0e20b6d631787764"
+    ],
+    "backend/src/api/threads.py": [
+      "a6f214abfa638a68"
+    ],
+    "backend/src/core/ai/__init__.py": [
+      "c219c5679075d88f"
+    ],
+    "backend/src/core/config.py": [
+      "30e0e4db82927841"
+    ]
+  },
+  "byIssue": {},
+  "stats": {
+    "totalFindings": 24,
+    "uniqueFindings": 8,
+    "duplicatesSkipped": 16
+  }
+}
