@@ -1,12 +1,12 @@
 # CodeRabbit Findings Log
 
-*Exported: 2026-01-11T02:25:36.794Z*
+*Exported: 2026-01-11T20:29:39.457Z*
 
 ## Summary
 
-- **Total Findings**: 32
+- **Total Findings**: 40
 - **Unique Findings**: 8
-- **Duplicates Skipped**: 24
+- **Duplicates Skipped**: 32
 
 ## Findings
 

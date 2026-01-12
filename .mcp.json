@@ -8,6 +8,11 @@
     "redis": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-redis", "redis://localhost:6379"]
+    },
+    "goodflows": {
+      "command": "npx",
+      "args": ["goodflows-mcp-server"],
+      "cwd": "/Users/goodwiinz/development/Myagent"
     }
   }
 }

@@ -116,52 +116,6 @@ When multiple findings are related:
 
 After creating issues, return structured response for orchestrator integration.
 
-## Receiving Invocations via Agent Registry
-
-When called by the orchestrator, you'll receive a validated invocation with session context:
-
-```javascript
-import { createAgentRegistry, PRIORITY_LEVELS, LABEL_MAPPING, TITLE_PREFIXES } from 'goodflows/lib';
-
-// Resume the session started by orchestrator
-const registry = createAgentRegistry();
-const session = registry.resumeSession(invocation.input.sessionId);
-
-// Read findings from shared context (written by orchestrator)
-const findings = registry.getContext('findings.all', invocation.input.findings);
-const criticalFindings = registry.getContext('findings.critical', []);
-
-// Process findings...
-const createdIssues = [];
-
-for (const finding of findings) {
-  // Use registry helpers for consistent labeling
-  const labels = LABEL_MAPPING[finding.type];
-  const priority = PRIORITY_LEVELS[finding.type];
-  const titlePrefix = TITLE_PREFIXES[finding.type];
-
-  // Create issue in Linear...
-  const issue = { id: 'GOO-31', title: '...' };
-  createdIssues.push(issue);
-}
-
-// Write results to shared context (readable by orchestrator and auto-fixer)
-registry.setContext('issues.created', createdIssues.map(i => i.id));
-registry.setContext('issues.details', createdIssues);
-
-// Add event to timeline
-session.addEvent('issues_created', { count: createdIssues.length });
-
-// Return structured result
-return {
-  agent: 'issue-creator',
-  status: 'success',
-  created: createdIssues,
-  duplicatesSkipped: 0,
-  sessionId: invocation.input.sessionId,
-};
-```
-
 ## Tools You Use
 
 ### Linear Integration

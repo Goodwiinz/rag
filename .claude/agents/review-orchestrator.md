@@ -154,36 +154,7 @@ Extract structured findings:
 
 ## Phase 2: Categorize & Prioritize
 
-Use the Priority Queue to ensure critical findings are processed first:
-
-```javascript
-import { createAgentRegistry, PRIORITY } from 'goodflows/lib';
-
-const registry = createAgentRegistry();
-
-// Create queue with findings (auto-sorted by priority)
-const queue = registry.createQueue(parsedFindings, {
-  throttleMs: 100,           // 100ms between API calls
-  priorityThreshold: PRIORITY.LOW,  // Include all priorities
-});
-
-// Queue automatically sorts:
-// 1. critical_security (P1 - Urgent)
-// 2. potential_issue (P2 - High)
-// 3. refactor_suggestion, performance (P3 - Normal)
-// 4. documentation (P4 - Low)
-
-console.log(registry.getQueueStats());
-// { pending: 10, byPriority: { urgent: 2, high: 3, normal: 4, low: 1 } }
-
-// Process in priority order
-while (!queue.isEmpty()) {
-  const finding = registry.nextFinding();  // Always gets highest priority
-  // finding.type === 'critical_security' first!
-}
-```
-
-### Priority Levels
+For each finding, determine priority:
 
 | Priority | Level | Criteria | Examples |
 |----------|-------|----------|----------|
@@ -213,71 +184,6 @@ Group related findings by:
 
 Delegate to the `issue-creator` agent for each finding or group:
 
-### Using the Agent Registry with Session Context
-
-Use the AgentRegistry with SessionContextManager for full context propagation:
-
-```javascript
-import { createAgentRegistry } from 'goodflows/lib';
-
-const registry = createAgentRegistry();
-
-// Start a session - creates shared context that persists across agents
-const sessionId = registry.startSession({
-  trigger: 'code-review',
-  branch: 'feature-x',
-});
-
-// Sort findings by priority (critical first)
-const sortedFindings = registry.sortByPriority(findings);
-
-// Store findings in shared context (accessible by all agents)
-registry.setContext('findings.all', sortedFindings);
-registry.setContext('findings.critical', sortedFindings.filter(f => f.type === 'critical_security'));
-
-// Create checkpoint before risky operations
-const checkpoint = registry.checkpoint('before_issue_creation');
-
-// Create validated invocation request
-const invocation = registry.createInvocation('issue-creator', {
-  findings: sortedFindings,
-  team: 'GOO',
-  options: { groupByFile: true, checkDuplicates: true },
-  sessionId,
-});
-
-// After issue-creator completes, read what it wrote to context
-const createdIssues = registry.getContext('issues.created', []);
-
-// If something went wrong, rollback to checkpoint
-if (createdIssues.length === 0) {
-  registry.rollback(checkpoint);
-}
-
-// End session when workflow completes
-registry.endSession({ totalIssues: createdIssues.length });
-```
-
-### How Session Context Works
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Session Context                          │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ context: {                                              │ │
-│  │   findings: { all: [...], critical: [...] }            │ │
-│  │   issues: { created: ['GOO-31'], failed: [] }          │ │
-│  │   fixes: { applied: [], pending: [] }                  │ │
-│  │ }                                                       │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                         ↑ ↓                                 │
-│  ┌──────────┐    ┌──────────────┐    ┌──────────────┐      │
-│  │Orchestrator│ → │ issue-creator │ → │  auto-fixer  │      │
-│  │ (writes)   │   │ (reads/writes)│   │(reads/writes)│      │
-│  └──────────┘    └──────────────┘    └──────────────┘      │
-└─────────────────────────────────────────────────────────────┘
-```
-
 ### Input to issue-creator
 
 ```json
@@ -287,8 +193,7 @@ registry.endSession({ totalIssues: createdIssues.length });
   "options": {
     "group_by_file": true,
     "check_duplicates": true
-  },
-  "sessionId": "session_xxx"
+  }
 }
 ```
 
@@ -300,8 +205,7 @@ registry.endSession({ totalIssues: createdIssues.length });
   "created": [
     {"id": "GOO-31", "title": "...", "priority": 1}
   ],
-  "duplicates_skipped": 0,
-  "sessionId": "session_xxx"
+  "duplicates_skipped": 0
 }
 ```
 

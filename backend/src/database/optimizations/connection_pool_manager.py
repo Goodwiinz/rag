@@ -18,6 +18,8 @@ import queue
 import weakref
 from concurrent.futures import ThreadPoolExecutor
 
+import os
+
 from .postgresql_optimizer import DatabaseConfig, OptimizationLevel
 from .neo4j_optimizer import Neo4jConfig, Neo4jOptimizationLevel
 from .redis_optimizer import RedisConfig, RedisOptimizationLevel
@@ -690,26 +692,26 @@ async def create_production_pool_manager() -> AdvancedConnectionPoolManager:
     """Create production-ready pool manager with optimized configurations"""
     manager = AdvancedConnectionPoolManager()
 
-    # Production configurations
+    # Production configurations using environment variables
     configs = {
         'postgresql': DatabaseConfig(
-            host="localhost",
-            port=5432,
-            user="raguser",
-            password="REDACTED",
-            database="ragdb",
+            host=os.environ.get("POSTGRES_HOST", "localhost"),
+            port=int(os.environ.get("POSTGRES_PORT", "5432")),
+            user=os.environ.get("POSTGRES_USER", "raguser"),
+            password=os.environ.get("POSTGRES_PASSWORD", ""),
+            database=os.environ.get("POSTGRES_DB", "ragdb"),
             optimization_level=OptimizationLevel.PRODUCTION
         ),
         'neo4j': Neo4jConfig(
-            uri="bolt://localhost:7687",
-            user="neo4j",
-            password="REDACTED",
+            uri=os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
+            user=os.environ.get("NEO4J_USER", "neo4j"),
+            password=os.environ.get("NEO4J_PASSWORD", ""),
             optimization_level=Neo4jOptimizationLevel.PRODUCTION
         ),
         'redis': RedisConfig(
-            host="localhost",
-            port=6379,
-            password="REDACTED",
+            host=os.environ.get("REDIS_HOST", "localhost"),
+            port=int(os.environ.get("REDIS_PORT", "6379")),
+            password=os.environ.get("REDIS_PASSWORD", ""),
             optimization_level=RedisOptimizationLevel.PRODUCTION
         ),
         # Qdrant client would be passed separately

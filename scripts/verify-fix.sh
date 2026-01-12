@@ -76,14 +76,24 @@ fi
 
 # Initialize results
 init_results() {
-    cat > "$RESULTS_FILE" << EOF
-{
-    "file": "$FILE_PATH",
-    "issue": "$ISSUE_ID",
-    "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+    # Use environment variables to avoid shell injection in JSON generation
+    INIT_FILE_PATH="$FILE_PATH" \
+    INIT_ISSUE_ID="$ISSUE_ID" \
+    INIT_RESULTS_FILE="$RESULTS_FILE" \
+    python3 << 'EOF'
+import json
+import os
+from datetime import datetime, timezone
+
+data = {
+    "file": os.environ.get("INIT_FILE_PATH", ""),
+    "issue": os.environ.get("INIT_ISSUE_ID", ""),
+    "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "checks": {},
     "overall": "pending"
 }
+with open(os.environ["INIT_RESULTS_FILE"], "w") as f:
+    json.dump(data, f, indent=2)
 EOF
 }
 
@@ -93,13 +103,24 @@ update_result() {
     local status="$2"
     local message="$3"
 
-    # Use Python for JSON manipulation (more reliable than jq in some environments)
-    python3 << EOF
+    # Use environment variables to avoid shell injection in JSON manipulation
+    UPDATE_RESULTS_FILE="$RESULTS_FILE" \
+    UPDATE_CHECK_NAME="$check_name" \
+    UPDATE_STATUS="$status" \
+    UPDATE_MESSAGE="$message" \
+    python3 << 'EOF'
 import json
-with open("$RESULTS_FILE", "r") as f:
+import os
+
+results_file = os.environ["UPDATE_RESULTS_FILE"]
+check_name = os.environ["UPDATE_CHECK_NAME"]
+status = os.environ["UPDATE_STATUS"]
+message = os.environ["UPDATE_MESSAGE"]
+
+with open(results_file, "r") as f:
     data = json.load(f)
-data["checks"]["$check_name"] = {"status": "$status", "message": "$message"}
-with open("$RESULTS_FILE", "w") as f:
+data["checks"][check_name] = {"status": status, "message": message}
+with open(results_file, "w") as f:
     json.dump(data, f, indent=2)
 EOF
 }
@@ -107,12 +128,21 @@ EOF
 # Finalize results
 finalize_results() {
     local overall="$1"
-    python3 << EOF
+
+    # Use environment variables to avoid shell injection in JSON manipulation
+    FINALIZE_RESULTS_FILE="$RESULTS_FILE" \
+    FINALIZE_OVERALL="$overall" \
+    python3 << 'EOF'
 import json
-with open("$RESULTS_FILE", "r") as f:
+import os
+
+results_file = os.environ["FINALIZE_RESULTS_FILE"]
+overall = os.environ["FINALIZE_OVERALL"]
+
+with open(results_file, "r") as f:
     data = json.load(f)
-data["overall"] = "$overall"
-with open("$RESULTS_FILE", "w") as f:
+data["overall"] = overall
+with open(results_file, "w") as f:
     json.dump(data, f, indent=2)
 EOF
 }

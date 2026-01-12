@@ -1,0 +1,40 @@
+{
+  "id": "session_1768165891850_bbfc3e92",
+  "state": "completed",
+  "metadata": {
+    "trigger": "coderabbit-fix",
+    "branch": "develop",
+    "user": null,
+    "config": {},
+    "workflow": "review-and-fix"
+  },
+  "timestamps": {
+    "created": "2026-01-11T21:11:31.850Z",
+    "started": null,
+    "updated": "2026-01-11T21:11:31.852Z",
+    "completed": "2026-01-12T00:05:52.018Z"
+  },
+  "context": {
+    "findings": {},
+    "issues": {},
+    "fixes": {},
+    "errors": [],
+    "custom": {}
+  },
+  "invocations": [],
+  "events": [],
+  "checkpoints": [],
+  "stats": {
+    "agentsInvoked": 0,
+    "findingsProcessed": 0,
+    "issuesCreated": 0,
+    "fixesApplied": 0,
+    "errorsEncountered": 0
+  },
+  "summary": {
+    "issuesFound": 3,
+    "issuesFixed": 2,
+    "issuesSkipped": 1,
+    "filesModified": 7
+  }
+}

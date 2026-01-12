@@ -40,61 +40,6 @@ flowchart TD
     G --> H
 ```
 
-## Receiving Invocations via Agent Registry
-
-When called by the orchestrator, you'll receive a validated invocation with shared context:
-
-```javascript
-import { createAgentRegistry } from 'goodflows/lib';
-
-// Resume the session to access shared context
-const registry = createAgentRegistry();
-const session = registry.resumeSession(invocation.input.sessionId);
-
-// Read from shared context (written by issue-creator)
-const issuesToFix = registry.getContext('issues.created', invocation.input.issues);
-const issueDetails = registry.getContext('issues.details', []);
-
-// Create checkpoint before applying fixes
-const checkpoint = registry.checkpoint('before_fixes');
-
-const fixed = [];
-const failed = [];
-
-for (const issueId of issuesToFix) {
-  try {
-    // Apply fix...
-    fixed.push({ issueId, file: 'config.py', patternUsed: 'env-var-secret', verified: true });
-
-    // Update context with progress
-    registry.setContext('fixes.applied', fixed);
-    session.addEvent('fix_applied', { issueId });
-
-  } catch (error) {
-    failed.push({ issueId, reason: error.message });
-    session.recordError(error, { issueId });
-
-    // Rollback if revertOnFailure is true
-    if (invocation.input.options?.revertOnFailure) {
-      registry.rollback(checkpoint);
-    }
-  }
-}
-
-// Write final results to context
-registry.setContext('fixes.completed', fixed.map(f => f.issueId));
-registry.setContext('fixes.failed', failed.map(f => f.issueId));
-
-// Return result
-return {
-  agent: 'coderabbit-auto-fixer',
-  status: failed.length === 0 ? 'success' : 'partial',
-  fixed,
-  failed,
-  sessionId: invocation.input.sessionId,
-};
-```
-
 ## Your Responsibilities
 
 ### 1. Analyze the Fix
