@@ -80,65 +80,81 @@ interface UseChatPersistenceReturn {
  * - "DOI: 10.xxxx/xxxxx - Title"
  * - Plain text (first meaningful line)
  */
+
+// Pattern configuration for title extraction
+const TITLE_PATTERNS: Array<{
+  pattern: RegExp;
+  group: number;
+  minLength?: number;
+  skipAuthorCheck?: boolean;
+}> = [
+  // "Title: <title>" pattern (common in arXiv papers)
+  { pattern: /^Title:\s*(.+?)(?:\s*Authors:|$)/i, group: 1, skipAuthorCheck: true },
+  // arXiv ID formats: "arXiv:2401.12345 - Title"
+  { pattern: /arXiv:\d{4}\.\d{4,5}(?:v\d+)?\s*[-:]\s*(.+?)(?:\n|$)/i, group: 1, minLength: 5 },
+  // arXiv bracket format: "[2401.12345] Title"
+  { pattern: /\[\d{4}\.\d{4,5}(?:v\d+)?\]\s*(.+?)(?:\n|$)/, group: 1, minLength: 5 },
+  // arXiv with space: "arXiv:2401.12345 Title"
+  { pattern: /arXiv:\d{4}\.\d{4,5}(?:v\d+)?\s+(.+?)(?:\n|$)/i, group: 1, minLength: 5 },
+  // DOI format: "DOI: 10.xxxx/xxxxx - Title"
+  { pattern: /DOI:\s*10\.\S+\s*[-:]\s*(.+?)(?:\n|$)/i, group: 1, minLength: 5 },
+];
+
+// Metadata patterns to skip when looking for title lines
+const METADATA_SKIP_PATTERNS = [
+  /^(Authors?:|Date:|Published:|Source:|URL:|Abstract:)/i,
+  /^(arXiv:|DOI:|https?:\/\/)/i,
+];
+
+/**
+ * Truncate text to max length with ellipsis
+ */
+function truncateTitle(text: string, maxLength: number = 150): string {
+  return text.length > maxLength ? text.slice(0, maxLength - 3) + '...' : text;
+}
+
+/**
+ * Check if text looks like an author list
+ */
+function looksLikeAuthorList(text: string): boolean {
+  return /^[A-Z][a-z]+(?:\s+[A-Z]\.?\s*)+(?:,|and)/.test(text);
+}
+
 function extractTitleFromSnippet(snippet?: string): string | null {
   if (!snippet) return null;
 
   const trimmedSnippet = snippet.trim();
+  if (!trimmedSnippet) return null;
 
-  // 1. Try to extract "Title: <title>" pattern (common in arXiv papers)
-  const titleMatch = trimmedSnippet.match(/^Title:\s*(.+?)(?:\s*Authors:|$)/i);
-  if (titleMatch && titleMatch[1]) {
-    return titleMatch[1].trim();
-  }
-
-  // 2. Try arXiv ID formats: "arXiv:2401.12345 - Title" or "[2401.12345] Title"
-  const arxivPatterns = [
-    /arXiv:\d{4}\.\d{4,5}(?:v\d+)?\s*[-:]\s*(.+?)(?:\n|$)/i,
-    /\[\d{4}\.\d{4,5}(?:v\d+)?\]\s*(.+?)(?:\n|$)/,
-    /arXiv:\d{4}\.\d{4,5}(?:v\d+)?\s+(.+?)(?:\n|$)/i,
-  ];
-  for (const pattern of arxivPatterns) {
+  // Try configured patterns
+  for (const { pattern, group, minLength = 0, skipAuthorCheck = false } of TITLE_PATTERNS) {
     const match = trimmedSnippet.match(pattern);
-    if (match && match[1] && match[1].length > 5) {
-      const extracted = match[1].trim();
-      // Skip if it looks like an author list
-      if (!extracted.match(/^[A-Z][a-z]+(?:\s+[A-Z]\.?\s*)+(?:,|and)/)) {
-        return extracted.length > 150 ? extracted.slice(0, 147) + '...' : extracted;
+    if (match?.[group] && match[group].length > minLength) {
+      const extracted = match[group].trim();
+      // Skip if it looks like an author list (unless configured to skip this check)
+      if (!skipAuthorCheck && looksLikeAuthorList(extracted)) {
+        continue;
       }
+      return truncateTitle(extracted);
     }
   }
 
-  // 3. Try DOI format: "DOI: 10.xxxx/xxxxx" followed by title
-  const doiMatch = trimmedSnippet.match(/DOI:\s*10\.\S+\s*[-:]\s*(.+?)(?:\n|$)/i);
-  if (doiMatch && doiMatch[1] && doiMatch[1].length > 5) {
-    const extracted = doiMatch[1].trim();
-    return extracted.length > 150 ? extracted.slice(0, 147) + '...' : extracted;
-  }
-
-  // 4. Try to skip metadata lines and find first content line
+  // Fallback: Try to skip metadata lines and find first content line
   const lines = trimmedSnippet.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   for (const line of lines) {
-    // Skip lines that look like metadata
-    if (line.match(/^(Authors?:|Date:|Published:|Source:|URL:|Abstract:)/i)) {
-      continue;
-    }
-    // Skip lines that are just IDs or URLs
-    if (line.match(/^(arXiv:|DOI:|https?:\/\/)/i)) {
+    // Skip lines matching metadata patterns
+    if (METADATA_SKIP_PATTERNS.some(p => p.test(line))) {
       continue;
     }
     // Skip very short lines (likely not titles)
     if (line.length < 10) {
       continue;
     }
-    // Use this line as title
-    if (line.length <= 150) {
-      return line;
-    }
-    return line.slice(0, 147) + '...';
+    return truncateTitle(line);
   }
 
-  // 5. Last resort: truncate snippet
-  return trimmedSnippet.length > 80 ? trimmedSnippet.slice(0, 77) + '...' : trimmedSnippet;
+  // Last resort: truncate snippet
+  return truncateTitle(trimmedSnippet, 80);
 }
 
 /**

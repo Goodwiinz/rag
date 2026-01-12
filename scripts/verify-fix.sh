@@ -11,7 +11,7 @@
 # 5. Reports results
 # 6. Optionally rolls back on failure
 
-set -e
+# Note: set -e removed - script uses explicit error handling to run all checks
 
 # Colors for output
 RED='\033[0;31m'
@@ -28,7 +28,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 FILE_PATH=""
 ISSUE_ID=""
 ROLLBACK_ON_FAIL=false
-VERBOSE=false
+# VERBOSE mode not currently implemented - see --verbose/-v option
 RESULTS_FILE="/tmp/verify-fix-results.json"
 
 # Parse arguments
@@ -246,8 +246,11 @@ check_python() {
             print_result "pass" "Tests (pytest)"
             update_result "tests" "pass" "Tests passed"
         else
-            # Check if no tests matched (which is OK)
-            if pytest "$test_dir" --collect-only -q -k "$module_name" 2>/dev/null | grep -q "no tests ran"; then
+            # Check if no tests matched (which is OK) or if tests actually failed
+            local collected_tests
+            collected_tests=$(pytest "$test_dir" --collect-only -q -k "$module_name" 2>/dev/null | grep -c "<" || echo "0")
+            
+            if [[ "$collected_tests" -eq 0 ]]; then
                 print_result "skip" "Tests (no matching tests found)"
                 update_result "tests" "skip" "No matching tests"
             else

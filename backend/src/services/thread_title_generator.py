@@ -40,7 +40,7 @@ async def generate_ai_title(message_content: str, timeout: float = 5.0) -> Optio
         Generated title or None if generation fails/times out
     """
     if not message_content or len(message_content.strip()) < 5:
-        return None
+        return "New Thread"  # Consistent with generate_title_sync
 
     # Truncate very long messages to avoid token limits
     truncated = message_content[:500] if len(message_content) > 500 else message_content

@@ -28,6 +28,41 @@ class ThreadEventService:
     def __init__(self):
         self._manager = connection_manager
 
+    async def _broadcast_to_channels(
+        self, 
+        channels: list[str], 
+        message: WebSocketMessage
+    ) -> None:
+        """Broadcast message to multiple channels with recipient deduplication.
+        
+        This prevents duplicate messages to clients subscribed to multiple channels.
+        
+        Args:
+            channels: List of channel names to broadcast to
+            message: WebSocket message to send
+        """
+        # Track which connection IDs have already received the message
+        sent_to: set[str] = set()
+        
+        for channel in channels:
+            # Add channel to target channels if not already present
+            if channel not in message.target_channels:
+                message.target_channels.append(channel)
+            
+            # Get subscribers for this channel
+            subscriber_ids = self._manager.channel_subscribers.get(channel, set())
+            
+            # Send only to subscribers we haven't sent to yet
+            for connection_id in subscriber_ids:
+                if connection_id in sent_to:
+                    continue  # Skip - already received message
+                    
+                if connection_id in self._manager.active_connections:
+                    connection_info = self._manager.active_connections[connection_id]
+                    if connection_info.should_receive_message(message):
+                        await self._manager.send_message_to_connection(connection_id, message)
+                        sent_to.add(connection_id)
+
     async def broadcast_thread_created(
         self,
         thread_id: str,
@@ -61,13 +96,10 @@ class ThreadEventService:
             ],
         )
 
-        # Broadcast to conversation channel
-        await self._manager.broadcast_to_channel(
-            f"conversation:{conversation_id}", message
-        )
-        # Also broadcast to user's thread channel
-        await self._manager.broadcast_to_channel(
-            f"user:{user_id}:threads", message
+        # Broadcast to all channels with deduplication
+        await self._broadcast_to_channels(
+            [f"conversation:{conversation_id}", f"user:{user_id}:threads"],
+            message
         )
 
         logger.debug(
@@ -104,11 +136,9 @@ class ThreadEventService:
             ],
         )
 
-        await self._manager.broadcast_to_channel(
-            f"thread:{thread_id}", message
-        )
-        await self._manager.broadcast_to_channel(
-            f"conversation:{conversation_id}", message
+        await self._broadcast_to_channels(
+            [f"thread:{thread_id}", f"conversation:{conversation_id}"],
+            message
         )
 
         logger.debug(
@@ -142,11 +172,9 @@ class ThreadEventService:
             ],
         )
 
-        await self._manager.broadcast_to_channel(
-            f"thread:{thread_id}", message
-        )
-        await self._manager.broadcast_to_channel(
-            f"conversation:{conversation_id}", message
+        await self._broadcast_to_channels(
+            [f"thread:{thread_id}", f"conversation:{conversation_id}"],
+            message
         )
 
         logger.debug(
@@ -192,11 +220,9 @@ class ThreadEventService:
             ],
         )
 
-        await self._manager.broadcast_to_channel(
-            f"thread:{thread_id}", message
-        )
-        await self._manager.broadcast_to_channel(
-            f"conversation:{conversation_id}", message
+        await self._broadcast_to_channels(
+            [f"thread:{thread_id}", f"conversation:{conversation_id}"],
+            message
         )
 
         logger.debug(
@@ -233,11 +259,9 @@ class ThreadEventService:
             ],
         )
 
-        await self._manager.broadcast_to_channel(
-            f"thread:{thread_id}", message
-        )
-        await self._manager.broadcast_to_channel(
-            f"conversation:{conversation_id}", message
+        await self._broadcast_to_channels(
+            [f"thread:{thread_id}", f"conversation:{conversation_id}"],
+            message
         )
 
         logger.debug(
@@ -271,11 +295,9 @@ class ThreadEventService:
             ],
         )
 
-        await self._manager.broadcast_to_channel(
-            f"conversation:{conversation_id}", message
-        )
-        await self._manager.broadcast_to_channel(
-            f"user:{user_id}:threads", message
+        await self._broadcast_to_channels(
+            [f"conversation:{conversation_id}", f"user:{user_id}:threads"],
+            message
         )
 
         logger.debug(

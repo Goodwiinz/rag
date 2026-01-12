@@ -173,6 +173,16 @@ class LLMResponseCache:
             "sets": 0,
             "errors": 0,
         }
+
+    async def _increment_stat(self, key: str, amount: int = 1) -> None:
+        """Thread-safe stat increment.
+        
+        Args:
+            key: The stat key to increment (e.g., 'exact_hits', 'misses')
+            amount: Amount to increment by (default 1)
+        """
+        async with self._lock:
+            self._stats[key] += amount
         
     async def _get_redis(self):
         """Get or create Redis client."""
@@ -420,15 +430,12 @@ class LLMResponseCache:
                             "retrieved_contexts": semantic_match.retrieved_contexts,
                         }
             
-            # Use lock for thread-safe stats update
-            async with self._lock:
-                self._stats["misses"] += 1
+            await self._increment_stat("misses")
             return None
             
         except Exception as e:
             logger.error(f"LLM cache get error: {e}")
-            async with self._lock:
-                self._stats["errors"] += 1
+            await self._increment_stat("errors")
             return None
     
     async def set(
@@ -508,15 +515,13 @@ class LLMResponseCache:
                 except Exception as e:
                     logger.warning(f"Redis set error: {e}")
             
-            async with self._lock:
-                self._stats["sets"] += 1
+            await self._increment_stat("sets")
             logger.debug(f"LLM response cached with key {query_hash[:8]}...")
             return True
             
         except Exception as e:
             logger.error(f"LLM cache set error: {e}")
-            async with self._lock:
-                self._stats["errors"] += 1
+            await self._increment_stat("errors")
             return False
     
     async def _evict_entries(self):

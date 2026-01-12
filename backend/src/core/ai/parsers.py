@@ -117,13 +117,17 @@ def extract_score_from_text(text: str) -> Optional[float]:
     if percent_match:
         return float(percent_match.group(1)) / 100.0
     
-    # Pattern 3: Decimal numbers between 0 and 1
-    decimal_matches = re.findall(r'0?\.\d+|1\.0|0|1', text)
+    # Pattern 3: Decimal numbers between 0 and 1 with word boundaries
+    # Use word boundaries to avoid matching version numbers like "3.14" or partial numbers
+    decimal_matches = re.findall(r'\b(0\.\d+|1\.0(?!\d)|0(?!\.\d)|1(?!\.\d))\b', text)
     if decimal_matches:
         for match in decimal_matches:
-            value = float(match)
-            if 0.0 <= value <= 1.0:
-                return value
+            try:
+                value = float(match)
+                if 0.0 <= value <= 1.0:
+                    return value
+            except ValueError:
+                continue
     
     return None
 
@@ -194,49 +198,89 @@ def parse_ai_response(
             return _create_fallback_response(schema, fallback_score, f"Validation failed: {e}")
 
 
+def _get_field_default(field_name: str, fallback_score: float = 0.5) -> Any:
+    """Get default value for a schema field.
+    
+    Centralized source of truth for default values used in fallback responses.
+    
+    Args:
+        field_name: The name of the schema field.
+        fallback_score: The score to use for 'score' field.
+        
+    Returns:
+        Default value for the field, or None if no default defined.
+    """
+    defaults = {
+        "score": fallback_score,
+        "confidence": 0.3,
+        "reasoning": "Fallback value",
+        "criteria": "unknown",
+    }
+    return defaults.get(field_name)
+
+
 def _create_fallback_response(
     schema: Type[T],
     score: float,
     reasoning: str,
     confidence: float = 0.1
 ) -> T:
-    """Create a fallback response when parsing fails."""
-    # Check if schema has these fields
+    """Create a fallback response when parsing fails.
+    
+    Always validates data to ensure schema constraints are met.
+    Never bypasses Pydantic validation.
+    """
     fields = schema.model_fields
+    
+    # Clamp values to valid ranges to ensure validation passes
+    clamped_score = max(0.0, min(1.0, score))
+    clamped_confidence = max(0.0, min(1.0, confidence))
+    clean_reasoning = (reasoning[:2000].strip() if reasoning else "Fallback response - original parsing failed")
+    
+    # Ensure reasoning is not empty (min_length=1 constraint)
+    if not clean_reasoning:
+        clean_reasoning = "Fallback response"
     
     data: Dict[str, Any] = {}
     
+    # Use centralized defaults, with overrides for provided values
     if "score" in fields:
-        data["score"] = score
+        data["score"] = clamped_score
     if "reasoning" in fields:
-        data["reasoning"] = reasoning[:2000] if reasoning else "Fallback response"
+        data["reasoning"] = clean_reasoning
     if "confidence" in fields:
-        data["confidence"] = confidence
+        data["confidence"] = clamped_confidence
     if "criteria" in fields:
-        data["criteria"] = "unknown"
+        data["criteria"] = _get_field_default("criteria")
+    
+    logger.warning(
+        f"Using fallback response for schema {schema.__name__}: "
+        f"score={clamped_score}, confidence={clamped_confidence}"
+    )
     
     try:
         return schema.model_validate(data)
-    except ValidationError:
-        # Last resort: try to construct with minimal valid data
-        return schema.model_construct(**data)
+    except ValidationError as e:
+        logger.error(
+            f"Fallback validation failed for {schema.__name__}: {e}. "
+            f"Data: {data}. This should not happen - check schema requirements."
+        )
+        raise AIResponseParseError(
+            f"Cannot create valid fallback for {schema.__name__}: {e}",
+            str(data),
+            e
+        )
 
 
 def _fill_missing_fields(schema: Type[T], data: Dict[str, Any], fallback_score: float) -> T:
     """Fill in missing required fields with defaults."""
     fields = schema.model_fields
     
-    for field_name, field_info in fields.items():
+    for field_name in fields:
         if field_name not in data:
-            # Add default based on field type
-            if field_name == "score":
-                data[field_name] = fallback_score
-            elif field_name == "confidence":
-                data[field_name] = 0.3
-            elif field_name == "reasoning":
-                data[field_name] = "Fallback value"
-            elif field_name == "criteria":
-                data[field_name] = "unknown"
+            default = _get_field_default(field_name, fallback_score)
+            if default is not None:
+                data[field_name] = default
     
     return schema.model_validate(data)
 
