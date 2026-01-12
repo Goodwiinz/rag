@@ -52,6 +52,7 @@ from src.api.arxiv_bulk import router as arxiv_bulk_router
 from src.api.arxiv_llm_bulk import router as arxiv_llm_bulk_router
 from src.api.chat import router as chat_router
 from src.api.workspaces import router as workspaces_router, standalone_router as workspaces_standalone_router
+from src.api.export import router as export_router
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.core.database import engine
 # from src.services.file_service import redis_client  # Not exported, not needed here
@@ -256,6 +257,7 @@ app.include_router(arxiv_llm_bulk_router, prefix="/api/v1")  # LLM-powered bulk 
 app.include_router(chat_router, prefix="/api/v1")  # Chat completion endpoints
 app.include_router(workspaces_router)  # Thread-centric workspace/conversation/thread/message API
 app.include_router(workspaces_standalone_router)  # Flat API routes for workspaces (used by frontend)
+app.include_router(export_router, prefix="/api/v1")  # Thread export endpoints
 
 # Health check endpoint
 @app.get("/health")

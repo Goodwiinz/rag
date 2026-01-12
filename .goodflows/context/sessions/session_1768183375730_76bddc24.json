@@ -1,0 +1,84 @@
+{
+  "id": "session_1768183375730_76bddc24",
+  "state": "completed",
+  "metadata": {
+    "trigger": "bug-fix",
+    "branch": null,
+    "user": null,
+    "config": {},
+    "issue": "GOO-81",
+    "error": "Cannot read properties of undefined (reading 'post')",
+    "file": "frontend/src/services/export-service.ts"
+  },
+  "timestamps": {
+    "created": "2026-01-12T02:02:55.731Z",
+    "started": null,
+    "updated": "2026-01-12T02:02:55.731Z",
+    "completed": "2026-01-12T02:03:49.569Z"
+  },
+  "context": {
+    "findings": {},
+    "issues": {},
+    "fixes": {},
+    "errors": [],
+    "custom": {}
+  },
+  "invocations": [],
+  "events": [],
+  "checkpoints": [],
+  "stats": {
+    "agentsInvoked": 0,
+    "findingsProcessed": 0,
+    "issuesCreated": 0,
+    "fixesApplied": 0,
+    "errorsEncountered": 0
+  },
+  "tracking": {
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    },
+    "issues": {
+      "created": [],
+      "fixed": [],
+      "skipped": [],
+      "failed": []
+    },
+    "findings": [],
+    "work": [],
+    "currentWork": null
+  },
+  "summary": {
+    "totalIssues": 0,
+    "issuesCreated": 0,
+    "fixed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "filesCreated": 0,
+    "filesModified": 0,
+    "filesTotal": 0,
+    "findingsProcessed": 0,
+    "errorsEncountered": 0,
+    "agentsInvoked": 0,
+    "duration": 54,
+    "bug": "Wrong import name apiClient vs api",
+    "fix": "Changed to correct import",
+    "issueId": "GOO-81",
+    "_derived": {
+      "totalIssues": 0,
+      "issuesCreated": 0,
+      "fixed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "filesCreated": 0,
+      "filesModified": 0,
+      "filesTotal": 0,
+      "findingsProcessed": 0,
+      "errorsEncountered": 0,
+      "agentsInvoked": 0,
+      "duration": 54
+    },
+    "_hasConflicts": false
+  }
+}
