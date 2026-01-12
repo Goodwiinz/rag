@@ -33,13 +33,15 @@ class Neo4jOptimizationLevel(str, Enum):
     HIGH_VOLUME = "high_volume"
 
 
+import os
+
 @dataclass
 class Neo4jConfig:
     """Neo4j configuration for optimization"""
-    uri: str = "bolt://localhost:7687"
-    user: str = "neo4j"
-    password: str = "neo4j_password_123"
-    database: str = "neo4j"
+    uri: str = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
+    user: str = os.environ.get("NEO4J_USER", "neo4j")
+    password: str = os.environ.get("NEO4J_PASSWORD", "")
+    database: str = os.environ.get("NEO4J_DATABASE", "neo4j")
     max_connection_lifetime: int = 3600
     max_connection_pool_size: int = 100
     connection_timeout: int = 30
@@ -89,7 +91,6 @@ class Neo4jOptimizer:
             max_transaction_retry_time=self.config.max_transaction_retry_time,
             # Optimized driver settings
             keep_alive=True,
-            max_transaction_retry_time=30,
             fetch_size=1000,
             trust="TRUST_ALL_CERTIFICATES" if "localhost" in self.config.uri else "TRUST_SYSTEM_CA_SIGNED_CERTIFICATES"
         )
@@ -743,10 +744,10 @@ class Neo4jOptimizer:
 async def create_neo4j_optimizer() -> Neo4jOptimizer:
     """Create and initialize Neo4j optimizer"""
     config = Neo4jConfig(
-        uri="bolt://localhost:7687",
-        user="neo4j",
-        password="neo4j_password_123",
-        database="neo4j",
+        uri=os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
+        user=os.environ.get("NEO4J_USER", "neo4j"),
+        password=os.environ.get("NEO4J_PASSWORD", ""),
+        database=os.environ.get("NEO4J_DATABASE", "neo4j"),
         max_connection_pool_size=50,
         optimization_level=Neo4jOptimizationLevel.PRODUCTION
     )

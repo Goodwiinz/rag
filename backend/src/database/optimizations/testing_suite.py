@@ -19,6 +19,11 @@ import numpy as np
 import tempfile
 import os
 
+# Environment variable helpers for test configurations
+def _get_env_or_default(key: str, default: str) -> str:
+    """Get environment variable or return default value"""
+    return os.environ.get(key, default)
+
 logger = logging.getLogger(__name__)
 
 
@@ -350,11 +355,11 @@ class DatabaseTestRunner:
 
         try:
             conn = await asyncpg.connect(
-                host="localhost",
-                port=5432,
-                user="raguser",
-                password="rag_password_123",
-                database="ragdb"
+                host=_get_env_or_default("POSTGRES_HOST", "localhost"),
+                port=int(_get_env_or_default("POSTGRES_PORT", "5432")),
+                user=_get_env_or_default("POSTGRES_USER", "raguser"),
+                password=_get_env_or_default("POSTGRES_PASSWORD", ""),
+                database=_get_env_or_default("POSTGRES_DB", "ragdb")
             )
 
             # Test basic query
@@ -384,11 +389,11 @@ class DatabaseTestRunner:
 
         try:
             conn = await asyncpg.connect(
-                host="localhost",
-                port=5432,
-                user="raguser",
-                password="rag_password_123",
-                database="ragdb"
+                host=_get_env_or_default("POSTGRES_HOST", "localhost"),
+                port=int(_get_env_or_default("POSTGRES_PORT", "5432")),
+                user=_get_env_or_default("POSTGRES_USER", "raguser"),
+                password=_get_env_or_default("POSTGRES_PASSWORD", ""),
+                database=_get_env_or_default("POSTGRES_DB", "ragdb")
             )
 
             # Test query performance
@@ -452,11 +457,11 @@ class DatabaseTestRunner:
         import asyncpg
 
         conn = await asyncpg.connect(
-            host="localhost",
-            port=5432,
-            user="raguser",
-            password="rag_password_123",
-            database="ragdb"
+            host=_get_env_or_default("POSTGRES_HOST", "localhost"),
+            port=int(_get_env_or_default("POSTGRES_PORT", "5432")),
+            user=_get_env_or_default("POSTGRES_USER", "raguser"),
+            password=_get_env_or_default("POSTGRES_PASSWORD", ""),
+            database=_get_env_or_default("POSTGRES_DB", "ragdb")
         )
 
         try:
@@ -473,8 +478,8 @@ class DatabaseTestRunner:
             from neo4j import AsyncGraphDatabase
 
             driver = AsyncGraphDatabase.driver(
-                "bolt://localhost:7687",
-                auth=("neo4j", "neo4j_password_123")
+                _get_env_or_default("NEO4J_URI", "bolt://localhost:7687"),
+                auth=(_get_env_or_default("NEO4J_USER", "neo4j"), _get_env_or_default("NEO4J_PASSWORD", ""))
             )
 
             async with driver.session() as session:
@@ -498,8 +503,8 @@ class DatabaseTestRunner:
             from neo4j import AsyncGraphDatabase
 
             driver = AsyncGraphDatabase.driver(
-                "bolt://localhost:7687",
-                auth=("neo4j", "neo4j_password_123")
+                _get_env_or_default("NEO4J_URI", "bolt://localhost:7687"),
+                auth=(_get_env_or_default("NEO4J_USER", "neo4j"), _get_env_or_default("NEO4J_PASSWORD", ""))
             )
 
             async with driver.session() as session:
@@ -539,9 +544,9 @@ class DatabaseTestRunner:
             import redis.asyncio as redis
 
             client = redis.Redis(
-                host="localhost",
-                port=6379,
-                password="redis_password_123",
+                host=_get_env_or_default("REDIS_HOST", "localhost"),
+                port=int(_get_env_or_default("REDIS_PORT", "6379")),
+                password=_get_env_or_default("REDIS_PASSWORD", "") or None,
                 decode_responses=True
             )
 
@@ -571,9 +576,9 @@ class DatabaseTestRunner:
             import redis.asyncio as redis
 
             client = redis.Redis(
-                host="localhost",
-                port=6379,
-                password="redis_password_123",
+                host=_get_env_or_default("REDIS_HOST", "localhost"),
+                port=int(_get_env_or_default("REDIS_PORT", "6379")),
+                password=_get_env_or_default("REDIS_PASSWORD", "") or None,
                 decode_responses=True
             )
 

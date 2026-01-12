@@ -72,6 +72,7 @@ from .testing_suite import (
 
 import asyncio
 import logging
+import os
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
@@ -460,35 +461,35 @@ class DatabaseOptimizationManager:
             logger.error(f"Error during shutdown: {e}")
 
     def _get_default_config(self) -> Dict[str, Any]:
-        """Get default configuration for all databases"""
+        """Get default configuration for all databases using environment variables"""
         return {
             'postgresql': {
-                'host': 'localhost',
-                'port': 5432,
-                'user': 'raguser',
-                'password': 'rag_password_123',
-                'database': 'ragdb',
+                'host': os.environ.get("POSTGRES_HOST", "localhost"),
+                'port': int(os.environ.get("POSTGRES_PORT", "5432")),
+                'user': os.environ.get("POSTGRES_USER", "raguser"),
+                'password': os.environ.get("POSTGRES_PASSWORD", ""),
+                'database': os.environ.get("POSTGRES_DB", "ragdb"),
                 'pool_size': 50,
                 'optimization_level': 'production'
             },
             'neo4j': {
-                'uri': 'bolt://localhost:7687',
-                'user': 'neo4j',
-                'password': 'neo4j_password_123',
-                'database': 'neo4j',
+                'uri': os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
+                'user': os.environ.get("NEO4J_USER", "neo4j"),
+                'password': os.environ.get("NEO4J_PASSWORD", ""),
+                'database': os.environ.get("NEO4J_DATABASE", "neo4j"),
                 'max_connection_pool_size': 50,
                 'optimization_level': 'production'
             },
             'redis': {
-                'host': 'localhost',
-                'port': 6379,
-                'password': 'redis_password_123',
-                'database': 0,
+                'host': os.environ.get("REDIS_HOST", "localhost"),
+                'port': int(os.environ.get("REDIS_PORT", "6379")),
+                'password': os.environ.get("REDIS_PASSWORD", ""),
+                'database': int(os.environ.get("REDIS_DB", "0")),
                 'max_connections': 100,
                 'optimization_level': 'production'
             },
             'qdrant': {
-                'url': 'http://localhost:6333'
+                'url': os.environ.get("QDRANT_URL", "http://localhost:6333")
             }
         }
 

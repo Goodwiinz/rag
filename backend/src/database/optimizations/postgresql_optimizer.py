@@ -32,14 +32,16 @@ class OptimizationLevel(str, Enum):
     HIGH_THROUGHPUT = "high_throughput"
 
 
+import os
+
 @dataclass
 class DatabaseConfig:
     """Database configuration for optimization"""
-    host: str = "localhost"
-    port: int = 5432
-    user: str = "raguser"
-    password: str = "rag_password_123"
-    database: str = "ragdb"
+    host: str = os.environ.get("POSTGRES_HOST", "localhost")
+    port: int = int(os.environ.get("POSTGRES_PORT", "5432"))
+    user: str = os.environ.get("POSTGRES_USER", "raguser")
+    password: str = os.environ.get("POSTGRES_PASSWORD", "")
+    database: str = os.environ.get("POSTGRES_DB", "ragdb")
     pool_size: int = 20
     max_overflow: int = 30
     pool_timeout: int = 30
@@ -829,11 +831,11 @@ async def run_database_health_check(config: DatabaseConfig) -> Dict[str, Any]:
 def create_production_config() -> DatabaseConfig:
     """Create production database configuration"""
     return DatabaseConfig(
-        host="localhost",
-        port=5432,
-        user="raguser",
-        password="rag_password_123",
-        database="ragdb",
+        host=os.environ.get("POSTGRES_HOST", "localhost"),
+        port=int(os.environ.get("POSTGRES_PORT", "5432")),
+        user=os.environ.get("POSTGRES_USER", "raguser"),
+        password=os.environ.get("POSTGRES_PASSWORD", ""),
+        database=os.environ.get("POSTGRES_DB", "ragdb"),
         pool_size=50,  # Increased for production
         max_overflow=100,
         pool_timeout=30,

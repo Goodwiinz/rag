@@ -4,7 +4,6 @@ Provides high-performance caching for analytics queries, metrics, and reports
 """
 
 import json
-import pickle
 import hashlib
 from typing import Any, Optional, Dict, List, Union, Callable
 from datetime import datetime, timedelta
@@ -90,7 +89,7 @@ class AnalyticsCache:
             self.redis_client = redis.from_url(
                 self.config.redis_analytics_url,
                 encoding="utf-8",
-                decode_responses=False,  # Keep binary for pickle support
+                decode_responses=True,  # Use string responses for JSON serialization
                 socket_connect_timeout=5,
                 socket_timeout=5,
                 retry_on_timeout=True,
@@ -139,12 +138,12 @@ class AnalyticsCache:
                 try:
                     value = await self.redis_client.get(key)
                     if value is not None:
-                        # Deserialize
+                        # Deserialize using JSON (secure, no arbitrary code execution)
                         try:
-                            return pickle.loads(value)
-                        except (pickle.PickleError, TypeError):
-                            # Fallback to JSON if pickle fails
-                            return json.loads(value.decode('utf-8'))
+                            return json.loads(value)
+                        except (json.JSONDecodeError, TypeError) as e:
+                            logger.warning(f"Failed to deserialize cached value for key {key}: {e}")
+                            return None
                 except Exception as e:
                     logger.warning(f"Redis get failed for key {key}: {e}")
 
@@ -166,12 +165,12 @@ class AnalyticsCache:
             # Try Redis first
             if self.redis_client and self._connected:
                 try:
-                    # Serialize value
+                    # Serialize value using JSON (secure, prevents arbitrary code execution)
                     try:
-                        serialized = pickle.dumps(value)
-                    except (pickle.PickleError, TypeError):
-                        # Fallback to JSON if pickle fails
-                        serialized = json.dumps(value).encode('utf-8')
+                        serialized = json.dumps(value, default=str)
+                    except (TypeError, ValueError) as e:
+                        logger.warning(f"Failed to serialize value for key {key}: {e}")
+                        return False
 
                     await self.redis_client.setex(key, ttl, serialized)
 

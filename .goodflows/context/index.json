@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "created": "2026-01-11T01:57:27.598Z",
-  "updated": "2026-01-11T02:25:41.217Z",
+  "updated": "2026-01-11T23:58:23.719Z",
   "hashes": {
     "01c4064ecc9b4551": {
       "partition": "2026-01",
@@ -34,6 +34,18 @@
     "30e0e4db82927841": {
       "partition": "2026-01",
       "type": "backend/src/core/config.py"
+    },
+    "56d0beb9d786ebef": {
+      "partition": "2026-01",
+      "type": "critical_security"
+    },
+    "95b1437f9b96614c": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "164c976a8ed37013": {
+      "partition": "2026-01",
+      "type": "potential_issue"
     }
   },
   "byFile": {
@@ -41,7 +53,8 @@
       "01c4064ecc9b4551"
     ],
     "security": [
-      "21d7d45123872d86"
+      "21d7d45123872d86",
+      "688da53859083935"
     ],
     "bug": [
       "688da53859083935",
@@ -54,6 +67,15 @@
     ],
     "refactor": [
       "30e0e4db82927841"
+    ],
+    "backend/src/cache/analytics_cache.py": [
+      "56d0beb9d786ebef"
+    ],
+    "backend/src/database/optimization": [
+      "95b1437f9b96614c"
+    ],
+    "scripts/verify-fix.sh": [
+      "164c976a8ed37013"
     ]
   },
   "byType": {
@@ -80,12 +102,54 @@
     ],
     "backend/src/core/config.py": [
       "30e0e4db82927841"
+    ],
+    "critical_security": [
+      "56d0beb9d786ebef"
+    ],
+    "potential_issue": [
+      "95b1437f9b96614c",
+      "164c976a8ed37013"
     ]
   },
-  "byIssue": {},
+  "byIssue": {
+    "GOO-62": {
+      "status": "fixed",
+      "fixedAt": "2026-01-11T20:14:00.000Z",
+      "file": "scripts/verify-fix.sh",
+      "pattern": "shell-injection-env-vars",
+      "hash": "688da53859083935"
+    }
+  },
+  "fixes": {
+    "GOO-62": {
+      "issueId": "GOO-62",
+      "title": "Security: Shell injection vulnerability in verify-fix.sh",
+      "file": "scripts/verify-fix.sh",
+      "pattern": "shell-injection-env-vars",
+      "fixedAt": "2026-01-11T20:14:00.000Z",
+      "verification": {
+        "syntaxCheck": "passed",
+        "functionalTest": "passed",
+        "e2eTest": "passed"
+      }
+    }
+  },
+  "patterns": {
+    "shell-injection-env-vars": {
+      "name": "Shell Injection Prevention via Environment Variables",
+      "confidence": 0.95,
+      "timesApplied": 1,
+      "lastApplied": "2026-01-11T20:14:00.000Z",
+      "issues": [
+        "GOO-62"
+      ]
+    }
+  },
   "stats": {
-    "totalFindings": 40,
-    "uniqueFindings": 8,
-    "duplicatesSkipped": 32
+    "totalFindings": 43,
+    "uniqueFindings": 11,
+    "duplicatesSkipped": 32,
+    "fixesApplied": 1,
+    "patternsDiscovered": 1
   }
 }

@@ -15,6 +15,8 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import uuid
 
+import os
+
 from .postgresql_optimizer import PostgreSQLOptimizer, DatabaseConfig, OptimizationLevel
 from .neo4j_optimizer import Neo4jOptimizer, Neo4jConfig, Neo4jOptimizationLevel
 from .redis_optimizer import RedisOptimizer, RedisConfig, RedisOptimizationLevel
@@ -113,11 +115,11 @@ class CrossDatabaseIntegration:
         # Initialize PostgreSQL
         try:
             pg_config = DatabaseConfig(
-                host="localhost",
-                port=5432,
-                user="raguser",
-                password="rag_password_123",
-                database="ragdb",
+                host=os.environ.get("POSTGRES_HOST", "localhost"),
+                port=int(os.environ.get("POSTGRES_PORT", "5432")),
+                user=os.environ.get("POSTGRES_USER", "raguser"),
+                password=os.environ.get("POSTGRES_PASSWORD", ""),
+                database=os.environ.get("POSTGRES_DB", "ragdb"),
                 pool_size=50,
                 optimization_level=OptimizationLevel.PRODUCTION
             )
@@ -134,10 +136,10 @@ class CrossDatabaseIntegration:
         # Initialize Neo4j
         try:
             neo4j_config = Neo4jConfig(
-                uri="bolt://localhost:7687",
-                user="neo4j",
-                password="neo4j_password_123",
-                database="neo4j",
+                uri=os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
+                user=os.environ.get("NEO4J_USER", "neo4j"),
+                password=os.environ.get("NEO4J_PASSWORD", ""),
+                database=os.environ.get("NEO4J_DATABASE", "neo4j"),
                 max_connection_pool_size=50,
                 optimization_level=Neo4jOptimizationLevel.PRODUCTION
             )
@@ -168,10 +170,10 @@ class CrossDatabaseIntegration:
         # Initialize Redis
         try:
             redis_config = RedisConfig(
-                host="localhost",
-                port=6379,
-                password="redis_password_123",
-                database=0,
+                host=os.environ.get("REDIS_HOST", "localhost"),
+                port=int(os.environ.get("REDIS_PORT", "6379")),
+                password=os.environ.get("REDIS_PASSWORD", ""),
+                database=int(os.environ.get("REDIS_DB", "0")),
                 max_connections=100,
                 optimization_level=RedisOptimizationLevel.PRODUCTION
             )
