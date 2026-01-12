@@ -21,11 +21,13 @@ import {
     ChevronRight,
     Clock,
     Cpu,
+    Download,
     FileText,
     FolderOpen,
     Loader2,
     Menu,
     MessageSquare,
+    MoreVertical,
     Pin,
     Plus,
     Search,
@@ -33,9 +35,18 @@ import {
     Share2,
     Sparkles,
     Sun,
+    Trash2,
     Users,
     X
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ExportDialog } from '@/components/export';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -752,6 +763,7 @@ function ConversationItem({
   const messageCount = conversation.messageCount || 0;
   const relativeTime = getRelativeTime(conversation.timestamp.getTime());
   const router = useRouter();
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -763,63 +775,121 @@ function ConversationItem({
   };
 
   return (
-    <a
-      href={`/chat?thread=${conversation.id}`}
-      onClick={handleClick}
-      className={cn(
-        "block px-3 py-3 rounded-xl transition-all group relative cursor-pointer",
-        isActive
-          ? "bg-[var(--phosphor-green)]/10"
-          : "hover:bg-[var(--terminal-elevated)]"
-      )}
-    >
-      {/* Active indicator */}
-      {isActive && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full bg-[var(--phosphor-green)]" />
-      )}
-
-      <div className="flex items-start gap-3">
-        <div className={cn(
-          "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors",
+    <>
+      <div
+        className={cn(
+          "block px-3 py-3 rounded-xl transition-all group relative cursor-pointer",
           isActive
-            ? "bg-[var(--phosphor-green)]/20"
-            : "bg-[var(--terminal-surface)] group-hover:bg-[var(--terminal-elevated)]"
-        )}>
-          <MessageSquare className={cn(
-            "w-4 h-4",
-            isActive ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text-muted)]"
-          )} />
-        </div>
+            ? "bg-[var(--phosphor-green)]/10"
+            : "hover:bg-[var(--terminal-elevated)]"
+        )}
+      >
+        {/* Active indicator */}
+        {isActive && (
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full bg-[var(--phosphor-green)]" />
+        )}
 
-        <div className="flex-1 min-w-0">
-          {/* Title row with time */}
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <p className={cn(
-              "text-xs font-medium truncate",
-              isActive ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text)]"
-            )} style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-              {conversation.title || 'New Chat'}
-            </p>
-            <span className="text-[9px] text-[var(--terminal-text-dim)] flex-shrink-0" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-              {relativeTime}
-            </span>
-          </div>
-
-          {/* Preview and message count */}
-          <div className="flex items-center gap-2">
-            <p className="text-[10px] text-[var(--terminal-text-muted)] truncate flex-1"
-               style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-              {conversation.preview || 'No messages yet'}
-            </p>
-            {messageCount > 0 && (
-              <span className="text-[9px] text-[var(--terminal-text-dim)] flex-shrink-0 px-1.5 py-0.5 rounded bg-[var(--terminal-surface)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                {messageCount}
-              </span>
+        <div className="flex items-start gap-3">
+          <a
+            href={`/chat?thread=${conversation.id}`}
+            onClick={handleClick}
+            className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors",
+              isActive
+                ? "bg-[var(--phosphor-green)]/20"
+                : "bg-[var(--terminal-surface)] group-hover:bg-[var(--terminal-elevated)]"
             )}
-          </div>
+          >
+            <MessageSquare className={cn(
+              "w-4 h-4",
+              isActive ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text-muted)]"
+            )} />
+          </a>
+
+          <a
+            href={`/chat?thread=${conversation.id}`}
+            onClick={handleClick}
+            className="flex-1 min-w-0"
+          >
+            {/* Title row with time */}
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <p className={cn(
+                "text-xs font-medium truncate",
+                isActive ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text)]"
+              )} style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                {conversation.title || 'New Chat'}
+              </p>
+              <span className="text-[9px] text-[var(--terminal-text-dim)] flex-shrink-0" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                {relativeTime}
+              </span>
+            </div>
+
+            {/* Preview and message count */}
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] text-[var(--terminal-text-muted)] truncate flex-1"
+                 style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                {conversation.preview || 'No messages yet'}
+              </p>
+              {messageCount > 0 && (
+                <span className="text-[9px] text-[var(--terminal-text-dim)] flex-shrink-0 px-1.5 py-0.5 rounded bg-[var(--terminal-surface)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  {messageCount}
+                </span>
+              )}
+            </div>
+          </a>
+
+          {/* Actions Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] transition-all"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-48 bg-[#141414] border-[#333] text-[#e4e4e7]"
+            >
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExportDialogOpen(true);
+                }}
+                className="text-xs cursor-pointer hover:bg-[#1a1a1a] hover:text-[#00ff9f]"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export Thread
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => e.stopPropagation()}
+                className="text-xs cursor-pointer hover:bg-[#1a1a1a] hover:text-[#00ff9f]"
+              >
+                <Pin className="w-4 h-4 mr-2" />
+                {conversation.isPinned ? 'Unpin' : 'Pin'}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-[#333]" />
+              <DropdownMenuItem
+                onClick={(e) => e.stopPropagation()}
+                className="text-xs cursor-pointer hover:bg-[#1a1a1a] text-red-400 hover:text-red-300"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
-    </a>
+
+      {/* Export Dialog */}
+      <ExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        threadIds={[conversation.id]}
+        threadTitle={conversation.title}
+      />
+    </>
   );
 }
 

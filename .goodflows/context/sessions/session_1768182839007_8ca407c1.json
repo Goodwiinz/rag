@@ -1,0 +1,84 @@
+{
+  "id": "session_1768182839007_8ca407c1",
+  "state": "completed",
+  "metadata": {
+    "trigger": "issue-creation",
+    "branch": null,
+    "user": null,
+    "config": {},
+    "feature": "export-button-integration",
+    "relatedIssue": "GOO-53"
+  },
+  "timestamps": {
+    "created": "2026-01-12T01:53:59.007Z",
+    "started": null,
+    "updated": "2026-01-12T01:53:59.007Z",
+    "completed": "2026-01-12T01:54:43.324Z"
+  },
+  "context": {
+    "findings": {},
+    "issues": {},
+    "fixes": {},
+    "errors": [],
+    "custom": {}
+  },
+  "invocations": [],
+  "events": [],
+  "checkpoints": [],
+  "stats": {
+    "agentsInvoked": 0,
+    "findingsProcessed": 0,
+    "issuesCreated": 0,
+    "fixesApplied": 0,
+    "errorsEncountered": 0
+  },
+  "tracking": {
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    },
+    "issues": {
+      "created": [],
+      "fixed": [],
+      "skipped": [],
+      "failed": []
+    },
+    "findings": [],
+    "work": [],
+    "currentWork": null
+  },
+  "summary": {
+    "totalIssues": 0,
+    "issuesCreated": 0,
+    "fixed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "filesCreated": 0,
+    "filesModified": 0,
+    "filesTotal": 0,
+    "findingsProcessed": 0,
+    "errorsEncountered": 0,
+    "agentsInvoked": 0,
+    "duration": 44,
+    "issueCreated": "GOO-81",
+    "parentIssue": "GOO-53",
+    "status": "Done",
+    "file": "frontend/app/chat/layout.tsx",
+    "_derived": {
+      "totalIssues": 0,
+      "issuesCreated": 0,
+      "fixed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "filesCreated": 0,
+      "filesModified": 0,
+      "filesTotal": 0,
+      "findingsProcessed": 0,
+      "errorsEncountered": 0,
+      "agentsInvoked": 0,
+      "duration": 44
+    },
+    "_hasConflicts": false
+  }
+}

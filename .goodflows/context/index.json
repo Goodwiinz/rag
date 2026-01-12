@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "created": "2026-01-11T01:57:27.598Z",
-  "updated": "2026-01-11T23:58:23.719Z",
+  "updated": "2026-01-12T02:08:00.355Z",
   "hashes": {
     "01c4064ecc9b4551": {
       "partition": "2026-01",
@@ -46,6 +46,82 @@
     "164c976a8ed37013": {
       "partition": "2026-01",
       "type": "potential_issue"
+    },
+    "fd7e04e33457cf0d": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
+    },
+    "cea6bb83020b8cb8": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "67d06e859eb3d894": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "6cc24251c089e539": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
+    },
+    "7874b674a36eea51": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
+    },
+    "1e88a9bfd6c79aa6": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
+    },
+    "0849f57b8506e93d": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "055033cc48a722b1": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "b656115b0387549e": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "93cb00115ee1c452": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "c8d48bf5808ee92b": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "3a7a2097899d6430": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
+    },
+    "bcc812b291d624ec": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
+    },
+    "cb07cacd2e756971": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
+    },
+    "c99e3574b5034cf7": {
+      "partition": "2026-01",
+      "type": "documentation"
+    },
+    "92d04af475784cb2": {
+      "partition": "2026-01",
+      "type": "documentation"
+    },
+    "55d91e70eca7d116": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "bdb5090ccb76cfa2": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "6ed6c15d5341ed7e": {
+      "partition": "2026-01",
+      "type": "bug"
     }
   },
   "byFile": {
@@ -75,7 +151,46 @@
       "95b1437f9b96614c"
     ],
     "scripts/verify-fix.sh": [
-      "164c976a8ed37013"
+      "164c976a8ed37013",
+      "0849f57b8506e93d",
+      "c8d48bf5808ee92b"
+    ],
+    "backend/src/core/ai/parsers.py": [
+      "fd7e04e33457cf0d",
+      "b656115b0387549e",
+      "bcc812b291d624ec"
+    ],
+    "backend/src/services/thread_event_service.py": [
+      "cea6bb83020b8cb8",
+      "93cb00115ee1c452"
+    ],
+    "backend/src/services/chat_service.py": [
+      "67d06e859eb3d894"
+    ],
+    "frontend/src/store/chat-store.ts": [
+      "6cc24251c089e539",
+      "3a7a2097899d6430"
+    ],
+    "frontend/src/hooks/useChatPersistence.ts": [
+      "7874b674a36eea51"
+    ],
+    "backend/src/services/llm_response_cache.py": [
+      "1e88a9bfd6c79aa6",
+      "cb07cacd2e756971"
+    ],
+    "backend/src/services/thread_title_generator.py": [
+      "055033cc48a722b1"
+    ],
+    "backend/src/services/export_service.py": [
+      "c99e3574b5034cf7",
+      "6ed6c15d5341ed7e"
+    ],
+    "frontend/app/chat/layout.tsx": [
+      "92d04af475784cb2"
+    ],
+    "frontend/src/services/export-service.ts": [
+      "55d91e70eca7d116",
+      "bdb5090ccb76cfa2"
     ]
   },
   "byType": {
@@ -108,7 +223,32 @@
     ],
     "potential_issue": [
       "95b1437f9b96614c",
-      "164c976a8ed37013"
+      "164c976a8ed37013",
+      "cea6bb83020b8cb8",
+      "67d06e859eb3d894",
+      "0849f57b8506e93d",
+      "055033cc48a722b1",
+      "b656115b0387549e",
+      "93cb00115ee1c452",
+      "c8d48bf5808ee92b",
+      "55d91e70eca7d116",
+      "bdb5090ccb76cfa2"
+    ],
+    "refactor_suggestion": [
+      "fd7e04e33457cf0d",
+      "6cc24251c089e539",
+      "7874b674a36eea51",
+      "1e88a9bfd6c79aa6",
+      "3a7a2097899d6430",
+      "bcc812b291d624ec",
+      "cb07cacd2e756971"
+    ],
+    "documentation": [
+      "c99e3574b5034cf7",
+      "92d04af475784cb2"
+    ],
+    "bug": [
+      "6ed6c15d5341ed7e"
     ]
   },
   "byIssue": {
@@ -146,9 +286,9 @@
     }
   },
   "stats": {
-    "totalFindings": 43,
-    "uniqueFindings": 11,
-    "duplicatesSkipped": 32,
+    "totalFindings": 63,
+    "uniqueFindings": 30,
+    "duplicatesSkipped": 33,
     "fixesApplied": 1,
     "patternsDiscovered": 1
   }

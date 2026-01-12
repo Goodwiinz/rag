@@ -1,0 +1,63 @@
+{
+  "id": "session_1768180685960_691aaff3",
+  "state": "completed",
+  "metadata": {
+    "trigger": "linear-sync",
+    "branch": null,
+    "user": null,
+    "config": {},
+    "source": "manual-sync",
+    "issueCount": 30
+  },
+  "timestamps": {
+    "created": "2026-01-12T01:18:05.961Z",
+    "started": null,
+    "updated": "2026-01-12T01:18:05.962Z",
+    "completed": "2026-01-12T01:18:47.550Z"
+  },
+  "context": {
+    "findings": {},
+    "issues": {},
+    "fixes": {},
+    "errors": [],
+    "custom": {}
+  },
+  "invocations": [],
+  "events": [],
+  "checkpoints": [],
+  "stats": {
+    "agentsInvoked": 0,
+    "findingsProcessed": 0,
+    "issuesCreated": 0,
+    "fixesApplied": 0,
+    "errorsEncountered": 0
+  },
+  "summary": {
+    "totalIssues": 0,
+    "issuesCreated": 0,
+    "fixed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "filesModified": 0,
+    "findingsProcessed": 0,
+    "errorsEncountered": 0,
+    "agentsInvoked": 0,
+    "duration": 42,
+    "synced": 8,
+    "duplicatesSkipped": 1,
+    "linkedToLinear": 8,
+    "_derived": {
+      "totalIssues": 0,
+      "issuesCreated": 0,
+      "fixed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "filesModified": 0,
+      "findingsProcessed": 0,
+      "errorsEncountered": 0,
+      "agentsInvoked": 0,
+      "duration": 42
+    },
+    "_hasConflicts": false
+  }
+}

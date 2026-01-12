@@ -1,0 +1,40 @@
+{
+  "id": "session_1768178132039_c1e0cab8",
+  "state": "completed",
+  "metadata": {
+    "trigger": "linear-backlog-fix",
+    "branch": "develop",
+    "user": null,
+    "config": {},
+    "source": "linear-backlog"
+  },
+  "timestamps": {
+    "created": "2026-01-12T00:35:32.039Z",
+    "started": null,
+    "updated": "2026-01-12T00:35:32.039Z",
+    "completed": "2026-01-12T00:49:06.148Z"
+  },
+  "context": {
+    "findings": {},
+    "issues": {},
+    "fixes": {},
+    "errors": [],
+    "custom": {}
+  },
+  "invocations": [],
+  "events": [],
+  "checkpoints": [],
+  "stats": {
+    "agentsInvoked": 0,
+    "findingsProcessed": 0,
+    "issuesCreated": 0,
+    "fixesApplied": 0,
+    "errorsEncountered": 0
+  },
+  "summary": {
+    "totalIssues": 10,
+    "fixed": 9,
+    "skipped": 1,
+    "filesModified": 8
+  }
+}
