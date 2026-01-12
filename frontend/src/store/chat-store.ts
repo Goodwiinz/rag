@@ -23,6 +23,32 @@ import {
 import { workspaceService } from '@/services/workspaceService';
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Generic helper to remove an item from a record of arrays by ID.
+ * Used for deleting conversations, threads, and messages from their respective records.
+ * 
+ * @param record - The record containing arrays (e.g., conversations keyed by workspaceId)
+ * @param itemId - The ID of the item to remove
+ * @returns true if item was found and removed, false otherwise
+ */
+function removeItemFromRecord<T extends { id: string }>(
+  record: Record<string, T[]>,
+  itemId: string
+): boolean {
+  for (const key of Object.keys(record)) {
+    const index = record[key]?.findIndex((item) => item.id === itemId);
+    if (index !== undefined && index !== -1) {
+      record[key].splice(index, 1);
+      return true;
+    }
+  }
+  return false;
+}
+
+// ============================================================================
 // State Types
 // ============================================================================
 
@@ -442,14 +468,7 @@ export const useChatStore = create<ChatStore>()(
         try {
           await workspaceService.deleteConversation(id);
           set((state) => {
-            // Find and remove from the correct workspace
-            for (const workspaceId of Object.keys(state.conversations)) {
-              const index = state.conversations[workspaceId]?.findIndex((c) => c.id === id);
-              if (index !== undefined && index !== -1) {
-                state.conversations[workspaceId].splice(index, 1);
-                break;
-              }
-            }
+            removeItemFromRecord(state.conversations, id);
             if (state.currentConversationId === id) {
               state.currentConversationId = null;
               state.currentThreadId = null;
@@ -552,14 +571,7 @@ export const useChatStore = create<ChatStore>()(
         try {
           await workspaceService.deleteThread(id);
           set((state) => {
-            // Find and remove from the correct conversation
-            for (const conversationId of Object.keys(state.threads)) {
-              const index = state.threads[conversationId]?.findIndex((t) => t.id === id);
-              if (index !== undefined && index !== -1) {
-                state.threads[conversationId].splice(index, 1);
-                break;
-              }
-            }
+            removeItemFromRecord(state.threads, id);
             if (state.currentThreadId === id) {
               state.currentThreadId = null;
             }
@@ -671,14 +683,7 @@ export const useChatStore = create<ChatStore>()(
         try {
           await workspaceService.deleteMessage(id);
           set((state) => {
-            // Find and remove from the correct thread
-            for (const threadId of Object.keys(state.messages)) {
-              const index = state.messages[threadId]?.findIndex((m) => m.id === id);
-              if (index !== undefined && index !== -1) {
-                state.messages[threadId].splice(index, 1);
-                break;
-              }
-            }
+            removeItemFromRecord(state.messages, id);
           });
           return true;
         } catch (error) {

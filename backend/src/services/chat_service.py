@@ -941,7 +941,19 @@ class ChatService:
 
         thread = self.get_thread(thread_id, user_id, include_messages=True)
         if not thread:
-            return {"messages": [], "metadata": {"truncated": False, "total_tokens": 0}}
+            # Return complete metadata structure matching the full response schema
+            return {
+                "messages": [],
+                "metadata": {
+                    "truncated": False,
+                    "total_tokens": 0,
+                    "max_tokens": effective_max_tokens,
+                    "message_count": 0,
+                    "total_messages": 0,
+                    "usage_ratio": 0.0,
+                    "approaching_limit": False,
+                }
+            }
 
         messages = []
         total_tokens = 0
