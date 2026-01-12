@@ -7,8 +7,6 @@
  * - Export format metadata
  */
 
-import { api } from './api-client';
-
 export type ExportFormat = 'markdown' | 'pdf' | 'json' | 'html';
 
 export interface ExportOptions {
@@ -128,18 +126,26 @@ export async function getExportFormats(): Promise<{
   options: Record<string, string>;
   limits: { maxBatchSize: number; maxThreadMessages: number };
 }> {
-  const response = await api.get<{
-    formats: ExportFormatInfo[];
-    options: Record<string, string>;
-    limits: { max_batch_size: number; max_thread_messages: number };
-  }>('/export/formats');
+  const response = await fetch('/api/v1/export/formats', {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to get export formats');
+  }
+
+  const data = await response.json();
 
   return {
-    formats: response.formats,
-    options: response.options,
+    formats: data.formats,
+    options: data.options,
     limits: {
-      maxBatchSize: response.limits.max_batch_size,
-      maxThreadMessages: response.limits.max_thread_messages,
+      maxBatchSize: data.limits.max_batch_size,
+      maxThreadMessages: data.limits.max_thread_messages,
     },
   };
 }
@@ -151,24 +157,32 @@ export async function previewExport(
   threadId: string,
   format: ExportFormat = 'markdown'
 ): Promise<ExportPreview> {
-  const response = await api.post<{
-    thread_id: string;
-    title: string | null;
-    format: string;
-    message_count: number;
-    citation_count: number;
-    estimated_size_bytes: number;
-    exportable: boolean;
-  }>(`/export/preview/${threadId}?format=${format}`);
+  const response = await fetch(
+    `/api/v1/export/preview/${threadId}?format=${format}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Preview failed');
+  }
+
+  const data = await response.json();
 
   return {
-    threadId: response.thread_id,
-    title: response.title,
-    format: response.format as ExportFormat,
-    messageCount: response.message_count,
-    citationCount: response.citation_count,
-    estimatedSizeBytes: response.estimated_size_bytes,
-    exportable: response.exportable,
+    threadId: data.thread_id,
+    title: data.title,
+    format: data.format as ExportFormat,
+    messageCount: data.message_count,
+    citationCount: data.citation_count,
+    estimatedSizeBytes: data.estimated_size_bytes,
+    exportable: data.exportable,
   };
 }
 

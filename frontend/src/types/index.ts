@@ -3,6 +3,7 @@ export * from './api';
 export * from './auth';
 export * from './document';
 export * from './search';
+export * from './thread-search';
 export type {
   KnowledgeGraphData,
   GraphNodeInteraction,
