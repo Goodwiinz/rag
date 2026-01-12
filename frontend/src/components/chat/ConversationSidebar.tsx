@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,6 +52,8 @@ import {
   Users,
   Bot,
   User,
+  CheckSquare,
+  CheckCircle,
 } from 'lucide-react';
 
 export interface Conversation {
@@ -98,6 +101,16 @@ interface ConversationSidebarProps {
   className?: string;
   isOpen?: boolean;
   onToggle?: () => void;
+  // Bulk selection props
+  isSelectMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelectMode?: () => void;
+  onToggleSelection?: (id: string) => void;
+  onSelectAll?: () => void;
+  onClearSelection?: () => void;
+  onBulkResolve?: () => void;
+  onBulkArchive?: () => void;
+  onBulkDelete?: () => void;
 }
 
 export function ConversationSidebar({
@@ -120,6 +133,16 @@ export function ConversationSidebar({
   className,
   isOpen = true,
   onToggle,
+  // Bulk selection props
+  isSelectMode = false,
+  selectedIds = new Set(),
+  onToggleSelectMode,
+  onToggleSelection,
+  onSelectAll,
+  onClearSelection,
+  onBulkResolve,
+  onBulkArchive,
+  onBulkDelete,
 }: ConversationSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'bookmarked' | 'recent' | 'archived'>('all');
@@ -267,10 +290,29 @@ export function ConversationSidebar({
         className={cn(
           "group relative p-3 rounded-lg border cursor-pointer transition-all",
           "hover:border-orange-200 hover:bg-orange-50/50",
-          isActive && "border-orange-500 bg-orange-50/80"
+          isActive && "border-orange-500 bg-orange-50/80",
+          isSelectMode && selectedIds.has(conversation.id) && "bg-accent/50 border-accent"
         )}
-        onClick={() => onConversationSelect(conversation.id)}
+        onClick={() => {
+          if (isSelectMode && onToggleSelection) {
+            onToggleSelection(conversation.id);
+          } else {
+            onConversationSelect(conversation.id);
+          }
+        }}
       >
+        {/* Selection Checkbox */}
+        {isSelectMode && (
+          <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10">
+            <Checkbox
+              checked={selectedIds.has(conversation.id)}
+              onCheckedChange={() => onToggleSelection?.(conversation.id)}
+              onClick={(e) => e.stopPropagation()}
+              className="mr-2"
+            />
+          </div>
+        )}
+
         {/* Action Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -328,7 +370,7 @@ export function ConversationSidebar({
         </DropdownMenu>
 
         {/* Content */}
-        <div className="space-y-1 pr-6">
+        <div className={cn("space-y-1 pr-6", isSelectMode && "pl-7")}>
           <div className="flex items-center gap-2">
             {editingId === conversation.id ? (
               <Input
@@ -413,16 +455,29 @@ export function ConversationSidebar({
             <MessageSquare className="w-5 h-5" />
             Conversations
           </h2>
-          {onToggle && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onToggle}
-              className="lg:hidden"
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {onToggleSelectMode && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onToggleSelectMode}
+                className={cn(isSelectMode && "bg-accent")}
+                title={isSelectMode ? "Exit select mode" : "Select multiple"}
+              >
+                <CheckSquare className="w-4 h-4" />
+              </Button>
+            )}
+            {onToggle && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onToggle}
+                className="lg:hidden"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* New Chat Button */}
@@ -496,6 +551,45 @@ export function ConversationSidebar({
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Bulk Action Toolbar */}
+      {isSelectMode && selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/50">
+          <span className="text-sm text-muted-foreground">
+            {selectedIds.size} selected
+          </span>
+          <div className="flex-1" />
+          {onSelectAll && (
+            <Button variant="ghost" size="sm" onClick={onSelectAll}>
+              Select All
+            </Button>
+          )}
+          {onClearSelection && (
+            <Button variant="ghost" size="sm" onClick={onClearSelection}>
+              Clear
+            </Button>
+          )}
+          <Separator orientation="vertical" className="h-4" />
+          {onBulkResolve && (
+            <Button variant="ghost" size="sm" onClick={onBulkResolve}>
+              <CheckCircle className="h-4 w-4 mr-1" />
+              Resolve
+            </Button>
+          )}
+          {onBulkArchive && (
+            <Button variant="ghost" size="sm" onClick={onBulkArchive}>
+              <Archive className="h-4 w-4 mr-1" />
+              Archive
+            </Button>
+          )}
+          {onBulkDelete && (
+            <Button variant="destructive" size="sm" onClick={onBulkDelete}>
+              <Trash2 className="h-4 w-4 mr-1" />
+              Delete
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Folder Navigation */}
       {folders.length > 0 && (

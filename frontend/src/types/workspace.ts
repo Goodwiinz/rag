@@ -160,6 +160,28 @@ export interface ThreadListResponse {
 }
 
 // ============================================================================
+// Bulk Thread Operations
+// ============================================================================
+
+export interface BulkThreadRequest {
+  thread_ids: string[];
+}
+
+export interface BulkThreadResult {
+  thread_id: string;
+  success: boolean;
+  error?: string;
+  thread?: Thread;
+}
+
+export interface BulkThreadResponse {
+  total: number;
+  succeeded: number;
+  failed: number;
+  results: BulkThreadResult[];
+}
+
+// ============================================================================
 // Chat Message Types
 // ============================================================================
 

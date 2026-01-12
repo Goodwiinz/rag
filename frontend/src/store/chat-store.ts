@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import {
+  BulkThreadResponse,
   Workspace,
   WorkspaceCreate,
   WorkspaceUpdate,
@@ -82,6 +83,10 @@ interface ChatState {
   shortcutsDialogOpen: boolean;
   copiedMessageId: string | null;
   sidebarCollapsed: boolean;
+
+  // Bulk selection state
+  selectedThreadIds: Set<string>;
+  isSelectMode: boolean;
 }
 
 interface ChatActions {
@@ -109,6 +114,15 @@ interface ChatActions {
   deleteThread: (id: string) => Promise<boolean>;
   resolveThread: (id: string) => Promise<Thread | null>;
   reopenThread: (id: string) => Promise<Thread | null>;
+
+  // Bulk thread actions
+  toggleSelectMode: () => void;
+  toggleThreadSelection: (threadId: string) => void;
+  selectAllThreads: () => void;
+  clearSelection: () => void;
+  bulkResolveThreads: () => Promise<BulkThreadResponse | null>;
+  bulkArchiveThreads: () => Promise<BulkThreadResponse | null>;
+  bulkDeleteThreads: () => Promise<BulkThreadResponse | null>;
 
   // Message actions
   loadMessages: (threadId: string) => Promise<void>;
@@ -237,6 +251,8 @@ const initialState: ChatState = {
   shortcutsDialogOpen: false,
   copiedMessageId: null,
   sidebarCollapsed: false,
+  selectedThreadIds: new Set<string>(),
+  isSelectMode: false,
 };
 
 // ============================================================================
@@ -592,6 +608,161 @@ export const useChatStore = create<ChatStore>()(
 
       reopenThread: async (id) => {
         return get().updateThread(id, { status: ThreadStatus.ACTIVE });
+      },
+
+      // ========================================================================
+      // Bulk Thread Actions
+      // ========================================================================
+
+      toggleSelectMode: () => {
+        set((state) => {
+          state.isSelectMode = !state.isSelectMode;
+          if (!state.isSelectMode) {
+            state.selectedThreadIds = new Set();
+          }
+        });
+      },
+
+      toggleThreadSelection: (threadId) => {
+        set((state) => {
+          const newSet = new Set(state.selectedThreadIds);
+          if (newSet.has(threadId)) {
+            newSet.delete(threadId);
+          } else {
+            newSet.add(threadId);
+          }
+          state.selectedThreadIds = newSet;
+        });
+      },
+
+      selectAllThreads: () => {
+        const state = get();
+        const conversationId = state.currentConversationId;
+        if (!conversationId) return;
+
+        const threads = state.threads[conversationId] || [];
+        set((state) => {
+          state.selectedThreadIds = new Set(threads.map((t) => t.id));
+        });
+      },
+
+      clearSelection: () => {
+        set((state) => {
+          state.selectedThreadIds = new Set();
+        });
+      },
+
+      bulkResolveThreads: async () => {
+        const state = get();
+        const threadIds = Array.from(state.selectedThreadIds);
+        if (threadIds.length === 0) return null;
+
+        try {
+          const response = await workspaceService.bulkResolveThreads(threadIds);
+
+          // Update local state for successful threads
+          set((state) => {
+            for (const result of response.results) {
+              if (result.success && result.thread) {
+                // Find and update the thread in the appropriate conversation
+                for (const convId in state.threads) {
+                  const threadIdx = state.threads[convId].findIndex(
+                    (t) => t.id === result.thread_id
+                  );
+                  if (threadIdx !== -1) {
+                    state.threads[convId][threadIdx] = result.thread;
+                    break;
+                  }
+                }
+              }
+            }
+            state.selectedThreadIds = new Set();
+            state.isSelectMode = false;
+          });
+
+          return response;
+        } catch (error) {
+          console.error('[ChatStore] Error bulk resolving threads:', error);
+          set((state) => {
+            state.error = 'Failed to resolve threads';
+          });
+          return null;
+        }
+      },
+
+      bulkArchiveThreads: async () => {
+        const state = get();
+        const threadIds = Array.from(state.selectedThreadIds);
+        if (threadIds.length === 0) return null;
+
+        try {
+          const response = await workspaceService.bulkArchiveThreads(threadIds);
+
+          set((state) => {
+            for (const result of response.results) {
+              if (result.success && result.thread) {
+                for (const convId in state.threads) {
+                  const threadIdx = state.threads[convId].findIndex(
+                    (t) => t.id === result.thread_id
+                  );
+                  if (threadIdx !== -1) {
+                    state.threads[convId][threadIdx] = result.thread;
+                    break;
+                  }
+                }
+              }
+            }
+            state.selectedThreadIds = new Set();
+            state.isSelectMode = false;
+          });
+
+          return response;
+        } catch (error) {
+          console.error('[ChatStore] Error bulk archiving threads:', error);
+          set((state) => {
+            state.error = 'Failed to archive threads';
+          });
+          return null;
+        }
+      },
+
+      bulkDeleteThreads: async () => {
+        const state = get();
+        const threadIds = Array.from(state.selectedThreadIds);
+        if (threadIds.length === 0) return null;
+
+        try {
+          const response = await workspaceService.bulkDeleteThreads(threadIds);
+
+          set((state) => {
+            for (const result of response.results) {
+              if (result.success) {
+                // Remove deleted threads from state
+                for (const convId in state.threads) {
+                  state.threads[convId] = state.threads[convId].filter(
+                    (t) => t.id !== result.thread_id
+                  );
+                }
+              }
+            }
+
+            // Clear current thread if it was deleted
+            if (state.currentThreadId && threadIds.includes(state.currentThreadId)) {
+              state.currentThreadId = null;
+            }
+
+            state.selectedThreadIds = new Set();
+            state.isSelectMode = false;
+          });
+
+          return response;
+        } catch (error) {
+          console.error('[ChatStore] Error bulk deleting threads:', error);
+          set((state) => {
+            state.error = 'Failed to delete threads';
+          });
+          return null;
+        }
       },
 
       // ========================================================================

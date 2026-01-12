@@ -466,12 +466,28 @@ class ChatService:
             thread.title = data.title
         if data.summary is not None:
             thread.summary = data.summary
+
+        # Track if status is changing to resolved
+        status_changing_to_resolved = (
+            data.status is not None and
+            data.status == ThreadStatus.RESOLVED and
+            thread.status != ThreadStatus.RESOLVED
+        )
+
         if data.status is not None:
             thread.status = data.status
 
         thread.updated_at = datetime.utcnow()
         self.db.commit()
         self.db.refresh(thread)
+
+        # Trigger final summary on resolution
+        if status_changing_to_resolved:
+            try:
+                from ..tasks.summarize_thread_task import summarize_thread_on_resolve_task
+                summarize_thread_on_resolve_task.delay(str(thread_id))
+            except Exception as e:
+                logger.warning(f"Failed to queue resolution summary for thread {thread_id}: {e}")
 
         return thread
 
@@ -496,6 +512,59 @@ class ChatService:
         logger.info(f"Deleted thread: {thread_id}")
         return True
 
+    # ========================================================================
+    # Bulk Thread Operations
+    # ========================================================================
+
+    def bulk_update_threads(
+        self,
+        thread_ids: List[UUID],
+        data: "ThreadUpdate",
+        user_id: UUID
+    ) -> List[Tuple[UUID, bool, Optional[str], Optional["Thread"]]]:
+        """Bulk update multiple threads with same data.
+        
+        Returns list of (thread_id, success, error_msg, thread) tuples.
+        """
+        results = []
+        
+        for thread_id in thread_ids:
+            try:
+                thread = self.update_thread(thread_id, data, user_id)
+                if thread:
+                    results.append((thread_id, True, None, thread))
+                else:
+                    results.append((thread_id, False, "Thread not found or insufficient permissions", None))
+            except Exception as e:
+                logger.error(f"Error updating thread {thread_id}: {e}")
+                results.append((thread_id, False, str(e), None))
+        
+        return results
+
+    def bulk_delete_threads(
+        self,
+        thread_ids: List[UUID],
+        user_id: UUID
+    ) -> List[Tuple[UUID, bool, Optional[str]]]:
+        """Bulk soft delete multiple threads.
+        
+        Returns list of (thread_id, success, error_msg) tuples.
+        """
+        results = []
+        
+        for thread_id in thread_ids:
+            try:
+                success = self.delete_thread(thread_id, user_id)
+                if success:
+                    results.append((thread_id, True, None))
+                else:
+                    results.append((thread_id, False, "Thread not found or insufficient permissions"))
+            except Exception as e:
+                logger.error(f"Error deleting thread {thread_id}: {e}")
+                results.append((thread_id, False, str(e)))
+        
+        return results
+
     # =========================================================================
     # Message Operations
     # =========================================================================
@@ -515,9 +584,12 @@ class ChatService:
         if not thread.conversation.workspace.can_user_edit(str(user_id)):
             return None
 
-        # Count tokens for the message
+        # Count tokens for the message using fast estimation to avoid blocking
+        # on large messages (tiktoken encoding can be slow for long content)
         from ..utils.token_counter import count_message_tokens
-        message_token_count = count_message_tokens(data.content, data.role.value)
+        message_token_count = count_message_tokens(
+            data.content, data.role.value, estimate_only=True
+        )
 
         message = ChatMessage(
             thread_id=data.thread_id,
@@ -617,6 +689,15 @@ class ChatService:
 
         self.db.commit()
         self.db.refresh(message)
+
+        # Trigger async summarization if thread has enough messages
+        if thread and thread.message_count >= 3:
+            try:
+                from ..tasks.summarize_thread_task import summarize_thread_task
+                summarize_thread_task.delay(str(thread_id))
+            except Exception as e:
+                # Don't fail message creation if summarization queue fails
+                logger.warning(f"Failed to queue summarization for thread {thread_id}: {e}")
 
         return message
 

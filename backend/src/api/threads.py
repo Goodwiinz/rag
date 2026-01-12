@@ -23,6 +23,10 @@ from ..schemas.chat import (
     ThreadResponse,
     ThreadDetailResponse,
     ThreadListResponse,
+    # Bulk thread schemas
+    BulkThreadRequest,
+    BulkThreadResult,
+    BulkThreadResponse,
     # Message schemas
     ChatMessageCreate,
     ChatMessageUpdate,
@@ -309,6 +313,196 @@ async def archive_thread(
         ThreadUpdate(status=ThreadStatus.ARCHIVED),
         current_user,
         db
+    )
+
+
+# =============================================================================
+# Bulk Thread Operations
+# =============================================================================
+
+
+@router.post("/bulk/resolve", response_model=BulkThreadResponse)
+async def bulk_resolve_threads(
+    request: BulkThreadRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Bulk resolve multiple threads.
+    """
+    service = get_chat_service(db)
+    results = service.bulk_update_threads(
+        request.thread_ids,
+        ThreadUpdate(status=ThreadStatus.RESOLVED),
+        current_user.id
+    )
+    
+    bulk_results = []
+    succeeded_ids = []
+    for thread_id, success, error, thread in results:
+        bulk_results.append(BulkThreadResult(
+            thread_id=thread_id,
+            success=success,
+            error=error,
+            thread=ThreadResponse.model_validate(thread) if thread else None
+        ))
+        if success:
+            succeeded_ids.append(str(thread_id))
+    
+    # Broadcast bulk update event
+    if succeeded_ids:
+        await thread_event_service.broadcast_threads_bulk_updated(
+            thread_ids=succeeded_ids,
+            action="resolved",
+            user_id=str(current_user.id)
+        )
+    
+    return BulkThreadResponse(
+        total=len(request.thread_ids),
+        succeeded=len(succeeded_ids),
+        failed=len(request.thread_ids) - len(succeeded_ids),
+        results=bulk_results
+    )
+
+
+@router.post("/bulk/archive", response_model=BulkThreadResponse)
+async def bulk_archive_threads(
+    request: BulkThreadRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Bulk archive multiple threads.
+    """
+    service = get_chat_service(db)
+    results = service.bulk_update_threads(
+        request.thread_ids,
+        ThreadUpdate(status=ThreadStatus.ARCHIVED),
+        current_user.id
+    )
+    
+    bulk_results = []
+    succeeded_ids = []
+    for thread_id, success, error, thread in results:
+        bulk_results.append(BulkThreadResult(
+            thread_id=thread_id,
+            success=success,
+            error=error,
+            thread=ThreadResponse.model_validate(thread) if thread else None
+        ))
+        if success:
+            succeeded_ids.append(str(thread_id))
+    
+    if succeeded_ids:
+        await thread_event_service.broadcast_threads_bulk_updated(
+            thread_ids=succeeded_ids,
+            action="archived",
+            user_id=str(current_user.id)
+        )
+    
+    return BulkThreadResponse(
+        total=len(request.thread_ids),
+        succeeded=len(succeeded_ids),
+        failed=len(request.thread_ids) - len(succeeded_ids),
+        results=bulk_results
+    )
+
+
+@router.delete("/bulk", response_model=BulkThreadResponse)
+async def bulk_delete_threads(
+    request: BulkThreadRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Bulk delete multiple threads (soft delete).
+    """
+    service = get_chat_service(db)
+    results = service.bulk_delete_threads(request.thread_ids, current_user.id)
+    
+    bulk_results = []
+    succeeded_ids = []
+    for thread_id, success, error in results:
+        bulk_results.append(BulkThreadResult(
+            thread_id=thread_id,
+            success=success,
+            error=error,
+            thread=None
+        ))
+        if success:
+            succeeded_ids.append(str(thread_id))
+    
+    if succeeded_ids:
+        await thread_event_service.broadcast_threads_bulk_updated(
+            thread_ids=succeeded_ids,
+            action="deleted",
+            user_id=str(current_user.id)
+        )
+    
+    return BulkThreadResponse(
+        total=len(request.thread_ids),
+        succeeded=len(succeeded_ids),
+        failed=len(request.thread_ids) - len(succeeded_ids),
+        results=bulk_results
+    )
+
+
+@router.post("/{thread_id}/summarize", response_model=ThreadResponse)
+async def regenerate_thread_summary(
+    thread_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Regenerate AI summary for a thread.
+
+    Forces regeneration regardless of rate limits.
+    """
+    chat_service = get_chat_service(db)
+    thread = chat_service.get_thread(thread_id, current_user.id)
+
+    if not thread:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Thread not found"
+        )
+
+    # Import and call summarization service
+    from ..services.thread_summarization_service import get_thread_summarization_service
+
+    summarization_service = get_thread_summarization_service(db)
+
+    try:
+        import asyncio
+        summary = await summarization_service.generate_summary(thread_id, force=True)
+
+        if summary:
+            logger.info(f"Regenerated summary for thread {thread_id}")
+        else:
+            logger.warning(f"Failed to generate summary for thread {thread_id}")
+
+    except Exception as e:
+        logger.error(f"Summary regeneration failed for thread {thread_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Summary generation failed: {str(e)}"
+        )
+
+    # Refresh thread to get updated summary
+    db.refresh(thread)
+
+    return ThreadResponse(
+        id=thread.id,
+        conversation_id=thread.conversation_id,
+        title=thread.title,
+        summary=thread.summary,
+        status=thread.status,
+        last_message_at=thread.last_message_at,
+        message_count=thread.message_count,
+        token_count=thread.token_count,
+        created_by_id=thread.created_by_id,
+        created_at=thread.created_at,
+        updated_at=thread.updated_at
     )
 
 

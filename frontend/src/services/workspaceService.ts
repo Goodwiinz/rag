@@ -4,6 +4,7 @@
  */
 
 import {
+    BulkThreadResponse,
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatMessage,
@@ -235,6 +236,39 @@ export const workspaceService = {
 
   async deleteThread(threadId: string): Promise<void> {
     await v2Client.delete(`${API_PREFIX}/threads/${threadId}`);
+  },
+
+  async regenerateThreadSummary(threadId: string): Promise<Thread> {
+    const response = await v2Client.post<Thread>(`${API_PREFIX}/threads/${threadId}/summarize`);
+    return response.data;
+  },
+
+  // ============================================================================
+  // Bulk Thread Operations
+  // ============================================================================
+
+  async bulkResolveThreads(threadIds: string[]): Promise<BulkThreadResponse> {
+    const response = await v2Client.post<BulkThreadResponse>(
+      `${API_PREFIX}/threads/bulk/resolve`,
+      { thread_ids: threadIds }
+    );
+    return response.data;
+  },
+
+  async bulkArchiveThreads(threadIds: string[]): Promise<BulkThreadResponse> {
+    const response = await v2Client.post<BulkThreadResponse>(
+      `${API_PREFIX}/threads/bulk/archive`,
+      { thread_ids: threadIds }
+    );
+    return response.data;
+  },
+
+  async bulkDeleteThreads(threadIds: string[]): Promise<BulkThreadResponse> {
+    const response = await v2Client.delete<BulkThreadResponse>(
+      `${API_PREFIX}/threads/bulk`,
+      { data: { thread_ids: threadIds } }
+    );
+    return response.data;
   },
 
   // ============================================================================

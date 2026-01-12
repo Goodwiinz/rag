@@ -51,6 +51,7 @@ class MessageType(Enum):
     THREAD_CREATED = "thread_created"
     THREAD_UPDATED = "thread_updated"
     THREAD_DELETED = "thread_deleted"
+    THREADS_BULK_UPDATED = "threads_bulk_updated"
     MESSAGE_CREATED = "message_created"
     MESSAGE_UPDATED = "message_updated"
     CONVERSATION_UPDATED = "conversation_updated"
