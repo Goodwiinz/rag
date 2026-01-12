@@ -7,3 +7,4 @@ export { default as HybridSearchOrchestrator } from './HybridSearchOrchestrator'
 // export { default as ResultAggregator } from './ResultAggregator';
 export { default as QueryPerformanceMonitor } from './QueryPerformanceMonitor';
 export { default as QueryProcessor } from './QueryProcessor';
+export { ThreadMessageSearch } from './ThreadMessageSearch';
