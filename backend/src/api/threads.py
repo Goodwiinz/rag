@@ -132,6 +132,15 @@ async def check_bulk_archive_rate_limit(
     )
 
 
+async def check_bulk_summarize_rate_limit(
+    request: Request, current_user: User = Depends(get_current_user)
+):
+    """Rate limit: 5 bulk summarize operations per minute (heavy AI ops)."""
+    return await check_bulk_rate_limit(
+        request, current_user, limit=5, window=60, operation="summarize"
+    )
+
+
 async def check_bulk_delete_rate_limit(
     request: Request, current_user: User = Depends(get_current_user)
 ):
@@ -243,6 +252,108 @@ async def list_threads(
         limit=limit,
         has_more=has_more,
     )
+
+
+# =============================================================================
+# Bulk Thread Operations
+# IMPORTANT: These routes MUST be defined before /{thread_id} routes to avoid
+# FastAPI matching "bulk" as a thread_id parameter.
+# =============================================================================
+
+
+@router.post("/bulk/resolve", response_model=BulkThreadResponse)
+async def bulk_resolve_threads(
+    request: BulkThreadRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _rate_limit: bool = Depends(check_bulk_resolve_rate_limit),
+):
+    """
+    Bulk resolve multiple threads.
+
+    Rate limited to 10 operations per minute per user.
+    """
+    service = get_chat_service(db)
+    results = service.bulk_update_threads(
+        request.thread_ids, ThreadUpdate(status=ThreadStatus.RESOLVED), current_user.id
+    )
+
+    return await _build_bulk_response(
+        results=results, action="resolved", user_id=current_user.id
+    )
+
+
+@router.post("/bulk/archive", response_model=BulkThreadResponse)
+async def bulk_archive_threads(
+    request: BulkThreadRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _rate_limit: bool = Depends(check_bulk_archive_rate_limit),
+):
+    """
+    Bulk archive multiple threads.
+
+    Rate limited to 10 operations per minute per user.
+    """
+    service = get_chat_service(db)
+    results = service.bulk_update_threads(
+        request.thread_ids, ThreadUpdate(status=ThreadStatus.ARCHIVED), current_user.id
+    )
+
+    return await _build_bulk_response(
+        results=results, action="archived", user_id=current_user.id
+    )
+
+
+@router.post("/bulk/summarize", response_model=BulkThreadResponse)
+async def bulk_summarize_threads(
+    request: BulkThreadRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _rate_limit: bool = Depends(check_bulk_summarize_rate_limit),
+):
+    """
+    Bulk trigger AI summarization for multiple threads.
+
+    Rate limited to 5 operations per minute per user (heavy AI operations).
+    """
+    service = get_chat_service(db)
+    results = service.bulk_summarize_threads(request.thread_ids, current_user.id)
+
+    return await _build_bulk_response(
+        results=results,
+        action="summarized",
+        user_id=current_user.id,
+        include_threads=False,  # Thread data would be stale since summarization is async
+    )
+
+
+@router.delete("/bulk", response_model=BulkThreadResponse)
+async def bulk_delete_threads(
+    request: BulkThreadRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _rate_limit: bool = Depends(check_bulk_delete_rate_limit),
+):
+    """
+    Bulk delete multiple threads (soft delete).
+
+    Rate limited to 5 operations per minute per user (stricter for destructive operations).
+    """
+    service = get_chat_service(db)
+    results = service.bulk_delete_threads(request.thread_ids, current_user.id)
+
+    return await _build_bulk_response(
+        results=results,
+        action="deleted",
+        user_id=current_user.id,
+        include_threads=False,
+    )
+
+
+# =============================================================================
+# Single Thread Operations
+# =============================================================================
 
 
 @router.get("/{thread_id}", response_model=ThreadDetailResponse)
@@ -409,131 +520,6 @@ async def archive_thread(
     """
     return await update_thread(
         thread_id, ThreadUpdate(status=ThreadStatus.ARCHIVED), current_user, db
-    )
-
-
-# =============================================================================
-# Bulk Thread Operations
-# =============================================================================
-
-
-@router.post("/bulk/resolve", response_model=BulkThreadResponse)
-async def bulk_resolve_threads(
-    request: BulkThreadRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _rate_limit: bool = Depends(check_bulk_resolve_rate_limit),
-):
-    """
-    Bulk resolve multiple threads.
-
-    Rate limited to 10 operations per minute per user.
-    """
-    service = get_chat_service(db)
-    results = service.bulk_update_threads(
-        request.thread_ids, ThreadUpdate(status=ThreadStatus.RESOLVED), current_user.id
-    )
-
-    return await _build_bulk_response(
-        results=results, action="resolved", user_id=current_user.id
-    )
-
-    bulk_results = []
-    succeeded_ids = []
-    for thread_id, success, error, thread in results:
-        bulk_results.append(
-            BulkThreadResult(
-                thread_id=thread_id,
-                success=success,
-                error=error,
-                thread=ThreadResponse.model_validate(thread) if thread else None,
-            )
-        )
-        if success:
-            succeeded_ids.append(str(thread_id))
-
-    # Broadcast bulk update event
-    if succeeded_ids:
-        await thread_event_service.broadcast_threads_bulk_updated(
-            thread_ids=succeeded_ids, action="resolved", user_id=str(current_user.id)
-        )
-
-    return BulkThreadResponse(
-        total=len(request.thread_ids),
-        succeeded=len(succeeded_ids),
-        failed=len(request.thread_ids) - len(succeeded_ids),
-        results=bulk_results,
-    )
-
-
-@router.post("/bulk/archive", response_model=BulkThreadResponse)
-async def bulk_archive_threads(
-    request: BulkThreadRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _rate_limit: bool = Depends(check_bulk_archive_rate_limit),
-):
-    """
-    Bulk archive multiple threads.
-
-    Rate limited to 10 operations per minute per user.
-    """
-    service = get_chat_service(db)
-    results = service.bulk_update_threads(
-        request.thread_ids, ThreadUpdate(status=ThreadStatus.ARCHIVED), current_user.id
-    )
-
-    return await _build_bulk_response(
-        results=results, action="archived", user_id=current_user.id
-    )
-
-    bulk_results = []
-    succeeded_ids = []
-    for thread_id, success, error, thread in results:
-        bulk_results.append(
-            BulkThreadResult(
-                thread_id=thread_id,
-                success=success,
-                error=error,
-                thread=ThreadResponse.model_validate(thread) if thread else None,
-            )
-        )
-        if success:
-            succeeded_ids.append(str(thread_id))
-
-    if succeeded_ids:
-        await thread_event_service.broadcast_threads_bulk_updated(
-            thread_ids=succeeded_ids, action="archived", user_id=str(current_user.id)
-        )
-
-    return BulkThreadResponse(
-        total=len(request.thread_ids),
-        succeeded=len(succeeded_ids),
-        failed=len(request.thread_ids) - len(succeeded_ids),
-        results=bulk_results,
-    )
-
-
-@router.delete("/bulk", response_model=BulkThreadResponse)
-async def bulk_delete_threads(
-    request: BulkThreadRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _rate_limit: bool = Depends(check_bulk_delete_rate_limit),
-):
-    """
-    Bulk delete multiple threads (soft delete).
-
-    Rate limited to 5 operations per minute per user (stricter for destructive operations).
-    """
-    service = get_chat_service(db)
-    results = service.bulk_delete_threads(request.thread_ids, current_user.id)
-
-    return await _build_bulk_response(
-        results=results,
-        action="deleted",
-        user_id=current_user.id,
-        include_threads=False,
     )
 
 

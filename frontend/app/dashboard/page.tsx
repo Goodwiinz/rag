@@ -1,46 +1,40 @@
 "use client";
 
-import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { useDocuments } from '@/hooks/useDocuments';
 import { getAnalytics } from '@/lib/analytics';
+import { cn } from '@/lib/utils';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Activity,
-  FileText,
-  Search,
-  MessageSquare,
-  Zap,
-  BarChart3,
-  Database,
-  Sparkles,
-  Brain,
-  Network,
-  TrendingUp,
-  Command,
-  FileVideo,
-  Image as ImageIcon,
-  Music,
-  ChevronRight,
-  Terminal,
-  ArrowUpRight,
-  Clock,
-  Cpu,
-  HardDrive,
-  Gauge,
-  Upload,
-  Bot,
+    Activity,
+    ArrowUpRight,
+    BarChart3,
+    Bot,
+    Brain,
+    ChevronRight,
+    Clock,
+    Database,
+    FileText,
+    FileVideo,
+    Gauge,
+    Image as ImageIcon,
+    MessageSquare,
+    Music,
+    Network,
+    Search,
+    Sparkles,
+    Terminal,
+    TrendingUp,
+    Upload,
+    Zap
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 // Import enhanced components
 import { KeyboardShortcuts } from '@/components/dashboard/KeyboardShortcuts';
 import { QuickSearch } from '@/components/dashboard/QuickSearch';
-
-// Terminal Observatory Theme Constants
-const PHOSPHOR_GREEN = '#00ff9f';
-const AMBER = '#ffb700';
+import { COLORS } from '@/theme/constants';
 
 export default function DashboardPage() {
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
@@ -124,10 +118,10 @@ export default function DashboardPage() {
 
   // Quick actions
   const quickActions = [
-    { icon: Upload, label: 'Upload', href: '/documents/upload', color: PHOSPHOR_GREEN },
-    { icon: Search, label: 'Search', href: '/search', color: PHOSPHOR_GREEN },
-    { icon: Bot, label: 'Chat', href: '/llm-chat', color: AMBER },
-    { icon: Database, label: 'ArXiv', href: '/arxiv', color: PHOSPHOR_GREEN },
+    { icon: Upload, label: 'Upload', href: '/documents/upload', color: COLORS.phosphorGreen },
+    { icon: Search, label: 'Search', href: '/search', color: COLORS.phosphorGreen },
+    { icon: Bot, label: 'Chat', href: '/llm-chat', color: COLORS.amber },
+    { icon: Database, label: 'ArXiv', href: '/arxiv', color: COLORS.phosphorGreen },
   ];
 
   // System services
@@ -151,14 +145,14 @@ export default function DashboardPage() {
 
   // Document type breakdown
   const docTypes = [
-    { type: 'PDF', count: Math.floor(stats.documents * 0.4), icon: FileText, color: '#ef4444' },
-    { type: 'Images', count: Math.floor(stats.documents * 0.3), icon: ImageIcon, color: '#3b82f6' },
-    { type: 'Video', count: Math.floor(stats.documents * 0.2), icon: FileVideo, color: '#8b5cf6' },
-    { type: 'Audio', count: Math.floor(stats.documents * 0.1), icon: Music, color: AMBER },
+    { type: 'PDF', count: Math.floor(stats.documents * 0.4), icon: FileText, color: COLORS.error },
+    { type: 'Images', count: Math.floor(stats.documents * 0.3), icon: ImageIcon, color: COLORS.info },
+    { type: 'Video', count: Math.floor(stats.documents * 0.2), icon: FileVideo, color: COLORS.chart4 },
+    { type: 'Audio', count: Math.floor(stats.documents * 0.1), icon: Music, color: COLORS.amber },
   ];
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] relative overflow-hidden">
+    <div className="min-h-screen bg-[var(--terminal-bg)] relative overflow-hidden">
         {/* CRT Scanlines */}
         <div className="pointer-events-none fixed inset-0 z-50 opacity-[0.03]">
           <div className="h-full w-full" style={{
@@ -170,8 +164,8 @@ export default function DashboardPage() {
         <div className="absolute inset-0 opacity-[0.02]">
           <div className="h-full w-full" style={{
             backgroundImage: `
-              linear-gradient(${PHOSPHOR_GREEN}20 1px, transparent 1px),
-              linear-gradient(90deg, ${PHOSPHOR_GREEN}20 1px, transparent 1px)
+              linear-gradient(${COLORS.phosphorGreen}20 1px, transparent 1px),
+              linear-gradient(90deg, ${COLORS.phosphorGreen}20 1px, transparent 1px)
             `,
             backgroundSize: '50px 50px',
           }} />
@@ -179,9 +173,9 @@ export default function DashboardPage() {
 
         {/* Ambient Glow */}
         <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full blur-[150px] opacity-10"
-          style={{ background: `radial-gradient(circle, ${PHOSPHOR_GREEN}, transparent 70%)` }} />
+          style={{ background: `radial-gradient(circle, ${COLORS.phosphorGreen}, transparent 70%)` }} />
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full blur-[120px] opacity-10"
-          style={{ background: `radial-gradient(circle, ${AMBER}, transparent 70%)` }} />
+          style={{ background: `radial-gradient(circle, ${COLORS.amber}, transparent 70%)` }} />
 
         {/* Content */}
         <div className="relative p-6 space-y-6">
@@ -189,17 +183,17 @@ export default function DashboardPage() {
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded overflow-hidden border border-white/10 bg-[#0d0d12]"
+            className="rounded overflow-hidden border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
           >
             {/* Terminal Chrome */}
-            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10 bg-white/[0.02]">
+            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--terminal-border)] bg-white/[0.02]">
               <div className="w-2 h-2 rounded-full bg-red-500/60" />
               <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
               <div className="w-2 h-2 rounded-full bg-green-500/60" />
-              <span className="ml-2 text-[10px] font-mono text-white/30 uppercase tracking-wider">
+              <span className="ml-2 text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider">
                 Command Center
               </span>
-              <span className="ml-auto text-[10px] font-mono text-[#00ff9f]/60">
+              <span className="ml-auto text-[10px] font-mono text-[var(--phosphor-green-dim)]">
                 {mounted ? currentTime : '--:--:--'}
               </span>
             </div>
@@ -207,25 +201,25 @@ export default function DashboardPage() {
             <div className="p-5">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-mono font-bold text-white/90 flex items-center gap-3">
-                    <Terminal className="w-6 h-6 text-[#00ff9f]" />
+                  <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] flex items-center gap-3">
+                    <Terminal className="w-6 h-6 text-[var(--phosphor-green)]" />
                     Welcome back{user?.email ? `, ${user.email.split('@')[0]}` : ''}
                   </h1>
-                  <p className="text-sm font-mono text-white/40 mt-1">
+                  <p className="text-sm font-mono text-[var(--terminal-text-muted)] mt-1">
                     Knowledge base status overview
                   </p>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded border border-white/10 bg-white/[0.02]">
-                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-white/40 bg-white/5 rounded border border-white/10">
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded border border-[var(--terminal-border)] bg-white/[0.02]">
+                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[var(--terminal-text-muted)] bg-white/5 rounded border border-[var(--terminal-border)]">
                       ⌘K
                     </kbd>
-                    <span className="text-xs font-mono text-white/30">Search</span>
+                    <span className="text-xs font-mono text-[var(--terminal-text-muted)]">Search</span>
                   </div>
-                  <div className="flex items-center gap-2 px-3 py-2 rounded border border-[#00ff9f]/30 bg-[#00ff9f]/5">
-                    <span className="w-2 h-2 rounded-full bg-[#00ff9f] animate-pulse" />
-                    <span className="text-xs font-mono text-[#00ff9f]">All Systems Online</span>
+                  <div className="flex items-center gap-2 px-3 py-2 rounded border border-[var(--phosphor-green-dim)] bg-[var(--phosphor-green)]/5">
+                    <span className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-pulse" />
+                    <span className="text-xs font-mono text-[var(--phosphor-green)]">All Systems Online</span>
                   </div>
                 </div>
               </div>
@@ -244,8 +238,8 @@ export default function DashboardPage() {
                 <motion.div
                   whileHover={{ scale: 1.02, y: -2 }}
                   className={cn(
-                    "group p-4 rounded border border-white/10 bg-[#0d0d12]",
-                    "hover:border-[#00ff9f]/40 hover:shadow-[0_0_20px_rgba(0,255,159,0.1)]",
+                    "group p-4 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)]",
+                    "hover:border-[var(--phosphor-green-dim)] hover:shadow-[0_0_20px_rgba(0,255,159,0.1)]",
                     "transition-all duration-300 cursor-pointer"
                   )}
                 >
@@ -259,10 +253,10 @@ export default function DashboardPage() {
                     >
                       <action.icon className="w-5 h-5" style={{ color: action.color }} />
                     </div>
-                    <span className="font-mono text-sm text-white/70 group-hover:text-white transition-colors">
+                    <span className="font-mono text-sm text-[var(--terminal-text-muted)] group-hover:text-white transition-colors">
                       {action.label}
                     </span>
-                    <ChevronRight className="w-4 h-4 text-white/20 ml-auto group-hover:text-[#00ff9f] group-hover:translate-x-1 transition-all" />
+                    <ChevronRight className="w-4 h-4 text-[var(--terminal-text-muted)]/20 ml-auto group-hover:text-[var(--phosphor-green)] group-hover:translate-x-1 transition-all" />
                   </div>
                 </motion.div>
               </Link>
@@ -277,17 +271,17 @@ export default function DashboardPage() {
             className="grid grid-cols-2 lg:grid-cols-4 gap-4"
           >
             {[
-              { label: 'Total Documents', value: stats.documents, icon: FileText, change: '+12%', color: PHOSPHOR_GREEN },
-              { label: 'Search Queries', value: stats.searches, icon: Search, change: '+8%', color: PHOSPHOR_GREEN },
-              { label: 'AI Interactions', value: stats.chats, icon: MessageSquare, change: '+23%', color: AMBER },
-              { label: 'Processing Queue', value: stats.processing, icon: Zap, change: '0', color: PHOSPHOR_GREEN },
+              { label: 'Total Documents', value: stats.documents, icon: FileText, change: '+12%', color: COLORS.phosphorGreen },
+              { label: 'Search Queries', value: stats.searches, icon: Search, change: '+8%', color: COLORS.phosphorGreen },
+              { label: 'AI Interactions', value: stats.chats, icon: MessageSquare, change: '+23%', color: COLORS.amber },
+              { label: 'Processing Queue', value: stats.processing, icon: Zap, change: '0', color: COLORS.phosphorGreen },
             ].map((stat, idx) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.2 + idx * 0.1 }}
-                className="rounded overflow-hidden border border-white/10 bg-[#0d0d12]"
+                className="rounded overflow-hidden border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
               >
                 {/* Mini Terminal Chrome */}
                 <div className="flex items-center gap-1 px-2 py-1 border-b border-white/5 bg-white/[0.01]">
@@ -306,7 +300,7 @@ export default function DashboardPage() {
                     </div>
                     <span className={cn(
                       "text-[10px] font-mono px-1.5 py-0.5 rounded",
-                      stat.change.startsWith('+') ? 'text-[#00ff9f] bg-[#00ff9f]/10' : 'text-white/40 bg-white/5'
+                      stat.change.startsWith('+') ? 'text-[var(--phosphor-green)] bg-[var(--phosphor-green)]/10' : 'text-[var(--terminal-text-muted)] bg-white/5'
                     )}>
                       {stat.change}
                     </span>
@@ -325,16 +319,16 @@ export default function DashboardPage() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
-              className="lg:col-span-2 rounded overflow-hidden border border-white/10 bg-[#0d0d12]"
+              className="lg:col-span-2 rounded overflow-hidden border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
             >
-              <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10 bg-white/[0.02]">
+              <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--terminal-border)] bg-white/[0.02]">
                 <div className="w-2 h-2 rounded-full bg-red-500/60" />
                 <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
                 <div className="w-2 h-2 rounded-full bg-green-500/60" />
-                <span className="ml-2 text-[10px] font-mono text-white/30 uppercase tracking-wider">
+                <span className="ml-2 text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider">
                   System Performance
                 </span>
-                <Activity className="w-3 h-3 text-[#00ff9f] ml-auto animate-pulse" />
+                <Activity className="w-3 h-3 text-[var(--phosphor-green)] ml-auto animate-pulse" />
               </div>
 
               <div className="p-4">
@@ -342,15 +336,15 @@ export default function DashboardPage() {
                   {services.map((service) => (
                     <div
                       key={service.name}
-                      className="p-3 rounded border border-white/5 bg-white/[0.02] hover:border-[#00ff9f]/20 transition-colors"
+                      className="p-3 rounded border border-[var(--terminal-border)] bg-white/[0.02] hover:border-[var(--phosphor-green)]/20 transition-colors"
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-mono text-white/60">{service.name}</span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#00ff9f] animate-pulse" />
+                        <span className="text-xs font-mono text-[var(--terminal-text-muted)]">{service.name}</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)] animate-pulse" />
                       </div>
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-[10px] font-mono text-white/30">{service.latency}</span>
-                        <span className="text-[10px] font-mono text-[#00ff9f]">ONLINE</span>
+                        <span className="text-[10px] font-mono text-[var(--terminal-text-muted)]">{service.latency}</span>
+                        <span className="text-[10px] font-mono text-[var(--phosphor-green)]">ONLINE</span>
                       </div>
                       {/* Load bar */}
                       <div className="h-1 bg-white/5 rounded-full overflow-hidden">
@@ -361,12 +355,12 @@ export default function DashboardPage() {
                           className="h-full rounded-full"
                           style={{
                             background: service.load > 60
-                              ? `linear-gradient(90deg, ${AMBER}, ${AMBER})`
-                              : `linear-gradient(90deg, ${PHOSPHOR_GREEN}, ${PHOSPHOR_GREEN}80)`
+                              ? `linear-gradient(90deg, ${COLORS.amber}, ${COLORS.amber})`
+                              : `linear-gradient(90deg, ${COLORS.phosphorGreen}, ${COLORS.phosphorGreen}80)`
                           }}
                         />
                       </div>
-                      <div className="text-[10px] font-mono text-white/30 mt-1">{service.load}% load</div>
+                      <div className="text-[10px] font-mono text-[var(--terminal-text-muted)] mt-1">{service.load}% load</div>
                     </div>
                   ))}
                 </div>
@@ -378,16 +372,16 @@ export default function DashboardPage() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.4 }}
-              className="rounded overflow-hidden border border-white/10 bg-[#0d0d12]"
+              className="rounded overflow-hidden border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
             >
-              <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10 bg-white/[0.02]">
+              <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--terminal-border)] bg-white/[0.02]">
                 <div className="w-2 h-2 rounded-full bg-red-500/60" />
                 <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
                 <div className="w-2 h-2 rounded-full bg-green-500/60" />
-                <span className="ml-2 text-[10px] font-mono text-white/30 uppercase tracking-wider">
+                <span className="ml-2 text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider">
                   Activity Log
                 </span>
-                <Clock className="w-3 h-3 text-white/30 ml-auto" />
+                <Clock className="w-3 h-3 text-[var(--terminal-text-muted)] ml-auto" />
               </div>
 
               <div className="p-3">
@@ -398,18 +392,18 @@ export default function DashboardPage() {
                       initial={{ opacity: 0, x: 10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.5 + idx * 0.1 }}
-                      className="flex items-start gap-2 p-2 rounded border border-white/5 bg-white/[0.01] hover:border-white/10 transition-colors"
+                      className="flex items-start gap-2 p-2 rounded border border-[var(--terminal-border)] bg-white/[0.01] hover:border-white/10 transition-colors"
                     >
                       <div className={cn(
                         "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
-                        item.type === 'upload' && 'bg-[#00ff9f]',
+                        item.type === 'upload' && 'bg-[var(--phosphor-green)]',
                         item.type === 'search' && 'bg-blue-400',
-                        item.type === 'chat' && 'bg-[#ffb700]',
+                        item.type === 'chat' && 'bg-[var(--amber-gold)]',
                         item.type === 'process' && 'bg-purple-400'
                       )} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-mono text-white/60 truncate">{item.text}</p>
-                        <p className="text-[10px] font-mono text-white/30">{item.time}</p>
+                        <p className="text-xs font-mono text-[var(--terminal-text-muted)] truncate">{item.text}</p>
+                        <p className="text-[10px] font-mono text-[var(--terminal-text-muted)]">{item.time}</p>
                       </div>
                     </motion.div>
                   ))}
@@ -425,16 +419,16 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
-              className="rounded overflow-hidden border border-white/10 bg-[#0d0d12]"
+              className="rounded overflow-hidden border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
             >
-              <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10 bg-white/[0.02]">
+              <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--terminal-border)] bg-white/[0.02]">
                 <div className="w-2 h-2 rounded-full bg-red-500/60" />
                 <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
                 <div className="w-2 h-2 rounded-full bg-green-500/60" />
-                <span className="ml-2 text-[10px] font-mono text-white/30 uppercase tracking-wider">
+                <span className="ml-2 text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider">
                   Document Distribution
                 </span>
-                <BarChart3 className="w-3 h-3 text-white/30 ml-auto" />
+                <BarChart3 className="w-3 h-3 text-[var(--terminal-text-muted)] ml-auto" />
               </div>
 
               <div className="p-4">
@@ -449,8 +443,8 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-mono text-white/60">{doc.type}</span>
-                          <span className="text-xs font-mono text-white/40">{doc.count}</span>
+                          <span className="text-xs font-mono text-[var(--terminal-text-muted)]">{doc.type}</span>
+                          <span className="text-xs font-mono text-[var(--terminal-text-muted)]">{doc.count}</span>
                         </div>
                         <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                           <motion.div
@@ -473,30 +467,30 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 }}
-              className="rounded overflow-hidden border border-white/10 bg-[#0d0d12]"
+              className="rounded overflow-hidden border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
             >
-              <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10 bg-white/[0.02]">
+              <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--terminal-border)] bg-white/[0.02]">
                 <div className="w-2 h-2 rounded-full bg-red-500/60" />
                 <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
                 <div className="w-2 h-2 rounded-full bg-green-500/60" />
-                <span className="ml-2 text-[10px] font-mono text-white/30 uppercase tracking-wider">
+                <span className="ml-2 text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider">
                   AI Insights
                 </span>
-                <Brain className="w-3 h-3 text-[#ffb700] ml-auto" />
+                <Brain className="w-3 h-3 text-[var(--amber-gold)] ml-auto" />
               </div>
 
               <div className="p-4 space-y-3">
                 {[
-                  { text: 'Knowledge graph expanded with 23 new entities', icon: Network, color: PHOSPHOR_GREEN },
-                  { text: 'Semantic search accuracy improved to 94.2%', icon: TrendingUp, color: PHOSPHOR_GREEN },
-                  { text: 'Processing queue optimized, 45% faster', icon: Gauge, color: AMBER },
+                  { text: 'Knowledge graph expanded with 23 new entities', icon: Network, color: COLORS.phosphorGreen },
+                  { text: 'Semantic search accuracy improved to 94.2%', icon: TrendingUp, color: COLORS.phosphorGreen },
+                  { text: 'Processing queue optimized, 45% faster', icon: Gauge, color: COLORS.amber },
                 ].map((insight, idx) => (
                   <motion.div
                     key={idx}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.7 + idx * 0.1 }}
-                    className="flex items-start gap-3 p-3 rounded border border-white/5 bg-white/[0.02]"
+                    className="flex items-start gap-3 p-3 rounded border border-[var(--terminal-border)] bg-white/[0.02]"
                   >
                     <div
                       className="p-1.5 rounded border shrink-0"
@@ -504,17 +498,17 @@ export default function DashboardPage() {
                     >
                       <insight.icon className="w-3.5 h-3.5" style={{ color: insight.color }} />
                     </div>
-                    <p className="text-xs font-mono text-white/60 leading-relaxed">{insight.text}</p>
+                    <p className="text-xs font-mono text-[var(--terminal-text-muted)] leading-relaxed">{insight.text}</p>
                   </motion.div>
                 ))}
 
                 <Link href="/llm-chat">
-                  <div className="flex items-center justify-between p-3 rounded border border-[#ffb700]/20 bg-[#ffb700]/5 hover:border-[#ffb700]/40 transition-colors cursor-pointer group">
+                  <div className="flex items-center justify-between p-3 rounded border border-[var(--amber-gold)]/20 bg-[var(--amber-gold)]/5 hover:border-[var(--amber-gold)]/40 transition-colors cursor-pointer group">
                     <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-[#ffb700]" />
-                      <span className="text-xs font-mono text-[#ffb700]">Start AI Chat Session</span>
+                      <Sparkles className="w-4 h-4 text-[var(--amber-gold)]" />
+                      <span className="text-xs font-mono text-[var(--amber-gold)]">Start AI Chat Session</span>
                     </div>
-                    <ArrowUpRight className="w-4 h-4 text-[#ffb700]/60 group-hover:text-[#ffb700] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+                    <ArrowUpRight className="w-4 h-4 text-[var(--amber-gold)]/60 group-hover:text-[var(--amber-gold)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
                   </div>
                 </Link>
               </div>
@@ -528,15 +522,15 @@ export default function DashboardPage() {
             <motion.div
               initial={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-[#0a0a0f] z-50 flex items-center justify-center"
+              className="fixed inset-0 bg-[var(--terminal-bg)] z-50 flex items-center justify-center"
             >
               <div className="text-center">
                 <motion.div
                   animate={{ rotate: 360 }}
                   transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                  className="w-12 h-12 border-2 border-[#00ff9f]/30 border-t-[#00ff9f] rounded-full mx-auto"
+                  className="w-12 h-12 border-2 border-[var(--phosphor-green)]/30 border-t-[var(--phosphor-green)] rounded-full mx-auto"
                 />
-                <p className="text-sm font-mono text-white/40 mt-4">Initializing dashboard...</p>
+                <p className="text-sm font-mono text-[var(--terminal-text-muted)] mt-4">Initializing dashboard...</p>
               </div>
             </motion.div>
           )}

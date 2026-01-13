@@ -1,0 +1,102 @@
+{
+  "id": "session_1768288030628_344f53c3",
+  "state": "created",
+  "metadata": {
+    "trigger": "fix-issue",
+    "branch": "feat/bulk-thread-operations-and-summarization",
+    "user": null,
+    "config": {},
+    "project": "multimodal-rag-monorepo",
+    "projectVersion": "1.0.0",
+    "github": "https://github.com/goodwiins/rag",
+    "githubOwner": "goodwiins",
+    "githubRepo": "rag",
+    "issueId": "GOO-88",
+    "task": "Extract duplicate WebSocket connection logic"
+  },
+  "timestamps": {
+    "created": "2026-01-13T07:07:10.628Z",
+    "started": null,
+    "updated": "2026-01-13T07:07:10.629Z",
+    "completed": null
+  },
+  "context": {
+    "findings": {},
+    "issues": {},
+    "fixes": {},
+    "errors": [],
+    "custom": {},
+    "project": {
+      "name": "multimodal-rag-monorepo",
+      "version": "1.0.0",
+      "description": "Multimodal Enterprise RAG System - Monorepo Root",
+      "directory": "/Users/goodwiinz/development/RAG_system",
+      "directoryName": "RAG_system",
+      "author": null,
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/yourusername/multimodal-rag-system"
+      }
+    },
+    "github": {
+      "isGitRepo": true,
+      "remote": "https://github.com/goodwiins/rag.git",
+      "owner": "goodwiins",
+      "repo": "rag",
+      "url": "https://github.com/goodwiins/rag",
+      "branch": "feat/bulk-thread-operations-and-summarization",
+      "defaultBranch": "master"
+    }
+  },
+  "invocations": [],
+  "events": [
+    {
+      "type": "context_set",
+      "data": {
+        "path": "project",
+        "valueType": "object",
+        "agent": "unknown"
+      },
+      "timestamp": "2026-01-13T07:07:10.629Z"
+    },
+    {
+      "type": "context_set",
+      "data": {
+        "path": "github",
+        "valueType": "object",
+        "agent": "unknown"
+      },
+      "timestamp": "2026-01-13T07:07:10.629Z"
+    }
+  ],
+  "checkpoints": [],
+  "stats": {
+    "agentsInvoked": 0,
+    "findingsProcessed": 0,
+    "issuesCreated": 0,
+    "fixesApplied": 0,
+    "errorsEncountered": 0
+  },
+  "tracking": {
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    },
+    "issues": {
+      "created": [],
+      "fixed": [],
+      "skipped": [],
+      "failed": []
+    },
+    "findings": [],
+    "work": [],
+    "currentWork": null,
+    "plans": {
+      "active": null,
+      "completed": [],
+      "history": []
+    }
+  }
+}

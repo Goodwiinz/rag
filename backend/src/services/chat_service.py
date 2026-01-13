@@ -520,49 +520,199 @@ class ChatService:
         self,
         thread_ids: List[UUID],
         data: "ThreadUpdate",
-        user_id: UUID
+        user_id: UUID,
+        atomic: bool = False
     ) -> List[Tuple[UUID, bool, Optional[str], Optional["Thread"]]]:
         """Bulk update multiple threads with same data.
         
-        Returns list of (thread_id, success, error_msg, thread) tuples.
+        Args:
+            thread_ids: List of thread UUIDs to update
+            data: ThreadUpdate data to apply
+            user_id: User performing the operation
+            atomic: If True, all succeed or all fail. If False, best-effort.
+        
+        Returns:
+            List of (thread_id, success, error_msg, thread) tuples.
         """
         results = []
         
-        for thread_id in thread_ids:
+        if atomic:
+            # Atomic mode: all succeed or all fail
             try:
-                thread = self.update_thread(thread_id, data, user_id)
-                if thread:
+                # Start a savepoint for atomic operation
+                savepoint = self.db.begin_nested()
+                updated_threads = []
+                
+                for thread_id in thread_ids:
+                    thread = self.get_thread(thread_id, user_id)
+                    if not thread:
+                        raise ValueError(f"Thread {thread_id} not found")
+                    
+                    if not thread.conversation.workspace.can_user_edit(str(user_id)):
+                        raise PermissionError(f"No permission to edit thread {thread_id}")
+                    
+                    # Apply updates without committing
+                    if data.title is not None:
+                        thread.title = data.title
+                    if data.summary is not None:
+                        thread.summary = data.summary
+                    
+                    status_changing_to_resolved = (
+                        data.status is not None and
+                        data.status == ThreadStatus.RESOLVED and
+                        thread.status != ThreadStatus.RESOLVED
+                    )
+                    
+                    if data.status is not None:
+                        thread.status = data.status
+                    
+                    thread.updated_at = datetime.utcnow()
+                    updated_threads.append((thread_id, thread, status_changing_to_resolved))
+                
+                # Commit the savepoint
+                savepoint.commit()
+                self.db.commit()
+                
+                # Build results and trigger any post-update tasks
+                for thread_id, thread, status_changing_to_resolved in updated_threads:
+                    self.db.refresh(thread)
                     results.append((thread_id, True, None, thread))
-                else:
-                    results.append((thread_id, False, "Thread not found or insufficient permissions", None))
+                    
+                    if status_changing_to_resolved:
+                        try:
+                            from ..tasks.summarize_thread_task import summarize_thread_on_resolve_task
+                            summarize_thread_on_resolve_task.delay(str(thread_id))
+                        except Exception as e:
+                            logger.warning(f"Failed to queue resolution summary for thread {thread_id}: {e}")
+                
             except Exception as e:
-                logger.error(f"Error updating thread {thread_id}: {e}")
-                results.append((thread_id, False, str(e), None))
+                # Rollback on any error
+                self.db.rollback()
+                logger.error(f"Atomic bulk update failed: {e}")
+                # Return all as failed
+                for thread_id in thread_ids:
+                    results.append((thread_id, False, f"Atomic operation failed: {str(e)}", None))
+        else:
+            # Best-effort mode: continue on errors
+            for thread_id in thread_ids:
+                try:
+                    thread = self.update_thread(thread_id, data, user_id)
+                    if thread:
+                        results.append((thread_id, True, None, thread))
+                    else:
+                        results.append((thread_id, False, "Thread not found or insufficient permissions", None))
+                except Exception as e:
+                    logger.error(f"Error updating thread {thread_id}: {e}")
+                    results.append((thread_id, False, str(e), None))
         
         return results
 
     def bulk_delete_threads(
         self,
         thread_ids: List[UUID],
-        user_id: UUID
+        user_id: UUID,
+        atomic: bool = False
     ) -> List[Tuple[UUID, bool, Optional[str]]]:
         """Bulk soft delete multiple threads.
         
-        Returns list of (thread_id, success, error_msg) tuples.
+        Args:
+            thread_ids: List of thread UUIDs to delete
+            user_id: User performing the operation
+            atomic: If True, all succeed or all fail. If False, best-effort.
+        
+        Returns:
+            List of (thread_id, success, error_msg) tuples.
+        """
+        results = []
+        
+        if atomic:
+            # Atomic mode: all succeed or all fail
+            try:
+                # Start a savepoint for atomic operation
+                savepoint = self.db.begin_nested()
+                deleted_ids = []
+                
+                for thread_id in thread_ids:
+                    thread = self.get_thread(thread_id, user_id)
+                    if not thread:
+                        raise ValueError(f"Thread {thread_id} not found")
+                    
+                    if not thread.conversation.workspace.can_user_edit(str(user_id)):
+                        raise PermissionError(f"No permission to delete thread {thread_id}")
+                    
+                    # Apply soft delete without committing
+                    thread.is_deleted = True
+                    thread.updated_at = datetime.utcnow()
+                    deleted_ids.append(thread_id)
+                
+                # Commit the savepoint
+                savepoint.commit()
+                self.db.commit()
+                
+                # Build results
+                for thread_id in deleted_ids:
+                    results.append((thread_id, True, None))
+                    logger.info(f"Deleted thread: {thread_id}")
+                
+            except Exception as e:
+                # Rollback on any error
+                self.db.rollback()
+                logger.error(f"Atomic bulk delete failed: {e}")
+                # Return all as failed
+                for thread_id in thread_ids:
+                    results.append((thread_id, False, f"Atomic operation failed: {str(e)}"))
+        else:
+            # Best-effort mode: continue on errors
+            for thread_id in thread_ids:
+                try:
+                    success = self.delete_thread(thread_id, user_id)
+                    if success:
+                        results.append((thread_id, True, None))
+                    else:
+                        results.append((thread_id, False, "Thread not found or insufficient permissions"))
+                except Exception as e:
+                    logger.error(f"Error deleting thread {thread_id}: {e}")
+                    results.append((thread_id, False, str(e)))
+        
+        return results
+
+    def bulk_summarize_threads(
+        self,
+        thread_ids: List[UUID],
+        user_id: UUID
+    ) -> List[Tuple[UUID, bool, Optional[str], Optional["Thread"]]]:
+        """Bulk trigger AI summarization for multiple threads.
+        
+        Args:
+            thread_ids: List of thread UUIDs to summarize
+            user_id: User performing the operation
+            
+        Returns:
+            List of (thread_id, success, error_msg, thread) tuples.
         """
         results = []
         
         for thread_id in thread_ids:
             try:
-                success = self.delete_thread(thread_id, user_id)
-                if success:
-                    results.append((thread_id, True, None))
-                else:
-                    results.append((thread_id, False, "Thread not found or insufficient permissions"))
+                thread = self.get_thread(thread_id, user_id)
+                if not thread:
+                    results.append((thread_id, False, "Thread not found or insufficient permissions", None))
+                    continue
+                
+                # Trigger async summarization task
+                # We use force=True to ensure a fresh summary is generated for manual bulk requests
+                try:
+                    from ..tasks.summarize_thread_task import summarize_thread_task
+                    summarize_thread_task.delay(str(thread_id), force=True)
+                    results.append((thread_id, True, None, thread))
+                except Exception as e:
+                    logger.error(f"Failed to queue summarization for thread {thread_id}: {e}")
+                    results.append((thread_id, False, f"Failed to queue task: {str(e)}", thread))
+                    
             except Exception as e:
-                logger.error(f"Error deleting thread {thread_id}: {e}")
-                results.append((thread_id, False, str(e)))
-        
+                logger.error(f"Error in bulk summarize for thread {thread_id}: {e}")
+                results.append((thread_id, False, str(e), None))
+                
         return results
 
     # =========================================================================

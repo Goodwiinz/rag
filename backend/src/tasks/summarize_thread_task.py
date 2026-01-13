@@ -73,15 +73,11 @@ def summarize_thread_task(self, thread_id: str, force: bool = False) -> Optional
 
         service = get_thread_summarization_service(db)
 
-        # Run async summary generation in event loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            summary = loop.run_until_complete(
-                service.generate_summary(thread_uuid, force=force)
-            )
-        finally:
-            loop.close()
+        # Run async summary generation using asyncio.run()
+        # This properly handles event loop lifecycle (creation, running, cleanup)
+        summary = asyncio.run(
+            service.generate_summary(thread_uuid, force=force)
+        )
 
         if summary:
             logger.info(f"Generated summary for thread {thread_id}: {summary[:50]}...")

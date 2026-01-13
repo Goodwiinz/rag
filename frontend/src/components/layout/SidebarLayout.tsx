@@ -61,13 +61,13 @@ export function SidebarLayout({ children, showBreadcrumb = true, showHeader = tr
   return (
     <SidebarProvider defaultOpen={true}>
       <AppSidebar />
-      <SidebarInset className="!bg-[#0a0a0f]">
+      <SidebarInset className="!bg-[var(--terminal-bg)]">
         {/* Top Header Bar */}
         {showHeader && (
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 bg-[#0a0a0f]/95 backdrop-blur supports-[backdrop-filter]:bg-[#0a0a0f]/80 px-4">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/95 backdrop-blur px-4">
           <div className="flex items-center gap-2">
-            <SidebarTrigger className="h-7 w-7 text-white/60 hover:text-white hover:bg-white/5" />
-            <Separator orientation="vertical" className="h-4 bg-white/10" />
+            <SidebarTrigger className="h-7 w-7 text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)]" />
+            <Separator orientation="vertical" className="h-4 bg-[var(--terminal-border)]" />
           </div>
 
           {showBreadcrumb && (
@@ -76,13 +76,13 @@ export function SidebarLayout({ children, showBreadcrumb = true, showHeader = tr
                 {/* Show Dashboard as root, but highlight if we're on dashboard page */}
                 <BreadcrumbItem>
                   {pathname === '/dashboard' ? (
-                    <BreadcrumbPage className="text-[#00ff9f]">
+                    <BreadcrumbPage className="text-[var(--phosphor-green)]">
                       Dashboard
                     </BreadcrumbPage>
                   ) : (
                     <BreadcrumbLink
                       href="/dashboard"
-                      className="text-white/40 hover:text-white/70 transition-colors"
+                      className="text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
                     >
                       Dashboard
                     </BreadcrumbLink>
@@ -93,16 +93,16 @@ export function SidebarLayout({ children, showBreadcrumb = true, showHeader = tr
                   .filter((item) => item.path !== '/dashboard')
                   .map((item) => (
                   <React.Fragment key={item.path}>
-                    <BreadcrumbSeparator className="text-white/20">/</BreadcrumbSeparator>
+                    <BreadcrumbSeparator className="text-[var(--terminal-text-muted)]">/</BreadcrumbSeparator>
                     <BreadcrumbItem>
                       {item.isLast ? (
-                        <BreadcrumbPage className="text-[#00ff9f]">
+                        <BreadcrumbPage className="text-[var(--phosphor-green)]">
                           {item.name}
                         </BreadcrumbPage>
                       ) : (
                         <BreadcrumbLink
                           href={item.path}
-                          className="text-white/40 hover:text-white/70 transition-colors"
+                          className="text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
                         >
                           {item.name}
                         </BreadcrumbLink>

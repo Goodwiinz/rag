@@ -1,52 +1,57 @@
 'use client';
 
+import { ExportDialog } from '@/components/export';
 import {
-    Breadcrumb,
-    BreadcrumbItem,
-    BreadcrumbLink,
-    BreadcrumbList,
-    BreadcrumbPage,
-    BreadcrumbSeparator,
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
-import { UIConversation, useChatPersistence } from '@/hooks';
-import { extractCitationIndices } from '@/utils/citationParser';
-import { cn } from '@/lib/utils';
-import { AnimatePresence, motion } from 'framer-motion';
-import {
-    Activity,
-    BookOpen,
-    ChevronDown,
-    ChevronRight,
-    Clock,
-    Cpu,
-    Download,
-    FileText,
-    FolderOpen,
-    Loader2,
-    Menu,
-    MessageSquare,
-    MoreVertical,
-    Pin,
-    Plus,
-    Search,
-    Settings,
-    Share2,
-    Sparkles,
-    Sun,
-    Trash2,
-    Users,
-    X
-} from 'lucide-react';
+import { DeleteConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { ExportDialog } from '@/components/export';
+import { Separator } from '@/components/ui/separator';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import { UIConversation, useChatPersistence } from '@/hooks';
+import { cn } from '@/lib/utils';
+import { useChatStore } from '@/store/chat-store';
+import { extractCitationIndices } from '@/utils/citationParser';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  Activity,
+  Archive,
+  BookOpen,
+  Check,
+  CheckCircle,
+  CheckSquare,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Cpu,
+  Download,
+  FileText,
+  FolderOpen,
+  Loader2,
+  Menu,
+  MessageSquare,
+  MoreVertical,
+  Pin,
+  Plus,
+  Search,
+  Settings,
+  Share2,
+  Sparkles,
+  Sun,
+  Trash2,
+  Users,
+  X
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -286,8 +291,8 @@ function WorkspaceBar({
   }, []);
 
   return (
-    <header className="relative z-20 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/95 backdrop-blur-xl">
-      <div className="flex items-center justify-between px-4 py-2.5">
+    <header className="relative z-20 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/95 backdrop-blur-xl h-14 shrink-0">
+      <div className="flex h-full items-center justify-between px-4">
         {/* Left: Logo & Workspace */}
         <div className="flex items-center gap-4">
           <button
@@ -437,11 +442,73 @@ function ConversationSidebar({
     collections: true,
   });
   const [isCreatingChat, setIsCreatingChat] = useState(false);
+  
+  // Bulk operations state
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkOperating, setIsBulkOperating] = useState(false);
 
   const router = useRouter();
 
   // Get real conversations from chat store
   const { conversations: uiConversations, isLoading, isInitialized, currentThreadId, currentConversationId, selectConversation, createNewChat } = useChatPersistence();
+  
+  // Get bulk operations from chat store
+  const { 
+    toggleThreadSelection, 
+    selectAllThreads, 
+    clearSelection,
+    bulkResolveThreads,
+    bulkArchiveThreads,
+    bulkSummarizeThreads,
+    bulkDeleteThreads,
+    selectedThreadIds,
+    isSelectMode: storeSelectMode,
+    toggleSelectMode: storeToggleSelectMode,
+  } = useChatStore();
+  
+  // Sync local state with store
+  useEffect(() => {
+    setIsSelectMode(storeSelectMode);
+    setSelectedIds(selectedThreadIds);
+  }, [storeSelectMode, selectedThreadIds]);
+  
+  // Bulk operation handlers
+  const handleBulkResolve = async () => {
+    setIsBulkOperating(true);
+    try {
+      await bulkResolveThreads();
+    } finally {
+      setIsBulkOperating(false);
+    }
+  };
+  
+  const handleBulkArchive = async () => {
+    setIsBulkOperating(true);
+    try {
+      await bulkArchiveThreads();
+    } finally {
+      setIsBulkOperating(false);
+    }
+  };
+
+  const handleBulkSummarize = async () => {
+    setIsBulkOperating(true);
+    try {
+      await bulkSummarizeThreads();
+    } finally {
+      setIsBulkOperating(false);
+    }
+  };
+  
+  const handleBulkDelete = async () => {
+    setIsBulkOperating(true);
+    try {
+      await bulkDeleteThreads();
+    } finally {
+      setIsBulkOperating(false);
+    }
+  };
 
   // Only show loading spinner when actively initializing (not just when empty)
   const showLoading = isLoading && !isInitialized;
@@ -479,9 +546,9 @@ function ConversationSidebar({
     : recentConversations;
 
   const sidebarContent = (
-    <div className="h-full flex flex-col bg-[var(--terminal-bg)]">
-      {/* New Chat Button - More prominent */}
-      <div className="p-4 pb-3">
+    <div className="h-full flex flex-col bg-[var(--terminal-bg)] border-r border-[var(--terminal-border)]">
+      {/* New Chat Button */}
+      <div className="p-3">
         <button
           disabled={isCreatingChat}
           onClick={async () => {
@@ -499,15 +566,23 @@ function ConversationSidebar({
               setIsCreatingChat(false);
             }
           }}
-          className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-[var(--phosphor-green)] text-[var(--terminal-bg)] text-xs font-medium hover:shadow-[0_0_25px_var(--phosphor-green-glow)] hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+          className={cn(
+            "flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg border transition-all duration-200 group",
+            "bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)]",
+            "hover:border-[var(--phosphor-green)]/50 hover:bg-[var(--terminal-elevated)] hover:text-[var(--phosphor-green)]",
+            "hover:shadow-[0_0_15px_-5px_rgba(0,255,159,0.1)] active:scale-[0.98]",
+            "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+          )}
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
           {isCreatingChat ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" />
           )}
-          {isCreatingChat ? 'CREATING...' : 'NEW CHAT'}
+          <span className="text-xs font-bold tracking-wide">
+            {isCreatingChat ? 'INITIALIZING...' : 'NEW SESSION'}
+          </span>
         </button>
       </div>
 
@@ -518,8 +593,8 @@ function ConversationSidebar({
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search conversations..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-xs text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)] outline-none focus:border-[var(--phosphor-green)]/40 focus:bg-[var(--terminal-elevated)] transition-all"
+            placeholder="Search logs..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-xs text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-dim)] outline-none focus:border-[var(--phosphor-green)]/50 focus:bg-[var(--terminal-elevated)] focus:shadow-[0_0_15px_-5px_rgba(0,255,159,0.1)] transition-all"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           />
           {searchQuery && (
@@ -532,6 +607,95 @@ function ConversationSidebar({
           )}
         </div>
       </div>
+
+      {/* Select Mode Toggle & Bulk Actions */}
+      <div className={cn(
+        "px-4 flex items-center justify-between",
+        isSelectMode ? "pb-2" : "pb-3"
+      )}>
+        <button
+          onClick={storeToggleSelectMode}
+          className={cn(
+            "flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-200",
+            isSelectMode
+              ? "bg-[var(--phosphor-green)]/20 border-[var(--phosphor-green)] text-[var(--phosphor-green)] font-medium"
+              : "bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] hover:border-[var(--phosphor-green)]/50 hover:bg-[var(--terminal-elevated)]"
+          )}
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          <CheckSquare className="w-3.5 h-3.5" />
+          <span className="text-xs tracking-wide">{isSelectMode ? 'EXIT SELECT' : 'SELECT'}</span>
+        </button>
+        
+        {isSelectMode && selectedIds.size > 0 && (
+          <span className="text-[10px] text-[var(--terminal-text-muted)] animate-in fade-in slide-in-from-right-1 duration-200" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+            {selectedIds.size} selected
+          </span>
+        )}
+      </div>
+
+      {/* Bulk Action Toolbar */}
+      {isSelectMode && (
+        <div className="px-4 pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-1 p-2 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)]">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => selectAllThreads(filteredConversations.map(c => c.id))}
+                className="flex items-center gap-1 px-1.5 py-1 rounded text-[10px] text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)] transition-colors"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                <CheckSquare className="w-3 h-3" />
+                All
+              </button>
+              <button
+                onClick={clearSelection}
+                className="flex items-center gap-1 px-1.5 py-1 rounded text-[10px] text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)] transition-colors"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                <X className="w-3 h-3" />
+                Clear
+              </button>
+            </div>
+            
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleBulkResolve}
+                disabled={isBulkOperating || selectedIds.size === 0}
+                className="flex items-center gap-1 px-1.5 py-1 rounded text-[10px] text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10 transition-colors disabled:opacity-30"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                title="Resolve selected"
+              >
+                <CheckCircle className="w-3 h-3" />
+                <span className="hidden xl:inline">Resolve</span>
+              </button>
+              <button
+                onClick={handleBulkArchive}
+                disabled={isBulkOperating || selectedIds.size === 0}
+                className="flex items-center gap-1 px-1.5 py-1 rounded text-[10px] text-[var(--amber-gold)] hover:bg-[var(--amber-gold)]/10 transition-colors disabled:opacity-30"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                title="Archive selected"
+              >
+                <Archive className="w-3 h-3" />
+                <span className="hidden xl:inline">Archive</span>
+              </button>
+              <DeleteConfirmDialog
+                itemName={`${selectedIds.size} thread${selectedIds.size > 1 ? 's' : ''}`}
+                onConfirm={handleBulkDelete}
+              >
+                <button
+                  disabled={isBulkOperating || selectedIds.size === 0}
+                  className="flex items-center gap-1 px-1.5 py-1 rounded text-[10px] text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-30"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  title="Delete selected"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span className="hidden xl:inline">Delete</span>
+                </button>
+              </DeleteConfirmDialog>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Conversation List */}
       <div className="flex-1 overflow-y-auto terminal-scrollbar px-2">
@@ -561,7 +725,7 @@ function ConversationSidebar({
                   className="space-y-1"
                 >
                   {pinnedConversations.map((conv) => (
-                    <ConversationItem key={conv.id} conversation={conv} isActive={currentThreadId === conv.id || pathname === `/chat/${conv.id}`} onSelect={selectConversation} />
+                    <ConversationItem key={conv.id} conversation={conv} isActive={currentThreadId === conv.id || pathname === `/chat/${conv.id}`} onSelect={selectConversation} isSelectMode={isSelectMode} isSelected={selectedIds.has(conv.id)} onToggleSelection={toggleThreadSelection} />
                   ))}
                 </motion.div>
               )}
@@ -621,7 +785,7 @@ function ConversationSidebar({
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.02 }}
                     >
-                      <ConversationItem conversation={conv} isActive={currentThreadId === conv.id || pathname === `/chat/${conv.id}`} onSelect={selectConversation} />
+                      <ConversationItem conversation={conv} isActive={currentThreadId === conv.id || pathname === `/chat/${conv.id}`} onSelect={selectConversation} isSelectMode={isSelectMode} isSelected={selectedIds.has(conv.id)} onToggleSelection={toggleThreadSelection} />
                     </motion.div>
                   ))
                 )}
@@ -755,10 +919,16 @@ function ConversationItem({
   conversation,
   isActive,
   onSelect,
+  isSelectMode = false,
+  isSelected = false,
+  onToggleSelection,
 }: {
   conversation: Conversation;
   isActive: boolean;
   onSelect?: (id: string) => void;
+  isSelectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: (id: string) => void;
 }) {
   const messageCount = conversation.messageCount || 0;
   const relativeTime = getRelativeTime(conversation.timestamp.getTime());
@@ -767,6 +937,13 @@ function ConversationItem({
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
+    
+    // In select mode, toggle selection instead of navigating
+    if (isSelectMode && onToggleSelection) {
+      onToggleSelection(conversation.id);
+      return;
+    }
+    
     // Update Zustand store first, then navigate
     if (onSelect) {
       onSelect(conversation.id);
@@ -778,44 +955,56 @@ function ConversationItem({
     <>
       <div
         className={cn(
-          "block px-3 py-3 rounded-xl transition-all group relative cursor-pointer",
-          isActive
-            ? "bg-[var(--phosphor-green)]/10"
-            : "hover:bg-[var(--terminal-elevated)]"
+          "block px-3 py-3 rounded-xl transition-all duration-200 group relative cursor-pointer border border-transparent",
+          isActive && !isSelectMode
+            ? "bg-[var(--terminal-elevated)] border-[var(--terminal-border)]"
+            : "hover:bg-[var(--terminal-elevated)] hover:border-[var(--terminal-border)]",
+          isSelectMode && isSelected && "bg-[var(--phosphor-green)]/10 border-[var(--phosphor-green)]/30"
         )}
+        onClick={handleClick}
       >
         {/* Active indicator */}
-        {isActive && (
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full bg-[var(--phosphor-green)]" />
+        {isActive && !isSelectMode && (
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 rounded-r-full bg-[var(--phosphor-green)] shadow-[0_0_8px_var(--phosphor-green)]" />
         )}
 
         <div className="flex items-start gap-3">
-          <a
-            href={`/chat?thread=${conversation.id}`}
-            onClick={handleClick}
-            className={cn(
-              "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors",
-              isActive
-                ? "bg-[var(--phosphor-green)]/20"
-                : "bg-[var(--terminal-surface)] group-hover:bg-[var(--terminal-elevated)]"
-            )}
-          >
-            <MessageSquare className={cn(
-              "w-4 h-4",
-              isActive ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text-muted)]"
-            )} />
-          </a>
+          {/* Checkbox for select mode */}
+          {isSelectMode ? (
+            <div
+              className={cn(
+                "w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all duration-150",
+                isSelected
+                  ? "bg-[var(--phosphor-green)] border-[var(--phosphor-green)] shadow-[var(--phosphor-green)]/20"
+                  : "border-[var(--terminal-border)] hover:border-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/5"
+              )}
+            >
+              {isSelected && (
+                <Check className="w-4 h-4 text-[var(--terminal-bg)]" />
+              )}
+            </div>
+          ) : (
+            <a
+              href={`/chat?thread=${conversation.id}`}
+              onClick={handleClick}
+              className={cn(
+                "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300",
+                isActive
+                  ? "bg-[var(--phosphor-green)]/10 text-[var(--phosphor-green)] shadow-[0_0_10px_var(--phosphor-green-glow)]"
+                  : "bg-[var(--terminal-surface)] text-[var(--terminal-text-muted)] group-hover:bg-[var(--terminal-elevated)] group-hover:text-[var(--terminal-text)]"
+              )}
+            >
+              <MessageSquare className="w-4 h-4" />
+            </a>
+          )}
 
-          <a
-            href={`/chat?thread=${conversation.id}`}
-            onClick={handleClick}
-            className="flex-1 min-w-0"
-          >
+          <div className="flex-1 min-w-0">
             {/* Title row with time */}
             <div className="flex items-center justify-between gap-2 mb-1">
               <p className={cn(
                 "text-xs font-medium truncate",
-                isActive ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text)]"
+                isActive && !isSelectMode ? "text-[var(--phosphor-green)] font-medium" : "text-[var(--terminal-text)]",
+                isSelected && "text-[var(--phosphor-green)]"
               )} style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                 {conversation.title || 'New Chat'}
               </p>
@@ -836,9 +1025,10 @@ function ConversationItem({
                 </span>
               )}
             </div>
-          </a>
+          </div>
 
-          {/* Actions Menu */}
+          {/* Actions Menu - hide in select mode */}
+          {!isSelectMode && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -850,35 +1040,28 @@ function ConversationItem({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-48 bg-[#141414] border-[#333] text-[#e4e4e7]"
+              className="w-48 bg-[var(--terminal-bg)] border-[var(--terminal-border)] text-[var(--terminal-text)]"
             >
               <DropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation();
                   setExportDialogOpen(true);
                 }}
-                className="text-xs cursor-pointer hover:bg-[#1a1a1a] hover:text-[#00ff9f]"
+                className="text-xs cursor-pointer focus:bg-[var(--terminal-elevated)] focus:text-[var(--phosphor-green)] font-mono"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Export Thread
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={(e) => e.stopPropagation()}
-                className="text-xs cursor-pointer hover:bg-[#1a1a1a] hover:text-[#00ff9f]"
+                className="text-xs cursor-pointer focus:bg-[var(--terminal-elevated)] focus:text-[var(--phosphor-green)] font-mono"
               >
                 <Pin className="w-4 h-4 mr-2" />
                 {conversation.isPinned ? 'Unpin' : 'Pin'}
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-[#333]" />
-              <DropdownMenuItem
-                onClick={(e) => e.stopPropagation()}
-                className="text-xs cursor-pointer hover:bg-[#1a1a1a] text-red-400 hover:text-red-300"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
         </div>
       </div>
 
@@ -1087,7 +1270,13 @@ function CitationsTabContent() {
 // CONTEXT PANEL (RIGHT)
 // ============================================
 
-function ContextPanel() {
+function ContextPanel({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
   const [activeTab, setActiveTab] = useState<'context' | 'citations' | 'settings'>('context');
   const { conversations, currentThreadId, messages } = useChatPersistence();
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -1193,20 +1382,30 @@ function ContextPanel() {
     }
   }, [conversations, currentThreadId, fetchSuggestions]);
 
+  if (!isOpen) return null;
+
   return (
-    <aside className="hidden xl:block w-80 border-l border-[var(--terminal-border)] bg-[var(--terminal-bg)] flex-shrink-0">
-      {/* Tabs */}
-      <div className="flex items-center gap-1 px-2 py-2 border-b border-[var(--terminal-border)]">
-        {[
-          { id: 'context', label: 'Context', icon: FileText },
-          { id: 'citations', label: 'Citations', icon: BookOpen },
-          { id: 'settings', label: 'Settings', icon: Settings },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as typeof activeTab)}
-            className={cn(
-              "flex items-center gap-2 px-3 py-2 rounded text-[10px] transition-colors",
+    <AnimatePresence>
+      <motion.aside
+        initial={{ width: 0, opacity: 0 }}
+        animate={{ width: 320, opacity: 1 }}
+        exit={{ width: 0, opacity: 0 }}
+        transition={{ duration: 0.2, ease: 'easeInOut' }}
+        className="hidden xl:block border-l border-[var(--terminal-border)] bg-[var(--terminal-bg)] flex-shrink-0 overflow-hidden"
+      >
+        {/* Header with close button */}
+        <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--terminal-border)]">
+          <div className="flex items-center gap-1">
+            {[
+              { id: 'context', label: 'Context', icon: FileText },
+              { id: 'citations', label: 'Citations', icon: BookOpen },
+              { id: 'settings', label: 'Settings', icon: Settings },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                className={cn(
+                  "flex items-center gap-2 px-2 py-1.5 rounded text-[10px] transition-colors",
               activeTab === tab.id
                 ? "bg-[var(--phosphor-green)]/10 text-[var(--phosphor-green)]"
                 : "text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)]"
@@ -1217,17 +1416,25 @@ function ContextPanel() {
             {tab.label}
           </button>
         ))}
-      </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
+            title="Close panel"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
 
-      {/* Content */}
-      <div className="p-4 overflow-y-auto terminal-scrollbar h-[calc(100%-48px)]">
+        {/* Content */}
+        <div className="p-4 overflow-y-auto terminal-scrollbar h-[calc(100%-48px)]">
         {activeTab === 'context' && (
           <div className="space-y-4">
             {/* Document Inspector - Most Relevant RAG Result */}
             <div className="terminal-window p-3">
               <div className="text-[10px] text-[var(--phosphor-green)] uppercase tracking-wider mb-3"
                    style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                📄 Active Document
+                ACTIVE DOCUMENT
               </div>
               {activeDocument ? (
                 <div className="space-y-2 text-[11px]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
@@ -1261,7 +1468,7 @@ function ContextPanel() {
             <div>
               <div className="text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-wider mb-2"
                    style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                🔍 Related Results
+                RELATED RESULTS
               </div>
               {relatedResults.length > 0 ? (
                 relatedResults.map((doc, idx) => {
@@ -1270,18 +1477,13 @@ function ContextPanel() {
                   return (
                     <button
                       key={doc.documentId || doc.externalReferenceId || idx}
-                      className="w-full flex items-center gap-3 p-3 rounded-lg border border-[var(--terminal-border)] hover:border-[var(--phosphor-green)]/30 transition-colors mb-2 text-left"
+                      className="w-full flex items-start gap-3 p-3 rounded-lg border border-[var(--terminal-border)] hover:border-[var(--phosphor-green)]/30 hover:bg-[var(--terminal-elevated)] transition-all mb-2 text-left group"
                     >
-                      {isExternal ? (
-                        <BookOpen className="w-4 h-4" style={{ color: AMBER }} />
-                      ) : (
-                        <FileText className="w-4 h-4 text-[var(--terminal-text-muted)]" />
-                      )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-[var(--terminal-text)] truncate" style={{ fontFamily: "'JetBrains Mono', monospace" }} title={doc.title}>
+                        <p className="text-xs font-medium text-[var(--terminal-text)] truncate group-hover:text-[var(--phosphor-green)] transition-colors" style={{ fontFamily: "'JetBrains Mono', monospace" }} title={doc.title}>
                           {doc.title || 'Untitled Document'}
                         </p>
-                        <p className="text-[10px]" style={{ fontFamily: "'JetBrains Mono', monospace", color: scorePercent >= 70 ? PHOSPHOR_GREEN : scorePercent >= 50 ? AMBER : 'var(--terminal-text-muted)' }}>
+                        <p className="text-[10px]" style={{ fontFamily: "'JetBrains Mono', monospace", color: scorePercent >= 70 ? 'var(--phosphor-green-dim)' : scorePercent >= 50 ? 'var(--amber-gold-dim)' : 'var(--terminal-text-muted)' }}>
                           {scorePercent}% match
                         </p>
                       </div>
@@ -1299,7 +1501,7 @@ function ContextPanel() {
             <div>
               <div className="text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-wider mb-2"
                    style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                💬 Follow-up Suggestions
+                FOLLOW-UP SUGGESTIONS
               </div>
               {loadingSuggestions ? (
                 <div className="flex items-center gap-2 py-3 text-[11px] text-[var(--terminal-text-muted)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
@@ -1382,8 +1584,9 @@ function ContextPanel() {
             </div>
           </div>
         )}
-      </div>
-    </aside>
+        </div>
+      </motion.aside>
+    </AnimatePresence>
   );
 }
 
@@ -1398,6 +1601,7 @@ export default function ChatLayout({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [contextPanelOpen, setContextPanelOpen] = useState(false);
 
   // Global keyboard shortcut for command palette
   useEffect(() => {
@@ -1421,7 +1625,7 @@ export default function ChatLayout({
       />
 
       {/* Main Layout */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Left Sidebar */}
         <ConversationSidebar
           isOpen={sidebarOpen}
@@ -1433,8 +1637,24 @@ export default function ChatLayout({
           {children}
         </main>
 
+        {/* Context Panel Toggle Button - only show when panel is closed */}
+        {!contextPanelOpen && (
+          <button
+            onClick={() => setContextPanelOpen(true)}
+            className="hidden xl:flex absolute right-4 top-4 z-10 items-center gap-2 px-3 py-2 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:border-[var(--phosphor-green)]/30 hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] transition-all"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            title="Open context panel"
+          >
+            <FileText className="w-4 h-4" />
+            <span className="text-[10px] uppercase tracking-wider">Context</span>
+          </button>
+        )}
+
         {/* Right Context Panel */}
-        <ContextPanel />
+        <ContextPanel
+          isOpen={contextPanelOpen}
+          onClose={() => setContextPanelOpen(false)}
+        />
       </div>
 
       {/* Command Palette */}

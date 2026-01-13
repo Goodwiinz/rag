@@ -6,6 +6,10 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { enableMapSet } from 'immer';
+
+// Enable Immer's MapSet plugin for Set/Map support in state
+enableMapSet();
 import {
   BulkThreadResponse,
   Workspace,
@@ -30,19 +34,79 @@ import { workspaceService } from '@/services/workspaceService';
 /**
  * Generic helper to remove an item from a record of arrays by ID.
  * Used for deleting conversations, threads, and messages from their respective records.
- * 
+ *
+ * PERFORMANCE (GOO-86): Now uses O(1) lookup via reverse index instead of O(n*m) iteration.
+ * Falls back to O(n*m) iteration if reverse index not provided (backward compatibility).
+ *
  * @param record - The record containing arrays (e.g., conversations keyed by workspaceId)
  * @param itemId - The ID of the item to remove
+ * @param reverseIndex - Optional reverse index mapping itemId to parentKey for O(1) lookup
  * @returns true if item was found and removed, false otherwise
  */
 function removeItemFromRecord<T extends { id: string }>(
   record: Record<string, T[]>,
-  itemId: string
+  itemId: string,
+  reverseIndex?: Record<string, string>
 ): boolean {
+  // O(1) path: use reverse index if available
+  if (reverseIndex) {
+    const parentKey = reverseIndex[itemId];
+    if (parentKey && record[parentKey]) {
+      const index = record[parentKey].findIndex((item) => item.id === itemId);
+      if (index !== -1) {
+        record[parentKey].splice(index, 1);
+        delete reverseIndex[itemId];
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // O(n*m) fallback: iterate all keys (legacy behavior)
   for (const key of Object.keys(record)) {
     const index = record[key]?.findIndex((item) => item.id === itemId);
     if (index !== undefined && index !== -1) {
       record[key].splice(index, 1);
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * O(1) helper to update an item in a nested record structure using a reverse index.
+ * Used by bulk update operations (resolve, archive) for performance (GOO-86).
+ *
+ * @param record - The record containing arrays (e.g., threads keyed by conversationId)
+ * @param itemId - The ID of the item to update
+ * @param newItem - The updated item to replace the existing one
+ * @param reverseIndex - Optional reverse index mapping itemId to parentKey for O(1) lookup
+ * @returns true if item was found and updated, false otherwise
+ */
+function updateItemInRecord<T extends { id: string }>(
+  record: Record<string, T[]>,
+  itemId: string,
+  newItem: T,
+  reverseIndex?: Record<string, string>
+): boolean {
+  // O(1) path: use reverse index if available
+  if (reverseIndex) {
+    const parentKey = reverseIndex[itemId];
+    if (parentKey && record[parentKey]) {
+      const index = record[parentKey].findIndex((item) => item.id === itemId);
+      if (index !== -1) {
+        record[parentKey][index] = newItem;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // O(n*m) fallback: iterate all keys (legacy behavior)
+  for (const key of Object.keys(record)) {
+    const index = record[key]?.findIndex((item) => item.id === itemId);
+    if (index !== undefined && index !== -1) {
+      record[key][index] = newItem;
       return true;
     }
   }
@@ -64,6 +128,11 @@ interface ChatState {
   conversations: Record<string, Conversation[]>; // keyed by workspace_id
   threads: Record<string, Thread[]>; // keyed by conversation_id
   messages: Record<string, ChatMessage[]>; // keyed by thread_id
+
+  // Reverse indexes for O(1) parent lookup (GOO-86 performance fix)
+  conversationToWorkspace: Record<string, string>; // conversation_id -> workspace_id
+  threadToConversation: Record<string, string>; // thread_id -> conversation_id
+  messageToThread: Record<string, string>; // message_id -> thread_id
 
   // Loading states
   isLoadingWorkspaces: boolean;
@@ -118,10 +187,11 @@ interface ChatActions {
   // Bulk thread actions
   toggleSelectMode: () => void;
   toggleThreadSelection: (threadId: string) => void;
-  selectAllThreads: () => void;
+  selectAllThreads: (threadIds?: string[]) => void;
   clearSelection: () => void;
   bulkResolveThreads: () => Promise<BulkThreadResponse | null>;
   bulkArchiveThreads: () => Promise<BulkThreadResponse | null>;
+  bulkSummarizeThreads: () => Promise<BulkThreadResponse | null>;
   bulkDeleteThreads: () => Promise<BulkThreadResponse | null>;
 
   // Message actions
@@ -240,6 +310,10 @@ const initialState: ChatState = {
   conversations: {},
   threads: {},
   messages: {},
+  // Reverse indexes for O(1) lookup
+  conversationToWorkspace: {},
+  threadToConversation: {},
+  messageToThread: {},
   isLoadingWorkspaces: false,
   isLoadingConversations: false,
   isLoadingThreads: false,
@@ -401,6 +475,10 @@ export const useChatStore = create<ChatStore>()(
           const response = await workspaceService.listConversations(workspaceId);
           set((state) => {
             state.conversations[workspaceId] = response.conversations;
+            // Populate reverse index for O(1) lookup (GOO-86)
+            for (const conv of response.conversations) {
+              state.conversationToWorkspace[conv.id] = workspaceId;
+            }
             state.isLoadingConversations = false;
           });
         } catch (error: any) {
@@ -435,6 +513,8 @@ export const useChatStore = create<ChatStore>()(
               state.conversations[workspaceId] = [];
             }
             state.conversations[workspaceId].unshift(conversation);
+            // Populate reverse index (GOO-86)
+            state.conversationToWorkspace[conversation.id] = workspaceId;
           });
           return conversation;
         } catch (error: any) {
@@ -484,7 +564,8 @@ export const useChatStore = create<ChatStore>()(
         try {
           await workspaceService.deleteConversation(id);
           set((state) => {
-            removeItemFromRecord(state.conversations, id);
+            // Use O(1) reverse index lookup (GOO-86)
+            removeItemFromRecord(state.conversations, id, state.conversationToWorkspace);
             if (state.currentConversationId === id) {
               state.currentConversationId = null;
               state.currentThreadId = null;
@@ -516,6 +597,10 @@ export const useChatStore = create<ChatStore>()(
           console.log('[ChatStore] Loaded threads:', response.threads.length, response.threads);
           set((state) => {
             state.threads[conversationId] = response.threads;
+            // Populate reverse index for O(1) lookup (GOO-86)
+            for (const thread of response.threads) {
+              state.threadToConversation[thread.id] = conversationId;
+            }
             state.isLoadingThreads = false;
           });
         } catch (error: any) {
@@ -551,6 +636,8 @@ export const useChatStore = create<ChatStore>()(
               state.threads[conversationId] = [];
             }
             state.threads[conversationId].unshift(thread);
+            // Populate reverse index (GOO-86)
+            state.threadToConversation[thread.id] = conversationId;
           });
           return thread;
         } catch (error) {
@@ -587,7 +674,8 @@ export const useChatStore = create<ChatStore>()(
         try {
           await workspaceService.deleteThread(id);
           set((state) => {
-            removeItemFromRecord(state.threads, id);
+            // Use O(1) reverse index lookup (GOO-86)
+            removeItemFromRecord(state.threads, id, state.threadToConversation);
             if (state.currentThreadId === id) {
               state.currentThreadId = null;
             }
@@ -635,14 +723,16 @@ export const useChatStore = create<ChatStore>()(
         });
       },
 
-      selectAllThreads: () => {
-        const state = get();
-        const conversationId = state.currentConversationId;
-        if (!conversationId) return;
-
-        const threads = state.threads[conversationId] || [];
+      selectAllThreads: (threadIds) => {
         set((state) => {
-          state.selectedThreadIds = new Set(threads.map((t) => t.id));
+          if (threadIds) {
+            state.selectedThreadIds = new Set(threadIds);
+          } else {
+            const conversationId = state.currentConversationId;
+            if (!conversationId) return;
+            const threads = state.threads[conversationId] || [];
+            state.selectedThreadIds = new Set(threads.map((t) => t.id));
+          }
         });
       },
 
@@ -664,16 +754,8 @@ export const useChatStore = create<ChatStore>()(
           set((state) => {
             for (const result of response.results) {
               if (result.success && result.thread) {
-                // Find and update the thread in the appropriate conversation
-                for (const convId in state.threads) {
-                  const threadIdx = state.threads[convId].findIndex(
-                    (t) => t.id === result.thread_id
-                  );
-                  if (threadIdx !== -1) {
-                    state.threads[convId][threadIdx] = result.thread;
-                    break;
-                  }
-                }
+                // Use O(1) reverse index lookup (GOO-86)
+                updateItemInRecord(state.threads, result.thread_id, result.thread, state.threadToConversation);
               }
             }
             state.selectedThreadIds = new Set();
@@ -701,15 +783,8 @@ export const useChatStore = create<ChatStore>()(
           set((state) => {
             for (const result of response.results) {
               if (result.success && result.thread) {
-                for (const convId in state.threads) {
-                  const threadIdx = state.threads[convId].findIndex(
-                    (t) => t.id === result.thread_id
-                  );
-                  if (threadIdx !== -1) {
-                    state.threads[convId][threadIdx] = result.thread;
-                    break;
-                  }
-                }
+                // Use O(1) reverse index lookup (GOO-86)
+                updateItemInRecord(state.threads, result.thread_id, result.thread, state.threadToConversation);
               }
             }
             state.selectedThreadIds = new Set();
@@ -726,6 +801,31 @@ export const useChatStore = create<ChatStore>()(
         }
       },
 
+      bulkSummarizeThreads: async () => {
+        const state = get();
+        const threadIds = Array.from(state.selectedThreadIds);
+        if (threadIds.length === 0) return null;
+
+        try {
+          const response = await workspaceService.bulkSummarizeThreads(threadIds);
+
+          // Summarization is async, so we just clear selection and wait for WebSocket updates
+          // or return the response so the UI can show a toast
+          set((state) => {
+            state.selectedThreadIds = new Set();
+            state.isSelectMode = false;
+          });
+
+          return response;
+        } catch (error) {
+          console.error('[ChatStore] Error bulk summarizing threads:', error);
+          set((state) => {
+            state.error = 'Failed to summarize threads';
+          });
+          return null;
+        }
+      },
+
       bulkDeleteThreads: async () => {
         const state = get();
         const threadIds = Array.from(state.selectedThreadIds);
@@ -737,12 +837,8 @@ export const useChatStore = create<ChatStore>()(
           set((state) => {
             for (const result of response.results) {
               if (result.success) {
-                // Remove deleted threads from state
-                for (const convId in state.threads) {
-                  state.threads[convId] = state.threads[convId].filter(
-                    (t) => t.id !== result.thread_id
-                  );
-                }
+                // Use O(1) reverse index lookup + cleanup (GOO-86)
+                removeItemFromRecord(state.threads, result.thread_id, state.threadToConversation);
               }
             }
 
@@ -779,6 +875,10 @@ export const useChatStore = create<ChatStore>()(
           const response = await workspaceService.listMessages(threadId);
           set((state) => {
             state.messages[threadId] = response.messages;
+            // Populate reverse index for O(1) lookup (GOO-86)
+            for (const msg of response.messages) {
+              state.messageToThread[msg.id] = threadId;
+            }
             state.isLoadingMessages = false;
           });
         } catch (error) {
@@ -815,6 +915,8 @@ export const useChatStore = create<ChatStore>()(
               state.messages[targetThreadId] = [];
             }
             state.messages[targetThreadId].push(message);
+            // Populate reverse index (GOO-86)
+            state.messageToThread[message.id] = targetThreadId;
             state.isSendingMessage = false;
           });
 
@@ -854,7 +956,8 @@ export const useChatStore = create<ChatStore>()(
         try {
           await workspaceService.deleteMessage(id);
           set((state) => {
-            removeItemFromRecord(state.messages, id);
+            // Use O(1) reverse index lookup (GOO-86)
+            removeItemFromRecord(state.messages, id, state.messageToThread);
           });
           return true;
         } catch (error) {

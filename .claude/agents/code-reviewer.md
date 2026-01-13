@@ -1,6 +1,10 @@
 ---
 name: code-reviewer
-description: Use this agent when you need comprehensive code review from a senior engineering perspective. This agent should be called after completing logical chunks of code development, before merging pull requests, or when seeking quality assurance feedback on implementations. Examples: After implementing a new feature component, completing an API endpoint, finishing a complex algorithm, or before deploying code changes. The agent provides thorough analysis covering bugs, performance, security, maintainability, and adherence to best practices.
+description: >
+  Use this agent for comprehensive code review from a senior engineering perspective.
+  Call after completing logical chunks of code, before merging PRs, or when seeking
+  quality assurance feedback. Provides analysis of bugs, performance, security,
+  maintainability, and best practices.
 model: sonnet
 color: green
 ---

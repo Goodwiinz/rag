@@ -263,6 +263,14 @@ export const workspaceService = {
     return response.data;
   },
 
+  async bulkSummarizeThreads(threadIds: string[]): Promise<BulkThreadResponse> {
+    const response = await v2Client.post<BulkThreadResponse>(
+      `${API_PREFIX}/threads/bulk/summarize`,
+      { thread_ids: threadIds }
+    );
+    return response.data;
+  },
+
   async bulkDeleteThreads(threadIds: string[]): Promise<BulkThreadResponse> {
     const response = await v2Client.delete<BulkThreadResponse>(
       `${API_PREFIX}/threads/bulk`,

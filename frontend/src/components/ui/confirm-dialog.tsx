@@ -48,20 +48,29 @@ export function ConfirmDialog({
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent className="terminal-window border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
         <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
+          <AlertDialogTitle className="text-[var(--terminal-text)] font-mono tracking-tight">
+            {title}
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-[var(--terminal-text-muted)] font-mono text-xs">
+            {description}
+          </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={handleCancel}>
+        <AlertDialogFooter className="gap-2">
+          <AlertDialogCancel 
+            onClick={handleCancel}
+            className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] text-[var(--terminal-text-muted)] hover:bg-[var(--terminal-elevated)] hover:text-[var(--terminal-text)] font-mono text-xs uppercase tracking-wider"
+          >
             {cancelLabel}
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleConfirm}
             className={cn(
-              variant === "destructive" &&
-                "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              "font-mono text-xs uppercase tracking-wider border transition-all",
+              variant === "destructive" 
+                ? "bg-red-500/10 border-red-500/50 text-red-400 hover:bg-red-500/20 hover:border-red-500"
+                : "bg-[var(--phosphor-green)]/10 border-[var(--phosphor-green)]/50 text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/20 hover:border-[var(--phosphor-green)]"
             )}
           >
             {confirmLabel}

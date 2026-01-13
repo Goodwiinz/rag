@@ -1,16 +1,13 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -21,37 +18,23 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
+import { DeleteConfirmDialog } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { VirtualizedConversationList } from './VirtualizedConversationList';
 import {
   MessageSquare,
   Plus,
   Search,
   Filter,
-  MoreVertical,
   Trash2,
-  Share,
-  Bookmark,
-  BookmarkCheck,
-  Edit,
-  Copy,
-  Download,
-  Star,
-  Clock,
   Calendar,
-  Hash,
   ChevronDown,
   X,
   Folder,
   FolderOpen,
   Archive,
-  Tag,
-  Users,
-  Bot,
-  User,
   CheckSquare,
   CheckCircle,
 } from 'lucide-react';
@@ -149,8 +132,6 @@ export function ConversationSidebar({
   const [sortBy, setSortBy] = useState<'updated' | 'created' | 'title' | 'messages'>('updated');
   const [showArchived, setShowArchived] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingTitle, setEditingTitle] = useState('');
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [tagConversationId, setTagConversationId] = useState<string | null>(null);
   const [newTags, setNewTags] = useState<string[]>([]);
@@ -226,47 +207,6 @@ export function ConversationSidebar({
     return groups;
   }, [filteredConversations]);
 
-  const formatMessagePreview = (content: string, maxLength = 50) => {
-    return content.length > maxLength ? content.substring(0, maxLength) + '...' : content;
-  };
-
-  const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return date.toLocaleDateString();
-  };
-
-  const handleRename = (id: string) => {
-    const conv = conversations.find(c => c.id === id);
-    if (conv) {
-      setEditingId(id);
-      setEditingTitle(conv.title);
-    }
-  };
-
-  const saveRename = () => {
-    if (editingId && editingTitle.trim()) {
-      onRenameConversation(editingId, editingTitle.trim());
-      setEditingId(null);
-      setEditingTitle('');
-    }
-  };
-
-  const handleTagDialog = (id: string) => {
-    const conv = conversations.find(c => c.id === id);
-    if (conv) {
-      setTagConversationId(id);
-      setNewTags(conv.tags || []);
-      setTagDialogOpen(true);
-    }
-  };
-
   const saveTags = () => {
     if (tagConversationId) {
       onTagConversation(tagConversationId, newTags);
@@ -276,175 +216,32 @@ export function ConversationSidebar({
     }
   };
 
-  const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
-    const isActive = conversation.id === activeConversationId;
-    const lastMessage = conversation.messages[conversation.messages.length - 1];
-    const messageCount = conversation.messages.length;
+  // Ref for measuring container height for virtualization
+  const listContainerRef = useRef<HTMLDivElement>(null);
+  const [containerHeight, setContainerHeight] = useState(400);
 
-    return (
-      <motion.div
-        layout
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -10 }}
-        className={cn(
-          "group relative p-3 rounded-lg border cursor-pointer transition-all",
-          "hover:border-orange-200 hover:bg-orange-50/50",
-          isActive && "border-orange-500 bg-orange-50/80",
-          isSelectMode && selectedIds.has(conversation.id) && "bg-accent/50 border-accent"
-        )}
-        onClick={() => {
-          if (isSelectMode && onToggleSelection) {
-            onToggleSelection(conversation.id);
-          } else {
-            onConversationSelect(conversation.id);
-          }
-        }}
-      >
-        {/* Selection Checkbox */}
-        {isSelectMode && (
-          <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10">
-            <Checkbox
-              checked={selectedIds.has(conversation.id)}
-              onCheckedChange={() => onToggleSelection?.(conversation.id)}
-              onClick={(e) => e.stopPropagation()}
-              className="mr-2"
-            />
-          </div>
-        )}
+  // Measure container height for virtualized list
+  React.useEffect(() => {
+    const updateHeight = () => {
+      if (listContainerRef.current) {
+        setContainerHeight(listContainerRef.current.clientHeight);
+      }
+    };
 
-        {/* Action Menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute right-2 top-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
-            >
-              <MoreVertical className="w-3 h-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleRename(conversation.id); }}>
-              <Edit className="w-4 h-4 mr-2" />
-              Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDuplicateConversation(conversation.id); }}>
-              <Copy className="w-4 h-4 mr-2" />
-              Duplicate
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleTagDialog(conversation.id); }}>
-              <Tag className="w-4 h-4 mr-2" />
-              Edit Tags
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onToggleBookmark(conversation.id); }}>
-              {conversation.isBookmarked ? (
-                <BookmarkCheck className="w-4 h-4 mr-2" />
-              ) : (
-                <Bookmark className="w-4 h-4 mr-2" />
-              )}
-              {conversation.isBookmarked ? 'Remove Bookmark' : 'Bookmark'}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onShareConversation(conversation.id); }}>
-              <Share className="w-4 h-4 mr-2" />
-              Share
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onExportConversation(conversation.id); }}>
-              <Download className="w-4 h-4 mr-2" />
-              Export
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onArchiveConversation(conversation.id); }}>
-              <Archive className="w-4 h-4 mr-2" />
-              Archive
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => { e.stopPropagation(); onDeleteConversation(conversation.id); }}
-              className="text-red-600"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+    return () => window.removeEventListener('resize', updateHeight);
+  }, []);
 
-        {/* Content */}
-        <div className={cn("space-y-1 pr-6", isSelectMode && "pl-7")}>
-          <div className="flex items-center gap-2">
-            {editingId === conversation.id ? (
-              <Input
-                value={editingTitle}
-                onChange={(e) => setEditingTitle(e.target.value)}
-                onBlur={saveRename}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') saveRename();
-                  if (e.key === 'Escape') {
-                    setEditingId(null);
-                    setEditingTitle('');
-                  }
-                }}
-                className="h-6 text-sm"
-                autoFocus
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <h3 className="text-sm font-medium truncate flex-1">
-                {conversation.title}
-              </h3>
-            )}
-            {conversation.isBookmarked && (
-              <BookmarkCheck className="w-3 h-3 text-orange-500 fill-current" />
-            )}
-            {conversation.shareUrl && (
-              <Share className="w-3 h-3 text-blue-500" />
-            )}
-          </div>
-
-          {lastMessage && (
-            <p className="text-xs text-muted-foreground truncate">
-              {lastMessage.role === 'user' ? 'You: ' : 'Assistant: '}
-              {formatMessagePreview(lastMessage.content)}
-            </p>
-          )}
-
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1">
-                <MessageSquare className="w-3 h-3" />
-                {messageCount}
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {formatDate(conversation.updatedAt)}
-              </span>
-            </div>
-            {conversation.modelId && (
-              <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                {conversation.modelId.split('-')[0]}
-              </Badge>
-            )}
-          </div>
-
-          {/* Tags */}
-          {conversation.tags && conversation.tags.length > 0 && (
-            <div className="flex gap-1 flex-wrap mt-2">
-              {conversation.tags.slice(0, 3).map((tag, idx) => (
-                <Badge key={idx} variant="outline" className="text-[10px] px-1 py-0">
-                  {tag}
-                </Badge>
-              ))}
-              {conversation.tags.length > 3 && (
-                <Badge variant="outline" className="text-[10px] px-1 py-0">
-                  +{conversation.tags.length - 3}
-                </Badge>
-              )}
-            </div>
-          )}
-        </div>
-      </motion.div>
-    );
-  };
+  // Callback for opening tag dialog from virtualized list
+  const handleOpenTagDialog = useCallback((id: string) => {
+    const conv = conversations.find(c => c.id === id);
+    if (conv) {
+      setTagConversationId(id);
+      setNewTags(conv.tags || []);
+      setTagDialogOpen(true);
+    }
+  }, [conversations]);
 
   return (
     <div className={cn("flex flex-col bg-background border-r", className)}>
@@ -583,10 +380,15 @@ export function ConversationSidebar({
             </Button>
           )}
           {onBulkDelete && (
-            <Button variant="destructive" size="sm" onClick={onBulkDelete}>
-              <Trash2 className="h-4 w-4 mr-1" />
-              Delete
-            </Button>
+            <DeleteConfirmDialog
+              itemName={`${selectedIds.size} thread${selectedIds.size > 1 ? 's' : ''}`}
+              onConfirm={onBulkDelete}
+            >
+              <Button variant="destructive" size="sm">
+                <Trash2 className="h-4 w-4 mr-1" />
+                Delete
+              </Button>
+            </DeleteConfirmDialog>
           )}
         </div>
       )}
@@ -633,34 +435,26 @@ export function ConversationSidebar({
         </div>
       )}
 
-      {/* Conversation List */}
-      <ScrollArea className="flex-1">
-        <div className="p-4 space-y-4">
-          {Object.entries(groupedConversations).map(([group, convs]) => (
-            <div key={group}>
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                {group} ({convs.length})
-              </h3>
-              <div className="space-y-2">
-                <AnimatePresence>
-                  {convs.map((conv) => (
-                    <ConversationItem key={conv.id} conversation={conv} />
-                  ))}
-                </AnimatePresence>
-              </div>
-            </div>
-          ))}
-
-          {filteredConversations.length === 0 && (
-            <div className="text-center py-8">
-              <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-sm text-muted-foreground">
-                {searchQuery ? 'No conversations found' : 'No conversations yet'}
-              </p>
-            </div>
-          )}
-        </div>
-      </ScrollArea>
+      {/* Conversation List - Virtualized for performance */}
+      <div ref={listContainerRef} className="flex-1 overflow-hidden">
+        <VirtualizedConversationList
+          groupedConversations={groupedConversations}
+          activeConversationId={activeConversationId}
+          isSelectMode={isSelectMode}
+          selectedIds={selectedIds}
+          containerHeight={containerHeight}
+          onConversationSelect={onConversationSelect}
+          onToggleSelection={onToggleSelection}
+          onDeleteConversation={onDeleteConversation}
+          onRenameConversation={onRenameConversation}
+          onToggleBookmark={onToggleBookmark}
+          onArchiveConversation={onArchiveConversation}
+          onShareConversation={onShareConversation}
+          onExportConversation={onExportConversation}
+          onDuplicateConversation={onDuplicateConversation}
+          onTagConversation={handleOpenTagDialog}
+        />
+      </div>
 
       {/* Tag Dialog */}
       <Dialog open={tagDialogOpen} onOpenChange={setTagDialogOpen}>

@@ -98,22 +98,32 @@ export function AppSidebar() {
           isActive={active}
           tooltip={item.title}
           className={cn(
-            'font-mono text-sm transition-all duration-200 rounded-lg relative group/item h-10',
+            'font-mono text-sm transition-all duration-200 rounded-lg relative group/item h-10 border group-data-[collapsible=icon]:!size-10 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:mx-auto',
             active
-              ? '!bg-[var(--phosphor-green-muted)] !text-[var(--phosphor-green)]'
-              : '!text-[var(--terminal-text-muted)] hover:!text-[var(--terminal-text)] hover:!bg-[var(--terminal-surface-hover)]'
+              ? '!bg-[var(--terminal-elevated)] !border-[var(--terminal-border)] !text-[var(--phosphor-green)] font-medium shadow-[0_0_15px_-5px_rgba(0,0,0,0.3)]'
+              : 'border-transparent text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)]'
           )}
         >
-          <Link href={item.url} className="flex items-center gap-3 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-            {/* Active indicator - visible in both states */}
+          <Link href={item.url} className="flex items-center gap-3 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 w-full">
+            {/* Active indicator - consistent with ConversationItem */}
             {active && (
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-[var(--phosphor-green)] transition-opacity duration-200" />
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 rounded-r-full bg-[var(--phosphor-green)] shadow-[0_0_8px_var(--phosphor-green)] transition-opacity duration-200" />
             )}
-            <item.icon className={cn(
-              'w-5 h-5 flex-shrink-0 transition-all duration-200',
-              active ? 'text-[var(--phosphor-green)]' : 'text-[var(--terminal-text-subtle)] group-hover/item:text-[var(--terminal-text-muted)]'
-            )} />
-            <span className="truncate group-data-[collapsible=icon]:hidden">{item.title}</span>
+            
+            {/* Icon Box - matches ConversationItem style */}
+            <div className={cn(
+              "w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all duration-200",
+              active 
+                ? "bg-[var(--phosphor-green)]/10 !text-[var(--phosphor-green)] shadow-[0_0_10px_var(--phosphor-green-glow)]" 
+                : "text-[var(--terminal-text-subtle)] group-hover/item:text-[var(--terminal-text-muted)] group-hover:bg-[var(--terminal-elevated)]"
+            )}>
+              <item.icon className="w-3.5 h-3.5" />
+            </div>
+
+            <span className={cn(
+              "truncate group-data-[collapsible=icon]:hidden",
+              active ? "!text-[var(--phosphor-green)]" : ""
+            )}>{item.title}</span>
           </Link>
         </SidebarMenuButton>
       </SidebarMenuItem>
@@ -133,10 +143,10 @@ export function AppSidebar() {
               size="lg"
               asChild
               tooltip="RAG System"
-              className="hover:bg-[var(--phosphor-green)]/10 data-[active=true]:bg-[var(--phosphor-green)]/10 rounded-lg h-12"
+              className="hover:bg-[var(--terminal-elevated)] data-[active=true]:bg-[var(--terminal-elevated)] rounded-lg h-12"
             >
               <Link href="/dashboard" className="flex items-center gap-3 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg border border-[var(--phosphor-green)]/30 bg-gradient-to-br from-[var(--phosphor-green)]/20 to-[var(--phosphor-green)]/5 shadow-lg shadow-[var(--phosphor-green-glow)] flex-shrink-0">
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg flex-shrink-0">
                   <Terminal className="w-4 h-4 text-[var(--phosphor-green)]" />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
@@ -271,10 +281,10 @@ export function AppSidebar() {
               <SidebarMenuButton
                 asChild
                 size="lg"
-                className="bg-[var(--phosphor-green)]/10 text-[var(--phosphor-green)] border border-[var(--phosphor-green)]/30 hover:bg-[var(--phosphor-green)]/20"
+                className="bg-[var(--terminal-surface)] text-[var(--terminal-text)] border border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]"
               >
                 <Link href="/login" className="flex items-center gap-2">
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-4 h-4 text-[var(--phosphor-green)]" />
                   <span className="font-mono group-data-[collapsible=icon]:hidden">Sign In</span>
                 </Link>
               </SidebarMenuButton>

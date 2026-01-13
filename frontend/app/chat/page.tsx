@@ -2,24 +2,24 @@
 
 import {
   ChatSettings,
-  Model,
-  CitationRenderer,
   CitationPanel,
+  CitationRenderer,
+  Model,
 } from '@/components/chat';
-import { Citation } from '@/utils/citationParser';
 import { cn } from '@/lib/utils';
-import { useAuthStore } from '@/stores/authStore';
-import { useChatStore } from '@/store/chat-store';
-import { workspaceService } from '@/services/workspaceService';
 import apiClient from '@/services/apiClient';
+import { workspaceService } from '@/services/workspaceService';
+import { useChatStore } from '@/store/chat-store';
+import { useAuthStore } from '@/stores/authStore';
 import {
-  Workspace,
-  Conversation as DBConversation,
-  Thread,
-  ChatMessage as DBChatMessage,
-  MessageRole,
   CitationCreate,
+  ChatMessage as DBChatMessage,
+  Conversation as DBConversation,
+  MessageRole,
+  Thread,
+  Workspace,
 } from '@/types/workspace';
+import { Citation } from '@/utils/citationParser';
 import { CreateMLCEngine, InitProgressReport, MLCEngine } from "@mlc-ai/web-llm";
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -42,11 +42,8 @@ import {
   Square,
   Zap,
 } from 'lucide-react';
-import { Suspense, useEffect, useRef, useState, useCallback } from 'react';
-import { usePathname, useSearchParams, useRouter } from 'next/navigation';
-import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 // ============================================
 // HELPERS
@@ -366,102 +363,109 @@ function ChatMessage({
         delay: index * 0.03,
         ease: [0.25, 0.46, 0.45, 0.94]
       }}
-      className={cn('group relative mb-6', isUser ? 'ml-12 sm:ml-16' : 'mr-12 sm:mr-16')}
+      className={cn(
+        'group relative mb-6', 
+        isUser ? 'ml-8 sm:ml-20' : 'mr-8 sm:mr-20'
+      )}
     >
-      {/* Transmission Line with glow effect */}
+      {/* Transmission Line - Refined opacity */}
       <div
         className={cn(
-          'absolute top-0 h-full w-[2px] transition-all duration-300',
+          'absolute top-0 h-full w-[1px] transition-all duration-500 opacity-30',
           isUser
-            ? 'right-0 bg-gradient-to-b from-[var(--amber-gold)] via-[var(--amber-gold)]/50 to-transparent group-hover:shadow-[0_0_8px_var(--amber-gold)]'
-            : 'left-0 bg-gradient-to-b from-[var(--phosphor-green)] via-[var(--phosphor-green)]/50 to-transparent group-hover:shadow-[0_0_8px_var(--phosphor-green)]'
+            ? 'right-0 bg-gradient-to-b from-[var(--amber-gold)] via-[var(--amber-gold)]/10 to-transparent'
+            : 'left-0 bg-gradient-to-b from-[var(--phosphor-green)] via-[var(--phosphor-green)]/10 to-transparent'
         )}
-        style={{ opacity: 0.5 }}
       />
 
-      {/* Message Header */}
+      {/* Message Header - Tightened gap */}
       <div
         className={cn(
-          'flex items-center gap-3 mb-2 text-[10px]',
+          'flex items-center gap-3 mb-1.5 text-[10px] tracking-wider',
           isUser ? 'justify-end pr-4' : 'pl-4'
         )}
         style={{ fontFamily: "'JetBrains Mono', monospace" }}
       >
         {!isUser && (
           <>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)]">
               <div className={cn(
                 "w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)]",
                 isTyping ? "animate-pulse" : "signal-active"
               )} />
-              <span className="text-[var(--phosphor-green)] uppercase tracking-wider">
-                {isTyping ? 'STREAMING' : 'RESPONSE'}
+              <span className="text-[var(--phosphor-green)] font-bold text-[9px]">
+                {isTyping ? 'STREAMING' : 'RECEIVED'}
               </span>
             </div>
             {modelName && (
-              <span className="text-[var(--terminal-text-muted)]">[{modelName}]</span>
+              <span className="text-[var(--terminal-text-dim)] border border-[var(--terminal-border)] px-1.5 py-0.5 rounded bg-[var(--terminal-surface)]">
+                {modelName}
+              </span>
             )}
           </>
         )}
         {isUser && (
-          <span className="text-[var(--amber-gold)] uppercase tracking-wider">
+          <span className="text-[var(--amber-gold)] font-bold px-1.5 py-0.5 rounded bg-[var(--amber-gold)]/10 border border-[var(--amber-gold)]/20 text-[9px]">
             QUERY
           </span>
         )}
-        <span className="text-[var(--terminal-text-muted)]">{timestamp}</span>
+        <span className="text-[var(--terminal-text-dim)]">{timestamp}</span>
 
-        {/* Quick Actions - visible on hover */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        {/* Quick Actions */}
+        <div className={cn(
+          "flex items-center gap-1 transition-all duration-200",
+          "opacity-0 group-hover:opacity-100"
+        )}>
           <button
             onClick={handleCopy}
             className={cn(
-              "p-1 rounded hover:bg-[var(--terminal-elevated)] transition-all",
-              copied ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)]"
+              "p-1 rounded hover:bg-[var(--terminal-elevated)] transition-all border border-transparent hover:border-[var(--terminal-border)]",
+              copied ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]"
             )}
             title={copied ? "Copied!" : "Copy message"}
           >
-            {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
           {isUser && onRetry && (
             <button
               onClick={onRetry}
-              className="p-1 rounded hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] transition-all"
+              className="p-1 rounded hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-all border border-transparent hover:border-[var(--terminal-border)]"
               title="Retry"
             >
-              <RefreshCw className="w-3 h-3" />
+              <RefreshCw className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
       </div>
 
-      {/* Message Content */}
+      {/* Message Content - Balanced padding */}
       <div
         className={cn(
-          'relative rounded-lg overflow-hidden',
+          'relative rounded-xl overflow-hidden transition-all duration-300 shadow-sm backdrop-blur-sm',
           isUser
-            ? 'bg-gradient-to-br from-[#1a1510] to-[var(--terminal-bg)] border border-[#3d2f1a] mr-4'
-            : 'bg-[var(--terminal-surface)] border border-[var(--terminal-border)] ml-4'
+            ? 'bg-gradient-to-br from-[var(--terminal-elevated)] to-[var(--terminal-bg)] border border-[var(--amber-gold)]/20 mr-4 hover:border-[var(--amber-gold)]/40 hover:shadow-[0_0_15px_-10px_var(--amber-gold)]'
+            : 'bg-[var(--terminal-surface)] border border-[var(--terminal-border)] ml-4 hover:border-[var(--phosphor-green)]/30 hover:shadow-[0_0_15px_-10px_var(--phosphor-green)]'
         )}
       >
-        <div className="absolute inset-0 holo-shimmer opacity-30" />
-
-        <div className="relative p-4">
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(18,18,18,0)_50%,rgba(0,0,0,0.2)_50%)] z-0 pointer-events-none bg-[length:100%_2px] opacity-10" />
+        
+        <div className="relative p-4 sm:p-5 z-10">
           {isTyping && !message.content ? (
             <div
               className="flex items-center gap-3 text-[var(--phosphor-green)] text-sm"
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div className="flex items-center gap-1.5">
+                <span className="w-1 h-1 rounded-full bg-[var(--phosphor-green)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1 h-1 rounded-full bg-[var(--phosphor-green)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1 h-1 rounded-full bg-[var(--phosphor-green)] animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
-              <span className="opacity-70">Generating response...</span>
+              <span className="opacity-70 text-[10px] tracking-wider uppercase">Processing...</span>
             </div>
           ) : (
             <div
               className={cn(
-                'text-sm leading-relaxed',
+                'text-[14px] leading-relaxed',
                 isUser ? 'text-[#e8d5b5]' : 'text-[var(--terminal-text)]'
               )}
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
@@ -483,27 +487,21 @@ function ChatMessage({
           )}
         </div>
 
-        {/* Citations */}
+        {/* Citations Footer */}
         {!isUser && message.citations && message.citations.length > 0 && (
-          <div className="border-t border-[var(--terminal-border)] p-3 bg-[var(--terminal-bg)]">
-            <div
-              className="text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-wider mb-2"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
-            >
-              SOURCES ({message.citations.length})
-            </div>
-            <div className="flex flex-wrap gap-2">
+          <div className="relative border-t border-[var(--terminal-border)] p-2.5 bg-[var(--terminal-bg)]/30">
+            <div className="flex flex-wrap gap-1.5">
               {message.citations.map((citation, idx) => (
                 <button
                   key={idx}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] hover:border-[var(--phosphor-green)]/30 text-[10px] transition-colors"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] hover:border-[var(--phosphor-green)]/40 hover:bg-[var(--terminal-elevated)] text-[9px] transition-all group/citation"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
-                  <FileText className="w-3 h-3 text-[var(--phosphor-green)]" />
+                  <div className="w-1 h-1 rounded-full bg-[var(--phosphor-green)]/30 group-hover/citation:bg-[var(--phosphor-green)] transition-colors" />
                   <span className="text-[var(--terminal-text)] truncate max-w-[150px]">
                     {citation.title}
                   </span>
-                  <span className="text-[var(--phosphor-green)]">
+                  <span className="text-[var(--terminal-text-dim)] border-l border-[var(--terminal-border)] pl-1.5">
                     {Math.round(citation.score * 100)}%
                   </span>
                 </button>
@@ -540,15 +538,20 @@ function ModelSelector({
         onClick={() => !isLoading && setIsOpen(!isOpen)}
         disabled={isLoading}
         className={cn(
-          'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs transition-all',
+          'flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-200',
           'bg-[var(--terminal-surface)] border-[var(--terminal-border)]',
           'hover:border-[var(--phosphor-green)]/30',
+          'active:scale-[0.98]',
+          isOpen && 'border-[var(--phosphor-green)]/50 bg-[var(--phosphor-green)]/5',
           isLoading && 'opacity-50 cursor-not-allowed'
         )}
         style={{ fontFamily: "'JetBrains Mono', monospace" }}
       >
-        <Cpu className="w-3.5 h-3.5 text-[var(--phosphor-green)]" />
-        <span className="text-[var(--terminal-text)]">
+        <Cpu className={cn(
+          "w-3.5 h-3.5 transition-colors",
+          isOpen ? "text-[var(--phosphor-green)] animate-pulse" : "text-[var(--phosphor-green)]"
+        )} />
+        <span className="text-[var(--terminal-text)] text-xs">
           {selectedModel?.name || 'SELECT MODEL'}
         </span>
         {selectedModel?.isCloud && (
@@ -702,92 +705,102 @@ function ChatInput({
   const isNearLimit = charCount > maxChars * 0.8;
 
   return (
-    <div className="border-t border-[var(--terminal-border)] bg-[var(--terminal-bg)]/95 backdrop-blur-xl">
-      <div className="max-w-4xl mx-auto p-4">
+    <div className="z-40 bg-gradient-to-t from-[var(--terminal-bg)] via-[var(--terminal-bg)] to-transparent pt-6 pb-6 px-4">
+      <div className="max-w-4xl mx-auto">
         <motion.div
           className={cn(
-            "terminal-window p-3 transition-all duration-300",
-            isFocused && "ring-1 ring-[var(--phosphor-green)]/30 shadow-[0_0_20px_rgba(0,255,159,0.1)]"
+            "relative rounded-xl overflow-visible backdrop-blur-xl transition-all duration-300",
+            "bg-[var(--terminal-surface)] border",
+            isFocused 
+              ? "border-[var(--phosphor-green)]/40 shadow-[0_0_20px_-5px_rgba(0,255,159,0.1)] ring-1 ring-[var(--phosphor-green)]/10" 
+              : "border-[var(--terminal-border)] shadow-lg"
           )}
-          animate={{
-            borderColor: isFocused ? 'rgba(0, 255, 159, 0.3)' : 'var(--terminal-border)'
-          }}
         >
-          {/* Textarea */}
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            placeholder={selectedModel ? "Type your message..." : "Select a model to start..."}
-            rows={1}
-            className="w-full bg-transparent text-[var(--terminal-text)] text-sm resize-none outline-none"
-            style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              minHeight: '24px',
-              maxHeight: '200px',
-            }}
-            disabled={isDisabled}
-          />
+          {/* Top Bar: Model Selector & Status */}
+          <div className="flex items-center justify-between px-4 py-2 bg-[var(--terminal-elevated)]/50 border-b border-[var(--terminal-border)] rounded-t-xl">
+             <div className="flex items-center gap-2">
+               <div className={cn(
+                 "w-1.5 h-1.5 rounded-full transition-all duration-300",
+                 isModelLoading ? "bg-[var(--amber-gold)] animate-pulse" : "bg-[var(--phosphor-green)] signal-active"
+               )} />
+               <ModelSelector
+                  models={models}
+                  selectedModelId={selectedModel}
+                  onModelChange={onModelChange}
+                  isLoading={isModelLoading}
+                />
+             </div>
+             <div className="flex items-center gap-3">
+               <span 
+                 className={cn(
+                   "text-[10px] transition-colors",
+                   isNearLimit ? "text-[var(--amber-gold)]" : "text-[var(--terminal-text-dim)]"
+                 )}
+                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
+               >
+                 {charCount}/{maxChars}
+               </span>
+             </div>
+          </div>
 
-          {/* Actions Bar */}
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--terminal-border)]">
-            <div className="flex items-center gap-2">
-              <ModelSelector
-                models={models}
-                selectedModelId={selectedModel}
-                onModelChange={onModelChange}
-                isLoading={isModelLoading}
-              />
-              <button
-                className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] transition-colors"
-                title="Attach file"
-              >
-                <Paperclip className="w-4 h-4" />
-              </button>
-              <button
-                className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] transition-colors"
-                title="Voice input"
-              >
-                <Mic className="w-4 h-4" />
-              </button>
-            </div>
+          <div className="p-4">
+            <textarea
+              ref={textareaRef}
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              placeholder="Inject query into neural stream..."
+              rows={1}
+              className="w-full bg-transparent text-[var(--terminal-text)] text-sm resize-none outline-none placeholder:text-[var(--terminal-text-dim)]/50 selection:bg-[var(--phosphor-green)]/20 selection:text-[var(--phosphor-green)]"
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                minHeight: '48px',
+                maxHeight: '200px',
+              }}
+              disabled={isDisabled}
+            />
+            
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center gap-1">
+                <button
+                  className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group"
+                  title="Attach artifact"
+                >
+                  <Paperclip className="w-4 h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
+                </button>
+                <button
+                  className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group"
+                  title="Voice input"
+                >
+                  <Mic className="w-4 h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
+                </button>
+              </div>
 
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "text-[10px] transition-colors",
-                  isNearLimit ? "text-[var(--amber-gold)]" : "text-[var(--terminal-text-muted)]"
-                )}
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                {charCount.toLocaleString()}{isNearLimit && ` / ${maxChars.toLocaleString()}`}
-              </span>
               {isLoading ? (
                 <button
                   onClick={onStop}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--error-red)] text-white text-xs font-medium hover:bg-[var(--error-red)]/80 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--error-red)]/10 border border-[var(--error-red)]/50 text-[var(--error-red)] text-xs font-medium hover:bg-[var(--error-red)]/20 transition-all shadow-[0_0_10px_rgba(239,68,68,0.05)]"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
                   <Square className="w-3.5 h-3.5" />
-                  STOP
+                  HALT
                 </button>
               ) : (
                 <button
                   onClick={onSubmit}
                   disabled={!value.trim() || isDisabled}
                   className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all',
+                    'flex items-center gap-2 px-6 py-2 rounded-lg text-xs font-bold tracking-wide transition-all duration-300',
                     value.trim() && !isDisabled
-                      ? 'bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_20px_var(--phosphor-green-glow)]'
-                      : 'bg-[var(--terminal-elevated)] text-[var(--terminal-text-muted)] cursor-not-allowed'
+                      ? 'bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_15px_rgba(0,255,159,0.2)] hover:scale-105 active:scale-95'
+                      : 'bg-[var(--terminal-elevated)] text-[var(--terminal-text-muted)] cursor-not-allowed border border-[var(--terminal-border)]'
                   )}
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
+                  TRANSMIT
                   <ArrowUp className="w-3.5 h-3.5" />
-                  SEND
                 </button>
               )}
             </div>
@@ -802,19 +815,19 @@ function ChatInput({
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
           <span>
-            <kbd className="px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)]">
+            <kbd className="px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--terminal-text-dim)]">
               Enter
             </kbd>{' '}
             send
           </span>
           <span>
-            <kbd className="px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)]">
+            <kbd className="px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--terminal-text-dim)]">
               Shift+Enter
             </kbd>{' '}
             new line
           </span>
           <span className="hidden sm:inline">
-            <kbd className="px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)]">
+            <kbd className="px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--terminal-text-dim)]">
               /
             </kbd>{' '}
             commands
@@ -837,7 +850,7 @@ function WelcomeState({
   selectedModel?: string;
 }) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-8">
+    <div className="flex-1 flex flex-col items-center justify-center p-8 pb-40">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -968,7 +981,7 @@ function ModelLoadingProgress({
                 className="text-xs text-[var(--phosphor-green)]"
                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
               >
-                ESTABLISHING NEURAL LINK...
+                INITIALIZING...
               </span>
               <span
                 className="text-xs text-[var(--terminal-text-muted)]"
@@ -1061,6 +1074,16 @@ function ChatPageContent() {
       isHydratedRef.current = false;
     }
   }, [isAuthenticated]);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated && !isInitializing) {
+      const timer = setTimeout(() => {
+        router.push('/login');
+      }, 1500); // Short delay to show the "Redirecting..." state
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthenticated, isInitializing, router]);
 
   // Handle thread switching from URL query param or sessionStorage (when navigating from sidebar)
   // This runs whenever we're on /chat and checks for pending thread switch
@@ -1681,45 +1704,19 @@ function ChatPageContent() {
             </motion.button>
           )}
         </AnimatePresence>
-        {/* Authentication Required State */}
+        {/* Authentication Required State */ }
         {!isAuthenticated ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-center max-w-md"
-            >
-              <div className="relative w-20 h-20 mx-auto mb-6">
-                <div className="absolute inset-0 rounded-full bg-[var(--amber-gold)]/10" />
-                <div className="absolute inset-2 rounded-full border-2 border-[var(--amber-gold)]/30 flex items-center justify-center">
-                  <Shield className="w-8 h-8 text-[var(--amber-gold)]" />
-                </div>
-              </div>
-              <h2
-                className="text-xl text-[var(--amber-gold)] mb-3"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                AUTHENTICATION REQUIRED
-              </h2>
-              <p
-                className="text-sm text-[var(--terminal-text-muted)] mb-6"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                Please log in to access the chat interface and persist your conversations to the database.
+          <div className="flex-1 flex flex-col items-center justify-center p-8 pb-48">
+            <div className="text-center">
+              <Loader2 className="w-8 h-8 text-[var(--amber-gold)] animate-spin mx-auto mb-4" />
+              <p className="text-sm font-mono text-[var(--terminal-text-muted)] mt-2">
+                Authentication required. Redirecting to login...
               </p>
-              <a
-                href="/login"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[var(--amber-gold)] text-[var(--terminal-bg)] text-sm font-medium hover:shadow-[0_0_20px_var(--amber-gold)] transition-all"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                <Shield className="w-4 h-4" />
-                AUTHENTICATE
-              </a>
-            </motion.div>
+            </div>
           </div>
         ) : isInitializing ? (
           /* Loading State */
-          <div className="flex-1 flex flex-col items-center justify-center p-8">
+          <div className="flex-1 flex flex-col items-center justify-center p-8 pb-48">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1732,7 +1729,7 @@ function ChatPageContent() {
                 className="text-lg text-[var(--phosphor-green)] mb-2"
                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
               >
-                ESTABLISHING DATABASE LINK...
+                INITIALIZING...
               </h2>
               <p
                 className="text-sm text-[var(--terminal-text-muted)]"
@@ -1744,7 +1741,7 @@ function ChatPageContent() {
           </div>
         ) : initError ? (
           /* Error State */
-          <div className="flex-1 flex flex-col items-center justify-center p-8">
+          <div className="flex-1 flex flex-col items-center justify-center p-8 pb-48">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1787,7 +1784,7 @@ function ChatPageContent() {
         ) : messages.length === 0 ? (
           <WelcomeState onPromptSelect={handlePromptSelect} selectedModel={selectedModel} />
         ) : (
-          <div className="max-w-4xl mx-auto p-4">
+          <div className="max-w-4xl mx-auto pt-8 px-4 pb-40">
             <AnimatePresence>
               {messages.map((message, index) => (
                 <ChatMessage
