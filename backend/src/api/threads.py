@@ -5,17 +5,20 @@ Provides REST endpoints for thread and message management.
 """
 
 import logging
+import time
 from typing import Optional, List
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from ..core.database import get_db
 from ..core.dependencies import get_current_user
+from ..core.config import settings
 from ..models.user import User
 from ..models.thread import ThreadStatus
 from ..services.chat_service import ChatService, get_chat_service
 from ..services.thread_event_service import thread_event_service
+from ..middleware.rate_limiting import get_rate_limiter
 from ..schemas.chat import (
     # Thread schemas
     ThreadCreate,
@@ -40,16 +43,114 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/threads", tags=["Threads"])
 
+# Initialize rate limiter (uses Redis if available, falls back to in-memory)
+_rate_limiter = None
+
+
+def get_bulk_rate_limiter():
+    """Get or create the rate limiter instance."""
+    global _rate_limiter
+    if _rate_limiter is None:
+        try:
+            import redis
+
+            redis_client = redis.Redis.from_url(
+                settings.REDIS_URL or "redis://localhost:6379/0", decode_responses=True
+            )
+            redis_client.ping()
+            _rate_limiter = get_rate_limiter(redis_client)
+            logger.info("Bulk thread rate limiter initialized with Redis")
+        except Exception as e:
+            logger.warning(f"Redis unavailable for rate limiting, using in-memory: {e}")
+            _rate_limiter = get_rate_limiter(None)
+    return _rate_limiter
+
+
+async def check_bulk_rate_limit(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    limit: int = 10,
+    window: int = 60,
+    operation: str = "bulk_operation",
+):
+    """
+    Rate limiting dependency for bulk operations.
+
+    Args:
+        request: FastAPI request object
+        current_user: Authenticated user
+        limit: Maximum operations allowed in window
+        window: Time window in seconds
+        operation: Operation name for logging
+
+    Raises:
+        HTTPException: 429 if rate limit exceeded
+    """
+    rate_limiter = get_bulk_rate_limiter()
+    rate_key = f"threads:bulk:{current_user.id}:{operation}"
+
+    allowed, info = rate_limiter.is_allowed(rate_key, limit, window)
+
+    if not allowed:
+        retry_after = info.get("retry_after", window)
+        logger.warning(
+            f"Rate limit exceeded for user {current_user.id} on {operation}: "
+            f"{info['current_requests']}/{info['limit']} requests"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Rate limit exceeded. Maximum {limit} bulk {operation} operations per {window} seconds.",
+            headers={
+                "X-RateLimit-Limit": str(limit),
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": str(
+                    int(info.get("reset_time", time.time() + window))
+                ),
+                "Retry-After": str(retry_after),
+            },
+        )
+
+    return True
+
+
+# Rate limit dependencies for specific operations
+async def check_bulk_resolve_rate_limit(
+    request: Request, current_user: User = Depends(get_current_user)
+):
+    """Rate limit: 10 bulk resolve operations per minute."""
+    return await check_bulk_rate_limit(
+        request, current_user, limit=10, window=60, operation="resolve"
+    )
+
+
+async def check_bulk_archive_rate_limit(
+    request: Request, current_user: User = Depends(get_current_user)
+):
+    """Rate limit: 10 bulk archive operations per minute."""
+    return await check_bulk_rate_limit(
+        request, current_user, limit=10, window=60, operation="archive"
+    )
+
+
+async def check_bulk_delete_rate_limit(
+    request: Request, current_user: User = Depends(get_current_user)
+):
+    """Rate limit: 5 bulk delete operations per minute (stricter for destructive ops)."""
+    return await check_bulk_rate_limit(
+        request, current_user, limit=5, window=60, operation="delete"
+    )
+
 
 # =============================================================================
 # Thread Endpoints
 # =============================================================================
 
+
 @router.post("", response_model=ThreadResponse, status_code=status.HTTP_201_CREATED)
 async def create_thread(
     data: ThreadCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Create a new thread in a conversation.
@@ -63,7 +164,7 @@ async def create_thread(
     if not thread:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Conversation not found or insufficient permissions"
+            detail="Conversation not found or insufficient permissions",
         )
 
     # Broadcast thread creation event via WebSocket
@@ -88,18 +189,22 @@ async def create_thread(
         token_count=thread.token_count,
         created_by_id=thread.created_by_id,
         created_at=thread.created_at,
-        updated_at=thread.updated_at
+        updated_at=thread.updated_at,
     )
 
 
 @router.get("", response_model=ThreadListResponse)
 async def list_threads(
-    conversation_id: UUID = Query(..., description="Conversation ID to list threads from"),
-    status_filter: Optional[ThreadStatus] = Query(None, description="Filter by thread status"),
+    conversation_id: UUID = Query(
+        ..., description="Conversation ID to list threads from"
+    ),
+    status_filter: Optional[ThreadStatus] = Query(
+        None, description="Filter by thread status"
+    ),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     List threads in a conversation.
@@ -110,7 +215,7 @@ async def list_threads(
         user_id=current_user.id,
         status_filter=status_filter,
         limit=limit,
-        offset=offset
+        offset=offset,
     )
 
     page = (offset // limit) + 1 if limit > 0 else 1
@@ -129,14 +234,14 @@ async def list_threads(
                 token_count=t.token_count,
                 created_by_id=t.created_by_id,
                 created_at=t.created_at,
-                updated_at=t.updated_at
+                updated_at=t.updated_at,
             )
             for t in threads
         ],
         total=total,
         page=page,
         limit=limit,
-        has_more=has_more
+        has_more=has_more,
     )
 
 
@@ -145,26 +250,26 @@ async def get_thread(
     thread_id: UUID,
     include_messages: bool = Query(True, description="Include messages in response"),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get thread details by ID, optionally including messages.
     """
     service = get_chat_service(db)
-    thread = service.get_thread(thread_id, current_user.id, include_messages=include_messages)
+    thread = service.get_thread(
+        thread_id, current_user.id, include_messages=include_messages
+    )
 
     if not thread:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Thread not found or access denied"
+            detail="Thread not found or access denied",
         )
 
     messages = []
     if include_messages and thread.messages:
         messages = [
-            _format_message_response(m)
-            for m in thread.messages
-            if not m.is_deleted
+            _format_message_response(m) for m in thread.messages if not m.is_deleted
         ]
 
     return ThreadDetailResponse(
@@ -179,7 +284,7 @@ async def get_thread(
         created_by_id=thread.created_by_id,
         created_at=thread.created_at,
         updated_at=thread.updated_at,
-        messages=messages
+        messages=messages,
     )
 
 
@@ -188,7 +293,7 @@ async def update_thread(
     thread_id: UUID,
     data: ThreadUpdate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Update thread properties.
@@ -199,7 +304,7 @@ async def update_thread(
     if not thread:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Thread not found or insufficient permissions"
+            detail="Thread not found or insufficient permissions",
         )
 
     # Broadcast thread update event via WebSocket
@@ -225,7 +330,7 @@ async def update_thread(
         token_count=thread.token_count,
         created_by_id=thread.created_by_id,
         created_at=thread.created_at,
-        updated_at=thread.updated_at
+        updated_at=thread.updated_at,
     )
 
 
@@ -233,7 +338,7 @@ async def update_thread(
 async def delete_thread(
     thread_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Delete a thread (soft delete).
@@ -245,7 +350,7 @@ async def delete_thread(
     if not thread:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Thread not found or insufficient permissions"
+            detail="Thread not found or insufficient permissions",
         )
 
     conversation_id = str(thread.conversation_id)
@@ -254,7 +359,7 @@ async def delete_thread(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Thread not found or insufficient permissions"
+            detail="Thread not found or insufficient permissions",
         )
 
     # Broadcast thread deletion event via WebSocket
@@ -269,16 +374,13 @@ async def delete_thread(
 async def resolve_thread(
     thread_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Mark a thread as resolved.
     """
     return await update_thread(
-        thread_id,
-        ThreadUpdate(status=ThreadStatus.RESOLVED),
-        current_user,
-        db
+        thread_id, ThreadUpdate(status=ThreadStatus.RESOLVED), current_user, db
     )
 
 
@@ -286,16 +388,13 @@ async def resolve_thread(
 async def reopen_thread(
     thread_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Reopen a resolved thread.
     """
     return await update_thread(
-        thread_id,
-        ThreadUpdate(status=ThreadStatus.ACTIVE),
-        current_user,
-        db
+        thread_id, ThreadUpdate(status=ThreadStatus.ACTIVE), current_user, db
     )
 
 
@@ -303,16 +402,13 @@ async def reopen_thread(
 async def archive_thread(
     thread_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Archive a thread.
     """
     return await update_thread(
-        thread_id,
-        ThreadUpdate(status=ThreadStatus.ARCHIVED),
-        current_user,
-        db
+        thread_id, ThreadUpdate(status=ThreadStatus.ARCHIVED), current_user, db
     )
 
 
@@ -325,43 +421,48 @@ async def archive_thread(
 async def bulk_resolve_threads(
     request: BulkThreadRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _rate_limit: bool = Depends(check_bulk_resolve_rate_limit),
 ):
     """
     Bulk resolve multiple threads.
+
+    Rate limited to 10 operations per minute per user.
     """
     service = get_chat_service(db)
     results = service.bulk_update_threads(
-        request.thread_ids,
-        ThreadUpdate(status=ThreadStatus.RESOLVED),
-        current_user.id
+        request.thread_ids, ThreadUpdate(status=ThreadStatus.RESOLVED), current_user.id
     )
-    
+
+    return await _build_bulk_response(
+        results=results, action="resolved", user_id=current_user.id
+    )
+
     bulk_results = []
     succeeded_ids = []
     for thread_id, success, error, thread in results:
-        bulk_results.append(BulkThreadResult(
-            thread_id=thread_id,
-            success=success,
-            error=error,
-            thread=ThreadResponse.model_validate(thread) if thread else None
-        ))
+        bulk_results.append(
+            BulkThreadResult(
+                thread_id=thread_id,
+                success=success,
+                error=error,
+                thread=ThreadResponse.model_validate(thread) if thread else None,
+            )
+        )
         if success:
             succeeded_ids.append(str(thread_id))
-    
+
     # Broadcast bulk update event
     if succeeded_ids:
         await thread_event_service.broadcast_threads_bulk_updated(
-            thread_ids=succeeded_ids,
-            action="resolved",
-            user_id=str(current_user.id)
+            thread_ids=succeeded_ids, action="resolved", user_id=str(current_user.id)
         )
-    
+
     return BulkThreadResponse(
         total=len(request.thread_ids),
         succeeded=len(succeeded_ids),
         failed=len(request.thread_ids) - len(succeeded_ids),
-        results=bulk_results
+        results=bulk_results,
     )
 
 
@@ -369,42 +470,47 @@ async def bulk_resolve_threads(
 async def bulk_archive_threads(
     request: BulkThreadRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _rate_limit: bool = Depends(check_bulk_archive_rate_limit),
 ):
     """
     Bulk archive multiple threads.
+
+    Rate limited to 10 operations per minute per user.
     """
     service = get_chat_service(db)
     results = service.bulk_update_threads(
-        request.thread_ids,
-        ThreadUpdate(status=ThreadStatus.ARCHIVED),
-        current_user.id
+        request.thread_ids, ThreadUpdate(status=ThreadStatus.ARCHIVED), current_user.id
     )
-    
+
+    return await _build_bulk_response(
+        results=results, action="archived", user_id=current_user.id
+    )
+
     bulk_results = []
     succeeded_ids = []
     for thread_id, success, error, thread in results:
-        bulk_results.append(BulkThreadResult(
-            thread_id=thread_id,
-            success=success,
-            error=error,
-            thread=ThreadResponse.model_validate(thread) if thread else None
-        ))
+        bulk_results.append(
+            BulkThreadResult(
+                thread_id=thread_id,
+                success=success,
+                error=error,
+                thread=ThreadResponse.model_validate(thread) if thread else None,
+            )
+        )
         if success:
             succeeded_ids.append(str(thread_id))
-    
+
     if succeeded_ids:
         await thread_event_service.broadcast_threads_bulk_updated(
-            thread_ids=succeeded_ids,
-            action="archived",
-            user_id=str(current_user.id)
+            thread_ids=succeeded_ids, action="archived", user_id=str(current_user.id)
         )
-    
+
     return BulkThreadResponse(
         total=len(request.thread_ids),
         succeeded=len(succeeded_ids),
         failed=len(request.thread_ids) - len(succeeded_ids),
-        results=bulk_results
+        results=bulk_results,
     )
 
 
@@ -412,38 +518,22 @@ async def bulk_archive_threads(
 async def bulk_delete_threads(
     request: BulkThreadRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _rate_limit: bool = Depends(check_bulk_delete_rate_limit),
 ):
     """
     Bulk delete multiple threads (soft delete).
+
+    Rate limited to 5 operations per minute per user (stricter for destructive operations).
     """
     service = get_chat_service(db)
     results = service.bulk_delete_threads(request.thread_ids, current_user.id)
-    
-    bulk_results = []
-    succeeded_ids = []
-    for thread_id, success, error in results:
-        bulk_results.append(BulkThreadResult(
-            thread_id=thread_id,
-            success=success,
-            error=error,
-            thread=None
-        ))
-        if success:
-            succeeded_ids.append(str(thread_id))
-    
-    if succeeded_ids:
-        await thread_event_service.broadcast_threads_bulk_updated(
-            thread_ids=succeeded_ids,
-            action="deleted",
-            user_id=str(current_user.id)
-        )
-    
-    return BulkThreadResponse(
-        total=len(request.thread_ids),
-        succeeded=len(succeeded_ids),
-        failed=len(request.thread_ids) - len(succeeded_ids),
-        results=bulk_results
+
+    return await _build_bulk_response(
+        results=results,
+        action="deleted",
+        user_id=current_user.id,
+        include_threads=False,
     )
 
 
@@ -451,7 +541,7 @@ async def bulk_delete_threads(
 async def regenerate_thread_summary(
     thread_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Regenerate AI summary for a thread.
@@ -463,8 +553,7 @@ async def regenerate_thread_summary(
 
     if not thread:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Thread not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found"
         )
 
     # Import and call summarization service
@@ -474,6 +563,7 @@ async def regenerate_thread_summary(
 
     try:
         import asyncio
+
         summary = await summarization_service.generate_summary(thread_id, force=True)
 
         if summary:
@@ -485,7 +575,7 @@ async def regenerate_thread_summary(
         logger.error(f"Summary regeneration failed for thread {thread_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Summary generation failed: {str(e)}"
+            detail=f"Summary generation failed: {str(e)}",
         )
 
     # Refresh thread to get updated summary
@@ -502,7 +592,7 @@ async def regenerate_thread_summary(
         token_count=thread.token_count,
         created_by_id=thread.created_by_id,
         created_at=thread.created_at,
-        updated_at=thread.updated_at
+        updated_at=thread.updated_at,
     )
 
 
@@ -512,7 +602,7 @@ async def get_thread_context(
     max_messages: int = Query(20, ge=1, le=100),
     max_tokens: int = Query(4000, ge=100, le=16000),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get thread messages formatted for LLM context.
@@ -524,7 +614,7 @@ async def get_thread_context(
         thread_id=thread_id,
         user_id=current_user.id,
         max_messages=max_messages,
-        max_tokens=max_tokens
+        max_tokens=max_tokens,
     )
 
     if not context:
@@ -533,13 +623,13 @@ async def get_thread_context(
         if not thread:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Thread not found or access denied"
+                detail="Thread not found or access denied",
             )
 
     return {
         "thread_id": str(thread_id),
         "messages": context,
-        "message_count": len(context)
+        "message_count": len(context),
     }
 
 
@@ -547,12 +637,17 @@ async def get_thread_context(
 # Message Endpoints
 # =============================================================================
 
-@router.post("/{thread_id}/messages", response_model=ChatMessageResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/{thread_id}/messages",
+    response_model=ChatMessageResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_message(
     thread_id: UUID,
     data: ChatMessageCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Create a new message in a thread.
@@ -561,7 +656,7 @@ async def create_message(
     if data.thread_id != thread_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Thread ID in path must match thread_id in body"
+            detail="Thread ID in path must match thread_id in body",
         )
 
     service = get_chat_service(db)
@@ -570,7 +665,7 @@ async def create_message(
     if not message:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Thread not found or insufficient permissions"
+            detail="Thread not found or insufficient permissions",
         )
 
     # Broadcast message creation event via WebSocket
@@ -582,7 +677,9 @@ async def create_message(
                 thread_id=str(thread_id),
                 conversation_id=str(thread.conversation_id),
                 user_id=str(current_user.id),
-                role=message.role.value if hasattr(message.role, 'value') else str(message.role),
+                role=message.role.value
+                if hasattr(message.role, "value")
+                else str(message.role),
                 content_preview=message.content[:100] if message.content else None,
                 has_citations=bool(message.citations),
             )
@@ -597,9 +694,11 @@ async def list_messages(
     thread_id: UUID,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    before_id: Optional[UUID] = Query(None, description="Get messages before this message ID"),
+    before_id: Optional[UUID] = Query(
+        None, description="Get messages before this message ID"
+    ),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     List messages in a thread.
@@ -610,7 +709,7 @@ async def list_messages(
         user_id=current_user.id,
         limit=limit,
         offset=offset,
-        before_id=before_id
+        before_id=before_id,
     )
 
     page = (offset // limit) + 1 if limit > 0 else 1
@@ -621,7 +720,7 @@ async def list_messages(
         total=total,
         page=page,
         limit=limit,
-        has_more=has_more
+        has_more=has_more,
     )
 
 
@@ -630,7 +729,7 @@ async def get_message(
     thread_id: UUID,
     message_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get a specific message by ID.
@@ -641,14 +740,14 @@ async def get_message(
     if not message:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Message not found or access denied"
+            detail="Message not found or access denied",
         )
 
     # Verify thread matches
     if message.thread_id != thread_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Message not found in this thread"
+            detail="Message not found in this thread",
         )
 
     return _format_message_response(message)
@@ -660,7 +759,7 @@ async def update_message_feedback(
     message_id: UUID,
     data: ChatMessageUpdate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Update message feedback (rating and text).
@@ -673,25 +772,27 @@ async def update_message_feedback(
     if not message:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Message not found or access denied"
+            detail="Message not found or access denied",
         )
 
     # Verify thread matches
     if message.thread_id != thread_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Message not found in this thread"
+            detail="Message not found in this thread",
         )
 
     return _format_message_response(message)
 
 
-@router.delete("/{thread_id}/messages/{message_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{thread_id}/messages/{message_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def delete_message(
     thread_id: UUID,
     message_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Delete a message (soft delete).
@@ -705,7 +806,7 @@ async def delete_message(
     if message and message.thread_id != thread_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Message not found in this thread"
+            detail="Message not found in this thread",
         )
 
     success = service.delete_message(message_id, current_user.id)
@@ -713,13 +814,62 @@ async def delete_message(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Message not found or insufficient permissions"
+            detail="Message not found or insufficient permissions",
         )
 
 
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
+
+async def _build_bulk_response(
+    results: List[tuple], action: str, user_id: UUID, include_threads: bool = True
+) -> BulkThreadResponse:
+    """
+    Build bulk response and broadcast events.
+
+    Args:
+        results: List of tuples (thread_id, success, error, [thread])
+        action: Action name for event broadcasting ('resolved', 'archived', 'deleted')
+        user_id: ID of the user performing the action
+        include_threads: Whether to include thread objects in the response results
+    """
+    bulk_results = []
+    succeeded_ids = []
+
+    for result in results:
+        thread_id = result[0]
+        success = result[1]
+        error = result[2]
+        # Thread object might not be present if include_threads is False (e.g. delete)
+        thread = result[3] if len(result) > 3 else None
+
+        bulk_results.append(
+            BulkThreadResult(
+                thread_id=thread_id,
+                success=success,
+                error=error,
+                thread=ThreadResponse.model_validate(thread)
+                if thread and include_threads
+                else None,
+            )
+        )
+        if success:
+            succeeded_ids.append(str(thread_id))
+
+    if succeeded_ids:
+        await thread_event_service.broadcast_threads_bulk_updated(
+            thread_ids=succeeded_ids, action=action, user_id=str(user_id)
+        )
+
+    return BulkThreadResponse(
+        total=len(results),
+        succeeded=len(succeeded_ids),
+        failed=len(results) - len(succeeded_ids),
+        results=bulk_results,
+    )
+
 
 def _format_message_response(message) -> ChatMessageResponse:
     """Format a ChatMessage model to ChatMessageResponse schema"""
@@ -738,8 +888,16 @@ def _format_message_response(message) -> ChatMessageResponse:
                 score=c.score,
                 rerank_score=c.rerank_score,
                 # Use stored title/type for external refs, or get from document relationship
-                document_title=c.document_title or (c.document.title if hasattr(c, 'document') and c.document else None),
-                document_type=c.document_type or (c.document.type.value if hasattr(c, 'document') and c.document and c.document.type else None)
+                document_title=c.document_title
+                or (
+                    c.document.title if hasattr(c, "document") and c.document else None
+                ),
+                document_type=c.document_type
+                or (
+                    c.document.type.value
+                    if hasattr(c, "document") and c.document and c.document.type
+                    else None
+                ),
             )
             for c in message.citations
         ]
@@ -752,9 +910,15 @@ def _format_message_response(message) -> ChatMessageResponse:
                 document_id=a.document_id,
                 display_name=a.display_name,
                 thumbnail_url=a.thumbnail_url,
-                document_title=a.document.title if hasattr(a, 'document') and a.document else None,
-                document_type=a.document.type.value if hasattr(a, 'document') and a.document and a.document.type else None,
-                mime_type=a.document.mime_type if hasattr(a, 'document') and a.document else None
+                document_title=a.document.title
+                if hasattr(a, "document") and a.document
+                else None,
+                document_type=a.document.type.value
+                if hasattr(a, "document") and a.document and a.document.type
+                else None,
+                mime_type=a.document.mime_type
+                if hasattr(a, "document") and a.document
+                else None,
             )
             for a in message.attachments
         ]
@@ -776,5 +940,5 @@ def _format_message_response(message) -> ChatMessageResponse:
         created_at=message.created_at,
         updated_at=message.updated_at,
         citations=citations,
-        attachments=attachments
+        attachments=attachments,
     )
