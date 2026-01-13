@@ -14,11 +14,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { THEME } from '@/theme/constants';
 import { Citation, getCitationIdentifier } from '@/utils/citationParser';
 import { CitationPreview } from './CitationPreview';
 
 // Terminal Observatory theme colors
-const PHOSPHOR_GREEN = '#00ff9f';
+// Using THEME.colors instead of local constants
 
 interface CitationPanelProps {
   citations: Citation[];
@@ -118,16 +119,16 @@ export function CitationPanel({
             style={{ backgroundColor: '#0a0a0a' }}
           >
             <div className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5" style={{ color: PHOSPHOR_GREEN }} />
-              <h2 className="text-sm font-medium" style={{ color: PHOSPHOR_GREEN }}>
+              <BookOpen className="w-5 h-5" style={{ color: THEME.colors.primary }} />
+              <h2 className="text-sm font-medium" style={{ color: THEME.colors.primary }}>
                 Sources
               </h2>
               <Badge
                 variant="outline"
                 className="text-[10px] px-1.5 py-0 h-5 border-0"
                 style={{
-                  backgroundColor: `${PHOSPHOR_GREEN}15`,
-                  color: PHOSPHOR_GREEN
+                  backgroundColor: `${THEME.colors.primary}15`,
+                  color: THEME.colors.primary
                 }}
               >
                 {citations.length}
@@ -156,7 +157,7 @@ export function CitationPanel({
                   'pl-9 h-9 text-sm font-mono',
                   'bg-[#0a0a0a] border-[#1a1a1a]',
                   'text-gray-300 placeholder:text-gray-600',
-                  'focus:border-[#00ff9f]/30 focus:ring-[#00ff9f]/10'
+                  'focus:border-primary/30 focus:ring-primary/10'
                 )}
               />
             </div>
@@ -202,7 +203,7 @@ export function CitationPanel({
                     onNavigate={onCitationClick}
                     className={cn(
                       activeCitationId === citationId &&
-                        'ring-1 ring-[#00ff9f]/50'
+                        'ring-1 ring-primary/50'
                     )}
                   />
                 );
@@ -214,7 +215,7 @@ export function CitationPanel({
           <div className="px-4 py-2.5 border-t border-[#1a1a1a]" style={{ backgroundColor: '#050505' }}>
             <p
               className="text-[9px] text-center font-mono uppercase tracking-widest"
-              style={{ color: `${PHOSPHOR_GREEN}40` }}
+              style={{ color: `${THEME.colors.primary}40` }}
             >
               Sources Retrieved via RAG Pipeline
             </p>
