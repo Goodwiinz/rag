@@ -1,10 +1,10 @@
 /**
  * EntityForm Component
- * Form for creating and editing entities
+ * Terminal Observatory themed entity form with duplicate detection
  */
 
 import React, { useState, useEffect } from 'react';
-import { Save, X, Plus, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Save, X, Plus, Trash2, AlertTriangle, Loader2, Database, Tag, Shield, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,15 +16,17 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Entity, EntityType } from '@/types/entity';
 import { entityService } from '@/services/entityService';
+import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
 interface EntityFormProps {
   entity?: Entity | null;
   onSubmit: (data: Partial<Entity>) => void;
   onCancel: () => void;
+  availableTypes?: string[];
 }
 
-const entityTypes: EntityType[] = [
+const DEFAULT_ENTITY_TYPES: EntityType[] = [
   'PERSON',
   'ORGANIZATION',
   'LOCATION',
@@ -33,7 +35,15 @@ const entityTypes: EntityType[] = [
   'PRODUCT',
   'DATE',
   'TECHNOLOGY',
-  'DOCUMENT'
+  'DOCUMENT',
+  'TOPIC',
+  'RESEARCH',
+  'FINANCIAL',
+  'EMAIL',
+  'PHONE',
+  'URL',
+  'JOB_TITLE',
+  'OTHER'
 ];
 
 interface MetadataField {
@@ -45,8 +55,11 @@ interface MetadataField {
 export const EntityForm: React.FC<EntityFormProps> = ({
   entity,
   onSubmit,
-  onCancel
+  onCancel,
+  availableTypes
 }) => {
+  // Use available types from props or fall back to defaults
+  const entityTypes = (availableTypes || DEFAULT_ENTITY_TYPES) as EntityType[];
   const [formData, setFormData] = useState({
     name: '',
     type: 'PERSON' as EntityType,
@@ -235,31 +248,32 @@ export const EntityForm: React.FC<EntityFormProps> = ({
 
   return (
     <>
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6 text-[var(--terminal-text)]">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="name">Entity Name *</Label>
+          <Label htmlFor="name" className="text-xs font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">Entity_Name *</Label>
           <Input
             id="name"
             value={formData.name}
             onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-            placeholder="Enter entity name"
+            placeholder="ENTER_ENTITY_ID"
             required
+            className="bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)] focus:border-[var(--phosphor-green)] focus:ring-[var(--phosphor-green)]/20"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="type">Entity Type</Label>
+          <Label htmlFor="type" className="text-xs font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">Classification *</Label>
           <Select
             value={formData.type}
             onValueChange={(value: EntityType) => setFormData(prev => ({ ...prev, type: value }))}
           >
-            <SelectTrigger>
+            <SelectTrigger className="bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] focus:border-[var(--phosphor-green)]">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
-              {entityTypes.map((type) => (
-                <SelectItem key={type} value={type}>
+            <SelectContent className="bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
+              {entityTypes.map((type: EntityType) => (
+                <SelectItem key={type} value={type} className="font-mono text-xs focus:bg-[var(--terminal-elevated)] focus:text-[var(--phosphor-green)]">
                   {type}
                 </SelectItem>
               ))}
@@ -269,8 +283,11 @@ export const EntityForm: React.FC<EntityFormProps> = ({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="confidence">Confidence Score</Label>
-        <div className="space-y-2">
+        <div className="flex justify-between items-center">
+          <Label htmlFor="confidence" className="text-xs font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">Confidence_Metric</Label>
+          <span className="text-xs font-mono font-bold text-[var(--phosphor-green)]">{(formData.confidence * 100).toFixed(1)}%</span>
+        </div>
+        <div className="py-2">
           <Slider
             value={[formData.confidence]}
             onValueChange={([value]) => setFormData(prev => ({ ...prev, confidence: value }))}
@@ -279,21 +296,19 @@ export const EntityForm: React.FC<EntityFormProps> = ({
             step={0.01}
             className="w-full"
           />
-          <div className="flex justify-between text-sm text-gray-600">
-            <span>0%</span>
-            <span className="font-medium">{(formData.confidence * 100).toFixed(1)}%</span>
-            <span>100%</span>
-          </div>
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Basic Information</CardTitle>
+      <Card className="bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
+        <CardHeader className="border-b border-[var(--terminal-border)] py-3">
+          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+            <Terminal className="w-4 h-4" />
+            Core_Attributes
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 p-4">
           <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description" className="text-xs font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">Description_Buffer</Label>
             <Textarea
               id="description"
               value={formData.metadata.description}
@@ -301,13 +316,14 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                 ...prev,
                 metadata: { ...prev.metadata, description: e.target.value }
               }))}
-              placeholder="Enter entity description"
+              placeholder="ENTER_DESCRIPTION_TEXT"
               rows={3}
+              className="bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)] focus:border-[var(--phosphor-green)] resize-none"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="category">Category</Label>
+            <Label htmlFor="category" className="text-xs font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">Category_Tag</Label>
             <Input
               id="category"
               value={formData.metadata.category}
@@ -315,35 +331,39 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                 ...prev,
                 metadata: { ...prev.metadata, category: e.target.value }
               }))}
-              placeholder="Enter category (e.g., Technology, Company, City)"
+              placeholder="ENTER_CATEGORY"
+              className="bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)] focus:border-[var(--phosphor-green)]"
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Aliases</Label>
+            <Label className="text-xs font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">Known_Aliases</Label>
             <div className="space-y-2">
-              {formData.metadata.aliases?.map((alias, index) => (
-                <div key={index} className="flex items-center space-x-2">
-                  <span className="flex-1 px-3 py-2 bg-gray-100 rounded">{alias}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeAlias(index)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+              <div className="flex flex-wrap gap-2 mb-2">
+                {formData.metadata.aliases?.map((alias, index) => (
+                  <div key={index} className="flex items-center gap-1 pl-2 pr-1 py-1 bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] rounded">
+                    <span className="text-xs font-mono text-[var(--terminal-text)]">{alias}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeAlias(index)}
+                      className="text-[var(--terminal-text-dim)] hover:text-red-400 p-0.5 rounded transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
               <div className="flex space-x-2">
                 <Input
-                  placeholder="Add alias and press Enter"
+                  placeholder="ADD_ALIAS + ENTER"
                   onKeyPress={(e) => {
                     if (e.key === 'Enter') {
+                      e.preventDefault();
                       addAlias((e.target as HTMLInputElement).value);
                       (e.target as HTMLInputElement).value = '';
                     }
                   }}
+                  className="bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)] focus:border-[var(--phosphor-green)]"
                 />
                 <Button
                   type="button"
@@ -355,6 +375,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                       input.value = '';
                     }
                   }}
+                  className="border-[var(--terminal-border)] bg-[var(--terminal-elevated)] text-[var(--terminal-text)] hover:text-[var(--phosphor-green)] hover:border-[var(--phosphor-green)]"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -364,56 +385,65 @@ export const EntityForm: React.FC<EntityFormProps> = ({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Custom Properties</CardTitle>
-            <Button type="button" variant="outline" size="sm" onClick={addMetadataField}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Property
-            </Button>
-          </div>
+      <Card className="bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
+        <CardHeader className="border-b border-[var(--terminal-border)] py-3 flex flex-row items-center justify-between">
+          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+            <Database className="w-4 h-4" />
+            Extended_Properties
+          </CardTitle>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={addMetadataField}
+            className="h-6 text-[10px] font-mono hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
+          >
+            <Plus className="h-3 w-3 mr-1.5" />
+            ADD_FIELD
+          </Button>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-3 p-4">
           {metadataFields.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-4">
-              No custom properties added. Click "Add Property" to add one.
-            </p>
+            <div className="text-center py-4 flex flex-col items-center gap-2 text-[var(--terminal-text-dim)] opacity-50">
+              <Shield className="w-6 h-6" />
+              <p className="text-xs font-mono">NO_CUSTOM_FIELDS</p>
+            </div>
           ) : (
             metadataFields.map((field, index) => (
               <div key={index} className="flex items-center space-x-2">
                 <Input
-                  placeholder="Property name"
+                  placeholder="KEY"
                   value={field.key}
                   onChange={(e) => updateMetadataField(index, { key: e.target.value })}
-                  className="w-1/3"
+                  className="w-1/3 bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-xs text-[var(--terminal-text)] h-8"
                 />
                 <Select
                   value={field.type}
                   onValueChange={(value: MetadataField['type']) => updateMetadataField(index, { type: value })}
                 >
-                  <SelectTrigger className="w-32">
+                  <SelectTrigger className="w-28 bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-xs text-[var(--terminal-text-dim)] h-8">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="string">String</SelectItem>
-                    <SelectItem value="number">Number</SelectItem>
-                    <SelectItem value="boolean">Boolean</SelectItem>
-                    <SelectItem value="array">Array</SelectItem>
-                    <SelectItem value="object">Object</SelectItem>
+                  <SelectContent className="bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
+                    <SelectItem value="string" className="font-mono text-xs">STRING</SelectItem>
+                    <SelectItem value="number" className="font-mono text-xs">NUMBER</SelectItem>
+                    <SelectItem value="boolean" className="font-mono text-xs">BOOL</SelectItem>
+                    <SelectItem value="array" className="font-mono text-xs">ARRAY</SelectItem>
+                    <SelectItem value="object" className="font-mono text-xs">OBJECT</SelectItem>
                   </SelectContent>
                 </Select>
                 <Input
-                  placeholder="Value"
+                  placeholder="VALUE"
                   value={field.value}
                   onChange={(e) => updateMetadataField(index, { value: e.target.value })}
-                  className="flex-1"
+                  className="flex-1 bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-xs text-[var(--terminal-text)] h-8"
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => removeMetadataField(index)}
+                  className="h-8 w-8 text-red-500/50 hover:text-red-400 hover:bg-red-400/10"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -423,22 +453,31 @@ export const EntityForm: React.FC<EntityFormProps> = ({
         </CardContent>
       </Card>
 
-      <Separator />
+      <Separator className="bg-[var(--terminal-border)]" />
 
-      <div className="flex justify-end space-x-2">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
+      <div className="flex justify-end space-x-3">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          className="font-mono text-xs border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text)]"
+        >
+          ABORT_OP
         </Button>
-        <Button type="submit" disabled={isCheckingDuplicate}>
+        <Button
+          type="submit"
+          disabled={isCheckingDuplicate}
+          className="font-mono text-xs bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_15px_var(--phosphor-green-glow)]"
+        >
           {isCheckingDuplicate ? (
             <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Checking...
+              <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
+              CHECKING...
             </>
           ) : (
             <>
-              <Save className="h-4 w-4 mr-2" />
-              {entity ? 'Update Entity' : 'Create Entity'}
+              <Save className="h-3.5 w-3.5 mr-2" />
+              {entity ? 'UPDATE_NODE' : 'PROVISION_NODE'}
             </>
           )}
         </Button>
@@ -448,39 +487,46 @@ export const EntityForm: React.FC<EntityFormProps> = ({
       {/* Duplicate Warning Dialog */}
       {duplicateWarning && (
         <Dialog open={duplicateWarning.show} onOpenChange={() => setDuplicateWarning(null)}>
-          <DialogContent>
+          <DialogContent className="bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)]">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-amber-500">
+              <DialogTitle className="flex items-center gap-2 text-[var(--amber-gold)] font-mono text-sm uppercase tracking-widest">
                 <AlertTriangle className="h-5 w-5" />
-                Duplicate Entity Warning
+                Duplicate_Entity_Warning
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                An entity with the name <strong>{formData.name}</strong> and type <strong>{formData.type}</strong> already exists:
+              <p className="text-xs font-mono text-[var(--terminal-text-muted)]">
+                An entity with the name <span className="text-[var(--terminal-text)] font-bold">{formData.name}</span> and type <span className="text-[var(--terminal-text)] font-bold">{formData.type}</span> already exists:
               </p>
               <div className="space-y-2">
                 {duplicateWarning.entities.map((dup) => (
-                  <Card key={dup.id} className="p-3">
-                    <div className="text-sm">
-                      <div className="font-medium">{dup.name}</div>
-                      <div className="text-xs text-muted-foreground">
+                  <Card key={dup.id} className="p-3 bg-[var(--terminal-elevated)] border-[var(--terminal-border)]">
+                    <div className="text-xs font-mono">
+                      <div className="font-bold text-[var(--terminal-text)]">{dup.name}</div>
+                      <div className="text-[var(--terminal-text-muted)]">
                         Type: {dup.type} • Created: {new Date(dup.created_at).toLocaleDateString()}
                       </div>
                     </div>
                   </Card>
                 ))}
               </div>
-              <p className="text-sm">
-                Would you like to create anyway with the name <strong>{duplicateWarning.suggestedName}</strong>?
+              <p className="text-xs font-mono text-[var(--terminal-text-muted)]">
+                Would you like to create anyway with the name <span className="text-[var(--phosphor-green)] font-bold">{duplicateWarning.suggestedName}</span>?
               </p>
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={handleCancelDuplicate}>
-                Cancel
+              <Button
+                variant="outline"
+                onClick={handleCancelDuplicate}
+                className="font-mono text-xs border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text)]"
+              >
+                CANCEL
               </Button>
-              <Button onClick={handleForceCreate}>
-                Create as "{duplicateWarning.suggestedName}"
+              <Button
+                onClick={handleForceCreate}
+                className="font-mono text-xs bg-[var(--phosphor-green)] text-[var(--terminal-bg)]"
+              >
+                CREATE_AS "{duplicateWarning.suggestedName}"
               </Button>
             </DialogFooter>
           </DialogContent>

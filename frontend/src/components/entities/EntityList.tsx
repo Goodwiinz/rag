@@ -31,6 +31,12 @@ const typeColors: Record<string, string> = {
   TECHNOLOGY: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
   DOCUMENT: 'text-orange-400 bg-orange-400/10 border-orange-400/20',
   TOPIC: 'text-pink-400 bg-pink-400/10 border-pink-400/20',
+  RESEARCH: 'text-violet-400 bg-violet-400/10 border-violet-400/20',
+  FINANCIAL: 'text-green-400 bg-green-400/10 border-green-400/20',
+  EMAIL: 'text-sky-400 bg-sky-400/10 border-sky-400/20',
+  PHONE: 'text-teal-400 bg-teal-400/10 border-teal-400/20',
+  URL: 'text-lime-400 bg-lime-400/10 border-lime-400/20',
+  JOB_TITLE: 'text-fuchsia-400 bg-fuchsia-400/10 border-fuchsia-400/20',
   OTHER: 'text-gray-400 bg-gray-400/10 border-gray-400/20',
 };
 

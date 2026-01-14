@@ -13,6 +13,12 @@ export type EntityType =
   | 'TECHNOLOGY'
   | 'DOCUMENT'
   | 'TOPIC'
+  | 'RESEARCH'
+  | 'FINANCIAL'
+  | 'EMAIL'
+  | 'PHONE'
+  | 'URL'
+  | 'JOB_TITLE'
   | 'OTHER';
 
 export type RelationshipType =
