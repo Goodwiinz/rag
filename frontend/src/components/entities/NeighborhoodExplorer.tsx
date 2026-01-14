@@ -75,7 +75,7 @@ export const NeighborhoodExplorer: React.FC<NeighborhoodExplorerProps> = ({
 
       setRelationships(filteredRelationships);
 
-      toast.success(`Found ${convertedEntities.length} related entities`);
+      toast.success(`Found ${relatedEntities.length} related entities`);
     } catch (error) {
       console.error('Error fetching neighborhood:', error);
       toast.error('Failed to fetch neighborhood');

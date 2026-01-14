@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Entity, EntityType } from '@/types/entity';
+import { useEntityPermissions } from '@/hooks/useEntityPermissions';
 
 interface EntityListProps {
   entities: Entity[];
@@ -29,6 +30,8 @@ const typeColors: Record<EntityType, string> = {
   DATE: 'bg-gray-100 text-gray-800',
   TECHNOLOGY: 'bg-pink-100 text-pink-800',
   DOCUMENT: 'bg-orange-100 text-orange-800',
+  TOPIC: 'bg-teal-100 text-teal-800',
+  OTHER: 'bg-slate-100 text-slate-800',
 };
 
 const confidenceColor = (confidence: number): string => {
@@ -52,6 +55,7 @@ export const EntityList: React.FC<EntityListProps> = ({
   onView,
   onDelete
 }) => {
+  const { canEdit, canDelete } = useEntityPermissions();
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
 
   const handleSelectAll = () => {
@@ -197,6 +201,9 @@ export const EntityList: React.FC<EntityListProps> = ({
                             variant="ghost"
                             size="sm"
                             onClick={() => onEdit(entity)}
+                            disabled={!canEdit}
+                            className="disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={!canEdit ? 'Admin access required' : 'Edit entity'}
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -206,6 +213,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                             variant="ghost"
                             size="sm"
                             onClick={() => window.open(`/documents/${entity.source_document_id}`, '_blank')}
+                            title="View source document"
                           >
                             <ExternalLink className="h-4 w-4" />
                           </Button>
@@ -215,7 +223,9 @@ export const EntityList: React.FC<EntityListProps> = ({
                             variant="ghost"
                             size="sm"
                             onClick={() => onDelete(entity.id)}
-                            className="text-red-600 hover:text-red-700"
+                            disabled={!canDelete}
+                            className="text-red-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={!canDelete ? 'Admin access required' : 'Delete entity'}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

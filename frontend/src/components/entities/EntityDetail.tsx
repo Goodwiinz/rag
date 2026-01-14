@@ -32,6 +32,8 @@ const typeColors: Record<EntityType, string> = {
   DATE: 'bg-gray-100 text-gray-800',
   TECHNOLOGY: 'bg-pink-100 text-pink-800',
   DOCUMENT: 'bg-orange-100 text-orange-800',
+  TOPIC: 'bg-teal-100 text-teal-800',
+  OTHER: 'bg-slate-100 text-slate-800',
 };
 
 const confidenceColor = (confidence: number): string => {

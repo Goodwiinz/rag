@@ -11,7 +11,9 @@ export type EntityType =
   | 'PRODUCT'
   | 'DATE'
   | 'TECHNOLOGY'
-  | 'DOCUMENT';
+  | 'DOCUMENT'
+  | 'TOPIC'
+  | 'OTHER';
 
 export type RelationshipType =
   | 'WORKS_FOR'

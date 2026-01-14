@@ -200,11 +200,12 @@ export default function EntityManagementPage() {
 
     // Filter by entity type (including special null type filter)
     if (selectedTypes.length > 0) {
-      const hasNullFilter = selectedTypes.includes('__null__' as any);
-      const regularTypes = selectedTypes.filter(t => t !== '__null__');
+      const hasNullFilter = selectedTypes.includes('__null__' as EntityType);
+      const regularTypes = selectedTypes.filter(t => t !== '__null__' as any);
 
       filtered = filtered.filter(entity => {
-        const isNullType = !entity.type || entity.type === '' || entity.type === 'null';
+        const entityType = entity.type as string;
+        const isNullType = !entityType || entityType === '' || entityType === 'null';
         const matchesRegularType = regularTypes.length === 0 || regularTypes.includes(entity.type);
 
         if (hasNullFilter && regularTypes.length > 0) {
@@ -756,7 +757,6 @@ export default function EntityManagementPage() {
                 }
               }}
               onCancel={() => setEditDialogOpen(false)}
-              availableTypes={availableEntityTypes.length > 0 ? availableEntityTypes : undefined}
             />
           </div>
         </DialogContent>
@@ -777,7 +777,6 @@ export default function EntityManagementPage() {
                   setEditDialogOpen(true);
                 }}
                 onClose={() => setDetailDialogOpen(false)}
-                onAddRelationship={handleAddRelationship}
                 onEntityClick={(entity) => {
                   // Re-center neighborhood exploration on clicked entity
                   setSelectedEntity(entity);
@@ -805,7 +804,6 @@ export default function EntityManagementPage() {
                 setRelationshipDialogOpen(false);
                 setSourceEntityId(null);
               }}
-              availableTypes={availableRelationshipTypes.length > 0 ? availableRelationshipTypes : undefined}
             />
           </div>
         </DialogContent>

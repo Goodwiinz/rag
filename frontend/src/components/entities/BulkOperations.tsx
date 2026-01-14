@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Upload, Download, Trash2, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, Download, Trash2, Loader2, CheckCircle, AlertCircle, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Entity } from '@/types/entity';
 import { entityService } from '@/services/entityService';
+import { useEntityPermissions } from '@/hooks/useEntityPermissions';
 import toast from 'react-hot-toast';
 
 interface BulkCreateResult {
@@ -22,10 +23,36 @@ interface BulkCreateResult {
 }
 
 export const BulkOperations: React.FC = () => {
+  const { canBulkEdit, isAdmin } = useEntityPermissions();
   const [jsonInput, setJsonInput] = useState('');
   const [csvInput, setCsvInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BulkCreateResult | null>(null);
+
+  // Show admin-only notice if user lacks permissions
+  if (!canBulkEdit) {
+    return (
+      <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
+        <CardHeader>
+          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+            <Lock className="w-4 h-4" />
+            Bulk Operations
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="text-center py-12">
+            <Lock className="w-12 h-12 mx-auto mb-4 text-[var(--terminal-text-dim)]" />
+            <p className="text-sm font-mono text-[var(--terminal-text-dim)]">
+              Bulk operations are restricted to administrators only.
+            </p>
+            <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-2">
+              Contact your system administrator for access.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const handleBulkCreateFromJSON = async () => {
     try {
