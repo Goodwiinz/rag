@@ -176,3 +176,6 @@ actions-runner/
 # Auto Claude data directory
 .auto-claude/
 serena_repo/
+
+# GoodFlows session files (contain local paths)
+.goodflows/context/sessions/*.json
