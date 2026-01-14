@@ -103,7 +103,7 @@ export default function DocumentsPage() {
 
   return (
     <div className="min-h-screen bg-[var(--terminal-bg)] flex flex-col">
-      <div className="p-6 space-y-6 flex-1 overflow-y-auto terminal-scrollbar pb-20">
+      <div className="p-4 md:p-6 space-y-6 flex-1 overflow-y-auto terminal-scrollbar pb-20">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">

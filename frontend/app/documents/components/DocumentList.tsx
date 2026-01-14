@@ -86,9 +86,9 @@ export function DocumentList({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {/* List Header */}
-      <div className="px-4 py-3 flex items-center gap-4 text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest border-b border-[var(--terminal-border)]/50 bg-[var(--terminal-surface)]/50 rounded-t-xl">
+      <div className="px-4 py-2 flex items-center gap-4 text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">
         <div className="w-5">
           <button onClick={onSelectAll} className="hover:text-[var(--terminal-text)] transition-colors">
             {selectedDocuments.size > 0 && selectedDocuments.size === documents.length ? (
@@ -142,7 +142,7 @@ export function DocumentList({
               transition={{ delay: index * 0.03 }}
               onClick={() => onSelect(doc.id)}
               className={cn(
-                "group relative rounded-xl border bg-[var(--terminal-surface)] p-3 transition-all cursor-pointer",
+                "group relative rounded-xl border bg-[var(--terminal-surface)] px-4 py-3 transition-all cursor-pointer",
                 isSelected 
                   ? "border-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5" 
                   : "border-[var(--terminal-border)] hover:border-[var(--terminal-border-glow)] hover:shadow-lg hover:shadow-[var(--terminal-border-glow)]/10"

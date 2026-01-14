@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "created": "2026-01-11T01:57:27.598Z",
-  "updated": "2026-01-13T05:54:36.428Z",
+  "updated": "2026-01-14T21:46:02.929Z",
   "hashes": {
     "01c4064ecc9b4551": {
       "partition": "2026-01",
@@ -198,6 +198,14 @@
     "833101e69331b76f": {
       "partition": "2026-01",
       "type": "refactor_suggestion"
+    },
+    "cdea8652c85f8464": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
+    },
+    "3d067e332cc2ebe7": {
+      "partition": "2026-01",
+      "type": "review_finding"
     }
   },
   "byFile": {
@@ -298,6 +306,12 @@
     ],
     "backend/src/core/database.py": [
       "833101e69331b76f"
+    ],
+    "frontend/src/services/ragService.ts": [
+      "cdea8652c85f8464"
+    ],
+    "specs/003-entity-management-feature/IMPLEMENTATION_SUMMARY.md": [
+      "3d067e332cc2ebe7"
     ]
   },
   "byType": {
@@ -364,7 +378,8 @@
       "cb07cacd2e756971",
       "57a8e95ce82664bc",
       "5a76d8dc6a6e9e97",
-      "833101e69331b76f"
+      "833101e69331b76f",
+      "cdea8652c85f8464"
     ],
     "documentation": [
       "c99e3574b5034cf7",
@@ -377,6 +392,9 @@
       "98fbd32e714d87b2",
       "1713cb423bea2cae",
       "656f12a2d267cba4"
+    ],
+    "review_finding": [
+      "3d067e332cc2ebe7"
     ]
   },
   "byIssue": {
@@ -420,8 +438,8 @@
     }
   },
   "stats": {
-    "totalFindings": 82,
-    "uniqueFindings": 49,
+    "totalFindings": 84,
+    "uniqueFindings": 51,
     "duplicatesSkipped": 33,
     "fixesApplied": 1,
     "patternsDiscovered": 1
