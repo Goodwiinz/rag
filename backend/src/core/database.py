@@ -21,46 +21,73 @@ from ..models.organization import Organization, StorageTier
 logger = logging.getLogger(__name__)
 
 # Database configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev"
+)
 
 # Seed user passwords - MUST be set in production via environment variables
 # In development, uses defaults for convenience (warning will be shown)
 SEED_ADMIN_PASSWORD = os.getenv("SEED_ADMIN_PASSWORD", "")
 SEED_DEMO_PASSWORD = os.getenv("SEED_DEMO_PASSWORD", "")
 SEED_LAB_ADMIN_PASSWORD = os.getenv("SEED_LAB_ADMIN_PASSWORD", "")
-ASYNC_DATABASE_URL = os.getenv("ASYNC_DATABASE_URL", DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"))
+ASYNC_DATABASE_URL = os.getenv(
+    "ASYNC_DATABASE_URL", DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+)
+
+# Check if using SQLite (for testing) - SQLite doesn't support pool options
+_is_sqlite = DATABASE_URL.startswith("sqlite")
 
 # Create engine with appropriate settings
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=3600,  # Recycle connections after 1 hour (reduced connection churn)
-    pool_size=10,       # Base pool size
-    max_overflow=20,    # Allow up to 30 total connections
-    pool_timeout=30,    # Wait 30s for available connection
-    echo=os.getenv("ENVIRONMENT") == "development"
-)
+if _is_sqlite:
+    # SQLite configuration for testing
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        echo=os.getenv("ENVIRONMENT") == "development",
+    )
+else:
+    # PostgreSQL configuration for production/development
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=3600,  # Recycle connections after 1 hour (reduced connection churn)
+        pool_size=10,  # Base pool size
+        max_overflow=20,  # Allow up to 30 total connections
+        pool_timeout=30,  # Wait 30s for available connection
+        echo=os.getenv("ENVIRONMENT") == "development",
+    )
 
 # Create async engine for async operations
-async_engine = create_async_engine(
-    ASYNC_DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=3600,  # Recycle connections after 1 hour (reduced connection churn)
-    pool_size=10,       # Base pool size
-    max_overflow=20,    # Allow up to 30 total connections
-    pool_timeout=30,    # Wait 30s for available connection
-    echo=os.getenv("ENVIRONMENT") == "development"
-)
+if _is_sqlite:
+    # SQLite async configuration for testing
+    # Note: aiosqlite is required for async SQLite support
+    async_engine = create_async_engine(
+        ASYNC_DATABASE_URL
+        if not ASYNC_DATABASE_URL.startswith("sqlite")
+        else "sqlite+aiosqlite:///:memory:",
+        echo=os.getenv("ENVIRONMENT") == "development",
+    )
+else:
+    # PostgreSQL async configuration
+    async_engine = create_async_engine(
+        ASYNC_DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=3600,  # Recycle connections after 1 hour (reduced connection churn)
+        pool_size=10,  # Base pool size
+        max_overflow=20,  # Allow up to 30 total connections
+        pool_timeout=30,  # Wait 30s for available connection
+        echo=os.getenv("ENVIRONMENT") == "development",
+    )
 
 # Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Async session factory
 AsyncSessionLocal = async_sessionmaker(
-    async_engine,
-    class_=AsyncSession,
-    expire_on_commit=False
+    async_engine, class_=AsyncSession, expire_on_commit=False
 )
+
 
 def get_db() -> Session:
     """Get database session"""
@@ -70,19 +97,23 @@ def get_db() -> Session:
     finally:
         db.close()
 
+
 @asynccontextmanager
 async def get_async_session() -> AsyncSession:
     """Get async database session"""
     async with AsyncSessionLocal() as session:
         yield session
 
+
 # Alias for get_db to support existing imports
 get_db_session = get_db
+
 
 def create_tables():
     """Create all database tables"""
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created successfully")
+
 
 async def create_tables_async():
     """Create all database tables using async engine"""
@@ -90,10 +121,12 @@ async def create_tables_async():
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables created successfully (async)")
 
+
 def drop_tables():
     """Drop all database tables (use with caution)"""
     Base.metadata.drop_all(bind=engine)
     logger.warning("All database tables dropped")
+
 
 def init_database():
     """Initialize database with seed data"""
@@ -108,8 +141,10 @@ def init_database():
         default_org = Organization(
             name="Default Organization",
             storage_tier=StorageTier.FREE,
-            storage_limit_bytes=Organization.get_default_storage_limit(StorageTier.FREE),
-            is_active=True
+            storage_limit_bytes=Organization.get_default_storage_limit(
+                StorageTier.FREE
+            ),
+            is_active=True,
         )
         db.add(default_org)
         db.flush()
@@ -122,7 +157,7 @@ def init_database():
             last_name="Administrator",
             role=UserRole.ADMIN,
             organization_id=default_org.id,
-            is_active=True
+            is_active=True,
         )
         # Use environment variable or generate secure random password
         admin_password = SEED_ADMIN_PASSWORD or f"dev-admin-{uuid.uuid4().hex[:8]}"
@@ -138,7 +173,7 @@ def init_database():
             last_name="User",
             role=UserRole.USER,
             organization_id=default_org.id,
-            is_active=True
+            is_active=True,
         )
         # Use environment variable or generate secure random password
         demo_password = SEED_DEMO_PASSWORD or f"dev-demo-{uuid.uuid4().hex[:8]}"
@@ -151,8 +186,10 @@ def init_database():
         demo_org = Organization(
             name="Demo Research Lab",
             storage_tier=StorageTier.PROFESSIONAL,
-            storage_limit_bytes=Organization.get_default_storage_limit(StorageTier.PROFESSIONAL),
-            is_active=True
+            storage_limit_bytes=Organization.get_default_storage_limit(
+                StorageTier.PROFESSIONAL
+            ),
+            is_active=True,
         )
         db.add(demo_org)
         db.flush()
@@ -165,7 +202,7 @@ def init_database():
             last_name="Administrator",
             role=UserRole.CONTENT_MANAGER,  # Using available role instead of ORG_ADMIN
             organization_id=demo_org.id,
-            is_active=True
+            is_active=True,
         )
         # Use environment variable or generate secure random password
         lab_password = SEED_LAB_ADMIN_PASSWORD or f"dev-lab-{uuid.uuid4().hex[:8]}"
@@ -198,13 +235,17 @@ def init_database():
         print("   ├── Email: lab-admin@multimodal-rag.com")
         if not SEED_LAB_ADMIN_PASSWORD:
             print(f"   ├── Password: {lab_password} (auto-generated)")
-            print("   │   ⚠️  Set SEED_LAB_ADMIN_PASSWORD env var for consistent password")
+            print(
+                "   │   ⚠️  Set SEED_LAB_ADMIN_PASSWORD env var for consistent password"
+            )
         else:
             print("   ├── Password: (set via SEED_LAB_ADMIN_PASSWORD env var)")
         print("   └── Role: Organization Admin")
         print()
         if not all([SEED_ADMIN_PASSWORD, SEED_DEMO_PASSWORD, SEED_LAB_ADMIN_PASSWORD]):
-            print("⚠️  IMPORTANT: Set SEED_*_PASSWORD environment variables in production!")
+            print(
+                "⚠️  IMPORTANT: Set SEED_*_PASSWORD environment variables in production!"
+            )
 
     except SQLAlchemyError as e:
         db.rollback()
@@ -221,16 +262,18 @@ def get_database_info():
         info = {}
 
         # Get table counts
-        info['users_count'] = db.query(User).count()
-        info['organizations_count'] = db.query(Organization).count()
+        info["users_count"] = db.query(User).count()
+        info["organizations_count"] = db.query(Organization).count()
 
         # Get database size (PostgreSQL specific)
         try:
-            result = db.execute(text("SELECT pg_size_pretty(pg_database_size('multimodal_rag'))"))
-            info['database_size'] = result.scalar()
+            result = db.execute(
+                text("SELECT pg_size_pretty(pg_database_size('multimodal_rag'))")
+            )
+            info["database_size"] = result.scalar()
         except (Exception,) as e:
             logger.debug(f"Could not get database size: {e}")
-            info['database_size'] = 'Unknown'
+            info["database_size"] = "Unknown"
 
         return info
     except Exception as e:

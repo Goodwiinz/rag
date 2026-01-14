@@ -7,14 +7,14 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
 import { cn } from '@/lib/utils';
+import { THEME } from '@/theme/constants';
 import { Citation, getScoreColor, truncateText, isNavigableCitation } from '@/utils/citationParser';
 import { motion } from 'framer-motion';
 import { ExternalLink, FileText, TrendingUp, Archive } from 'lucide-react';
 import React from 'react';
 
 // Terminal Observatory theme colors
-const PHOSPHOR_GREEN = '#00ff9f';
-const AMBER = '#ffb700';
+// Using THEME.colors instead of local constants
 
 interface CitationLinkProps {
   /** The citation number (1-based, matches [Doc N]) */
@@ -72,10 +72,10 @@ export function CitationLink({
         // Terminal Observatory theme colors
         citation
           ? isActive
-            ? 'bg-[#00ff9f]/30 text-[#00ff9f] border-[#00ff9f]/50 shadow-[0_0_8px_rgba(0,255,159,0.3)]'
+            ? 'bg-primary/30 text-primary border-primary/50 shadow-[0_0_8px_rgba(0,255,159,0.3)]'
             : canNavigate
-              ? 'bg-[#00ff9f]/15 text-[#00ff9f] hover:bg-[#00ff9f]/25 hover:border-[#00ff9f]/30 cursor-pointer'
-              : 'bg-[#ffb700]/15 text-[#ffb700] hover:bg-[#ffb700]/25 hover:border-[#ffb700]/30 cursor-default'
+              ? 'bg-primary/15 text-primary hover:bg-primary/25 hover:border-primary/30 cursor-pointer'
+              : 'bg-accent/15 text-accent hover:bg-accent/25 hover:border-accent/30 cursor-default'
           : 'bg-[#1a1a1a] text-gray-500 cursor-not-allowed',
         className
       )}
@@ -115,13 +115,13 @@ export function CitationLink({
             <div className={cn(
               'flex items-center justify-center w-8 h-8 rounded-md shrink-0',
               canNavigate
-                ? 'bg-[#00ff9f]/10 border border-[#00ff9f]/20'
-                : 'bg-[#ffb700]/10 border border-[#ffb700]/20'
+                ? 'bg-primary/10 border border-primary/20'
+                : 'bg-accent/10 border border-accent/20'
             )}>
               {canNavigate ? (
-                <FileText className="w-4 h-4" style={{ color: PHOSPHOR_GREEN }} />
+                <FileText className="w-4 h-4" style={{ color: THEME.colors.primary }} />
               ) : (
-                <Archive className="w-4 h-4" style={{ color: AMBER }} />
+                <Archive className="w-4 h-4" style={{ color: THEME.colors.accent }} />
               )}
             </div>
 
@@ -129,7 +129,7 @@ export function CitationLink({
             <div className="flex-1 min-w-0">
               <h4
                 className="text-sm font-medium leading-tight line-clamp-2"
-                style={{ color: canNavigate ? PHOSPHOR_GREEN : AMBER }}
+                style={{ color: canNavigate ? THEME.colors.primary : THEME.colors.accent }}
               >
                 {citation.title}
               </h4>
@@ -149,9 +149,9 @@ export function CitationLink({
                     variant="outline"
                     className="text-[9px] px-1.5 py-0 h-4"
                     style={{
-                      backgroundColor: `${AMBER}15`,
-                      color: AMBER,
-                      borderColor: `${AMBER}30`
+                      backgroundColor: `${THEME.colors.accent}15`,
+                      color: THEME.colors.accent,
+                      borderColor: `${THEME.colors.accent}30`
                     }}
                   >
                     External
@@ -174,7 +174,7 @@ export function CitationLink({
           <div className="px-3 py-3 border-b border-[#1a1a1a]">
             <div
               className="text-[10px] font-mono uppercase tracking-wider mb-2"
-              style={{ color: `${PHOSPHOR_GREEN}60` }}
+              style={{ color: `${THEME.colors.primary}60` }}
             >
               Preview
             </div>
@@ -214,7 +214,7 @@ export function CitationLink({
             <button
               onClick={handleClick}
               className="flex items-center gap-1 text-[10px] font-mono transition-colors hover:opacity-80"
-              style={{ color: PHOSPHOR_GREEN }}
+              style={{ color: THEME.colors.primary }}
             >
               View Document
               <ExternalLink className="w-3 h-3" />
@@ -222,7 +222,7 @@ export function CitationLink({
           ) : (
             <span
               className="text-[10px] font-mono"
-              style={{ color: `${AMBER}80` }}
+              style={{ color: `${THEME.colors.accent}80` }}
             >
               External source
             </span>

@@ -26,6 +26,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { threadSearchService } from '@/services/threadSearchService';
+import { THEME } from '@/theme/constants';
 import type {
   ThreadSearchResult,
   MessageSearchResult,
@@ -36,9 +37,8 @@ import type {
 } from '@/types/thread-search';
 
 // Terminal Observatory theme colors
-const PHOSPHOR_GREEN = '#00ff9f';
-const AMBER = '#ffb700';
-const CYAN = '#00d4ff';
+// Using THEME.colors instead of local constants
+
 
 interface ThreadMessageSearchProps {
   workspaceId?: string;
@@ -274,7 +274,7 @@ export function ThreadMessageSearch({
           <div className="relative flex-1">
             <Search 
               className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" 
-              style={{ color: PHOSPHOR_GREEN }}
+              style={{ color: THEME.colors.primary }}
             />
             <Input
               ref={inputRef}
@@ -424,7 +424,7 @@ export function ThreadMessageSearch({
       {/* Loading State */}
       {isLoading && (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin" style={{ color: PHOSPHOR_GREEN }} />
+            <Loader2 className="h-6 w-6 animate-spin" style={{ color: THEME.colors.primary }} />
         </div>
       )}
       
@@ -490,7 +490,7 @@ export function ThreadMessageSearch({
               onClick={() => onSelectThread?.(result.thread_id)}
             >
               <div className="flex items-start gap-3">
-                <MessageSquare className="h-4 w-4 mt-1" style={{ color: CYAN }} />
+                  <MessageSquare className="h-4 w-4 mt-1" style={{ color: THEME.colors.secondary }} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-sm font-medium text-gray-200">
@@ -514,7 +514,7 @@ export function ThreadMessageSearch({
                       {result.message_count} messages
                     </span>
                     {result.matching_message_count !== undefined && result.matching_message_count > 0 && (
-                      <span style={{ color: AMBER }}>
+                      <span style={{ color: THEME.colors.accent }}>
                         {result.matching_message_count} matching
                       </span>
                     )}
@@ -553,7 +553,7 @@ export function ThreadMessageSearch({
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                     <span>Score: {(result.relevance_score * 10).toFixed(0)}%</span>
                     {result.citation_count > 0 && (
-                      <span style={{ color: PHOSPHOR_GREEN }}>
+                      <span style={{ color: THEME.colors.primary }}>
                         {result.citation_count} citations
                       </span>
                     )}

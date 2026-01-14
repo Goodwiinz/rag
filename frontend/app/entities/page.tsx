@@ -5,78 +5,133 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Search, Filter, Plus, Edit, Trash2, Eye, Download, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { Plus, Download, RefreshCw, Network, TrendingUp, Database, Filter, BarChart3, PieChart, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EntityList } from '@/components/entities/EntityList';
 import { EntityForm } from '@/components/entities/EntityForm';
 import { EntityDetail } from '@/components/entities/EntityDetail';
 import { EntityGraph } from '@/components/entities/EntityGraph';
-import { Entity, EntityResponse, EntityType, GraphEdge } from '@/types/entity';
-import { entityService } from '@/services/entityService';
+import { EntityFilters, SortField, SortOrder } from '@/components/entities/EntityFilters';
+import { Pagination } from '@/components/entities/Pagination';
+import { RelationshipForm } from '@/components/entities/RelationshipForm';
+import { PathFinder } from '@/components/entities/PathFinder';
+import { NeighborhoodExplorer } from '@/components/entities/NeighborhoodExplorer';
+import { GraphAnalyticsDashboard } from '@/components/entities/GraphAnalyticsDashboard';
+import { EnhancedSearch } from '@/components/entities/EnhancedSearch';
+import { BulkOperations } from '@/components/entities/BulkOperations';
+import { DocumentEntityExtractor } from '@/components/entities/DocumentEntityExtractor';
+import { EntityMergeTool } from '@/components/entities/EntityMergeTool';
+import { GraphHealthMonitor } from '@/components/entities/GraphHealthMonitor';
+import { KeyboardShortcutsDialog } from '@/components/entities/KeyboardShortcutsDialog';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { Entity, EntityType, GraphEdge } from '@/types/entity';
+import { entityService, PaginatedEntitiesResponse } from '@/services/entityService';
+import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
 export default function EntityManagementPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Core state
   const [entities, setEntities] = useState<Entity[]>([]);
-  const [filteredEntities, setFilteredEntities] = useState<Entity[]>([]);
   const [relationships, setRelationships] = useState<GraphEdge[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [loading, setLoading] = useState(true);
+  const [relationshipsLoading, setRelationshipsLoading] = useState(false);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(100);
+  const [totalEntities, setTotalEntities] = useState(0);
+
+  // Filter state
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedType, setSelectedType] = useState<EntityType | 'all'>('all');
-  const [activeTab, setActiveTab] = useState('list');
+  const [selectedTypes, setSelectedTypes] = useState<EntityType[]>([]);
+  const [confidenceRange, setConfidenceRange] = useState<[number, number]>([0, 100]);
+  const [sortField, setSortField] = useState<SortField>('created_at');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  // UI state - initialize from URL params
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'list');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [relationshipDialogOpen, setRelationshipDialogOpen] = useState(false);
+  const [sourceEntityId, setSourceEntityId] = useState<string | null>(null);
+  const [shortcutsDialogOpen, setShortcutsDialogOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  
+  // Dynamic types from API
+  const [availableEntityTypes, setAvailableEntityTypes] = useState<string[]>([]);
+  const [availableRelationshipTypes, setAvailableRelationshipTypes] = useState<string[]>([]);
 
-  const entityTypes: (EntityType | 'all')[] = ['all', 'PERSON', 'ORGANIZATION', 'LOCATION', 'CONCEPT', 'EVENT', 'PRODUCT', 'DATE', 'TECHNOLOGY', 'DOCUMENT'];
-
-  // Fetch entities and relationships on component mount
   useEffect(() => {
-    fetchEntities();
-    fetchRelationships();
+    setMounted(true);
+    
+    // Initialize state from URL params
+    const tab = searchParams.get('tab');
+    const entityId = searchParams.get('entity');
+    const page = searchParams.get('page');
+    const types = searchParams.get('types');
+    
+    if (tab) setActiveTab(tab);
+    if (page) setCurrentPage(parseInt(page));
+    if (types) {
+      setSelectedTypes(types.split(',') as EntityType[]);
+    }
   }, []);
 
-  // Filter entities based on search and type
+
+
+  // Update URL when state changes
   useEffect(() => {
-    let filtered = entities;
+    if (!mounted) return;
 
-    // Filter by search query
-    if (searchQuery) {
-      filtered = filtered.filter(entity =>
-        entity.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        entity.type.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
+    const params = new URLSearchParams();
+    if (activeTab !== 'list') params.set('tab', activeTab);
+    if (currentPage !== 1) params.set('page', currentPage.toString());
+    if (selectedTypes.length > 0) params.set('types', selectedTypes.join(','));
+    if (selectedEntity) params.set('entity', selectedEntity.id);
+    
+    const newUrl = params.toString() ? `?${params.toString()}` : '/entities';
+    router.replace(newUrl, { scroll: false });
+  }, [activeTab, currentPage, selectedTypes, selectedEntity, mounted, router]);
 
-    // Filter by type
-    if (selectedType !== 'all') {
-      filtered = filtered.filter(entity => entity.type === selectedType);
-    }
+  // Fetch available types on mount
+  useEffect(() => {
+    const fetchTypes = async () => {
+      const [entityTypes, relationshipTypes] = await Promise.all([
+        entityService.getEntityTypes(),
+        entityService.getRelationshipTypes()
+      ]);
+      setAvailableEntityTypes(entityTypes);
+      setAvailableRelationshipTypes(relationshipTypes);
+    };
+    fetchTypes();
+  }, []);
 
-    setFilteredEntities(filtered);
-  }, [entities, searchQuery, selectedType]);
-
-  const fetchEntities = async () => {
+  // Fetch entities with pagination
+  const fetchEntities = useCallback(async () => {
     try {
       setLoading(true);
-      const entitiesData = await entityService.getEntities();
+      const offset = (currentPage - 1) * pageSize;
+      const response = await entityService.getEntities(
+        pageSize,
+        offset,
+        selectedTypes.length > 0 ? selectedTypes : undefined
+      );
 
-      // Check if entitiesData is an array
-      if (!Array.isArray(entitiesData)) {
-        console.warn('Received non-array data from entity service:', entitiesData);
-        setEntities([]);
-        return;
-      }
-
+      // Handle paginated response
+      const paginatedResponse = response as PaginatedEntitiesResponse;
+      
       // Convert EntityResponse to Entity format for display
-      const convertedEntities: Entity[] = entitiesData.map(entity => ({
+      const convertedEntities: Entity[] = paginatedResponse.entities.map(entity => ({
         id: entity.id,
         name: entity.name,
         type: entity.entity_type,
@@ -90,24 +145,141 @@ export default function EntityManagementPage() {
         updated_at: entity.updated_at,
         source_document_id: entity.source_document_id
       }));
+
       setEntities(convertedEntities);
+      setTotalEntities(paginatedResponse.total);
     } catch (error) {
       console.error('Error fetching entities:', error);
       toast.error('Failed to fetch entities');
+      setEntities([]);
+      setTotalEntities(0);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, selectedTypes]);
 
-  const fetchRelationships = async () => {
+  // Fetch relationships for graph view
+  const fetchRelationships = useCallback(async () => {
     try {
-      // For now, we'll create mock relationships since we don't have a direct API
-      // In a real implementation, you would fetch from the backend
-      const mockRelationships: GraphEdge[] = [];
-      setRelationships(mockRelationships);
+      setRelationshipsLoading(true);
+      const rels = await entityService.getAllRelationships(500);
+      setRelationships(rels);
     } catch (error) {
       console.error('Error fetching relationships:', error);
+      setRelationships([]);
+    } finally {
+      setRelationshipsLoading(false);
     }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    fetchEntities();
+  }, [fetchEntities]);
+
+  // Fetch relationships when switching to graph tab
+  useEffect(() => {
+    if (activeTab === 'graph' && relationships.length === 0) {
+      fetchRelationships();
+    }
+  }, [activeTab, relationships.length, fetchRelationships]);
+
+  // Client-side filtering and sorting
+  const filteredEntities = useMemo(() => {
+    let filtered = [...entities];
+
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(entity =>
+        entity.name.toLowerCase().includes(query) ||
+        entity.type.toLowerCase().includes(query) ||
+        entity.metadata?.description?.toLowerCase().includes(query)
+      );
+    }
+
+    // Filter by confidence range
+    filtered = filtered.filter(entity => {
+      const confidence = (entity.confidence || 0) * 100;
+      return confidence >= confidenceRange[0] && confidence <= confidenceRange[1];
+    });
+
+    // Sort
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      switch (sortField) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'confidence':
+          comparison = (a.confidence || 0) - (b.confidence || 0);
+          break;
+        case 'created_at':
+          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+        case 'type':
+          comparison = a.type.localeCompare(b.type);
+          break;
+      }
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return filtered;
+  }, [entities, searchQuery, confidenceRange, sortField, sortOrder]);
+
+  // Calculate statistics
+  const statistics = useMemo(() => {
+    const typeDistribution: Record<string, number> = {};
+    let totalConfidence = 0;
+    let confidenceCount = 0;
+
+    entities.forEach(entity => {
+      // Type distribution
+      typeDistribution[entity.type] = (typeDistribution[entity.type] || 0) + 1;
+      
+      // Average confidence
+      if (entity.confidence) {
+        totalConfidence += entity.confidence;
+        confidenceCount++;
+      }
+    });
+
+    return {
+      totalEntities,
+      uniqueTypes: Object.keys(typeDistribution).length,
+      averageConfidence: confidenceCount > 0 ? totalConfidence / confidenceCount : 0,
+      typeDistribution,
+      totalRelationships: relationships.length,
+    };
+  }, [entities, totalEntities, relationships.length]);
+
+  // Handlers
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1); // Reset to first page
+  };
+
+  const handleTypesChange = (types: EntityType[]) => {
+    setSelectedTypes(types);
+    setCurrentPage(1); // Reset to first page when filter changes
+  };
+
+  const handleSortChange = (field: SortField, order: SortOrder) => {
+    setSortField(field);
+    setSortOrder(order);
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setSelectedTypes([]);
+    setConfidenceRange([0, 100]);
+    setSortField('created_at');
+    setSortOrder('desc');
+    setCurrentPage(1);
   };
 
   const handleEntityUpdate = async (entityId: string, updates: Partial<Entity>) => {
@@ -139,188 +311,464 @@ export default function EntityManagementPage() {
 
   const exportEntities = () => {
     const dataStr = JSON.stringify(filteredEntities, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
     const exportFileDefaultName = `entities-${new Date().toISOString().split('T')[0]}.json`;
-
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);
     linkElement.click();
   };
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Entity Management</h1>
-          <p className="text-gray-600 mt-2">
-            Manage and edit entities extracted from your documents
-          </p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            onClick={() => fetchEntities()}
-            disabled={loading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-          <Button variant="outline" onClick={exportEntities}>
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button onClick={() => setEditDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Entity
-          </Button>
-        </div>
-      </div>
+  const handleAddRelationship = (entityId: string) => {
+    setSourceEntityId(entityId);
+    setRelationshipDialogOpen(true);
+  };
 
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="flex items-center space-x-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                placeholder="Search entities..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+  const handleCreateRelationship = async (data: {
+    source_entity_id: string;
+    target_entity_id: string;
+    relationship_type: string;
+    strength?: number;
+    confidence_score?: number;
+    context?: string;
+    evidence?: string[];
+    metadata?: Record<string, unknown>;
+  }) => {
+    try {
+      await entityService.createRelationship(data);
+      toast.success('Relationship created successfully');
+      setRelationshipDialogOpen(false);
+      setSourceEntityId(null);
+      // Refresh relationships if on graph tab
+      if (activeTab === 'graph') {
+        fetchRelationships();
+      }
+    } catch (error) {
+      console.error('Error creating relationship:', error);
+      toast.error('Failed to create relationship');
+    }
+  };
+
+  const totalPages = Math.ceil(totalEntities / pageSize);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts([
+    { key: 'n', ctrl: true, action: () => {  setSelectedEntity(null); setEditDialogOpen(true); }, description: 'Create new entity' },
+    { key: 'r', ctrl: true, action: () => { fetchEntities(); if (activeTab === 'graph') fetchRelationships(); }, description: 'Refresh data' },
+    { key: 'e', ctrl: true, shift: true, action: exportEntities, description: 'Export data' },
+    { key: 'g', action: () => setActiveTab('graph'), description: 'Toggle graph view' },
+    { key: 'a', action: () => setActiveTab('analytics'), description: 'Toggle analytics' },
+    { key: 'p', action: () => setActiveTab('pathfinder'), description: 'Open path finder' },
+    { key: 'b', action: () => setActiveTab('bulk'), description: 'Open bulk operations' },
+    { key: 'h', action: () => setActiveTab('health'), description: 'Open health monitor' },
+    { key: 'm', action: () => setActiveTab('merge'), description: 'Open merge tool' },
+    { key: 'd', action: () => setActiveTab('extractor'), description: 'Open document extractor' },
+    { key: '?', action: () => setShortcutsDialogOpen(true), description: 'Show keyboard shortcuts' },
+  ], mounted);
+
+  if (!mounted) return null;
+
+  return (
+    <div className="min-h-screen bg-[var(--terminal-bg)] flex flex-col">
+      <div className="p-6 space-y-4 flex-1 overflow-y-auto terminal-scrollbar">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-6 shadow-xl"
+        >
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-lg bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20 flex items-center justify-center">
+                <Network className="w-6 h-6 text-[var(--phosphor-green)]" />
+              </div>
+              <div>
+                <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
+                  Neural Entity Registry
+                </h1>
+                <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-0.5 uppercase tracking-widest">
+                  Knowledge Graph Nodes Management
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  fetchEntities();
+                  if (activeTab === 'graph') fetchRelationships();
+                }}
+                disabled={loading}
+                className="font-mono text-[10px] font-bold border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]"
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", loading && "animate-spin")} />
+                REFRESH
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportEntities}
+                className="font-mono text-[10px] font-bold border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]"
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                EXPORT
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setSelectedEntity(null);
+                  setEditDialogOpen(true);
+                }}
+                className="font-mono text-[10px] font-bold bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_15px_var(--phosphor-green-glow)]"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                NEW_NODE
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Filters */}
+        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
+          <CardContent className="p-4">
+            <EntityFilters
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              selectedTypes={selectedTypes}
+              onTypesChange={handleTypesChange}
+              confidenceRange={confidenceRange}
+              onConfidenceChange={setConfidenceRange}
+              sortField={sortField}
+              sortOrder={sortOrder}
+              onSortChange={handleSortChange}
+              onClearFilters={handleClearFilters}
+              totalCount={totalEntities}
+              filteredCount={filteredEntities.length}
+              availableTypes={availableEntityTypes.length > 0 ? availableEntityTypes : undefined}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Workspace Area */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-xl mb-4 flex-wrap">
+            <TabsTrigger value="list" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+              LIST_LOG
+            </TabsTrigger>
+            <TabsTrigger value="graph" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+              GRAPH_VIZ
+            </TabsTrigger>
+            <TabsTrigger value="statistics" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+              METRICS
+            </TabsTrigger>
+            <TabsTrigger value="pathfinder" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+              PATH_FINDER
+            </TabsTrigger>
+            <TabsTrigger value="search" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+              SEARCH
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+              ANALYTICS
+            </TabsTrigger>
+            <TabsTrigger value="bulk" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+              BULK_OPS
+            </TabsTrigger>
+            <TabsTrigger value="extractor" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+              EXTRACTOR
+            </TabsTrigger>
+            <TabsTrigger value="merge" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+              MERGE
+            </TabsTrigger>
+            <TabsTrigger value="health" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+              HEALTH
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="list" className="mt-0 outline-none">
+            <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl">
+              <EntityList
+                entities={filteredEntities}
+                loading={loading}
+                onEdit={(entity) => {
+                  setSelectedEntity(entity);
+                  setEditDialogOpen(true);
+                }}
+                onView={(entity) => {
+                  setSelectedEntity(entity);
+                  setDetailDialogOpen(true);
+                }}
+                onDelete={handleEntityDelete}
+              />
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                totalItems={totalEntities}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
               />
             </div>
-            <Select value={selectedType} onValueChange={(value: EntityType | 'all') => setSelectedType(value)}>
-              <SelectTrigger className="w-48">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                {entityTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type === 'all' ? 'All Types' : type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Badge variant="outline" className="px-3 py-1">
-              {filteredEntities.length} entities
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
+          </TabsContent>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-6">
-          <TabsTrigger value="list">List View</TabsTrigger>
-          <TabsTrigger value="graph">Graph View</TabsTrigger>
-          <TabsTrigger value="statistics">Statistics</TabsTrigger>
-        </TabsList>
+          <TabsContent value="graph" className="mt-0 outline-none">
+            <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl p-4">
+              {relationshipsLoading ? (
+                <div className="flex items-center justify-center h-[600px]">
+                  <div className="flex flex-col items-center gap-6">
+                    {/* Animated network visualization skeleton */}
+                    <div className="relative">
+                      <div className="w-20 h-20 rounded-full border-2 border-[var(--terminal-border)] bg-[var(--terminal-bg)] flex items-center justify-center">
+                        <Network className="w-8 h-8 text-[var(--phosphor-green)] animate-pulse" />
+                      </div>
+                      {/* Orbiting nodes */}
+                      <div className="absolute -top-2 -right-2 w-4 h-4 rounded-full bg-[var(--terminal-border)] animate-pulse" />
+                      <div className="absolute -bottom-1 -left-3 w-3 h-3 rounded-full bg-[var(--terminal-border)] animate-pulse delay-150" />
+                      <div className="absolute top-1/2 -right-6 w-3 h-3 rounded-full bg-[var(--terminal-border)] animate-pulse delay-300" />
+                      <div className="absolute -top-4 left-1/2 w-2 h-2 rounded-full bg-[var(--terminal-border)] animate-pulse delay-500" />
+                    </div>
+                    
+                    {/* Loading spinner */}
+                    <Loader2 className="w-6 h-6 text-[var(--phosphor-green)] animate-spin" />
+                    
+                    {/* Status text */}
+                    <div className="text-center space-y-2">
+                      <p className="font-mono text-sm text-[var(--terminal-text)]">
+                        LOADING_GRAPH_DATA...
+                      </p>
+                      <p className="font-mono text-xs text-[var(--terminal-text-dim)]">
+                        Fetching {filteredEntities.length} nodes and relationships
+                      </p>
+                    </div>
+                    
+                    {/* Progress skeleton bars */}
+                    <div className="w-48 space-y-2">
+                      <div className="h-1 bg-[var(--terminal-bg)] rounded-full overflow-hidden border border-[var(--terminal-border)]">
+                        <div className="h-full w-2/3 bg-[var(--phosphor-green)]/50 rounded-full animate-pulse" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <EntityGraph
+                  entities={filteredEntities}
+                  relationships={relationships}
+                  onEntityClick={(entity) => {
+                    setSelectedEntity(entity);
+                    setDetailDialogOpen(true);
+                  }}
+                  height={600}
+                />
+              )}
+            </div>
+          </TabsContent>
 
-        <TabsContent value="list">
-          <EntityList
-            entities={filteredEntities}
-            loading={loading}
-            onEdit={(entity) => {
-              setSelectedEntity(entity);
-              setEditDialogOpen(true);
-            }}
-            onView={(entity) => {
-              setSelectedEntity(entity);
-              setDetailDialogOpen(true);
-            }}
-            onDelete={handleEntityDelete}
-          />
-        </TabsContent>
+          <TabsContent value="statistics" className="mt-0 outline-none space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Total Entities', value: statistics.totalEntities.toLocaleString(), icon: Database, color: 'var(--phosphor-green)' },
+                { label: 'Unique Types', value: statistics.uniqueTypes, icon: Filter, color: 'var(--cyan)' },
+                { label: 'Avg Confidence', value: `${(statistics.averageConfidence * 100).toFixed(1)}%`, icon: TrendingUp, color: 'var(--amber-gold)' },
+                { label: 'Relationships', value: statistics.totalRelationships.toLocaleString(), icon: Network, color: 'var(--purple)' },
+              ].map((stat) => (
+                <Card key={stat.label} className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg overflow-hidden relative group">
+                  <div className="absolute top-0 left-0 w-1 h-full opacity-20 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: stat.color }} />
+                  <CardHeader className="p-4 pb-1">
+                    <CardTitle className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest flex items-center gap-2">
+                      <stat.icon className="w-3 h-3" style={{ color: stat.color }} />
+                      {stat.label}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
+                    <p className="text-2xl font-mono font-bold text-[var(--terminal-text)]">{stat.value}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
 
-        <TabsContent value="graph">
-          <EntityGraph
-            entities={filteredEntities}
-            relationships={relationships}
-            onEntityClick={(entity) => {
-              setSelectedEntity(entity);
-              setDetailDialogOpen(true);
-            }}
-            height={600}
-          />
-        </TabsContent>
-
-        <TabsContent value="statistics">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Total Entities</CardTitle>
+            {/* Type Distribution */}
+            <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
+              <CardHeader className="border-b border-[var(--terminal-border)] py-3">
+                <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  Type Distribution
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{entities.length}</p>
+              <CardContent className="p-4">
+                <div className="space-y-3">
+                  {Object.entries(statistics.typeDistribution)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([type, count]) => {
+                      const percentage = (count / entities.length) * 100;
+                      return (
+                        <div key={type} className="space-y-1">
+                          <div className="flex justify-between text-xs font-mono">
+                            <span className="text-[var(--terminal-text)]">{type}</span>
+                            <span className="text-[var(--terminal-text-dim)]">
+                              {count} ({percentage.toFixed(1)}%)
+                            </span>
+                          </div>
+                          <div className="h-2 bg-[var(--terminal-bg)] rounded-full overflow-hidden border border-[var(--terminal-border)]">
+                            <div
+                              className="h-full bg-[var(--phosphor-green)] rounded-full transition-all duration-500"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Entity Types</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{entityTypes.length - 1}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Average Confidence</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">
-                  {entities.length > 0
-                    ? (entities.reduce((sum, e) => sum + (e.confidence || 0), 0) / entities.length).toFixed(2)
-                    : '0.00'
-                  }
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+          </TabsContent>
 
-      {/* Edit/Create Entity Dialog */}
+          {/* Path Finder Tab */}
+          <TabsContent value="pathfinder" className="mt-0 outline-none">
+            <PathFinder
+              entities={entities}
+              onEntityClick={(entityId) => {
+                const entity = entities.find(e => e.id === entityId);
+                if (entity) {
+                  setSelectedEntity(entity);
+                  setDetailDialogOpen(true);
+                }
+              }}
+            />
+          </TabsContent>
+
+          {/* Enhanced Search Tab */}
+          <TabsContent value="search" className="mt-0 outline-none">
+            <EnhancedSearch
+              onEntityClick={(entityId) => {
+                const entity = entities.find(e => e.id === entityId);
+                if (entity) {
+                  setSelectedEntity(entity);
+                  setDetailDialogOpen(true);
+                }
+              }}
+            />
+          </TabsContent>
+
+          {/* Analytics Dashboard Tab */}
+          <TabsContent value="analytics" className="mt-0 outline-none">
+            <GraphAnalyticsDashboard />
+          </TabsContent>
+
+          {/* Bulk Operations Tab */}
+          <TabsContent value="bulk" className="mt-0 outline-none">
+            <BulkOperations />
+          </TabsContent>
+
+          {/* Document Entity Extractor Tab */}
+          <TabsContent value="extractor" className="mt-0 outline-none">
+            <DocumentEntityExtractor />
+          </TabsContent>
+
+          {/* Entity Merge Tool Tab */}
+          <TabsContent value="merge" className="mt-0 outline-none">
+            <EntityMergeTool />
+          </TabsContent>
+
+          {/* Graph Health Monitor Tab */}
+          <TabsContent value="health" className="mt-0 outline-none">
+            <GraphHealthMonitor />
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* Edit/Create Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedEntity ? 'Edit Entity' : 'Create New Entity'}
+        <DialogContent className="max-w-2xl bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)] font-mono">
+          <DialogHeader className="border-b border-[var(--terminal-border)] pb-4">
+            <DialogTitle className="text-lg font-bold tracking-tight">
+              {selectedEntity ? 'EDIT_NODE_PARAMETERS' : 'PROVISION_NEW_NODE'}
             </DialogTitle>
           </DialogHeader>
-          <EntityForm
-            entity={selectedEntity}
-            onSubmit={(data) => {
-              if (selectedEntity) {
-                handleEntityUpdate(selectedEntity.id, data);
-              } else {
-                // Handle creation
-                console.log('Create entity:', data);
-              }
-            }}
-            onCancel={() => setEditDialogOpen(false)}
-          />
+          <div className="py-4">
+            <EntityForm
+              entity={selectedEntity}
+              onSubmit={async (data) => {
+                if (selectedEntity) {
+                  handleEntityUpdate(selectedEntity.id, data);
+                } else {
+                  try {
+                    // Map form data to API format
+                    const createRequest = {
+                      name: data.name!,
+                      entity_type: data.type!,
+                      confidence_score: data.confidence || 0.8,
+                      extraction_method: 'manual',
+                      metadata: data.metadata || {},
+                    };
+                    await entityService.createEntity(createRequest);
+                    toast.success('Entity created successfully');
+                    setEditDialogOpen(false);
+                    fetchEntities();
+                  } catch (error) {
+                    console.error('Error creating entity:', error);
+                    toast.error('Failed to create entity');
+                  }
+                }
+              }}
+              onCancel={() => setEditDialogOpen(false)}
+              availableTypes={availableEntityTypes.length > 0 ? availableEntityTypes : undefined}
+            />
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Entity Detail Dialog */}
+      {/* Detail Dialog */}
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Entity Details</DialogTitle>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)] font-mono">
+          <DialogHeader className="border-b border-[var(--terminal-border)] pb-4">
+            <DialogTitle className="text-lg font-bold tracking-tight uppercase">Node_Analysis_Dump</DialogTitle>
           </DialogHeader>
           {selectedEntity && (
-            <EntityDetail
-              entity={selectedEntity}
-              onEdit={() => {
-                setDetailDialogOpen(false);
-                setEditDialogOpen(true);
-              }}
-              onClose={() => setDetailDialogOpen(false)}
-            />
+            <div className="py-4">
+              <EntityDetail
+                entity={selectedEntity}
+                onEdit={() => {
+                  setDetailDialogOpen(false);
+                  setEditDialogOpen(true);
+                }}
+                onClose={() => setDetailDialogOpen(false)}
+                onAddRelationship={handleAddRelationship}
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Relationship Creation Dialog */}
+      <Dialog open={relationshipDialogOpen} onOpenChange={(open) => {
+        setRelationshipDialogOpen(open);
+        if (!open) setSourceEntityId(null);
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)] font-mono">
+          <DialogHeader className="border-b border-[var(--terminal-border)] pb-4">
+            <DialogTitle className="text-lg font-bold tracking-tight uppercase">ESTABLISH_NEW_LINK</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <RelationshipForm
+              sourceEntityId={sourceEntityId || undefined}
+              onSubmit={handleCreateRelationship}
+              onCancel={() => {
+                setRelationshipDialogOpen(false);
+                setSourceEntityId(null);
+              }}
+              availableTypes={availableRelationshipTypes.length > 0 ? availableRelationshipTypes : undefined}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Keyboard Shortcuts Dialog */}
+      <KeyboardShortcutsDialog
+        open={shortcutsDialogOpen}
+        onOpenChange={setShortcutsDialogOpen}
+      />
     </div>
   );
 }

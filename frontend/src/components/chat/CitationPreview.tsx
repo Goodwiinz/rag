@@ -3,6 +3,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { THEME } from '@/theme/constants';
 import { Citation, getScoreColor, getCitationIdentifier, isNavigableCitation } from '@/utils/citationParser';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -17,8 +18,7 @@ import {
 import { useState } from 'react';
 
 // Terminal Observatory theme colors
-const PHOSPHOR_GREEN = '#00ff9f';
-const AMBER = '#ffb700';
+// Using THEME.colors instead of local constants
 
 interface CitationPreviewProps {
   citation: Citation;
@@ -75,7 +75,7 @@ export function CitationPreview({
       className={cn(
         'rounded-lg overflow-hidden',
         'bg-[#0a0a0a] border border-[#1a1a1a]',
-        'hover:border-[#00ff9f]/30 transition-colors',
+        'hover:border-primary/30 transition-colors',
         className
       )}
     >
@@ -90,9 +90,9 @@ export function CitationPreview({
         {/* Icon */}
         <div className={cn(
           'flex items-center justify-center w-8 h-8 rounded-md shrink-0 mt-0.5',
-          'bg-[#00ff9f]/10 border border-[#00ff9f]/20'
+          'bg-primary/10 border border-primary/20'
         )}>
-          <FileText className="w-4 h-4" style={{ color: PHOSPHOR_GREEN }} />
+          <FileText className="w-4 h-4" style={{ color: THEME.colors.primary }} />
         </div>
 
         {/* Title and metadata */}
@@ -100,7 +100,7 @@ export function CitationPreview({
           {/* Main title */}
           <h4
             className="text-sm font-medium leading-tight line-clamp-2"
-            style={{ color: PHOSPHOR_GREEN }}
+                  style={{ color: THEME.colors.primary }}
           >
             {citation.title}
           </h4>
@@ -120,9 +120,9 @@ export function CitationPreview({
                 variant="outline"
                 className="text-[9px] px-1.5 py-0 h-4"
                 style={{
-                  backgroundColor: `${AMBER}15`,
-                  color: AMBER,
-                  borderColor: `${AMBER}30`
+                  backgroundColor: `${THEME.colors.accent}15`,
+                  color: THEME.colors.accent,
+                  borderColor: `${THEME.colors.accent}30`
                 }}
               >
                 External
@@ -189,7 +189,7 @@ export function CitationPreview({
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <span
                     className="text-[10px] font-mono uppercase tracking-wider"
-                    style={{ color: `${PHOSPHOR_GREEN}80` }}
+                    style={{ color: `${THEME.colors.primary}80` }}
                   >
                     Content Preview
                   </span>
@@ -199,7 +199,7 @@ export function CitationPreview({
                     title="Copy content"
                   >
                     {copied ? (
-                      <Check className="w-3 h-3" style={{ color: PHOSPHOR_GREEN }} />
+                      <Check className="w-3 h-3" style={{ color: THEME.colors.primary }} />
                     ) : (
                       <Copy className="w-3 h-3 text-gray-500 hover:text-gray-300" />
                     )}
@@ -232,14 +232,14 @@ export function CitationPreview({
                   variant="ghost"
                   size="sm"
                   onClick={handleNavigate}
-                  className="h-6 text-[10px] px-2 hover:bg-[#00ff9f]/10"
-                  style={{ color: PHOSPHOR_GREEN }}
+                  className="h-6 text-[10px] px-2 hover:bg-primary/10"
+            style={{ color: THEME.colors.primary }}
                 >
                   View Document
                   <ExternalLink className="w-3 h-3 ml-1" />
                 </Button>
               ) : (
-                <span className="text-[10px] font-mono" style={{ color: `${AMBER}80` }}>
+                <span className="text-[10px] font-mono" style={{ color: `${THEME.colors.accent}80` }}>
                   External source
                 </span>
               )}

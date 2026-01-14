@@ -1,0 +1,34 @@
+{
+  "reverse-index-lookup": {
+    "patternId": "reverse-index-lookup",
+    "description": "Replace O(n*m) record iteration with O(1) reverse index lookup for item removal",
+    "type": "performance",
+    "template": "// Add reverse index to state\\nitemToParent: Record<string, string>;\\n\\n// On create/load: populate index\\nstate.itemToParent[item.id] = parentKey;\\n\\n// On delete: O(1) lookup\\nconst parentKey = reverseIndex[itemId];\\nif (parentKey) { record[parentKey].splice(...); delete reverseIndex[itemId]; }",
+    "keywords": [],
+    "regex": null,
+    "instances": 1,
+    "successCount": 1,
+    "failureCount": 0,
+    "confidence": 0.75,
+    "filesApplied": [
+      "frontend/src/store/chat-store.ts"
+    ],
+    "created": "2026-01-12T22:38:57.625Z",
+    "updated": "2026-01-12T22:39:04.832Z"
+  },
+  "fastapi-route-ordering": {
+    "patternId": "fastapi-route-ordering",
+    "description": "FastAPI route ordering fix: Static path segments (like /bulk) must be defined before dynamic path parameters (like /{id}) to prevent incorrect matching",
+    "type": "potential_issue",
+    "template": "Move routes with static paths (e.g., /bulk/resolve, /bulk/archive) BEFORE routes with path parameters (e.g., /{thread_id}). Also ensure routers with static paths are included before routers with dynamic paths in app.include_router().",
+    "keywords": [],
+    "regex": null,
+    "instances": 0,
+    "successCount": 0,
+    "failureCount": 0,
+    "confidence": 0.7,
+    "filesApplied": [],
+    "created": "2026-01-13T05:54:44.568Z",
+    "updated": "2026-01-13T05:54:44.568Z"
+  }
+}
