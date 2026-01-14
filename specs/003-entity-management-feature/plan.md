@@ -129,6 +129,17 @@ frontend/
 | API Retry | Medium | Add wrapper in entityService |
 | Null Type Cleanup | Low | Backend endpoint exists, wire to UI |
 
+### Architectural Policies
+
+**Concurrent Edit Handling**: Entity updates use optimistic locking with `updated_at` timestamp validation. If concurrent edit detected (timestamp mismatch), API returns 409 Conflict. Frontend displays error toast with "Entity was modified by another user. Please refresh and try again." No automatic merge - user must manually reconcile.
+
+**Entity Deletion Policy**: Cascade deletion enabled for relationships. When entity is deleted:
+- All relationships where entity is source OR target are automatically deleted (Neo4j cascade)
+- PostgreSQL metadata record soft-deleted (sets `deleted_at` timestamp)
+- Qdrant embeddings removed via background job
+- Frontend shows confirmation dialog listing affected relationship count before delete
+- Orphaned entities (no relationships) can be filtered and bulk-deleted via existing BulkOperations component
+
 ## Implementation Gaps Analysis
 
 Based on codebase research, the following gaps exist between spec and current implementation:

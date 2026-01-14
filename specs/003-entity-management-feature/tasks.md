@@ -124,7 +124,7 @@
 
 ### Implementation for User Story 4
 
-- [ ] T015 [US4] Add "Unknown/Null Type" filter option in `frontend/src/components/entities/EntityFilters.tsx`
+- [ ] T015 [US4] Add "Unknown Type" filter option in `frontend/src/components/entities/EntityFilters.tsx`
   - Add special filter value `__null__` for null type entities
   - Calculate null type count from analytics (total - sum of known types)
 - [ ] T016 [US4] Handle null type filter in page query logic in `frontend/app/entities/page.tsx`
@@ -133,7 +133,7 @@
 
 **Acceptance Criteria**:
 - [x] Bulk operations component exists (already implemented)
-- [ ] "Unknown/Null Type" filter option visible
+- [ ] "Unknown Type" filter option visible
 - [ ] Null type entities can be filtered and selected
 - [ ] Bulk type assignment updates entities correctly
 
@@ -217,6 +217,17 @@
 ### Implementation for User Story 8
 
 - [ ] T027 [US8] Verify DocumentEntityExtractor component integration
+- [ ] T027.1 [US8] Verify entity extraction handles zero-entity documents gracefully (SC-009)
+  - Test with documents containing no extractable entities
+  - Verify user receives clear messaging (e.g., "No entities found in this document")
+  - Ensure no errors or crashes occur
+  - Verify empty state UI in DocumentEntityExtractor
+- [ ] T027.2 [US8] Validate 80% entity extraction accuracy with test dataset (SC-008)
+  - Create/use ground-truth test dataset with known entities
+  - Run extraction on test set
+  - Calculate precision, recall, F1-score
+  - Verify ≥80% F1-score threshold
+  - Document results in test report
 - [ ] T028 [US8] Apply retry wrapper to extraction API calls
 - [ ] T029 [US8] Ensure extracted entities link to source document (FR-022)
 
@@ -224,6 +235,8 @@
 - [x] DocumentEntityExtractor component exists (already implemented)
 - [x] Extraction results show confidence scores (already implemented)
 - [ ] Extracted entities link back to source document
+- [ ] Zero-entity documents handled gracefully with clear messaging
+- [ ] 80% extraction accuracy validated on ground-truth test set
 - [ ] API failures retry once automatically
 
 **Checkpoint**: User Story 8 complete - document entity extraction works
@@ -295,11 +308,11 @@ T030 (auth checks) || T032 (loading indicators)
 | 7. US5 Path Finding | T018-T020 | 1 hour | Phase 2 |
 | 8. US6 Neighborhood | T021-T023 | 1 hour | Phase 2 |
 | 9. US7 Analytics | T024-T026 | 1-2 hours | Phase 2 |
-| 10. US8 Extraction | T027-T029 | 1 hour | Phase 2 |
+| 10. US8 Extraction | T027-T029 | 2-3 hours | Phase 2 |
 | 11. Polish | T030-T034 | 2-3 hours | All stories |
 
-**Total Tasks**: 34
-**Estimated Total Effort**: 12-18 hours
+**Total Tasks**: 36
+**Estimated Total Effort**: 14-20 hours
 **Critical Path**: Phase 2 → US1 → US2 → US3 → US4 → Polish
 
 ---

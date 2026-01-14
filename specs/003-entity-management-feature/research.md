@@ -128,7 +128,7 @@ async getEntities(...): Promise<...> {
 
 ## 4. Null Type Filter
 
-### Decision: Add "Unknown/Null Type" option to EntityFilters
+### Decision: Add "Unknown Type" option to EntityFilters
 
 ### Rationale
 The backend already returns entities with null types. Frontend needs to expose this as a filter option. Backend has `fix_null_entity_types` endpoint for cleanup.
@@ -137,7 +137,7 @@ The backend already returns entities with null types. Frontend needs to expose t
 ```typescript
 // In EntityFilters.tsx
 const SPECIAL_FILTERS = [
-  { value: '__null__', label: 'Unknown/Null Type', count: nullTypeCount }
+  { value: '__null__', label: 'Unknown Type', count: nullTypeCount }
 ];
 
 // Combine with dynamic types from API

@@ -94,7 +94,7 @@ Apply to critical methods like `getEntities`, `createEntity`.
 Add special filter option:
 ```typescript
 const SPECIAL_FILTERS = [
-  { value: '__null__', label: 'Unknown/Null Type' }
+  { value: '__null__', label: 'Unknown Type' }
 ];
 ```
 

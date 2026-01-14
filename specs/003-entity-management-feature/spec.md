@@ -69,9 +69,9 @@ As a data administrator, I want to identify and fix entities with missing type i
 
 **Acceptance Scenarios**:
 
-1. **Given** I am on the entities page, **When** I filter by "Unknown/Null type", **Then** I see all entities without type assignments
+1. **Given** I am on the entities page, **When** I filter by "Unknown Type", **Then** I see all entities without type assignments
 2. **Given** I am viewing entities with null types, **When** I select multiple entities, **Then** I can bulk-assign a type to all selected
-3. **Given** I assign types to null-type entities, **When** I confirm the action, **Then** entities are updated and no longer appear in the null-type filter
+3. **Given** I assign types to null type entities, **When** I confirm the action, **Then** entities are updated and no longer appear in the null type filter
 4. **Given** new entities are created, **When** type is not specified, **Then** the system requires type selection (preventing new null types)
 
 ---
