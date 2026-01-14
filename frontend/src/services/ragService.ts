@@ -449,8 +449,22 @@ ${instructions}`;
 class RAGService {
   private lastRetrievalTime = 0;
   private cachedResult: RAGRetrievalResult | null = null;
-  private cachedQuery = '';
+  private cachedKey = '';
   private cacheValidityMs = 30000; // Cache valid for 30 seconds
+
+  /**
+   * Create a stable cache key from query and options
+   */
+  private createCacheKey(query: string, options?: RAGRetrievalOptions): string {
+    const cacheData = {
+      query,
+      maxDocs: options?.maxDocs,
+      minScore: options?.minScore,
+      maxTokens: options?.maxTokens,
+    };
+    // Create stable JSON string with sorted keys
+    return JSON.stringify(cacheData, Object.keys(cacheData).sort());
+  }
 
   /**
    * Retrieve RAG context with caching
@@ -459,9 +473,12 @@ class RAGService {
     query: string,
     options?: RAGRetrievalOptions
   ): Promise<RAGRetrievalResult | null> {
-    // Check cache for same query within validity period
+    // Create cache key including query and options
+    const cacheKey = this.createCacheKey(query, options);
+
+    // Check cache for same query+options within validity period
     if (
-      this.cachedQuery === query &&
+      this.cachedKey === cacheKey &&
       this.cachedResult &&
       Date.now() - this.lastRetrievalTime < this.cacheValidityMs
     ) {
@@ -473,7 +490,7 @@ class RAGService {
     const result = await retrieveRAGContext(query, options);
 
     if (result) {
-      this.cachedQuery = query;
+      this.cachedKey = cacheKey;
       this.cachedResult = result;
       this.lastRetrievalTime = Date.now();
     }
@@ -485,7 +502,7 @@ class RAGService {
    * Clear the cache
    */
   clearCache(): void {
-    this.cachedQuery = '';
+    this.cachedKey = '';
     this.cachedResult = null;
     this.lastRetrievalTime = 0;
   }

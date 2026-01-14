@@ -113,7 +113,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
 
   // Calculate null type count (total entities - sum of known type counts)
   const nullTypeCount = typeCounts
-    ? Object.keys(typeCounts).reduce((total, _) => total, 0) !== 0
+    ? Object.keys(typeCounts).length > 0
       ? Math.max(0, totalCount - Object.values(typeCounts).reduce((sum, count) => sum + count, 0))
       : 0
     : 0;

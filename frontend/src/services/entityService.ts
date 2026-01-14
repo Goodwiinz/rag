@@ -412,8 +412,8 @@ class EntityService {
   async getAnalytics(): Promise<{
     total_entities: number;
     total_relationships: number;
-    entity_type_distribution: Record<string, number>;
-    relationship_type_distribution: Record<string, number>;
+    entity_type_counts: Record<string, number>;
+    relationship_type_counts: Record<string, number>;
     orphan_entities: number;
     average_connections: number;
   }> {

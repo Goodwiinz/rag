@@ -117,7 +117,7 @@ export default function EntityManagementPage() {
         ]);
         setAvailableEntityTypes(entityTypes);
         setAvailableRelationshipTypes(relationshipTypes);
-        setTypeCounts(analytics.entity_type_distribution || {});
+        setTypeCounts(analytics.entity_type_counts || {});
       } catch (error) {
         console.error('Error fetching types and analytics:', error);
         toast.error('Failed to load entity types and analytics');

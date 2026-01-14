@@ -59,12 +59,16 @@ def get_all_chunks_from_qdrant():
                     "with_vector": False,
                     "offset": offset,
                 },
+                timeout=30,
             )
 
             if resp.status_code != 200:
-                logger.error(f"Error scrolling points: {resp.text}")
+                logger.error(
+                    f"Error scrolling points (status {resp.status_code}): {resp.text}"
+                )
                 break
 
+            resp.raise_for_status()  # Raise exception for bad status codes
             data = resp.json()
             result = data.get("result", {})
             points = result.get("points", [])
@@ -80,8 +84,11 @@ def get_all_chunks_from_qdrant():
 
             logger.info(f"Fetched {len(chunks)} chunks so far...")
 
+        except requests.RequestException as e:
+            logger.error(f"Request error while fetching from Qdrant: {e}")
+            break
         except Exception as e:
-            logger.error(f"Error connecting to Qdrant: {e}")
+            logger.error(f"Unexpected error connecting to Qdrant: {e}", exc_info=True)
             break
 
     logger.info(f"Total chunks fetched: {len(chunks)}")
