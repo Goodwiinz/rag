@@ -80,7 +80,7 @@
 - [X] T008 [US2] Add admin check to "Add Relationship" button in `frontend/src/components/entities/EntityDetail.tsx`
 - [X] T009 [US2] Disable relationship form for non-admin users in `frontend/src/components/entities/RelationshipForm.tsx`
 - [X] T010 [US2] Apply retry wrapper to `createRelationship()` in `frontend/src/services/entityService.ts`
-- [ ] T011 [US2] Ensure bidirectional display in entity detail views (verify FR-008)
+- [X] T011 [US2] Ensure bidirectional display in entity detail views (verify FR-008)
 
 **Acceptance Criteria**:
 - [x] Relationship form exists (already implemented)
@@ -129,7 +129,7 @@
   - Calculate null type count from analytics (total - sum of known types)
 - [X] T016 [US4] Handle null type filter in page query logic in `frontend/app/entities/page.tsx`
   - When `__null__` selected, filter client-side for `entity_type === null || entity_type === ''`
-- [ ] T017 [US4] Verify bulk type assignment works via existing BulkOperations component
+- [X] T017 [US4] Verify bulk type assignment works via existing BulkOperations component
 
 **Acceptance Criteria**:
 - [x] Bulk operations component exists (already implemented)
@@ -149,9 +149,9 @@
 
 ### Implementation for User Story 5
 
-- [ ] T018 [US5] Verify PathFinder component integration in `frontend/app/entities/page.tsx`
+- [X] T018 [US5] Verify PathFinder component integration in `frontend/app/entities/page.tsx`
 - [X] T019 [US5] Apply retry wrapper to `findPaths()` in `frontend/src/services/entityService.ts`
-- [ ] T020 [US5] Ensure clickable entities in path results navigate to entity detail
+- [X] T020 [US5] Ensure clickable entities in path results navigate to entity detail
 
 **Acceptance Criteria**:
 - [x] PathFinder component exists (already implemented)
@@ -171,9 +171,9 @@
 
 ### Implementation for User Story 6
 
-- [ ] T021 [US6] Verify NeighborhoodExplorer depth slider (1-3 levels) works correctly
+- [X] T021 [US6] Verify NeighborhoodExplorer depth slider (1-3 levels) works correctly
 - [X] T022 [US6] Apply retry wrapper to `getNeighborhood()` in `frontend/src/services/entityService.ts`
-- [ ] T023 [US6] Ensure clicking related entity makes it the new exploration center
+- [X] T023 [US6] Ensure clicking related entity makes it the new exploration center
 
 **Acceptance Criteria**:
 - [x] NeighborhoodExplorer component exists (already implemented via EntityDetail)
@@ -193,7 +193,7 @@
 
 ### Implementation for User Story 7
 
-- [ ] T024 [US7] Verify GraphAnalyticsDashboard displays all required metrics (FR-016 to FR-019)
+- [X] T024 [US7] Verify GraphAnalyticsDashboard displays all required metrics (FR-016 to FR-019)
 - [X] T025 [US7] Apply retry wrapper to `getAnalytics()` in `frontend/src/services/entityService.ts`
 - [X] T026 [US7] Add click handler to entity type distribution to filter entity list by that type
 
@@ -216,20 +216,20 @@
 
 ### Implementation for User Story 8
 
-- [ ] T027 [US8] Verify DocumentEntityExtractor component integration
-- [ ] T027.1 [US8] Verify entity extraction handles zero-entity documents gracefully (SC-009)
+- [X] T027 [US8] Verify DocumentEntityExtractor component integration
+- [X] T027.1 [US8] Verify entity extraction handles zero-entity documents gracefully (SC-009)
   - Test with documents containing no extractable entities
   - Verify user receives clear messaging (e.g., "No entities found in this document")
   - Ensure no errors or crashes occur
   - Verify empty state UI in DocumentEntityExtractor
-- [ ] T027.2 [US8] Validate 80% entity extraction accuracy with test dataset (SC-008)
-  - Create/use ground-truth test dataset with known entities
+- [NOTE] T027.2 [US8] Validate 80% entity extraction accuracy with test dataset (SC-008) - DEFERRED
+  - Requires ground-truth test dataset with known entities
   - Run extraction on test set
   - Calculate precision, recall, F1-score
   - Verify ≥80% F1-score threshold
   - Document results in test report
-- [ ] T028 [US8] Apply retry wrapper to extraction API calls
-- [ ] T029 [US8] Ensure extracted entities link to source document (FR-022)
+- [X] T028 [US8] Apply retry wrapper to extraction API calls
+- [X] T029 [US8] Ensure extracted entities link to source document (FR-022)
 
 **Acceptance Criteria**:
 - [x] DocumentEntityExtractor component exists (already implemented)
@@ -247,15 +247,15 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T030 [P] Add comprehensive authorization checks across all entity components
+- [X] T030 [P] Add comprehensive authorization checks across all entity components
   - `EntityList.tsx` - hide edit/delete buttons for non-admins
   - `EntityDetail.tsx` - hide edit/delete for non-admins
   - `BulkOperations.tsx` - disable for non-admins
   - `EntityMergeTool.tsx` - disable for non-admins
-- [ ] T031 Verify URL state persistence works for all filter combinations (FR-031)
-- [ ] T032 [P] Add loading indicators to any operations missing them (FR-029)
-- [ ] T033 Run full end-to-end test of entity management workflow
-- [ ] T034 Update GOO-95 Linear issue with implementation status
+- [X] T031 Verify URL state persistence works for all filter combinations (FR-031)
+- [X] T032 [P] Add loading indicators to any operations missing them (FR-029)
+- [X] T033 Run full end-to-end test of entity management workflow
+- [X] T034 Update GOO-95 Linear issue with implementation status
 
 ---
 
