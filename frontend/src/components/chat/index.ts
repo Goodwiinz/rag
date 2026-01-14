@@ -13,6 +13,7 @@ export { ModelSelector, default as ModelSelectorComponent } from './ModelSelecto
 export { ChatMessage, default as ChatMessageComponent } from './ChatMessage';
 export { ModelLoadingProgress, default as ModelLoadingProgressComponent } from './ModelLoadingProgress';
 export { WelcomeState, default as WelcomeStateComponent } from './WelcomeState';
+export { RAGToggle, default as RAGToggleComponent } from './RAGToggle';
 
 // Re-export types
 export type { ChatMetrics } from './ChatAnalytics';
@@ -22,3 +23,4 @@ export type { Conversation, Folder } from './ConversationSidebar';
 export type { ModelLoadingProgressProps } from './ModelLoadingProgress';
 export type { Model } from './ModelSelector';
 export type { WelcomeStateProps } from './WelcomeState';
+export type { RAGToggleProps } from './RAGToggle';

@@ -152,74 +152,40 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[var(--terminal-bg)] relative overflow-hidden">
-        {/* CRT Scanlines */}
-        <div className="pointer-events-none fixed inset-0 z-50 opacity-[0.03]">
-          <div className="h-full w-full" style={{
-            backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 255, 159, 0.03) 2px, rgba(0, 255, 159, 0.03) 4px)',
-          }} />
-        </div>
-
-        {/* Background Grid */}
-        <div className="absolute inset-0 opacity-[0.02]">
-          <div className="h-full w-full" style={{
-            backgroundImage: `
-              linear-gradient(${COLORS.phosphorGreen}20 1px, transparent 1px),
-              linear-gradient(90deg, ${COLORS.phosphorGreen}20 1px, transparent 1px)
-            `,
-            backgroundSize: '50px 50px',
-          }} />
-        </div>
-
-        {/* Ambient Glow */}
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full blur-[150px] opacity-10"
-          style={{ background: `radial-gradient(circle, ${COLORS.phosphorGreen}, transparent 70%)` }} />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full blur-[120px] opacity-10"
-          style={{ background: `radial-gradient(circle, ${COLORS.amber}, transparent 70%)` }} />
-
+    <div className="min-h-screen bg-[var(--terminal-bg)] relative overflow-hidden flex flex-col">
         {/* Content */}
-        <div className="relative p-6 space-y-6">
+        <div className="relative p-6 space-y-6 flex-1 overflow-y-auto terminal-scrollbar">
           {/* Header */}
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded overflow-hidden border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
+            className="rounded-xl overflow-hidden border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-xl"
           >
-            {/* Terminal Chrome */}
-            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--terminal-border)] bg-white/[0.02]">
-              <div className="w-2 h-2 rounded-full bg-red-500/60" />
-              <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
-              <div className="w-2 h-2 rounded-full bg-green-500/60" />
-              <span className="ml-2 text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider">
-                Command Center
-              </span>
-              <span className="ml-auto text-[10px] font-mono text-[var(--phosphor-green-dim)]">
-                {mounted ? currentTime : '--:--:--'}
-              </span>
-            </div>
-
-            <div className="p-5">
+            <div className="p-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] flex items-center gap-3">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20 flex items-center justify-center">
                     <Terminal className="w-6 h-6 text-[var(--phosphor-green)]" />
-                    Welcome back{user?.email ? `, ${user.email.split('@')[0]}` : ''}
-                  </h1>
-                  <p className="text-sm font-mono text-[var(--terminal-text-muted)] mt-1">
-                    Knowledge base status overview
-                  </p>
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)]">
+                      System Overview{user?.email ? `: ${user.email.split('@')[0]}` : ''}
+                    </h1>
+                    <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-0.5 uppercase tracking-widest">
+                      Knowledge Base Metrics & Status
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded border border-[var(--terminal-border)] bg-white/[0.02]">
-                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[var(--terminal-text-muted)] bg-white/5 rounded border border-[var(--terminal-border)]">
-                      ⌘K
-                    </kbd>
-                    <span className="text-xs font-mono text-[var(--terminal-text-muted)]">Search</span>
+                  <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50">
+                    <span className="text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest">UTC</span>
+                    <span className="text-xs font-mono text-[var(--phosphor-green)]">
+                      {mounted ? currentTime : '--:--:--'}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2 px-3 py-2 rounded border border-[var(--phosphor-green-dim)] bg-[var(--phosphor-green)]/5">
-                    <span className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-pulse" />
-                    <span className="text-xs font-mono text-[var(--phosphor-green)]">All Systems Online</span>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--phosphor-green)]/30 bg-[var(--phosphor-green)]/5">
+                    <span className="text-[10px] font-mono font-bold text-[var(--phosphor-green)] uppercase tracking-widest">Live</span>
                   </div>
                 </div>
               </div>
@@ -228,35 +194,34 @@ export default function DashboardPage() {
 
           {/* Quick Actions */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-3"
+            className="grid grid-cols-2 md:grid-cols-4 gap-4"
           >
             {quickActions.map((action) => (
               <Link key={action.label} href={action.href}>
                 <motion.div
-                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileHover={{ y: -2 }}
                   className={cn(
-                    "group p-4 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)]",
-                    "hover:border-[var(--phosphor-green-dim)] hover:shadow-[0_0_20px_rgba(0,255,159,0.1)]",
-                    "transition-all duration-300 cursor-pointer"
+                    "group p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg",
+                    "hover:border-[var(--phosphor-green)]/30 transition-all duration-300 cursor-pointer"
                   )}
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className="p-2 rounded border transition-colors"
+                      className="p-2 rounded-lg border border-transparent group-hover:border-current transition-colors"
                       style={{
                         backgroundColor: `${action.color}10`,
-                        borderColor: `${action.color}30`
+                        color: action.color
                       }}
                     >
-                      <action.icon className="w-5 h-5" style={{ color: action.color }} />
+                      <action.icon className="w-4 h-4" />
                     </div>
-                    <span className="font-mono text-sm text-[var(--terminal-text-muted)] group-hover:text-white transition-colors">
+                    <span className="font-mono text-xs font-bold text-[var(--terminal-text-dim)] group-hover:text-[var(--terminal-text)] transition-colors uppercase tracking-wider">
                       {action.label}
                     </span>
-                    <ChevronRight className="w-4 h-4 text-[var(--terminal-text-muted)]/20 ml-auto group-hover:text-[var(--phosphor-green)] group-hover:translate-x-1 transition-all" />
+                    <ChevronRight className="w-3.5 h-3.5 text-[var(--terminal-text-muted)]/20 ml-auto group-hover:text-[var(--phosphor-green)] group-hover:translate-x-0.5 transition-all" />
                   </div>
                 </motion.div>
               </Link>
@@ -265,7 +230,7 @@ export default function DashboardPage() {
 
           {/* Stats Grid */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
             className="grid grid-cols-2 lg:grid-cols-4 gap-4"
@@ -278,36 +243,31 @@ export default function DashboardPage() {
             ].map((stat, idx) => (
               <motion.div
                 key={stat.label}
-                initial={{ opacity: 0, scale: 0.95 }}
+                initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2 + idx * 0.1 }}
-                className="rounded overflow-hidden border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
+                transition={{ delay: 0.2 + idx * 0.05 }}
+                className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-5 shadow-lg relative group overflow-hidden"
               >
-                {/* Mini Terminal Chrome */}
-                <div className="flex items-center gap-1 px-2 py-1 border-b border-white/5 bg-white/[0.01]">
-                  <div className="w-1.5 h-1.5 rounded-full bg-red-500/40" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-yellow-500/40" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-500/40" />
-                </div>
-
-                <div className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div
-                      className="p-2 rounded border"
-                      style={{ backgroundColor: `${stat.color}10`, borderColor: `${stat.color}20` }}
-                    >
-                      <stat.icon className="w-4 h-4" style={{ color: stat.color }} />
-                    </div>
-                    <span className={cn(
-                      "text-[10px] font-mono px-1.5 py-0.5 rounded",
-                      stat.change.startsWith('+') ? 'text-[var(--phosphor-green)] bg-[var(--phosphor-green)]/10' : 'text-[var(--terminal-text-muted)] bg-white/5'
-                    )}>
-                      {stat.change}
-                    </span>
+                <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b opacity-20 group-hover:opacity-100 transition-opacity" 
+                     style={{ backgroundImage: `linear-gradient(to bottom, ${stat.color}, transparent)` }} />
+                
+                <div className="flex items-start justify-between mb-4">
+                  <div
+                    className="p-2 rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)]"
+                  >
+                    <stat.icon className="w-4 h-4" style={{ color: stat.color }} />
                   </div>
-                  <div className="text-2xl font-mono font-bold text-white/90">{stat.value}</div>
-                  <div className="text-xs font-mono text-white/40 mt-1">{stat.label}</div>
+                  <span className={cn(
+                    "text-[10px] font-mono px-1.5 py-0.5 rounded-full border",
+                    stat.change.startsWith('+') 
+                      ? 'text-[var(--phosphor-green)] border-[var(--phosphor-green)]/20 bg-[var(--phosphor-green)]/5' 
+                      : 'text-[var(--terminal-text-dim)] border-[var(--terminal-border)] bg-white/5'
+                  )}>
+                    {stat.change}
+                  </span>
                 </div>
+                <div className="text-2xl font-mono font-bold text-[var(--terminal-text)]">{stat.value}</div>
+                <div className="text-[10px] font-mono text-[var(--terminal-text-dim)] mt-1 uppercase tracking-widest">{stat.label}</div>
               </motion.div>
             ))}
           </motion.div>
@@ -316,51 +276,43 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* System Status */}
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
+              initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
-              className="lg:col-span-2 rounded overflow-hidden border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
+              className="lg:col-span-2 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl"
             >
-              <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--terminal-border)] bg-white/[0.02]">
-                <div className="w-2 h-2 rounded-full bg-red-500/60" />
-                <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
-                <div className="w-2 h-2 rounded-full bg-green-500/60" />
-                <span className="ml-2 text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider">
-                  System Performance
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30">
+                <Activity className="w-4 h-4 text-[var(--phosphor-green)]" />
+                <span className="text-xs font-mono font-bold text-[var(--terminal-text)] uppercase tracking-widest">
+                  Active Neural Nodes
                 </span>
-                <Activity className="w-3 h-3 text-[var(--phosphor-green)] ml-auto animate-pulse" />
               </div>
 
-              <div className="p-4">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="p-5">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {services.map((service) => (
                     <div
                       key={service.name}
-                      className="p-3 rounded border border-[var(--terminal-border)] bg-white/[0.02] hover:border-[var(--phosphor-green)]/20 transition-colors"
+                      className="p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/20 hover:border-[var(--phosphor-green)]/20 transition-all group"
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-mono text-[var(--terminal-text-muted)]">{service.name}</span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)] animate-pulse" />
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-[11px] font-mono text-[var(--terminal-text-muted)] group-hover:text-[var(--terminal-text)] transition-colors">{service.name}</span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)] shadow-[0_0_8px_var(--phosphor-green)]" />
                       </div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-[10px] font-mono text-[var(--terminal-text-muted)]">{service.latency}</span>
-                        <span className="text-[10px] font-mono text-[var(--phosphor-green)]">ONLINE</span>
+                      <div className="flex items-baseline gap-2 mb-3">
+                        <span className="text-lg font-mono text-[var(--terminal-text)]">{service.latency}</span>
+                        <span className="text-[9px] font-mono text-[var(--phosphor-green)] font-bold tracking-tighter">DELAY</span>
                       </div>
                       {/* Load bar */}
-                      <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-1 bg-[var(--terminal-border)] rounded-full overflow-hidden">
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${service.load}%` }}
                           transition={{ duration: 1, delay: 0.5 }}
-                          className="h-full rounded-full"
-                          style={{
-                            background: service.load > 60
-                              ? `linear-gradient(90deg, ${COLORS.amber}, ${COLORS.amber})`
-                              : `linear-gradient(90deg, ${COLORS.phosphorGreen}, ${COLORS.phosphorGreen}80)`
-                          }}
+                          className="h-full rounded-full bg-[var(--phosphor-green)]/50"
                         />
                       </div>
-                      <div className="text-[10px] font-mono text-[var(--terminal-text-muted)] mt-1">{service.load}% load</div>
+                      <div className="text-[9px] font-mono text-[var(--terminal-text-dim)] mt-2 uppercase tracking-tight">{service.load}% resource load</div>
                     </div>
                   ))}
                 </div>
@@ -369,41 +321,38 @@ export default function DashboardPage() {
 
             {/* Activity Feed */}
             <motion.div
-              initial={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.4 }}
-              className="rounded overflow-hidden border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
+              className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl"
             >
-              <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--terminal-border)] bg-white/[0.02]">
-                <div className="w-2 h-2 rounded-full bg-red-500/60" />
-                <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
-                <div className="w-2 h-2 rounded-full bg-green-500/60" />
-                <span className="ml-2 text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider">
-                  Activity Log
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30">
+                <Clock className="w-4 h-4 text-[var(--terminal-text-dim)]" />
+                <span className="text-xs font-mono font-bold text-[var(--terminal-text)] uppercase tracking-widest">
+                  Neural Stream
                 </span>
-                <Clock className="w-3 h-3 text-[var(--terminal-text-muted)] ml-auto" />
               </div>
 
-              <div className="p-3">
-                <div className="space-y-2">
+              <div className="p-4">
+                <div className="space-y-3">
                   {recentActivity.map((item, idx) => (
                     <motion.div
                       key={idx}
-                      initial={{ opacity: 0, x: 10 }}
+                      initial={{ opacity: 0, x: 5 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.5 + idx * 0.1 }}
-                      className="flex items-start gap-2 p-2 rounded border border-[var(--terminal-border)] bg-white/[0.01] hover:border-white/10 transition-colors"
+                      transition={{ delay: 0.5 + idx * 0.05 }}
+                      className="flex items-start gap-3 p-3 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/10 hover:bg-[var(--terminal-bg)]/30 transition-colors group"
                     >
                       <div className={cn(
-                        "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
+                        "w-1 h-4 rounded-full mt-0.5 shrink-0 transition-all group-hover:h-6",
                         item.type === 'upload' && 'bg-[var(--phosphor-green)]',
-                        item.type === 'search' && 'bg-blue-400',
+                        item.type === 'search' && 'bg-[var(--cyan)]',
                         item.type === 'chat' && 'bg-[var(--amber-gold)]',
-                        item.type === 'process' && 'bg-purple-400'
+                        item.type === 'process' && 'bg-purple-500'
                       )} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-mono text-[var(--terminal-text-muted)] truncate">{item.text}</p>
-                        <p className="text-[10px] font-mono text-[var(--terminal-text-muted)]">{item.time}</p>
+                        <p className="text-[11px] font-mono text-[var(--terminal-text)] truncate">{item.text}</p>
+                        <p className="text-[9px] font-mono text-[var(--terminal-text-dim)] mt-0.5">{item.time}</p>
                       </div>
                     </motion.div>
                   ))}
@@ -413,40 +362,36 @@ export default function DashboardPage() {
           </div>
 
           {/* Document Types & AI Insights */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
             {/* Document Types */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
-              className="rounded overflow-hidden border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
+              className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl"
             >
-              <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--terminal-border)] bg-white/[0.02]">
-                <div className="w-2 h-2 rounded-full bg-red-500/60" />
-                <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
-                <div className="w-2 h-2 rounded-full bg-green-500/60" />
-                <span className="ml-2 text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider">
-                  Document Distribution
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30">
+                <BarChart3 className="w-4 h-4 text-[var(--terminal-text-dim)]" />
+                <span className="text-xs font-mono font-bold text-[var(--terminal-text)] uppercase tracking-widest">
+                  Corpus Distribution
                 </span>
-                <BarChart3 className="w-3 h-3 text-[var(--terminal-text-muted)] ml-auto" />
               </div>
 
-              <div className="p-4">
-                <div className="space-y-3">
+              <div className="p-6">
+                <div className="space-y-4">
                   {docTypes.map((doc, idx) => (
-                    <div key={doc.type} className="flex items-center gap-3">
+                    <div key={doc.type} className="flex items-center gap-4">
                       <div
-                        className="p-1.5 rounded border"
-                        style={{ backgroundColor: `${doc.color}15`, borderColor: `${doc.color}30` }}
+                        className="p-2 rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)]"
                       >
-                        <doc.icon className="w-3.5 h-3.5" style={{ color: doc.color }} />
+                        <doc.icon className="w-4 h-4" style={{ color: doc.color }} />
                       </div>
                       <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-mono text-[var(--terminal-text-muted)]">{doc.type}</span>
-                          <span className="text-xs font-mono text-[var(--terminal-text-muted)]">{doc.count}</span>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-mono text-[var(--terminal-text)] font-medium uppercase tracking-tighter">{doc.type}</span>
+                          <span className="text-xs font-mono text-[var(--terminal-text-dim)]">{doc.count} units</span>
                         </div>
-                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-[var(--terminal-border)] rounded-full overflow-hidden">
                           <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${(doc.count / stats.documents) * 100 || 0}%` }}
@@ -464,22 +409,19 @@ export default function DashboardPage() {
 
             {/* AI Insights */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 }}
-              className="rounded overflow-hidden border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
+              className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl"
             >
-              <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--terminal-border)] bg-white/[0.02]">
-                <div className="w-2 h-2 rounded-full bg-red-500/60" />
-                <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
-                <div className="w-2 h-2 rounded-full bg-green-500/60" />
-                <span className="ml-2 text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider">
-                  AI Insights
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30">
+                <Brain className="w-4 h-4 text-[var(--amber-gold)]" />
+                <span className="text-xs font-mono font-bold text-[var(--terminal-text)] uppercase tracking-widest">
+                  Synthetic Insights
                 </span>
-                <Brain className="w-3 h-3 text-[var(--amber-gold)] ml-auto" />
               </div>
 
-              <div className="p-4 space-y-3">
+              <div className="p-6 space-y-4">
                 {[
                   { text: 'Knowledge graph expanded with 23 new entities', icon: Network, color: COLORS.phosphorGreen },
                   { text: 'Semantic search accuracy improved to 94.2%', icon: TrendingUp, color: COLORS.phosphorGreen },
@@ -487,26 +429,25 @@ export default function DashboardPage() {
                 ].map((insight, idx) => (
                   <motion.div
                     key={idx}
-                    initial={{ opacity: 0, x: -10 }}
+                    initial={{ opacity: 0, x: -5 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.7 + idx * 0.1 }}
-                    className="flex items-start gap-3 p-3 rounded border border-[var(--terminal-border)] bg-white/[0.02]"
+                    className="flex items-start gap-4 p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/20"
                   >
                     <div
-                      className="p-1.5 rounded border shrink-0"
-                      style={{ backgroundColor: `${insight.color}10`, borderColor: `${insight.color}30` }}
+                      className="p-2 rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)] shrink-0"
                     >
-                      <insight.icon className="w-3.5 h-3.5" style={{ color: insight.color }} />
+                      <insight.icon className="w-4 h-4" style={{ color: insight.color }} />
                     </div>
-                    <p className="text-xs font-mono text-[var(--terminal-text-muted)] leading-relaxed">{insight.text}</p>
+                    <p className="text-xs font-mono text-[var(--terminal-text-dim)] leading-relaxed">{insight.text}</p>
                   </motion.div>
                 ))}
 
-                <Link href="/llm-chat">
-                  <div className="flex items-center justify-between p-3 rounded border border-[var(--amber-gold)]/20 bg-[var(--amber-gold)]/5 hover:border-[var(--amber-gold)]/40 transition-colors cursor-pointer group">
-                    <div className="flex items-center gap-2">
+                <Link href="/chat">
+                  <div className="flex items-center justify-between p-4 rounded-xl border border-[var(--amber-gold)]/20 bg-[var(--amber-gold)]/5 hover:border-[var(--amber-gold)]/40 transition-all cursor-pointer group">
+                    <div className="flex items-center gap-3">
                       <Sparkles className="w-4 h-4 text-[var(--amber-gold)]" />
-                      <span className="text-xs font-mono text-[var(--amber-gold)]">Start AI Chat Session</span>
+                      <span className="text-xs font-mono font-bold text-[var(--amber-gold)] uppercase tracking-widest">Execute Neural Session</span>
                     </div>
                     <ArrowUpRight className="w-4 h-4 text-[var(--amber-gold)]/60 group-hover:text-[var(--amber-gold)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
                   </div>
@@ -528,9 +469,9 @@ export default function DashboardPage() {
                 <motion.div
                   animate={{ rotate: 360 }}
                   transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                  className="w-12 h-12 border-2 border-[var(--phosphor-green)]/30 border-t-[var(--phosphor-green)] rounded-full mx-auto"
+                  className="w-10 h-10 border-2 border-[var(--phosphor-green)]/10 border-t-[var(--phosphor-green)] rounded-full mx-auto"
                 />
-                <p className="text-sm font-mono text-[var(--terminal-text-muted)] mt-4">Initializing dashboard...</p>
+                <p className="text-[10px] font-mono text-[var(--terminal-text-dim)] mt-4 uppercase tracking-widest">Initializing Neural Interface...</p>
               </div>
             </motion.div>
           )}

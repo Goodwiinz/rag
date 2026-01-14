@@ -5,7 +5,16 @@ import {
   CitationPanel,
   CitationRenderer,
   Model,
+  RAGToggle,
 } from '@/components/chat';
+import {
+  ragService,
+  buildRAGSystemPrompt,
+  RAGContextItem,
+  getModelSize,
+  getRAGConfigForModel,
+  getModelAwareHistory,
+} from '@/services/ragService';
 import { cn } from '@/lib/utils';
 import apiClient from '@/services/apiClient';
 import { workspaceService } from '@/services/workspaceService';
@@ -21,7 +30,7 @@ import {
 } from '@/types/workspace';
 import { Citation } from '@/utils/citationParser';
 import { CreateMLCEngine, InitProgressReport, MLCEngine } from "@mlc-ai/web-llm";
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
 import {
   Activity,
   ArrowDown,
@@ -37,6 +46,7 @@ import {
   Paperclip,
   Radio,
   RefreshCw,
+  Satellite,
   Shield,
   Sparkles,
   Square,
@@ -389,10 +399,6 @@ function ChatMessage({
         {!isUser && (
           <>
             <div className="flex items-center gap-2 px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)]">
-              <div className={cn(
-                "w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)]",
-                isTyping ? "animate-pulse" : "signal-active"
-              )} />
               <span className="text-[var(--phosphor-green)] font-bold text-[9px]">
                 {isTyping ? 'STREAMING' : 'RECEIVED'}
               </span>
@@ -669,6 +675,9 @@ function ChatInput({
   selectedModel,
   models,
   onModelChange,
+  enableRAG,
+  onRAGToggle,
+  isRAGLoading,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -679,6 +688,9 @@ function ChatInput({
   selectedModel?: string;
   models: ExtendedModel[];
   onModelChange: (id: string) => void;
+  enableRAG: boolean;
+  onRAGToggle: (enabled: boolean) => void;
+  isRAGLoading?: boolean;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -710,30 +722,42 @@ function ChatInput({
         <motion.div
           className={cn(
             "relative rounded-xl overflow-visible backdrop-blur-xl transition-all duration-300",
-            "bg-[var(--terminal-surface)] border",
-            isFocused 
-              ? "border-[var(--phosphor-green)]/40 shadow-[0_0_20px_-5px_rgba(0,255,159,0.1)] ring-1 ring-[var(--phosphor-green)]/10" 
-              : "border-[var(--terminal-border)] shadow-lg"
+            "bg-[var(--terminal-surface)] border border-[var(--terminal-border)] shadow-2xl shadow-black/50",
+            isFocused && "border-[var(--phosphor-green)]/30 shadow-[0_0_20px_-5px_rgba(0,255,159,0.05)] ring-1 ring-[var(--phosphor-green)]/5"
           )}
         >
-          {/* Top Bar: Model Selector & Status */}
-          <div className="flex items-center justify-between px-4 py-2 bg-[var(--terminal-elevated)]/50 border-b border-[var(--terminal-border)] rounded-t-xl">
-             <div className="flex items-center gap-2">
-               <div className={cn(
-                 "w-1.5 h-1.5 rounded-full transition-all duration-300",
-                 isModelLoading ? "bg-[var(--amber-gold)] animate-pulse" : "bg-[var(--phosphor-green)] signal-active"
-               )} />
+          {/* Top Bar: Model Selector, RAG Toggle & Status */}
+          <div className="flex items-center justify-between px-4 py-1.5 bg-[var(--terminal-elevated)]/50 border-b border-[var(--terminal-border)] rounded-t-xl">
+             <div className="flex items-center gap-3">
                <ModelSelector
                   models={models}
                   selectedModelId={selectedModel}
                   onModelChange={onModelChange}
                   isLoading={isModelLoading}
                 />
+               {/* RAG Toggle - Show for local models only */}
+               {selectedModel && !models.find(m => m.id === selectedModel)?.isCloud && (
+                 <RAGToggle
+                   enabled={enableRAG}
+                   onToggle={onRAGToggle}
+                   isLoading={isRAGLoading}
+                   disabled={isLoading}
+                 />
+               )}
              </div>
              <div className="flex items-center gap-3">
-               <span 
+               {/* RAG loading indicator */}
+               {isRAGLoading && (
+                 <span
+                   className="text-[9px] text-[var(--phosphor-green)] animate-pulse"
+                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                 >
+                   RETRIEVING...
+                 </span>
+               )}
+               <span
                  className={cn(
-                   "text-[10px] transition-colors",
+                   "text-[9px] transition-colors",
                    isNearLimit ? "text-[var(--amber-gold)]" : "text-[var(--terminal-text-dim)]"
                  )}
                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
@@ -743,7 +767,7 @@ function ChatInput({
              </div>
           </div>
 
-          <div className="p-4">
+          <div className="p-3 sm:p-4">
             <textarea
               ref={textareaRef}
               value={value}
@@ -756,13 +780,13 @@ function ChatInput({
               className="w-full bg-transparent text-[var(--terminal-text)] text-sm resize-none outline-none placeholder:text-[var(--terminal-text-dim)]/50 selection:bg-[var(--phosphor-green)]/20 selection:text-[var(--phosphor-green)]"
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
-                minHeight: '48px',
+                minHeight: '44px',
                 maxHeight: '200px',
               }}
               disabled={isDisabled}
             />
             
-            <div className="flex items-center justify-between mt-4">
+            <div className="flex items-center justify-between mt-2">
               <div className="flex items-center gap-1">
                 <button
                   className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group"
@@ -781,10 +805,10 @@ function ChatInput({
               {isLoading ? (
                 <button
                   onClick={onStop}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--error-red)]/10 border border-[var(--error-red)]/50 text-[var(--error-red)] text-xs font-medium hover:bg-[var(--error-red)]/20 transition-all shadow-[0_0_10px_rgba(239,68,68,0.05)]"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--error-red)]/10 border border-[var(--error-red)]/50 text-[var(--error-red)] text-[10px] font-bold hover:bg-[var(--error-red)]/20 transition-all shadow-[0_0_10px_rgba(239,68,68,0.05)]"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
-                  <Square className="w-3.5 h-3.5" />
+                  <Square className="w-3 h-3" />
                   HALT
                 </button>
               ) : (
@@ -792,9 +816,9 @@ function ChatInput({
                   onClick={onSubmit}
                   disabled={!value.trim() || isDisabled}
                   className={cn(
-                    'flex items-center gap-2 px-6 py-2 rounded-lg text-xs font-bold tracking-wide transition-all duration-300',
+                    'flex items-center gap-2 px-5 py-2 rounded-lg text-[10px] font-bold tracking-widest transition-all duration-300',
                     value.trim() && !isDisabled
-                      ? 'bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_15px_rgba(0,255,159,0.2)] hover:scale-105 active:scale-95'
+                      ? 'bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_15px_rgba(0,255,159,0.2)] hover:scale-[1.02] active:scale-95'
                       : 'bg-[var(--terminal-elevated)] text-[var(--terminal-text-muted)] cursor-not-allowed border border-[var(--terminal-border)]'
                   )}
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
@@ -807,31 +831,16 @@ function ChatInput({
           </div>
         </motion.div>
 
-        {/* Keyboard Hint - fades when focused */}
+        {/* Keyboard Hint */}
         <motion.div
-          initial={{ opacity: 0.7 }}
-          animate={{ opacity: isFocused ? 0.4 : 0.7 }}
-          className="flex items-center justify-center gap-4 mt-2 text-[10px] text-[var(--terminal-text-muted)]"
+          initial={{ opacity: 0.5 }}
+          animate={{ opacity: isFocused ? 0.3 : 0.5 }}
+          className="flex items-center justify-center gap-4 mt-2 text-[9px] text-[var(--terminal-text-dim)] uppercase tracking-tighter"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
-          <span>
-            <kbd className="px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--terminal-text-dim)]">
-              Enter
-            </kbd>{' '}
-            send
-          </span>
-          <span>
-            <kbd className="px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--terminal-text-dim)]">
-              Shift+Enter
-            </kbd>{' '}
-            new line
-          </span>
-          <span className="hidden sm:inline">
-            <kbd className="px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--terminal-text-dim)]">
-              /
-            </kbd>{' '}
-            commands
-          </span>
+          <span>[Enter] Send</span>
+          <span>[Shift+Enter] Line Break</span>
+          <span className="hidden sm:inline">[/] Commands</span>
         </motion.div>
       </div>
     </div>
@@ -849,100 +858,116 @@ function WelcomeState({
   onPromptSelect: (prompt: string) => void;
   selectedModel?: string;
 }) {
+  // Mouse tracking for parallax effect
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    x.set(e.clientX - centerX);
+    y.set(e.clientY - centerY);
+  };
+
+  const handleMouseLeave = () => {
+    x.set(0);
+    y.set(0);
+  };
+
+  // Smooth spring physics for the tilt
+  const springConfig = { damping: 25, stiffness: 150 };
+  const rotateX = useSpring(useTransform(y, [-100, 100], [10, -10]), springConfig);
+  const rotateY = useSpring(useTransform(x, [-100, 100], [-10, 10]), springConfig);
+
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-8 pb-40">
+    <div 
+      className="flex-1 flex flex-col items-center justify-center p-8 perspective-1000"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="text-center max-w-2xl"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.8 }}
+        style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
+        className="text-center max-w-2xl relative"
       >
-        {/* Logo */}
-        <div className="relative w-24 h-24 mx-auto mb-8">
-          <div className="absolute inset-0 rounded-full bg-[var(--phosphor-green)]/10 animate-pulse" />
-          <div className="absolute inset-2 rounded-full border-2 border-[var(--phosphor-green)]/30 flex items-center justify-center">
-            <Sparkles className="w-10 h-10 text-[var(--phosphor-green)]" />
+        {/* Orbital decoration */}
+        <div className="relative mb-12 flex items-center justify-center h-64 w-64 mx-auto transform-gpu">
+          {/* Outer Ring - Counter Rotate */}
+          <motion.div 
+            style={{ translateZ: 20 }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            <div className="w-56 h-56 rounded-full border border-[#1a1a28]/50 animate-[spin_30s_linear_infinite_reverse] orbital-ring-reverse" />
+          </motion.div>
+
+          {/* Inner Ring - Rotate */}
+          <motion.div 
+            style={{ translateZ: 40 }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            <div className="w-32 h-32 rounded-full border border-[#1a1a28] animate-[spin_20s_linear_infinite] orbital-ring" />
+          </motion.div>
+
+          {/* Core Container */}
+          <motion.div 
+            style={{ translateZ: 60 }}
+            className="relative w-24 h-24 flex items-center justify-center"
+          >
+            {/* Satellite Icon with Float */}
+            <Satellite className="w-12 h-12 text-[#00ff9f] float-gentle drop-shadow-[0_0_15px_rgba(0,255,159,0.3)]" />
+            
+            {/* Scanning Beam Effect */}
+            <motion.div
+              animate={{ top: ['0%', '100%', '0%'], opacity: [0, 1, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+              className="absolute left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#00ff9f] to-transparent w-full"
+            />
+          </motion.div>
+          
+          {/* Radar Pings - Background */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+             <div className="w-full h-full rounded-full border border-[#00ff9f]/5 animate-ping" style={{ animationDuration: '3s' }} />
           </div>
         </div>
 
-        {/* Title */}
-        <h1
-          className="text-2xl text-[var(--phosphor-green)] mb-3"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        >
-          {selectedModel ? 'NEURAL LINK ESTABLISHED' : 'AWAITING MODEL SELECTION'}
-        </h1>
-        <p
-          className="text-sm text-[var(--terminal-text-muted)] mb-8"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        >
-          {selectedModel
-            ? 'Your GenAI research companion is ready. Ask questions about your documents, explore research papers, and generate insights.'
-            : 'Select a neural core from the input bar below to initialize the interface.'}
-        </p>
+        <motion.div style={{ translateZ: 30 }}>
+          <h2 className="text-xl text-[#e0e0e8] tracking-wider mb-2" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+            {selectedModel ? 'NEURAL LINK ESTABLISHED' : 'AWAITING NEURAL CORE SELECTION'}
+          </h2>
+          <p className="text-sm text-[#3a3a4a] text-center max-w-md mx-auto" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+            {selectedModel
+              ? 'Ready to receive transmissions. Enter your query below.'
+              : 'Select a neural core from the command bar to initialize the interface.'}
+          </p>
+        </motion.div>
 
-        {/* Starter Prompts */}
         {selectedModel && (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {STARTER_PROMPTS.map((item, idx) => (
-                <motion.button
-                  key={idx}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 + idx * 0.1 }}
-                  onClick={() => onPromptSelect(item.prompt)}
-                  className="flex items-start gap-3 p-4 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:border-[var(--phosphor-green)]/30 hover:bg-[var(--terminal-elevated)] text-left transition-all group"
-                >
-                  <div className="p-2 rounded-lg bg-[var(--phosphor-green)]/10 text-[var(--phosphor-green)] group-hover:bg-[var(--phosphor-green)]/20 transition-colors">
-                    <item.icon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3
-                      className="text-xs text-[var(--terminal-text)] mb-1"
-                      style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                    >
-                      {item.title}
-                    </h3>
-                    <p
-                      className="text-[10px] text-[var(--terminal-text-muted)] line-clamp-2"
-                      style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                    >
-                      {item.prompt}
-                    </p>
-                  </div>
-                </motion.button>
-              ))}
-            </div>
-
-            {/* Features */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-              className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3"
-            >
-              {[
-                { icon: Zap, label: 'RAPID PROCESSING' },
-                { icon: Shield, label: 'SECURE' },
-                { icon: Cpu, label: 'RAG ENABLED' },
-                { icon: Activity, label: 'REAL-TIME' },
-              ].map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-2 p-2 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
-                >
-                  <item.icon className="w-3 h-3 text-[var(--phosphor-green)]" />
-                  <span
-                    className="text-[10px] text-[var(--terminal-text-muted)]"
-                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                  >
-                    {item.label}
-                  </span>
-                </div>
-              ))}
-            </motion.div>
-          </>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            style={{ translateZ: 20 }}
+            className="mt-8 grid grid-cols-2 gap-4 max-w-lg mx-auto"
+          >
+            {[
+              { icon: Zap, label: 'RAPID PROCESSING', desc: 'Sub-second response latency' },
+              { icon: Shield, label: 'LOCAL ONLY', desc: 'All data stays on device' },
+              { icon: Cpu, label: 'NEURAL INFERENCE', desc: 'Advanced language model' },
+              { icon: Activity, label: 'REAL-TIME STREAM', desc: 'Live response generation' },
+            ].map((item, idx) => (
+              <div
+                key={idx}
+                className="p-4 rounded-lg border border-[#1a1a28] bg-[#0d0d14]/50 text-left hover:border-[#00ff9f]/20 transition-all group backdrop-blur-sm"
+              >
+                <item.icon className="w-5 h-5 text-[#00ff9f] mb-2 group-hover:scale-110 transition-transform" />
+                <h3 className="text-xs text-[#e0e0e8] mb-1" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{item.label}</h3>
+                <p className="text-[10px] text-[#3a3a4a]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{item.desc}</p>
+              </div>
+            ))}
+          </motion.div>
         )}
       </motion.div>
     </div>
@@ -1035,6 +1060,11 @@ function ChatPageContent() {
   const [isModelLoading, setIsModelLoading] = useState(false);
   const [progress, setProgress] = useState('');
   const [progressVal, setProgressVal] = useState(0);
+
+  // RAG state for local models
+  const [enableRAG, setEnableRAG] = useState(true);
+  const [isRAGLoading, setIsRAGLoading] = useState(false);
+  const [lastRAGContexts, setLastRAGContexts] = useState<RAGContextItem[]>([]);
 
   // Settings
   const [settings] = useState<ChatSettings>(DEFAULT_SETTINGS);
@@ -1588,10 +1618,57 @@ function ChatPageContent() {
         );
       } else {
         // Use local WebLLM engine for browser-based models
+        let ragContexts: RAGContextItem[] = [];
+        let systemPrompt = settings.systemPrompt;
+
+        // Phase 2: Get model-aware configuration
+        const modelSize = getModelSize(selectedModel);
+        const ragConfig = getRAGConfigForModel(modelSize);
+        console.log(`[RAG] Model size: ${modelSize}, Config:`, ragConfig);
+
+        // Retrieve RAG context if enabled for local models
+        if (enableRAG) {
+          setIsRAGLoading(true);
+          console.log('[RAG] Retrieving context for local model...');
+
+          try {
+            // Phase 2: Use model-aware RAG configuration
+            const ragResult = await ragService.retrieve(input.trim(), {
+              maxDocs: ragConfig.maxDocs,
+              minScore: 0.05, // Low threshold to match cloud model behavior
+              maxTokens: ragConfig.maxTokens,
+            });
+
+            if (ragResult && ragResult.contexts.length > 0) {
+              ragContexts = ragResult.contexts;
+              // Phase 2: Pass modelSize for adaptive prompt building
+              systemPrompt = buildRAGSystemPrompt(settings.systemPrompt, ragContexts, modelSize);
+              setLastRAGContexts(ragContexts);
+              console.log(`[RAG] Retrieved ${ragContexts.length} contexts in ${ragResult.retrievalTimeMs.toFixed(0)}ms`);
+            } else {
+              console.log('[RAG] No relevant context found, proceeding without RAG');
+            }
+          } catch (error) {
+            console.error('[RAG] Retrieval failed, falling back to no-context mode:', error);
+          } finally {
+            setIsRAGLoading(false);
+          }
+        }
+
+        // Debug: Log the system prompt to verify RAG context is included
+        console.log('[RAG] System prompt length:', systemPrompt.length);
+        console.log('[RAG] System prompt preview:', systemPrompt.substring(0, 500) + '...');
+
+        // Phase 2: Trim conversation history based on model size
+        const trimmedHistory = getModelAwareHistory(
+          newMessages.map((m) => ({ role: m.role, content: m.content })),
+          selectedModel
+        );
+
         const response = await engineRef.current!.chat.completions.create({
           messages: [
-            { role: 'system', content: settings.systemPrompt },
-            ...newMessages.map((m) => ({ role: m.role, content: m.content })),
+            { role: 'system', content: systemPrompt },
+            ...trimmedHistory,
           ],
           temperature: settings.temperature,
           max_tokens: settings.maxTokens,
@@ -1608,9 +1685,37 @@ function ChatPageContent() {
               role: 'assistant',
               content: assistantMessage,
               timestamp: Date.now(),
+              // Show citations while streaming if RAG was used
+              citations: ragContexts.length > 0 ? ragContexts.map((ctx) => ({
+                documentId: ctx.documentId,
+                title: ctx.title,
+                score: ctx.score,
+                content: ctx.content,
+                source: ctx.source || ctx.documentType,
+              })) : undefined,
             },
           ]);
         }
+
+        // Convert RAG contexts to citations for database storage
+        const localModelCitations: Citation[] = ragContexts.map((ctx) => ({
+          documentId: ctx.documentId,
+          title: ctx.title,
+          score: ctx.score,
+          content: ctx.content,
+          source: ctx.source || ctx.documentType,
+        }));
+
+        // Create database-formatted citations for persistence
+        const dbCitations: CitationCreate[] = ragContexts
+          .filter((ctx) => ctx.documentId)
+          .map((ctx) => ({
+            document_id: ctx.documentId,
+            document_title: ctx.title,
+            document_type: ctx.documentType,
+            snippet: ctx.content,
+            score: ctx.score,
+          }));
 
         // Save assistant message to database (for local models too)
         if (currentThreadId && isAuthenticated) {
@@ -1619,8 +1724,9 @@ function ChatPageContent() {
               thread_id: currentThreadId,
               content: assistantMessage,
               role: MessageRole.ASSISTANT,
+              citations: dbCitations.length > 0 ? dbCitations : undefined,
             });
-            console.log('[Chat] Saved local model response to database');
+            console.log('[Chat] Saved local model response to database with', dbCitations.length, 'citations');
           } catch (error) {
             console.error('[Chat] Failed to save assistant message:', error);
           }
@@ -1632,6 +1738,7 @@ function ChatPageContent() {
             role: 'assistant',
             content: assistantMessage,
             timestamp: Date.now(),
+            citations: localModelCitations.length > 0 ? localModelCitations : undefined,
           },
         ];
 
@@ -1674,7 +1781,7 @@ function ChatPageContent() {
   const currentModel = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Model Loading Progress */}
       <AnimatePresence>
         {isModelLoading && (
@@ -1706,77 +1813,65 @@ function ChatPageContent() {
         </AnimatePresence>
         {/* Authentication Required State */ }
         {!isAuthenticated ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 pb-48">
+          <div className="flex-1 flex flex-col items-center justify-center p-8">
             <div className="text-center">
               <Loader2 className="w-8 h-8 text-[var(--amber-gold)] animate-spin mx-auto mb-4" />
               <p className="text-sm font-mono text-[var(--terminal-text-muted)] mt-2">
-                Authentication required. Redirecting to login...
+                Authentication required. Redirecting...
               </p>
             </div>
           </div>
         ) : isInitializing ? (
           /* Loading State */
-          <div className="flex-1 flex flex-col items-center justify-center p-8 pb-48">
+          <div className="flex-1 flex flex-col items-center justify-center p-8">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="text-center"
             >
-              <div className="relative w-16 h-16 mx-auto mb-6">
-                <Loader2 className="w-16 h-16 text-[var(--phosphor-green)] animate-spin" />
+              <div className="relative w-12 h-12 mx-auto mb-6">
+                <Loader2 className="w-12 h-12 text-[var(--phosphor-green)] animate-spin" />
               </div>
               <h2
-                className="text-lg text-[var(--phosphor-green)] mb-2"
+                className="text-sm text-[var(--phosphor-green)] mb-2 tracking-widest"
                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
               >
                 INITIALIZING...
               </h2>
-              <p
-                className="text-sm text-[var(--terminal-text-muted)]"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                Loading workspace and conversations
-              </p>
             </motion.div>
           </div>
         ) : initError ? (
           /* Error State */
-          <div className="flex-1 flex flex-col items-center justify-center p-8 pb-48">
+          <div className="flex-1 flex flex-col items-center justify-center p-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="text-center max-w-md"
             >
-              <div className="relative w-20 h-20 mx-auto mb-6">
+              <div className="relative w-16 h-16 mx-auto mb-6">
                 <div className="absolute inset-0 rounded-full bg-[var(--error-red)]/10" />
-                <div className="absolute inset-2 rounded-full border-2 border-[var(--error-red)]/30 flex items-center justify-center">
-                  <Activity className="w-8 h-8 text-[var(--error-red)]" />
+                <div className="absolute inset-2 rounded-full border border-[var(--error-red)]/30 flex items-center justify-center">
+                  <Activity className="w-6 h-6 text-[var(--error-red)]" />
                 </div>
               </div>
               <h2
-                className="text-xl text-[var(--error-red)] mb-3"
+                className="text-lg text-[var(--error-red)] mb-3"
                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
               >
                 CONNECTION ERROR
               </h2>
               <p
-                className="text-sm text-[var(--terminal-text-muted)] mb-2"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                Failed to establish database connection:
-              </p>
-              <p
-                className="text-xs text-[var(--error-red)] mb-6 p-3 rounded bg-[var(--error-red)]/10 border border-[var(--error-red)]/20"
+                className="text-xs text-[var(--terminal-text-muted)] mb-6 p-3 rounded bg-[var(--error-red)]/5 border border-[var(--error-red)]/10"
                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
               >
                 {initError}
               </p>
               <button
                 onClick={() => window.location.reload()}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--terminal-text)] text-sm font-medium hover:border-[var(--phosphor-green)]/30 transition-all"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--terminal-text)] text-xs font-medium hover:border-[var(--phosphor-green)]/30 transition-all"
                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
               >
-                <Activity className="w-4 h-4" />
+                <Activity className="w-3.5 h-3.5" />
                 RETRY CONNECTION
               </button>
             </motion.div>
@@ -1784,7 +1879,7 @@ function ChatPageContent() {
         ) : messages.length === 0 ? (
           <WelcomeState onPromptSelect={handlePromptSelect} selectedModel={selectedModel} />
         ) : (
-          <div className="max-w-4xl mx-auto pt-8 px-4 pb-40">
+          <div className="max-w-4xl mx-auto pt-8 px-4 pb-12">
             <AnimatePresence>
               {messages.map((message, index) => (
                 <ChatMessage
@@ -1817,6 +1912,9 @@ function ChatPageContent() {
         selectedModel={selectedModel}
         models={AVAILABLE_MODELS}
         onModelChange={handleModelChange}
+        enableRAG={enableRAG}
+        onRAGToggle={setEnableRAG}
+        isRAGLoading={isRAGLoading}
       />
 
       {/* Citation Panel Sidebar */}

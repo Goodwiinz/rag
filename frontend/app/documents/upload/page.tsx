@@ -10,32 +10,34 @@ import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  CloudArrowUpIcon,
-  DocumentPlusIcon,
-  XMarkIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  ArrowUpTrayIcon,
-  TrashIcon,
-  Cog6ToothIcon,
-  DocumentTextIcon,
-  PhotoIcon,
-  MusicalNoteIcon,
-  VideoCameraIcon,
-  SparklesIcon,
-  ShieldCheckIcon,
-} from '@heroicons/react/24/outline';
+  UploadCloud,
+  FilePlus,
+  X,
+  CheckCircle,
+  AlertTriangle,
+  Upload,
+  Trash2,
+  Settings,
+  FileText,
+  Image as ImageIcon,
+  Music,
+  Video,
+  Sparkles,
+  ShieldCheck,
+  Terminal,
+  Activity,
+  ArrowRight,
+  Database,
+  Cpu,
+  Network,
+  Loader2
+} from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
 import { enhancedDocumentService, DocumentUploadRequest, WebSocketProgressUpdate } from '@/services/enhancedDocumentService';
 import { mockDocumentService } from '@/services/mockDocumentService';
 import { useAuthStore } from '@/stores/authStore';
-
-// Terminal Observatory Theme Constants
-const PHOSPHOR_GREEN = '#00ff9f';
-const AMBER = '#ffb700';
-const CYAN = '#00d4ff';
-const TERMINAL_BG = '#0d1117';
+import { cn } from '@/lib/utils';
 
 interface UploadedFile {
   id: string;
@@ -70,7 +72,7 @@ export default function DocumentUploadPage() {
   // Terminal typing effect
   useEffect(() => {
     if (!mounted) return;
-    const fullText = 'DOCUMENT INGESTION TERMINAL';
+    const fullText = 'DOCUMENT_INGESTION_TERMINAL';
     let index = 0;
     const interval = setInterval(() => {
       if (index <= fullText.length) {
@@ -98,7 +100,7 @@ export default function DocumentUploadPage() {
       rejectedFiles.forEach(({ file, errors }) => {
         errors.forEach((error: any) => {
           toast({
-            title: "File rejected",
+            title: "Transmission Error",
             description: `${file.name}: ${error.message}`,
             variant: "destructive"
           });
@@ -109,7 +111,7 @@ export default function DocumentUploadPage() {
 
     if (uploadedFiles.length + acceptedFiles.length > 10) {
       toast({
-        title: "Too many files",
+        title: "Queue Overload",
         description: "Maximum 10 files allowed per upload session",
         variant: "destructive"
       });
@@ -126,7 +128,7 @@ export default function DocumentUploadPage() {
 
       if (!validation.isValid) {
         toast({
-          title: "Invalid file",
+          title: "Incompatible Payload",
           description: validation.errors.join(', '),
           variant: "destructive"
         });
@@ -139,7 +141,7 @@ export default function DocumentUploadPage() {
         request: getDefaultRequest(file),
         status: 'pending' as const,
         progress: 0,
-        currentStep: 'Ready for upload',
+        currentStep: 'Ready for ingestion',
       };
     }).filter(Boolean) as UploadedFile[];
 
@@ -184,9 +186,9 @@ export default function DocumentUploadPage() {
         documentId: update.result.document_id,
         jobId: update.result.job_id,
         progress: 100,
-        currentStep: 'Completed'
+        currentStep: 'Synchronized'
       });
-      toast({ title: "Upload completed", description: `${update.result.title} processed successfully` });
+      toast({ title: "Node Ingested", description: `${update.result.title} processed successfully` });
     }
 
     if (update.type === 'error') {
@@ -195,8 +197,8 @@ export default function DocumentUploadPage() {
         error: update.error_message || 'Processing failed'
       });
       toast({
-        title: "Upload failed",
-        description: update.error_message || 'An error occurred',
+        title: "Protocol Breach",
+        description: update.error_message || 'An error occurred during ingestion',
         variant: "destructive"
       });
     }
@@ -207,7 +209,7 @@ export default function DocumentUploadPage() {
       updateFileStatus(uploadedFile.id, {
         status: 'uploading',
         progress: 0,
-        currentStep: 'Initializing upload'
+        currentStep: 'Establishing uplink'
       });
 
       let response, websocket;
@@ -240,10 +242,10 @@ export default function DocumentUploadPage() {
     } catch (error) {
       updateFileStatus(uploadedFile.id, {
         status: 'failed',
-        error: error instanceof Error ? error.message : 'Upload failed'
+        error: error instanceof Error ? error.message : 'Uplink failed'
       });
       toast({
-        title: "Upload failed",
+        title: "Upload Failed",
         description: error instanceof Error ? error.message : 'An error occurred',
         variant: "destructive"
       });
@@ -251,12 +253,9 @@ export default function DocumentUploadPage() {
   };
 
   const uploadAllFiles = async () => {
-    if (authLoading) {
-      toast({ title: "Please wait", description: "Verifying authentication..." });
-      return;
-    }
+    if (authLoading) return;
     if (!isAuthenticated || !token || !organization) {
-      toast({ title: "Authentication Required", description: "Please log in to upload documents.", variant: "destructive" });
+      toast({ title: "Auth Required", description: "Authenticate to initialize ingestion.", variant: "destructive" });
       return;
     }
 
@@ -285,402 +284,345 @@ export default function DocumentUploadPage() {
 
   const getFileIcon = (type: string) => {
     if (type.includes('pdf') || type.includes('text') || type.includes('document'))
-      return <DocumentTextIcon className="w-5 h-5" />;
-    if (type.includes('image')) return <PhotoIcon className="w-5 h-5" />;
-    if (type.includes('audio')) return <MusicalNoteIcon className="w-5 h-5" />;
-    if (type.includes('video')) return <VideoCameraIcon className="w-5 h-5" />;
-    return <DocumentPlusIcon className="w-5 h-5" />;
+      return <FileText className="w-5 h-5" />;
+    if (type.includes('image')) return <ImageIcon className="w-5 h-5" />;
+    if (type.includes('audio')) return <Music className="w-5 h-5" />;
+    if (type.includes('video')) return <Video className="w-5 h-5" />;
+    return <FilePlus className="w-5 h-5" />;
   };
 
   const getStatusColor = (status: UploadedFile['status']) => {
     switch (status) {
-      case 'completed': return PHOSPHOR_GREEN;
+      case 'completed': return 'var(--phosphor-green)';
       case 'processing':
-      case 'uploading': return CYAN;
-      case 'failed': return '#ff4757';
-      default: return '#6b7280';
+      case 'uploading': return 'var(--cyan)';
+      case 'failed': return 'var(--error-red)';
+      default: return 'var(--terminal-text-muted)';
     }
   };
 
   const fileTypes = [
-    { ext: 'PDF', color: '#ff4757' },
-    { ext: 'DOCX', color: '#3b82f6' },
-    { ext: 'TXT', color: '#6b7280' },
-    { ext: 'JPG', color: AMBER },
-    { ext: 'PNG', color: PHOSPHOR_GREEN },
+    { ext: 'PDF', color: 'var(--error-red)' },
+    { ext: 'DOCX', color: 'var(--cyan)' },
+    { ext: 'TXT', color: 'var(--terminal-text-dim)' },
+    { ext: 'JPG', color: 'var(--amber-gold)' },
+    { ext: 'PNG', color: 'var(--phosphor-green)' },
     { ext: 'MP3', color: '#a855f7' },
-    { ext: 'MP4', color: CYAN },
+    { ext: 'MP4', color: 'var(--cyan)' },
   ];
 
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-        <div className="text-gray-500 font-mono">Initializing terminal...</div>
-      </div>
-    );
-  }
+  if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] relative overflow-hidden">
-      {/* CRT Scanlines */}
-      <div
-        className="fixed inset-0 pointer-events-none z-50 opacity-[0.03]"
-        style={{
-          background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 255, 159, 0.03) 2px, rgba(0, 255, 159, 0.03) 4px)',
-        }}
-      />
-
-      {/* Grid Background */}
-      <div
-        className="fixed inset-0 pointer-events-none opacity-[0.02]"
-        style={{
-          backgroundImage: `linear-gradient(${PHOSPHOR_GREEN} 1px, transparent 1px), linear-gradient(90deg, ${PHOSPHOR_GREEN} 1px, transparent 1px)`,
-          backgroundSize: '50px 50px',
-        }}
-      />
-
-      <div className="relative z-10 p-6 max-w-5xl mx-auto">
-        {/* Terminal Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-10"
-        >
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div
-              className="w-12 h-12 rounded-lg flex items-center justify-center"
-              style={{
-                background: `linear-gradient(135deg, ${PHOSPHOR_GREEN}20, ${PHOSPHOR_GREEN}05)`,
-                border: `1px solid ${PHOSPHOR_GREEN}30`
-              }}
-            >
-              <ArrowUpTrayIcon className="w-6 h-6" style={{ color: PHOSPHOR_GREEN }} />
+    <div className="min-h-screen bg-[var(--terminal-bg)] relative overflow-hidden flex flex-col star-field terminal-grid noise-texture">
+      {/* Navigation Header */}
+      <nav className="relative z-40 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/80 backdrop-blur-xl h-14 shrink-0">
+        <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-8 h-8 rounded bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20">
+              <Terminal className="w-4 h-4 text-[var(--phosphor-green)]" />
             </div>
-            <h1
-              className="text-3xl font-mono font-bold tracking-wider"
-              style={{ color: PHOSPHOR_GREEN }}
-            >
-              {terminalText}<span className="animate-pulse">_</span>
-            </h1>
+            <div className="flex flex-col">
+              <span className="font-mono font-bold text-[var(--terminal-text)] text-sm uppercase tracking-tighter leading-none">INGEST_CORE</span>
+              <span className="font-mono text-[9px] text-[var(--terminal-text-dim)] uppercase tracking-widest leading-none mt-0.5">Terminal Observatory</span>
+            </div>
           </div>
-          <p className="text-gray-500 font-mono text-sm max-w-xl mx-auto">
-            Upload documents for AI-powered processing, entity extraction, and knowledge graph integration.
-          </p>
-        </motion.div>
 
-        {/* Terminal Window */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2 }}
-          className="rounded-xl overflow-hidden"
-          style={{
-            background: TERMINAL_BG,
-            border: '1px solid #21262d',
-            boxShadow: `0 0 60px ${PHOSPHOR_GREEN}08`
-          }}
-        >
-          {/* Window Chrome */}
-          <div
-            className="flex items-center justify-between px-4 py-3"
-            style={{
-              background: 'linear-gradient(180deg, #161b22 0%, #0d1117 100%)',
-              borderBottom: '1px solid #21262d'
-            }}
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => window.location.href = '/documents'}
+              className="px-3 py-1.5 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] text-[10px] font-mono text-[var(--terminal-text-muted)] hover:text-[var(--phosphor-green)] hover:border-[var(--phosphor-green)]/30 transition-all uppercase tracking-widest font-bold"
+            >
+              Back_to_registry
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <div className="flex-1 overflow-y-auto terminal-scrollbar relative z-10 p-6">
+        <div className="max-w-5xl mx-auto space-y-8">
+          {/* Page Title */}
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-4 px-2"
           >
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
-              <div className="w-3 h-3 rounded-full bg-[#febc2e]" />
-              <div className="w-3 h-3 rounded-full bg-[#28c840]" />
+            <div className="p-2 rounded-lg bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20">
+              <Upload className="h-6 w-6 text-[var(--phosphor-green)]" />
             </div>
-            <span className="text-gray-500 font-mono text-xs">upload_handler.exe</span>
-            <div className="flex items-center gap-3 text-xs text-gray-500 font-mono">
-              {isAuthenticated ? (
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
-                  AUTHENTICATED
-                </span>
-              ) : (
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-red-500" />
-                  NOT AUTHENTICATED
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Upload Zone */}
-          <div className="p-6">
-            <div
-              {...getRootProps()}
-              className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-300 ${
-                isDragActive ? 'scale-[1.01]' : ''
-              } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
-              style={{
-                borderColor: isDragActive ? PHOSPHOR_GREEN : '#21262d',
-                background: isDragActive ? `${PHOSPHOR_GREEN}05` : 'transparent',
-              }}
-            >
-              <input {...getInputProps()} />
-
-              <motion.div
-                animate={{ y: isDragActive ? -5 : 0 }}
-                className="space-y-4"
-              >
-                <div
-                  className="mx-auto w-16 h-16 rounded-xl flex items-center justify-center"
-                  style={{
-                    background: `linear-gradient(135deg, ${PHOSPHOR_GREEN}15, transparent)`,
-                    border: `1px solid ${PHOSPHOR_GREEN}30`
-                  }}
-                >
-                  <CloudArrowUpIcon className="w-8 h-8" style={{ color: PHOSPHOR_GREEN }} />
-                </div>
-
-                <div>
-                  <p className="text-lg font-mono" style={{ color: isDragActive ? PHOSPHOR_GREEN : '#e6edf3' }}>
-                    {isDragActive ? '[ RELEASE TO UPLOAD ]' : 'Drop files here or click to browse'}
-                  </p>
-                  <p className="text-sm text-gray-500 font-mono mt-1">
-                    Maximum file size: 50MB • Up to 10 files
-                  </p>
-                </div>
-
-                {/* File Type Badges */}
-                <div className="flex flex-wrap justify-center gap-2 mt-4">
-                  {fileTypes.map((type) => (
-                    <span
-                      key={type.ext}
-                      className="px-2 py-1 rounded text-xs font-mono"
-                      style={{
-                        background: `${type.color}15`,
-                        color: type.color,
-                        border: `1px solid ${type.color}30`
-                      }}
-                    >
-                      {type.ext}
-                    </span>
-                  ))}
-                </div>
-              </motion.div>
-            </div>
-
-            {/* File List */}
-            <AnimatePresence>
-              {uploadedFiles.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mt-6 space-y-3"
-                >
-                  {/* Header */}
-                  <div className="flex items-center justify-between px-2">
-                    <span className="text-sm font-mono text-gray-400">
-                      {uploadedFiles.length} file{uploadedFiles.length > 1 ? 's' : ''} queued
-                    </span>
-                    {uploadedFiles.some(f => f.status === 'pending') && (
-                      <button
-                        onClick={uploadAllFiles}
-                        disabled={isUploading || !isAuthenticated}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm transition-all disabled:opacity-50"
-                        style={{
-                          background: `linear-gradient(135deg, ${PHOSPHOR_GREEN}20, ${PHOSPHOR_GREEN}10)`,
-                          border: `1px solid ${PHOSPHOR_GREEN}50`,
-                          color: PHOSPHOR_GREEN,
-                        }}
-                      >
-                        {isUploading ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                            UPLOADING...
-                          </>
-                        ) : (
-                          <>
-                            <ArrowUpTrayIcon className="w-4 h-4" />
-                            UPLOAD ALL
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* File Items */}
-                  {uploadedFiles.map((file, index) => (
-                    <motion.div
-                      key={file.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 20 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="rounded-lg p-4"
-                      style={{
-                        background: '#161b22',
-                        border: `1px solid ${getStatusColor(file.status)}30`,
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <div
-                            className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                            style={{
-                              background: `${getStatusColor(file.status)}15`,
-                              color: getStatusColor(file.status)
-                            }}
-                          >
-                            {getFileIcon(file.file.type)}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-mono text-gray-200 truncate">
-                              {file.file.name}
-                            </p>
-                            <div className="flex items-center gap-3 text-xs font-mono text-gray-500">
-                              <span>{formatFileSize(file.file.size)}</span>
-                              <span>•</span>
-                              <span style={{ color: getStatusColor(file.status) }}>
-                                {file.currentStep}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {file.status === 'completed' && (
-                            <CheckCircleIcon className="w-5 h-5" style={{ color: PHOSPHOR_GREEN }} />
-                          )}
-                          {file.status === 'failed' && (
-                            <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />
-                          )}
-                          {(file.status === 'uploading' || file.status === 'processing') && (
-                            <div
-                              className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
-                              style={{ borderColor: `${CYAN} transparent ${CYAN} ${CYAN}` }}
-                            />
-                          )}
-                          {(file.status === 'pending' || file.status === 'failed') && (
-                            <button
-                              onClick={() => removeFile(file.id)}
-                              className="p-1 rounded hover:bg-white/10 transition-colors"
-                            >
-                              <TrashIcon className="w-4 h-4 text-gray-500 hover:text-red-400" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Progress Bar */}
-                      {(file.status === 'uploading' || file.status === 'processing') && (
-                        <div className="mt-3">
-                          <div className="flex justify-between text-xs font-mono text-gray-500 mb-1">
-                            <span>{file.currentStep}</span>
-                            <span>{Math.round(file.progress)}%</span>
-                          </div>
-                          <div className="h-1 rounded-full bg-gray-800 overflow-hidden">
-                            <motion.div
-                              className="h-full rounded-full"
-                              style={{ background: `linear-gradient(90deg, ${CYAN}, ${PHOSPHOR_GREEN})` }}
-                              initial={{ width: 0 }}
-                              animate={{ width: `${file.progress}%` }}
-                              transition={{ duration: 0.3 }}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Success Info */}
-                      {file.status === 'completed' && file.documentId && (
-                        <div
-                          className="mt-3 p-2 rounded text-xs font-mono"
-                          style={{
-                            background: `${PHOSPHOR_GREEN}10`,
-                            border: `1px solid ${PHOSPHOR_GREEN}20`
-                          }}
-                        >
-                          <span className="text-gray-400">Document ID:</span>{' '}
-                          <span style={{ color: PHOSPHOR_GREEN }}>{file.documentId}</span>
-                        </div>
-                      )}
-
-                      {/* Error Info */}
-                      {file.status === 'failed' && file.error && (
-                        <div className="mt-3 p-2 rounded text-xs font-mono bg-red-500/10 border border-red-500/20 text-red-400">
-                          {file.error}
-                        </div>
-                      )}
-
-                      {/* Quality Score */}
-                      {file.qualityScore && (
-                        <div className="mt-3 flex items-center gap-2 text-xs font-mono">
-                          <SparklesIcon className="w-4 h-4" style={{ color: AMBER }} />
-                          <span className="text-gray-400">Quality Score:</span>
-                          <span style={{ color: AMBER }}>{Math.round(file.qualityScore * 100)}%</span>
-                        </div>
-                      )}
-
-                      {/* Security Scan */}
-                      {file.securityScan && (
-                        <div className="mt-2 flex items-center gap-2 text-xs font-mono">
-                          <ShieldCheckIcon className="w-4 h-4" style={{ color: file.securityScan.scan_status === 'passed' ? PHOSPHOR_GREEN : '#ff4757' }} />
-                          <span className="text-gray-400">Security:</span>
-                          <span style={{ color: file.securityScan.scan_status === 'passed' ? PHOSPHOR_GREEN : '#ff4757' }}>
-                            {file.securityScan.scan_status.toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                    </motion.div>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </motion.div>
-
-        {/* Feature Cards */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8"
-        >
-          {[
-            {
-              icon: SparklesIcon,
-              title: 'AI PROCESSING',
-              desc: 'Automatic entity extraction and classification',
-              color: PHOSPHOR_GREEN,
-            },
-            {
-              icon: ShieldCheckIcon,
-              title: 'SECURITY SCAN',
-              desc: 'Files are scanned for malware and threats',
-              color: AMBER,
-            },
-            {
-              icon: DocumentPlusIcon,
-              title: 'KNOWLEDGE GRAPH',
-              desc: 'Documents integrated into semantic network',
-              color: CYAN,
-            },
-          ].map((feature, index) => (
-            <div
-              key={feature.title}
-              className="p-4 rounded-xl"
-              style={{
-                background: `linear-gradient(135deg, ${feature.color}08, transparent)`,
-                border: `1px solid ${feature.color}20`,
-              }}
-            >
-              <feature.icon className="w-6 h-6 mb-3" style={{ color: feature.color }} />
-              <h3 className="font-mono text-sm font-medium text-gray-200 mb-1">
-                {feature.title}
-              </h3>
-              <p className="text-xs text-gray-500 font-mono">
-                {feature.desc}
+            <div>
+              <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter uppercase">
+                {terminalText}<span className="animate-pulse">_</span>
+              </h1>
+              <p className="text-[9px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] mt-0.5">
+                Neural Data Ingestion :: Channel Secure
               </p>
             </div>
-          ))}
-        </motion.div>
+          </motion.div>
+
+          {/* Main Terminal Window */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2 }}
+            className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/80 backdrop-blur-xl overflow-hidden shadow-2xl relative"
+          >
+            {/* Transmission Line */}
+            <div className="absolute top-0 left-6 bottom-0 w-[1px] bg-gradient-to-b from-[var(--phosphor-green)]/20 via-[var(--terminal-border)] to-transparent pointer-events-none" />
+
+            <div className="p-8 pl-14">
+              <div
+                {...getRootProps()}
+                className={cn(
+                  "relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-300",
+                  isDragActive ? "border-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5 scale-[1.01]" : "border-[var(--terminal-border)] hover:border-[var(--terminal-border-muted)]",
+                  isUploading && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                <input {...getInputProps()} />
+
+                <motion.div
+                  animate={{ y: isDragActive ? -5 : 0 }}
+                  className="space-y-6"
+                >
+                  <div className="mx-auto w-20 h-20 rounded-2xl flex items-center justify-center bg-[var(--terminal-bg)] border border-[var(--terminal-border)] relative group">
+                    <UploadCloud className={cn(
+                      "w-10 h-10 transition-colors duration-300",
+                      isDragActive ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text-dim)]"
+                    )} />
+                    <div className="absolute inset-0 rounded-2xl border border-[var(--phosphor-green)]/50 scale-110 opacity-0 group-hover:opacity-100 group-hover:scale-100 transition-all duration-500" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-sm font-mono font-bold tracking-widest text-[var(--terminal-text)] uppercase">
+                      {isDragActive ? '[ RELEASE_FOR_INGESTION ]' : 'Drop_nodes_here_or_click_to_initialize'}
+                    </p>
+                    <p className="text-[10px] text-[var(--terminal-text-muted)] font-mono uppercase tracking-widest">
+                      Payload Limit: 50MB • Max Units: 10 per cycle
+                    </p>
+                  </div>
+
+                  {/* File Type Badges */}
+                  <div className="flex flex-wrap justify-center gap-2 pt-4">
+                    {fileTypes.map((type) => (
+                      <span
+                        key={type.ext}
+                        className="px-2.5 py-1 rounded bg-[var(--terminal-bg)] border border-[var(--terminal-border)] text-[9px] font-mono font-bold tracking-widest transition-colors hover:border-[var(--phosphor-green)]/30"
+                        style={{ color: type.color }}
+                      >
+                        {type.ext}
+                      </span>
+                    ))}
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* File Queue */}
+              <AnimatePresence>
+                {uploadedFiles.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-10 space-y-4"
+                  >
+                    <div className="flex items-center justify-between border-b border-[var(--terminal-border)] pb-4">
+                      <div className="flex items-center gap-2">
+                        <Activity className="w-3.5 h-3.5 text-[var(--amber-gold)]" />
+                        <span className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-widest">
+                          Transmission_Queue ({uploadedFiles.length})
+                        </span>
+                      </div>
+                      
+                      {uploadedFiles.some(f => f.status === 'pending') && (
+                        <button
+                          onClick={uploadAllFiles}
+                          disabled={isUploading || !isAuthenticated}
+                          className="flex items-center gap-2 px-5 py-2 rounded-lg font-mono text-[10px] font-bold uppercase transition-all bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_20px_var(--phosphor-green-glow)] disabled:opacity-50"
+                        >
+                          {isUploading ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-3.5 h-3.5" />
+                              INITIATE_UPLINK
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="space-y-3">
+                      {uploadedFiles.map((file, index) => (
+                        <motion.div
+                          key={file.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 10 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="rounded-xl p-4 bg-[var(--terminal-bg)]/50 border border-[var(--terminal-border)] group hover:border-[var(--terminal-border-muted)] transition-all"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4 min-w-0 flex-1">
+                              <div
+                                className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-[var(--terminal-surface)] border border-[var(--terminal-border)] transition-colors group-hover:border-[var(--phosphor-green)]/30"
+                                style={{ color: getStatusColor(file.status) }}
+                              >
+                                {getFileIcon(file.file.type)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[13px] font-mono font-bold text-[var(--terminal-text)] truncate uppercase tracking-tight">
+                                  {file.file.name}
+                                </p>
+                                <div className="flex items-center gap-3 mt-1 text-[9px] font-mono uppercase tracking-widest text-[var(--terminal-text-muted)]">
+                                  <span>{formatFileSize(file.file.size)}</span>
+                                  <span className="w-1 h-1 rounded-full bg-[var(--terminal-border)]" />
+                                  <span className="flex items-center gap-1.5" style={{ color: getStatusColor(file.status) }}>
+                                    <span className={cn("w-1.5 h-1.5 rounded-full", file.status === 'processing' ? "animate-pulse" : "")} style={{ backgroundColor: getStatusColor(file.status) }} />
+                                    {file.currentStep}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              {file.status === 'completed' && (
+                                <CheckCircle className="w-4 h-4 text-[var(--phosphor-green)]" />
+                              )}
+                              {file.status === 'failed' && (
+                                <AlertTriangle className="w-4 h-4 text-[var(--error-red)]" />
+                              )}
+                              {(file.status === 'uploading' || file.status === 'processing') && (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[9px] font-mono text-[var(--cyan)] font-bold">{Math.round(file.progress)}%</span>
+                                  <Loader2 className="w-4 h-4 text-[var(--cyan)] animate-spin" />
+                                </div>
+                              )}
+                              {(file.status === 'pending' || file.status === 'failed') && (
+                                <button
+                                  onClick={() => removeFile(file.id)}
+                                  className="p-2 rounded-lg hover:bg-[var(--error-red)]/10 text-[var(--terminal-text-muted)] hover:text-[var(--error-red)] transition-colors border border-transparent hover:border-[var(--error-red)]/30"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Progress Line */}
+                          {(file.status === 'uploading' || file.status === 'processing') && (
+                            <div className="mt-4">
+                              <div className="h-0.5 w-full bg-[var(--terminal-border)] rounded-full overflow-hidden">
+                                <motion.div
+                                  className="h-full bg-gradient-to-r from-[var(--cyan)] to-[var(--phosphor-green)] shadow-[0_0_10px_var(--cyan)]"
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${file.progress}%` }}
+                                  transition={{ duration: 0.3 }}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Detail Panels (Success/Failure/Quality) */}
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {file.status === 'completed' && file.documentId && (
+                              <div className="px-2 py-1 rounded bg-[var(--phosphor-green)]/5 border border-[var(--phosphor-green)]/20 text-[8px] font-mono text-[var(--phosphor-green)] flex items-center gap-1.5 uppercase">
+                                <Database className="w-3 h-3" />
+                                NODE_ID: {file.documentId}
+                              </div>
+                            )}
+                            
+                            {file.qualityScore && (
+                              <div className="px-2 py-1 rounded bg-[var(--amber-gold)]/5 border border-[var(--amber-gold)]/20 text-[8px] font-mono text-[var(--amber-gold)] flex items-center gap-1.5 uppercase">
+                                <Sparkles className="w-3 h-3" />
+                                SCORE: {Math.round(file.qualityScore * 100)}%
+                              </div>
+                            )}
+
+                            {file.securityScan && (
+                              <div className={cn(
+                                "px-2 py-1 rounded border text-[8px] font-mono flex items-center gap-1.5 uppercase",
+                                file.securityScan.scan_status === 'passed' 
+                                  ? "bg-[var(--phosphor-green)]/5 border-[var(--phosphor-green)]/20 text-[var(--phosphor-green)]" 
+                                  : "bg-[var(--error-red)]/5 border-[var(--error-red)]/20 text-[var(--error-red)]"
+                              )}>
+                                <ShieldCheck className="w-3 h-3" />
+                                SCAN: {file.securityScan.scan_status}
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+
+          {/* Feature Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+            {[
+              {
+                icon: Cpu,
+                title: 'NEURAL_INGESTION',
+                desc: 'Automatic entity extraction and contextual linking',
+                color: 'var(--phosphor-green)',
+              },
+              {
+                icon: ShieldCheck,
+                title: 'ZERO_TRUST_SCAN',
+                desc: 'Payload validation and threat neutralizing protocols',
+                color: 'var(--amber-gold)',
+              },
+              {
+                icon: Network,
+                title: 'SEMANTIC_GRID',
+                desc: 'Node integration into distributed knowledge graph',
+                color: 'var(--cyan)',
+              },
+            ].map((feature, index) => (
+              <motion.div
+                key={feature.title}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 + (index * 0.1) }}
+                className="p-5 rounded-2xl bg-[var(--terminal-surface)] border border-[var(--terminal-border)] group hover:border-[var(--terminal-border-muted)] transition-all"
+              >
+                <div className="mb-4 p-2 w-fit rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)] transition-colors group-hover:border-[var(--phosphor-green)]/30" style={{ color: feature.color }}>
+                  <feature.icon className="w-5 h-5" />
+                </div>
+                <h3 className="font-mono text-[11px] font-bold text-[var(--terminal-text)] mb-2 uppercase tracking-widest">
+                  {feature.title}
+                </h3>
+                <p className="text-[10px] text-[var(--terminal-text-dim)] font-mono uppercase tracking-tight leading-relaxed">
+                  {feature.desc}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
       </div>
+
+      {/* Status Bar Footer */}
+      <footer className="border-t border-[var(--terminal-border)] bg-[var(--terminal-bg)]/90 backdrop-blur-sm p-2 shrink-0">
+        <div className="max-w-7xl mx-auto flex items-center justify-between text-[9px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5">
+              <span className={cn("w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)]", isUploading ? "animate-ping" : "")} />
+              {isUploading ? "TRANSMISSION_ACTIVE" : "TERMINAL_STANDBY"}
+            </span>
+            <span className="hidden sm:inline">BITRATE: 4.2 MBPS</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span>UPLINK: SECURE_TLS_1.3</span>
+            <span>BUILD: v2.0.1-INGEST</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
