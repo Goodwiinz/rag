@@ -64,6 +64,9 @@ export interface Folder {
   conversationIds: string[];
 }
 
+// Stable empty Set to avoid creating new instances on every render
+const EMPTY_SELECTION = new Set<string>();
+
 interface ConversationSidebarProps {
   conversations: Conversation[];
   activeConversationId?: string;
@@ -118,7 +121,7 @@ export function ConversationSidebar({
   onToggle,
   // Bulk selection props
   isSelectMode = false,
-  selectedIds = new Set(),
+  selectedIds = EMPTY_SELECTION,
   onToggleSelectMode,
   onToggleSelection,
   onSelectAll,
@@ -220,17 +223,21 @@ export function ConversationSidebar({
   const listContainerRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(400);
 
-  // Measure container height for virtualized list
+  // Measure container height for virtualized list using ResizeObserver
+  // More accurate than window.resize - catches sidebar, toolbar, font size changes
   React.useEffect(() => {
-    const updateHeight = () => {
-      if (listContainerRef.current) {
-        setContainerHeight(listContainerRef.current.clientHeight);
-      }
-    };
+    const container = listContainerRef.current;
+    if (!container) return;
 
-    updateHeight();
-    window.addEventListener('resize', updateHeight);
-    return () => window.removeEventListener('resize', updateHeight);
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const height = entry.contentRect.height;
+        setContainerHeight(height);
+      }
+    });
+
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
   }, []);
 
   // Callback for opening tag dialog from virtualized list

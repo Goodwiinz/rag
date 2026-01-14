@@ -12,7 +12,7 @@ from uuid import UUID
 # Add src directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from celery import current_app, Task
+from celery import current_app, Task, group
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -108,7 +108,10 @@ def summarize_thread_on_resolve_task(self, thread_id: str) -> None:
 @current_app.task(name="tasks.batch_summarize_threads")
 def batch_summarize_threads_task(thread_ids: list[str]) -> dict:
     """
-    Batch summarize multiple threads.
+    Batch summarize multiple threads in parallel.
+
+    Uses Celery group to dispatch all summarization tasks concurrently,
+    improving throughput and reducing total execution time.
 
     Args:
         thread_ids: List of thread UUIDs as strings
@@ -123,16 +126,27 @@ def batch_summarize_threads_task(thread_ids: list[str]) -> dict:
         "skipped": 0,
     }
 
-    for thread_id in thread_ids:
-        try:
-            summary = summarize_thread_task(thread_id, force=False)
-            if summary:
+    # Create parallel task group
+    job = group(
+        summarize_thread_task.s(thread_id, force=False)
+        for thread_id in thread_ids
+    )
+
+    try:
+        # Execute in parallel with 5 minute timeout
+        group_result = job.apply_async()
+        task_results = group_result.get(timeout=300)
+
+        # Aggregate results
+        for task_result in task_results:
+            if task_result:  # Summary was generated
                 results["success"] += 1
-            else:
+            else:  # Summary was skipped (e.g., already exists)
                 results["skipped"] += 1
-        except Exception as e:
-            logger.error(f"Batch summarization failed for {thread_id}: {e}")
-            results["failed"] += 1
+
+    except Exception as e:
+        logger.error(f"Batch summarization failed: {e}")
+        results["failed"] = len(thread_ids) - results["success"] - results["skipped"]
 
     logger.info(f"Batch summarization complete: {results}")
     return results

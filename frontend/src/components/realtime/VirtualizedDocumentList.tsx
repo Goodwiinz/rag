@@ -149,7 +149,7 @@ export const VirtualizedDocumentList: React.FC<VirtualizedDocumentListProps> = m
   threshold = 100,
   overscanCount = 5,
 }) => {
-  const listRef = useRef<List>(null);
+  const listRef = useRef<List<DocumentItemData>>(null);
   const itemCount = documents.length;
 
   // Memoize item data to prevent unnecessary re-renders

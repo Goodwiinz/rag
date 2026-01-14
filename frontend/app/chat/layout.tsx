@@ -399,7 +399,6 @@ function WorkspaceBar({
         <div className="flex items-center gap-3">
           {/* Connection Status */}
           <div className="hidden md:flex items-center gap-2 px-2.5 py-1.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)]">
-            <div className="w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)] signal-active" />
             <span className="text-[10px] text-[var(--terminal-text-dim)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
               CONNECTED
             </span>
@@ -442,36 +441,28 @@ function ConversationSidebar({
     collections: true,
   });
   const [isCreatingChat, setIsCreatingChat] = useState(false);
-  
+
   // Bulk operations state
-  const [isSelectMode, setIsSelectMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkOperating, setIsBulkOperating] = useState(false);
 
   const router = useRouter();
 
   // Get real conversations from chat store
   const { conversations: uiConversations, isLoading, isInitialized, currentThreadId, currentConversationId, selectConversation, createNewChat } = useChatPersistence();
-  
-  // Get bulk operations from chat store
-  const { 
-    toggleThreadSelection, 
-    selectAllThreads, 
+
+  // Get bulk operations from chat store (read directly from store, no duplication)
+  const {
+    toggleThreadSelection,
+    selectAllThreads,
     clearSelection,
     bulkResolveThreads,
     bulkArchiveThreads,
     bulkSummarizeThreads,
     bulkDeleteThreads,
-    selectedThreadIds,
-    isSelectMode: storeSelectMode,
+    selectedThreadIds: selectedIds,
+    isSelectMode,
     toggleSelectMode: storeToggleSelectMode,
   } = useChatStore();
-  
-  // Sync local state with store
-  useEffect(() => {
-    setIsSelectMode(storeSelectMode);
-    setSelectedIds(selectedThreadIds);
-  }, [storeSelectMode, selectedThreadIds]);
   
   // Bulk operation handlers
   const handleBulkResolve = async () => {

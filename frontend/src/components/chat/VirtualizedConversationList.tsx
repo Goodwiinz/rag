@@ -186,6 +186,9 @@ const ConversationItem = memo<{
   const lastMessage = conversation.messages[conversation.messages.length - 1];
   const messageCount = conversation.messages.length;
 
+  // Ref to prevent duplicate save calls (Enter + blur both trigger save)
+  const savingRef = useRef(false);
+
   const handleClick = useCallback(() => {
     if (isSelectMode && onToggleSelection) {
       onToggleSelection(conversation.id);
@@ -197,14 +200,24 @@ const ConversationItem = memo<{
   const handleRename = useCallback(() => {
     setEditingId(conversation.id);
     setEditingTitle(conversation.title);
+    savingRef.current = false; // Reset flag when starting rename
   }, [conversation.id, conversation.title, setEditingId, setEditingTitle]);
 
   const saveRename = useCallback(() => {
+    // Prevent duplicate calls (e.g., Enter key + blur)
+    if (savingRef.current) return;
+    savingRef.current = true;
+
     if (editingTitle.trim()) {
       onRename(conversation.id, editingTitle.trim());
     }
     setEditingId(null);
     setEditingTitle('');
+
+    // Reset flag after a short delay to allow next rename
+    setTimeout(() => {
+      savingRef.current = false;
+    }, 100);
   }, [conversation.id, editingTitle, onRename, setEditingId, setEditingTitle]);
 
   return (
@@ -490,7 +503,7 @@ export const VirtualizedConversationList = memo<VirtualizedConversationListProps
   onDuplicateConversation,
   onTagConversation,
 }) => {
-  const listRef = useRef<List>(null);
+  const listRef = useRef<List<ItemData>>(null);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editingTitle, setEditingTitle] = React.useState('');
 

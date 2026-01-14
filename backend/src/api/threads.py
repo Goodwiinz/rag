@@ -5,6 +5,7 @@ Provides REST endpoints for thread and message management.
 """
 
 import logging
+import threading
 import time
 from typing import Optional, List
 from uuid import UUID
@@ -45,24 +46,29 @@ router = APIRouter(prefix="/threads", tags=["Threads"])
 
 # Initialize rate limiter (uses Redis if available, falls back to in-memory)
 _rate_limiter = None
+_rate_limiter_lock = threading.Lock()
 
 
 def get_bulk_rate_limiter():
-    """Get or create the rate limiter instance."""
+    """Get or create the rate limiter instance (thread-safe)."""
     global _rate_limiter
+    # First check (without lock for performance)
     if _rate_limiter is None:
-        try:
-            import redis
+        with _rate_limiter_lock:
+            # Double-check inside lock to prevent race conditions
+            if _rate_limiter is None:
+                try:
+                    import redis
 
-            redis_client = redis.Redis.from_url(
-                settings.REDIS_URL or "redis://localhost:6379/0", decode_responses=True
-            )
-            redis_client.ping()
-            _rate_limiter = get_rate_limiter(redis_client)
-            logger.info("Bulk thread rate limiter initialized with Redis")
-        except Exception as e:
-            logger.warning(f"Redis unavailable for rate limiting, using in-memory: {e}")
-            _rate_limiter = get_rate_limiter(None)
+                    redis_client = redis.Redis.from_url(
+                        settings.REDIS_URL or "redis://localhost:6379/0", decode_responses=True
+                    )
+                    redis_client.ping()
+                    _rate_limiter = get_rate_limiter(redis_client)
+                    logger.info("Bulk thread rate limiter initialized with Redis")
+                except Exception as e:
+                    logger.warning(f"Redis unavailable for rate limiting, using in-memory: {e}")
+                    _rate_limiter = get_rate_limiter(None)
     return _rate_limiter
 
 
