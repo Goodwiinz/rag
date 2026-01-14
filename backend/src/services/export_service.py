@@ -432,7 +432,8 @@ class ExportService:
         query = (
             select(Thread)
             .options(
-                selectinload(Thread.messages).selectinload(ChatMessage.citations)
+                selectinload(Thread.messages).selectinload(ChatMessage.citations),
+                selectinload(Thread.conversation)  # Load conversation for ownership check
             )
             .where(Thread.id == thread_id)
         )
@@ -442,9 +443,20 @@ class ExportService:
         
         if not thread:
             return None
-        
-        # TODO: Add proper authorization check
-        # For now, we trust the user_id parameter
+
+        # Authorization check: Verify user owns the thread or has admin privileges
+        # Thread ownership is determined by:
+        # 1. User created the thread directly (thread.created_by_id == user_id)
+        # 2. User owns the parent conversation (conversation.created_by_id == user_id)
+        if str(thread.created_by_id) != user_id and str(thread.conversation.created_by_id) != user_id:
+            logger.warning(
+                "Unauthorized thread export attempt",
+                thread_id=thread_id,
+                user_id=user_id,
+                thread_owner=str(thread.created_by_id),
+                conversation_owner=str(thread.conversation.created_by_id)
+            )
+            return None
         
         # Convert to export schema
         messages = []

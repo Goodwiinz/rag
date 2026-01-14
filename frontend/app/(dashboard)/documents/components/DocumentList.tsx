@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
 export interface Document {
@@ -39,6 +40,7 @@ export function DocumentList({
   onDelete, 
   onRetry 
 }: DocumentListProps) {
+  const router = useRouter();
   
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 B';
@@ -89,8 +91,8 @@ export function DocumentList({
     <div className="space-y-2 overflow-x-auto pb-4">
       <div className="min-w-[600px]">
         {/* List Header */}
-        <div className="px-4 py-2 flex items-center gap-4 text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">
-          <div className="w-5">
+        <div className="px-4 py-2 grid grid-cols-[20px_40px_1fr_128px_112px_96px] items-center gap-4 text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">
+          <div className="w-5 flex justify-center">
             <button onClick={onSelectAll} className="hover:text-[var(--terminal-text)] transition-colors">
               {selectedDocuments.size > 0 && selectedDocuments.size === documents.length ? (
                 <CheckSquare className="w-4 h-4 text-[var(--phosphor-green)]" />
@@ -100,7 +102,7 @@ export function DocumentList({
             </button>
           </div>
           <div className="w-10 text-center">Type</div>
-          <div className="flex-1">Name / Info</div>
+          <div className="">Name / Info</div>
           <div className="w-32 hidden md:block">Date</div>
           <div className="w-28">Status</div>
           <div className="w-24 text-right">Actions</div>
@@ -143,13 +145,12 @@ export function DocumentList({
                 transition={{ delay: index * 0.03 }}
                 onClick={() => onSelect(doc.id)}
                 className={cn(
-                  "group relative rounded-xl border bg-[var(--terminal-surface)] px-4 py-3 transition-all cursor-pointer mb-2",
+                  "group relative rounded-xl border bg-[var(--terminal-surface)] px-4 py-3 transition-all cursor-pointer mb-2 grid grid-cols-[20px_40px_1fr_128px_112px_96px] items-center gap-4",
                   isSelected 
                     ? "border-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5" 
                     : "border-[var(--terminal-border)] hover:border-[var(--terminal-border-glow)] hover:shadow-lg hover:shadow-[var(--terminal-border-glow)]/10"
                 )}
               >
-                <div className="flex items-center gap-4">
                 {/* Checkbox */}
                 <div className="w-5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                   <button 
@@ -166,7 +167,7 @@ export function DocumentList({
                 </div>
 
                 {/* Main Info */}
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="font-mono text-sm font-bold text-[var(--terminal-text)] truncate group-hover:text-[var(--phosphor-green)] transition-colors">
                       {doc.title || doc.filename}
@@ -221,7 +222,7 @@ export function DocumentList({
                       title="View Details"
                       onClick={(e) => {
                         e.stopPropagation();
-                        window.location.href = `/documents/${doc.id}`;
+                        router.push(`/documents/${doc.id}`);
                       }}
                     >
                       <Eye className="w-3.5 h-3.5" />
@@ -236,9 +237,8 @@ export function DocumentList({
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                 </div>
-              </div>
-            </motion.div>
-          );
+              </motion.div>
+            );
         })
       )}
       </div>

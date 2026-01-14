@@ -5,7 +5,7 @@ import { useDocuments } from '@/hooks/useDocuments';
 import { Upload, RefreshCw, Folder } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState, useMemo } from 'react';
-import { Pagination } from '../components/Pagination';
+import { Pagination } from '../../components/Pagination';
 import { DocumentStats } from './components/DocumentStats';
 import { DocumentFilters } from './components/DocumentFilters';
 import { DocumentList } from './components/DocumentList';
@@ -102,8 +102,8 @@ export default function DocumentsPage() {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[var(--terminal-bg)] flex flex-col">
-      <div className="p-4 md:p-6 space-y-6 flex-1 overflow-y-auto terminal-scrollbar pb-20">
+    <div className="flex flex-col min-h-full bg-[var(--terminal-bg)]">
+      <div className="p-4 md:p-6 space-y-6 flex-1">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
