@@ -25,6 +25,11 @@ import { NeighborhoodExplorer } from '@/components/entities/NeighborhoodExplorer
 import { GraphAnalyticsDashboard } from '@/components/entities/GraphAnalyticsDashboard';
 import { EnhancedSearch } from '@/components/entities/EnhancedSearch';
 import { BulkOperations } from '@/components/entities/BulkOperations';
+import { DocumentEntityExtractor } from '@/components/entities/DocumentEntityExtractor';
+import { EntityMergeTool } from '@/components/entities/EntityMergeTool';
+import { GraphHealthMonitor } from '@/components/entities/GraphHealthMonitor';
+import { KeyboardShortcutsDialog } from '@/components/entities/KeyboardShortcutsDialog';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { Entity, EntityType, GraphEdge } from '@/types/entity';
 import { entityService, PaginatedEntitiesResponse } from '@/services/entityService';
 import { cn } from '@/lib/utils';
@@ -59,6 +64,7 @@ export default function EntityManagementPage() {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [relationshipDialogOpen, setRelationshipDialogOpen] = useState(false);
   const [sourceEntityId, setSourceEntityId] = useState<string | null>(null);
+  const [shortcutsDialogOpen, setShortcutsDialogOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   
   // Dynamic types from API
@@ -80,6 +86,8 @@ export default function EntityManagementPage() {
       setSelectedTypes(types.split(',') as EntityType[]);
     }
   }, []);
+
+
 
   // Update URL when state changes
   useEffect(() => {
@@ -343,6 +351,21 @@ export default function EntityManagementPage() {
 
   const totalPages = Math.ceil(totalEntities / pageSize);
 
+  // Keyboard shortcuts
+  useKeyboardShortcuts([
+    { key: 'n', ctrl: true, action: () => {  setSelectedEntity(null); setEditDialogOpen(true); }, description: 'Create new entity' },
+    { key: 'r', ctrl: true, action: () => { fetchEntities(); if (activeTab === 'graph') fetchRelationships(); }, description: 'Refresh data' },
+    { key: 'e', ctrl: true, shift: true, action: exportEntities, description: 'Export data' },
+    { key: 'g', action: () => setActiveTab('graph'), description: 'Toggle graph view' },
+    { key: 'a', action: () => setActiveTab('analytics'), description: 'Toggle analytics' },
+    { key: 'p', action: () => setActiveTab('pathfinder'), description: 'Open path finder' },
+    { key: 'b', action: () => setActiveTab('bulk'), description: 'Open bulk operations' },
+    { key: 'h', action: () => setActiveTab('health'), description: 'Open health monitor' },
+    { key: 'm', action: () => setActiveTab('merge'), description: 'Open merge tool' },
+    { key: 'd', action: () => setActiveTab('extractor'), description: 'Open document extractor' },
+    { key: '?', action: () => setShortcutsDialogOpen(true), description: 'Show keyboard shortcuts' },
+  ], mounted);
+
   if (!mounted) return null;
 
   return (
@@ -451,6 +474,15 @@ export default function EntityManagementPage() {
             </TabsTrigger>
             <TabsTrigger value="bulk" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
               BULK_OPS
+            </TabsTrigger>
+            <TabsTrigger value="extractor" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+              EXTRACTOR
+            </TabsTrigger>
+            <TabsTrigger value="merge" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+              MERGE
+            </TabsTrigger>
+            <TabsTrigger value="health" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+              HEALTH
             </TabsTrigger>
           </TabsList>
 
@@ -628,6 +660,21 @@ export default function EntityManagementPage() {
           <TabsContent value="bulk" className="mt-0 outline-none">
             <BulkOperations />
           </TabsContent>
+
+          {/* Document Entity Extractor Tab */}
+          <TabsContent value="extractor" className="mt-0 outline-none">
+            <DocumentEntityExtractor />
+          </TabsContent>
+
+          {/* Entity Merge Tool Tab */}
+          <TabsContent value="merge" className="mt-0 outline-none">
+            <EntityMergeTool />
+          </TabsContent>
+
+          {/* Graph Health Monitor Tab */}
+          <TabsContent value="health" className="mt-0 outline-none">
+            <GraphHealthMonitor />
+          </TabsContent>
         </Tabs>
       </div>
 
@@ -716,6 +763,12 @@ export default function EntityManagementPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Keyboard Shortcuts Dialog */}
+      <KeyboardShortcutsDialog
+        open={shortcutsDialogOpen}
+        onOpenChange={setShortcutsDialogOpen}
+      />
     </div>
   );
 }
