@@ -34,9 +34,9 @@
 
 **CRITICAL**: These foundational tasks enable authorization and API reliability across all features
 
-- [ ] T001 [US-ALL] Add API retry utility `withRetry<T>()` in `frontend/src/services/entityService.ts`
-- [ ] T002 [P] [US-ALL] Create authorization utility hook in `frontend/src/hooks/useEntityPermissions.ts`
-- [ ] T003 [P] [US-ALL] Add new TypeScript types (DuplicateCheckResult, EntityPermissions, EntityTypeOption) in `frontend/src/types/entity.ts`
+- [X] T001 [US-ALL] Add API retry utility `withRetry<T>()` in `frontend/src/services/entityService.ts`
+- [X] T002 [P] [US-ALL] Create authorization utility hook in `frontend/src/hooks/useEntityPermissions.ts`
+- [X] T003 [P] [US-ALL] Add new TypeScript types (DuplicateCheckResult, EntityPermissions, EntityTypeOption) in `frontend/src/types/entity.ts`
 
 **Checkpoint**: Foundation ready - authorization and retry logic available for all user stories
 
@@ -50,13 +50,13 @@
 
 ### Implementation for User Story 1
 
-- [ ] T004 [US1] Add admin check to "Create Entity" button in `frontend/app/entities/page.tsx`
-- [ ] T005 [US1] Implement duplicate detection in `frontend/src/components/entities/EntityForm.tsx`
+- [X] T004 [US1] Add admin check to "Create Entity" button in `frontend/app/entities/page.tsx`
+- [X] T005 [US1] Implement duplicate detection in `frontend/src/components/entities/EntityForm.tsx`
   - Add `checkForDuplicates(name, type)` function using `entityService.searchEntities()`
   - Show warning dialog when duplicate found
   - Allow force-create with auto-suffix option
-- [ ] T006 [US1] Add required type validation (prevent null types) in EntityForm submit handler
-- [ ] T007 [US1] Apply retry wrapper to `createEntity()` in `frontend/src/services/entityService.ts`
+- [X] T006 [US1] Add required type validation (prevent null types) in EntityForm submit handler
+- [X] T007 [US1] Apply retry wrapper to `createEntity()` in `frontend/src/services/entityService.ts`
 
 **Acceptance Criteria**:
 - [x] Entity creation form exists (already implemented)
@@ -77,9 +77,9 @@
 
 ### Implementation for User Story 2
 
-- [ ] T008 [US2] Add admin check to "Add Relationship" button in `frontend/src/components/entities/EntityDetail.tsx`
-- [ ] T009 [US2] Disable relationship form for non-admin users in `frontend/src/components/entities/RelationshipForm.tsx`
-- [ ] T010 [US2] Apply retry wrapper to `createRelationship()` in `frontend/src/services/entityService.ts`
+- [X] T008 [US2] Add admin check to "Add Relationship" button in `frontend/src/components/entities/EntityDetail.tsx`
+- [X] T009 [US2] Disable relationship form for non-admin users in `frontend/src/components/entities/RelationshipForm.tsx`
+- [X] T010 [US2] Apply retry wrapper to `createRelationship()` in `frontend/src/services/entityService.ts`
 - [ ] T011 [US2] Ensure bidirectional display in entity detail views (verify FR-008)
 
 **Acceptance Criteria**:
@@ -100,11 +100,11 @@
 
 ### Implementation for User Story 3
 
-- [ ] T012 [US3] Add type counts to filter options in `frontend/src/components/entities/EntityFilters.tsx`
+- [X] T012 [US3] Add type counts to filter options in `frontend/src/components/entities/EntityFilters.tsx`
   - Fetch counts from `graphAnalyticsService.getAnalytics().entity_type_distribution`
   - Display count next to each type option (e.g., "PERSON (1,234)")
-- [ ] T013 [US3] Add search/filter input within type dropdown for large type sets (FR-028)
-- [ ] T014 [P] [US3] Apply retry wrapper to `getEntityTypes()` in `frontend/src/services/entityService.ts`
+- [X] T013 [US3] Add search/filter input within type dropdown for large type sets (FR-028)
+- [X] T014 [P] [US3] Apply retry wrapper to `getEntityTypes()` in `frontend/src/services/entityService.ts`
 
 **Acceptance Criteria**:
 - [x] Dynamic type filters from API (already implemented)
@@ -124,10 +124,10 @@
 
 ### Implementation for User Story 4
 
-- [ ] T015 [US4] Add "Unknown Type" filter option in `frontend/src/components/entities/EntityFilters.tsx`
+- [X] T015 [US4] Add "Unknown Type" filter option in `frontend/src/components/entities/EntityFilters.tsx`
   - Add special filter value `__null__` for null type entities
   - Calculate null type count from analytics (total - sum of known types)
-- [ ] T016 [US4] Handle null type filter in page query logic in `frontend/app/entities/page.tsx`
+- [X] T016 [US4] Handle null type filter in page query logic in `frontend/app/entities/page.tsx`
   - When `__null__` selected, filter client-side for `entity_type === null || entity_type === ''`
 - [ ] T017 [US4] Verify bulk type assignment works via existing BulkOperations component
 
@@ -150,7 +150,7 @@
 ### Implementation for User Story 5
 
 - [ ] T018 [US5] Verify PathFinder component integration in `frontend/app/entities/page.tsx`
-- [ ] T019 [US5] Apply retry wrapper to `findPaths()` in `frontend/src/services/entityService.ts`
+- [X] T019 [US5] Apply retry wrapper to `findPaths()` in `frontend/src/services/entityService.ts`
 - [ ] T020 [US5] Ensure clickable entities in path results navigate to entity detail
 
 **Acceptance Criteria**:
@@ -172,7 +172,7 @@
 ### Implementation for User Story 6
 
 - [ ] T021 [US6] Verify NeighborhoodExplorer depth slider (1-3 levels) works correctly
-- [ ] T022 [US6] Apply retry wrapper to `getNeighborhood()` in `frontend/src/services/entityService.ts`
+- [X] T022 [US6] Apply retry wrapper to `getNeighborhood()` in `frontend/src/services/entityService.ts`
 - [ ] T023 [US6] Ensure clicking related entity makes it the new exploration center
 
 **Acceptance Criteria**:
@@ -194,8 +194,8 @@
 ### Implementation for User Story 7
 
 - [ ] T024 [US7] Verify GraphAnalyticsDashboard displays all required metrics (FR-016 to FR-019)
-- [ ] T025 [US7] Apply retry wrapper to `getAnalytics()` in `frontend/src/services/entityService.ts`
-- [ ] T026 [US7] Add click handler to entity type distribution to filter entity list by that type
+- [X] T025 [US7] Apply retry wrapper to `getAnalytics()` in `frontend/src/services/entityService.ts`
+- [X] T026 [US7] Add click handler to entity type distribution to filter entity list by that type
 
 **Acceptance Criteria**:
 - [x] GraphAnalyticsDashboard component exists (already implemented)

@@ -96,7 +96,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
 
   // Special filter for null/unknown types
   const SPECIAL_FILTERS = [
-    { value: '__null__', label: 'Unknown/Null Type', isSpecial: true }
+    { value: '__null__', label: 'Unknown Type', isSpecial: true }
   ];
 
   // Use available types from props or fall back to defaults
