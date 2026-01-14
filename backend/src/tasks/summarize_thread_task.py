@@ -10,7 +10,7 @@ from typing import Optional
 from uuid import UUID
 
 # Add src directory to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from celery import current_app, Task
 from sqlalchemy import create_engine
@@ -30,7 +30,7 @@ class SummarizationTask(Task):
     """Base class for summarization tasks with error handling."""
 
     autoretry_for = (Exception,)
-    retry_kwargs = {'max_retries': 3, 'countdown': 5}
+    retry_kwargs = {"max_retries": 3, "countdown": 5}
     retry_backoff = True
 
     def on_success(self, retval, task_id, args, kwargs):
@@ -46,7 +46,7 @@ class SummarizationTask(Task):
         logger.warning(f"Summarization task {task_id} retrying: {str(exc)}")
 
 
-@current_app.task(base=SummarizationTask, bind=True, name='tasks.summarize_thread')
+@current_app.task(base=SummarizationTask, bind=True, name="tasks.summarize_thread")
 def summarize_thread_task(self, thread_id: str, force: bool = False) -> Optional[str]:
     """
     Celery task to generate summary for a thread.
@@ -69,15 +69,15 @@ def summarize_thread_task(self, thread_id: str, force: bool = False) -> Optional
             return None
 
         # Import service here to avoid circular imports
-        from src.services.thread_summarization_service import get_thread_summarization_service
+        from src.services.thread_summarization_service import (
+            get_thread_summarization_service,
+        )
 
         service = get_thread_summarization_service(db)
 
         # Run async summary generation using asyncio.run()
         # This properly handles event loop lifecycle (creation, running, cleanup)
-        summary = asyncio.run(
-            service.generate_summary(thread_uuid, force=force)
-        )
+        summary = asyncio.run(service.generate_summary(thread_uuid, force=force))
 
         if summary:
             logger.info(f"Generated summary for thread {thread_id}: {summary[:50]}...")
@@ -93,17 +93,19 @@ def summarize_thread_task(self, thread_id: str, force: bool = False) -> Optional
         db.close()
 
 
-@current_app.task(base=SummarizationTask, bind=True, name='tasks.summarize_thread_on_resolve')
-def summarize_thread_on_resolve_task(self, thread_id: str) -> Optional[str]:
+@current_app.task(
+    base=SummarizationTask, bind=True, name="tasks.summarize_thread_on_resolve"
+)
+def summarize_thread_on_resolve_task(self, thread_id: str) -> None:
     """
     Generate final summary when thread is resolved.
 
     Always generates summary regardless of rate limit.
     """
-    return summarize_thread_task(thread_id, force=True)
+    summarize_thread_task.delay(thread_id, force=True)
 
 
-@current_app.task(name='tasks.batch_summarize_threads')
+@current_app.task(name="tasks.batch_summarize_threads")
 def batch_summarize_threads_task(thread_ids: list[str]) -> dict:
     """
     Batch summarize multiple threads.
@@ -115,22 +117,22 @@ def batch_summarize_threads_task(thread_ids: list[str]) -> dict:
         Dict with success/failure counts
     """
     results = {
-        'total': len(thread_ids),
-        'success': 0,
-        'failed': 0,
-        'skipped': 0,
+        "total": len(thread_ids),
+        "success": 0,
+        "failed": 0,
+        "skipped": 0,
     }
 
     for thread_id in thread_ids:
         try:
             summary = summarize_thread_task(thread_id, force=False)
             if summary:
-                results['success'] += 1
+                results["success"] += 1
             else:
-                results['skipped'] += 1
+                results["skipped"] += 1
         except Exception as e:
             logger.error(f"Batch summarization failed for {thread_id}: {e}")
-            results['failed'] += 1
+            results["failed"] += 1
 
     logger.info(f"Batch summarization complete: {results}")
     return results

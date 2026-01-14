@@ -15,6 +15,7 @@ from celery.exceptions import Retry
 
 import sys
 from pathlib import Path
+
 backend_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(backend_dir))
 
@@ -49,17 +50,25 @@ class TestSummarizeThreadTask:
         """Test successful thread summarization"""
         thread_id = str(uuid4())
 
-        with patch('src.tasks.summarize_thread_task.SessionLocal', return_value=mock_db_session):
+        with patch(
+            "src.tasks.summarize_thread_task.SessionLocal", return_value=mock_db_session
+        ):
             mock_db_session.query.return_value.filter.return_value.first.return_value = mock_thread
 
-            with patch('src.tasks.summarize_thread_task.get_thread_summarization_service') as mock_get_service:
+            with patch(
+                "src.tasks.summarize_thread_task.get_thread_summarization_service"
+            ) as mock_get_service:
                 mock_service = Mock()
-                mock_service.generate_summary = AsyncMock(return_value="Generated summary")
+                mock_service.generate_summary = AsyncMock(
+                    return_value="Generated summary"
+                )
                 mock_get_service.return_value = mock_service
 
-                with patch('asyncio.new_event_loop') as mock_loop:
+                with patch("asyncio.new_event_loop") as mock_loop:
                     mock_event_loop = Mock()
-                    mock_event_loop.run_until_complete = Mock(return_value="Generated summary")
+                    mock_event_loop.run_until_complete = Mock(
+                        return_value="Generated summary"
+                    )
                     mock_event_loop.close = Mock()
                     mock_loop.return_value = mock_event_loop
 
@@ -79,7 +88,9 @@ class TestSummarizeThreadTask:
         """Test summarization when thread not found"""
         thread_id = str(uuid4())
 
-        with patch('src.tasks.summarize_thread_task.SessionLocal', return_value=mock_db_session):
+        with patch(
+            "src.tasks.summarize_thread_task.SessionLocal", return_value=mock_db_session
+        ):
             mock_db_session.query.return_value.filter.return_value.first.return_value = None
 
             from src.tasks.summarize_thread_task import summarize_thread_task
@@ -90,21 +101,29 @@ class TestSummarizeThreadTask:
             assert result is None
             mock_db_session.close.assert_called_once()
 
-    def test_summarize_thread_force_bypasses_rate_limit(self, mock_db_session, mock_thread):
+    def test_summarize_thread_force_bypasses_rate_limit(
+        self, mock_db_session, mock_thread
+    ):
         """Test that force=True bypasses rate limiting"""
         thread_id = str(uuid4())
 
-        with patch('src.tasks.summarize_thread_task.SessionLocal', return_value=mock_db_session):
+        with patch(
+            "src.tasks.summarize_thread_task.SessionLocal", return_value=mock_db_session
+        ):
             mock_db_session.query.return_value.filter.return_value.first.return_value = mock_thread
 
-            with patch('src.tasks.summarize_thread_task.get_thread_summarization_service') as mock_get_service:
+            with patch(
+                "src.tasks.summarize_thread_task.get_thread_summarization_service"
+            ) as mock_get_service:
                 mock_service = Mock()
                 mock_service.generate_summary = AsyncMock(return_value="Forced summary")
                 mock_get_service.return_value = mock_service
 
-                with patch('asyncio.new_event_loop') as mock_loop:
+                with patch("asyncio.new_event_loop") as mock_loop:
                     mock_event_loop = Mock()
-                    mock_event_loop.run_until_complete = Mock(return_value="Forced summary")
+                    mock_event_loop.run_until_complete = Mock(
+                        return_value="Forced summary"
+                    )
                     mock_event_loop.close = Mock()
                     mock_loop.return_value = mock_event_loop
 
@@ -125,16 +144,19 @@ class TestSummarizeOnResolveTask:
         """Test that on_resolve task calls with force=True"""
         thread_id = str(uuid4())
 
-        with patch('src.tasks.summarize_thread_task.summarize_thread_task') as mock_summarize:
-            mock_summarize.return_value = "Summary on resolve"
+        with patch(
+            "src.tasks.summarize_thread_task.summarize_thread_task"
+        ) as mock_summarize:
+            # Mock delay method
+            mock_summarize.delay = Mock()
 
             from src.tasks.summarize_thread_task import summarize_thread_on_resolve_task
 
             task = Mock()
-            result = summarize_thread_on_resolve_task(task, thread_id)
+            summarize_thread_on_resolve_task(task, thread_id)
 
-            # Should call summarize_thread_task with force=True
-            mock_summarize.assert_called_once_with(thread_id, force=True)
+            # Should call summarize_thread_task.delay with force=True
+            mock_summarize.delay.assert_called_once_with(thread_id, force=True)
 
 
 class TestBatchSummarizeTask:
@@ -144,7 +166,9 @@ class TestBatchSummarizeTask:
         """Test batch summarization with all successes"""
         thread_ids = [str(uuid4()) for _ in range(3)]
 
-        with patch('src.tasks.summarize_thread_task.summarize_thread_task') as mock_summarize:
+        with patch(
+            "src.tasks.summarize_thread_task.summarize_thread_task"
+        ) as mock_summarize:
             mock_summarize.return_value = "Generated summary"
 
             from src.tasks.summarize_thread_task import batch_summarize_threads_task
@@ -160,7 +184,9 @@ class TestBatchSummarizeTask:
         """Test batch summarization with some threads skipped (no summary needed)"""
         thread_ids = [str(uuid4()) for _ in range(3)]
 
-        with patch('src.tasks.summarize_thread_task.summarize_thread_task') as mock_summarize:
+        with patch(
+            "src.tasks.summarize_thread_task.summarize_thread_task"
+        ) as mock_summarize:
             # First returns summary, second and third return None (skipped)
             mock_summarize.side_effect = ["Summary 1", None, None]
 
@@ -177,7 +203,9 @@ class TestBatchSummarizeTask:
         """Test batch summarization with some failures"""
         thread_ids = [str(uuid4()) for _ in range(3)]
 
-        with patch('src.tasks.summarize_thread_task.summarize_thread_task') as mock_summarize:
+        with patch(
+            "src.tasks.summarize_thread_task.summarize_thread_task"
+        ) as mock_summarize:
             # First succeeds, second throws, third succeeds
             mock_summarize.side_effect = [
                 "Summary 1",
@@ -212,21 +240,21 @@ class TestSummarizationTaskClass:
         """Test that task has autoretry configuration"""
         from src.tasks.summarize_thread_task import SummarizationTask
 
-        assert hasattr(SummarizationTask, 'autoretry_for')
+        assert hasattr(SummarizationTask, "autoretry_for")
         assert SummarizationTask.autoretry_for == (Exception,)
 
     def test_task_has_retry_kwargs(self):
         """Test that task has retry configuration"""
         from src.tasks.summarize_thread_task import SummarizationTask
 
-        assert hasattr(SummarizationTask, 'retry_kwargs')
-        assert SummarizationTask.retry_kwargs['max_retries'] == 3
+        assert hasattr(SummarizationTask, "retry_kwargs")
+        assert SummarizationTask.retry_kwargs["max_retries"] == 3
 
     def test_task_has_retry_backoff(self):
         """Test that task uses exponential backoff"""
         from src.tasks.summarize_thread_task import SummarizationTask
 
-        assert hasattr(SummarizationTask, 'retry_backoff')
+        assert hasattr(SummarizationTask, "retry_backoff")
         assert SummarizationTask.retry_backoff is True
 
     def test_on_success_callback(self):
@@ -269,7 +297,9 @@ class TestTaskErrorHandling:
         """Test that database session is closed even on exception"""
         thread_id = str(uuid4())
 
-        with patch('src.tasks.summarize_thread_task.SessionLocal', return_value=mock_db_session):
+        with patch(
+            "src.tasks.summarize_thread_task.SessionLocal", return_value=mock_db_session
+        ):
             mock_db_session.query.side_effect = Exception("DB Error")
 
             from src.tasks.summarize_thread_task import summarize_thread_task
@@ -286,7 +316,9 @@ class TestTaskErrorHandling:
         """Test task handles invalid UUID gracefully"""
         invalid_thread_id = "not-a-uuid"
 
-        with patch('src.tasks.summarize_thread_task.SessionLocal', return_value=mock_db_session):
+        with patch(
+            "src.tasks.summarize_thread_task.SessionLocal", return_value=mock_db_session
+        ):
             from src.tasks.summarize_thread_task import summarize_thread_task
 
             task = Mock()

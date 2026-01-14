@@ -548,8 +548,6 @@ async def regenerate_thread_summary(
     summarization_service = get_thread_summarization_service(db)
 
     try:
-        import asyncio
-
         summary = await summarization_service.generate_summary(thread_id, force=True)
 
         if summary:
@@ -561,7 +559,7 @@ async def regenerate_thread_summary(
         logger.error(f"Summary regeneration failed for thread {thread_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Summary generation failed: {str(e)}",
+            detail="Summary generation failed",
         )
 
     # Refresh thread to get updated summary
