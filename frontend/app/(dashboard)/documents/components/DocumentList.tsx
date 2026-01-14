@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
-import { 
-  FileText, CheckSquare, Square, Search, Sparkles, CheckCircle, 
-  RefreshCw, AlertTriangle, Clock, RotateCcw, Eye, Trash2 
+import {
+  FileText, CheckSquare, Square, Search, Sparkles, CheckCircle,
+  RefreshCw, AlertTriangle, Clock, RotateCcw, Eye, Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -86,69 +86,70 @@ export function DocumentList({
   };
 
   return (
-    <div className="space-y-2">
-      {/* List Header */}
-      <div className="px-4 py-2 flex items-center gap-4 text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">
-        <div className="w-5">
-          <button onClick={onSelectAll} className="hover:text-[var(--terminal-text)] transition-colors">
-            {selectedDocuments.size > 0 && selectedDocuments.size === documents.length ? (
-              <CheckSquare className="w-4 h-4 text-[var(--phosphor-green)]" />
-            ) : (
-              <Square className="w-4 h-4" />
-            )}
-          </button>
-        </div>
-        <div className="w-10 text-center">Type</div>
-        <div className="flex-1">Name / Info</div>
-        <div className="w-32 hidden md:block">Date</div>
-        <div className="w-28">Status</div>
-        <div className="w-24 text-right">Actions</div>
-      </div>
-
-      {loading && documents.length === 0 ? (
-        <div className="space-y-3">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-20 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] animate-pulse" />
-          ))}
-        </div>
-      ) : documents.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 border border-dashed border-[var(--terminal-border)] rounded-b-xl bg-[var(--terminal-surface)]/30 group">
-          <div className="w-16 h-16 rounded-2xl bg-[var(--terminal-elevated)] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-            <Search className="w-8 h-8 text-[var(--terminal-text-muted)]" />
-          </div>
-          <h3 className="text-[var(--terminal-text)] font-mono font-bold mb-2">NO DOCUMENTS FOUND</h3>
-          <p className="text-[var(--terminal-text-dim)] font-mono text-xs max-w-sm text-center mb-6">
-            No documents match your current filters. Try adjusting your search criteria or upload new files.
-          </p>
-          <Link 
-            href="/documents/upload"
-            className="px-4 py-2 rounded-lg bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] text-[var(--terminal-text)] font-mono text-xs hover:border-[var(--phosphor-green)] hover:text-[var(--phosphor-green)] transition-all"
-          >
-            UPLOAD NEW FILE
-          </Link>
-        </div>
-      ) : (
-        documents.map((doc, index) => {
-          const fileType = getFileTypeIcon(doc.file_type);
-          const status = getStatusConfig(doc.processing_status);
-          const StatusIcon = status.icon;
-          const isSelected = selectedDocuments.has(doc.id);
-
-          return (
-            <motion.div
-              key={doc.id}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.03 }}
-              onClick={() => onSelect(doc.id)}
-              className={cn(
-                "group relative rounded-xl border bg-[var(--terminal-surface)] px-4 py-3 transition-all cursor-pointer",
-                isSelected 
-                  ? "border-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5" 
-                  : "border-[var(--terminal-border)] hover:border-[var(--terminal-border-glow)] hover:shadow-lg hover:shadow-[var(--terminal-border-glow)]/10"
+    <div className="space-y-2 overflow-x-auto pb-4">
+      <div className="min-w-[600px]">
+        {/* List Header */}
+        <div className="px-4 py-2 flex items-center gap-4 text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">
+          <div className="w-5">
+            <button onClick={onSelectAll} className="hover:text-[var(--terminal-text)] transition-colors">
+              {selectedDocuments.size > 0 && selectedDocuments.size === documents.length ? (
+                <CheckSquare className="w-4 h-4 text-[var(--phosphor-green)]" />
+              ) : (
+                <Square className="w-4 h-4" />
               )}
+            </button>
+          </div>
+          <div className="w-10 text-center">Type</div>
+          <div className="flex-1">Name / Info</div>
+          <div className="w-32 hidden md:block">Date</div>
+          <div className="w-28">Status</div>
+          <div className="w-24 text-right">Actions</div>
+        </div>
+
+        {loading && documents.length === 0 ? (
+          <div className="space-y-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-20 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] animate-pulse" />
+            ))}
+          </div>
+        ) : documents.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 border border-dashed border-[var(--terminal-border)] rounded-b-xl bg-[var(--terminal-surface)]/30 group">
+            <div className="w-16 h-16 rounded-2xl bg-[var(--terminal-elevated)] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+              <Search className="w-8 h-8 text-[var(--terminal-text-muted)]" />
+            </div>
+            <h3 className="text-[var(--terminal-text)] font-mono font-bold mb-2">NO DOCUMENTS FOUND</h3>
+            <p className="text-[var(--terminal-text-dim)] font-mono text-xs max-w-sm text-center mb-6">
+              No documents match your current filters. Try adjusting your search criteria or upload new files.
+            </p>
+            <Link 
+              href="/documents/upload"
+              className="px-4 py-2 rounded-lg bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] text-[var(--terminal-text)] font-mono text-xs hover:border-[var(--phosphor-green)] hover:text-[var(--phosphor-green)] transition-all"
             >
-              <div className="flex items-center gap-4">
+              UPLOAD NEW FILE
+            </Link>
+          </div>
+        ) : (
+          documents.map((doc, index) => {
+            const fileType = getFileTypeIcon(doc.file_type);
+            const status = getStatusConfig(doc.processing_status);
+            const StatusIcon = status.icon;
+            const isSelected = selectedDocuments.has(doc.id);
+
+            return (
+              <motion.div
+                key={doc.id}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.03 }}
+                onClick={() => onSelect(doc.id)}
+                className={cn(
+                  "group relative rounded-xl border bg-[var(--terminal-surface)] px-4 py-3 transition-all cursor-pointer mb-2",
+                  isSelected 
+                    ? "border-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5" 
+                    : "border-[var(--terminal-border)] hover:border-[var(--terminal-border-glow)] hover:shadow-lg hover:shadow-[var(--terminal-border-glow)]/10"
+                )}
+              >
+                <div className="flex items-center gap-4">
                 {/* Checkbox */}
                 <div className="w-5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                   <button 
@@ -213,16 +214,18 @@ export function DocumentList({
                         <RotateCcw className="w-3.5 h-3.5" />
                       </Button>
                     )}
-                    <Link href={`/documents/${doc.id}`} passHref>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)]"
-                        title="View Details"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </Button>
-                    </Link>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)]"
+                      title="View Details"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.location.href = `/documents/${doc.id}`;
+                      }}
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -238,6 +241,7 @@ export function DocumentList({
           );
         })
       )}
+      </div>
     </div>
   );
 }
