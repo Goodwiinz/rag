@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Save, X, Plus, Trash2 } from 'lucide-react';
+import { Save, X, Plus, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,7 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Entity, EntityType } from '@/types/entity';
+import { entityService } from '@/services/entityService';
+import toast from 'react-hot-toast';
 
 interface EntityFormProps {
   entity?: Entity | null;
@@ -57,6 +60,8 @@ export const EntityForm: React.FC<EntityFormProps> = ({
   });
 
   const [metadataFields, setMetadataFields] = useState<MetadataField[]>([]);
+  const [duplicateWarning, setDuplicateWarning] = useState<{ show: boolean; entities: Entity[]; suggestedName: string } | null>(null);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
 
   useEffect(() => {
     if (entity) {
@@ -91,9 +96,50 @@ export const EntityForm: React.FC<EntityFormProps> = ({
     }
   }, [entity]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  /**
+   * Check for duplicate entities with the same name and type
+   */
+  const checkForDuplicates = async (name: string, type: EntityType): Promise<Entity[]> => {
+    try {
+      const existing = await entityService.searchEntities(name, [type], 5);
+      return existing.filter(e =>
+        e.name.toLowerCase() === name.toLowerCase() && e.type === type
+      );
+    } catch (error) {
+      console.error('Error checking for duplicates:', error);
+      return [];
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validation: require name and type
+    if (!formData.name.trim()) {
+      toast.error('Entity name is required');
+      return;
+    }
+
+    if (!formData.type) {
+      toast.error('Entity type is required');
+      return;
+    }
+
+    // Check for duplicates only when creating new entities (not editing)
+    if (!entity) {
+      setIsCheckingDuplicate(true);
+      const duplicates = await checkForDuplicates(formData.name, formData.type);
+      setIsCheckingDuplicate(false);
+
+      if (duplicates.length > 0) {
+        // Generate suggested name with suffix
+        const suggestedName = `${formData.name} (2)`;
+        setDuplicateWarning({ show: true, entities: duplicates, suggestedName });
+        return; // Stop submission and show warning dialog
+      }
+    }
+
+    // Build the final data object
     const properties: Record<string, any> = {};
     metadataFields.forEach(field => {
       if (field.value) {
@@ -129,6 +175,24 @@ export const EntityForm: React.FC<EntityFormProps> = ({
     };
 
     onSubmit(data);
+  };
+
+  /**
+   * Force create with the suggested name suffix
+   */
+  const handleForceCreate = () => {
+    if (duplicateWarning) {
+      setFormData(prev => ({ ...prev, name: duplicateWarning.suggestedName }));
+      setDuplicateWarning(null);
+      toast.success(`Entity name changed to "${duplicateWarning.suggestedName}"`);
+    }
+  };
+
+  /**
+   * Cancel duplicate warning and go back to editing
+   */
+  const handleCancelDuplicate = () => {
+    setDuplicateWarning(null);
   };
 
   const addMetadataField = () => {
@@ -170,6 +234,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
   };
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -364,11 +429,63 @@ export const EntityForm: React.FC<EntityFormProps> = ({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit">
-          <Save className="h-4 w-4 mr-2" />
-          {entity ? 'Update Entity' : 'Create Entity'}
+        <Button type="submit" disabled={isCheckingDuplicate}>
+          {isCheckingDuplicate ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Checking...
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4 mr-2" />
+              {entity ? 'Update Entity' : 'Create Entity'}
+            </>
+          )}
         </Button>
       </div>
     </form>
+
+      {/* Duplicate Warning Dialog */}
+      {duplicateWarning && (
+        <Dialog open={duplicateWarning.show} onOpenChange={() => setDuplicateWarning(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-amber-500">
+                <AlertTriangle className="h-5 w-5" />
+                Duplicate Entity Warning
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                An entity with the name <strong>{formData.name}</strong> and type <strong>{formData.type}</strong> already exists:
+              </p>
+              <div className="space-y-2">
+                {duplicateWarning.entities.map((dup) => (
+                  <Card key={dup.id} className="p-3">
+                    <div className="text-sm">
+                      <div className="font-medium">{dup.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Type: {dup.type} • Created: {new Date(dup.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+              <p className="text-sm">
+                Would you like to create anyway with the name <strong>{duplicateWarning.suggestedName}</strong>?
+              </p>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={handleCancelDuplicate}>
+                Cancel
+              </Button>
+              <Button onClick={handleForceCreate}>
+                Create as "{duplicateWarning.suggestedName}"
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 };

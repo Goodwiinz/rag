@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { entityService } from '@/services/entityService';
+import { EntityType } from '@/types/entity';
 import toast from 'react-hot-toast';
 
 interface EntityTypeDistribution {
@@ -47,25 +49,38 @@ interface GraphAnalytics {
   timestamp: string;
 }
 
-export const GraphAnalyticsDashboard: React.FC = () => {
+interface GraphAnalyticsDashboardProps {
+  onTypeClick?: (entityType: EntityType) => void;
+}
+
+export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = ({ onTypeClick }) => {
   const [analytics, setAnalytics] = useState<GraphAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/knowledge-graph/analytics', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch analytics');
-      }
-
-      const data = await response.json();
-      setAnalytics(data);
+      const data = await entityService.getAnalytics();
+      
+      // Convert backend format to component format
+      const formattedData: GraphAnalytics = {
+        total_entities: data.total_entities,
+        total_relationships: data.total_relationships,
+        entity_type_distribution: Object.entries(data.entity_type_distribution || {}).map(
+          ([entity_type, count]) => ({ entity_type, count: count as number })
+        ),
+        relationship_type_distribution: Object.entries(data.relationship_type_distribution || {}).map(
+          ([relationship_type, count]) => ({ relationship_type, count: count as number })
+        ),
+        average_degree: data.average_connections || 0,
+        graph_density: 0, // Calculate if needed
+        top_entities_by_degree: [],
+        isolated_entities_count: data.orphan_entities || 0,
+        avg_confidence_score: 0.8, // Default
+        timestamp: new Date().toISOString(),
+      };
+      
+      setAnalytics(formattedData);
     } catch (error) {
       console.error('Error fetching analytics:', error);
       toast.error('Failed to fetch graph analytics');
@@ -240,9 +255,14 @@ export const GraphAnalyticsDashboard: React.FC = () => {
             {topEntityTypes.map((item) => {
               const percentage = (item.count / analytics.total_entities) * 100;
               return (
-                <div key={item.entity_type} className="space-y-1">
+                <button
+                  key={item.entity_type}
+                  onClick={() => onTypeClick?.(item.entity_type as EntityType)}
+                  className="w-full space-y-1 text-left hover:bg-[var(--terminal-elevated)] p-2 rounded-md transition-colors cursor-pointer"
+                  title={`Click to filter by ${item.entity_type}`}
+                >
                   <div className="flex justify-between text-xs font-mono">
-                    <span className="text-[var(--terminal-text)]">{item.entity_type}</span>
+                    <span className="text-[var(--terminal-text)] font-medium">{item.entity_type}</span>
                     <span className="text-[var(--terminal-text-dim)]">
                       {item.count.toLocaleString()} ({percentage.toFixed(1)}%)
                     </span>
@@ -253,7 +273,7 @@ export const GraphAnalyticsDashboard: React.FC = () => {
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>

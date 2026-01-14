@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Entity } from '@/types/entity';
+import { entityService } from '@/services/entityService';
 import toast from 'react-hot-toast';
 import { EntityGraph } from './EntityGraph';
 
@@ -33,58 +34,23 @@ export const NeighborhoodExplorer: React.FC<NeighborhoodExplorerProps> = ({
     try {
       setLoading(true);
 
-      // Fetch related entities
-      const response = await fetch(
-        `/api/knowledge-graph/entities/${centralEntity.id}/related?max_depth=${depth}&min_strength=${minStrength}&limit=${maxNodes}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
-        }
+      // Fetch related entities using service with retry
+      const relatedEntities = await entityService.getRelatedEntities(
+        centralEntity.id,
+        depth,
+        minStrength,
+        maxNodes
       );
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch neighborhood');
-      }
-
-      const relatedEntities = await response.json();
-      
-      // Convert backend format to frontend Entity format
-      const convertedEntities: Entity[] = relatedEntities.map((e: any) => ({
-        id: e.id,
-        name: e.name,
-        type: e.entity_type,
-        confidence: e.confidence_score,
-        confidence_score: e.confidence_score,
-        extraction_method: e.extraction_method,
-        position: e.position,
-        context: e.context,
-        metadata: e.metadata,
-        created_at: e.created_at,
-        updated_at: e.updated_at,
-        source_document_id: e.source_document_id
-      }));
-
       // Include central entity
-      const allEntities = [centralEntity, ...convertedEntities];
+      const allEntities = [centralEntity, ...relatedEntities];
       setEntities(allEntities);
 
-      // Fetch relationships for all entities
+      // Fetch relationships for all entities using service with retry
       const allEntityIds = allEntities.map(e => e.id);
-      const relationshipPromises = allEntityIds.map(async (entityId) => {
-        const relResponse = await fetch(
-          `/api/knowledge-graph/entities/${entityId}/relationships`,
-          {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            },
-          }
-        );
-        if (relResponse.ok) {
-          return await relResponse.json();
-        }
-        return [];
-      });
+      const relationshipPromises = allEntityIds.map(entityId =>
+        entityService.getEntityRelationships(entityId)
+      );
 
       const relationshipArrays = await Promise.all(relationshipPromises);
       const allRelationships = relationshipArrays.flat();

@@ -1,0 +1,528 @@
+# Entity Management API Contract
+# Based on existing backend/src/api/knowledge_graph.py endpoints
+# This documents the API contracts used by the frontend
+
+openapi: 3.0.3
+info:
+  title: Knowledge Graph Entity API
+  version: 1.0.0
+  description: |
+    API endpoints for entity and relationship management in the Knowledge Graph.
+    Base path: /api/v1/knowledge-graph
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Local development
+  - url: https://api.rag-system.com/api/v1
+    description: Production
+
+paths:
+  /knowledge-graph/entities:
+    get:
+      summary: List entities with pagination
+      operationId: getEntities
+      tags: [Entities]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: entity_types
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+          description: Filter by entity types
+      responses:
+        '200':
+          description: Paginated entity list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEntitiesResponse'
+    post:
+      summary: Create new entity
+      operationId: createEntity
+      tags: [Entities]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEntityRequest'
+      responses:
+        '201':
+          description: Entity created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Entity'
+        '403':
+          description: Forbidden - Admin role required
+
+  /knowledge-graph/entities/{entityId}:
+    get:
+      summary: Get entity by ID
+      operationId: getEntity
+      tags: [Entities]
+      parameters:
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Entity details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Entity'
+        '404':
+          description: Entity not found
+    put:
+      summary: Update entity
+      operationId: updateEntity
+      tags: [Entities]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEntityRequest'
+      responses:
+        '200':
+          description: Entity updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Entity'
+        '403':
+          description: Forbidden - Admin role required
+    delete:
+      summary: Delete entity
+      operationId: deleteEntity
+      tags: [Entities]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Entity deleted
+        '403':
+          description: Forbidden - Admin role required
+
+  /knowledge-graph/entities/search:
+    get:
+      summary: Search entities
+      operationId: searchEntities
+      tags: [Entities]
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: entity_types
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Entity'
+
+  /knowledge-graph/entity-types:
+    get:
+      summary: Get available entity types
+      operationId: getEntityTypes
+      tags: [Entities]
+      responses:
+        '200':
+          description: List of entity types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /knowledge-graph/relationships:
+    get:
+      summary: List relationships
+      operationId: getRelationships
+      tags: [Relationships]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 500
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Relationship list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Relationship'
+    post:
+      summary: Create relationship
+      operationId: createRelationship
+      tags: [Relationships]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRelationshipRequest'
+      responses:
+        '201':
+          description: Relationship created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Relationship'
+        '403':
+          description: Forbidden - Admin role required
+
+  /knowledge-graph/relationship-types:
+    get:
+      summary: Get available relationship types
+      operationId: getRelationshipTypes
+      tags: [Relationships]
+      responses:
+        '200':
+          description: List of relationship types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /knowledge-graph/paths/{sourceId}/{targetId}:
+    get:
+      summary: Find paths between entities
+      operationId: findPaths
+      tags: [Graph Operations]
+      parameters:
+        - name: sourceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: targetId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: max_depth
+          in: query
+          schema:
+            type: integer
+            default: 3
+            minimum: 1
+            maximum: 5
+      responses:
+        '200':
+          description: Paths found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PathsResponse'
+
+  /knowledge-graph/analytics:
+    get:
+      summary: Get graph analytics
+      operationId: getAnalytics
+      tags: [Analytics]
+      responses:
+        '200':
+          description: Graph statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphAnalytics'
+
+  /knowledge-graph/entities/{entityId}/neighborhood:
+    get:
+      summary: Get entity neighborhood
+      operationId: getNeighborhood
+      tags: [Graph Operations]
+      parameters:
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: depth
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+            maximum: 3
+        - name: max_nodes
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Neighborhood data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NeighborhoodResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Entity:
+      type: object
+      required: [id, name, entity_type, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        entity_type:
+          type: string
+        confidence_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        extraction_method:
+          type: string
+          enum: [manual, nlp, ocr]
+        position:
+          type: object
+          properties:
+            start:
+              type: integer
+            end:
+              type: integer
+        context:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        source_document_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateEntityRequest:
+      type: object
+      required: [name, entity_type]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        entity_type:
+          type: string
+        confidence_score:
+          type: number
+          default: 0.8
+        extraction_method:
+          type: string
+          default: manual
+        metadata:
+          type: object
+
+    UpdateEntityRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        confidence_score:
+          type: number
+        metadata:
+          type: object
+
+    Relationship:
+      type: object
+      required: [id, source_entity_id, target_entity_id, relationship_type]
+      properties:
+        id:
+          type: string
+          format: uuid
+        source_entity_id:
+          type: string
+          format: uuid
+        target_entity_id:
+          type: string
+          format: uuid
+        relationship_type:
+          type: string
+        strength:
+          type: number
+        confidence_score:
+          type: number
+        context:
+          type: string
+        evidence:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+
+    CreateRelationshipRequest:
+      type: object
+      required: [source_entity_id, target_entity_id, relationship_type]
+      properties:
+        source_entity_id:
+          type: string
+          format: uuid
+        target_entity_id:
+          type: string
+          format: uuid
+        relationship_type:
+          type: string
+        strength:
+          type: number
+          default: 1.0
+        confidence_score:
+          type: number
+        context:
+          type: string
+        evidence:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+
+    PaginatedEntitiesResponse:
+      type: object
+      properties:
+        entities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entity'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        has_more:
+          type: boolean
+
+    PathsResponse:
+      type: object
+      properties:
+        paths:
+          type: array
+          items:
+            type: object
+            properties:
+              nodes:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Entity'
+              edges:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Relationship'
+              length:
+                type: integer
+        total_paths:
+          type: integer
+
+    GraphAnalytics:
+      type: object
+      properties:
+        total_entities:
+          type: integer
+        total_relationships:
+          type: integer
+        entity_type_distribution:
+          type: object
+          additionalProperties:
+            type: integer
+        relationship_type_distribution:
+          type: object
+          additionalProperties:
+            type: integer
+        orphan_entities:
+          type: integer
+        average_connections:
+          type: number
+
+    NeighborhoodResponse:
+      type: object
+      properties:
+        center:
+          $ref: '#/components/schemas/Entity'
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entity'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/Relationship'
+        depth:
+          type: integer

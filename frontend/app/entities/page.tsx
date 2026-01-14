@@ -30,6 +30,7 @@ import { EntityMergeTool } from '@/components/entities/EntityMergeTool';
 import { GraphHealthMonitor } from '@/components/entities/GraphHealthMonitor';
 import { KeyboardShortcutsDialog } from '@/components/entities/KeyboardShortcutsDialog';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useEntityPermissions } from '@/hooks/useEntityPermissions';
 import { Entity, EntityType, GraphEdge } from '@/types/entity';
 import { entityService, PaginatedEntitiesResponse } from '@/services/entityService';
 import { cn } from '@/lib/utils';
@@ -38,6 +39,7 @@ import toast from 'react-hot-toast';
 export default function EntityManagementPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { canCreate, canEdit, canDelete } = useEntityPermissions();
 
   // Core state
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -70,6 +72,7 @@ export default function EntityManagementPage() {
   // Dynamic types from API
   const [availableEntityTypes, setAvailableEntityTypes] = useState<string[]>([]);
   const [availableRelationshipTypes, setAvailableRelationshipTypes] = useState<string[]>([]);
+  const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     setMounted(true);
@@ -103,17 +106,24 @@ export default function EntityManagementPage() {
     router.replace(newUrl, { scroll: false });
   }, [activeTab, currentPage, selectedTypes, selectedEntity, mounted, router]);
 
-  // Fetch available types on mount
+  // Fetch available types and analytics on mount
   useEffect(() => {
-    const fetchTypes = async () => {
-      const [entityTypes, relationshipTypes] = await Promise.all([
-        entityService.getEntityTypes(),
-        entityService.getRelationshipTypes()
-      ]);
-      setAvailableEntityTypes(entityTypes);
-      setAvailableRelationshipTypes(relationshipTypes);
+    const fetchTypesAndAnalytics = async () => {
+      try {
+        const [entityTypes, relationshipTypes, analytics] = await Promise.all([
+          entityService.getEntityTypes(),
+          entityService.getRelationshipTypes(),
+          entityService.getAnalytics()
+        ]);
+        setAvailableEntityTypes(entityTypes);
+        setAvailableRelationshipTypes(relationshipTypes);
+        setTypeCounts(analytics.entity_type_distribution || {});
+      } catch (error) {
+        console.error('Error fetching types and analytics:', error);
+        toast.error('Failed to load entity types and analytics');
+      }
     };
-    fetchTypes();
+    fetchTypesAndAnalytics();
   }, []);
 
   // Fetch entities with pagination
@@ -188,12 +198,34 @@ export default function EntityManagementPage() {
   const filteredEntities = useMemo(() => {
     let filtered = [...entities];
 
+    // Filter by entity type (including special null type filter)
+    if (selectedTypes.length > 0) {
+      const hasNullFilter = selectedTypes.includes('__null__' as any);
+      const regularTypes = selectedTypes.filter(t => t !== '__null__');
+
+      filtered = filtered.filter(entity => {
+        const isNullType = !entity.type || entity.type === '' || entity.type === 'null';
+        const matchesRegularType = regularTypes.length === 0 || regularTypes.includes(entity.type);
+
+        if (hasNullFilter && regularTypes.length > 0) {
+          // Include both null types AND regular selected types
+          return isNullType || matchesRegularType;
+        } else if (hasNullFilter) {
+          // Only null types
+          return isNullType;
+        } else {
+          // Only regular selected types
+          return matchesRegularType;
+        }
+      });
+    }
+
     // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(entity =>
         entity.name.toLowerCase().includes(query) ||
-        entity.type.toLowerCase().includes(query) ||
+        (entity.type && entity.type.toLowerCase().includes(query)) ||
         entity.metadata?.description?.toLowerCase().includes(query)
       );
     }
@@ -218,14 +250,14 @@ export default function EntityManagementPage() {
           comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
           break;
         case 'type':
-          comparison = a.type.localeCompare(b.type);
+          comparison = (a.type || '').localeCompare(b.type || '');
           break;
       }
       return sortOrder === 'asc' ? comparison : -comparison;
     });
 
     return filtered;
-  }, [entities, searchQuery, confidenceRange, sortField, sortOrder]);
+  }, [entities, selectedTypes, searchQuery, confidenceRange, sortField, sortOrder]);
 
   // Calculate statistics
   const statistics = useMemo(() => {
@@ -421,10 +453,11 @@ export default function EntityManagementPage() {
                   setSelectedEntity(null);
                   setEditDialogOpen(true);
                 }}
-                className="font-mono text-[10px] font-bold bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_15px_var(--phosphor-green-glow)]"
+                disabled={!canCreate}
+                className="font-mono text-[10px] font-bold bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_15px_var(--phosphor-green-glow)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus className="h-3.5 w-3.5 mr-1.5" />
-                NEW_NODE
+                NEW_NODE {!canCreate && '(ADMIN)'}
               </Button>
             </div>
           </div>
@@ -447,6 +480,7 @@ export default function EntityManagementPage() {
               totalCount={totalEntities}
               filteredCount={filteredEntities.length}
               availableTypes={availableEntityTypes.length > 0 ? availableEntityTypes : undefined}
+              typeCounts={typeCounts}
             />
           </CardContent>
         </Card>
@@ -653,7 +687,16 @@ export default function EntityManagementPage() {
 
           {/* Analytics Dashboard Tab */}
           <TabsContent value="analytics" className="mt-0 outline-none">
-            <GraphAnalyticsDashboard />
+            <GraphAnalyticsDashboard 
+              onTypeClick={(entityType) => {
+                // Filter by clicked entity type
+                setSelectedTypes([entityType]);
+                setCurrentPage(1);
+                // Switch to list tab to show filtered results
+                setActiveTab('list');
+                toast.success(`Filtered by ${entityType}`);
+              }}
+            />
           </TabsContent>
 
           {/* Bulk Operations Tab */}
@@ -735,6 +778,10 @@ export default function EntityManagementPage() {
                 }}
                 onClose={() => setDetailDialogOpen(false)}
                 onAddRelationship={handleAddRelationship}
+                onEntityClick={(entity) => {
+                  // Re-center neighborhood exploration on clicked entity
+                  setSelectedEntity(entity);
+                }}
               />
             </div>
           )}

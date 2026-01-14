@@ -156,3 +156,33 @@ export interface GraphPath {
   entities: string[];
   relationships: string[];
 }
+
+/**
+ * Duplicate detection result for entity creation
+ */
+export interface DuplicateCheckResult {
+  isDuplicate: boolean;
+  existingEntities: Entity[];
+  suggestedName?: string; // e.g., "John Smith (2)"
+}
+
+/**
+ * Authorization permissions for entity operations
+ */
+export interface EntityPermissions {
+  canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canBulkEdit: boolean;
+  isAdmin: boolean;
+}
+
+/**
+ * Entity type option with count for filter dropdown
+ */
+export interface EntityTypeOption {
+  value: string;
+  label: string;
+  count: number;
+  isSpecial?: boolean; // For special filters like null type
+}

@@ -12,11 +12,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Entity, GraphEdge, EntityType } from '@/types/entity';
 import { entityService } from '@/services/entityService';
+import { useEntityPermissions } from '@/hooks/useEntityPermissions';
+import { NeighborhoodExplorer } from './NeighborhoodExplorer';
 
 interface EntityDetailProps {
   entity: Entity;
   onEdit?: () => void;
   onClose?: () => void;
+  onEntityClick?: (entity: Entity) => void;
 }
 
 const typeColors: Record<EntityType, string> = {
@@ -40,8 +43,10 @@ const confidenceColor = (confidence: number): string => {
 export const EntityDetail: React.FC<EntityDetailProps> = ({
   entity,
   onEdit,
-  onClose
+  onClose,
+  onEntityClick
 }) => {
+  const { canCreate, canEdit, canDelete } = useEntityPermissions();
   const [relationships, setRelationships] = useState<GraphEdge[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -159,9 +164,9 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
             </Button>
           )}
           {onEdit && (
-            <Button variant="outline" size="sm" onClick={onEdit}>
+            <Button variant="outline" size="sm" onClick={onEdit} disabled={!canEdit}>
               <Edit className="h-4 w-4 mr-2" />
-              Edit
+              Edit {!canEdit && '(ADMIN)'}
             </Button>
           )}
         </div>
@@ -172,6 +177,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="relationships">Relationships</TabsTrigger>
+          <TabsTrigger value="neighborhood">Neighborhood</TabsTrigger>
           <TabsTrigger value="metadata">Metadata</TabsTrigger>
         </TabsList>
 
@@ -234,9 +240,9 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Entity Relationships</CardTitle>
-                <Button size="sm">
+                <Button size="sm" disabled={!canCreate}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Add Relationship
+                  Add Relationship {!canCreate && '(ADMIN)'}
                 </Button>
               </div>
             </CardHeader>
@@ -298,7 +304,8 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDeleteRelationship(rel.id)}
-                            className="text-red-600 hover:text-red-700"
+                            disabled={!canDelete}
+                            className="text-red-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -310,6 +317,13 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="neighborhood" className="space-y-4">
+          <NeighborhoodExplorer
+            centralEntity={entity}
+            onEntityClick={onEntityClick}
+          />
         </TabsContent>
 
         <TabsContent value="metadata" className="space-y-4">
