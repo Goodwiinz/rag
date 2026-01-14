@@ -29,19 +29,26 @@ class ThreadEventService:
         self._manager = connection_manager
 
     async def _broadcast_to_channels(
-        self, 
-        channels: list[str], 
+        self,
+        channels: list[str],
         message: WebSocketMessage
     ) -> None:
         """Broadcast message to multiple channels with recipient deduplication.
-        
+
         This prevents duplicate messages to clients subscribed to multiple channels.
-        
+
+        Thread-safety: This method is safe for concurrent async calls. The `sent_to`
+        set is local to each invocation, and asyncio's single-threaded event loop
+        ensures that dictionary/set operations on `channel_subscribers` and
+        `active_connections` are atomic between await points. Each broadcast
+        operation completes its iteration before yielding control.
+
         Args:
             channels: List of channel names to broadcast to
             message: WebSocket message to send
         """
         # Track which connection IDs have already received the message
+        # Note: Local set is inherently thread-safe - no shared state between calls
         sent_to: set[str] = set()
         
         for channel in channels:
@@ -302,6 +309,43 @@ class ThreadEventService:
 
         logger.debug(
             f"Broadcasted conversation_updated event for conversation {conversation_id}"
+        )
+
+
+    async def broadcast_threads_bulk_updated(
+        self,
+        thread_ids: list[str],
+        action: str,
+        user_id: str,
+    ) -> None:
+        """Broadcast bulk thread operation event.
+
+        Args:
+            thread_ids: List of affected thread IDs
+            action: The action performed ("resolved", "archived", "deleted")
+            user_id: User who performed the operation
+        """
+        if not thread_ids:
+            return
+
+        message = WebSocketMessage(
+            type=MessageType.THREADS_BULK_UPDATED,
+            data={
+                "thread_ids": thread_ids,
+                "action": action,
+                "user_id": str(user_id),
+                "count": len(thread_ids),
+            },
+            timestamp=datetime.now(timezone.utc),
+            target_channels=[f"thread:{tid}" for tid in thread_ids],
+        )
+
+        # Broadcast to all affected thread channels
+        channels = [f"thread:{tid}" for tid in thread_ids]
+        await self._broadcast_to_channels(channels, message)
+
+        logger.info(
+            f"Broadcasted bulk {action} event for {len(thread_ids)} threads"
         )
 
 

@@ -214,6 +214,32 @@ class ThreadListResponse(BaseModel):
 
 
 # ============================================================================
+# Bulk Thread Operations
+# ============================================================================
+
+
+class BulkThreadRequest(BaseModel):
+    """Bulk thread operation request"""
+    thread_ids: List[UUID] = Field(..., min_length=1, max_length=100)
+
+
+class BulkThreadResult(BaseModel):
+    """Result for a single thread in bulk operation"""
+    thread_id: UUID
+    success: bool
+    error: Optional[str] = None
+    thread: Optional[ThreadResponse] = None
+
+
+class BulkThreadResponse(BaseModel):
+    """Bulk thread operation response"""
+    total: int
+    succeeded: int
+    failed: int
+    results: List[BulkThreadResult]
+
+
+# ============================================================================
 # Chat Message Schemas
 # ============================================================================
 

@@ -51,6 +51,7 @@ class MessageType(Enum):
     THREAD_CREATED = "thread_created"
     THREAD_UPDATED = "thread_updated"
     THREAD_DELETED = "thread_deleted"
+    THREADS_BULK_UPDATED = "threads_bulk_updated"
     MESSAGE_CREATED = "message_created"
     MESSAGE_UPDATED = "message_updated"
     CONVERSATION_UPDATED = "conversation_updated"
@@ -254,8 +255,88 @@ class EnhancedConnectionManager(BaseService):
             )
             return None
 
+    async def _connect_internal(
+        self,
+        websocket: WebSocket,
+        user_id: str,
+        organization_id: str,
+        client_info: Dict[str, Any] = None,
+        auth_method: Optional[str] = None
+    ) -> str:
+        """
+        Internal helper that handles the common connection setup logic.
+
+        This method is called after authentication and WebSocket accept have
+        been handled by the public connect methods.
+
+        Args:
+            websocket: The already-accepted WebSocket connection
+            user_id: Authenticated user's ID
+            organization_id: User's organization ID
+            client_info: Optional client metadata
+            auth_method: Optional auth method label for welcome message
+
+        Returns:
+            Connection ID
+        """
+        # Generate connection ID
+        connection_id = str(uuid.uuid4())
+
+        # Create connection info
+        connection_info = ConnectionInfo(
+            user_id=user_id,
+            organization_id=organization_id,
+            connection_id=connection_id,
+            websocket=websocket,
+            connected_at=datetime.now(dt_timezone.utc),
+            last_heartbeat=datetime.now(dt_timezone.utc),
+            subscribed_channels=set(),
+            message_filter=client_info.get("message_filter") if client_info else None,
+            client_info=client_info or {}
+        )
+
+        # Store connection
+        self.active_connections[connection_id] = connection_info
+        self.user_connections[user_id].add(connection_id)
+        self.organization_connections[organization_id].add(connection_id)
+
+        # Log connection to database
+        await self._log_connection_event(
+            connection_id=connection_id,
+            event_type="connect",
+            user_id=user_id,
+            organization_id=organization_id,
+            client_info=client_info
+        )
+
+        # Build welcome message data
+        welcome_data = {
+            "connection_id": connection_id,
+            "user_id": user_id,
+            "organization_id": organization_id,
+            "server_time": datetime.now(dt_timezone.utc).isoformat(),
+            "heartbeat_interval": self.heartbeat_interval
+        }
+        if auth_method:
+            welcome_data["auth_method"] = auth_method
+
+        # Send welcome message
+        welcome_message = WebSocketMessage(
+            type=MessageType.CONNECT,
+            data=welcome_data,
+            timestamp=datetime.now(dt_timezone.utc)
+        )
+
+        await self.send_message_to_connection(connection_id, welcome_message)
+
+        # Log connection established
+        auth_label = f" ({auth_method})" if auth_method else ""
+        logger.info(f"WebSocket connection established{auth_label}: {connection_id} for user {user_id}")
+
+        return connection_id
+
     async def connect(self, websocket: WebSocket, token: str, client_info: Dict[str, Any] = None) -> Optional[str]:
-        """Accept and manage new WebSocket connection"""
+        """Accept and manage new WebSocket connection with token authentication"""
         # Authenticate connection
         auth_result = await self.authenticate_websocket(websocket, token)
         if not auth_result:
@@ -272,53 +353,14 @@ class EnhancedConnectionManager(BaseService):
         # Accept connection
         await websocket.accept()
 
-        # Generate connection ID
-        connection_id = str(uuid.uuid4())
-
-        # Create connection info
-        connection_info = ConnectionInfo(
+        # Delegate to internal helper
+        return await self._connect_internal(
+            websocket=websocket,
             user_id=auth_result["user_id"],
             organization_id=auth_result["organization_id"],
-            connection_id=connection_id,
-            websocket=websocket,
-            connected_at=datetime.now(dt_timezone.utc),
-            last_heartbeat=datetime.now(dt_timezone.utc),
-            subscribed_channels=set(),
-            message_filter=client_info.get("message_filter") if client_info else None,
-            client_info=client_info or {}
+            client_info=client_info,
+            auth_method=None
         )
-
-        # Store connection
-        self.active_connections[connection_id] = connection_info
-        self.user_connections[connection_info.user_id].add(connection_id)
-        self.organization_connections[connection_info.organization_id].add(connection_id)
-
-        # Log connection to database
-        await self._log_connection_event(
-            connection_id=connection_id,
-            event_type="connect",
-            user_id=connection_info.user_id,
-            organization_id=connection_info.organization_id,
-            client_info=client_info
-        )
-
-        # Send welcome message
-        welcome_message = WebSocketMessage(
-            type=MessageType.CONNECT,
-            data={
-                "connection_id": connection_id,
-                "user_id": connection_info.user_id,
-                "organization_id": connection_info.organization_id,
-                "server_time": datetime.now(dt_timezone.utc).isoformat(),
-                "heartbeat_interval": self.heartbeat_interval
-            },
-            timestamp=datetime.now(dt_timezone.utc)
-        )
-
-        await self.send_message_to_connection(connection_id, welcome_message)
-
-        logger.info(f"WebSocket connection established: {connection_id} for user {connection_info.user_id}")
-        return connection_id
 
     async def connect_authenticated(
         self,
@@ -359,54 +401,14 @@ class EnhancedConnectionManager(BaseService):
         else:
             await websocket.accept()
 
-        # Generate connection ID
-        connection_id = str(uuid.uuid4())
-
-        # Create connection info
-        connection_info = ConnectionInfo(
-            user_id=user_id,
-            organization_id=organization_id,
-            connection_id=connection_id,
+        # Delegate to internal helper
+        return await self._connect_internal(
             websocket=websocket,
-            connected_at=datetime.now(dt_timezone.utc),
-            last_heartbeat=datetime.now(dt_timezone.utc),
-            subscribed_channels=set(),
-            message_filter=client_info.get("message_filter") if client_info else None,
-            client_info=client_info or {}
-        )
-
-        # Store connection
-        self.active_connections[connection_id] = connection_info
-        self.user_connections[user_id].add(connection_id)
-        self.organization_connections[organization_id].add(connection_id)
-
-        # Log connection to database
-        await self._log_connection_event(
-            connection_id=connection_id,
-            event_type="connect",
             user_id=user_id,
             organization_id=organization_id,
-            client_info=client_info
+            client_info=client_info,
+            auth_method="secure"
         )
-
-        # Send welcome message
-        welcome_message = WebSocketMessage(
-            type=MessageType.CONNECT,
-            data={
-                "connection_id": connection_id,
-                "user_id": user_id,
-                "organization_id": organization_id,
-                "server_time": datetime.now(dt_timezone.utc).isoformat(),
-                "heartbeat_interval": self.heartbeat_interval,
-                "auth_method": "secure"  # Indicate secure authentication was used
-            },
-            timestamp=datetime.now(dt_timezone.utc)
-        )
-
-        await self.send_message_to_connection(connection_id, welcome_message)
-
-        logger.info(f"WebSocket connection established (secure auth): {connection_id} for user {user_id}")
-        return connection_id
 
     async def disconnect(self, connection_id: str, reason: str = None):
         """Handle WebSocket disconnection"""

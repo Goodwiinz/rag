@@ -176,7 +176,7 @@ export const SearchActivitySparkline: React.FC<SearchActivityProps> = ({
           <Line
             type="monotone"
             dataKey="searches"
-            stroke="#f59e0b"
+            stroke={THEME.colors.warning}
             strokeWidth={2}
             dot={false}
             activeDot={false}

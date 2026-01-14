@@ -98,15 +98,15 @@ const ToggleSwitch: React.FC<{
     onClick={() => onCheckedChange(!checked)}
     className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200"
     style={{
-      background: checked ? `${THEME.colors.primary}40` : '#21262d',
-      border: `1px solid ${checked ? THEME.colors.primary : '#30363d'}`,
+      background: checked ? `${THEME.colors.primary}40` : THEME.colors.borderMuted,
+      border: `1px solid ${checked ? THEME.colors.primary : THEME.colors.border}`,
     }}
   >
     <span
       className="pointer-events-none block h-4 w-4 rounded-full transition-transform duration-200"
       style={{
         transform: checked ? 'translateX(16px)' : 'translateX(0)',
-        background: checked ? THEME.colors.primary : '#8b949e',
+        background: checked ? THEME.colors.primary : THEME.colors.textMuted,
         marginTop: '1px',
         marginLeft: '1px',
       }}
@@ -116,7 +116,7 @@ const ToggleSwitch: React.FC<{
 
 // Custom Progress Bar
 const ProgressBar: React.FC<{ value: number }> = ({ value }) => (
-  <div className="h-2 w-full rounded-full overflow-hidden" style={{ background: '#21262d' }}>
+  <div className="h-2 w-full rounded-full overflow-hidden" style={{ background: THEME.colors.borderMuted }}>
     <div
       className="h-full rounded-full transition-all duration-500"
       style={{
@@ -144,7 +144,7 @@ const CustomSlider: React.FC<{
     step={step}
     className="w-full h-2 rounded-full appearance-none cursor-pointer"
     style={{
-      background: `linear-gradient(to right, ${THEME.colors.primary} 0%, ${THEME.colors.primary} ${((value - min) / (max - min)) * 100}%, #21262d ${((value - min) / (max - min)) * 100}%, #21262d 100%)`,
+      background: `linear-gradient(to right, ${THEME.colors.primary} 0%, ${THEME.colors.primary} ${((value - min) / (max - min)) * 100}%, ${THEME.colors.borderMuted} ${((value - min) / (max - min)) * 100}%, ${THEME.colors.borderMuted} 100%)`,
     }}
   />
 );
@@ -534,15 +534,15 @@ export default function ArxivManagement() {
       <div
         className="rounded-xl overflow-hidden"
         style={{
-          background: '#0d1117',
-          border: '1px solid #30363d',
+          background: THEME.colors.surface,
+          border: `1px solid ${THEME.colors.border}`,
           boxShadow: '0 4px 24px rgba(0, 0, 0, 0.4)',
         }}
       >
         {/* Tab Bar */}
         <div
           className="flex items-center gap-2 px-5 py-4"
-          style={{ borderBottom: '1px solid #30363d', background: '#161b22' }}
+          style={{ borderBottom: `1px solid ${THEME.colors.border}`, background: THEME.colors.borderSubtle }}
         >
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -553,8 +553,8 @@ export default function ArxivManagement() {
                 onClick={() => setActiveTab(tab.id)}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm transition-all"
                 style={{
-                  background: isActive ? '#0d1117' : 'transparent',
-                  color: isActive ? THEME.colors.primary : '#8b949e',
+                  background: isActive ? THEME.colors.surface : 'transparent',
+                  color: isActive ? THEME.colors.primary : THEME.colors.textMuted,
                   borderWidth: '1px',
                   borderStyle: 'solid',
                   borderColor: isActive ? `${THEME.colors.primary}30` : 'transparent',
@@ -664,8 +664,8 @@ export default function ArxivManagement() {
                     background: 'transparent',
                     borderWidth: '1px',
                     borderStyle: 'solid',
-                    borderColor: '#30363d',
-                    color: '#8b949e',
+                    borderColor: THEME.colors.border,
+                    color: THEME.colors.textMuted,
                   }}
                 >
                   Cleanup Old State
@@ -715,7 +715,7 @@ export default function ArxivManagement() {
                       <div
                         key={stat.label}
                         className="p-4 rounded-lg"
-                        style={{ background: '#161b22', border: '1px solid #21262d' }}
+                        style={{ background: THEME.colors.borderSubtle, border: `1px solid ${THEME.colors.borderMuted}` }}
                       >
                         <div className="text-2xl font-mono font-bold" style={{ color: stat.color }}>
                           {stat.value}
@@ -779,8 +779,8 @@ export default function ArxivManagement() {
                     placeholder="e.g., quantum computing, machine learning"
                     className="w-full px-4 py-2.5 rounded-lg font-mono text-sm text-white placeholder:text-gray-600 focus:outline-none"
                     style={{
-                      background: '#161b22',
-                      border: '1px solid #21262d',
+                      background: THEME.colors.borderSubtle,
+                      border: `1px solid ${THEME.colors.borderMuted}`,
                     }}
                   />
                 </div>
@@ -869,8 +869,8 @@ export default function ArxivManagement() {
                       className="flex items-center gap-2 px-3 py-1.5 rounded font-mono text-xs transition-all"
                       style={{
                         background: 'transparent',
-                        border: '1px solid #30363d',
-                        color: '#8b949e',
+                        border: `1px solid ${THEME.colors.border}`,
+                        color: THEME.colors.textMuted,
                       }}
                     >
                       {selectedPaperIds.length === searchResults.length ? (
@@ -890,7 +890,7 @@ export default function ArxivManagement() {
                   {/* Paper List */}
                   <div 
                     className="space-y-3 max-h-96 overflow-y-auto pr-2"
-                    style={{ scrollbarWidth: 'thin', scrollbarColor: `${THEME.colors.primary}40 #161b22` }}
+                    style={{ scrollbarWidth: 'thin', scrollbarColor: `${THEME.colors.primary}40 ${THEME.colors.borderSubtle}` }}
                   >
                     {searchResults.map((paper) => (
                       <div
@@ -898,8 +898,8 @@ export default function ArxivManagement() {
                         onClick={() => togglePaperSelection(paper.id)}
                         className="p-4 rounded-lg cursor-pointer transition-all"
                         style={{
-                          background: selectedPaperIds.includes(paper.id) ? `${THEME.colors.primary}10` : '#161b22',
-                          border: `1px solid ${selectedPaperIds.includes(paper.id) ? `${THEME.colors.primary}40` : '#21262d'}`,
+                          background: selectedPaperIds.includes(paper.id) ? `${THEME.colors.primary}10` : THEME.colors.borderSubtle,
+                          border: `1px solid ${selectedPaperIds.includes(paper.id) ? `${THEME.colors.primary}40` : THEME.colors.borderMuted}`,
                         }}
                       >
                         <div className="flex items-start gap-3">
@@ -1019,8 +1019,8 @@ export default function ArxivManagement() {
                   onChange={(e) => setExtractPaperIds(e.target.value)}
                   className="w-full h-32 px-4 py-3 rounded-lg font-mono text-sm text-white placeholder:text-gray-600 focus:outline-none resize-none"
                   style={{
-                    background: '#161b22',
-                    border: '1px solid #21262d',
+                    background: THEME.colors.borderSubtle,
+                    border: `1px solid ${THEME.colors.borderMuted}`,
                   }}
                 />
               </div>
@@ -1106,8 +1106,8 @@ export default function ArxivManagement() {
                     background: 'transparent',
                     borderWidth: '1px',
                     borderStyle: 'solid',
-                    borderColor: '#30363d',
-                    color: '#8b949e',
+                    borderColor: THEME.colors.border,
+                    color: THEME.colors.textMuted,
                   }}
                 >
                   Bulk Extract from Categories
@@ -1118,11 +1118,11 @@ export default function ArxivManagement() {
                   disabled={isExtracting}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
                   style={{
-                    background: '#161b22',
+                    background: THEME.colors.borderSubtle,
                     borderWidth: '1px',
                     borderStyle: 'solid',
-                    borderColor: '#30363d',
-                    color: '#8b949e',
+                    borderColor: THEME.colors.border,
+                    color: THEME.colors.textMuted,
                   }}
                 >
                   Extract from Local PDFs
@@ -1156,7 +1156,7 @@ export default function ArxivManagement() {
                       <div
                         key={index}
                         className="p-4 rounded-lg"
-                        style={{ background: '#161b22', border: '1px solid #21262d' }}
+                        style={{ background: THEME.colors.borderSubtle, border: `1px solid ${THEME.colors.borderMuted}` }}
                       >
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1 min-w-0 mr-3">
@@ -1168,8 +1168,8 @@ export default function ArxivManagement() {
                           <span
                             className="text-xs font-mono px-2 py-1 rounded"
                             style={{
-                              background: result.extraction_status === 'completed' ? `${THEME.colors.primary}20` : '#ef444420',
-                              color: result.extraction_status === 'completed' ? THEME.colors.primary : '#ef4444',
+                              background: result.extraction_status === 'completed' ? `${THEME.colors.primary}20` : `${THEME.colors.error}20`,
+                              color: result.extraction_status === 'completed' ? THEME.colors.primary : THEME.colors.error,
                             }}
                           >
                             {result.extraction_status}
@@ -1190,7 +1190,7 @@ export default function ArxivManagement() {
                                     <span
                                       key={i}
                                       className="text-xs font-mono px-2 py-0.5 rounded"
-                                      style={{ background: '#21262d', color: '#8b949e' }}
+                                      style={{ background: THEME.colors.borderMuted, color: THEME.colors.textMuted }}
                                     >
                                       {topic}
                                     </span>
@@ -1230,7 +1230,7 @@ export default function ArxivManagement() {
               {stats && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {[
-                    { label: 'Total Papers Tracked', value: stats.statistics.total_papers_tracked, color: '#8b949e' },
+                    { label: 'Total Papers Tracked', value: stats.statistics.total_papers_tracked, color: THEME.colors.textMuted },
                     { label: 'Active Papers', value: stats.statistics.active_papers, color: THEME.colors.primary },
                     { label: 'Categories Tracked', value: stats.statistics.categories_tracked, color: THEME.colors.secondary },
                     { label: 'New This Week', value: stats.statistics.recent_changes_week?.new || 0, color: THEME.colors.accent },
@@ -1238,7 +1238,7 @@ export default function ArxivManagement() {
                     <div
                       key={stat.label}
                       className="p-5 rounded-lg"
-                      style={{ background: '#161b22', border: '1px solid #21262d' }}
+                      style={{ background: THEME.colors.borderSubtle, border: `1px solid ${THEME.colors.borderMuted}` }}
                     >
                       <div className="text-3xl font-mono font-bold" style={{ color: stat.color }}>
                         {stat.value}
@@ -1251,7 +1251,7 @@ export default function ArxivManagement() {
 
               <div
                 className="p-5 rounded-lg"
-                style={{ background: '#161b22', border: '1px solid #21262d' }}
+                style={{ background: THEME.colors.borderSubtle, border: `1px solid ${THEME.colors.borderMuted}` }}
               >
                 <h3 className="text-lg font-mono font-semibold text-white mb-4">Top Categories</h3>
                 <div className="space-y-3">
@@ -1259,11 +1259,11 @@ export default function ArxivManagement() {
                     <div
                       key={category}
                       className="flex items-center justify-between py-2"
-                      style={{ borderBottom: '1px solid #21262d' }}
+                      style={{ borderBottom: `1px solid ${THEME.colors.borderMuted}` }}
                     >
                       <span
                         className="text-sm font-mono px-2 py-1 rounded"
-                        style={{ background: '#21262d', color: '#8b949e' }}
+                        style={{ background: THEME.colors.borderMuted, color: THEME.colors.textMuted }}
                       >
                         {category}
                       </span>

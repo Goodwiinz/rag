@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { THEME } from '@/theme/constants';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -119,7 +120,7 @@ export function ExportDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] bg-[#141414] border-[#333] text-[#e4e4e7]">
         <DialogHeader>
-          <DialogTitle className="text-[#00ff9f] flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2" style={{ color: THEME.colors.primary }}>
             <Download className="h-5 w-5" />
             Export {isBatch ? `${threadIds.length} Threads` : 'Thread'}
           </DialogTitle>
@@ -140,7 +141,7 @@ export function ExportDialog({
               <SelectTrigger className="bg-[#0a0a0a] border-[#333] text-[#e4e4e7]">
                 <SelectValue>
                   <span className="flex items-center gap-2">
-                    <FormatIcon className="h-4 w-4 text-[#00d4ff]" />
+                    <FormatIcon className="h-4 w-4" style={{ color: THEME.colors.secondary }} />
                     {FORMAT_LABELS[format]}
                   </span>
                 </SelectValue>
@@ -152,7 +153,8 @@ export function ExportDialog({
                     <SelectItem
                       key={fmt}
                       value={fmt}
-                      className="text-[#e4e4e7] focus:bg-[#1a1a1a] focus:text-[#00ff9f]"
+                      className="text-[#e4e4e7] focus:bg-[#1a1a1a]"
+                      style={{ color: THEME.colors.primary }}
                     >
                       <span className="flex items-center gap-2">
                         <Icon className="h-4 w-4" />
@@ -174,7 +176,7 @@ export function ExportDialog({
                 <span>Citations:</span>
                 <span className="text-[#e4e4e7]">{preview.citationCount}</span>
                 <span>Est. Size:</span>
-                <span className="text-[#00d4ff]">
+                <span style={{ color: THEME.colors.secondary }}>
                   {formatFileSize(preview.estimatedSizeBytes)}
                 </span>
               </div>
@@ -195,7 +197,7 @@ export function ExportDialog({
                 onCheckedChange={(checked) =>
                   setOptions({ ...options, includeCitations: checked })
                 }
-                className="data-[state=checked]:bg-[#00ff9f]"
+                className="data-[state=checked]:bg-primary"
               />
             </div>
 
@@ -209,7 +211,7 @@ export function ExportDialog({
                 onCheckedChange={(checked) =>
                   setOptions({ ...options, includeMetadata: checked })
                 }
-                className="data-[state=checked]:bg-[#00ff9f]"
+                className="data-[state=checked]:bg-primary"
               />
             </div>
 
@@ -223,7 +225,7 @@ export function ExportDialog({
                 onCheckedChange={(checked) =>
                   setOptions({ ...options, includeSystemMessages: checked })
                 }
-                className="data-[state=checked]:bg-[#00ff9f]"
+                className="data-[state=checked]:bg-primary"
               />
             </div>
 
@@ -237,7 +239,7 @@ export function ExportDialog({
                 onCheckedChange={(checked) =>
                   setOptions({ ...options, includeFeedback: checked })
                 }
-                className="data-[state=checked]:bg-[#00ff9f]"
+                className="data-[state=checked]:bg-primary"
               />
             </div>
           </div>
@@ -261,7 +263,7 @@ export function ExportDialog({
           <Button
             onClick={handleExport}
             disabled={exporting || loading}
-            className="bg-[#00ff9f] text-[#0a0a0a] hover:bg-[#00ff9f]/90"
+            className="bg-primary text-black hover:bg-primary/90"
           >
             {exporting ? (
               <>

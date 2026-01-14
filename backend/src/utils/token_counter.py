@@ -79,7 +79,11 @@ def estimate_tokens(text: str) -> int:
     return max(1, int(char_count / CHARS_PER_TOKEN_ESTIMATE))
 
 
-def count_message_tokens(content: str, role: str = "user") -> int:
+def count_message_tokens(
+    content: str,
+    role: str = "user",
+    estimate_only: bool = False
+) -> int:
     """
     Count tokens for a chat message, including role overhead.
 
@@ -88,11 +92,17 @@ def count_message_tokens(content: str, role: str = "user") -> int:
     Args:
         content: Message content
         role: Message role (user, assistant, system)
+        estimate_only: If True, use fast estimation instead of tiktoken.
+            Use this in request handlers to avoid blocking on large messages.
 
     Returns:
         Total token count including overhead
     """
-    content_tokens = count_tokens(content)
+    # Use fast estimation for request paths to prevent timeouts on large messages
+    if estimate_only:
+        content_tokens = estimate_tokens(content)
+    else:
+        content_tokens = count_tokens(content)
 
     # Add overhead for role and message structure
     # Typically ~4 tokens per message for role markers

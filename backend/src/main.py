@@ -12,7 +12,7 @@ import logging
 import time
 import os
 from typing import Optional
-import redis # Added this line
+import redis  # Added this line
 
 # Setup basic logging
 logger = logging.getLogger(__name__)
@@ -47,12 +47,17 @@ from src.api.arxiv_knowledge_graph import router as arxiv_kg_router
 from src.api.arxiv_change_tracking import router as arxiv_change_router
 from src.api.arxiv_extraction import router as arxiv_extraction_router
 from src.api.arxiv_local import router as arxiv_local_router
+
 # from src.api.arxiv_local_batch import router as arxiv_batch_router  # Temporarily disabled due to import error
 from src.api.arxiv_bulk import router as arxiv_bulk_router
 from src.api.arxiv_llm_bulk import router as arxiv_llm_bulk_router
 from src.api.chat import router as chat_router
-from src.api.workspaces import router as workspaces_router, standalone_router as workspaces_standalone_router
+from src.api.workspaces import (
+    router as workspaces_router,
+    standalone_router as workspaces_standalone_router,
+)
 from src.api.export import router as export_router
+from src.api.threads import router as threads_router
 from src.api.thread_search import router as thread_search_router
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.core.database import engine
@@ -61,9 +66,13 @@ from src.core.database import engine
 # Configure observability (optional)
 try:
     from src.observability import (
-        configure_tracing, configure_metrics, configure_logging,
-        instrument_app, instrument_services
+        configure_tracing,
+        configure_metrics,
+        configure_logging,
+        instrument_app,
+        instrument_services,
     )
+
     configure_logging()
     configure_tracing()
     configure_metrics()
@@ -71,22 +80,28 @@ try:
 except ImportError as e:
     print(f"Warning: Observability not available: {e}")
     OBSERVABILITY_ENABLED = False
+
     # Create dummy functions
     def instrument_app(app):
         return app
+
     def instrument_services():
         pass
+
 
 # Global Redis client instance
 redis_client: Optional[redis.Redis] = None
 
 try:
     redis_client = redis.from_url(settings.REDIS_URL)
-    # We don't ping here to avoid blocking startup if Redis is down, 
+    # We don't ping here to avoid blocking startup if Redis is down,
     # but the client object is created so middleware can use it (and fail gracefully later).
 except Exception as e:
-    logger.warning(f"Failed to create Redis client: {e}. Rate limiting will use in-memory storage.")
+    logger.warning(
+        f"Failed to create Redis client: {e}. Rate limiting will use in-memory storage."
+    )
     redis_client = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -108,11 +123,16 @@ async def lifespan(app: FastAPI):
             redis_client.ping()  # Test connection
             logger.info("Redis client connected successfully")
         except redis.RedisError as e:
-            logger.warning(f"Redis connection failed: {e}. Rate limiting may not persist across restarts.")
+            logger.warning(
+                f"Redis connection failed: {e}. Rate limiting may not persist across restarts."
+            )
 
     # Initialize WebSocket services
     try:
-        from src.services.websocket_service_initializer import websocket_service_initializer
+        from src.services.websocket_service_initializer import (
+            websocket_service_initializer,
+        )
+
         await websocket_service_initializer.initialize()
         logger.info("WebSocket services initialized successfully")
     except Exception as e:
@@ -136,11 +156,15 @@ async def lifespan(app: FastAPI):
 
     # Shutdown WebSocket services
     try:
-        from src.services.websocket_service_initializer import websocket_service_initializer
+        from src.services.websocket_service_initializer import (
+            websocket_service_initializer,
+        )
+
         await websocket_service_initializer.shutdown()
         logger.info("WebSocket services shutdown successfully")
     except Exception as e:
         logger.error(f"Error shutting down WebSocket services: {e}")
+
 
 # Create FastAPI application
 app = FastAPI(
@@ -160,10 +184,8 @@ instrument_app(app)
 if OBSERVABILITY_ENABLED:
     try:
         from src.services.file_service import redis_client
-        instrument_services(
-            sql_engine=engine,
-            redis_client=redis_client
-        )
+
+        instrument_services(sql_engine=engine, redis_client=redis_client)
     except ImportError:
         instrument_services(sql_engine=engine)
 
@@ -187,8 +209,9 @@ app.add_middleware(AnalyticsRateLimitMiddleware, redis_client=redis_client)
 if not settings.DEBUG:
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "*.yourdomain.com"]
+        allowed_hosts=["localhost", "127.0.0.1", "*.yourdomain.com"],
     )
+
 
 # Request timing middleware
 @app.middleware("http")
@@ -199,6 +222,7 @@ async def add_process_time_header(request: Request, call_next):
     process_time = time.time() - start_time
     response.headers["X-Process-Time"] = str(process_time)
     return response
+
 
 # Request logging middleware
 @app.middleware("http")
@@ -216,12 +240,10 @@ async def log_requests(request: Request, call_next):
 
     # Log response
     process_time = time.time() - start_time
-    logger.info(
-        f"Response: {response.status_code} "
-        f"in {process_time:.4f}s"
-    )
+    logger.info(f"Response: {response.status_code} in {process_time:.4f}s")
 
     return response
+
 
 # Include routers
 app.include_router(auth_router, prefix="/api/v1")
@@ -237,7 +259,9 @@ app.include_router(multi_agent_search_v2_router)  # Enhanced v2 multi-agent sear
 app.include_router(quality_metrics_router, prefix="/api/v1/analytics/quality")
 app.include_router(user_behavior_router, prefix="/api/v1/analytics/behavior")
 app.include_router(performance_dashboard_router, prefix="/api/v1/analytics/performance")
-app.include_router(quality_recommendations_router, prefix="/api/v1/analytics/recommendations")
+app.include_router(
+    quality_recommendations_router, prefix="/api/v1/analytics/recommendations"
+)
 app.include_router(workers_router, prefix="/api/v1")
 app.include_router(encryption_router, prefix="/api/v1/security")
 app.include_router(compliance_router, prefix="/api/v1/security")
@@ -246,20 +270,46 @@ app.include_router(evaluation_router, prefix="/api/v1")
 app.include_router(websocket_router)  # Legacy WebSocket routes
 app.include_router(websocket_v2_router)  # Enhanced WebSocket v2 routes
 app.include_router(realtime_status_router)  # Real-time document status API
-app.include_router(realtime_quality_metrics_router, prefix="/api/v2")  # Real-time quality metrics API
+app.include_router(
+    realtime_quality_metrics_router, prefix="/api/v2"
+)  # Real-time quality metrics API
 app.include_router(arxiv_router)  # ArXiv integration endpoints
-app.include_router(arxiv_kg_router, prefix="/api/v1/arxiv/kg")  # ArXiv Knowledge Graph endpoints
-app.include_router(arxiv_change_router, prefix="/api/v1/arxiv/tracking")  # ArXiv Change Tracking endpoints
-app.include_router(arxiv_extraction_router, prefix="/api/v1/arxiv/extraction")  # ArXiv Feature Extraction endpoints
-app.include_router(arxiv_local_router, prefix="/api/v1/arxiv/local")  # Local ArXiv PDF processing endpoints
+app.include_router(
+    arxiv_kg_router, prefix="/api/v1/arxiv/kg"
+)  # ArXiv Knowledge Graph endpoints
+app.include_router(
+    arxiv_change_router, prefix="/api/v1/arxiv/tracking"
+)  # ArXiv Change Tracking endpoints
+app.include_router(
+    arxiv_extraction_router, prefix="/api/v1/arxiv/extraction"
+)  # ArXiv Feature Extraction endpoints
+app.include_router(
+    arxiv_local_router, prefix="/api/v1/arxiv/local"
+)  # Local ArXiv PDF processing endpoints
 # app.include_router(arxiv_batch_router, prefix="/api/v1/arxiv/batch")  # Temporarily disabled due to import error
-app.include_router(arxiv_bulk_router, prefix="/api/v1")  # Kaggle bulk ingestion endpoints
-app.include_router(arxiv_llm_bulk_router, prefix="/api/v1")  # LLM-powered bulk ingestion with embeddings
+app.include_router(
+    arxiv_bulk_router, prefix="/api/v1"
+)  # Kaggle bulk ingestion endpoints
+app.include_router(
+    arxiv_llm_bulk_router, prefix="/api/v1"
+)  # LLM-powered bulk ingestion with embeddings
 app.include_router(chat_router, prefix="/api/v1")  # Chat completion endpoints
-app.include_router(workspaces_router)  # Thread-centric workspace/conversation/thread/message API
-app.include_router(workspaces_standalone_router)  # Flat API routes for workspaces (used by frontend)
+app.include_router(
+    workspaces_router
+)  # Thread-centric workspace/conversation/thread/message API
+# IMPORTANT: threads_router MUST be included BEFORE workspaces_standalone_router
+# because threads_router has /bulk/* routes that need to match before /{thread_id}
+app.include_router(
+    threads_router, prefix="/api/v2"
+)  # Thread management endpoints (includes bulk operations)
+app.include_router(
+    workspaces_standalone_router
+)  # Flat API routes for workspaces (used by frontend)
 app.include_router(export_router, prefix="/api/v1")  # Thread export endpoints
-app.include_router(thread_search_router, prefix="/api/v2")  # Thread and message full-text search
+app.include_router(
+    thread_search_router, prefix="/api/v2"
+)  # Thread and message full-text search
+
 
 # Health check endpoint
 @app.get("/health")
@@ -269,8 +319,9 @@ async def health_check():
         "status": "healthy",
         "version": settings.VERSION,
         "environment": settings.ENVIRONMENT,
-        "timestamp": time.time()
+        "timestamp": time.time(),
     }
+
 
 # Root endpoint
 @app.get("/")
@@ -279,9 +330,12 @@ async def root():
     return {
         "message": f"Welcome to {settings.APP_NAME}",
         "version": settings.VERSION,
-        "docs_url": "/docs" if settings.DEBUG else "Documentation not available in production",
-        "health_check": "/health"
+        "docs_url": "/docs"
+        if settings.DEBUG
+        else "Documentation not available in production",
+        "health_check": "/health",
     }
+
 
 # Global exception handlers
 @app.exception_handler(RequestValidationError)
@@ -295,10 +349,11 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
                 "message": "Validation error",
                 "status_code": 422,
                 "type": "validation_error",
-                "details": exc.errors()
+                "details": exc.errors(),
             }
-        }
+        },
     )
+
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
@@ -310,10 +365,11 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             "error": {
                 "message": exc.detail,
                 "status_code": exc.status_code,
-                "type": "http_error"
+                "type": "http_error",
             }
-        }
+        },
     )
+
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
@@ -326,13 +382,15 @@ async def general_exception_handler(request: Request, exc: Exception):
             "error": {
                 "message": "Internal server error" if not settings.DEBUG else str(exc),
                 "status_code": 500,
-                "type": "internal_error"
+                "type": "internal_error",
             }
-        }
+        },
     )
+
 
 # Development server info
 if settings.DEBUG:
+
     @app.get("/debug/info")
     async def debug_info():
         """Debug information endpoint (development only)"""
@@ -349,7 +407,7 @@ if settings.DEBUG:
                 "NEO4J_URI": settings.NEO4J_URI,
                 "QDRANT_URL": settings.QDRANT_URL,
                 "REDIS_URL": settings.REDIS_URL,
-            }
+            },
         }
 
 
@@ -375,5 +433,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=settings.DEBUG,
-        log_level=settings.LOG_LEVEL.lower()
+        log_level=settings.LOG_LEVEL.lower(),
     )

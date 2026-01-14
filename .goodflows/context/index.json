@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "created": "2026-01-11T01:57:27.598Z",
-  "updated": "2026-01-12T02:08:00.355Z",
+  "updated": "2026-01-13T05:54:36.428Z",
   "hashes": {
     "01c4064ecc9b4551": {
       "partition": "2026-01",
@@ -122,6 +122,82 @@
     "6ed6c15d5341ed7e": {
       "partition": "2026-01",
       "type": "bug"
+    },
+    "57a8e95ce82664bc": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
+    },
+    "c0a46c185e04a931": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "2e12589de8eb6343": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "6569e62b0d4667f4": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "bfdda64c1f19ac61": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "a9d11e58c1ed3309": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "c782f7e0725124f0": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "5a76d8dc6a6e9e97": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
+    },
+    "baeabc5da932567d": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "98fbd32e714d87b2": {
+      "partition": "2026-01",
+      "type": "performance"
+    },
+    "c3e9fc69f300ee32": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "1713cb423bea2cae": {
+      "partition": "2026-01",
+      "type": "performance"
+    },
+    "370629a01b67bac0": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "b7c143d6ec5e159f": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "656f12a2d267cba4": {
+      "partition": "2026-01",
+      "type": "performance"
+    },
+    "935e987153165195": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "009f56b4783b8467": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "ef804222d7ef7171": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "833101e69331b76f": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
     }
   },
   "byFile": {
@@ -165,11 +241,15 @@
       "93cb00115ee1c452"
     ],
     "backend/src/services/chat_service.py": [
-      "67d06e859eb3d894"
+      "67d06e859eb3d894",
+      "baeabc5da932567d"
     ],
     "frontend/src/store/chat-store.ts": [
       "6cc24251c089e539",
-      "3a7a2097899d6430"
+      "3a7a2097899d6430",
+      "1713cb423bea2cae",
+      "b7c143d6ec5e159f",
+      "656f12a2d267cba4"
     ],
     "frontend/src/hooks/useChatPersistence.ts": [
       "7874b674a36eea51"
@@ -186,11 +266,38 @@
       "6ed6c15d5341ed7e"
     ],
     "frontend/app/chat/layout.tsx": [
-      "92d04af475784cb2"
+      "92d04af475784cb2",
+      "935e987153165195"
     ],
     "frontend/src/services/export-service.ts": [
       "55d91e70eca7d116",
       "bdb5090ccb76cfa2"
+    ],
+    "frontend/src/services/threadSearchService.ts": [
+      "57a8e95ce82664bc"
+    ],
+    "linear-sync": [
+      "c0a46c185e04a931",
+      "2e12589de8eb6343",
+      "6569e62b0d4667f4",
+      "bfdda64c1f19ac61",
+      "a9d11e58c1ed3309",
+      "c782f7e0725124f0"
+    ],
+    "backend/src/api/threads.py": [
+      "5a76d8dc6a6e9e97",
+      "98fbd32e714d87b2",
+      "370629a01b67bac0",
+      "ef804222d7ef7171"
+    ],
+    "backend/src/tasks/summarize_thread_task.py": [
+      "c3e9fc69f300ee32"
+    ],
+    "backend/src/main.py": [
+      "009f56b4783b8467"
+    ],
+    "backend/src/core/database.py": [
+      "833101e69331b76f"
     ]
   },
   "byType": {
@@ -232,7 +339,20 @@
       "93cb00115ee1c452",
       "c8d48bf5808ee92b",
       "55d91e70eca7d116",
-      "bdb5090ccb76cfa2"
+      "bdb5090ccb76cfa2",
+      "c0a46c185e04a931",
+      "2e12589de8eb6343",
+      "6569e62b0d4667f4",
+      "bfdda64c1f19ac61",
+      "a9d11e58c1ed3309",
+      "c782f7e0725124f0",
+      "baeabc5da932567d",
+      "c3e9fc69f300ee32",
+      "370629a01b67bac0",
+      "b7c143d6ec5e159f",
+      "935e987153165195",
+      "009f56b4783b8467",
+      "ef804222d7ef7171"
     ],
     "refactor_suggestion": [
       "fd7e04e33457cf0d",
@@ -241,7 +361,10 @@
       "1e88a9bfd6c79aa6",
       "3a7a2097899d6430",
       "bcc812b291d624ec",
-      "cb07cacd2e756971"
+      "cb07cacd2e756971",
+      "57a8e95ce82664bc",
+      "5a76d8dc6a6e9e97",
+      "833101e69331b76f"
     ],
     "documentation": [
       "c99e3574b5034cf7",
@@ -249,6 +372,11 @@
     ],
     "bug": [
       "6ed6c15d5341ed7e"
+    ],
+    "performance": [
+      "98fbd32e714d87b2",
+      "1713cb423bea2cae",
+      "656f12a2d267cba4"
     ]
   },
   "byIssue": {
@@ -258,7 +386,13 @@
       "file": "scripts/verify-fix.sh",
       "pattern": "shell-injection-env-vars",
       "hash": "688da53859083935"
-    }
+    },
+    "GOO-13": "c0a46c185e04a931",
+    "GOO-12": "2e12589de8eb6343",
+    "GOO-11": "6569e62b0d4667f4",
+    "GOO-8": "bfdda64c1f19ac61",
+    "GOO-48": "a9d11e58c1ed3309",
+    "GOO-52": "c782f7e0725124f0"
   },
   "fixes": {
     "GOO-62": {
@@ -286,8 +420,8 @@
     }
   },
   "stats": {
-    "totalFindings": 63,
-    "uniqueFindings": 30,
+    "totalFindings": 82,
+    "uniqueFindings": 49,
     "duplicatesSkipped": 33,
     "fixesApplied": 1,
     "patternsDiscovered": 1
