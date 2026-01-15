@@ -27,11 +27,11 @@
 
 **Purpose**: Project initialization, dependencies, and base structure
 
-- [ ] T001 [P] Install backend dependencies: `pybtex==0.24.0`, `aiohttp-retry==2.8.3` in `backend/requirements.txt`
-- [ ] T002 [P] Install frontend dependencies: `cytoscape-popper@2.0.0`, `cytoscape-context-menus@4.1.0` in `frontend/package.json`
-- [ ] T003 [P] Create directory structure for new services: `backend/src/services/{citation_extraction_service.py, bibliography_service.py, citation_graph_service.py, draft_generation_service.py}`
-- [ ] T004 [P] Create directory structure for frontend components: `frontend/src/components/{citations/, research/}`
-- [ ] T005 [P] Create directory structure for stores: `frontend/src/store/{citationStore.ts, projectStore.ts}`
+- [X] T001 [P] Install backend dependencies: `pybtex==0.24.0`, `aiohttp-retry==2.8.3` in `backend/requirements.txt`
+- [X] T002 [P] Install frontend dependencies: `cytoscape-popper@2.0.0`, `cytoscape-context-menus@4.1.0` in `frontend/package.json`
+- [X] T003 [P] Create directory structure for new services: `backend/src/services/{citation_extraction_service.py, bibliography_service.py, citation_graph_service.py, draft_generation_service.py}`
+- [X] T004 [P] Create directory structure for frontend components: `frontend/src/components/{citations/, research/}`
+- [X] T005 [P] Create directory structure for stores: `frontend/src/store/{citationStore.ts, projectStore.ts}`
 
 ---
 
@@ -43,60 +43,60 @@
 
 ### Database Migrations
 
-- [ ] T006 Create Alembic migration 1: Extend citations table with scholarly metadata fields in `backend/alembic/versions/xxx_extend_citations_metadata.py`
+- [X] T006 Create Alembic migration 1: Extend citations table with scholarly metadata fields in `backend/alembic/versions/xxx_extend_citations_metadata.py`
   - Add columns: authors, year, venue, doi, arxiv_id, abstract, metadata_source, needs_review
   - Add unique constraints on doi, arxiv_id
   - Add indexes on arxiv_id, doi, document_id
 
-- [ ] T007 Create Alembic migration 2: Create citation_relationships table in `backend/alembic/versions/xxx_create_citation_relationships.py`
+- [X] T007 Create Alembic migration 2: Create citation_relationships table in `backend/alembic/versions/xxx_create_citation_relationships.py`
   - Table with source_citation_id, target_citation_id, relationship_type, citation_context, confidence
   - Unique constraint, self-reference check, indexes
 
-- [ ] T008 Create Alembic migration 3: Extend collections table for research projects in `backend/alembic/versions/xxx_extend_collections_research.py`
+- [X] T008 Create Alembic migration 3: Extend collections table for research projects in `backend/alembic/versions/xxx_extend_collections_research.py`
   - Add columns: project_type, research_status, research_goals, deadline, tags, is_private
 
-- [ ] T009 Create Alembic migration 4: Create project_notes table in `backend/alembic/versions/xxx_create_project_notes.py`
+- [X] T009 Create Alembic migration 4: Create project_notes table in `backend/alembic/versions/xxx_create_project_notes.py`
   - Table with project_id, user_id, title, content, linked_document_ids, tags, is_pinned
   - Indexes on project_id, user_id
 
-- [ ] T010 Create Alembic migration 5: Create generated_drafts and draft_citations tables in `backend/alembic/versions/xxx_create_generated_drafts.py`
+- [X] T010 Create Alembic migration 5: Create generated_drafts and draft_citations tables in `backend/alembic/versions/xxx_create_generated_drafts.py`
   - generated_drafts table with versioning, themes, generation_params
   - draft_citations table linking drafts to documents/citations
   - Version retention trigger function
 
-- [ ] T011 Run all migrations: `alembic upgrade head`
+- [X] T011 Run all migrations: `alembic upgrade head`
 
 ### Core Models (Backend)
 
-- [ ] T012 [P] Extend Citation model with scholarly metadata fields in `backend/src/models/citation.py`
+- [X] T012 [P] Extend Citation model with scholarly metadata fields in `backend/src/models/citation.py`
   - Add: authors, year, venue, doi, arxiv_id, abstract, metadata_source, needs_review
   - Add validation for year range, arxiv_id format
 
-- [ ] T013 [P] Create CitationRelationship model in `backend/src/models/citation_relationship.py`
+- [X] T013 [P] Create CitationRelationship model in `backend/src/models/citation_relationship.py`
   - Fields: source_citation_id, target_citation_id, relationship_type, citation_context, confidence
   - Relationships to Citation model
 
-- [ ] T014 [P] Create/Extend ResearchProject model in `backend/src/models/research_project.py`
+- [X] T014 [P] Create/Extend ResearchProject model in `backend/src/models/research_project.py`
   - Extend collections with: project_type, research_status, research_goals, deadline, tags, is_private
   - State transition logic
 
-- [ ] T015 [P] Create ProjectNote model in `backend/src/models/project_note.py`
+- [X] T015 [P] Create ProjectNote model in `backend/src/models/project_note.py`
   - Fields: project_id, user_id, title, content, linked_document_ids, tags, is_pinned
 
-- [ ] T016 [P] Create GeneratedDraft model in `backend/src/models/generated_draft.py`
+- [X] T016 [P] Create GeneratedDraft model in `backend/src/models/generated_draft.py`
   - Fields: project_id, version, title, content, themes, word_count, citation_count, generation_params, is_current
 
-- [ ] T017 [P] Create DraftCitation model in `backend/src/models/draft_citation.py`
+- [X] T017 [P] Create DraftCitation model in `backend/src/models/draft_citation.py`
   - Fields: draft_id, citation_index, document_id, citation_id, snippet, context
 
-- [ ] T018 Update models __init__.py to export all new models in `backend/src/models/__init__.py`
+- [X] T018 Update models __init__.py to export all new models in `backend/src/models/__init__.py`
 
 ### Core Pydantic Schemas
 
-- [ ] T019 [P] Create Citation schemas (Create, Update, Response, List) in `backend/src/shared/schemas/citation_schemas.py`
-- [ ] T020 [P] Create Project schemas (Create, Update, Response, Detail) in `backend/src/shared/schemas/project_schemas.py`
-- [ ] T021 [P] Create Note schemas (Create, Update, Response) in `backend/src/shared/schemas/note_schemas.py`
-- [ ] T022 [P] Create Draft schemas (Generate, Response, Comparison, Export) in `backend/src/shared/schemas/draft_schemas.py`
+- [X] T019 [P] Create Citation schemas (Create, Update, Response, List) in `backend/src/shared/research_schemas.py`
+- [X] T020 [P] Create Project schemas (Create, Update, Response, Detail) in `backend/src/shared/research_schemas.py`
+- [X] T021 [P] Create Note schemas (Create, Update, Response) in `backend/src/shared/research_schemas.py`
+- [X] T022 [P] Create Draft schemas (Generate, Response, Comparison, Export) in `backend/src/shared/research_schemas.py`
 
 **Checkpoint**: Foundation ready - models, migrations, schemas complete. User story implementation can begin.
 
@@ -110,36 +110,36 @@
 
 ### Backend Implementation for US1
 
-- [ ] T023 [US1] Add citation persistence endpoint `POST /api/v1/citations` in `backend/src/api/citations.py`
+- [X] T023 [US1] Add citation persistence endpoint `POST /api/v1/citations` in `backend/src/api/citations.py`
   - Create citation from chat message context
   - Link to message_id and document_id
 
-- [ ] T024 [US1] Add citation retrieval endpoint `GET /api/v1/citations` in `backend/src/api/citations.py`
+- [X] T024 [US1] Add citation retrieval endpoint `GET /api/v1/citations` in `backend/src/api/citations.py`
   - Filter by message_id, document_id
   - Include snippet preview
 
-- [ ] T025 [US1] Add single citation detail `GET /api/v1/citations/{id}` in `backend/src/api/citations.py`
+- [X] T025 [US1] Add single citation detail `GET /api/v1/citations/{id}` in `backend/src/api/citations.py`
   - Return full citation with document snippet
 
-- [ ] T026 [US1] Create message citation service in `backend/src/services/message_citation_service.py`
+- [X] T026 [US1] Create message citation service in `backend/src/services/message_citation_service.py`
   - Save citations from AI responses
   - Parse [Doc N] format from response text
   - Link citations to source documents
 
-- [ ] T027 [US1] Register citations router in `backend/src/main.py`
+- [X] T027 [US1] Register citations router in `backend/src/main.py`
 
 ### Frontend Implementation for US1
 
-- [ ] T028 [US1] Extend ragService.ts with citation persistence in `frontend/src/services/ragService.ts`
+- [X] T028 [US1] Extend ragService.ts with citation persistence in `frontend/src/services/ragService.ts`
   - After WebLLM response, extract [Doc N] citations
   - POST citations to backend for persistence
   - Return citation IDs for linking
 
-- [ ] T029 [US1] Create citationService.ts API client in `frontend/src/services/citationService.ts`
+- [X] T029 [US1] Create citationService.ts API client in `frontend/src/services/citationService.ts`
   - createCitation(), getCitation(), listCitations()
   - Handle citation preview fetching
 
-- [ ] T030 [US1] Create citationStore.ts Zustand store in `frontend/src/store/citationStore.ts`
+- [X] T030 [US1] Create citationStore.ts Zustand store in `frontend/src/store/citationStore.ts`
   - State: citations, loading, error
   - Actions: fetchCitations, addCitation, clearCitations
 
@@ -182,40 +182,40 @@
 
 ### Backend Implementation for US2
 
-- [ ] T037 [US2] Create ArXiv citation extractor in `backend/src/services/citation_extraction_service.py`
+- [X] T037 [US2] Create ArXiv citation extractor in `backend/src/services/citation_extraction_service.py`
   - Use existing arxiv_service.py for API calls
   - Extract title, authors, year, arxiv_id, abstract
   - Rate limit: 3 req/sec
 
-- [ ] T038 [US2] Add Semantic Scholar client in `backend/src/services/semantic_scholar_service.py`
+- [X] T038 [US2] Add Semantic Scholar client in `backend/src/services/semantic_scholar_service.py`
   - Lookup by ArXiv ID, DOI, or title
   - Extract citation metadata and citation counts
   - Rate limit: 100/min
 
-- [ ] T039 [US2] Add CrossRef client in `backend/src/services/crossref_service.py`
+- [X] T039 [US2] Add CrossRef client in `backend/src/services/crossref_service.py`
   - DOI-based lookup
   - Extract venue, publisher metadata
   - Rate limit: 50/sec
 
-- [ ] T040 [US2] Implement hybrid extraction pipeline in `backend/src/services/citation_extraction_service.py`
+- [X] T040 [US2] Implement hybrid extraction pipeline in `backend/src/services/citation_extraction_service.py`
   - Strategy: ArXiv → Semantic Scholar → CrossRef → PDF parsing → manual
   - Return extraction source and confidence score
 
-- [ ] T041 [US2] Add citation extraction endpoint `POST /api/v1/citations/extract` in `backend/src/api/citations.py`
+- [X] T041 [US2] Add citation extraction endpoint `POST /api/v1/citations/extract` in `backend/src/api/citations.py`
   - Accept document_id, strategy (auto/arxiv/crossref/etc)
   - Return extracted citations with confidence
 
-- [ ] T042 [US2] Create bibliography formatting service in `backend/src/services/bibliography_service.py`
+- [X] T042 [US2] Create bibliography formatting service in `backend/src/services/bibliography_service.py`
   - BibTeX formatter using pybtex
   - IEEE formatter (custom)
   - APA formatter (custom)
   - MLA formatter (custom)
 
-- [ ] T043 [US2] Add bibliography export endpoint `POST /api/v1/citations/export` in `backend/src/api/citations.py`
+- [X] T043 [US2] Add bibliography export endpoint `POST /api/v1/citations/export` in `backend/src/api/citations.py`
   - Accept format (bibtex/ieee/apa/mla), citation_ids or project_id
   - Return formatted bibliography file
 
-- [ ] T044 [US2] Add citation lookup endpoint `POST /api/v1/citations/lookup` in `backend/src/api/citations.py`
+- [X] T044 [US2] Add citation lookup endpoint `POST /api/v1/citations/lookup` in `backend/src/api/citations.py`
   - Lookup by arxiv_id, doi, or title
   - Return Citation schema
 

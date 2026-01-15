@@ -59,6 +59,7 @@ from src.api.workspaces import (
 from src.api.export import router as export_router
 from src.api.threads import router as threads_router
 from src.api.thread_search import router as thread_search_router
+from src.api.citations import router as citations_router
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.core.database import engine
 # from src.services.file_service import redis_client  # Not exported, not needed here
@@ -306,6 +307,7 @@ app.include_router(
     workspaces_standalone_router
 )  # Flat API routes for workspaces (used by frontend)
 app.include_router(export_router, prefix="/api/v1")  # Thread export endpoints
+app.include_router(citations_router)  # Research Assistant citations endpoints
 app.include_router(
     thread_search_router, prefix="/api/v2"
 )  # Thread and message full-text search
