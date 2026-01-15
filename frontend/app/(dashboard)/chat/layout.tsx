@@ -53,8 +53,12 @@ import {
   X
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { 
+  usePathname, 
+  useRouter, 
+  useSearchParams 
+} from 'next/navigation';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 // ============================================
 // TYPES
@@ -434,6 +438,8 @@ function ConversationSidebar({
   onClose: () => void;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentThreadParam = searchParams.get('thread');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     pinned: true,
@@ -539,7 +545,7 @@ function ConversationSidebar({
   const sidebarContent = (
     <div className="h-full flex flex-col bg-[var(--terminal-bg)] border-r border-[var(--terminal-border)]">
       {/* New Chat Button */}
-      <div className="p-3">
+      <div className="p-3 relative z-50">
         <button
           disabled={isCreatingChat}
           onClick={async () => {
@@ -716,7 +722,7 @@ function ConversationSidebar({
                   className="space-y-1"
                 >
                   {pinnedConversations.map((conv) => (
-                    <ConversationItem key={conv.id} conversation={conv} isActive={currentThreadId === conv.id || pathname === `/chat/${conv.id}`} onSelect={selectConversation} isSelectMode={isSelectMode} isSelected={selectedIds.has(conv.id)} onToggleSelection={toggleThreadSelection} />
+                    <ConversationItem key={conv.id} conversation={conv} isActive={currentThreadId === conv.id || currentThreadParam === conv.id || pathname === `/chat/${conv.id}`} onSelect={selectConversation} isSelectMode={isSelectMode} isSelected={selectedIds.has(conv.id)} onToggleSelection={toggleThreadSelection} />
                   ))}
                 </motion.div>
               )}
@@ -776,7 +782,7 @@ function ConversationSidebar({
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.02 }}
                     >
-                      <ConversationItem conversation={conv} isActive={currentThreadId === conv.id || pathname === `/chat/${conv.id}`} onSelect={selectConversation} isSelectMode={isSelectMode} isSelected={selectedIds.has(conv.id)} onToggleSelection={toggleThreadSelection} />
+                      <ConversationItem conversation={conv} isActive={currentThreadId === conv.id || currentThreadParam === conv.id || pathname === `/chat/${conv.id}`} onSelect={selectConversation} isSelectMode={isSelectMode} isSelected={selectedIds.has(conv.id)} onToggleSelection={toggleThreadSelection} />
                     </motion.div>
                   ))
                 )}
@@ -935,10 +941,7 @@ function ConversationItem({
       return;
     }
     
-    // Update Zustand store first, then navigate
-    if (onSelect) {
-      onSelect(conversation.id);
-    }
+    // Navigate to the thread - let the page component handle store updates via URL params
     router.push(`/chat?thread=${conversation.id}`);
   };
 
@@ -1618,10 +1621,12 @@ export default function ChatLayout({
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Left Sidebar */}
-        <ConversationSidebar
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-        />
+        <Suspense fallback={<div className="w-72 border-r border-[var(--terminal-border)] bg-[var(--terminal-bg)]" />}>
+          <ConversationSidebar
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+          />
+        </Suspense>
 
         {/* Main Content */}
         <main className="flex-1 flex flex-col overflow-hidden">

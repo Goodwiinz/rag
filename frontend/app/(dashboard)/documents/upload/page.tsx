@@ -9,29 +9,29 @@ import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import { v4 as uuidv4 } from 'uuid';
-import {
+import { 
+  Terminal, 
+  Activity, 
+  ArrowRight, 
+  ChevronLeft, 
+  Database, 
+  Cpu, 
+  Network, 
+  Loader2,
+  Upload,
   UploadCloud,
   FilePlus,
-  X,
-  CheckCircle,
-  AlertTriangle,
-  Upload,
-  Trash2,
-  Settings,
   FileText,
   Image as ImageIcon,
   Music,
   Video,
+  Trash2,
+  CheckCircle,
+  AlertTriangle,
   Sparkles,
-  ShieldCheck,
-  Terminal,
-  Activity,
-  ArrowRight,
-  Database,
-  Cpu,
-  Network,
-  Loader2
+  ShieldCheck
 } from 'lucide-react';
+import Link from 'next/link';
 
 import { useToast } from '@/hooks/use-toast';
 import { enhancedDocumentService, DocumentUploadRequest, WebSocketProgressUpdate } from '@/services/enhancedDocumentService';
@@ -71,19 +71,8 @@ export default function DocumentUploadPage() {
 
   // Terminal typing effect
   useEffect(() => {
-    if (!mounted) return;
-    const fullText = 'DOCUMENT_INGESTION_TERMINAL';
-    let index = 0;
-    const interval = setInterval(() => {
-      if (index <= fullText.length) {
-        setTerminalText(fullText.slice(0, index));
-        index++;
-      } else {
-        clearInterval(interval);
-      }
-    }, 40);
-    return () => clearInterval(interval);
-  }, [mounted]);
+    // Effect removed for cleaner UI
+  }, []);
 
   const getDefaultRequest = (file: File): DocumentUploadRequest => ({
     title: file.name.replace(/\.[^/.]+$/, ''),
@@ -315,30 +304,6 @@ export default function DocumentUploadPage() {
 
   return (
     <div className="min-h-screen bg-[var(--terminal-bg)] relative overflow-hidden flex flex-col star-field terminal-grid noise-texture">
-      {/* Navigation Header */}
-      <nav className="relative z-40 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/80 backdrop-blur-xl h-14 shrink-0">
-        <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-8 h-8 rounded bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20">
-              <Terminal className="w-4 h-4 text-[var(--phosphor-green)]" />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-mono font-bold text-[var(--terminal-text)] text-sm uppercase tracking-tighter leading-none">INGEST_CORE</span>
-              <span className="font-mono text-[9px] text-[var(--terminal-text-dim)] uppercase tracking-widest leading-none mt-0.5">Terminal Observatory</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => window.location.href = '/documents'}
-              className="px-3 py-1.5 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] text-[10px] font-mono text-[var(--terminal-text-muted)] hover:text-[var(--phosphor-green)] hover:border-[var(--phosphor-green)]/30 transition-all uppercase tracking-widest font-bold"
-            >
-              Back_to_registry
-            </button>
-          </div>
-        </div>
-      </nav>
-
       <div className="flex-1 overflow-y-auto terminal-scrollbar relative z-10 p-6">
         <div className="max-w-5xl mx-auto space-y-8">
           {/* Page Title */}
@@ -352,10 +317,10 @@ export default function DocumentUploadPage() {
             </div>
             <div>
               <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter uppercase">
-                {terminalText}<span className="animate-pulse">_</span>
+                Upload Documents
               </h1>
               <p className="text-[9px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] mt-0.5">
-                Neural Data Ingestion :: Channel Secure
+                Supported formats: PDF, DOCX, TXT, Images, Audio, Video
               </p>
             </div>
           </motion.div>
@@ -395,10 +360,10 @@ export default function DocumentUploadPage() {
 
                   <div className="space-y-2">
                     <p className="text-sm font-mono font-bold tracking-widest text-[var(--terminal-text)] uppercase">
-                      {isDragActive ? '[ RELEASE_FOR_INGESTION ]' : 'Drop_nodes_here_or_click_to_initialize'}
+                      {isDragActive ? 'Drop files now' : 'Drag & drop files or click to browse'}
                     </p>
                     <p className="text-[10px] text-[var(--terminal-text-muted)] font-mono uppercase tracking-widest">
-                      Payload Limit: 50MB • Max Units: 10 per cycle
+                      Max file size: 50MB • Up to 10 files at once
                     </p>
                   </div>
 
@@ -562,67 +527,8 @@ export default function DocumentUploadPage() {
               </AnimatePresence>
             </div>
           </motion.div>
-
-          {/* Feature Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
-            {[
-              {
-                icon: Cpu,
-                title: 'NEURAL_INGESTION',
-                desc: 'Automatic entity extraction and contextual linking',
-                color: 'var(--phosphor-green)',
-              },
-              {
-                icon: ShieldCheck,
-                title: 'ZERO_TRUST_SCAN',
-                desc: 'Payload validation and threat neutralizing protocols',
-                color: 'var(--amber-gold)',
-              },
-              {
-                icon: Network,
-                title: 'SEMANTIC_GRID',
-                desc: 'Node integration into distributed knowledge graph',
-                color: 'var(--cyan)',
-              },
-            ].map((feature, index) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 + (index * 0.1) }}
-                className="p-5 rounded-2xl bg-[var(--terminal-surface)] border border-[var(--terminal-border)] group hover:border-[var(--terminal-border-muted)] transition-all"
-              >
-                <div className="mb-4 p-2 w-fit rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)] transition-colors group-hover:border-[var(--phosphor-green)]/30" style={{ color: feature.color }}>
-                  <feature.icon className="w-5 h-5" />
-                </div>
-                <h3 className="font-mono text-[11px] font-bold text-[var(--terminal-text)] mb-2 uppercase tracking-widest">
-                  {feature.title}
-                </h3>
-                <p className="text-[10px] text-[var(--terminal-text-dim)] font-mono uppercase tracking-tight leading-relaxed">
-                  {feature.desc}
-                </p>
-              </motion.div>
-            ))}
-          </div>
         </div>
       </div>
-
-      {/* Status Bar Footer */}
-      <footer className="border-t border-[var(--terminal-border)] bg-[var(--terminal-bg)]/90 backdrop-blur-sm p-2 shrink-0">
-        <div className="max-w-7xl mx-auto flex items-center justify-between text-[9px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider">
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5">
-              <span className={cn("w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)]", isUploading ? "animate-ping" : "")} />
-              {isUploading ? "TRANSMISSION_ACTIVE" : "TERMINAL_STANDBY"}
-            </span>
-            <span className="hidden sm:inline">BITRATE: 4.2 MBPS</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span>UPLINK: SECURE_TLS_1.3</span>
-            <span>BUILD: v2.0.1-INGEST</span>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

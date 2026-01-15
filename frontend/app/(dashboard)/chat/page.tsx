@@ -1781,7 +1781,7 @@ function ChatPageContent() {
   const currentModel = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden relative">
       {/* Model Loading Progress */}
       <AnimatePresence>
         {isModelLoading && (
@@ -1789,116 +1789,121 @@ function ChatPageContent() {
         )}
       </AnimatePresence>
 
-      {/* Messages Area */}
-      <div
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto terminal-scrollbar relative"
-      >
-        {/* Scroll to bottom button */}
+      {/* Messages Area Wrapper */}
+      <div className="flex-1 relative min-h-0">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="h-full overflow-y-auto terminal-scrollbar"
+        >
+          {/* Authentication Required State */ }
+          {!isAuthenticated ? (
+            <div className="h-full flex flex-col items-center justify-center p-8">
+              <div className="text-center">
+                <Loader2 className="w-8 h-8 text-[var(--amber-gold)] animate-spin mx-auto mb-4" />
+                <p className="text-sm font-mono text-[var(--terminal-text-muted)] mt-2">
+                  Authentication required. Redirecting...
+                </p>
+              </div>
+            </div>
+          ) : isInitializing ? (
+            /* Loading State */
+            <div className="h-full flex flex-col items-center justify-center p-8">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-center"
+              >
+                <div className="relative w-12 h-12 mx-auto mb-6">
+                  <Loader2 className="w-12 h-12 text-[var(--phosphor-green)] animate-spin" />
+                </div>
+                <h2
+                  className="text-sm text-[var(--phosphor-green)] mb-2 tracking-widest"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  INITIALIZING...
+                </h2>
+              </motion.div>
+            </div>
+          ) : initError ? (
+            /* Error State */
+            <div className="h-full flex flex-col items-center justify-center p-8">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center max-w-md"
+              >
+                <div className="relative w-16 h-16 mx-auto mb-6">
+                  <div className="absolute inset-0 rounded-full bg-[var(--error-red)]/10" />
+                  <div className="absolute inset-2 rounded-full border border-[var(--error-red)]/30 flex items-center justify-center">
+                    <Activity className="w-6 h-6 text-[var(--error-red)]" />
+                  </div>
+                </div>
+                <h2
+                  className="text-lg text-[var(--error-red)] mb-3"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  CONNECTION ERROR
+                </h2>
+                <p
+                  className="text-xs text-[var(--terminal-text-muted)] mb-6 p-3 rounded bg-[var(--error-red)]/5 border border-[var(--error-red)]/10"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  {initError}
+                </p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--terminal-text)] text-xs font-medium hover:border-[var(--phosphor-green)]/30 transition-all"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  RETRY CONNECTION
+                </button>
+              </motion.div>
+            </div>
+          ) : messages.length === 0 ? (
+            <WelcomeState onPromptSelect={handlePromptSelect} selectedModel={selectedModel} />
+          ) : (
+            <div className="max-w-4xl mx-auto pt-8 px-4 pb-12">
+              <AnimatePresence>
+                {messages.map((message, index) => (
+                  <ChatMessage
+                    key={index}
+                    message={message}
+                    index={index}
+                    modelName={message.role === 'assistant' ? currentModel?.name : undefined}
+                    isTyping={index === messages.length - 1 && isLoading && message.role === 'assistant'}
+                    onCitationClick={(citations, clickedCitation) => {
+                      setCitationPanelCitations(citations);
+                      setActiveCitationId(clickedCitation.documentId);
+                      setIsCitationPanelOpen(true);
+                    }}
+                  />
+                ))}
+              </AnimatePresence>
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+
+        {/* Scroll to bottom button - Absolute positioned within wrapper */}
         <AnimatePresence>
           {showScrollButton && (
-            <motion.button
-              initial={{ opacity: 0, y: 10, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.9 }}
-              onClick={scrollToBottom}
-              className="fixed bottom-32 right-8 z-10 flex items-center gap-2 px-3 py-2 rounded-full bg-[var(--phosphor-green)] text-[var(--terminal-bg)] text-xs font-medium shadow-lg hover:shadow-[0_0_20px_var(--phosphor-green-glow)] transition-all"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
-            >
-              <ArrowDown className="w-4 h-4" />
-              <span className="hidden sm:inline">New messages</span>
-            </motion.button>
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+              <motion.button
+                initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                onClick={scrollToBottom}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--phosphor-green)] text-[var(--terminal-bg)] text-xs font-bold shadow-[0_0_20px_var(--phosphor-green-glow)] hover:shadow-[0_0_30px_var(--phosphor-green-glow)] transition-all pointer-events-auto border border-[var(--terminal-bg)]"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                <ArrowDown className="w-4 h-4" />
+                <span className="hidden sm:inline tracking-wider">NEW MESSAGES</span>
+              </motion.button>
+            </div>
           )}
         </AnimatePresence>
-        {/* Authentication Required State */ }
-        {!isAuthenticated ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-8">
-            <div className="text-center">
-              <Loader2 className="w-8 h-8 text-[var(--amber-gold)] animate-spin mx-auto mb-4" />
-              <p className="text-sm font-mono text-[var(--terminal-text-muted)] mt-2">
-                Authentication required. Redirecting...
-              </p>
-            </div>
-          </div>
-        ) : isInitializing ? (
-          /* Loading State */
-          <div className="flex-1 flex flex-col items-center justify-center p-8">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-center"
-            >
-              <div className="relative w-12 h-12 mx-auto mb-6">
-                <Loader2 className="w-12 h-12 text-[var(--phosphor-green)] animate-spin" />
-              </div>
-              <h2
-                className="text-sm text-[var(--phosphor-green)] mb-2 tracking-widest"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                INITIALIZING...
-              </h2>
-            </motion.div>
-          </div>
-        ) : initError ? (
-          /* Error State */
-          <div className="flex-1 flex flex-col items-center justify-center p-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-center max-w-md"
-            >
-              <div className="relative w-16 h-16 mx-auto mb-6">
-                <div className="absolute inset-0 rounded-full bg-[var(--error-red)]/10" />
-                <div className="absolute inset-2 rounded-full border border-[var(--error-red)]/30 flex items-center justify-center">
-                  <Activity className="w-6 h-6 text-[var(--error-red)]" />
-                </div>
-              </div>
-              <h2
-                className="text-lg text-[var(--error-red)] mb-3"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                CONNECTION ERROR
-              </h2>
-              <p
-                className="text-xs text-[var(--terminal-text-muted)] mb-6 p-3 rounded bg-[var(--error-red)]/5 border border-[var(--error-red)]/10"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                {initError}
-              </p>
-              <button
-                onClick={() => window.location.reload()}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--terminal-text)] text-xs font-medium hover:border-[var(--phosphor-green)]/30 transition-all"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                <Activity className="w-3.5 h-3.5" />
-                RETRY CONNECTION
-              </button>
-            </motion.div>
-          </div>
-        ) : messages.length === 0 ? (
-          <WelcomeState onPromptSelect={handlePromptSelect} selectedModel={selectedModel} />
-        ) : (
-          <div className="max-w-4xl mx-auto pt-8 px-4 pb-12">
-            <AnimatePresence>
-              {messages.map((message, index) => (
-                <ChatMessage
-                  key={index}
-                  message={message}
-                  index={index}
-                  modelName={message.role === 'assistant' ? currentModel?.name : undefined}
-                  isTyping={index === messages.length - 1 && isLoading && message.role === 'assistant'}
-                  onCitationClick={(citations, clickedCitation) => {
-                    setCitationPanelCitations(citations);
-                    setActiveCitationId(clickedCitation.documentId);
-                    setIsCitationPanelOpen(true);
-                  }}
-                />
-              ))}
-            </AnimatePresence>
-            <div ref={messagesEndRef} />
-          </div>
-        )}
       </div>
 
       {/* Input Area */}

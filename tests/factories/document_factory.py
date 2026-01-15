@@ -13,7 +13,7 @@ from faker import Faker
 # Import models
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.processing import ProcessingJob, JobType, JobStatus, JobPriority
-from src.models.quality import QualityAssessment
+from src.models.quality import QualityMetric
 from src.models.user import User
 from src.models.organization import Organization
 
@@ -29,7 +29,7 @@ class DocumentConfig:
     filename: Optional[str] = None
     file_type: DocumentType = DocumentType.PDF
     file_size_bytes: Optional[int] = None
-    processing_status: ProcessingStatus = ProcessingStatus.INDEXED
+    processing_status: ProcessingStatus = ProcessingStatus.COMPLETED
     is_public: bool = False
     is_deleted: bool = False
     uploaded_by_user_id: Optional[str] = None
@@ -64,7 +64,7 @@ class ProcessingJobConfig:
 
 
 @dataclass
-class QualityAssessmentConfig:
+class QualityMetricConfig:
     """Configuration for quality assessment generation"""
     document_id: Optional[str] = None
     overall_score: Optional[float] = None
@@ -89,7 +89,7 @@ class DocumentFactory:
             'has_pages': True,
             'has_duration': False
         },
-        DocumentType.TXT: {
+        DocumentType.TEXT: {
             'extensions': ['.txt', '.md'],
             'mime_types': ['text/plain', 'text/markdown'],
             'size_range': (1 * 1024, 5 * 1024 * 1024),  # 1KB - 5MB
@@ -302,7 +302,7 @@ class DocumentFactory:
         return job
 
     @classmethod
-    def create_quality_assessment(cls, config: Optional[QualityAssessmentConfig] = None) -> QualityAssessment:
+    def create_quality_assessment(cls, config: Optional[QualityMetricConfig] = None) -> QualityMetric:
         """
         Create a test quality assessment
 
@@ -310,10 +310,10 @@ class DocumentFactory:
             config: Quality assessment configuration
 
         Returns:
-            QualityAssessment instance
+            QualityMetric instance
         """
         if config is None:
-            config = QualityAssessmentConfig()
+            config = QualityMetricConfig()
 
         # Generate scores if not provided
         if config.overall_score is None:
@@ -344,7 +344,7 @@ class DocumentFactory:
         created_at = config.created_at or datetime.utcnow()
 
         # Create quality assessment instance
-        assessment = QualityAssessment(
+        assessment = QualityMetric(
             id=str(uuid.uuid4()),
             document_id=config.document_id or str(uuid.uuid4()),
             overall_score=config.overall_score,
@@ -364,7 +364,7 @@ class DocumentFactory:
         cls,
         doc_config: Optional[DocumentConfig] = None,
         job_config: Optional[ProcessingJobConfig] = None,
-        qa_config: Optional[QualityAssessmentConfig] = None
+        qa_config: Optional[QualityMetricConfig] = None
     ) -> Dict[str, Any]:
         """
         Create a complete document with associated processing job and quality assessment
@@ -403,7 +403,7 @@ class DocumentFactory:
         quality_assessment = None
         if document.processing_status == ProcessingStatus.INDEXED:
             if qa_config is None:
-                qa_config = QualityAssessmentConfig()
+                qa_config = QualityMetricConfig()
             qa_config.document_id = document.id
             quality_assessment = cls.create_quality_assessment(qa_config)
 
@@ -429,7 +429,7 @@ class DocumentFactory:
                 "Project Proposal {project}",
                 "User Manual {product}"
             ],
-            DocumentType.TXT: [
+            DocumentType.TEXT: [
                 "Meeting Notes {date}",
                 "Project Timeline {project}",
                 "Code Documentation {module}",
@@ -571,7 +571,7 @@ class DocumentFactory:
                 'is_encrypted': random.choice([True, False]),
                 'creation_tool': random.choice(['Adobe Acrobat', 'Microsoft Word', 'Google Docs', 'LibreOffice'])
             },
-            DocumentType.TXT: {
+            DocumentType.TEXT: {
                 'encoding': random.choice(['UTF-8', 'UTF-16', 'ISO-8859-1', 'ASCII']),
                 'line_endings': random.choice(['\\n', '\\r\\n', '\\r']),
                 'word_count': random.randint(100, 50000),

@@ -328,6 +328,140 @@ class TestWebSocketAuthError:
         assert error.code == 4001
 
 
+class TestExportServiceAuthorization:
+    """Tests for export service authorization (GOO-132 fix)."""
+
+    @pytest.mark.asyncio
+    async def test_export_denies_unauthorized_user(self):
+        """Test that export service denies access to threads user doesn't own."""
+        from unittest.mock import AsyncMock, MagicMock
+        from src.services.export_service import ExportService
+        from src.shared.export_schemas import ExportFormat, ExportOptions
+
+        # Mock database session
+        mock_db = AsyncMock()
+
+        # Create mock thread owned by different user
+        mock_thread = MagicMock()
+        mock_thread.id = "thread-123"
+        mock_thread.created_by_id = "owner-user-id"
+
+        mock_conversation = MagicMock()
+        mock_conversation.created_by_id = "owner-user-id"
+        mock_thread.conversation = mock_conversation
+
+        # Mock database query result
+        mock_result = MagicMock()
+        mock_result.unique.return_value.scalar_one_or_none.return_value = mock_thread
+        mock_db.execute.return_value = mock_result
+
+        service = ExportService(mock_db)
+
+        # Try to export as different user
+        result = await service._load_thread(
+            thread_id="thread-123",
+            user_id="attacker-user-id",  # Different user
+            options=ExportOptions()
+        )
+
+        # Should return None (access denied)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_export_allows_thread_owner(self):
+        """Test that export service allows thread owner to export."""
+        from unittest.mock import AsyncMock, MagicMock
+        from src.services.export_service import ExportService
+        from src.shared.export_schemas import ExportFormat, ExportOptions
+
+        # Mock database session
+        mock_db = AsyncMock()
+
+        # Create mock thread owned by requesting user
+        mock_thread = MagicMock()
+        mock_thread.id = "thread-123"
+        mock_thread.created_by_id = "owner-user-id"
+        mock_thread.title = "Test Thread"
+        mock_thread.summary = None
+        mock_thread.status = MagicMock(value="active")
+        mock_thread.created_at = MagicMock()
+        mock_thread.updated_at = MagicMock()
+        mock_thread.last_message_at = MagicMock()
+        mock_thread.message_count = 0
+        mock_thread.token_count = 0
+        mock_thread.conversation_id = "conv-123"
+        mock_thread.messages = []
+
+        mock_conversation = MagicMock()
+        mock_conversation.created_by_id = "owner-user-id"
+        mock_thread.conversation = mock_conversation
+
+        # Mock database query result
+        mock_result = MagicMock()
+        mock_result.unique.return_value.scalar_one_or_none.return_value = mock_thread
+        mock_db.execute.return_value = mock_result
+
+        service = ExportService(mock_db)
+
+        # Export as thread owner
+        result = await service._load_thread(
+            thread_id="thread-123",
+            user_id="owner-user-id",
+            options=ExportOptions()
+        )
+
+        # Should return thread data
+        assert result is not None
+        assert result.id == "thread-123"
+
+    @pytest.mark.asyncio
+    async def test_export_allows_conversation_owner(self):
+        """Test that export service allows conversation owner to export threads."""
+        from unittest.mock import AsyncMock, MagicMock
+        from src.services.export_service import ExportService
+        from src.shared.export_schemas import ExportFormat, ExportOptions
+
+        # Mock database session
+        mock_db = AsyncMock()
+
+        # Create mock thread where user owns conversation but not thread directly
+        mock_thread = MagicMock()
+        mock_thread.id = "thread-123"
+        mock_thread.created_by_id = "other-user-id"  # Thread created by someone else
+        mock_thread.title = "Test Thread"
+        mock_thread.summary = None
+        mock_thread.status = MagicMock(value="active")
+        mock_thread.created_at = MagicMock()
+        mock_thread.updated_at = MagicMock()
+        mock_thread.last_message_at = MagicMock()
+        mock_thread.message_count = 0
+        mock_thread.token_count = 0
+        mock_thread.conversation_id = "conv-123"
+        mock_thread.messages = []
+
+        mock_conversation = MagicMock()
+        mock_conversation.created_by_id = "conv-owner-id"  # Conversation owner
+        mock_thread.conversation = mock_conversation
+
+        # Mock database query result
+        mock_result = MagicMock()
+        mock_result.unique.return_value.scalar_one_or_none.return_value = mock_thread
+        mock_db.execute.return_value = mock_result
+
+        service = ExportService(mock_db)
+
+        # Export as conversation owner
+        result = await service._load_thread(
+            thread_id="thread-123",
+            user_id="conv-owner-id",
+            options=ExportOptions()
+        )
+
+        # Should return thread data (conversation owner has access)
+        assert result is not None
+        assert result.id == "thread-123"
+
+
 # Integration-style tests (would require test fixtures)
 class TestAPISecurityIntegration:
     """Integration tests for API security (requires app context)."""
