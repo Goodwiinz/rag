@@ -1,6 +1,6 @@
 # Quickstart: Research Assistant
 
-**Feature**: Research Assistant | **Branch**: `004-users-goodwiinz-claude`
+**Feature**: Research Assistant | **Branch**: `004-research-assistant-feature`
 
 ## Overview
 
@@ -307,4 +307,4 @@ After setup:
 4. Create a research project
 5. Generate your first literature review draft
 
-For detailed API documentation, see the OpenAPI specs in `specs/004-users-goodwiinz-claude/contracts/`.
+For detailed API documentation, see the OpenAPI specs in `specs/004-research-assistant-feature/contracts/`.

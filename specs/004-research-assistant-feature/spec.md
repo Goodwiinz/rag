@@ -1,6 +1,6 @@
 # Feature Specification: Research Assistant
 
-**Feature Branch**: `004-users-goodwiinz-claude`
+**Feature Branch**: `004-research-assistant-feature`
 **Created**: 2026-01-14
 **Status**: Draft
 **Input**: Transform the RAG system into a comprehensive research assistant that helps researchers draft papers based on uploaded documents, manage citations, and integrate research tools - supporting both local (WebLLM) and cloud execution.

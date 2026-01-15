@@ -1,7 +1,7 @@
 # Implementation Plan: Research Assistant
 
-**Branch**: `004-users-goodwiinz-claude` | **Date**: 2026-01-14 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/004-users-goodwiinz-claude/spec.md`
+**Branch**: `004-research-assistant-feature` | **Date**: 2026-01-14 | **Spec**: [spec.md](./spec.md)
+**Input**: Feature specification from `/specs/004-research-assistant-feature/spec.md`
 
 ## Summary
 
@@ -58,7 +58,7 @@ Technical approach: Extend existing chat infrastructure to inject RAG context in
 ### Documentation (this feature)
 
 ```
-specs/004-users-goodwiinz-claude/
+specs/004-research-assistant-feature/
 ├── plan.md              # This file
 ├── spec.md              # Feature specification (complete)
 ├── research.md          # Phase 0 output

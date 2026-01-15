@@ -1,6 +1,6 @@
 # Tasks: Research Assistant
 
-**Input**: Design documents from `/specs/004-users-goodwiinz-claude/`
+**Input**: Design documents from `/specs/004-research-assistant-feature/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/
 
 **Tests**: Not explicitly requested in spec. Test tasks are NOT included.
