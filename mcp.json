@@ -1,10 +1,6 @@
 {
   "mcpServers": {
-    "shadcn": {
-      "url": "https://www.shadcn.io/api/mcp",
-      "command": "npx",
-      "args": ["shadcn@latest", "mcp"]
-    },
+   
     "redis": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-redis", "redis://localhost:6379"]
@@ -16,7 +12,7 @@
     },
     "linear": {
       "command": "npx",
-      "args": ["-y", "@linear/mcp-server"],
+      "args": ["-y", "mcp-remote","https://mcp.linear.app/mcp"],
       "env": {
         "LINEAR_API_KEY": "${LINEAR_API_KEY}"
       }

@@ -4,6 +4,7 @@ Handles parsing [Doc N] citations from AI responses and persisting them to the d
 """
 
 import re
+import time
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
@@ -47,6 +48,7 @@ class MessageCitationService:
         Returns:
             List of created Citation objects
         """
+        start_time = time.time()
         try:
             # Find all [Doc N] citations in message
             citation_matches = self.CITATION_PATTERN.findall(message_content)
@@ -121,20 +123,44 @@ class MessageCitationService:
             # Commit all citations
             await self.db.commit()
 
+            # Enhanced observability logging
+            elapsed_ms = (time.time() - start_time) * 1000
+            unique_docs = len(set(c.document_id for c in citations_created if c.document_id))
             logger.info(
                 "citations_saved",
                 message_id=str(message_id),
                 count=len(citations_created),
+                unique_docs=unique_docs,
+                total_matches=len(citation_matches),
+                duration_ms=round(elapsed_ms, 2),
+                event="citation_batch_created",
             )
+            
+            # Log individual citation details for debugging
+            for citation in citations_created:
+                logger.debug(
+                    "citation_created",
+                    citation_id=str(citation.id) if citation.id else "pending",
+                    message_id=str(message_id),
+                    document_id=str(citation.document_id),
+                    document_title=citation.document_title,
+                    score=citation.score,
+                    metadata_source=citation.metadata_source,
+                    event="individual_citation",
+                )
 
             return citations_created
 
         except Exception as e:
             await self.db.rollback()
+            elapsed_ms = (time.time() - start_time) * 1000
             logger.error(
                 "citation_extraction_failed",
                 message_id=str(message_id),
                 error=str(e),
+                error_type=type(e).__name__,
+                duration_ms=round(elapsed_ms, 2),
+                event="citation_error",
             )
             raise
 

@@ -83,9 +83,13 @@ py-spy==0.3.14
 python-dotenv==1.0.0
 httpx==0.25.2
 aiohttp==3.9.1
+aiohttp-retry==2.8.3
 tenacity==8.2.3
 aiofiles==23.2.1
 python-magic==0.4.27
 email-validator==2.1.0
 sse-starlette==1.6.1
 kagglehub[hf-datasets]>=0.3.0
+
+# Research Assistant - Citation Management
+pybtex==0.24.0

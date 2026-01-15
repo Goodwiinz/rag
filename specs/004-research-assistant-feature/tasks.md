@@ -166,7 +166,7 @@
   - Toggle switch to enable/disable RAG
   - Persist preference to localStorage
 
-- [ ] T036 [US1] Add observability logging for citation operations in `backend/src/services/message_citation_service.py`
+- [X] T036 [US1] Add observability logging for citation operations in `backend/src/services/message_citation_service.py`
   - Log citation creation with structlog
   - Track citation_created events
 

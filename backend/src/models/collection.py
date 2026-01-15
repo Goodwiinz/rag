@@ -2,7 +2,8 @@
 Collection model for Terminal Observatory document organization
 """
 
-from sqlalchemy import Column, String, ForeignKey, Text, Integer
+from sqlalchemy import Column, String, ForeignKey, Text, Integer, Boolean, DateTime
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from .base import BaseModel, GUID
@@ -14,6 +15,10 @@ class Collection(BaseModel):
 
     Collections allow users to organize documents by topic, project,
     or any other logical grouping within a workspace.
+
+    In the Research Assistant feature (User Story 4), collections can
+    function as research projects with additional metadata like project type,
+    research status, goals, deadlines, and tags.
     """
 
     __tablename__ = "collections"
@@ -28,6 +33,25 @@ class Collection(BaseModel):
     # Settings
     color = Column(String(7), nullable=True)  # Hex color for UI
     icon = Column(String(50), nullable=True)  # Icon name for UI
+
+    # Research project fields (for Research Assistant feature - User Story 4)
+    project_type = Column(
+        String(50),
+        nullable=False,
+        default="research",
+        server_default="research"
+    )  # research, literature_review, thesis, paper
+    research_status = Column(
+        String(50),
+        nullable=False,
+        default="active",
+        server_default="active",
+        index=True
+    )  # active, paused, completed, archived
+    research_goals = Column(Text, nullable=True)  # Project objectives and goals
+    deadline = Column(DateTime(timezone=True), nullable=True)  # Project deadline
+    tags = Column(JSONB, nullable=False, default=list, server_default="[]")  # Project categorization tags
+    is_private = Column(Boolean, nullable=False, default=True, server_default="true")  # Privacy setting (always TRUE for Phase 3)
 
     # Relationships
     workspace = relationship("Workspace", back_populates="collections")
@@ -45,6 +69,13 @@ class Collection(BaseModel):
         """Convert to dictionary"""
         data = super().to_dict()
         data['document_count'] = self.document_count
+        # Add research project fields
+        data['project_type'] = self.project_type
+        data['research_status'] = self.research_status
+        data['research_goals'] = self.research_goals
+        data['deadline'] = self.deadline.isoformat() if self.deadline else None
+        data['tags'] = self.tags
+        data['is_private'] = self.is_private
         return data
 
 
