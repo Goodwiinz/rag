@@ -18,9 +18,9 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from backend.src.models import Citation, Document
-from backend.src.services.arxiv_service import ArXivIngestionService
-from backend.src.shared.research_schemas import CitationCreate, CitationResponse
+from src.models import Citation, Document
+from src.services.arxiv_service import ArXivIngestionService
+from src.shared.research_schemas import CitationCreate, CitationResponse
 
 logger = structlog.get_logger()
 
@@ -379,47 +379,74 @@ class CitationExtractionService:
         title: Optional[str] = None,
     ) -> Tuple[Optional[CitationCreate], str]:
         """Hybrid extraction using multiple sources.
-        
+
         Strategy:
         1. Try ArXiv if arxiv_id provided
         2. Try Semantic Scholar (works for both ArXiv and DOI)
         3. Try CrossRef if DOI provided
         4. Return best result with confidence score
-        
+
         Args:
             arxiv_id: Optional ArXiv identifier
             doi: Optional DOI
             title: Optional paper title (not yet implemented)
-            
+
         Returns:
             Tuple of (CitationCreate or None, extraction_source)
         """
+        import time
+        start_time = time.time()
+
         # Strategy 1: ArXiv (highest accuracy for ArXiv papers)
         if arxiv_id:
             result = await self.extract_from_arxiv(arxiv_id)
             if result:
+                duration = time.time() - start_time
+                logger.info(
+                    "citation_extraction_success",
+                    source="arxiv",
+                    duration_seconds=duration,
+                    arxiv_id=arxiv_id,
+                )
                 return result, "arxiv"
-                
+
         # Strategy 2: Semantic Scholar (good for both ArXiv and DOI)
         if arxiv_id or doi:
             result = await self.extract_from_semantic_scholar(arxiv_id=arxiv_id, doi=doi)
             if result:
+                duration = time.time() - start_time
+                logger.info(
+                    "citation_extraction_success",
+                    source="semantic_scholar",
+                    duration_seconds=duration,
+                    arxiv_id=arxiv_id,
+                    doi=doi,
+                )
                 return result, "semantic_scholar"
-                
+
         # Strategy 3: CrossRef (DOI-based)
         if doi:
             result = await self.extract_from_crossref(doi)
             if result:
+                duration = time.time() - start_time
+                logger.info(
+                    "citation_extraction_success",
+                    source="crossref",
+                    duration_seconds=duration,
+                    doi=doi,
+                )
                 return result, "crossref"
-                
+
         # Strategy 4: PDF parsing (TODO)
         # Strategy 5: Manual entry (handled by frontend)
-        
+
+        duration = time.time() - start_time
         logger.warning(
             "citation_extraction_failed_all_strategies",
+            duration_seconds=duration,
             arxiv_id=arxiv_id,
             doi=doi,
             title=title,
         )
-        
+
         return None, "none"

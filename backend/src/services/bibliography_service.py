@@ -11,9 +11,17 @@ from typing import List, Dict, Any
 from io import StringIO
 
 import structlog
-from pybtex.database import BibliographyData, Entry
 
-from backend.src.models import Citation
+# Optional pybtex import for BibTeX formatting
+try:
+    from pybtex.database import BibliographyData, Entry
+    PYBTEX_AVAILABLE = True
+except ImportError:
+    PYBTEX_AVAILABLE = False
+    BibliographyData = None
+    Entry = None
+
+from src.models import Citation
 
 logger = structlog.get_logger()
 
@@ -53,13 +61,18 @@ class BibliographyService:
     @staticmethod
     def format_bibtex(citations: List[Citation]) -> str:
         """Format citations as BibTeX.
-        
+
         Args:
             citations: List of Citation models
-            
+
         Returns:
             BibTeX formatted string
         """
+        if not PYBTEX_AVAILABLE:
+            raise ImportError(
+                "pybtex library not installed. Install with: pip install pybtex==0.24.0"
+            )
+
         entries = {}
         
         for i, citation in enumerate(citations, start=1):

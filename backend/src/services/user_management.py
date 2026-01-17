@@ -7,7 +7,7 @@ import asyncio
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
-import jwt
+from jose import jwt
 # from passlib.context import CryptContext  # Removed
 import redis.asyncio as redis
 

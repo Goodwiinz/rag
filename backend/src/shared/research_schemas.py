@@ -56,6 +56,80 @@ class CitationAuthor(BaseModel):
     affiliation: Optional[str] = Field(None, description="Author's institution/affiliation")
 
 
+class CitationCreate(BaseModel):
+    """Create a new citation"""
+    message_id: Optional[UUID] = Field(None, description="Associated message ID")
+    document_id: Optional[UUID] = Field(None, description="Associated document ID")
+    external_reference_id: Optional[str] = Field(None, description="External reference identifier")
+    document_title: Optional[str] = Field(None, description="Document/paper title")
+    document_type: Optional[str] = Field(default="paper", description="Type of document")
+
+    # Chunk information
+    chunk_index: Optional[int] = None
+    chunk_id: Optional[str] = None
+    snippet: Optional[str] = None
+    page_number: Optional[int] = None
+
+    # Relevance scores
+    score: Optional[float] = None
+    rerank_score: Optional[float] = None
+
+    # Scholarly metadata
+    authors: Optional[List[Dict[str, Any]]] = Field(default=None, description="List of authors")
+    year: Optional[int] = Field(None, ge=1900, le=2100, description="Publication year")
+    venue: Optional[str] = Field(None, description="Journal or conference name")
+    doi: Optional[str] = Field(None, description="Digital Object Identifier")
+    arxiv_id: Optional[str] = Field(None, description="arXiv identifier")
+    abstract: Optional[str] = Field(None, description="Paper abstract")
+    metadata_source: Optional[str] = Field(default="manual", description="Source of metadata")
+    needs_review: bool = Field(default=False, description="Flag for incomplete metadata")
+
+
+class CitationResponse(BaseModel):
+    """Citation response with all metadata"""
+    id: UUID
+    message_id: Optional[UUID] = None
+    document_id: Optional[UUID] = None
+    external_reference_id: Optional[str] = None
+    documentTitle: Optional[str] = Field(None, alias="document_title")
+    documentType: Optional[str] = Field(None, alias="document_type")
+
+    # Chunk information
+    chunkIndex: Optional[int] = Field(None, alias="chunk_index")
+    chunkId: Optional[str] = Field(None, alias="chunk_id")
+    snippet: Optional[str] = None
+    pageNumber: Optional[int] = Field(None, alias="page_number")
+
+    # Relevance scores
+    score: Optional[float] = None
+    rerankScore: Optional[float] = Field(None, alias="rerank_score")
+
+    # Scholarly metadata
+    authors: Optional[List[Dict[str, Any]]] = Field(default=None, description="List of authors")
+    year: Optional[int] = Field(None, ge=1900, le=2100, description="Publication year")
+    venue: Optional[str] = Field(None, description="Journal or conference name")
+    doi: Optional[str] = Field(None, description="Digital Object Identifier")
+    arxivId: Optional[str] = Field(None, alias="arxiv_id", description="arXiv identifier")
+    abstract: Optional[str] = Field(None, description="Paper abstract")
+    metadataSource: Optional[str] = Field(None, alias="metadata_source", description="Source of metadata")
+    needsReview: bool = Field(False, alias="needs_review", description="Flag for incomplete metadata")
+
+    createdAt: datetime = Field(..., alias="created_at")
+    updatedAt: datetime = Field(..., alias="updated_at")
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+
+class CitationListResponse(BaseModel):
+    """Paginated list of citations"""
+    citations: List[CitationResponse]
+    total: int
+    skip: int
+    limit: int
+
+
 class CitationWithMetadata(BaseModel):
     """Enhanced citation with scholarly metadata"""
     id: UUID
@@ -165,6 +239,88 @@ class CitationGraphResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CitationRelationshipCreate(BaseModel):
+    """Create a new citation relationship."""
+    source_citation_id: UUID = Field(..., description="Source citation ID (the citing paper)")
+    target_citation_id: UUID = Field(..., description="Target citation ID (the cited paper)")
+    relationship_type: str = Field(default="CITES", description="Type of relationship")
+    citation_context: Optional[str] = Field(None, description="Text context where citation appears")
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Confidence score")
+
+
+class CitationRelationshipResponse(BaseModel):
+    """Citation relationship response."""
+    id: str
+    source_citation_id: str
+    target_citation_id: str
+    relationship_type: str
+    citation_context: Optional[str] = None
+    confidence: float = 1.0
+    created_at: Optional[datetime] = None
+
+
+class GraphNodePosition(BaseModel):
+    """Position coordinates for graph node."""
+    x: float
+    y: float
+
+
+class GraphNode(BaseModel):
+    """Enhanced graph node with position for Cytoscape.js."""
+    id: str
+    title: Optional[str] = None
+    authors: Optional[List[str]] = None
+    year: Optional[int] = None
+    venue: Optional[str] = None
+    doi: Optional[str] = None
+    arxiv_id: Optional[str] = None
+    document_id: Optional[str] = None
+    is_uploaded: bool = True
+    citation_count: int = 0
+    position: Optional[GraphNodePosition] = None
+    influence_score: Optional[float] = None
+
+
+class GraphEdge(BaseModel):
+    """Graph edge for Cytoscape.js."""
+    id: str
+    source: str
+    target: str
+    type: str = "CITES"
+    confidence: float = 1.0
+
+
+class GraphMetadata(BaseModel):
+    """Metadata about the graph response."""
+    total_nodes: int
+    total_edges: int
+    depth: int
+    include_external: bool
+
+
+class CitationGraphData(BaseModel):
+    """Full citation graph response for Cytoscape.js visualization."""
+    nodes: List[GraphNode]
+    edges: List[GraphEdge]
+    metadata: GraphMetadata
+
+
+class GraphNodeDetails(BaseModel):
+    """Detailed information about a single graph node."""
+    id: str
+    document_id: Optional[str] = None
+    title: Optional[str] = None
+    authors: Optional[List[str]] = None
+    year: Optional[int] = None
+    venue: Optional[str] = None
+    doi: Optional[str] = None
+    arxiv_id: Optional[str] = None
+    is_uploaded: bool = True
+    cited_by: int = 0
+    cites: int = 0
+    influence_score: float = 0.0
 
 
 # ============================================================================

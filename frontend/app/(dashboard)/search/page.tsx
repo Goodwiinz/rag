@@ -1,33 +1,26 @@
 'use client';
 
 import { ResultsPanel } from '@/components/search/ResultsPanel';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getAnalytics } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 import { searchService } from '@/services/searchService';
-import { QueryHistory, QuerySuggestions, SearchRequest, SearchResult } from '@/types/search';
-import { useCallback, useEffect, useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { COLORS, THEME } from '@/theme/constants';
+import { SearchRequest, SearchResult } from '@/types/search';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
+  ArrowRight,
+  Brain,
+  Clock,
+  Database,
+  FileText,
+  Filter,
+  RefreshCw,
   Search,
   Sparkles,
-  Database,
-  Zap,
   Terminal,
-  ArrowRight,
-  Filter,
-  Clock,
-  FileText,
-  Brain,
-  Command,
-  AlertTriangle,
-  Loader2,
-  RefreshCw,
+  Zap,
 } from 'lucide-react';
-
-// Terminal Observatory Theme Constants
-const PHOSPHOR_GREEN = '#00ff9f';
-const AMBER = '#ffb700';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 // Local interface to match SearchInterface's expected filter type
 interface SearchFilters {
@@ -42,6 +35,8 @@ interface SearchFilters {
   max_results?: number;
 }
 
+const MODALITY_FILTERS = ['pdf', 'txt', 'image', 'audio', 'video'] as const;
+
 export default function SearchPage() {
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -50,6 +45,7 @@ export default function SearchPage() {
   const [terminalText, setTerminalText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -82,12 +78,61 @@ export default function SearchPage() {
     }
   }, []);
 
+  const toggleFilter = (filter: string) => {
+    setActiveFilters(prev => 
+      prev.includes(filter) 
+        ? prev.filter(f => f !== filter)
+        : [...prev, filter]
+    );
+  };
+
+  const toggleRecent = () => {
+    toggleFilter('RECENT_7D');
+  };
+
   const handleSearch = useCallback(async (searchQuery?: string) => {
     const q = searchQuery || query;
     if (!q.trim()) return;
 
     setIsLoading(true);
     setError(null);
+
+    // Construct filters object
+    const filters: SearchFilters = {};
+    
+    // Process file types/modalities
+    const fileTypes = activeFilters.filter(f => MODALITY_FILTERS.includes(f as any)) as any[];
+    if (fileTypes.length > 0) {
+      // Map 'image', 'audio', 'video' to modalities if needed by backend, 
+      // but here we align with the local interface which has file_types AND modalities
+      // Assuming backend handles these. For now passing as file_types mostly.
+      const mappedFileTypes: any[] = [];
+      const mappedModalities: any[] = [];
+      
+      fileTypes.forEach(ft => {
+        if (['pdf', 'txt'].includes(ft)) mappedFileTypes.push(ft);
+        if (['image', 'audio', 'video'].includes(ft)) mappedModalities.push(ft); 
+        // Note: 'image', 'audio', 'video' are technically modalities but often treated as file categories in UI
+        if (['image', 'audio', 'video'].includes(ft)) {
+            // Also add to modalities for completeness if the type definition supports it
+             mappedModalities.push(ft);
+        }
+      });
+
+      if (mappedFileTypes.length > 0) filters.file_types = mappedFileTypes;
+      if (mappedModalities.length > 0) filters.modalities = mappedModalities;
+    }
+
+    // Process Date Range
+    if (activeFilters.includes('RECENT_7D')) {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 7);
+      filters.date_range = {
+        start: startDate.toISOString(),
+        end: endDate.toISOString()
+      };
+    }
 
     try {
       const analytics = getAnalytics();
@@ -98,6 +143,7 @@ export default function SearchPage() {
       const searchRequest: SearchRequest = {
         query: q.trim(),
         limit: 10,
+        filters: filters as any, // Type assertion as backend types might be loose or strict
       };
 
       const response = await searchService.search(searchRequest);
@@ -128,7 +174,7 @@ export default function SearchPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [query]);
+  }, [query, activeFilters]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -192,19 +238,19 @@ export default function SearchPage() {
       icon: Sparkles,
       title: 'AI SYNTHESIS',
       description: 'Multi-document answer generation with source citations',
-      color: 'var(--phosphor-green)',
+      color: THEME.colors.primary,
     },
     {
       icon: Search,
       title: 'SEMANTIC MATCH',
       description: 'Context-aware search beyond keyword matching',
-      color: 'var(--amber-gold)',
+      color: THEME.colors.accent,
     },
     {
       icon: Database,
       title: 'KNOWLEDGE GRAPH',
       description: 'Entity relationships and document connections',
-      color: 'var(--cyan)',
+      color: THEME.colors.secondary,
     },
   ];
 
@@ -220,8 +266,14 @@ export default function SearchPage() {
           className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-6 shadow-xl mb-10"
         >
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-lg bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20 flex items-center justify-center">
-              <Terminal className="w-6 h-6 text-[var(--phosphor-green)]" />
+            <div 
+              className="w-12 h-12 rounded-lg flex items-center justify-center p-0.5"
+              style={{ 
+                background: `${THEME.colors.primary}1A`, // 10% opacity
+                border: `1px solid ${THEME.colors.primary}33` // 20% opacity
+              }}
+            >
+              <Terminal className="w-6 h-6" style={{ color: THEME.colors.primary }} />
             </div>
             <div>
               <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)] tracking-wider uppercase">
@@ -256,7 +308,7 @@ export default function SearchPage() {
                   )}
                 >
                   <Filter className="w-3 h-3" />
-                  FILTERS
+                  FILTERS {activeFilters.length > 0 && `(${activeFilters.length})`}
                 </button>
               </div>
             </div>
@@ -264,7 +316,7 @@ export default function SearchPage() {
             {/* Input Area */}
             <div className="p-6">
               <div className="flex items-center gap-4">
-                <div className="text-[var(--phosphor-green)] font-mono text-lg font-bold opacity-50 shrink-0">{'>'}</div>
+                <div className="font-mono text-lg font-bold opacity-50 shrink-0" style={{ color: THEME.colors.primary }}>{'>'}</div>
                 <input
                   ref={inputRef}
                   type="text"
@@ -281,9 +333,10 @@ export default function SearchPage() {
                   className={cn(
                     "flex items-center gap-2 px-5 py-2 rounded-xl font-mono text-[10px] font-bold tracking-widest transition-all",
                     query.trim() && !isLoading
-                      ? "bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_20px_var(--phosphor-green-glow)]"
+                      ? "text-[var(--terminal-bg)] hover:shadow-[0_0_20px_var(--phosphor-green-glow)]"
                       : "bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] border border-[var(--terminal-border)] cursor-not-allowed"
                   )}
+                  style={query.trim() && !isLoading ? { backgroundColor: THEME.colors.primary } : {}}
                 >
                   {isLoading ? (
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -306,16 +359,43 @@ export default function SearchPage() {
                     className="overflow-hidden"
                   >
                     <div className="mt-6 pt-6 border-t border-[var(--terminal-border)] flex flex-wrap gap-2">
-                      {['PDF', 'TEXT', 'IMAGE', 'AUDIO', 'VIDEO'].map((type) => (
-                        <button
-                          key={type}
-                          className="px-3 py-1 rounded-lg border border-[var(--terminal-border)] text-[9px] font-mono font-bold text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] hover:border-[var(--terminal-text-muted)] transition-all"
-                        >
-                          {type}
-                        </button>
-                      ))}
+                      {MODALITY_FILTERS.map((type) => {
+                         const isActive = activeFilters.includes(type);
+                         return (
+                          <button
+                            key={type}
+                            onClick={() => toggleFilter(type)}
+                            className={cn(
+                              "px-3 py-1 rounded-lg border text-[9px] font-mono font-bold transition-all uppercase",
+                              isActive
+                                ? "text-[var(--terminal-bg)]"
+                                : "border-[var(--terminal-border)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] hover:border-[var(--terminal-text-muted)]"
+                            )}
+                            style={isActive ? { 
+                              backgroundColor: THEME.colors.primary, 
+                              borderColor: THEME.colors.primary,
+                              color: COLORS.background 
+                            } : {}}
+                          >
+                            {type}
+                          </button>
+                        );
+                      })}
                       <div className="w-px h-4 bg-[var(--terminal-border)] mx-2 self-center" />
-                      <button className="px-3 py-1 rounded-lg border border-[var(--terminal-border)] text-[9px] font-mono font-bold text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-all flex items-center gap-1.5">
+                      <button 
+                        onClick={toggleRecent}
+                        className={cn(
+                          "px-3 py-1 rounded-lg border text-[9px] font-mono font-bold transition-all flex items-center gap-1.5 uppercase",
+                           activeFilters.includes('RECENT_7D')
+                                ? "text-[var(--terminal-bg)]"
+                                : "border-[var(--terminal-border)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] hover:border-[var(--terminal-text-muted)]"
+                        )}
+                        style={activeFilters.includes('RECENT_7D') ? { 
+                          backgroundColor: THEME.colors.primary, 
+                          borderColor: THEME.colors.primary,
+                          color: COLORS.background 
+                        } : {}}
+                      >
                         <Clock className="w-3 h-3" />
                         RECENT_7D
                       </button>
@@ -330,15 +410,36 @@ export default function SearchPage() {
         {/* Display Area */}
         <div className="relative min-h-[400px]">
           {isLoading && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 font-mono text-[10px] text-[var(--phosphor-green)] font-bold tracking-widest">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center gap-3 font-mono text-[10px] font-bold tracking-widest" style={{ color: THEME.colors.primary }}>
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                NEURAL_SYNTHESIS_IN_PROGRESS...
+                <span className="animate-pulse">NEURAL_SYNTHESIS_IN_PROGRESS...</span>
               </div>
-              {[1, 2].map((i) => (
-                <div key={i} className="h-24 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/50 animate-pulse" />
-              ))}
-            </div>
+              
+              {/* Agent "Thinking" UI */}
+              <div className="p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/50 backdrop-blur-sm">
+                 <div className="flex items-center gap-2 mb-2">
+                    <Brain className="w-4 h-4 text-[var(--terminal-text-dim)]" />
+                    <span className="text-xs font-mono text-[var(--terminal-text-dim)]">Agent is processing query contexts...</span>
+                 </div>
+                 <div className="h-1 w-full bg-[var(--terminal-elevated)] rounded-full overflow-hidden">
+                    <motion.div 
+                        className="h-full bg-[var(--phosphor-green)]"
+                        initial={{ x: '-100%' }}
+                        animate={{ x: '100%' }}
+                        transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+                    />
+                 </div>
+                 <div className="mt-3 space-y-2">
+                    <div className="h-3 w-3/4 bg-[var(--terminal-elevated)] rounded animate-pulse" />
+                    <div className="h-3 w-1/2 bg-[var(--terminal-elevated)] rounded animate-pulse delay-75" />
+                 </div>
+              </div>
+            </motion.div>
           )}
 
           {searchResult && !isLoading && (

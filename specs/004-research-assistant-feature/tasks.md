@@ -143,26 +143,26 @@
   - State: citations, loading, error
   - Actions: fetchCitations, addCitation, clearCitations
 
-- [ ] T031 [US1] Modify chat page to integrate RAG with WebLLM in `frontend/app/(dashboard)/chat/page.tsx`
+- [X] T031 [US1] Modify chat page to integrate RAG with WebLLM in `frontend/app/(dashboard)/chat/page.tsx`
   - Before WebLLM inference: call ragService.retrieveContext()
   - Inject context into prompt based on model size
   - After response: persist citations via citationService
 
-- [ ] T032 [US1] Create CitationPreview component in `frontend/src/components/citations/CitationPreview.tsx`
+- [X] T032 [US1] Create CitationPreview component in `frontend/src/components/citations/CitationPreview.tsx`
   - Render clickable [Doc N] links
   - Show popover/modal with source snippet on click
 
-- [ ] T033 [US1] Integrate CitationPreview into chat messages in `frontend/src/components/chat/ChatMessage.tsx`
+- [X] T033 [US1] Integrate CitationPreview into chat messages in `frontend/src/components/chat/ChatMessage.tsx`
   - Parse message for [Doc N] patterns
   - Replace with CitationPreview components
 
-- [ ] T034 [US1] Add model-aware context configuration in `frontend/src/services/ragService.ts`
+- [X] T034 [US1] Add model-aware context configuration in `frontend/src/services/ragService.ts`
   - 1B: 2 docs, 600 tokens, 2 history
   - 3B: 3 docs, 1000 tokens, 4 history
   - 7B+: 5 docs, 2000 tokens, 8 history
   - Cloud: 8 docs, 4000 tokens, 20 history
 
-- [ ] T035 [US1] Add RAG toggle UI to chat interface in `frontend/app/(dashboard)/chat/page.tsx`
+- [X] T035 [US1] Add RAG toggle UI to chat interface in `frontend/app/(dashboard)/chat/page.tsx`
   - Toggle switch to enable/disable RAG
   - Persist preference to localStorage
 
@@ -219,34 +219,34 @@
   - Lookup by arxiv_id, doi, or title
   - Return Citation schema
 
-- [ ] T045 [US2] Add observability metrics for extraction in `backend/src/services/citation_extraction_service.py`
+- [X] T045 [US2] Add observability metrics for extraction in `backend/src/services/citation_extraction_service.py`
   - Histogram: citation_extraction_duration_seconds
   - Counter: citation_extraction_success_total by source
 
 ### Frontend Implementation for US2
 
-- [ ] T046 [US2] Add extraction methods to citationService.ts in `frontend/src/services/citationService.ts`
+- [X] T046 [US2] Add extraction methods to citationService.ts in `frontend/src/services/citationService.ts`
   - extractCitations(documentId, strategy)
   - lookupCitation(arxivId?, doi?, title?)
   - exportBibliography(format, citationIds?, projectId?)
 
-- [ ] T047 [US2] Create BibliographyExport component in `frontend/src/components/citations/BibliographyExport.tsx`
+- [X] T047 [US2] Create BibliographyExport component in `frontend/src/components/citations/BibliographyExport.tsx`
   - Format selector dropdown (BibTeX, IEEE, APA, MLA)
   - Citation selection checkboxes
   - Download button
   - "Needs review" warnings
 
-- [ ] T048 [US2] Add citation extraction UI to document detail page in `frontend/app/(dashboard)/documents/[id]/page.tsx`
+- [X] T048 [US2] Add citation extraction UI to document detail page in `frontend/app/(dashboard)/documents/[id]/page.tsx`
   - "Extract Citations" button
   - Progress indicator during extraction
   - Display extracted citations list
 
-- [ ] T049 [US2] Create CitationList component in `frontend/src/components/citations/CitationList.tsx`
+- [X] T049 [US2] Create CitationList component in `frontend/src/components/citations/CitationList.tsx`
   - Display citations with metadata (title, authors, year)
   - "Needs review" badge for incomplete metadata
   - Edit button for manual correction
 
-- [ ] T050 [US2] Create CitationEditModal component in `frontend/src/components/citations/CitationEditModal.tsx`
+- [X] T050 [US2] Create CitationEditModal component in `frontend/src/components/citations/CitationEditModal.tsx`
   - Form for editing citation metadata
   - Auto-lookup by ArXiv ID or DOI
 
@@ -262,51 +262,51 @@
 
 ### Backend Implementation for US3
 
-- [ ] T051 [US3] Create citation graph service in `backend/src/services/citation_graph_service.py`
+- [X] T051 [US3] Create citation graph service in `backend/src/services/citation_graph_service.py`
   - Sync citations to Neo4j as :Citation nodes
   - Create :CITES relationships
   - Compute layout positions (force-directed)
 
-- [ ] T052 [US3] Add Neo4j citation graph queries in `backend/src/services/citation_graph_service.py`
+- [X] T052 [US3] Add Neo4j citation graph queries in `backend/src/services/citation_graph_service.py`
   - get_citation_graph(project_id?, document_id?, depth)
   - get_node_details(node_id)
   - Add influence_score calculation
 
-- [ ] T053 [US3] Add citation relationship endpoints in `backend/src/api/citations.py`
+- [X] T053 [US3] Add citation relationship endpoints in `backend/src/api/citations.py`
   - `GET /api/v1/citations/relationships` - list relationships
   - `POST /api/v1/citations/relationships` - create relationship
 
-- [ ] T054 [US3] Add graph endpoints in `backend/src/api/citations.py`
+- [X] T054 [US3] Add graph endpoints in `backend/src/api/citations.py`
   - `GET /api/v1/citations/graph` - get graph data with positions
   - `GET /api/v1/citations/graph/node/{id}` - get node details
 
 ### Frontend Implementation for US3
 
-- [ ] T055 [US3] Create CitationGraph component with Cytoscape.js in `frontend/src/components/citations/CitationGraph.tsx`
+- [X] T055 [US3] Create CitationGraph component with Cytoscape.js in `frontend/src/components/citations/CitationGraph.tsx`
   - Initialize Cytoscape with preset layout (backend positions)
   - Node styling: size by citation count, color by type (uploaded/external)
   - Edge styling: weight by relationship type
   - Viewport optimizations for 500+ nodes
 
-- [ ] T056 [US3] Add graph interaction handlers in `frontend/src/components/citations/CitationGraph.tsx`
+- [X] T056 [US3] Add graph interaction handlers in `frontend/src/components/citations/CitationGraph.tsx`
   - Click node → show details panel
   - Hover → show tooltip (title, year)
   - Context menu → add to collection, view paper
 
-- [ ] T057 [US3] Create CitationNodeDetails component in `frontend/src/components/citations/CitationNodeDetails.tsx`
+- [X] T057 [US3] Create CitationNodeDetails component in `frontend/src/components/citations/CitationNodeDetails.tsx`
   - Display full paper metadata
   - "Add to Collection" button for external papers
   - Link to source (ArXiv, DOI)
 
-- [ ] T058 [US3] Add graph methods to citationService.ts in `frontend/src/services/citationService.ts`
+- [X] T058 [US3] Add graph methods to citationService.ts in `frontend/src/services/citationService.ts`
   - getCitationGraph(projectId?, documentId?, depth, includeExternal)
   - getGraphNodeDetails(nodeId)
 
-- [ ] T059 [US3] Add graph view to document detail page in `frontend/app/(dashboard)/documents/[id]/page.tsx`
+- [X] T059 [US3] Add graph view to document detail page in `frontend/app/(dashboard)/documents/[id]/page.tsx`
   - "Show Citation Graph" button (after extraction)
   - Embed CitationGraph component in modal or tab
 
-- [ ] T060 [US3] Add graph filtering controls in `frontend/src/components/citations/CitationGraphControls.tsx`
+- [X] T060 [US3] Add graph filtering controls in `frontend/src/components/citations/CitationGraphControls.tsx`
   - Year range slider
   - Depth selector (1-3)
   - Include/exclude external papers toggle

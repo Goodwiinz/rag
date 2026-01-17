@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from structlog import get_logger
 
-from backend.src.models import Citation, Document
-from backend.src.shared.research_schemas import CitationCreate
+from src.models import Citation, Document
+from src.shared.research_schemas import CitationCreate
 
 logger = get_logger()
 
