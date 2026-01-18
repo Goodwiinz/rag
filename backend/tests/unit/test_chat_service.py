@@ -278,6 +278,51 @@ class TestWorkspaceOperations:
 
         assert result is False
 
+    def test_update_workspace_success(self, chat_service, mock_db_session, mock_user, mock_workspace):
+        """Test updating workspace properties."""
+        from src.schemas.chat import WorkspaceUpdate
+
+        data = WorkspaceUpdate(
+            name="Updated Workspace",
+            description="Updated description",
+            is_public=True,
+            is_archived=False
+        )
+
+        with patch.object(chat_service, 'get_workspace', return_value=mock_workspace):
+            result = chat_service.update_workspace(mock_workspace.id, data, mock_user.id)
+
+        assert result == mock_workspace
+        assert mock_workspace.name == "Updated Workspace"
+        assert mock_workspace.description == "Updated description"
+        assert mock_workspace.is_public is True
+
+    def test_update_workspace_partial_update(self, chat_service, mock_db_session, mock_user, mock_workspace):
+        """Test partial workspace update (only name)."""
+        from src.schemas.chat import WorkspaceUpdate
+
+        original_description = mock_workspace.description
+        data = WorkspaceUpdate(name="New Name Only")
+
+        with patch.object(chat_service, 'get_workspace', return_value=mock_workspace):
+            result = chat_service.update_workspace(mock_workspace.id, data, mock_user.id)
+
+        assert result == mock_workspace
+        assert mock_workspace.name == "New Name Only"
+        assert mock_workspace.description == original_description  # Unchanged
+
+    def test_update_workspace_no_permission(self, chat_service, mock_db_session, mock_user, mock_workspace):
+        """Test update fails without admin permission."""
+        from src.schemas.chat import WorkspaceUpdate
+
+        mock_workspace.can_user_admin.return_value = False
+        data = WorkspaceUpdate(name="New Name")
+
+        with patch.object(chat_service, 'get_workspace', return_value=mock_workspace):
+            result = chat_service.update_workspace(mock_workspace.id, data, mock_user.id)
+
+        assert result is None
+
 
 # =============================================================================
 # Conversation Tests
@@ -331,6 +376,57 @@ class TestConversationOperations:
             )
 
         assert total == 2
+
+    def test_get_conversation_success(self, chat_service, mock_db_session, mock_user, mock_conversation):
+        """Test getting conversation by ID."""
+        # Create proper query chain mock
+        query_mock = MagicMock()
+        query_mock.options.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.first.return_value = mock_conversation
+
+        mock_db_session.query.return_value = query_mock
+
+        result = chat_service.get_conversation(mock_conversation.id, mock_user.id)
+
+        assert result == mock_conversation
+
+    def test_get_conversation_not_found(self, chat_service, mock_db_session, mock_user):
+        """Test getting non-existent conversation."""
+        query_mock = MagicMock()
+        query_mock.options.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.first.return_value = None
+
+        mock_db_session.query.return_value = query_mock
+
+        result = chat_service.get_conversation(uuid4(), mock_user.id)
+
+        assert result is None
+
+    def test_delete_conversation_success(self, chat_service, mock_db_session, mock_user, mock_conversation):
+        """Test soft-deleting conversation."""
+        with patch.object(chat_service, 'get_conversation', return_value=mock_conversation):
+            result = chat_service.delete_conversation(mock_conversation.id, mock_user.id)
+
+        assert result is True
+        assert mock_conversation.is_deleted is True
+
+    def test_delete_conversation_no_permission(self, chat_service, mock_db_session, mock_user, mock_conversation):
+        """Test delete fails without admin permission."""
+        mock_conversation.workspace.can_user_admin.return_value = False
+
+        with patch.object(chat_service, 'get_conversation', return_value=mock_conversation):
+            result = chat_service.delete_conversation(mock_conversation.id, mock_user.id)
+
+        assert result is False
+
+    def test_delete_conversation_not_found(self, chat_service, mock_db_session, mock_user):
+        """Test deleting non-existent conversation."""
+        with patch.object(chat_service, 'get_conversation', return_value=None):
+            result = chat_service.delete_conversation(uuid4(), mock_user.id)
+
+        assert result is False
 
 
 # =============================================================================
@@ -397,6 +493,79 @@ class TestThreadOperations:
             )
 
         assert total == expected_count
+
+    def test_update_thread_with_status_change(self, chat_service, mock_db_session, mock_user, mock_thread):
+        """Test updating thread with status change to resolved (triggers task)."""
+        from src.schemas.chat import ThreadUpdate
+        from src.models.thread import ThreadStatus
+
+        mock_thread.status = ThreadStatus.ACTIVE
+        data = ThreadUpdate(
+            title="Updated Title",
+            status=ThreadStatus.RESOLVED
+        )
+
+        # Mock the module to prevent import errors during task queuing
+        mock_module = MagicMock()
+        mock_module.summarize_thread_on_resolve_task.delay = Mock()
+
+        with patch.object(chat_service, 'get_thread', return_value=mock_thread):
+            with patch.dict('sys.modules', {'src.tasks.summarize_thread_task': mock_module}):
+                result = chat_service.update_thread(mock_thread.id, data, mock_user.id)
+
+        assert result == mock_thread
+        assert mock_thread.title == "Updated Title"
+
+    def test_update_thread_no_status_change(self, chat_service, mock_db_session, mock_user, mock_thread):
+        """Test updating thread without status change (no task trigger)."""
+        from src.schemas.chat import ThreadUpdate
+        from src.models.thread import ThreadStatus
+
+        mock_thread.status = ThreadStatus.ACTIVE
+        data = ThreadUpdate(title="Just Title Update")
+
+        with patch.object(chat_service, 'get_thread', return_value=mock_thread):
+            result = chat_service.update_thread(mock_thread.id, data, mock_user.id)
+
+        assert result == mock_thread
+        assert mock_thread.title == "Just Title Update"
+        assert mock_thread.status == ThreadStatus.ACTIVE
+
+    def test_update_thread_no_permission(self, chat_service, mock_db_session, mock_user, mock_thread):
+        """Test update fails without edit permission."""
+        from src.schemas.chat import ThreadUpdate
+
+        mock_thread.conversation.workspace.can_user_edit.return_value = False
+        data = ThreadUpdate(title="New Title")
+
+        with patch.object(chat_service, 'get_thread', return_value=mock_thread):
+            result = chat_service.update_thread(mock_thread.id, data, mock_user.id)
+
+        assert result is None
+
+    def test_delete_thread_success(self, chat_service, mock_db_session, mock_user, mock_thread):
+        """Test soft-deleting thread."""
+        with patch.object(chat_service, 'get_thread', return_value=mock_thread):
+            result = chat_service.delete_thread(mock_thread.id, mock_user.id)
+
+        assert result is True
+        assert mock_thread.is_deleted is True
+
+    def test_delete_thread_no_permission(self, chat_service, mock_db_session, mock_user, mock_thread):
+        """Test delete fails without edit permission."""
+        mock_thread.conversation.workspace.can_user_edit.return_value = False
+
+        with patch.object(chat_service, 'get_thread', return_value=mock_thread):
+            result = chat_service.delete_thread(mock_thread.id, mock_user.id)
+
+        assert result is False
+
+    def test_delete_thread_not_found(self, chat_service, mock_db_session, mock_user):
+        """Test deleting non-existent thread."""
+        with patch.object(chat_service, 'get_thread', return_value=None):
+            result = chat_service.delete_thread(uuid4(), mock_user.id)
+
+        assert result is False
 
 
 class TestBulkThreadOperations:
