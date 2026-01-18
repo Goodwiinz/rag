@@ -476,3 +476,13 @@ It contains multiple paragraphs and various content types including:
 The quick brown fox jumps over the lazy dog.
 """)
     return file_path
+
+
+# ============================================================================
+# Import Service Fixtures
+# ============================================================================
+# Import service-specific fixtures for automatic discovery
+try:
+    from tests.fixtures.service_fixtures import *
+except ImportError:
+    pass  # Service fixtures may not be available in all test contexts

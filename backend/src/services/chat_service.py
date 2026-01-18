@@ -769,7 +769,6 @@ class ChatService:
                     chunk_index=cit.chunk_index,
                     chunk_id=cit.chunk_id,
                     snippet=cit.snippet,
-                    snippet_preview=cit.snippet_preview,
                     page_number=cit.page_number,
                     score=cit.score,
                     rerank_score=cit.rerank_score,
@@ -994,10 +993,10 @@ class ChatService:
                 coll_doc = CollectionDocument(
                     collection_id=collection.id,
                     document_id=doc_id,
-                    position=idx
+                    sort_order=idx
                 )
                 self.db.add(coll_doc)
-            collection.document_count = len(data.document_ids)
+            # Note: document_count is computed automatically from documents relationship
 
         self.db.commit()
         self.db.refresh(collection)
@@ -1069,7 +1068,7 @@ class ChatService:
             return None
 
         # Get current max position
-        max_pos = self.db.query(func.max(CollectionDocument.position)).filter(
+        max_pos = self.db.query(func.max(CollectionDocument.sort_order)).filter(
             CollectionDocument.collection_id == collection_id
         ).scalar() or -1
 
@@ -1085,10 +1084,10 @@ class ChatService:
                 coll_doc = CollectionDocument(
                     collection_id=collection_id,
                     document_id=doc_id,
-                    position=max_pos
+                    sort_order=max_pos
                 )
                 self.db.add(coll_doc)
-                collection.document_count += 1
+                # Note: document_count is computed automatically from documents relationship
 
         collection.updated_at = datetime.utcnow()
         self.db.commit()
@@ -1119,7 +1118,7 @@ class ChatService:
             ).delete()
             removed += result
 
-        collection.document_count = max(0, collection.document_count - removed)
+        # Note: document_count is computed automatically from documents relationship
         collection.updated_at = datetime.utcnow()
         self.db.commit()
         self.db.refresh(collection)
