@@ -2,8 +2,8 @@
 
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { Bot, Check, Loader2, Sparkles, Terminal, Activity, Zap, Cpu, Network, Lock, Wifi } from 'lucide-react';
-import { useEffect, useState, useRef } from 'react';
+import { Bot, Cpu, Lock, Network, Sparkles, Terminal, Wifi, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 const STEPS = [
   {
@@ -162,7 +162,7 @@ export function HeroAgentCard({ className }: { className?: string }) {
                         {currentStep.label}
                       </span>
                       <span className="text-[var(--terminal-text-dim)] text-[9px] opacity-80 font-mono">
-                        PID: {2390 + stepIndex * 45} // THREAD_PRIORITY_HIGH
+                        PID: {2390 + stepIndex * 45} // THREAD_PR//IORITY_HIGH
                       </span>
                   </div>
                 </div>
