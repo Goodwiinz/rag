@@ -249,7 +249,7 @@ Map finding types to Linear labels (consistent with all agents):
 
 ### 3. Create Linear Issues
 
-Use `linear_create_issue` with:
+Use `mcp__plugin_linear_linear__create_issue` with:
 
 **Title Format:**
 - Security: `[SECURITY] Brief description`
@@ -345,15 +345,15 @@ return {
 
 ### Linear Integration
 
-- `linear_list_teams` - Get team ID
-- `linear_create_issue` - Create issues
-- `linear_list_issue_labels` - Get available labels
-- `linear_get_issue` - Verify creation / check duplicates
+- `mcp__plugin_linear_linear__list_teams` - Get team ID
+- `mcp__plugin_linear_linear__create_issue` - Create issues
+- `mcp__plugin_linear_linear__list_issue_labels` - Get available labels
+- `mcp__plugin_linear_linear__get_issue` - Verify creation / check duplicates
 
 ### Serena Memory (Legacy Compatibility)
 
-- `serena_read_memory` - Read `.serena/memories/coderabbit_findings.md`
-- `serena_write_memory` - Record new issues
+- `mcp__plugin_serena_serena__read_memory` - Read `.serena/memories/coderabbit_findings.md`
+- `mcp__plugin_serena_serena__write_memory` - Record new issues
 
 ## Duplicate Detection
 
@@ -417,7 +417,7 @@ if (similar.length > 0) {
 
 Before creating a new issue, always:
 
-1. Call `serena_read_memory("coderabbit_findings.md")`
+1. Call `mcp__plugin_serena_serena__read_memory("coderabbit_findings.md")`
 2. Check if the same file + line range has an existing issue
 3. If duplicate found:
    - Link to existing issue instead of creating new
@@ -437,7 +437,7 @@ Before creating a new issue, always:
 
 2. **Serena Memory** (for MCP tool compatibility):
    ```
-   serena_write_memory → coderabbit_findings.md
+   mcp__plugin_serena_serena__write_memory → coderabbit_findings.md
    ```
 
 ### Memory Entry Format
@@ -523,11 +523,7 @@ If Linear API is unavailable, write to local queue:
   ],
   "duplicates_skipped": 1,
   "grouped": 2,
-  "total_findings": 5,
-  "next_steps": [
-    "Auto-fixer can process created issues: GOO-31, GOO-32",
-    "Manual review recommended for grouped issues"
-  ]
+  "total_findings": 5
 }
 ```
 
@@ -547,10 +543,6 @@ If Linear API is unavailable, write to local queue:
   ],
   "warnings": [
     "Duplicate detection unavailable - Serena memory error"
-  ],
-  "next_steps": [
-    "Review failed findings in queue",
-    "Retry after label configuration"
   ]
 }
 ```
@@ -567,11 +559,7 @@ If Linear API is unavailable, write to local queue:
     "recoverable": false
   },
   "queued": 5,
-  "queue_file": ".serena/memories/issue_queue.md",
-  "next_steps": [
-    "Fix Linear authentication",
-    "Retry queued issues after credentials updated"
-  ]
+  "queue_file": ".serena/memories/issue_queue.md"
 }
 ```
 

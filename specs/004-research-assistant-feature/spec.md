@@ -224,6 +224,173 @@ As a researcher starting to write, I want AI to generate a draft literature revi
 - Q: Is local AI fully offline or uses server retrieval? → A: Local inference + server-side retrieval is acceptable; fully offline deferred to future phase
 - Q: What are realistic performance targets for local models? → A: Retrieval within 2 seconds; generation time varies by model size (10-60s); assumes warm start
 
+## Testing Requirements *(mandatory per Constitution Principle I)*
+
+### Unit Tests
+
+**Backend Services (pytest, >80% coverage target)**
+
+- **Citation Extraction Service**
+  - `test_extract_arxiv_citation_success` - Extract metadata from valid ArXiv ID
+  - `test_extract_arxiv_citation_invalid_id` - Handle malformed ArXiv ID gracefully
+  - `test_extract_crossref_citation_success` - Extract metadata from DOI
+  - `test_extract_hybrid_fallback_chain` - Verify fallback from ArXiv → CrossRef → PDF → manual
+  - `test_extraction_rate_limiting` - Respect API rate limits (ArXiv 3/s, CrossRef 50/s)
+  - `test_extraction_caching` - Cache results to avoid duplicate API calls
+
+- **Bibliography Service**
+  - `test_format_bibtex_single_citation` - Generate valid BibTeX entry
+  - `test_format_bibtex_multiple_citations` - Generate multi-entry .bib file
+  - `test_format_ieee_citation` - Generate IEEE reference format
+  - `test_format_apa_citation` - Generate APA reference format
+  - `test_format_mla_citation` - Generate MLA reference format
+  - `test_format_incomplete_metadata` - Handle missing fields gracefully with "needs review" flag
+
+- **Citation Graph Service**
+  - `test_sync_citation_to_neo4j` - Create :Citation node in Neo4j
+  - `test_create_cites_relationship` - Create :CITES edge between citations
+  - `test_get_citation_graph_depth_1` - Retrieve direct citations
+  - `test_get_citation_graph_depth_2` - Retrieve citations of citations
+  - `test_influence_score_calculation` - Compute PageRank-based influence
+  - `test_graph_performance_100_nodes` - <3s for 100 nodes with relationships
+
+- **Project Service**
+  - `test_create_project_success` - Create project with name, description
+  - `test_create_project_is_private` - Verify is_private always TRUE
+  - `test_add_document_to_project` - Associate document with project
+  - `test_remove_document_from_project` - Disassociate document
+  - `test_project_ownership_validation` - Deny access to non-owner
+  - `test_project_bibliography_generation` - Generate bibliography from all project docs
+
+- **Draft Generation Service**
+  - `test_generate_draft_with_themes` - Generate draft organized by themes
+  - `test_generate_draft_includes_citations` - Verify [Doc N] format in output
+  - `test_draft_versioning` - New generation creates new version
+  - `test_draft_version_retention` - Keep last 10, archive older
+  - `test_draft_generation_timeout` - Timeout after 120s with proper error
+  - `test_draft_export_latex` - Export to .tex + .bib format
+  - `test_draft_export_markdown` - Export to markdown format
+
+- **Message Citation Service**
+  - `test_parse_doc_citations_from_response` - Extract [Doc 1], [Doc 2] from text
+  - `test_persist_citation_to_database` - Save citation with message linkage
+  - `test_citation_preview_snippet` - Return source document snippet
+  - `test_citation_persistence_across_sessions` - Load citations on page refresh
+
+**Frontend Components (Vitest, React Testing Library)**
+
+- **CitationPreview Component**
+  - `test_renders_clickable_citation_link` - [Doc N] displays as link
+  - `test_shows_popover_on_click` - Clicking shows source snippet
+  - `test_handles_missing_citation` - Graceful error for invalid citation ID
+
+- **CitationGraph Component**
+  - `test_renders_cytoscape_graph` - Initialize Cytoscape with data
+  - `test_node_click_shows_details` - Click node displays paper metadata
+  - `test_graph_zoom_pan` - Viewport controls work
+  - `test_graph_clustering_large_dataset` - Cluster nodes when >1000
+
+- **BibliographyExport Component**
+  - `test_format_dropdown_options` - Shows BibTeX, IEEE, APA, MLA
+  - `test_download_bibtex_file` - Triggers .bib download
+  - `test_shows_needs_review_warnings` - Display incomplete citation warnings
+
+- **ProjectList Component**
+  - `test_renders_project_cards` - Display project grid
+  - `test_filter_by_status` - Filter active/paused/completed
+  - `test_search_projects` - Search by name
+
+- **NoteEditor Component**
+  - `test_markdown_preview` - Toggle preview mode
+  - `test_save_note` - Call API on save
+  - `test_link_documents` - Associate documents with note
+
+- **DraftViewer Component**
+  - `test_renders_markdown_content` - Display draft with formatting
+  - `test_version_selector` - Switch between draft versions
+  - `test_citation_links_clickable` - [Doc N] links work
+
+- **DraftGenerator Component**
+  - `test_theme_input` - Add/remove themes
+  - `test_generate_button_calls_api` - Trigger generation
+  - `test_progress_display` - Show generation progress
+
+### Integration Tests
+
+**API Integration (pytest with test database)**
+
+- **Citations API**
+  - `test_citations_crud_flow` - Create, read, update, delete citation
+  - `test_citations_extract_arxiv_paper` - Full extraction from ArXiv
+  - `test_citations_export_bibtex` - End-to-end export flow
+  - `test_citations_graph_endpoint` - Get graph data with positions
+
+- **Projects API**
+  - `test_projects_crud_flow` - Create, read, update, delete project
+  - `test_projects_add_remove_documents` - Document management
+  - `test_projects_notes_crud` - Note creation and editing
+  - `test_projects_bibliography` - Project-level bibliography
+
+- **Drafts API**
+  - `test_drafts_generation_async` - 202 Accepted response
+  - `test_drafts_status_polling` - Status endpoint during generation
+  - `test_drafts_versioning` - Multiple versions created
+  - `test_drafts_export` - LaTeX/Markdown export
+
+**Database Integration**
+
+- `test_citation_cascade_delete` - Deleting document cascades to citations
+- `test_project_cascade_delete` - Deleting project cascades to notes, drafts
+- `test_neo4j_sync_on_citation_create` - Citation node synced to Neo4j
+
+### End-to-End Tests (Playwright)
+
+**User Story 1: Local AI RAG**
+
+- `test_e2e_upload_pdf_ask_question_local_model` - Upload paper → select Llama-3.2-1B → ask question → receive answer with [Doc N] citation
+- `test_e2e_citation_click_shows_preview` - Click [Doc N] → popover shows source text
+- `test_e2e_citations_persist_on_refresh` - Refresh page → citations still visible
+
+**User Story 2: Bibliography Export**
+
+- `test_e2e_extract_citations_from_arxiv` - Upload ArXiv paper → Extract Citations → see metadata
+- `test_e2e_export_bibtex` - Select papers → Export BibTeX → download valid .bib
+- `test_e2e_export_ieee` - Select papers → Export IEEE → download formatted text
+
+**User Story 3: Citation Graph**
+
+- `test_e2e_view_citation_graph` - Upload paper → Extract Citations → Show Graph → see network
+- `test_e2e_graph_node_interaction` - Click node → see details panel
+- `test_e2e_graph_add_external_to_collection` - Click external node → Add to Collection
+
+**User Story 4: Research Projects**
+
+- `test_e2e_create_project` - Create Project "ML Healthcare" → see empty project
+- `test_e2e_add_documents_to_project` - Drag documents → see in project list
+- `test_e2e_write_project_note` - Add Note → write markdown → see formatted
+
+**User Story 5: Draft Generation**
+
+- `test_e2e_generate_literature_review` - 5 papers in project → Generate → see draft with citations
+- `test_e2e_compare_draft_versions` - Generate twice → compare versions
+- `test_e2e_export_draft_latex` - Export LaTeX → download .tex + .bib ZIP
+
+### Performance Tests
+
+- `test_perf_retrieval_latency_under_2s` - RAG retrieval <2000ms (p95)
+- `test_perf_citation_extraction_under_5s` - Single paper extraction <5000ms
+- `test_perf_graph_render_100_nodes_under_3s` - Graph with 100 nodes <3000ms
+- `test_perf_draft_generation_10_docs_under_60s` - Draft from 10 papers <60000ms
+- `test_perf_bibliography_export_50_citations_under_3s` - 50 citation export <3000ms
+
+### Security Tests
+
+- `test_security_project_access_denied_non_owner` - Non-owner cannot access project
+- `test_security_draft_access_denied_non_owner` - Non-owner cannot access draft
+- `test_security_note_access_denied_non_owner` - Non-owner cannot access notes
+- `test_security_citation_injection_prevention` - No SQL injection via citation fields
+- `test_security_xss_prevention_note_content` - Markdown sanitized for XSS
+
 ## Assumptions
 
 - ArXiv papers will be the primary source with highest extraction accuracy (~90%); non-ArXiv papers use hybrid lookup (CrossRef/Semantic Scholar → PDF parsing → manual) with lower expected accuracy (~70%)

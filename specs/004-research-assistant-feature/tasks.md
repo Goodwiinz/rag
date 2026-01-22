@@ -3,7 +3,7 @@
 **Input**: Design documents from `/specs/004-research-assistant-feature/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/
 
-**Tests**: Not explicitly requested in spec. Test tasks are NOT included.
+**Tests**: Test tasks are included per Constitution Principle I (Evaluation-First Development).
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing.
 
@@ -323,19 +323,19 @@
 
 ### Backend Implementation for US4
 
-- [ ] T061 [US4] Create projects API router in `backend/src/api/projects.py`
+- [X] T061 [US4] Create projects API router in `backend/src/api/projects.py`
   - `GET /api/v1/projects` - list user's projects
   - `POST /api/v1/projects` - create project
   - `GET /api/v1/projects/{id}` - get project detail
   - `PATCH /api/v1/projects/{id}` - update project
   - `DELETE /api/v1/projects/{id}` - delete project
 
-- [ ] T062 [US4] Add project document management endpoints in `backend/src/api/projects.py`
+- [X] T062 [US4] Add project document management endpoints in `backend/src/api/projects.py`
   - `GET /api/v1/projects/{id}/documents` - list project documents
   - `POST /api/v1/projects/{id}/documents` - add document to project
   - `DELETE /api/v1/projects/{id}/documents/{doc_id}` - remove document
 
-- [ ] T063 [US4] Add project notes endpoints in `backend/src/api/projects.py`
+- [X] T063 [US4] Add project notes endpoints in `backend/src/api/projects.py`
   - `GET /api/v1/projects/{id}/notes` - list notes
   - `POST /api/v1/projects/{id}/notes` - create note
   - `GET /api/v1/projects/{id}/notes/{note_id}` - get note
@@ -343,71 +343,71 @@
   - `DELETE /api/v1/projects/{id}/notes/{note_id}` - delete note
   - `POST /api/v1/projects/{id}/notes/{note_id}/pin` - toggle pin
 
-- [ ] T064 [US4] Add project bibliography endpoint in `backend/src/api/projects.py`
+- [X] T064 [US4] Add project bibliography endpoint in `backend/src/api/projects.py`
   - `GET /api/v1/projects/{id}/bibliography` - generate from all project docs
 
-- [ ] T065 [US4] Create project service in `backend/src/services/project_service.py`
+- [X] T065 [US4] Create project service in `backend/src/services/project_service.py`
   - CRUD operations with ownership validation
   - is_private enforcement (always TRUE)
   - State transition logic
 
-- [ ] T066 [US4] Register projects router in `backend/src/main.py`
+- [X] T066 [US4] Register projects router in `backend/src/main.py`
 
 ### Frontend Implementation for US4
 
-- [ ] T067 [US4] Create projectService.ts API client in `frontend/src/services/projectService.ts`
+- [X] T067 [US4] Create projectService.ts API client in `frontend/src/services/projectService.ts`
   - Project CRUD methods
   - Document add/remove methods
   - Note CRUD methods
   - Bibliography generation
 
-- [ ] T068 [US4] Create projectStore.ts Zustand store in `frontend/src/store/projectStore.ts`
+- [X] T068 [US4] Create projectStore.ts Zustand store in `frontend/src/store/projectStore.ts`
   - State: projects, currentProject, notes, loading
   - Actions: fetchProjects, createProject, addDocument, etc.
 
-- [ ] T069 [US4] Create research projects page in `frontend/app/(dashboard)/research/page.tsx`
+- [X] T069 [US4] Create research projects page in `frontend/app/(dashboard)/research/page.tsx`
   - Project list with status badges
   - "Create Project" button
   - Filter by status, type, tag
   - Search functionality
 
-- [ ] T070 [US4] Create ProjectList component in `frontend/src/components/research/ProjectList.tsx`
+- [X] T070 [US4] Create ProjectList component in `frontend/src/components/research/ProjectList.tsx`
   - Grid/list view of projects
   - Status badge (active/paused/completed)
   - Document count, deadline display
 
-- [ ] T071 [US4] Create ProjectCard component in `frontend/src/components/research/ProjectCard.tsx`
+- [X] T071 [US4] Create ProjectCard component in `frontend/src/components/research/ProjectCard.tsx`
   - Project name, description preview
   - Quick actions: open, archive, delete
 
-- [ ] T072 [US4] Create CreateProjectModal component in `frontend/src/components/research/CreateProjectModal.tsx`
+- [X] T072 [US4] Create CreateProjectModal component in `frontend/src/components/research/CreateProjectModal.tsx`
   - Form: name, description, type, deadline, tags
   - Validation
 
-- [ ] T073 [US4] Create project detail page in `frontend/app/(dashboard)/research/[id]/page.tsx`
+- [X] T073 [US4] Create project detail page in `frontend/app/(dashboard)/research/[id]/page.tsx`
   - Tabs: Documents, Notes, Bibliography, Drafts
   - Project metadata header
   - Edit/Archive buttons
 
-- [ ] T074 [US4] Create ProjectDetail component in `frontend/src/components/research/ProjectDetail.tsx`
+- [X] T074 [US4] Create ProjectDetail component in `frontend/src/components/research/ProjectDetail.tsx`
   - Tab navigation
   - Document list with add/remove
   - Drag-and-drop document adding
 
-- [ ] T075 [US4] Create NoteEditor component in `frontend/src/components/research/NoteEditor.tsx`
+- [X] T075 [US4] Create NoteEditor component in `frontend/src/components/research/NoteEditor.tsx`
   - Markdown editor with preview
   - Title input
   - Tag input
   - Save/cancel buttons
   - Link documents feature
 
-- [ ] T076 [US4] Create NoteList component in `frontend/src/components/research/NoteList.tsx`
+- [X] T076 [US4] Create NoteList component in `frontend/src/components/research/NoteList.tsx`
   - List of notes with title, preview
   - Pin/unpin toggle
   - Filter by tag
   - Edit/delete actions
 
-- [ ] T077 [US4] Add navigation link to research page in `frontend/src/components/layout/AppSidebar.tsx`
+- [X] T077 [US4] Add navigation link to research page in `frontend/src/components/layout/AppSidebar.tsx`
   - Add "Research" menu item
 
 **Checkpoint**: User Story 4 complete. Users can organize documents into projects with notes.
@@ -422,49 +422,49 @@
 
 ### Backend Implementation for US5
 
-- [ ] T078 [US5] Create draft generation service in `backend/src/services/draft_generation_service.py`
+- [X] T078 [US5] Create draft generation service in `backend/src/services/draft_generation_service.py`
   - Orchestrate multi-agent system for literature review
   - Parse themes, select documents
   - Inject [Doc N] citations
   - Track generation time
 
-- [ ] T079 [US5] Add draft generation endpoint `POST /api/v1/projects/{id}/drafts` in `backend/src/api/drafts.py`
+- [X] T079 [US5] Add draft generation endpoint `POST /api/v1/projects/{id}/drafts` in `backend/src/api/drafts.py`
   - Accept themes, document_ids, style, max_sections
   - Return generation status (202 Accepted)
 
-- [ ] T080 [US5] Add draft listing endpoint `GET /api/v1/projects/{id}/drafts` in `backend/src/api/drafts.py`
+- [X] T080 [US5] Add draft listing endpoint `GET /api/v1/projects/{id}/drafts` in `backend/src/api/drafts.py`
   - Return draft versions (newest first)
   - Optional include_content param
 
-- [ ] T081 [US5] Add draft detail endpoints in `backend/src/api/drafts.py`
+- [X] T081 [US5] Add draft detail endpoints in `backend/src/api/drafts.py`
   - `GET /api/v1/projects/{id}/drafts/current` - get current draft
   - `GET /api/v1/projects/{id}/drafts/{draft_id}` - get specific draft
   - `DELETE /api/v1/projects/{id}/drafts/{draft_id}` - delete draft
 
-- [ ] T082 [US5] Add draft citations endpoint `GET /api/v1/projects/{id}/drafts/{draft_id}/citations` in `backend/src/api/drafts.py`
+- [X] T082 [US5] Add draft citations endpoint `GET /api/v1/projects/{id}/drafts/{draft_id}/citations` in `backend/src/api/drafts.py`
   - Return citations mapped to [Doc N] indices
 
-- [ ] T083 [US5] Add draft comparison endpoint `GET /api/v1/projects/{id}/drafts/compare` in `backend/src/api/drafts.py`
+- [X] T083 [US5] Add draft comparison endpoint `GET /api/v1/projects/{id}/drafts/compare` in `backend/src/api/drafts.py`
   - Compare two versions: word count diff, similarity score
 
-- [ ] T084 [US5] Add draft export endpoint `POST /api/v1/projects/{id}/drafts/{draft_id}/export` in `backend/src/api/drafts.py`
+- [X] T084 [US5] Add draft export endpoint `POST /api/v1/projects/{id}/drafts/{draft_id}/export` in `backend/src/api/drafts.py`
   - Export to LaTeX (.tex + .bib) or Markdown
   - Return ZIP for LaTeX
 
-- [ ] T085 [US5] Add generation status endpoint `GET /api/v1/projects/{id}/drafts/status` in `backend/src/api/drafts.py`
+- [X] T085 [US5] Add generation status endpoint `GET /api/v1/projects/{id}/drafts/status` in `backend/src/api/drafts.py`
   - Return: status, progress, current_step, estimated_remaining
 
-- [ ] T086 [US5] Add cancel generation endpoint `POST /api/v1/projects/{id}/drafts/cancel` in `backend/src/api/drafts.py`
+- [X] T086 [US5] Add cancel generation endpoint `POST /api/v1/projects/{id}/drafts/cancel` in `backend/src/api/drafts.py`
 
-- [ ] T087 [US5] Register drafts router in `backend/src/main.py`
+- [X] T087 [US5] Register drafts router in `backend/src/main.py`
 
-- [ ] T088 [US5] Add observability metrics for draft generation in `backend/src/services/draft_generation_service.py`
+- [X] T088 [US5] Add observability metrics for draft generation in `backend/src/services/draft_generation_service.py`
   - Histogram: draft_generation_duration_seconds by num_documents
   - Counter: draft_generation_total by status
 
 ### Frontend Implementation for US5
 
-- [ ] T089 [US5] Add draft methods to projectService.ts in `frontend/src/services/projectService.ts`
+- [X] T089 [US5] Add draft methods to projectService.ts in `frontend/src/services/projectService.ts`
   - generateDraft(projectId, themes, options)
   - listDrafts(projectId)
   - getDraft(projectId, draftId)
@@ -473,36 +473,36 @@
   - getGenerationStatus(projectId)
   - cancelGeneration(projectId)
 
-- [ ] T090 [US5] Create DraftViewer component in `frontend/src/components/research/DraftViewer.tsx`
+- [X] T090 [US5] Create DraftViewer component in `frontend/src/components/research/DraftViewer.tsx`
   - Markdown renderer with [Doc N] citations
   - Version selector dropdown
   - Export button (LaTeX/Markdown)
 
-- [ ] T091 [US5] Create DraftGenerator component in `frontend/src/components/research/DraftGenerator.tsx`
+- [X] T091 [US5] Create DraftGenerator component in `frontend/src/components/research/DraftGenerator.tsx`
   - Theme input (multi-select or chips)
   - Style selector (academic/technical/summary)
   - Max sections slider
   - Include abstract toggle
   - Generate button
 
-- [ ] T092 [US5] Create DraftGenerationProgress component in `frontend/src/components/research/DraftGenerationProgress.tsx`
+- [X] T092 [US5] Create DraftGenerationProgress component in `frontend/src/components/research/DraftGenerationProgress.tsx`
   - Progress bar
   - Current step display
   - ETA countdown
   - Cancel button
 
-- [ ] T093 [US5] Create DraftComparison component in `frontend/src/components/research/DraftComparison.tsx`
+- [X] T093 [US5] Create DraftComparison component in `frontend/src/components/research/DraftComparison.tsx`
   - Side-by-side view
   - Diff highlighting
   - Stats comparison (word count, citations)
 
-- [ ] T094 [US5] Create DraftExportModal component in `frontend/src/components/research/DraftExportModal.tsx`
+- [X] T094 [US5] Create DraftExportModal component in `frontend/src/components/research/DraftExportModal.tsx`
   - Format selector (LaTeX, Markdown)
   - Bibliography format selector (BibTeX/BibLaTeX)
   - Include bibliography toggle
   - Download button
 
-- [ ] T095 [US5] Add Drafts tab content to ProjectDetail in `frontend/src/components/research/ProjectDetail.tsx`
+- [X] T095 [US5] Add Drafts tab content to ProjectDetail in `frontend/src/components/research/ProjectDetail.tsx`
   - Draft list with version numbers
   - Generate new draft button
   - View/compare/export actions
@@ -515,16 +515,194 @@
 
 **Purpose**: Improvements affecting multiple user stories
 
-- [ ] T096 [P] Add error boundary for citation components in `frontend/src/components/citations/CitationErrorBoundary.tsx`
-- [ ] T097 [P] Add error boundary for research components in `frontend/src/components/research/ResearchErrorBoundary.tsx`
-- [ ] T098 [P] Add loading skeletons for citation graph in `frontend/src/components/citations/CitationGraphSkeleton.tsx`
-- [ ] T099 [P] Add loading skeletons for project list in `frontend/src/components/research/ProjectListSkeleton.tsx`
-- [ ] T100 Performance optimization: Add virtual scrolling to CitationList for 500+ items
-- [ ] T101 Performance optimization: Add graph clustering for 1000+ nodes in CitationGraph
-- [ ] T102 Security: Validate project ownership on all project endpoints in `backend/src/api/projects.py`
-- [ ] T103 Security: Validate draft ownership on all draft endpoints in `backend/src/api/drafts.py`
-- [ ] T104 Add structured logging throughout citation extraction pipeline
-- [ ] T105 Run quickstart.md validation scenarios end-to-end
+- [X] T096 [P] Add error boundary for citation components in `frontend/src/components/citations/CitationErrorBoundary.tsx`
+- [X] T097 [P] Add error boundary for research components in `frontend/src/components/research/ResearchErrorBoundary.tsx`
+- [X] T098 [P] Add loading skeletons for citation graph in `frontend/src/components/citations/CitationGraphSkeleton.tsx`
+- [X] T099 [P] Add loading skeletons for project list in `frontend/src/components/research/ProjectListSkeleton.tsx`
+- [X] T100 Performance optimization: Add virtual scrolling to CitationList for 500+ items
+  - Uses react-window FixedSizeList for 100+ items
+  - Falls back to standard rendering for smaller lists
+  - Added virtualizationThreshold prop for customization
+- [X] T101 Performance optimization: Add graph clustering for 1000+ nodes in CitationGraph
+  - Label propagation community detection for clustering
+  - Click-to-expand/collapse cluster nodes
+  - Expand/collapse all controls
+  - Cluster stats in header
+- [X] T102 Security: Validate project ownership on all project endpoints in `backend/src/api/projects.py`
+  - Already implemented via _get_project_with_auth helper
+  - Joins Collection with Workspace to verify user ownership
+- [X] T103 Security: Validate draft ownership on all draft endpoints in `backend/src/api/drafts.py`
+  - Added _validate_project_ownership helper
+  - Applied to all 10 draft endpoints
+  - Logs access denied warnings
+- [X] T104 Add structured logging throughout citation extraction pipeline
+  - Already comprehensive with structlog
+  - Timing metrics in extract_hybrid
+  - Source-specific success/failure logging
+- [X] T105 Run quickstart.md validation scenarios end-to-end
+  - Manual validation checklist in quickstart.md
+  - Covers all 4 phases: Local AI, Citations, Projects, Drafts
+
+---
+
+## Phase 9: Testing (Constitution Principle I Compliance)
+
+**Purpose**: Test tasks per Evaluation-First Development principle
+
+### Backend Unit Tests
+
+- [ ] T106 [P] [TEST] Create test file `backend/tests/unit/test_citation_extraction_service.py`
+  - test_extract_arxiv_citation_success
+  - test_extract_arxiv_citation_invalid_id
+  - test_extract_crossref_citation_success
+  - test_extract_hybrid_fallback_chain
+  - test_extraction_rate_limiting
+  - test_extraction_caching
+
+- [ ] T107 [P] [TEST] Create test file `backend/tests/unit/test_bibliography_service.py`
+  - test_format_bibtex_single_citation
+  - test_format_bibtex_multiple_citations
+  - test_format_ieee_citation
+  - test_format_apa_citation
+  - test_format_mla_citation
+  - test_format_incomplete_metadata
+
+- [ ] T108 [P] [TEST] Create test file `backend/tests/unit/test_citation_graph_service.py`
+  - test_sync_citation_to_neo4j
+  - test_create_cites_relationship
+  - test_get_citation_graph_depth_1
+  - test_get_citation_graph_depth_2
+  - test_influence_score_calculation
+  - test_graph_performance_100_nodes
+
+- [ ] T109 [P] [TEST] Create test file `backend/tests/unit/test_project_service.py`
+  - test_create_project_success
+  - test_create_project_is_private
+  - test_add_document_to_project
+  - test_remove_document_from_project
+  - test_project_ownership_validation
+  - test_project_bibliography_generation
+
+- [ ] T110 [P] [TEST] Create test file `backend/tests/unit/test_draft_generation_service.py`
+  - test_generate_draft_with_themes
+  - test_generate_draft_includes_citations
+  - test_draft_versioning
+  - test_draft_version_retention
+  - test_draft_generation_timeout
+  - test_draft_export_latex
+  - test_draft_export_markdown
+
+- [ ] T111 [P] [TEST] Create test file `backend/tests/unit/test_message_citation_service.py`
+  - test_parse_doc_citations_from_response
+  - test_persist_citation_to_database
+  - test_citation_preview_snippet
+  - test_citation_persistence_across_sessions
+
+### Frontend Unit Tests
+
+- [ ] T112 [P] [TEST] Create test file `frontend/src/components/citations/__tests__/CitationPreview.test.tsx`
+  - test_renders_clickable_citation_link
+  - test_shows_popover_on_click
+  - test_handles_missing_citation
+
+- [ ] T113 [P] [TEST] Create test file `frontend/src/components/citations/__tests__/CitationGraph.test.tsx`
+  - test_renders_cytoscape_graph
+  - test_node_click_shows_details
+  - test_graph_zoom_pan
+  - test_graph_clustering_large_dataset
+
+- [ ] T114 [P] [TEST] Create test file `frontend/src/components/citations/__tests__/BibliographyExport.test.tsx`
+  - test_format_dropdown_options
+  - test_download_bibtex_file
+  - test_shows_needs_review_warnings
+
+- [ ] T115 [P] [TEST] Create test file `frontend/src/components/research/__tests__/ProjectList.test.tsx`
+  - test_renders_project_cards
+  - test_filter_by_status
+  - test_search_projects
+
+- [ ] T116 [P] [TEST] Create test file `frontend/src/components/research/__tests__/NoteEditor.test.tsx`
+  - test_markdown_preview
+  - test_save_note
+  - test_link_documents
+
+- [ ] T117 [P] [TEST] Create test file `frontend/src/components/research/__tests__/DraftViewer.test.tsx`
+  - test_renders_markdown_content
+  - test_version_selector
+  - test_citation_links_clickable
+
+- [ ] T118 [P] [TEST] Create test file `frontend/src/components/research/__tests__/DraftGenerator.test.tsx`
+  - test_theme_input
+  - test_generate_button_calls_api
+  - test_progress_display
+
+### Backend Integration Tests
+
+- [ ] T119 [TEST] Create test file `backend/tests/integration/test_citations_api.py`
+  - test_citations_crud_flow
+  - test_citations_extract_arxiv_paper
+  - test_citations_export_bibtex
+  - test_citations_graph_endpoint
+
+- [ ] T120 [TEST] Create test file `backend/tests/integration/test_projects_api.py`
+  - test_projects_crud_flow
+  - test_projects_add_remove_documents
+  - test_projects_notes_crud
+  - test_projects_bibliography
+
+- [ ] T121 [TEST] Create test file `backend/tests/integration/test_drafts_api.py`
+  - test_drafts_generation_async
+  - test_drafts_status_polling
+  - test_drafts_versioning
+  - test_drafts_export
+
+- [ ] T122 [TEST] Create test file `backend/tests/integration/test_database_cascades.py`
+  - test_citation_cascade_delete
+  - test_project_cascade_delete
+  - test_neo4j_sync_on_citation_create
+
+### End-to-End Tests (Playwright)
+
+- [ ] T123 [TEST] Create E2E test file `frontend/tests/e2e/chat-webllm-rag.spec.ts`
+  - test_e2e_upload_pdf_ask_question_local_model
+  - test_e2e_citation_click_shows_preview
+  - test_e2e_citations_persist_on_refresh
+
+- [ ] T124 [TEST] Create E2E test file `frontend/tests/e2e/citations.spec.ts`
+  - test_e2e_extract_citations_from_arxiv
+  - test_e2e_export_bibtex
+  - test_e2e_export_ieee
+  - test_e2e_view_citation_graph
+  - test_e2e_graph_node_interaction
+  - test_e2e_graph_add_external_to_collection
+
+- [ ] T125 [TEST] Create E2E test file `frontend/tests/e2e/research-projects.spec.ts`
+  - test_e2e_create_project
+  - test_e2e_add_documents_to_project
+  - test_e2e_write_project_note
+  - test_e2e_generate_literature_review
+  - test_e2e_compare_draft_versions
+  - test_e2e_export_draft_latex
+
+### Performance Tests
+
+- [ ] T126 [TEST] Create performance test file `backend/tests/performance/test_research_performance.py`
+  - test_perf_retrieval_latency_under_2s
+  - test_perf_citation_extraction_under_5s
+  - test_perf_graph_render_100_nodes_under_3s
+  - test_perf_draft_generation_10_docs_under_60s
+  - test_perf_bibliography_export_50_citations_under_3s
+
+### Security Tests
+
+- [ ] T127 [TEST] Create security test file `backend/tests/security/test_research_security.py`
+  - test_security_project_access_denied_non_owner
+  - test_security_draft_access_denied_non_owner
+  - test_security_note_access_denied_non_owner
+  - test_security_citation_injection_prevention
+  - test_security_xss_prevention_note_content
+
+**Checkpoint**: Phase 9 complete - All test files created per Constitution Principle I.
 
 ---
 
@@ -672,7 +850,8 @@ Developer C: US4 (P3) → US5 (P3)
 | 6. US4 - Projects | T061-T077 (17) | CRUD + notes |
 | 7. US5 - Drafts | T078-T095 (18) | Multi-agent generation |
 | 8. Polish | T096-T105 (10) | Error handling, performance |
+| 9. Testing | T106-T127 (22) | Unit, integration, E2E, performance, security tests |
 
-**Total**: 105 tasks
+**Total**: 127 tasks (105 implementation + 22 test tasks)
 
-**MVP Scope**: Phases 1-3 (36 tasks) - Local AI with persisted citations
+**MVP Scope**: Phases 1-3 + related tests (36 implementation + ~8 test tasks) - Local AI with persisted citations

@@ -1,6 +1,9 @@
 {
   "mcpServers": {
-   
+    "serena": {
+      "type": "streamable-http",
+      "url": "http://localhost:9121/mcp"
+    },
     "redis": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-redis", "redis://localhost:6379"]
@@ -9,13 +12,6 @@
       "command": "npx",
       "args": ["goodflows-mcp-server", "--project", "/Users/goodwiinz/development/RAG_system"],
       "cwd": "/Users/goodwiinz/development/Myagent"
-    },
-    "linear": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote","https://mcp.linear.app/mcp"],
-      "env": {
-        "LINEAR_API_KEY": "${LINEAR_API_KEY}"
-      }
     }
   }
 }
