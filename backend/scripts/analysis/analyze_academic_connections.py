@@ -1,7 +1,7 @@
 import asyncio
 import ast
 import logging
-from src.services.knowledge_graph_service import knowledge_graph_service
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

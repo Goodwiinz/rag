@@ -1,7 +1,7 @@
 
 import asyncio
 import logging
-from src.services.arxiv_service import ArXivIngestionService
+from src.services.arxiv import ArxivService as ArXivIngestionService
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

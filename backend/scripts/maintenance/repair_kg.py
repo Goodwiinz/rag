@@ -23,7 +23,7 @@ from src.models.ab_testing import (
 from src.core.database import SessionLocal
 from src.models.document import Document
 from src.services.services.entity_extraction_service import EntityExtractionService
-from src.services.knowledge_graph_service import knowledge_graph_service
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
 from src.models.graph import (
     CreateEntityRequest,
     CreateRelationshipRequest,

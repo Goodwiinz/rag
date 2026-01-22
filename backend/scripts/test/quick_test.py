@@ -106,19 +106,19 @@ except ImportError as e:
     print(f"❌ Settings import failed: {e}")
 
 try:
-    from src.services.vector_search_service import VectorSearchService
+    from src.services.search import VectorSearchService
     print("✅ VectorSearchService import successful")
 except ImportError as e:
     print(f"❌ VectorSearchService import failed: {e}")
 
 try:
-    from src.services.knowledge_graph_service import KnowledgeGraphService
+    from src.services.knowledge_graph import KnowledgeGraphService
     print("✅ KnowledgeGraphService import successful")
 except ImportError as e:
     print(f"❌ KnowledgeGraphService import failed: {e}")
 
 try:
-    from src.services.hybrid_search_service import HybridSearchService
+    from src.services.search import HybridSearchService
     print("✅ HybridSearchService import successful")
 except ImportError as e:
     print(f"❌ HybridSearchService import failed: {e}")
@@ -236,7 +236,7 @@ def test_imports():
 
 def test_basic_services():
     """Test service instantiation"""
-    from src.services.vector_search_service import VectorSearchService
+    from src.services.search import VectorSearchService
 
     # This will fail without proper setup, but tests import
     try:

@@ -2,8 +2,9 @@
 import asyncio
 import logging
 from src.services.arxiv_kg_integration import ArXivKnowledgeGraphIntegration
-from src.services.knowledge_graph_service import knowledge_graph_service, KnowledgeGraphService
-from src.services.vector_service import vector_service
+from src.services.knowledge_graph import KnowledgeGraphService
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+from src.services.search.vector_service import vector_service
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

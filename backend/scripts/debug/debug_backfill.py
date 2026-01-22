@@ -3,7 +3,7 @@ import asyncio
 import logging
 import json
 from src.services.arxiv_kg_integration import ArXivKnowledgeGraphIntegration
-from src.services.azure_openai_service import azure_openai_service
+from src.services.infrastructure.azure_openai_service import azure_openai_service
 
 logging.basicConfig(level=logging.INFO)
 
