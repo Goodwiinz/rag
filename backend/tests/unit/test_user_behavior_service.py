@@ -7,7 +7,7 @@ from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timedelta
 import json
 
-from src.services.user_behavior_service import (
+from src.services.quality.user_behavior_service import (
     UserBehaviorService,
     BehaviorPattern,
     MetricTimeRange,

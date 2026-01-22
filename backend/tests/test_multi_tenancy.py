@@ -20,7 +20,8 @@ from src.middleware.multi_tenancy import (
     TenantAwareQuery,
     add_row_level_security_filters
 )
-from src.services.tenant_service import TenantService, check_tenant_permission
+from src.services.security import TenantService
+from src.services.security.tenant_service import check_tenant_permission
 from src.models.organization import Organization, StorageTier
 from src.models.user import User
 from src.models.document import Document

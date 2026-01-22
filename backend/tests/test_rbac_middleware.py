@@ -15,7 +15,7 @@ from src.middleware.rbac import (
     require_role, require_any_role, has_permission, has_any_permission, has_role,
     get_current_user_permissions, get_current_user_roles, clear_permission_cache
 )
-from src.services.rbac_service import RBACService
+from src.services.security import RBACService
 from src.middleware.multi_tenancy import get_current_tenant_id, get_current_user_id
 
 

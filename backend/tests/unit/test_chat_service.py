@@ -153,7 +153,7 @@ def chat_service(mock_db_session):
     if src_dir not in sys.path:
         sys.path.insert(0, src_dir)
 
-    from src.services.chat_service import ChatService
+    from src.services.threads import ChatService
     return ChatService(mock_db_session)
 
 

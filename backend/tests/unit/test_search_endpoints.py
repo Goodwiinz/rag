@@ -40,8 +40,8 @@ class TestSearchEndpoints:
     @pytest.fixture
     def override_search_dependencies(self, test_app, search_service_mock, hybrid_search_service_mock, fulltext_search_service_mock):
         """Override search service dependencies"""
-        from src.services.hybrid_search_service import hybrid_search_service
-        from src.services.fulltext_search_service import fulltext_search_service
+        from src.services.search.hybrid_search_service import hybrid_search_service
+        from src.services.search.fulltext_search_service import fulltext_search_service
 
         # Override services with mocks
         original_hybrid = hybrid_search_service.search

@@ -5,7 +5,7 @@ Unit tests for EntityExtractionService
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
-from src.services.entity_extraction_service import EntityExtractionService
+from src.services.processing import EntityExtractionService
 from src.models.entity import EntityType, ExtractionMethod
 from src.models.document import Document
 

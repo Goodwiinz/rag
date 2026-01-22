@@ -32,7 +32,7 @@ class TestShouldSummarize:
     @pytest.fixture
     def summarization_service(self, mock_db_session):
         """Create ThreadSummarizationService instance"""
-        from src.services.thread_summarization_service import ThreadSummarizationService
+        from src.services.threads import ThreadSummarizationService
 
         service = ThreadSummarizationService(mock_db_session)
         service._redis_client = None  # Disable Redis for unit tests
@@ -121,7 +121,7 @@ class TestFormatMessagesForPrompt:
     @pytest.fixture
     def summarization_service(self):
         """Create ThreadSummarizationService instance"""
-        from src.services.thread_summarization_service import ThreadSummarizationService
+        from src.services.threads import ThreadSummarizationService
 
         mock_db = Mock()
         return ThreadSummarizationService(mock_db)
@@ -203,7 +203,7 @@ class TestCleanSummary:
     @pytest.fixture
     def summarization_service(self):
         """Create ThreadSummarizationService instance"""
-        from src.services.thread_summarization_service import ThreadSummarizationService
+        from src.services.threads import ThreadSummarizationService
 
         mock_db = Mock()
         return ThreadSummarizationService(mock_db)
@@ -228,7 +228,7 @@ class TestCleanSummary:
 
     def test_clean_truncates_long_summary(self, summarization_service):
         """Test that long summaries are truncated"""
-        from src.services.thread_summarization_service import MAX_SUMMARY_LENGTH
+        from src.services.threads.thread_summarization_service import MAX_SUMMARY_LENGTH
 
         long_summary = "A" * (MAX_SUMMARY_LENGTH + 100)
 
@@ -246,7 +246,7 @@ class TestCleanSummary:
 
     def test_clean_truncates_at_sentence_boundary(self, summarization_service):
         """Test that truncation prefers sentence boundaries"""
-        from src.services.thread_summarization_service import MAX_SUMMARY_LENGTH
+        from src.services.threads.thread_summarization_service import MAX_SUMMARY_LENGTH
 
         # Create a summary with sentences that exceeds max length
         sentences = "This is sentence one. This is sentence two. This is sentence three."
@@ -264,7 +264,7 @@ class TestGenerateFallbackSummary:
     @pytest.fixture
     def summarization_service(self):
         """Create ThreadSummarizationService instance"""
-        from src.services.thread_summarization_service import ThreadSummarizationService
+        from src.services.threads import ThreadSummarizationService
 
         mock_db = Mock()
         return ThreadSummarizationService(mock_db)
@@ -336,7 +336,7 @@ class TestGenerateSummaryAsync:
     @pytest.fixture
     def summarization_service(self, mock_db_session):
         """Create ThreadSummarizationService instance"""
-        from src.services.thread_summarization_service import ThreadSummarizationService
+        from src.services.threads import ThreadSummarizationService
 
         service = ThreadSummarizationService(mock_db_session)
         service._redis_client = None
@@ -422,7 +422,7 @@ class TestLLMProviders:
     @pytest.fixture
     def summarization_service(self, mock_db_session):
         """Create ThreadSummarizationService instance"""
-        from src.services.thread_summarization_service import ThreadSummarizationService
+        from src.services.threads import ThreadSummarizationService
 
         return ThreadSummarizationService(mock_db_session)
 

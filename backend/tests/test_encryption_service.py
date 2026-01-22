@@ -51,7 +51,7 @@ from src.models.encrypted_user import (
     EncryptedOrganizationProfile,
     EncryptionAuditLog
 )
-from src.services.encryption_service import EncryptionService
+from src.services.security import EncryptionService
 
 
 class TestSecureRandomGenerator:

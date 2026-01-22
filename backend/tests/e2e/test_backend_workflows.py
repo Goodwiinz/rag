@@ -30,9 +30,9 @@ from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.entity import Entity, EntityType, ExtractionMethod
 from src.models.processing import ProcessingJob, JobType, JobStatus
 from src.services.processing_pipeline import ProcessingPipeline
-from src.services.vector_service import VectorService
-from src.services.knowledge_graph_service import KnowledgeGraphService
-from src.services.hybrid_search_service import HybridSearchService
+from src.services.search import VectorService
+from src.services.knowledge_graph import KnowledgeGraphService
+from src.services.search import HybridSearchService
 from src.core.security import create_access_token
 
 

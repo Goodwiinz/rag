@@ -10,7 +10,8 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
-from src.services.audit_service import AuditService, log_audit_event
+from src.services.security import AuditService
+from src.services.security.audit_service import log_audit_event
 from src.models.audit import (
     AuditEvent, ComplianceReport, SecurityIncident, DataRetentionPolicy,
     AuditEventType, AuditSeverity

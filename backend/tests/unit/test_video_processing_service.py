@@ -9,7 +9,7 @@ import os
 import time
 import json
 
-from src.services.video_processing_service import VideoProcessingService
+from src.services.processing import VideoProcessingService
 
 
 class TestVideoProcessingService:

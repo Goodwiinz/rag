@@ -335,7 +335,7 @@ class TestExportServiceAuthorization:
     async def test_export_denies_unauthorized_user(self):
         """Test that export service denies access to threads user doesn't own."""
         from unittest.mock import AsyncMock, MagicMock
-        from src.services.export_service import ExportService
+        from src.services.research import ExportService
         from src.shared.export_schemas import ExportFormat, ExportOptions
 
         # Mock database session
@@ -371,7 +371,7 @@ class TestExportServiceAuthorization:
     async def test_export_allows_thread_owner(self):
         """Test that export service allows thread owner to export."""
         from unittest.mock import AsyncMock, MagicMock
-        from src.services.export_service import ExportService
+        from src.services.research import ExportService
         from src.shared.export_schemas import ExportFormat, ExportOptions
 
         # Mock database session
@@ -418,7 +418,7 @@ class TestExportServiceAuthorization:
     async def test_export_allows_conversation_owner(self):
         """Test that export service allows conversation owner to export threads."""
         from unittest.mock import AsyncMock, MagicMock
-        from src.services.export_service import ExportService
+        from src.services.research import ExportService
         from src.shared.export_schemas import ExportFormat, ExportOptions
 
         # Mock database session

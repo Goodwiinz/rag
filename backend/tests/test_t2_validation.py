@@ -32,11 +32,11 @@ from src.core.database import get_db, Base
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.user import User
 from src.models.search_schemas import SearchQuery, SearchType, SearchSortOrder
-from src.services.vector_search_service import vector_search_service
-from src.services.knowledge_graph_service import knowledge_graph_service
-from src.services.fulltext_search_service import fulltext_search_service
-from src.services.hybrid_search_service import hybrid_search_service
-from src.services.search_quality_service import search_quality_service
+from src.services.search.vector_search_service import vector_search_service
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+from src.services.search.fulltext_search_service import fulltext_search_service
+from src.services.search.hybrid_search_service import hybrid_search_service
+from src.services.search.search_quality_service import search_quality_service
 
 
 # Test client fixture
@@ -629,7 +629,7 @@ class TestT2_007_SearchQualityEvaluation:
     def test_quality_metrics_calculation(self):
         """Test calculation of various quality metrics"""
         from src.models.search_schemas import SearchResponse, SearchResult
-        from src.services.search_quality_service import QualityMetricType
+        from src.services.search.search_quality_service import QualityMetricType
 
         # Create mock search response
         mock_results = [
@@ -705,7 +705,7 @@ class TestT2_007_SearchQualityEvaluation:
 
     def test_result_diversity_calculation(self):
         """Test result diversity metric calculation"""
-        from src.services.search_quality_service import QualityMetricType
+        from src.services.search.search_quality_service import QualityMetricType
         from src.models.search_schemas import SearchResponse, SearchResult, DocumentType
 
         # Create diverse results
@@ -801,7 +801,7 @@ class TestT2_007_SearchQualityEvaluation:
 
     def test_overall_score_calculation(self):
         """Test overall quality score calculation"""
-        from src.services.search_quality_service import QualityMetricType
+        from src.services.search.search_quality_service import QualityMetricType
 
         # Test with good metrics
         good_metrics = {
@@ -842,7 +842,7 @@ class TestT2_007_SearchQualityEvaluation:
 
     def test_recommendation_generation(self):
         """Test generation of improvement recommendations"""
-        from src.services.search_quality_service import QualityMetricType
+        from src.services.search.search_quality_service import QualityMetricType
 
         # Test with metrics that need improvement
         poor_metrics = {
@@ -922,7 +922,7 @@ class TestT2_Integration:
         assert search_query.search_type == SearchType.HYBRID
 
         # Test metric types are consistent across services
-        from src.services.search_quality_service import QualityMetricType
+        from src.services.search.search_quality_service import QualityMetricType
         from src.models.search_schemas import SearchType
 
         assert len(QualityMetricType) > 0

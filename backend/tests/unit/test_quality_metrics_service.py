@@ -7,7 +7,7 @@ from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timedelta
 import json
 
-from src.services.quality_metrics_service import (
+from src.services.quality.quality_metrics_service import (
     QualityMetricsService,
     MetricType,
     MetricScope,

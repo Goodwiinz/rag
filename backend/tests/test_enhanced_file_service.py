@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from sqlalchemy.orm import Session
 
-from src.services.enhanced_file_service import (
+from src.services.documents.enhanced_file_service import (
     EnhancedFileService,
     EnhancedFileValidationError,
     SecurityScanError,

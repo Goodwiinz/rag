@@ -10,10 +10,10 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 src_dir = os.path.dirname(current_dir)
 sys.path.insert(0, src_dir)
 
-from src.services.quality_metrics_service import QualityMetricsService
-from src.services.user_behavior_service import UserBehaviorService
-from src.services.performance_dashboard_service import PerformanceDashboardService
-from src.services.quality_recommendations_service import QualityRecommendationsService
+from src.services.quality import QualityMetricsService
+from src.services.quality import UserBehaviorService
+from src.services.quality import PerformanceDashboardService
+from src.services.quality import QualityRecommendationsService
 
 
 class TestInfrastructure:
@@ -87,10 +87,10 @@ class TestInfrastructure:
 
     def test_enum_imports(self):
         """Test that service enums can be imported."""
-        from src.services.quality_metrics_service import MetricType, MetricScope, MetricTimeRange
-        from src.services.user_behavior_service import BehaviorPatternType
-        from src.services.performance_dashboard_service import WidgetType
-        from src.services.quality_recommendations_service import RecommendationCategory, RecommendationPriority, RecommendationStatus
+        from src.services.quality.quality_metrics_service import MetricType, MetricScope, MetricTimeRange
+        from src.services.quality.user_behavior_service import BehaviorPatternType
+        from src.services.quality.performance_dashboard_service import WidgetType
+        from src.services.quality.quality_recommendations_service import RecommendationCategory, RecommendationPriority, RecommendationStatus
 
         # Test enum values
         assert MetricType.CUSTOM is not None

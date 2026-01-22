@@ -7,7 +7,7 @@ from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timedelta
 import json
 
-from src.services.performance_dashboard_service import (
+from src.services.quality.performance_dashboard_service import (
     PerformanceDashboardService,
     MetricTimeRange,
     SystemHealthMetrics,

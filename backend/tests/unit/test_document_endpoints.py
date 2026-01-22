@@ -41,8 +41,10 @@ class TestDocumentEndpoints:
     @pytest.fixture
     def override_document_dependencies(self, test_app, document_service_mock, processing_service_mock):
         """Override document service dependencies"""
-        from src.services.document_service import document_service
-        from src.services.processing_service import processing_service
+        from src.services.documents import FileService as DocumentService
+        from src.services.processing import ProcessingPipeline
+        document_service = DocumentService()
+        processing_service = ProcessingPipeline()
 
         # Store original methods
         original_upload = document_service.upload_document

@@ -10,7 +10,8 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
-from src.services.rbac_service import RBACService, check_permission, require_permission
+from src.services.security import RBACService
+from src.services.security.rbac_service import check_permission, require_permission
 from src.models.permission import (
     Permission, Role, UserRoleAssignment, PermissionCategory, PermissionScope,
     SYSTEM_PERMISSIONS, SYSTEM_ROLES

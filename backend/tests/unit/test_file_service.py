@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch, MagicMock
 from fastapi import UploadFile
 from io import BytesIO
 
-from src.services.file_service import FileService, FileValidationError, FileStorageError
+from src.services.documents import FileService, FileValidationError, FileStorageErrorBase as FileStorageError
 from src.models.document import DocumentType, ProcessingStatus
 from src.models.organization import Organization
 

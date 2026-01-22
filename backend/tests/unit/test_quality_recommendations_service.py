@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import json
 import asyncio
 
-from src.services.quality_recommendations_service import (
+from src.services.quality.quality_recommendations_service import (
     QualityRecommendationsService,
     RecommendationCategory,
     RecommendationPriority,
