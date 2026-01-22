@@ -16,8 +16,8 @@ import redis.asyncio as redis
 import uuid
 
 from ..core.config import settings
-from ..models.user import User
-from ..models.organization import Organization
+from src.models.user import User
+from src.models.organization import Organization
 
 logger = logging.getLogger(__name__)
 

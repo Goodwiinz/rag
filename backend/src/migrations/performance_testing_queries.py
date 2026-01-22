@@ -8,15 +8,15 @@ from typing import Dict, List, Any
 from sqlalchemy import text, and_, or_, func, desc
 from sqlalchemy.orm import Session
 
-from ..models.document import Document, ProcessingStatus, DocumentType
-from ..models.document_processing import (
+from src.models.document import Document, ProcessingStatus, DocumentType
+from src.models.document_processing import (
     ProcessingHistory, ProcessingStage, DocumentVersion,
     MultimodalContent, ContentType, DocumentQualityMetrics,
     QualityMetricType, DocumentAccessLog
 )
-from ..models.processing import ProcessingJob, JobStatus, JobType
-from ..models.user import User
-from ..models.organization import Organization
+from src.models.processing import ProcessingJob, JobStatus, JobType
+from src.models.user import User
+from src.models.organization import Organization
 
 
 class PerformanceTestSuite:

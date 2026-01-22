@@ -10,15 +10,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text, and_, or_
 import logging
 
-from ..models.base import Base
-from ..models.document import Document, ProcessingStatus
-from ..models.document_processing import (
+from src.models.base import Base
+from src.models.document import Document, ProcessingStatus
+from src.models.document_processing import (
     ProcessingHistory, ProcessingStage, DocumentVersion,
     MultimodalContent, ContentType, DocumentQualityMetrics,
     QualityMetricType, DocumentAccessLog
 )
-from ..models.user import User
-from ..models.organization import Organization
+from src.models.user import User
+from src.models.organization import Organization
 
 logger = logging.getLogger(__name__)
 

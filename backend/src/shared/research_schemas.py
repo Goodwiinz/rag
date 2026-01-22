@@ -417,6 +417,37 @@ class ProjectNoteResponse(BaseModel):
         from_attributes = True
 
 
+class ProjectDetailResponse(ProjectResponse):
+    """Detailed project response with additional context."""
+    documents: List[Dict[str, Any]] = Field(default_factory=list, description="Documents in project")
+    recent_notes: List[Dict[str, Any]] = Field(default_factory=list, description="Recent notes")
+    recent_drafts: List[Dict[str, Any]] = Field(default_factory=list, description="Recent drafts")
+
+
+class ProjectListResponse(BaseModel):
+    """Paginated list of projects."""
+    projects: List[ProjectResponse]
+    total: int
+    page: int
+    size: int
+    has_next: bool
+    has_prev: bool
+
+
+class NoteListResponse(BaseModel):
+    """Paginated list of notes."""
+    notes: List[ProjectNoteResponse]
+    total: int
+    page: int
+    size: int
+
+
+# Aliases for backwards compatibility
+NoteCreate = ProjectNoteCreate
+NoteUpdate = ProjectNoteUpdate
+NoteResponse = ProjectNoteResponse
+
+
 # ============================================================================
 # T022: Draft Schemas (User Story 5)
 # ============================================================================

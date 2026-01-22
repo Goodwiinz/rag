@@ -12,7 +12,7 @@ from starlette.routing import Match
 import time
 
 from src.middleware.multi_tenancy import get_current_tenant_id, get_current_user_id
-from src.services.rbac_service import RBACService
+from src.services.security.rbac_service import RBACService
 from src.exceptions.analytics_exceptions import PermissionDeniedException
 from src.models.permission import Permission
 

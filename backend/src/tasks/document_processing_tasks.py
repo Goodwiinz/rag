@@ -15,9 +15,9 @@ from src.core.config import settings
 from src.core.database import get_db
 from src.models.document import Document, ProcessingStatus
 from src.models.processing import ProcessingJob, JobStatus
-from src.services.multimodal_processing_service import MultimodalProcessingService
-from src.services.enhanced_file_service import EnhancedFileService
-from src.services.document_quality_service import DocumentQualityService
+from src.services.processing.multimodal_processing_service import MultimodalProcessingService
+from src.services.documents.enhanced_file_service import EnhancedFileService
+from src.services.documents.document_quality_service import DocumentQualityService
 from src.api.document_upload import upload_manager
 
 logger = logging.getLogger(__name__)

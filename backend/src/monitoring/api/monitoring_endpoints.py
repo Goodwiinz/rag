@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from ..services.observability_manager import get_observability_manager, ObservabilityManager
 from ..config.monitoring_config import get_monitoring_config
-from ...auth.rbac_decorator import require_roles
+from src.auth.rbac_decorator import require_roles
 
 logger = logging.getLogger(__name__)
 

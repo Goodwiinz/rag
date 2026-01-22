@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 from enum import Enum
 
-from ..models.ab_testing import (
+from src.models.ab_testing import (
     ExperimentStatus, ExperimentType, TrafficSplitType, MetricType,
     StatisticalTest, SuccessCriterion
 )

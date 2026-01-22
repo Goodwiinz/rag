@@ -22,10 +22,10 @@ from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Inte
 from sqlalchemy.orm import Session, relationship
 
 from ..core.config import settings
-from ..models.user import User
-from ..models.organization import Organization
-from ..models.ab_testing import Experiment, ExperimentStatus
-from ..models.base import BaseModel
+from src.models.user import User
+from src.models.organization import Organization
+from src.models.ab_testing import Experiment, ExperimentStatus
+from src.models.base import BaseModel
 from ..core.database import get_db
 from ..cache.cache_keys import get_ab_testing_cache_key
 from ..services.rbac_service import rbac_service

@@ -19,7 +19,7 @@ from ..security.websocket_auth import (
     secure_websocket_manager,
     require_websocket_auth
 )
-from ...auth.rbac_decorator import AnalyticsPermissionsChecker
+from src.auth.rbac_decorator import AnalyticsPermissionsChecker
 
 logger = logging.getLogger(__name__)
 

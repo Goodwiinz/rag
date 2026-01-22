@@ -19,50 +19,56 @@ logger = logging.getLogger(__name__)
 
 from src.core.config import settings
 from src.core.database import engine, Base
-from src.api.auth import router as auth_router
-from src.api.files import router as files_router
-from src.api.documents import router as documents_router
-from src.api.processing import router as processing_router
-from src.api.vectors import router as vectors_router
-from src.api.knowledge_graph import router as knowledge_graph_router
-from src.api.search import router as search_router
-from src.api.search_quality import router as search_quality_router
-from src.api.multi_agent_search import router as multi_agent_search_router
-from src.api.multi_agent_search_v2 import router as multi_agent_search_v2_router
-from src.api.quality_metrics import router as quality_metrics_router
-from src.api.user_behavior import router as user_behavior_router
-from src.api.performance_dashboard import router as performance_dashboard_router
-from src.api.quality_recommendations import router as quality_recommendations_router
-from src.api.workers import router as workers_router
-from src.api.encryption import router as encryption_router
-from src.api.compliance import router as compliance_router
-from src.api.rbac_management import router as rbac_router
-from src.api.evaluation import router as evaluation_router
-from src.api.websocket import router as websocket_router
-from src.api.websocket_v2 import router as websocket_v2_router
-from src.api.realtime_document_status import router as realtime_status_router
-from src.api.realtime_quality_metrics import router as realtime_quality_metrics_router
-from src.api.arxiv import router as arxiv_router
-from src.api.arxiv_knowledge_graph import router as arxiv_kg_router
-from src.api.arxiv_change_tracking import router as arxiv_change_router
-from src.api.arxiv_extraction import router as arxiv_extraction_router
-from src.api.arxiv_local import router as arxiv_local_router
-
-# from src.api.arxiv_local_batch import router as arxiv_batch_router  # Temporarily disabled due to import error
-from src.api.arxiv_bulk import router as arxiv_bulk_router
-from src.api.arxiv_llm_bulk import router as arxiv_llm_bulk_router
-from src.api.chat import router as chat_router
-from src.api.workspaces import (
-    router as workspaces_router,
-    standalone_router as workspaces_standalone_router,
+from src.api.auth import auth_router
+from src.api.documents import documents_router, files_router, processing_router
+from src.api.search import (
+    search_router,
+    search_quality_router,
+    vectors_router,
+    knowledge_graph_router,
+    multi_agent_search_router,
+    multi_agent_search_v2_router,
 )
-from src.api.export import router as export_router
-from src.api.threads import router as threads_router
-from src.api.thread_search import router as thread_search_router
-from src.api.citations import router as citations_router
+from src.api.quality import (
+    quality_metrics_router,
+    quality_recommendations_router,
+    user_behavior_router,
+    performance_dashboard_router,
+)
+from src.api.infrastructure import workers_router
+from src.api.security import encryption_router, compliance_router, rbac_router
+from src.api.infrastructure import evaluation_router
+from src.api.realtime import (
+    websocket_router,
+    websocket_v2_router,
+    realtime_status_router,
+    realtime_quality_metrics_router,
+)
+from src.api.arxiv import (
+    arxiv_router,
+    arxiv_kg_router,
+    arxiv_change_router,
+    arxiv_extraction_router,
+    arxiv_local_router,
+    arxiv_bulk_router,
+    arxiv_llm_bulk_router,
+)
+from src.api.research import (
+    chat_router,
+    export_router,
+    citations_router,
+    projects_router,
+    drafts_router,
+)
+from src.api.threads import (
+    workspaces_router,
+    workspaces_standalone_router,
+    threads_router,
+    thread_search_router,
+)
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.core.database import engine
-# from src.services.file_service import redis_client  # Not exported, not needed here
+# from src.services.documents.file_service import redis_client  # Not exported, not needed here
 
 # Configure observability (optional)
 try:
@@ -130,7 +136,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize WebSocket services
     try:
-        from src.services.websocket_service_initializer import (
+        from src.services.websocket.websocket_service_initializer import (
             websocket_service_initializer,
         )
 
@@ -157,7 +163,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown WebSocket services
     try:
-        from src.services.websocket_service_initializer import (
+        from src.services.websocket.websocket_service_initializer import (
             websocket_service_initializer,
         )
 
@@ -184,7 +190,7 @@ instrument_app(app)
 # Instrument additional services
 if OBSERVABILITY_ENABLED:
     try:
-        from src.services.file_service import redis_client
+        from src.services.documents.file_service import redis_client
 
         instrument_services(sql_engine=engine, redis_client=redis_client)
     except ImportError:
@@ -308,6 +314,8 @@ app.include_router(
 )  # Flat API routes for workspaces (used by frontend)
 app.include_router(export_router, prefix="/api/v1")  # Thread export endpoints
 app.include_router(citations_router)  # Research Assistant citations endpoints
+app.include_router(projects_router)  # Research Assistant projects endpoints
+app.include_router(drafts_router)  # Research Assistant drafts endpoints
 app.include_router(
     thread_search_router, prefix="/api/v2"
 )  # Thread and message full-text search

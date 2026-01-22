@@ -4,23 +4,29 @@ FastAPI dependencies for authentication and authorization
 
 from typing import Optional
 from fastapi import Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from src.core.database import get_db
 from src.core.security import get_current_user_token
 from src.models.user import User, UserRole
 from src.models.organization import Organization
 
-def get_current_user(
+async def get_current_user(
     token_data: dict = Depends(get_current_user_token),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> User:
-    """Get current authenticated user"""
-    user = db.query(User).filter(
+    """Get current authenticated user with eagerly loaded organization"""
+    stmt = select(User).options(
+        selectinload(User.organization)
+    ).where(
         User.id == token_data.user_id,
         User.is_active == True,
         User.is_deleted == False
-    ).first()
+    )
+    result = await db.execute(stmt)
+    user = result.scalars().first()
 
     if user is None:
         raise HTTPException(
@@ -170,18 +176,20 @@ def is_self_or_admin(
         )
     return current_user
 
-def can_access_document(
+async def can_access_document(
     document_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> tuple[User, any]:
     """Check if user can access a document"""
     from src.models.document import Document
 
-    document = db.query(Document).filter(
+    stmt = select(Document).where(
         Document.id == document_id,
         Document.is_deleted == False
-    ).first()
+    )
+    result = await db.execute(stmt)
+    document = result.scalars().first()
 
     if not document:
         raise HTTPException(
@@ -206,20 +214,24 @@ def can_access_document(
     return current_user, document
 
 # Optional authentication dependency (doesn't raise exception if not authenticated)
-def get_current_user_optional(
+async def get_current_user_optional(
     token_data: Optional[dict] = Depends(get_current_user_token),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> Optional[User]:
-    """Get current user if authenticated, otherwise return None"""
+    """Get current user if authenticated, otherwise return None (with eagerly loaded organization)"""
     if not token_data:
         return None
 
     try:
-        user = db.query(User).filter(
+        stmt = select(User).options(
+            selectinload(User.organization)
+        ).where(
             User.id == token_data.user_id,
             User.is_active == True,
             User.is_deleted == False
-        ).first()
+        )
+        result = await db.execute(stmt)
+        user = result.scalars().first()
         return user
     except Exception:
         return None

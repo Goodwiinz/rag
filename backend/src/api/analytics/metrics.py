@@ -8,13 +8,13 @@ from typing import List, Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 
-from ...services.analytics.metrics_service import metrics_service
-from ...models.analytics.analytics_models import (
+from src.services.analytics.metrics_service import metrics_service
+from src.models.analytics.analytics_models import (
     MetricCreate, MetricUpdate, MetricResponse,
     KPICreate, KPIResponse, MetricQuery, MetricQueryResult
 )
-from ...auth.dependencies import get_current_user
-from ...models.user import User
+from src.auth.dependencies import get_current_user
+from src.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -284,7 +284,7 @@ async def get_metric_statistics(
 ):
     """Get statistical summary for a metric"""
     try:
-        from ...models.analytics.analytics_models import AggregationType
+        from src.models.analytics.analytics_models import AggregationType
         agg_type = AggregationType(aggregation)
 
         stats = await metrics_service.get_metric_statistics(
@@ -487,7 +487,7 @@ async def get_metric_types(
 ):
     """Get available metric types and their configurations"""
     try:
-        from ...models.analytics.analytics_models import MetricType, AggregationType
+        from src.models.analytics.analytics_models import MetricType, AggregationType
 
         metric_types = {
             "counter": {
