@@ -12,6 +12,13 @@
       "command": "npx",
       "args": ["goodflows-mcp-server", "--project", "/Users/goodwiinz/development/RAG_system"],
       "cwd": "/Users/goodwiinz/development/Myagent"
+    },
+    "linear": {
+      "command": "npx",
+      "args": ["-y", "@linear/mcp-server"],
+      "env": {
+        "LINEAR_API_KEY": "${LINEAR_API_KEY}"
+      }
     }
   }
 }
