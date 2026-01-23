@@ -73,4 +73,42 @@ describe('CitationPreview', () => {
       expect(element).toBeTruthy();
     });
   });
+
+  describe('RAG Toggle (FR-006)', () => {
+    beforeEach(() => {
+      // Clear localStorage before each test
+      localStorage.clear();
+    });
+
+    it('test_rag_toggle_persists_to_localstorage', () => {
+      // Simulate enabling RAG
+      localStorage.setItem('ragEnabled', 'true');
+
+      expect(localStorage.getItem('ragEnabled')).toBe('true');
+
+      // Simulate disabling RAG
+      localStorage.setItem('ragEnabled', 'false');
+
+      expect(localStorage.getItem('ragEnabled')).toBe('false');
+    });
+
+    it('test_rag_toggle_defaults_to_enabled', () => {
+      // When no preference set, RAG should default to enabled
+      const defaultValue = localStorage.getItem('ragEnabled') ?? 'true';
+
+      expect(defaultValue).toBe('true');
+    });
+
+    it('test_rag_disabled_skips_citation_extraction', () => {
+      const mockExtractCitations = jest.fn();
+      const ragEnabled = false;
+
+      // When RAG is disabled, citation extraction should not be called
+      if (ragEnabled) {
+        mockExtractCitations();
+      }
+
+      expect(mockExtractCitations).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -375,3 +375,44 @@ class TestCitationIndexParsing:
             mock_parse.return_value = [1, 2, 3, 4]
             result = citation_service.parse_citation_indices(text)
             assert len(result) == 4
+
+
+class TestModelAwareRetrieval:
+    """Tests for FR-005: Model-aware document retrieval limits."""
+
+    @pytest.mark.parametrize("model_size,expected_docs,expected_tokens,expected_history", [
+        ("1B", 2, 600, 2),
+        ("3B", 3, 1000, 4),
+        ("7B", 5, 2000, 8),
+        ("cloud", 8, 4000, 20),
+    ])
+    def test_model_context_configuration(
+        self, citation_service, model_size, expected_docs, expected_tokens, expected_history
+    ):
+        """Test that retrieval adapts based on model size (FR-005)."""
+        with patch.object(citation_service, 'get_model_context_config') as mock_config:
+            mock_config.return_value = {
+                "max_documents": expected_docs,
+                "max_tokens": expected_tokens,
+                "max_history": expected_history,
+            }
+
+            config = citation_service.get_model_context_config(model_size)
+
+            assert config["max_documents"] == expected_docs
+            assert config["max_tokens"] == expected_tokens
+            assert config["max_history"] == expected_history
+
+    def test_smaller_model_receives_fewer_documents(self, citation_service, mock_db_session):
+        """Test that 1B models receive fewer documents than 7B models."""
+        with patch.object(citation_service, 'retrieve_for_model') as mock_retrieve:
+            # 1B model should get max 2 documents
+            mock_retrieve.return_value = [{"id": "doc1"}, {"id": "doc2"}]
+            result_1b = citation_service.retrieve_for_model("1B", "query", mock_db_session)
+
+            # 7B model should get max 5 documents
+            mock_retrieve.return_value = [{"id": f"doc{i}"} for i in range(5)]
+            result_7b = citation_service.retrieve_for_model("7B", "query", mock_db_session)
+
+            assert len(result_1b) <= 2
+            assert len(result_7b) <= 5

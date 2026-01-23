@@ -195,6 +195,7 @@ As a researcher starting to write, I want AI to generate a draft literature revi
 - Public sharing links for projects
 - Annotation/highlighting in PDF viewer
 - Fully offline operation (local models still use server-side retrieval)
+- Duplicate document detection and merging (detect by title/DOI, prompt to merge or keep separate)
 
 ## Dependencies
 

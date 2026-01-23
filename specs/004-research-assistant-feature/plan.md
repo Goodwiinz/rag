@@ -19,8 +19,9 @@ Technical approach: Extend existing chat infrastructure to inject RAG context in
 **Primary Dependencies**:
 - Backend: FastAPI, SQLAlchemy, Neo4j Driver, httpx (API calls), pybtex (BibTeX)
 - Frontend: Next.js 15, React 18, WebLLM, Cytoscape.js (graph viz), Zustand
+- PDF Processing: PyMuPDF (fitz) for text extraction, pdfplumber for table extraction fallback
 **Storage**: PostgreSQL (citations, projects, drafts), Neo4j (citation graph), Qdrant (vectors)
-**Testing**: pytest (backend), Vitest + Playwright (frontend)
+**Testing**: pytest (backend), Jest + React Testing Library + Playwright (frontend)
 **Target Platform**: Web (Chrome/Edge/Firefox with WebGPU for local models)
 **Project Type**: Web application (backend + frontend)
 **Performance Goals**:
