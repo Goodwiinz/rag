@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from src.services.document_quality_service import (
+from src.services.documents.document_quality_service import (
     DocumentQualityService,
     QualityIssue
 )

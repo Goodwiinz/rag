@@ -69,7 +69,7 @@ def summarize_thread_task(self, thread_id: str, force: bool = False) -> Optional
             return None
 
         # Import service here to avoid circular imports
-        from src.services.thread_summarization_service import (
+        from src.services.threads.thread_summarization_service import (
             get_thread_summarization_service,
         )
 

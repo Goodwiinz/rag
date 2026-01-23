@@ -4,7 +4,10 @@ Configuration for Graph Analytics Service
 
 import os
 from typing import Optional
-from pydantic import BaseSettings
+try:
+    from pydantic_settings import BaseSettings
+except ImportError:
+    from pydantic import BaseSettings  # Fallback for older pydantic
 
 
 class GraphAnalyticsConfig(BaseSettings):
@@ -105,6 +108,7 @@ class GraphAnalyticsConfig(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Ignore extra env vars from other configs
 
 
 # Global configuration instance

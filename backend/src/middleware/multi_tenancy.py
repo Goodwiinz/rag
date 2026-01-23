@@ -260,6 +260,42 @@ def tenant_context_manager(organization_id: str, user_id: str, user_role: str = 
 
 # Utility functions for tenant validation
 
+# Role-based permissions mapping
+ROLE_PERMISSIONS = {
+    'super_admin': [
+        'organization_create', 'organization_read', 'organization_update', 'organization_delete',
+        'organization_users_read', 'organization_users_manage', 'organization_analytics',
+        'tenant_access', 'cross_tenant_access', 'update_access', 'delete_access',
+        'system_admin', 'audit_logs', 'security_management'
+    ],
+    'admin': [
+        'organization_read', 'organization_update', 'organization_users_read',
+        'organization_users_manage', 'organization_analytics', 'tenant_access',
+        'update_access', 'delete_access'
+    ],
+    'content_manager': [
+        'organization_read', 'organization_users_read', 'tenant_access', 'update_access'
+    ],
+    'analyst': [
+        'organization_read', 'organization_analytics', 'tenant_access'
+    ],
+    'user': [
+        'organization_read', 'tenant_access'
+    ]
+}
+
+
+def check_tenant_permission(required_permission: str) -> bool:
+    """Check if the current user has the required permission based on their role"""
+    current_role = get_current_user_role()
+
+    if not current_role:
+        return False
+
+    user_permissions = ROLE_PERMISSIONS.get(current_role, [])
+    return required_permission in user_permissions
+
+
 def validate_tenant_access(organization_id: str) -> bool:
     """Validate that current user has access to the specified organization"""
     current_tenant = get_current_tenant_id()
@@ -370,7 +406,9 @@ __all__ = [
     'enforce_tenant_access',
     'setup_row_level_security',
     'tenant_context_manager',
+    'check_tenant_permission',
     'validate_tenant_access',
     'validate_cross_tenant_access',
-    'TenantAwareQuery'
+    'TenantAwareQuery',
+    'ROLE_PERMISSIONS'
 ]

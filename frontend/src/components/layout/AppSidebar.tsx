@@ -31,6 +31,7 @@ import {
   Cog,
   Files,
   FlaskConical,
+  FolderKanban,
   HelpCircle,
   Key,
   LayoutDashboard,
@@ -56,6 +57,7 @@ const documentsNavItems = [
   { title: 'Upload', url: '/documents/upload', icon: Upload, description: 'Add new files' },
   { title: 'Entities', url: '/entities', icon: Terminal, description: 'Knowledge nodes' },
   { title: 'ArXiv Papers', url: '/arxiv', icon: FlaskConical, description: 'Research papers' },
+  { title: 'Projects', url: '/projects', icon: FolderKanban, description: 'Research projects' },
 ];
 
 const systemNavItems = [

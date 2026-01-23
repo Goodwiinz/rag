@@ -18,8 +18,8 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.config import settings
 from src.models.document import Document, DocumentType, ProcessingStatus
-from src.services.multimodal_processing_service import MultimodalProcessingService
-from src.services.knowledge_graph_service import knowledge_graph_service
+from src.services.processing import MultimodalProcessingService
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
 from src.models.processing import ProcessingJob
 import logging
 

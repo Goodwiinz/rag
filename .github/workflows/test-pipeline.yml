@@ -1,0 +1,437 @@
+name: Test Pipeline
+
+on:
+  push:
+    branches: [main, develop, feature/*]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+
+jobs:
+  # ==========================================================================
+  # Code Quality Checks (Fast - Run First)
+  # ==========================================================================
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          pip install ruff mypy black isort
+          pip install -r backend/requirements.txt
+
+      - name: Run Ruff (linting)
+        run: ruff check backend/src --output-format=github
+
+      - name: Run Black (formatting check)
+        run: black --check backend/src
+
+      - name: Run isort (import sorting)
+        run: isort --check-only backend/src
+
+      - name: Run MyPy (type checking)
+        run: mypy backend/src --ignore-missing-imports
+        continue-on-error: true  # Allow failures during gradual adoption
+
+  # ==========================================================================
+  # Unit Tests (Fast - No External Dependencies)
+  # ==========================================================================
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements*.txt') }}
+
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-asyncio pytest-cov pytest-xdist
+          pip install -r backend/requirements.txt
+
+      - name: Run unit tests
+        run: |
+          pytest backend/tests/ \
+            -m "unit or not (integration or e2e or slow)" \
+            --cov=backend/src \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=60 \
+            -n auto \
+            -v
+        env:
+          ENVIRONMENT: testing
+          DATABASE_URL: sqlite:///:memory:
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          flags: unit
+          name: unit-tests
+
+  # ==========================================================================
+  # Integration Tests (Require Services)
+  # ==========================================================================
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-asyncio pytest-cov
+          pip install -r backend/requirements.txt
+
+      - name: Wait for services
+        run: |
+          for i in {1..30}; do
+            pg_isready -h localhost -p 5432 && break || sleep 2
+          done
+
+      - name: Run integration tests
+        run: |
+          pytest backend/tests/ \
+            -m "integration" \
+            --cov=backend/src \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            -v
+        env:
+          ENVIRONMENT: testing
+          DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          flags: integration
+          name: integration-tests
+
+  # ==========================================================================
+  # Resilience Tests
+  # ==========================================================================
+  resilience-tests:
+    name: Resilience Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-asyncio pytest-cov
+          pip install -r backend/requirements.txt
+
+      - name: Run resilience tests
+        run: |
+          pytest backend/tests/ \
+            -m "resilience" \
+            --cov=backend/src/core \
+            --cov-report=xml \
+            -v
+        env:
+          ENVIRONMENT: testing
+          DATABASE_URL: sqlite:///:memory:
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          flags: resilience
+          name: resilience-tests
+
+  # ==========================================================================
+  # Frontend Tests
+  # ==========================================================================
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run type check
+        run: npm run type-check
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test -- --coverage --watchAll=false
+        env:
+          CI: true
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: frontend/coverage/lcov.info
+          flags: frontend
+          name: frontend-tests
+
+  # ==========================================================================
+  # API Contract Tests
+  # ==========================================================================
+  api-contract-tests:
+    name: API Contract Tests
+    runs-on: ubuntu-latest
+    needs: [unit-tests, frontend-tests]
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-asyncio schemathesis
+          pip install -r backend/requirements.txt
+
+      - name: Run contract tests
+        run: |
+          pytest backend/tests/api_contract/ -v
+        env:
+          ENVIRONMENT: testing
+          DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+        continue-on-error: true  # Allow failures during development
+
+  # ==========================================================================
+  # E2E Tests (Full System)
+  # ==========================================================================
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [integration-tests, frontend-tests]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Compose
+        run: |
+          docker-compose -f docker-compose.test.yml up -d
+          sleep 30  # Wait for services to be ready
+
+      - name: Run E2E tests
+        run: |
+          docker-compose -f docker-compose.test.yml run --rm e2e-tests
+        continue-on-error: true
+
+      - name: Collect logs on failure
+        if: failure()
+        run: docker-compose -f docker-compose.test.yml logs
+
+      - name: Cleanup
+        if: always()
+        run: docker-compose -f docker-compose.test.yml down -v
+
+  # ==========================================================================
+  # Performance Tests (Scheduled & Main Branch Only)
+  # ==========================================================================
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-asyncio pytest-benchmark locust
+          pip install -r backend/requirements.txt
+
+      - name: Run performance tests
+        run: |
+          pytest backend/tests/ \
+            -m "slow or scalability" \
+            --benchmark-only \
+            --benchmark-json=benchmark.json \
+            -v
+        env:
+          ENVIRONMENT: testing
+          DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+
+      - name: Store benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark.json
+
+  # ==========================================================================
+  # Security Scan
+  # ==========================================================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install security tools
+        run: pip install bandit safety
+
+      - name: Run Bandit (Python security)
+        run: bandit -r backend/src -ll -ii -x tests
+        continue-on-error: true
+
+      - name: Run Safety (dependency vulnerabilities)
+        run: safety check -r backend/requirements.txt
+        continue-on-error: true
+
+  # ==========================================================================
+  # Test Summary
+  # ==========================================================================
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, resilience-tests, frontend-tests]
+    if: always()
+    steps:
+      - name: Check test results
+        run: |
+          echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.unit-tests.result }}" == "success" ]; then
+            echo "✅ Unit Tests: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Unit Tests: ${{ needs.unit-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.integration-tests.result }}" == "success" ]; then
+            echo "✅ Integration Tests: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Integration Tests: ${{ needs.integration-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.resilience-tests.result }}" == "success" ]; then
+            echo "✅ Resilience Tests: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Resilience Tests: ${{ needs.resilience-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.frontend-tests.result }}" == "success" ]; then
+            echo "✅ Frontend Tests: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Frontend Tests: ${{ needs.frontend-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Fail if any tests failed
+        if: |
+          needs.unit-tests.result == 'failure' ||
+          needs.integration-tests.result == 'failure' ||
+          needs.resilience-tests.result == 'failure' ||
+          needs.frontend-tests.result == 'failure'
+        run: exit 1

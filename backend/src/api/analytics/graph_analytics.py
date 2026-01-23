@@ -8,13 +8,13 @@ from typing import List, Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 
-from ...services.analytics.graph_analytics_service import graph_analytics_service
-from ...models.analytics.graph_analytics import (
+from src.services.analytics.graph_analytics_service import graph_analytics_service
+from src.models.analytics.graph_analytics import (
     GraphAnalysisRequest, GraphAnalysisResponse, PathAnalysisRequest, PathAnalysisResponse,
     GraphStatistics, CentralityAnalysis
 )
-from ...auth.dependencies import get_current_user
-from ...models.user import User
+from src.auth.dependencies import get_current_user
+from src.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ async def get_available_algorithms(
 ):
     """Get available graph algorithms"""
     try:
-        from ...models.analytics.graph_analytics import GraphAlgorithmType
+        from src.models.analytics.graph_analytics import GraphAlgorithmType
 
         algorithms = {
             "pagerank": {

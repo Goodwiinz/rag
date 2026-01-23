@@ -1,0 +1,742 @@
+openapi: 3.1.0
+info:
+  title: Draft Generation API
+  description: |
+    API for AI-powered literature review draft generation and management.
+    Part of the Research Assistant feature (Phase 4).
+
+    Uses the existing multi-agent orchestration system for content generation.
+  version: 1.0.0
+  contact:
+    name: RAG System Team
+
+servers:
+  - url: /api/v1
+    description: API v1
+
+tags:
+  - name: Drafts
+    description: Draft CRUD and version management
+  - name: Generation
+    description: AI-powered draft generation
+  - name: Export
+    description: Draft export to various formats
+
+paths:
+  /projects/{project_id}/drafts:
+    get:
+      summary: List project drafts
+      description: |
+        Get all draft versions for a project.
+        Returns drafts ordered by version (newest first).
+        Maximum 10 versions retained per project.
+      operationId: listProjectDrafts
+      tags: [Drafts]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+        - name: include_content
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Include full content (can be large)
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: List of drafts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftListResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      summary: Generate new draft
+      description: |
+        Generate a new literature review draft using AI multi-agent system.
+        Creates a new version (previous versions are retained, max 10).
+
+        Generation typically takes 30-60 seconds for 10 documents.
+        Use WebSocket for real-time progress updates.
+      operationId: generateDraft
+      tags: [Generation]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DraftGenerateRequest'
+      responses:
+        '202':
+          description: Draft generation started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftGenerationStatus'
+        '400':
+          description: Project has no documents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          description: Generation already in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /projects/{project_id}/drafts/current:
+    get:
+      summary: Get current draft
+      description: Get the most recent (current) draft version
+      operationId: getCurrentDraft
+      tags: [Drafts]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+      responses:
+        '200':
+          description: Current draft
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Draft'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: No drafts exist for this project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /projects/{project_id}/drafts/{draft_id}:
+    get:
+      summary: Get draft by ID
+      description: Get a specific draft version with full content
+      operationId: getDraft
+      tags: [Drafts]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+        - $ref: '#/components/parameters/DraftIdParam'
+      responses:
+        '200':
+          description: Draft details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Draft'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete draft version
+      description: |
+        Delete a specific draft version.
+        Cannot delete the current (most recent) version if it's the only one.
+      operationId: deleteDraft
+      tags: [Drafts]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+        - $ref: '#/components/parameters/DraftIdParam'
+      responses:
+        '204':
+          description: Draft deleted
+        '400':
+          description: Cannot delete only remaining draft
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/drafts/{draft_id}/citations:
+    get:
+      summary: Get draft citations
+      description: |
+        Get all citations referenced in this draft.
+        Returns citations mapped to their [Doc N] indices.
+      operationId: getDraftCitations
+      tags: [Drafts]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+        - $ref: '#/components/parameters/DraftIdParam'
+      responses:
+        '200':
+          description: Draft citations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  citations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DraftCitation'
+                  total:
+                    type: integer
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/drafts/compare:
+    get:
+      summary: Compare draft versions
+      description: |
+        Compare two draft versions side-by-side.
+        Returns diff information and statistics.
+      operationId: compareDrafts
+      tags: [Drafts]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+        - name: version_a
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: First version number
+        - name: version_b
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Second version number
+      responses:
+        '200':
+          description: Version comparison
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftComparison'
+        '400':
+          description: Invalid version numbers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/drafts/{draft_id}/export:
+    post:
+      summary: Export draft
+      description: |
+        Export draft to LaTeX or Markdown format.
+        LaTeX export includes accompanying .bib file.
+      operationId: exportDraft
+      tags: [Export]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+        - $ref: '#/components/parameters/DraftIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DraftExportRequest'
+      responses:
+        '200':
+          description: Export file(s)
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+              description: ZIP containing .tex and .bib files (LaTeX)
+            text/markdown:
+              schema:
+                type: string
+              description: Markdown content
+            text/x-tex:
+              schema:
+                type: string
+              description: LaTeX content
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/drafts/status:
+    get:
+      summary: Get generation status
+      description: |
+        Check status of ongoing draft generation.
+        Use this for polling; WebSocket preferred for real-time updates.
+      operationId: getGenerationStatus
+      tags: [Generation]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+      responses:
+        '200':
+          description: Generation status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftGenerationStatus'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/drafts/cancel:
+    post:
+      summary: Cancel generation
+      description: Cancel an in-progress draft generation
+      operationId: cancelGeneration
+      tags: [Generation]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+      responses:
+        '200':
+          description: Generation cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cancelled:
+                    type: boolean
+                  message:
+                    type: string
+        '400':
+          description: No generation in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  parameters:
+    ProjectIdParam:
+      name: project_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Project unique identifier
+
+    DraftIdParam:
+      name: draft_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Draft unique identifier
+
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Items per page
+
+  schemas:
+    Draft:
+      type: object
+      required:
+        - id
+        - project_id
+        - version
+        - title
+        - content
+        - is_current
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+          description: Version number (1, 2, 3...)
+        title:
+          type: string
+          maxLength: 255
+        content:
+          type: string
+          description: Markdown content with [Doc N] citations
+        themes:
+          type: array
+          items:
+            type: string
+          default: []
+        word_count:
+          type: integer
+          nullable: true
+        citation_count:
+          type: integer
+          nullable: true
+        generation_params:
+          type: object
+          description: Parameters used for generation
+          properties:
+            model:
+              type: string
+            temperature:
+              type: number
+            max_tokens:
+              type: integer
+            document_ids:
+              type: array
+              items:
+                type: string
+                format: uuid
+        generation_time_ms:
+          type: integer
+          nullable: true
+          description: Time taken to generate (milliseconds)
+        is_current:
+          type: boolean
+          description: Whether this is the most recent version
+        created_at:
+          type: string
+          format: date-time
+
+    DraftSummary:
+      type: object
+      required:
+        - id
+        - version
+        - title
+        - is_current
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        title:
+          type: string
+        themes:
+          type: array
+          items:
+            type: string
+        word_count:
+          type: integer
+          nullable: true
+        citation_count:
+          type: integer
+          nullable: true
+        is_current:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    DraftListResponse:
+      type: object
+      required:
+        - items
+        - total
+        - page
+        - limit
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DraftSummary'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        has_more:
+          type: boolean
+
+    DraftGenerateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 255
+          description: Custom title (default generated from project name)
+        themes:
+          type: array
+          items:
+            type: string
+          description: Themes to organize content around (e.g., "methodology", "findings")
+          example: ["methodology", "results", "limitations"]
+        document_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Specific documents to include (default all project documents)
+        style:
+          type: string
+          enum: [academic, technical, summary]
+          default: academic
+          description: Writing style for the draft
+        max_sections:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+          description: Maximum number of sections to generate
+        include_abstract:
+          type: boolean
+          default: true
+          description: Generate an abstract section
+        citation_style:
+          type: string
+          enum: [inline, footnote]
+          default: inline
+          description: How to format citations in the draft
+
+    DraftGenerationStatus:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [idle, queued, retrieving, generating, finalizing, completed, failed]
+        progress:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+          description: Progress percentage
+        current_step:
+          type: string
+          description: Human-readable current step
+        steps_completed:
+          type: integer
+        total_steps:
+          type: integer
+        estimated_remaining_ms:
+          type: integer
+          nullable: true
+          description: Estimated time remaining
+        draft_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID of generated draft (when completed)
+        error:
+          type: string
+          nullable: true
+          description: Error message (when failed)
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    DraftCitation:
+      type: object
+      required:
+        - citation_index
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        draft_id:
+          type: string
+          format: uuid
+        citation_index:
+          type: integer
+          description: The [Doc N] index in the draft
+        document_id:
+          type: string
+          format: uuid
+          nullable: true
+        citation_id:
+          type: string
+          format: uuid
+          nullable: true
+        document_title:
+          type: string
+          description: Title of cited document
+        authors:
+          type: array
+          items:
+            type: string
+        year:
+          type: integer
+          nullable: true
+        snippet:
+          type: string
+          nullable: true
+          description: Relevant passage from document
+        context:
+          type: string
+          nullable: true
+          description: How citation is used in draft
+        created_at:
+          type: string
+          format: date-time
+
+    DraftComparison:
+      type: object
+      required:
+        - version_a
+        - version_b
+        - stats
+      properties:
+        version_a:
+          type: object
+          properties:
+            version:
+              type: integer
+            title:
+              type: string
+            word_count:
+              type: integer
+            citation_count:
+              type: integer
+            created_at:
+              type: string
+              format: date-time
+        version_b:
+          type: object
+          properties:
+            version:
+              type: integer
+            title:
+              type: string
+            word_count:
+              type: integer
+            citation_count:
+              type: integer
+            created_at:
+              type: string
+              format: date-time
+        stats:
+          type: object
+          properties:
+            word_count_diff:
+              type: integer
+              description: B - A word count difference
+            citation_count_diff:
+              type: integer
+              description: B - A citation count difference
+            similarity_score:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 1
+              description: Content similarity (0-1)
+        content_a:
+          type: string
+          description: Full content of version A (if requested)
+        content_b:
+          type: string
+          description: Full content of version B (if requested)
+
+    DraftExportRequest:
+      type: object
+      required:
+        - format
+      properties:
+        format:
+          type: string
+          enum: [latex, markdown]
+        bibliography_format:
+          type: string
+          enum: [bibtex, biblatex]
+          default: bibtex
+          description: Bibliography format for LaTeX export
+        include_bibliography:
+          type: boolean
+          default: true
+          description: Include bibliography file in export
+        document_class:
+          type: string
+          enum: [article, report, book]
+          default: article
+          description: LaTeX document class
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Access denied (not project owner)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []

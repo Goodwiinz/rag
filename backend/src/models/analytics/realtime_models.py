@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Any, Union
 from pydantic import BaseModel, Field, validator, ConfigDict
 from sqlalchemy import (
     Column, String, DateTime, Boolean, Text, JSON, Integer, ForeignKey,
-    Float, Enum as SQLEnum
+    Float, Enum as SQLEnum, BigInteger
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -122,7 +122,7 @@ class EventStream(SQLBaseModel):
 
     # Event data
     payload = Column(JSON, nullable=False)
-    metadata = Column(JSON, nullable=True)
+    event_metadata = Column(JSON, nullable=True)  # Renamed from 'metadata' to avoid SQLAlchemy conflict
 
     # Context
     user_id = Column(GUID(), ForeignKey("users.id"), nullable=True, index=True)
@@ -145,6 +145,7 @@ class WebSocketConnection(SQLBaseModel):
     """WebSocket connection tracking"""
 
     __tablename__ = "websocket_connections"
+    __table_args__ = {"extend_existing": True}
 
     # Connection identification
     connection_id = Column(String(255), nullable=False, unique=True, index=True)

@@ -30,7 +30,7 @@ from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 
 from ..config.monitoring_config import TracingConfig
-from ..models.tracing import Trace, Span, SpanEvent, SpanLink, TraceError, SpanStatus, SpanKind
+from src.monitoring.models.tracing import Trace, Span, SpanEvent, SpanLink, TraceError, SpanStatus, SpanKind
 from ..utils.exceptions import TracingError
 
 logger = logging.getLogger(__name__)

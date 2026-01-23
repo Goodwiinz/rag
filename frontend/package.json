@@ -50,6 +50,8 @@
     "critters": "^0.0.23",
     "cytoscape": "^3.28.1",
     "cytoscape-cose-bilkent": "^4.1.0",
+    "cytoscape-context-menus": "^4.1.0",
+    "cytoscape-popper": "^2.0.0",
     "date-fns": "^3.0.6",
     "dompurify": "^3.3.0",
     "embla-carousel-react": "^8.6.0",

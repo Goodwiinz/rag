@@ -8,7 +8,7 @@ import tempfile
 import os
 import time
 
-from src.services.audio_processing_service import AudioProcessingService
+from src.services.processing import AudioProcessingService
 
 
 class TestAudioProcessingService:

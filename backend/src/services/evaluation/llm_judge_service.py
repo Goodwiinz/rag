@@ -14,7 +14,7 @@ from enum import Enum
 
 from openai import AzureOpenAI
 
-from ...core.config import settings
+from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 

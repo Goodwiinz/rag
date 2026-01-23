@@ -33,8 +33,8 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.config import settings
 from src.models.document import Document
-from src.services.entity_extraction_service import EntityExtractionService
-from src.services.knowledge_graph_service import knowledge_graph_service
+from src.services.processing import EntityExtractionService
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
 from src.models.graph import CreateRelationshipRequest, RelationshipType as GraphRelationshipType
 import logging
 

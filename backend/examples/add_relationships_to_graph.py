@@ -13,7 +13,7 @@ from typing import List, Tuple
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.services.knowledge_graph_service import knowledge_graph_service
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
 from src.models.graph import CreateRelationshipRequest, RelationshipType
 
 

@@ -17,7 +17,7 @@ import {
     VideoCameraIcon,
     XCircleIcon
 } from '@heroicons/react/24/outline';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 // Terminal Observatory Theme Constants
 import { THEME } from '@/theme/constants';
@@ -219,6 +219,42 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
   );
 };
 
+// --- Typewriter Effect Component ---
+interface TypewriterTextProps {
+  text: string;
+  speed?: number;
+  className?: string;
+}
+
+const TypewriterText: React.FC<TypewriterTextProps> = ({ text, speed = 10, className }) => {
+  const [displayedText, setDisplayedText] = useState('');
+  
+  useEffect(() => {
+    let index = 0;
+    setDisplayedText(''); 
+    
+    // Clear previous if text changes
+    const interval = setInterval(() => {
+      if (index < text.length) {
+        setDisplayedText((prev) => prev + text.charAt(index));
+        index++;
+      } else {
+        clearInterval(interval);
+      }
+    }, speed);
+
+    return () => clearInterval(interval);
+  }, [text, speed]);
+
+  return (
+    <span className={className}>
+      {displayedText}
+      <span className="animate-pulse inline-block w-2 h-4 bg-[var(--phosphor-green)] align-middle ml-1" />
+    </span>
+  );
+};
+
+
 export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   result,
   loading = false,
@@ -407,10 +443,10 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
           </div>
         </div>
 
-        {/* Answer Text */}
-        <p className="text-gray-300 font-mono text-sm leading-relaxed">
-          {result.answer.text}
-        </p>
+        {/* Answer Text - Using Typewriter Effect */}
+        <div className="text-gray-300 font-mono text-sm leading-relaxed min-h-[60px]">
+          <TypewriterText text={result.answer.text} speed={10} />
+        </div>
 
         {/* Metrics */}
         <div className="pt-4">

@@ -24,7 +24,7 @@ class TestBulkUpdateThreads:
     @pytest.fixture
     def mock_chat_service(self):
         """Create a mock ChatService with database session"""
-        from src.services.chat_service import ChatService
+        from src.services.threads import ChatService
 
         mock_db = Mock()
         service = ChatService(mock_db)
@@ -196,7 +196,7 @@ class TestBulkDeleteThreads:
     @pytest.fixture
     def mock_chat_service(self):
         """Create a mock ChatService with database session"""
-        from src.services.chat_service import ChatService
+        from src.services.threads import ChatService
 
         mock_db = Mock()
         service = ChatService(mock_db)

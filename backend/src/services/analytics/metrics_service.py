@@ -16,15 +16,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, and_, or_, func, desc
 from sqlalchemy.orm import selectinload
 
-from ...core.config import settings
-from ...core.database import get_async_session
-from ...models.analytics.analytics_models import (
+from src.core.config import settings
+from src.core.database import get_async_session
+from src.models.analytics.analytics_models import (
     AnalyticsMetric, AnalyticsKPI, MetricAggregation, AnalyticsEvent,
     MetricCreate, MetricUpdate, MetricResponse, KPICreate, KPIResponse,
     MetricQuery, MetricQueryResult, TimeSeriesData,
     MetricType, AggregationType, EventType
 )
-from ...models.base import GUID
+from src.models.base import GUID
 
 logger = logging.getLogger(__name__)
 

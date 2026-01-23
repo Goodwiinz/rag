@@ -14,9 +14,9 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 import logging
 
 # Import base model from models
-from ..models.base import Base
-from ..models.user import User, UserRole
-from ..models.organization import Organization, StorageTier
+from src.models.base import Base
+from src.models.user import User, UserRole
+from src.models.organization import Organization, StorageTier
 
 logger = logging.getLogger(__name__)
 
@@ -89,13 +89,19 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
-def get_db() -> Session:
-    """Get database session"""
+def get_db_sync() -> Session:
+    """Get database session (synchronous)"""
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+async def get_db() -> AsyncSession:
+    """Get database session (asynchronous)"""
+    async with AsyncSessionLocal() as session:
+        yield session
 
 
 @asynccontextmanager
@@ -105,8 +111,8 @@ async def get_async_session() -> AsyncSession:
         yield session
 
 
-# Alias for get_db to support existing imports
-get_db_session = get_db
+# Alias for async session (for backward compatibility with async with usage)
+get_db_session = get_async_session
 
 
 def create_tables():

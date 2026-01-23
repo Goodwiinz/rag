@@ -5,7 +5,7 @@ services:
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile.simple
+      dockerfile: docker/Dockerfile.simple
     ports:
       - "8000:8000"
       - "8002:8002"
@@ -219,7 +219,7 @@ services:
     container_name: rag-celery-worker-dev
     build:
       context: ./backend
-      dockerfile: Dockerfile.simple
+      dockerfile: docker/Dockerfile.simple
     command: celery -A src.tasks.celery_app worker --loglevel=debug --concurrency=${WORKER_CONCURRENCY:-4} --hostname=worker@rag-celery-worker-dev
     environment:
       # Database Configuration
@@ -292,7 +292,7 @@ services:
   celery-beat:
     build:
       context: ./backend
-      dockerfile: Dockerfile.simple
+      dockerfile: docker/Dockerfile.simple
     command: celery -A src.tasks.celery_app beat --loglevel=debug
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag_dev
@@ -322,7 +322,7 @@ services:
     container_name: rag-flower-dev
     build:
       context: ./backend
-      dockerfile: Dockerfile.simple
+      dockerfile: docker/Dockerfile.simple
     command: python -m celery --broker=redis://redis:6379/0 -A src.tasks.celery_app flower --port=5555 --max_tasks=10000 --purge_offline_workers=60
     ports:
       - "5555:5555"
@@ -365,6 +365,36 @@ services:
       timeout: 20s
       retries: 3
 
+  # Serena MCP Server (Semantic Code Analysis)
+  serena:
+    image: ghcr.io/oraios/serena:latest
+    container_name: rag-serena-dev
+    ports:
+      - "9121:9121"      # MCP server port
+      - "24282:24282"    # Web dashboard port
+    environment:
+      - SERENA_DOCKER=1
+      - SERENA_PORT=9121
+      - SERENA_DASHBOARD_PORT=24282
+    volumes:
+      # Mount the entire project for code analysis
+      - ../../:/workspaces/projects/RAG_system
+      # Persist Serena configuration and memories
+      - ../../.serena:/workspaces/serena/config
+    command: >
+      serena start-mcp-server
+      --transport streamable-http
+      --host 0.0.0.0
+      --port 9121
+      --project /workspaces/projects/RAG_system
+      --enable-web-dashboard true
+      --open-web-dashboard false
+      --enable-gui-log-window false
+    networks:
+      - multimodal-rag-network
+    restart: unless-stopped
+    # Note: Serena doesn't require other services to start
+
   # Development Tools
   adminer:
     image: adminer:latest
@@ -393,6 +423,7 @@ services:
 volumes:
   postgres_dev_data:
   redis_dev_data:
+  serena_dev_data:
   a4d0855b278438a535a13759f3f1b65be6373d04ec7ff6e2e4c6ba4ef61745ed:
     external: true
   04f8f69dbb0f8558b9e34bf135c287fb8da7004918669eb028533bd242b24277:

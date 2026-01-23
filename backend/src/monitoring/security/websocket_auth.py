@@ -49,7 +49,7 @@ class WebSocketAuthenticator:
             except jwt.ExpiredSignatureError:
                 await self._close_connection(websocket, 4001, "Token expired")
                 return None
-            except jwt.InvalidTokenError as e:
+            except jwt.JWTError as e:
                 logger.warning(f"Invalid WebSocket token: {e}")
                 await self._close_connection(websocket, 4001, "Invalid token")
                 return None

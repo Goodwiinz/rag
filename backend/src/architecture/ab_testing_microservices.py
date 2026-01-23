@@ -23,7 +23,7 @@ import aiohttp
 from aiohttp import ClientTimeout, ClientSession
 
 from ..core.config import settings
-from ..models.ab_testing import Experiment, Variant, ExperimentAssignment
+from src.models.ab_testing import Experiment, Variant, ExperimentAssignment
 from ..cache.cache_keys import get_ab_testing_cache_key
 
 

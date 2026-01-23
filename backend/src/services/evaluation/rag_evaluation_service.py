@@ -16,18 +16,18 @@ import uuid
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func, desc
 
-from ...core.database import get_db
-from ...models.evaluation import (
+from src.core.database import get_db
+from src.models.evaluation import (
     EvaluationJob, EvaluationMetric, EvaluationDataset, EvaluationThreshold,
     EvaluationComparison, EvaluationReport, EvaluationType, EvaluationStatus, MetricType
 )
-from ...models.search_schemas import SearchQuery, SearchResponse, SearchResult, SearchType
-from ...models.document import Document
-from ...services.hybrid_search_service import hybrid_search_service
-from ...services.vector_search_service import vector_search_service
-from ...services.knowledge_graph_service import knowledge_graph_service
-from ...services.quality_metrics_service import quality_metrics_service
-from ...core.config import settings
+from src.models.search_schemas import SearchQuery, SearchResponse, SearchResult, SearchType
+from src.models.document import Document
+from src.services.search.hybrid_search_service import hybrid_search_service
+from src.services.search.vector_search_service import vector_search_service
+from src.services.knowledge_graph import knowledge_graph_service
+from src.services.quality.quality_metrics_service import quality_metrics_service
+from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 

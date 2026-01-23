@@ -38,7 +38,7 @@ from .success_criteria import success_criteria, QueryType, ModalityType, MetricC
 from .rag_evaluation_service import RAGEvaluationService, RAGTriadMetrics, RAGEvaluationInput
 from ..core.config import settings
 from ..core.database import get_db
-from ..models.evaluation import (
+from src.models.evaluation import (
     EvaluationJob, EvaluationMetric, EvaluationDataset as EvalDataset,
     EvaluationType, EvaluationStatus, MetricType
 )

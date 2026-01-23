@@ -1,0 +1,841 @@
+openapi: 3.1.0
+info:
+  title: Research Projects API
+  description: |
+    API for research project management, document organization, and project notes.
+    Part of the Research Assistant feature (Phase 3).
+  version: 1.0.0
+  contact:
+    name: RAG System Team
+
+servers:
+  - url: /api/v1
+    description: API v1
+
+tags:
+  - name: Projects
+    description: Research project CRUD operations
+  - name: Documents
+    description: Project document management
+  - name: Notes
+    description: Project notes management
+
+paths:
+  /projects:
+    get:
+      summary: List research projects
+      description: |
+        Retrieve user's research projects with optional filtering.
+        Projects are private to the creator.
+      operationId: listProjects
+      tags: [Projects]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, paused, completed, archived]
+          description: Filter by project status
+        - name: project_type
+          in: query
+          schema:
+            type: string
+            enum: [research, literature_review, thesis, paper]
+          description: Filter by project type
+        - name: tag
+          in: query
+          schema:
+            type: string
+          description: Filter by tag
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search in project name and description
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Paginated list of projects
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create research project
+      description: Create a new research project (private to creator)
+      operationId: createProject
+      tags: [Projects]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreateRequest'
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /projects/{project_id}:
+    get:
+      summary: Get project details
+      description: Get full project details including document count and recent notes
+      operationId: getProject
+      tags: [Projects]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+      responses:
+        '200':
+          description: Project details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update project
+      description: Update project metadata or status
+      operationId: updateProject
+      tags: [Projects]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectUpdateRequest'
+      responses:
+        '200':
+          description: Project updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete project
+      description: |
+        Delete project and all associated notes.
+        Documents are NOT deleted, only unlinked from project.
+      operationId: deleteProject
+      tags: [Projects]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+      responses:
+        '204':
+          description: Project deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/documents:
+    get:
+      summary: List project documents
+      description: Get all documents in the project
+      operationId: listProjectDocuments
+      tags: [Documents]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: List of documents in project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDocumentListResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      summary: Add document to project
+      description: Link an existing document to this project
+      operationId: addDocumentToProject
+      tags: [Documents]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddDocumentRequest'
+      responses:
+        '200':
+          description: Document added to project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDocument'
+        '400':
+          description: Document already in project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/documents/{document_id}:
+    delete:
+      summary: Remove document from project
+      description: Unlink document from project (does not delete the document)
+      operationId: removeDocumentFromProject
+      tags: [Documents]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+        - $ref: '#/components/parameters/DocumentIdParam'
+      responses:
+        '204':
+          description: Document removed from project
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/bibliography:
+    get:
+      summary: Generate project bibliography
+      description: |
+        Auto-generate bibliography from all documents in the project.
+        Uses citation metadata from extracted citations.
+      operationId: getProjectBibliography
+      tags: [Projects]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [bibtex, ieee, apa, mla]
+      responses:
+        '200':
+          description: Bibliography content
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/x-bibtex:
+              schema:
+                type: string
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/notes:
+    get:
+      summary: List project notes
+      description: Get all notes in the project, optionally filtered
+      operationId: listProjectNotes
+      tags: [Notes]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+        - name: tag
+          in: query
+          schema:
+            type: string
+          description: Filter by tag
+        - name: pinned
+          in: query
+          schema:
+            type: boolean
+          description: Filter pinned notes only
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: List of project notes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoteListResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      summary: Create project note
+      description: Create a new note in the project with markdown content
+      operationId: createProjectNote
+      tags: [Notes]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NoteCreateRequest'
+      responses:
+        '201':
+          description: Note created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/notes/{note_id}:
+    get:
+      summary: Get note details
+      operationId: getNote
+      tags: [Notes]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+        - $ref: '#/components/parameters/NoteIdParam'
+      responses:
+        '200':
+          description: Note details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update note
+      description: Update note content, title, or metadata
+      operationId: updateNote
+      tags: [Notes]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+        - $ref: '#/components/parameters/NoteIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NoteUpdateRequest'
+      responses:
+        '200':
+          description: Note updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete note
+      operationId: deleteNote
+      tags: [Notes]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+        - $ref: '#/components/parameters/NoteIdParam'
+      responses:
+        '204':
+          description: Note deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/notes/{note_id}/pin:
+    post:
+      summary: Pin/unpin note
+      description: Toggle note pinned status
+      operationId: toggleNotePin
+      tags: [Notes]
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+        - $ref: '#/components/parameters/NoteIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_pinned:
+                  type: boolean
+              required:
+                - is_pinned
+      responses:
+        '200':
+          description: Pin status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  parameters:
+    ProjectIdParam:
+      name: project_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Project unique identifier
+
+    DocumentIdParam:
+      name: document_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Document unique identifier
+
+    NoteIdParam:
+      name: note_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Note unique identifier
+
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Items per page
+
+  schemas:
+    Project:
+      type: object
+      required:
+        - id
+        - user_id
+        - name
+        - research_status
+        - is_private
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        project_type:
+          type: string
+          enum: [research, literature_review, thesis, paper]
+          default: research
+        research_status:
+          type: string
+          enum: [active, paused, completed, archived]
+          default: active
+        research_goals:
+          type: string
+          nullable: true
+        deadline:
+          type: string
+          format: date-time
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          default: []
+        is_private:
+          type: boolean
+          default: true
+          description: Always true until Phase 5
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ProjectDetail:
+      allOf:
+        - $ref: '#/components/schemas/Project'
+        - type: object
+          properties:
+            document_count:
+              type: integer
+            note_count:
+              type: integer
+            draft_count:
+              type: integer
+            recent_notes:
+              type: array
+              items:
+                $ref: '#/components/schemas/NoteSummary'
+              maxItems: 5
+            citation_stats:
+              type: object
+              properties:
+                total_citations:
+                  type: integer
+                needs_review:
+                  type: integer
+
+    ProjectCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        project_type:
+          type: string
+          enum: [research, literature_review, thesis, paper]
+          default: research
+        research_goals:
+          type: string
+        deadline:
+          type: string
+          format: date-time
+        tags:
+          type: array
+          items:
+            type: string
+
+    ProjectUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        project_type:
+          type: string
+          enum: [research, literature_review, thesis, paper]
+        research_status:
+          type: string
+          enum: [active, paused, completed, archived]
+        research_goals:
+          type: string
+        deadline:
+          type: string
+          format: date-time
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+
+    ProjectListResponse:
+      type: object
+      required:
+        - items
+        - total
+        - page
+        - limit
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        has_more:
+          type: boolean
+
+    ProjectDocument:
+      type: object
+      required:
+        - id
+        - title
+        - file_type
+        - added_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        file_type:
+          type: string
+        file_size:
+          type: integer
+        has_citations:
+          type: boolean
+        citation_count:
+          type: integer
+        added_at:
+          type: string
+          format: date-time
+          description: When document was added to project
+
+    ProjectDocumentListResponse:
+      type: object
+      required:
+        - items
+        - total
+        - page
+        - limit
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectDocument'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        has_more:
+          type: boolean
+
+    AddDocumentRequest:
+      type: object
+      required:
+        - document_id
+      properties:
+        document_id:
+          type: string
+          format: uuid
+
+    Note:
+      type: object
+      required:
+        - id
+        - project_id
+        - user_id
+        - title
+        - content
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          maxLength: 255
+        content:
+          type: string
+          maxLength: 100000
+          description: Markdown content
+        linked_document_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          default: []
+        tags:
+          type: array
+          items:
+            type: string
+          default: []
+        is_pinned:
+          type: boolean
+          default: false
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    NoteSummary:
+      type: object
+      required:
+        - id
+        - title
+        - is_pinned
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        is_pinned:
+          type: boolean
+        updated_at:
+          type: string
+          format: date-time
+
+    NoteCreateRequest:
+      type: object
+      required:
+        - title
+        - content
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        content:
+          type: string
+          maxLength: 100000
+        linked_document_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        tags:
+          type: array
+          items:
+            type: string
+        is_pinned:
+          type: boolean
+          default: false
+
+    NoteUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        content:
+          type: string
+          maxLength: 100000
+        linked_document_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        tags:
+          type: array
+          items:
+            type: string
+
+    NoteListResponse:
+      type: object
+      required:
+        - items
+        - total
+        - page
+        - limit
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Note'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        has_more:
+          type: boolean
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Access denied (not project owner)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []

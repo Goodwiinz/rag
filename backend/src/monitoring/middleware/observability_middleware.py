@@ -18,7 +18,7 @@ from starlette.responses import Response
 
 from ..services.observability_manager import get_observability_manager
 from ..config.monitoring_config import get_monitoring_config
-from ...auth.rbac_decorator import get_current_user
+from src.auth.rbac_decorator import get_current_user
 
 logger = logging.getLogger(__name__)
 

@@ -10,12 +10,12 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.services.knowledge_graph_service import knowledge_graph_service
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
 from src.core.database import SessionLocal
 from src.models.document import Document, DocumentType
 from src.models.user import User
 from src.models.organization import Organization
-from src.services.multimodal_processing_service import MultimodalProcessingService
+from src.services.processing import MultimodalProcessingService
 from src.models.processing import ProcessingJob, JobType, JobStatus, JobPriority
 
 

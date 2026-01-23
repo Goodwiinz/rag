@@ -122,7 +122,7 @@ class Experiment(BaseModel):
 
     # Metadata
     tags = Column(JSON, default=list)
-    metadata = Column(JSON, default=dict)
+    experiment_metadata = Column(JSON, default=dict)  # Renamed from 'metadata'
 
     # Constraints
     __table_args__ = (
@@ -252,7 +252,7 @@ class Variant(BaseModel):
     status = Column(Enum(VariantStatus), default=VariantStatus.ACTIVE)
 
     # Metadata
-    metadata = Column(JSON, default=dict)
+    variant_metadata = Column(JSON, default=dict)  # Renamed from 'metadata'
 
     # Constraints
     __table_args__ = (
@@ -320,7 +320,7 @@ class UserSegment(BaseModel):
     is_active = Column(Boolean, default=True)
 
     # Metadata
-    metadata = Column(JSON, default=dict)
+    segment_metadata = Column(JSON, default=dict)  # Renamed from 'metadata'
 
     created_by_user_id = Column(GUID(), nullable=True)
 
@@ -442,7 +442,7 @@ class QueryEvent(BaseModel):
     error_details = Column(JSON, nullable=True)
 
     # Metadata
-    metadata = Column(JSON, default=dict)
+    event_extra_metadata = Column(JSON, default=dict)  # Renamed from 'metadata'
 
     # Constraints
     __table_args__ = (

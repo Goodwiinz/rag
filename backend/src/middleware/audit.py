@@ -12,7 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import StreamingResponse
 from starlette.background import BackgroundTask
 
-from src.services.audit_service import AuditService, AuditEventType, AuditSeverity
+from src.services.security.audit_service import AuditService, AuditEventType, AuditSeverity
 from src.middleware.multi_tenancy import get_current_tenant_id, get_current_user_id
 from src.exceptions.analytics_exceptions import PermissionDeniedException
 

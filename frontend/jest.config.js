@@ -11,8 +11,11 @@ const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
 
   // Allow tests to be discovered anywhere (src and app imports supported by next/jest)
-  // Run only stable sanity tests to keep CI green while integration/e2e run in Playwright
-  testMatch: ['<rootDir>/src/__tests__/sanity.test.ts'],
+  // Include sanity tests and component unit tests
+  testMatch: [
+    '<rootDir>/src/__tests__/sanity.test.ts',
+    '<rootDir>/src/components/**/__tests__/**/*.test.{ts,tsx}',
+  ],
 
   // Ignore Playwright e2e and heavy integration suites in Jest
   testPathIgnorePatterns: [

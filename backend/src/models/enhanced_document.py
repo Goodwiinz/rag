@@ -630,7 +630,7 @@ class DocumentAccessLog(BaseModel):
 
     # Additional context
     search_query_id = Column(GUID(), nullable=True)  # If accessed via search
-    metadata = Column(JSON, nullable=True)  # Additional context
+    access_metadata = Column(JSON, nullable=True)  # Renamed from 'metadata' to avoid SQLAlchemy conflict
 
     # Relationships
     document = relationship("EnhancedDocument", back_populates="access_logs")

@@ -1720,13 +1720,27 @@ function ChatPageContent() {
         // Save assistant message to database (for local models too)
         if (currentThreadId && isAuthenticated) {
           try {
-            await workspaceService.createMessage({
+            const savedMessage = await workspaceService.createMessage({
               thread_id: currentThreadId,
               content: assistantMessage,
               role: MessageRole.ASSISTANT,
               citations: dbCitations.length > 0 ? dbCitations : undefined,
             });
             console.log('[Chat] Saved local model response to database with', dbCitations.length, 'citations');
+            
+            // Persist citations through citation service for better querying
+            if (savedMessage?.id && ragContexts.length > 0) {
+              try {
+                const citationIds = await ragService.persistCitations(
+                  savedMessage.id,
+                  assistantMessage,
+                  ragContexts
+                );
+                console.log(`[RAG] Persisted ${citationIds.length} citations for message ${savedMessage.id}`);
+              } catch (citError) {
+                console.error('[RAG] Failed to persist citations:', citError);
+              }
+            }
           } catch (error) {
             console.error('[Chat] Failed to save assistant message:', error);
           }

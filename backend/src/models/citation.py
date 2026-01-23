@@ -2,7 +2,8 @@
 Citation model for Terminal Observatory RAG references
 """
 
-from sqlalchemy import Column, String, ForeignKey, Text, Integer, Float
+from sqlalchemy import Column, String, ForeignKey, Text, Integer, Float, Boolean
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from .base import BaseModel, GUID
@@ -31,6 +32,16 @@ class Citation(BaseModel):
     external_reference_id = Column(String(255), nullable=True, index=True)
     document_title = Column(String(500), nullable=True)  # Store title for external refs
     document_type = Column(String(100), nullable=True)  # Store type for external refs
+
+    # Scholarly metadata (for Research Assistant feature - User Story 2)
+    authors = Column(JSONB, nullable=True)  # List of author names/objects
+    year = Column(Integer, nullable=True)  # Publication year
+    venue = Column(String(500), nullable=True)  # Journal/conference name
+    doi = Column(String(255), nullable=True, unique=True)  # Digital Object Identifier
+    arxiv_id = Column(String(100), nullable=True, unique=True)  # arXiv identifier
+    abstract = Column(Text, nullable=True)  # Paper abstract
+    metadata_source = Column(String(100), nullable=True)  # Source of metadata (e.g., 'arxiv', 'semantic_scholar', 'crossref')
+    needs_review = Column(Boolean, nullable=False, default=False, server_default='false')  # Flag for incomplete metadata
 
     # Chunk information
     chunk_index = Column(Integer, nullable=True)  # Index of the vector chunk
@@ -72,6 +83,15 @@ class Citation(BaseModel):
         data['external_reference_id'] = self.external_reference_id
         data['document_title'] = self.document_title
         data['document_type'] = self.document_type
+        # Add scholarly metadata
+        data['authors'] = self.authors
+        data['year'] = self.year
+        data['venue'] = self.venue
+        data['doi'] = self.doi
+        data['arxiv_id'] = self.arxiv_id
+        data['abstract'] = self.abstract
+        data['metadata_source'] = self.metadata_source
+        data['needs_review'] = self.needs_review
         return data
 
     def to_frontend_format(self) -> dict:
@@ -85,5 +105,14 @@ class Citation(BaseModel):
             "snippet_preview": self.snippet_preview,
             "page_number": self.page_number,
             "score": self.score,
-            "chunk_index": self.chunk_index
+            "chunk_index": self.chunk_index,
+            # Scholarly metadata
+            "authors": self.authors,
+            "year": self.year,
+            "venue": self.venue,
+            "doi": self.doi,
+            "arxiv_id": self.arxiv_id,
+            "abstract": self.abstract,
+            "metadata_source": self.metadata_source,
+            "needs_review": self.needs_review
         }

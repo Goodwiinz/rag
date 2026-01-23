@@ -1,9 +1,8 @@
 {
   "mcpServers": {
-    "shadcn": {
-      "url": "https://www.shadcn.io/api/mcp",
-      "command": "npx",
-      "args": ["shadcn@latest", "mcp"]
+    "serena": {
+      "type": "streamable-http",
+      "url": "http://localhost:9121/mcp"
     },
     "redis": {
       "command": "npx",

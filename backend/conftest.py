@@ -39,9 +39,8 @@ from src.models.user import User, UserRole
 from src.models.organization import Organization
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.processing import ProcessingJob, JobType, JobStatus, JobPriority
-from src.services.knowledge_graph_service import KnowledgeGraphService
-from src.services.vector_search_service import VectorSearchService
-from src.services.hybrid_search_service import HybridSearchService
+from src.services.knowledge_graph import KnowledgeGraphService
+from src.services.search import VectorSearchService, HybridSearchService
 
 # Import agent classes
 try:
