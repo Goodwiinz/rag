@@ -73,6 +73,9 @@ class BibliographyService:
                 "pybtex library not installed. Install with: pip install pybtex==0.24.0"
             )
 
+        if not citations:
+            return ""
+
         entries = {}
         
         for i, citation in enumerate(citations, start=1):
@@ -119,10 +122,9 @@ class BibliographyService:
         # Create bibliography
         bib_data = BibliographyData(entries=entries)
         
-        # Format as BibTeX string
-        output = StringIO()
-        bib_data.to_file(output, bib_format="bibtex")
-        bibtex_str = output.getvalue()
+        # Format as BibTeX string using to_string instead of to_file
+        # to_file closes the file handle which causes issues with StringIO
+        bibtex_str = bib_data.to_string("bibtex")
         
         logger.info("bibliography_generated", format="bibtex", count=len(citations))
         
