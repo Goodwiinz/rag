@@ -1,4 +1,3 @@
-import { LayoutWrapper } from '@/components/layout/LayoutWrapper';
 import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono, Outfit } from 'next/font/google';
 import './globals.css';
@@ -26,12 +25,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable} ${outfit.variable}`}>
-      <body className={`${inter.className} antialiased`} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable} ${outfit.variable} bg-[var(--terminal-bg)]`}>
+      <body className={`${inter.className} antialiased bg-[var(--terminal-bg)] text-[var(--terminal-text)]`} suppressHydrationWarning>
         <Providers>
-          <LayoutWrapper>
-            {children}
-          </LayoutWrapper>
+          {children}
         </Providers>
       </body>
     </html>

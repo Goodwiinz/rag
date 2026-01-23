@@ -178,8 +178,17 @@ class ApiClient {
           const errorData = error.response.data;
 
           // If it has the nested error property, use it directly
-          if (errorData.error && typeof errorData.error === 'object') {
-            return Promise.reject(new APIErrorClass(errorData.error));
+          if (errorData.error && typeof errorData.error === 'object' && !Array.isArray(errorData.error)) {
+            // Ensure mandatory fields are present
+            const errorPayload = {
+              message: errorData.error.message || 'An error occurred',
+              status_code: errorData.error.status_code || error.response.status || 500,
+              type: errorData.error.type || 'http_error',
+              details: errorData.error.details,
+              timestamp: errorData.error.timestamp,
+              silent: errorData.error.silent
+            };
+            return Promise.reject(new APIErrorClass(errorPayload));
           }
 
           // Otherwise, construct the error object
@@ -286,6 +295,21 @@ class ApiClient {
 
         if (error.response?.data) {
           const errorData = error.response.data;
+          
+          // If it has the nested error property, use it directly (matching main client logic)
+          if (errorData.error && typeof errorData.error === 'object' && !Array.isArray(errorData.error)) {
+             const errorPayload = {
+              message: errorData.error.message || 'An error occurred',
+              status_code: errorData.error.status_code || error.response.status || 500,
+              type: errorData.error.type || 'http_error',
+              details: errorData.error.details,
+              timestamp: errorData.error.timestamp,
+              silent: errorData.error.silent
+            };
+            return Promise.reject(new APIErrorClass(errorPayload));
+          }
+
+          // Otherwise, construct the error object
           const errorObj = {
             message: errorData.message || errorData.detail || error.message || 'An error occurred',
             status_code: error.response.status || 500,

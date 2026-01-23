@@ -54,6 +54,7 @@ const mainNavItems = [
 const documentsNavItems = [
   { title: 'All Documents', url: '/documents', icon: Files, description: 'Browse files' },
   { title: 'Upload', url: '/documents/upload', icon: Upload, description: 'Add new files' },
+  { title: 'Entities', url: '/entities', icon: Terminal, description: 'Knowledge nodes' },
   { title: 'ArXiv Papers', url: '/arxiv', icon: FlaskConical, description: 'Research papers' },
 ];
 

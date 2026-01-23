@@ -78,7 +78,7 @@ export function AIInsightsPanel({ className }: AIInsightsPanelProps) {
   // const { value, setValue, submit, isPending } = useTamboThreadInput();
   const isIdle = true;
   const isPending = false;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line no-unused-vars
   const [value, setValue] = useState('');
   const submit = async (_options?: { streamResponse: boolean }) => {
      console.log('Tambo submit disabled');

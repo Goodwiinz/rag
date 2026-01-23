@@ -4,12 +4,37 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { FileText, Loader2, CheckCircle, AlertCircle, Download } from 'lucide-react';
+import { FileText, Loader2, CheckCircle, AlertCircle, Download, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import toast from 'react-hot-toast';
+
+/**
+ * Retry wrapper utility for extraction API calls
+ * Automatically retries failed requests once with exponential backoff
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 1
+): Promise<T> {
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error as Error;
+      if (attempt < maxRetries) {
+        // Exponential backoff: wait 1s on first retry
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+      }
+    }
+  }
+
+  throw lastError;
+}
 
 interface Document {
   id: string;
@@ -73,24 +98,28 @@ export const DocumentEntityExtractor: React.FC = () => {
       setLoading(true);
       setProgress(10);
 
-      const response = await fetch(
-        `/api/knowledge-graph/documents/${selectedDocumentId}/extract-entities`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json',
-          },
+      // Use retry wrapper for extraction API call (T028)
+      const extractionResult = await withRetry(async () => {
+        const response = await fetch(
+          `/api/knowledge-graph/documents/${selectedDocumentId}/extract-entities`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        setProgress(50);
+
+        if (!response.ok) {
+          throw new Error('Failed to extract entities');
         }
-      );
 
-      setProgress(50);
+        return await response.json();
+      });
 
-      if (!response.ok) {
-        throw new Error('Failed to extract entities');
-      }
-
-      const extractionResult = await response.json();
       setProgress(100);
       setResult(extractionResult);
 
@@ -99,7 +128,7 @@ export const DocumentEntityExtractor: React.FC = () => {
       );
     } catch (error) {
       console.error('Error extracting entities:', error);
-      toast.error('Failed to extract entities from document');
+      toast.error('Failed to extract entities. Please try again.');
       setResult(null);
     } finally {
       setLoading(false);
@@ -129,22 +158,27 @@ export const DocumentEntityExtractor: React.FC = () => {
         setProgress(Math.round(((i + 1) / documents.length) * 100));
 
         try {
-          const response = await fetch(
-            `/api/knowledge-graph/documents/${doc.id}/extract-entities`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                'Content-Type': 'application/json',
-              },
-            }
-          );
+          // Use retry wrapper for batch extraction (T028)
+          await withRetry(async () => {
+            const response = await fetch(
+              `/api/knowledge-graph/documents/${doc.id}/extract-entities`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
 
-          if (response.ok) {
-            successCount++;
-          } else {
-            errorCount++;
-          }
+            if (!response.ok) {
+              throw new Error('Extraction failed');
+            }
+
+            return response.json();
+          });
+
+          successCount++;
         } catch (error) {
           errorCount++;
         }

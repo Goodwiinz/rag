@@ -73,6 +73,7 @@ export const IconButtonSm = React.forwardRef<
 >((props, ref) => (
   <IconButton ref={ref} className="h-7 w-7" {...props} />
 ));
+IconButtonSm.displayName = "IconButtonSm";
 
 export const IconButtonLg = React.forwardRef<
   HTMLButtonElement,
@@ -80,3 +81,4 @@ export const IconButtonLg = React.forwardRef<
 >((props, ref) => (
   <IconButton ref={ref} className="h-10 w-10" {...props} />
 ));
+IconButtonLg.displayName = "IconButtonLg";

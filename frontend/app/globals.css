@@ -45,25 +45,25 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.2686 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2686 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2686 0 0);
-  --primary: oklch(0.7686 0.1647 70.0804);
-  --primary-foreground: oklch(0 0 0);
-  --secondary: oklch(0.967 0.0029 264.5419);
-  --secondary-foreground: oklch(0.4461 0.0263 256.8018);
-  --muted: oklch(0.9846 0.0017 247.8389);
-  --muted-foreground: oklch(0.551 0.0234 264.3637);
-  --accent: oklch(0.9869 0.0214 95.2774);
-  --accent-foreground: oklch(0.4732 0.1247 46.2007);
-  --destructive: oklch(0.6368 0.2078 25.3313);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.9276 0.0058 264.5313);
-  --input: oklch(0.9276 0.0058 264.5313);
-  --ring: oklch(0.7686 0.1647 70.0804);
+  --background: 240 20% 4%;
+  --foreground: 240 11% 90%;
+  --card: 240 22% 6%;
+  --card-foreground: 240 11% 90%;
+  --popover: 240 22% 6%;
+  --popover-foreground: 240 11% 90%;
+  --primary: 157 100% 50%;
+  --primary-foreground: 240 20% 4%;
+  --secondary: 240 21% 13%;
+  --secondary-foreground: 240 11% 95%;
+  --muted: 240 21% 13%;
+  --muted-foreground: 240 5% 60%;
+  --accent: 240 21% 13%;
+  --accent-foreground: 240 11% 95%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 21% 13%;
+  --input: 240 21% 13%;
+  --ring: 157 100% 50%;
   --chart-1: oklch(0.7686 0.1647 70.0804);
   --chart-2: oklch(0.6658 0.1574 58.3183);
   --chart-3: oklch(0.5553 0.1455 48.9975);
@@ -97,29 +97,29 @@
 }
 
 .dark {
-  --background: 0 0% 5%;
-  --foreground: 0 0% 95%;
-  --card: 222 19% 7%;
-  --card-foreground: 0 0% 95%;
-  --popover: 222 19% 7%;
-  --popover-foreground: 0 0% 95%;
-  --primary: 263 70% 50%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 240 4% 16%;
-  --secondary-foreground: 0 0% 98%;
-  --muted: 240 4% 16%;
-  --muted-foreground: 240 5% 65%;
-  --accent: 240 4% 16%;
-  --accent-foreground: 0 0% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 0 0% 98%;
-  --border: 240 4% 16%;
-  --input: 240 4% 16%;
-  --ring: 263 70% 50%;
-  --chart-1: 220 70% 50%;
-  --chart-2: 160 60% 45%;
-  --chart-3: 30 80% 55%;
-  --chart-4: 280 65% 60%;
+  --background: 240 20% 4%;
+  --foreground: 240 11% 90%;
+  --card: 240 22% 6%;
+  --card-foreground: 240 11% 90%;
+  --popover: 240 22% 6%;
+  --popover-foreground: 240 11% 90%;
+  --primary: 157 100% 50%;
+  --primary-foreground: 240 20% 4%;
+  --secondary: 240 21% 13%;
+  --secondary-foreground: 240 11% 95%;
+  --muted: 240 21% 13%;
+  --muted-foreground: 240 5% 60%;
+  --accent: 240 21% 13%;
+  --accent-foreground: 240 11% 95%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 21% 13%;
+  --input: 240 21% 13%;
+  --ring: 157 100% 50%;
+  --chart-1: 157 100% 50%;
+  --chart-2: 43 100% 50%;
+  --chart-3: 199 100% 50%;
+  --chart-4: 271 100% 50%;
   --chart-5: 340 75% 55%;
 }
 
@@ -129,7 +129,7 @@
 
 body {
   color: var(--foreground);
-  background: var(--background);
+  background-color: var(--background);
 }
 
 /* Custom scrollbar styles */
@@ -301,14 +301,14 @@ body {
 
 @layer base {
   :root {
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: var(--terminal-bg);
+    --sidebar-foreground: var(--terminal-text);
+    --sidebar-primary: var(--phosphor-green);
+    --sidebar-primary-foreground: var(--terminal-bg);
+    --sidebar-accent: var(--terminal-elevated);
+    --sidebar-accent-foreground: var(--phosphor-green);
+    --sidebar-border: var(--terminal-border);
+    --sidebar-ring: var(--phosphor-green);
   }
   .dark {
     --sidebar-background: var(--terminal-bg);
@@ -611,7 +611,7 @@ body {
     ),
     radial-gradient(
       1.5px 1.5px at 160px 120px,
-      rgba(0, 255, 159, 0.4),
+      rgba(255, 255, 255, 0.15),
       transparent
     ),
     radial-gradient(
@@ -631,7 +631,7 @@ body {
     ),
     radial-gradient(
       1.5px 1.5px at 300px 180px,
-      rgba(255, 183, 0, 0.3),
+      rgba(255, 255, 255, 0.15),
       transparent
     );
   background-size: 320px 200px;
@@ -641,8 +641,8 @@ body {
 /* Grid pattern background */
 .terminal-grid {
   background-image:
-    linear-gradient(rgba(0, 255, 159, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 159, 0.02) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
   background-size: 40px 40px;
 }
 

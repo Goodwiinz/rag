@@ -1,10 +1,35 @@
 "use client";
 
 import { apiClient } from '@/services/apiClient';
-import { Activity, BarChart3, BookOpen, Brain, CheckCircle, CheckSquare, Database, FileText, Hash, Link2, Loader2, RefreshCw, Search, Square, TrendingUp, Upload } from 'lucide-react';
-import React, { useState } from 'react';
+import { cn } from '@/lib/utils';
+import { 
+  Activity, 
+  BarChart3, 
+  BookOpen, 
+  Brain, 
+  CheckCircle, 
+  CheckSquare, 
+  Database, 
+  FileText, 
+  Hash, 
+  Link2, 
+  Loader2, 
+  RefreshCw, 
+  Search, 
+  Square, 
+  TrendingUp, 
+  Upload,
+  ChevronRight,
+  Terminal,
+  AlertTriangle,
+  Zap,
+  Cpu,
+  Globe,
+  Layers
+} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-// Terminal Observatory Theme Constants
 // Using centralized theme constants
 import { THEME } from '@/theme/constants';
 
@@ -64,7 +89,6 @@ interface ExtractionResult {
   }>;
 }
 
-// ArXiv paper from search results
 interface ArXivPaper {
   id: string;
   title: string;
@@ -77,7 +101,6 @@ interface ArXivPaper {
   pdf_url?: string;
 }
 
-// Ingestion result from API
 interface IngestionResult {
   message: string;
   paper_count: number;
@@ -89,41 +112,55 @@ const ToggleSwitch: React.FC<{
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   id?: string;
-}> = ({ checked, onCheckedChange, id }) => (
-  <button
-    id={id}
-    type="button"
-    role="switch"
-    aria-checked={checked}
-    onClick={() => onCheckedChange(!checked)}
-    className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200"
-    style={{
-      background: checked ? `${THEME.colors.primary}40` : THEME.colors.borderMuted,
-      border: `1px solid ${checked ? THEME.colors.primary : THEME.colors.border}`,
-    }}
-  >
-    <span
-      className="pointer-events-none block h-4 w-4 rounded-full transition-transform duration-200"
-      style={{
-        transform: checked ? 'translateX(16px)' : 'translateX(0)',
-        background: checked ? THEME.colors.primary : THEME.colors.textMuted,
-        marginTop: '1px',
-        marginLeft: '1px',
-      }}
-    />
-  </button>
+  label?: string;
+}> = ({ checked, onCheckedChange, id, label }) => (
+  <div className="flex items-center gap-3 group cursor-pointer" onClick={() => onCheckedChange(!checked)}>
+    <button
+      id={id}
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      className={cn(
+        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-all duration-200 border",
+        checked 
+          ? "bg-[var(--phosphor-green)]/20 border-[var(--phosphor-green)]/50" 
+          : "bg-[var(--terminal-surface)] border-[var(--terminal-border)] group-hover:border-[var(--terminal-border-muted)]"
+      )}
+    >
+      <span
+        className={cn(
+          "pointer-events-none block h-3.5 w-3.5 rounded-full transition-transform duration-200 mt-[2px] ml-[2px]",
+          checked 
+            ? "translate-x-4 bg-[var(--phosphor-green)] shadow-[0_0_8px_var(--phosphor-green)]" 
+            : "translate-x-0 bg-[var(--terminal-text-muted)]"
+        )}
+      />
+    </button>
+    {label && (
+      <span className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-wider group-hover:text-[var(--terminal-text)] transition-colors">
+        {label}
+      </span>
+    )}
+  </div>
 );
 
 // Custom Progress Bar
-const ProgressBar: React.FC<{ value: number }> = ({ value }) => (
-  <div className="h-2 w-full rounded-full overflow-hidden" style={{ background: THEME.colors.borderMuted }}>
-    <div
-      className="h-full rounded-full transition-all duration-500"
-      style={{
-        width: `${value}%`,
-        background: `linear-gradient(90deg, ${THEME.colors.primary}80, ${THEME.colors.primary})`,
-      }}
-    />
+const ProgressBar: React.FC<{ value: number; label?: string }> = ({ value, label }) => (
+  <div className="space-y-1.5 w-full">
+    {label && (
+      <div className="flex justify-between items-center text-[9px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest">
+        <span>{label}</span>
+        <span className="text-[var(--phosphor-green)]">{Math.round(value)}%</span>
+      </div>
+    )}
+    <div className="h-1 w-full rounded-full bg-[var(--terminal-border)] overflow-hidden">
+      <motion.div
+        initial={{ width: 0 }}
+        animate={{ width: `${value}%` }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="h-full rounded-full bg-gradient-to-r from-[var(--phosphor-green-dim)] to-[var(--phosphor-green)] shadow-[0_0_10px_var(--phosphor-green-muted)]"
+      />
+    </div>
   </div>
 );
 
@@ -134,19 +171,29 @@ const CustomSlider: React.FC<{
   min: number;
   max: number;
   step: number;
-}> = ({ value, onChange, min, max, step }) => (
-  <input
-    type="range"
-    value={value}
-    onChange={(e) => onChange(Number(e.target.value))}
-    min={min}
-    max={max}
-    step={step}
-    className="w-full h-2 rounded-full appearance-none cursor-pointer"
-    style={{
-      background: `linear-gradient(to right, ${THEME.colors.primary} 0%, ${THEME.colors.primary} ${((value - min) / (max - min)) * 100}%, ${THEME.colors.borderMuted} ${((value - min) / (max - min)) * 100}%, ${THEME.colors.borderMuted} 100%)`,
-    }}
-  />
+  label: string;
+}> = ({ value, onChange, min, max, step, label }) => (
+  <div className="space-y-3">
+    <div className="flex justify-between items-center">
+      <label className="text-[10px] font-mono font-bold text-[var(--terminal-text-muted)] uppercase tracking-widest">
+        {label}
+      </label>
+      <span className="text-[10px] font-mono font-bold text-[var(--phosphor-green)] bg-[var(--phosphor-green)]/10 px-2 py-0.5 rounded border border-[var(--phosphor-green)]/20">
+        {value}
+      </span>
+    </div>
+    <div className="relative flex items-center h-6">
+      <input
+        type="range"
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        min={min}
+        max={max}
+        step={step}
+        className="w-full h-1 bg-[var(--terminal-border)] rounded-full appearance-none cursor-pointer accent-[var(--phosphor-green)] hover:accent-[var(--phosphor-green-dim)] transition-all"
+      />
+    </div>
+  </div>
 );
 
 export default function ArxivManagement() {
@@ -189,11 +236,25 @@ export default function ArxivManagement() {
   ];
 
   const tabs = [
-    { id: 'tracking', label: 'Track Changes', icon: TrendingUp },
-    { id: 'ingest', label: 'Ingest Papers', icon: Upload },
-    { id: 'extract', label: 'Extract Features', icon: Brain },
-    { id: 'stats', label: 'Statistics', icon: BarChart3 },
+    { id: 'tracking', label: 'TRACK_CHANGES', icon: TrendingUp },
+    { id: 'ingest', label: 'INGEST_PAPERS', icon: Upload },
+    { id: 'extract', label: 'EXTRACT_FEATURES', icon: Brain },
+    { id: 'stats', label: 'STATISTICS', icon: BarChart3 },
   ];
+
+  // Fetch statistics
+  const fetchStats = async () => {
+    try {
+      const result = await apiClient.get<StatsResult>('/arxiv/tracking/stats');
+      setStats(result);
+    } catch (error: any) {
+      console.error('Failed to fetch stats:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
 
   // Handle tracking changes
   const handleTrackChanges = async () => {
@@ -213,41 +274,28 @@ export default function ArxivManagement() {
       setTrackingResult(result);
 
       if (result.result.applied && updateDatabase) {
-        setMessage(`✅ Tracking completed! Database updated with ${result.result.summary.new} new papers.`);
-      } else if (!result.result.applied && updateDatabase) {
-        setMessage(`⚠️ Found ${result.result.summary.new} new papers but database update is disabled.`);
+        setMessage(`COMPLETED: Database updated with ${result.result.summary.new} new papers.`);
       } else {
-        setMessage(`✅ Tracking completed! Found ${result.result.summary.new} new, ${result.result.summary.updated} updated, ${result.result.summary.deleted} deleted papers.`);
+        setMessage(`COMPLETED: Found ${result.result.summary.new} new, ${result.result.summary.updated} updated papers.`);
       }
       setProgress(100);
-
       await fetchStats();
     } catch (error: any) {
       console.error('Tracking failed:', error);
       setProgress(0);
-      if (error.response?.status === 401) {
-        setMessage('❌ Authentication failed. Please refresh the page and try again.');
-      } else {
-        setMessage(`❌ Tracking failed: ${error.response?.data?.detail || error.message}`);
-      }
+      setMessage(`ERROR: ${error.response?.data?.detail || error.message}`);
     } finally {
       setIsTracking(false);
     }
   };
 
-  // Handle searching arXiv papers
   const handleSearchPapers = async () => {
-    if (!searchQuery.trim()) {
-      setMessage('Please enter a search query');
-      return;
-    }
-
+    if (!searchQuery.trim()) return;
     setIsSearching(true);
     setMessage(`Searching arXiv for "${searchQuery}"...`);
     setProgress(10);
     setSearchResults(null);
     setSelectedPaperIds([]);
-    setIngestionResult(null);
 
     try {
       setProgress(40);
@@ -256,1029 +304,416 @@ export default function ArxivManagement() {
         max_results: maxResults,
         categories: selectedCategories.length > 0 ? selectedCategories : null
       });
-
       setProgress(100);
       setSearchResults(results);
-      setMessage(`✅ Found ${results.length} papers matching "${searchQuery}"`);
+      setMessage(`Found ${results.length} matching papers.`);
     } catch (error: any) {
       console.error('Search failed:', error);
       setProgress(0);
-      if (error.response?.status === 401) {
-        setMessage('❌ Authentication failed. Please refresh the page and try again.');
-      } else {
-        setMessage(`❌ Search failed: ${error.response?.data?.detail || error.message}`);
-      }
+      setMessage(`ERROR: ${error.response?.data?.detail || error.message}`);
     } finally {
       setIsSearching(false);
     }
   };
 
-  // Handle ingesting selected papers
-  const handleIngestSelected = async () => {
-    if (selectedPaperIds.length === 0) {
-      setMessage('Please select at least one paper to ingest');
-      return;
-    }
-
-    setIsIngesting(true);
-    setMessage(`Ingesting ${selectedPaperIds.length} papers...`);
-    setProgress(10);
-
-    try {
-      setProgress(40);
-      const result = await apiClient.postWithLongTimeout<IngestionResult>('/arxiv/ingest', {
-        paper_ids: selectedPaperIds,
-        download_pdfs: downloadPdfs,
-        extract_content: extractEntities,
-        batch_size: 10
-      });
-
-      setProgress(100);
-      setIngestionResult(result);
-      setMessage(`✅ ${result.message} - ${result.paper_count} papers queued for processing`);
-      
-      // Clear selection after successful ingestion
-      setSelectedPaperIds([]);
-    } catch (error: any) {
-      console.error('Ingestion failed:', error);
-      setProgress(0);
-      if (error.response?.status === 401) {
-        setMessage('❌ Authentication failed. Please refresh the page and try again.');
-      } else {
-        setMessage(`❌ Ingestion failed: ${error.response?.data?.detail || error.message}`);
-      }
-    } finally {
-      setIsIngesting(false);
-    }
-  };
-
-  // Toggle paper selection
-  const togglePaperSelection = (paperId: string) => {
-    setSelectedPaperIds(prev => 
-      prev.includes(paperId) 
-        ? prev.filter(id => id !== paperId)
-        : [...prev, paperId]
-    );
-  };
-
-  // Select/deselect all papers
-  const toggleSelectAll = () => {
-    if (searchResults) {
-      if (selectedPaperIds.length === searchResults.length) {
-        setSelectedPaperIds([]);
-      } else {
-        setSelectedPaperIds(searchResults.map(p => p.id));
-      }
-    }
-  };
-
-
-  // Fetch statistics
-  const fetchStats = async () => {
-    try {
-      const result = await apiClient.get<StatsResult>('/arxiv/tracking/stats');
-      setStats(result);
-    } catch (error: any) {
-      console.error('Failed to fetch stats:', error);
-    }
-  };
-
-  // Clean up old state
-  const handleCleanup = async () => {
-    try {
-      await apiClient.post('/arxiv/tracking/cleanup', null, {
-        params: { days: 90 }
-      });
-      setMessage('Cleanup completed');
-      await fetchStats();
-    } catch (error: any) {
-      console.error('Cleanup failed:', error);
-      setMessage(`Cleanup failed: ${error.message}`);
-    }
-  };
-
-  // Handle feature extraction
-  const handleExtractFeatures = async () => {
-    setIsExtracting(true);
-    setMessage('Extracting features...');
-    setProgress(0);
-
-    try {
-      const paperIds = extractPaperIds
-        .split('\n')
-        .map(id => id.trim())
-        .filter(id => id.length > 0);
-
-      if (paperIds.length === 0) {
-        setMessage('Please enter at least one paper ID');
-        setIsExtracting(false);
-        return;
-      }
-
-      const result = await apiClient.postWithLongTimeout<ExtractionResult>('/arxiv/extraction/extract-features', {
-        paper_ids: paperIds,
-        extract_entities: extractEntities,
-        extract_topics: extractTopics,
-        extract_citations: extractCitations,
-        extract_keyphrases: extractKeyphrases,
-        extract_summaries: extractSummaries,
-        update_knowledge_graph: updateKG
-      });
-
-      setExtractionResult(result);
-      setMessage(`Successfully extracted features from ${result.processed_count} papers`);
-      setProgress(100);
-    } catch (error: any) {
-      console.error('Extraction failed:', error);
-      setMessage(`Extraction failed: ${error.response?.data?.detail || error.message}`);
-    } finally {
-      setIsExtracting(false);
-    }
-  };
-
-  // Handle bulk extraction
-  const handleBulkExtract = async () => {
-    setIsExtracting(true);
-    setMessage('Bulk extracting features...');
-    setProgress(0);
-
-    try {
-      const result = await apiClient.postWithLongTimeout<any>('/arxiv/extraction/bulk-extract', {
-        categories: selectedCategories,
-        days_back: daysBack,
-        max_papers: maxResults,
-        extraction_options: {
-          extract_entities: extractEntities,
-          extract_topics: extractTopics,
-          extract_citations: extractCitations,
-          extract_keyphrases: extractKeyphrases,
-          extract_summaries: extractSummaries,
-          update_knowledge_graph: updateKG
-        }
-      });
-
-      setExtractionResult({
-        status: result.status,
-        message: result.message,
-        processed_count: result.papers_processed,
-        results: result.results || []
-      });
-
-      setMessage(`Bulk extraction completed: ${result.papers_processed} papers processed`);
-      setProgress(100);
-    } catch (error: any) {
-      console.error('Bulk extraction failed:', error);
-      setMessage(`Bulk extraction failed: ${error.response?.data?.detail || error.message}`);
-    } finally {
-      setIsExtracting(false);
-    }
-  };
-
-  // Handle local PDF extraction
-  const handleExtractLocalPdfs = async () => {
-    setIsExtracting(true);
-    setMessage('Extracting features from local PDF files...');
-    setProgress(0);
-
-    try {
-      const { useAuthStore } = await import('@/stores/authStore');
-      const authStore = useAuthStore.getState();
-
-      if (!authStore.token) {
-        setMessage('No authentication token found. Please log in first.');
-        setIsExtracting(false);
-        return;
-      }
-
-      setProgress(10);
-
-      const response = await apiClient.postWithLongTimeout<{
-        data?: {
-          status: string;
-          message: string;
-          processed_count: number;
-          results?: Array<any>;
-        };
-        status?: string;
-        message?: string;
-        processed_count?: number;
-        results?: Array<any>;
-      }>('/arxiv/local/extract-local-features', {
-        paper_ids: null,
-        extract_entities: extractEntities,
-        extract_topics: extractTopics,
-        extract_citations: extractCitations,
-        extract_keyphrases: extractKeyphrases,
-        extract_summaries: extractSummaries,
-        process_full_content: true,
-        update_knowledge_graph: updateKG
-      });
-
-      setProgress(80);
-
-      const data = response.data || response;
-
-      setExtractionResult({
-        status: data.status ?? 'unknown',
-        message: data.message ?? 'Extraction completed',
-        processed_count: data.processed_count ?? 0,
-        results: data.results || []
-      });
-
-      setMessage(`✅ Successfully extracted features from ${data.processed_count} local PDF files`);
-      setProgress(100);
-    } catch (error: any) {
-      console.error('Local PDF extraction failed:', error);
-
-      const status = error.response?.status || error.status;
-      const detail = error.response?.data?.detail || error.message || error.toString();
-
-      if (status === 401) {
-        setMessage('❌ Authentication expired. Please refresh the page and log in again.');
-      } else if (status === 403) {
-        setMessage('❌ Access denied. You do not have permission to extract PDFs.');
-      } else if (status === 404) {
-        setMessage('❌ No local PDF files found. Please ensure PDF files are in the data directory.');
-      } else if (status === 500) {
-        setMessage('❌ Server error. Please check the backend logs for details.');
-      } else {
-        setMessage(`❌ Extraction failed: ${detail}`);
-      }
-      setProgress(0);
-    } finally {
-      setIsExtracting(false);
-    }
-  };
-
-  // Initial stats fetch
-  React.useEffect(() => {
-    fetchStats();
-  }, []);
-
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="space-y-6 pt-6">
-        <div className="flex items-center gap-4 pl-4">
-          <Activity className="h-7 w-7" style={{ color: THEME.colors.primary }} />
-          <h1 className="text-2xl font-mono font-bold tracking-tight" style={{ color: THEME.colors.primary }}>
-            ARXIV MANAGEMENT TERMINAL_
-          </h1>
+    <div className="space-y-6 pt-4">
+      {/* Header - Unified Style */}
+      <div className="flex items-center justify-between px-2">
+        <div className="flex items-center gap-4">
+          <div className="p-2 rounded-lg bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20 shadow-[0_0_15px_rgba(0,255,159,0.1)]">
+            <Activity className="h-6 w-6 text-[var(--phosphor-green)]" />
+          </div>
+          <div>
+            <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter uppercase">
+              ARXIV_MANAGEMENT_TERMINAL
+            </h1>
+            <div className="flex items-center gap-2 mt-0.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)] animate-pulse" />
+              <span className="text-[9px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em]">
+                Neural Research Node :: Connection Optimal
+              </span>
+            </div>
+          </div>
         </div>
-        <p className="text-white/50 font-mono text-sm pl-12">
-          Track and ingest arXiv papers with knowledge graph integration
-        </p>
+        
+        {stats && (
+          <div className="hidden md:flex items-center gap-6 px-4 py-2 rounded-xl bg-[var(--terminal-surface)]/50 border border-[var(--terminal-border)]">
+            <div className="flex flex-col items-end">
+              <span className="text-[8px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest">Global Tracked</span>
+              <span className="text-sm font-mono font-bold text-[var(--phosphor-green)]">{stats.statistics.total_papers_tracked}</span>
+            </div>
+            <div className="w-px h-8 bg-[var(--terminal-border)]" />
+            <div className="flex flex-col items-end">
+              <span className="text-[8px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest">Active Core</span>
+              <span className="text-sm font-mono font-bold text-[var(--cyan)]">{stats.statistics.active_papers}</span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Terminal Chrome Tabs */}
-      <div
-        className="rounded-xl overflow-hidden"
-        style={{
-          background: THEME.colors.surface,
-          border: `1px solid ${THEME.colors.border}`,
-          boxShadow: '0 4px 24px rgba(0, 0, 0, 0.4)',
-        }}
-      >
-        {/* Tab Bar */}
-        <div
-          className="flex items-center gap-2 px-5 py-4"
-          style={{ borderBottom: `1px solid ${THEME.colors.border}`, background: THEME.colors.borderSubtle }}
-        >
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm transition-all"
-                style={{
-                  background: isActive ? THEME.colors.surface : 'transparent',
-                  color: isActive ? THEME.colors.primary : THEME.colors.textMuted,
-                  borderWidth: '1px',
-                  borderStyle: 'solid',
-                  borderColor: isActive ? `${THEME.colors.primary}30` : 'transparent',
-                }}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            );
-          })}
+      {/* Main Terminal Chrome */}
+      <div className="relative rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/80 backdrop-blur-xl overflow-hidden shadow-2xl">
+        {/* Tab Header */}
+        <div className="flex items-center justify-between px-4 bg-[var(--terminal-elevated)]/50 border-b border-[var(--terminal-border)] h-12">
+          <div className="flex h-full">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    "flex items-center gap-2 px-5 h-full font-mono text-[10px] font-bold uppercase tracking-wider transition-all relative",
+                    isActive 
+                      ? "text-[var(--phosphor-green)]" 
+                      : "text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text-dim)]"
+                  )}
+                >
+                  <Icon className={cn("h-3.5 w-3.5", isActive ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text-muted)]")} />
+                  {tab.label}
+                  {isActive && (
+                    <motion.div 
+                      layoutId="activeTabArxiv"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--phosphor-green)] shadow-[0_0_10px_var(--phosphor-green)]"
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <span className="text-[9px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-tighter opacity-50">
+              MODULE_ID: ARX-092
+            </span>
+          </div>
         </div>
 
-        {/* Tab Content */}
-        <div className="p-10 pt-8 pl-12">
-          {/* Track Changes Tab */}
-          {activeTab === 'tracking' && (
-            <div className="space-y-10">
-              <div className="space-y-2">
-                <h3 className="text-lg font-mono font-semibold text-white flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" style={{ color: THEME.colors.accent }} />
-                  Track ArXiv Changes
-                </h3>
-                <p className="text-sm font-mono text-gray-500">
-                  Detect new, updated, and deleted papers in selected categories
-                </p>
-              </div>
+        {/* Transmission Line Component (Vertical Decoration) */}
+        <div className="absolute top-12 left-6 bottom-0 w-[1px] bg-gradient-to-b from-[var(--phosphor-green)]/20 via-[var(--terminal-border)] to-transparent pointer-events-none" />
 
-              {/* Categories Selection */}
-              <div className="space-y-5">
-                <label className="text-sm font-mono text-gray-400 block">Categories to Track</label>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-x-6 gap-y-4">
-                  {popularCategories.map((category) => (
-                    <div key={category} className="flex items-center gap-2">
-                      <ToggleSwitch
-                        checked={selectedCategories.includes(category)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedCategories([...selectedCategories, category]);
-                          } else {
-                            setSelectedCategories(selectedCategories.filter(c => c !== category));
-                          }
-                        }}
-                      />
-                      <span className="text-sm font-mono text-gray-300">{category}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Days Back Slider */}
-              <div className="space-y-5">
-                <label className="text-sm font-mono text-gray-400 block">
-                  Days to look back: <span style={{ color: THEME.colors.primary }}>{daysBack}</span>
-                </label>
-                <CustomSlider
-                  value={daysBack}
-                  onChange={setDaysBack}
-                  min={1}
-                  max={30}
-                  step={1}
-                />
-              </div>
-
-              {/* Update Database Toggle */}
-              <div className="flex items-center gap-3">
-                <ToggleSwitch
-                  id="update-db"
-                  checked={updateDatabase}
-                  onCheckedChange={setUpdateDatabase}
-                />
-                <label htmlFor="update-db" className="text-sm font-mono text-gray-300">
-                  Update database with changes
-                </label>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={handleTrackChanges}
-                  disabled={isTracking || selectedCategories.length === 0}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
-                  style={{
-                    background: `${THEME.colors.primary}20`,
-                    borderWidth: '1px',
-                    borderStyle: 'solid',
-                    borderColor: `${THEME.colors.primary}50`,
-                    color: THEME.colors.primary,
-                  }}
-                >
-                  {isTracking ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Tracking...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="h-4 w-4" />
-                      Track Changes
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={handleCleanup}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-mono text-sm transition-all"
-                  style={{
-                    background: 'transparent',
-                    borderWidth: '1px',
-                    borderStyle: 'solid',
-                    borderColor: THEME.colors.border,
-                    color: THEME.colors.textMuted,
-                  }}
-                >
-                  Cleanup Old State
-                </button>
-              </div>
-
-              {/* Progress */}
-              {(isTracking || message) && (
-                <div className="space-y-3">
-                  <ProgressBar value={progress} />
-                  <p className="text-sm font-mono text-gray-400">{message}</p>
-                </div>
-              )}
-
-              {/* Results */}
-              {trackingResult && (
-                <div className="space-y-4">
-                    <div
-                      className="flex items-start gap-3 p-4 rounded-lg"
-                      style={{
-                        background: `${THEME.colors.primary}10`,
-                        border: `1px solid ${THEME.colors.primary}30`,
-                      }}
-                    >
-                      <CheckCircle className="h-5 w-5 mt-0.5" style={{ color: THEME.colors.primary }} />
-                      <p className="text-sm font-mono" style={{ color: THEME.colors.primary }}>
-                        {trackingResult.result.applied ? (
-                          <>
-                            Successfully tracked and updated database!
-                            Found {trackingResult.result.papers_found} papers with {trackingResult.result.changes_detected} changes.
-                          </>
-                        ) : (
-                          <>
-                            Tracking completed (read-only).
-                            Found {trackingResult.result.papers_found} papers with {trackingResult.result.changes_detected} changes.
-                          </>
-                        )}
+        {/* Content Area */}
+        <div className="p-8 pl-14">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, x: 10, filter: 'blur(10px)' }}
+              animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, x: -10, filter: 'blur(10px)' }}
+              transition={{ duration: 0.3 }}
+              className="min-h-[400px]"
+            >
+              {/* Tab: Tracking */}
+              {activeTab === 'tracking' && (
+                <div className="space-y-8 max-w-4xl">
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-mono font-bold text-[var(--terminal-text)] flex items-center gap-2 uppercase tracking-tight">
+                      <TrendingUp className="h-4 w-4 text-[var(--amber-gold)]" />
+                      Protocol: Detect_Global_Changes
+                    </h3>
+                    <p className="text-[11px] font-mono text-[var(--terminal-text-muted)] leading-relaxed">
+                      Initialize category-wide system scans to synchronize with ArXiv repository updates.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4">
-                    {[
-                      { label: 'New Papers', value: trackingResult.result.summary.new, color: THEME.colors.primary },
-                      { label: 'Updated', value: trackingResult.result.summary.updated, color: THEME.colors.secondary },
-                      { label: 'Deleted', value: trackingResult.result.summary.deleted, color: THEME.colors.error },
-                    ].map((stat) => (
-                      <div
-                        key={stat.label}
-                        className="p-4 rounded-lg"
-                        style={{ background: THEME.colors.borderSubtle, border: `1px solid ${THEME.colors.borderMuted}` }}
-                      >
-                        <div className="text-2xl font-mono font-bold" style={{ color: stat.color }}>
-                          {stat.value}
-                        </div>
-                        <p className="text-sm font-mono text-gray-500">{stat.label}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {trackingResult.result.applied && (
-                    <div
-                      className="flex items-start gap-3 p-4 rounded-lg"
-                      style={{
-                        background: `${THEME.colors.secondary}10`,
-                        border: `1px solid ${THEME.colors.secondary}30`,
-                      }}
-                    >
-                      <Database className="h-5 w-5 mt-0.5" style={{ color: THEME.colors.secondary }} />
-                      <p className="text-sm font-mono" style={{ color: THEME.colors.secondary }}>
-                        Papers have been added to PostgreSQL and entities/relationships have been extracted to Neo4j knowledge graph.
-                        Visit{' '}
-                        <a
-                          href="http://localhost:7474/browser/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline"
-                        >
-                          Neo4j Browser
-                        </a>{' '}
-                        to explore the knowledge graph.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Ingest Papers Tab */}
-          {activeTab === 'ingest' && (
-            <div className="space-y-10">
-              <div className="space-y-2">
-                <h3 className="text-lg font-mono font-semibold text-white flex items-center gap-2">
-                  <Upload className="h-5 w-5" style={{ color: THEME.colors.secondary }} />
-                  Ingest ArXiv Papers
-                </h3>
-                <p className="text-sm font-mono text-gray-500">
-                  Search and ingest papers from arXiv with knowledge graph extraction
-                </p>
-              </div>
-
-              {/* Search Form */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-mono text-gray-400">Search Query</label>
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearchPapers()}
-                    placeholder="e.g., quantum computing, machine learning"
-                    className="w-full px-4 py-2.5 rounded-lg font-mono text-sm text-white placeholder:text-gray-600 focus:outline-none"
-                    style={{
-                      background: THEME.colors.borderSubtle,
-                      border: `1px solid ${THEME.colors.borderMuted}`,
-                    }}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-mono text-gray-400">
-                    Max Results: <span style={{ color: THEME.colors.primary }}>{maxResults}</span>
-                  </label>
-                  <CustomSlider
-                    value={maxResults}
-                    onChange={setMaxResults}
-                    min={1}
-                    max={100}
-                    step={1}
-                  />
-                </div>
-              </div>
-
-              {/* Options */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <ToggleSwitch
-                    id="extract-entities"
-                    checked={extractEntities}
-                    onCheckedChange={setExtractEntities}
-                  />
-                  <label htmlFor="extract-entities" className="text-sm font-mono text-gray-300">
-                    Extract entities to knowledge graph
-                  </label>
-                </div>
-                <div className="flex items-center gap-3">
-                  <ToggleSwitch
-                    id="download-pdfs"
-                    checked={downloadPdfs}
-                    onCheckedChange={setDownloadPdfs}
-                  />
-                  <label htmlFor="download-pdfs" className="text-sm font-mono text-gray-300">
-                    Download PDF files
-                  </label>
-                </div>
-              </div>
-
-              {/* Search Button */}
-              <button
-                onClick={handleSearchPapers}
-                disabled={isSearching || !searchQuery.trim()}
-                className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
-                style={{
-                  background: `${THEME.colors.secondary}20`,
-                  borderWidth: '1px',
-                  borderStyle: 'solid',
-                  borderColor: `${THEME.colors.secondary}50`,
-                  color: THEME.colors.secondary,
-                }}
-              >
-                {isSearching ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Searching...
-                  </>
-                ) : (
-                  <>
-                    <Search className="h-4 w-4" />
-                    Search ArXiv Papers
-                  </>
-                )}
-              </button>
-
-              {/* Progress and Message */}
-              {(isSearching || isIngesting || message) && (
-                <div className="space-y-3">
-                  <ProgressBar value={progress} />
-                  <p className="text-sm font-mono text-gray-400">{message}</p>
-                </div>
-              )}
-
-              {/* Search Results */}
-              {searchResults && searchResults.length > 0 && (
-                <div className="space-y-4">
-                  {/* Results Header with Select All */}
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-mono text-gray-400">
-                      {searchResults.length} papers found • {selectedPaperIds.length} selected
-                    </h4>
-                    <button
-                      onClick={toggleSelectAll}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded font-mono text-xs transition-all"
-                      style={{
-                        background: 'transparent',
-                        border: `1px solid ${THEME.colors.border}`,
-                        color: THEME.colors.textMuted,
-                      }}
-                    >
-                      {selectedPaperIds.length === searchResults.length ? (
-                        <>
-                          <Square className="h-3 w-3" />
-                          Deselect All
-                        </>
-                      ) : (
-                        <>
-                          <CheckSquare className="h-3 w-3" />
-                          Select All
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Paper List */}
-                  <div 
-                    className="space-y-3 max-h-96 overflow-y-auto pr-2"
-                    style={{ scrollbarWidth: 'thin', scrollbarColor: `${THEME.colors.primary}40 ${THEME.colors.borderSubtle}` }}
-                  >
-                    {searchResults.map((paper) => (
-                      <div
-                        key={paper.id}
-                        onClick={() => togglePaperSelection(paper.id)}
-                        className="p-4 rounded-lg cursor-pointer transition-all"
-                        style={{
-                          background: selectedPaperIds.includes(paper.id) ? `${THEME.colors.primary}10` : THEME.colors.borderSubtle,
-                          border: `1px solid ${selectedPaperIds.includes(paper.id) ? `${THEME.colors.primary}40` : THEME.colors.borderMuted}`,
-                        }}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="pt-1">
-                            {selectedPaperIds.includes(paper.id) ? (
-                              <CheckSquare className="h-5 w-5" style={{ color: THEME.colors.primary }} />
-                            ) : (
-                              <Square className="h-5 w-5 text-gray-600" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h5 className="text-sm font-mono text-white font-medium leading-snug">
-                              {paper.title}
-                            </h5>
-                            <p className="text-xs font-mono text-gray-500 mt-1">
-                              {paper.authors.slice(0, 3).join(', ')}
-                              {paper.authors.length > 3 && ` +${paper.authors.length - 3} more`}
-                            </p>
-                            <p className="text-xs font-mono text-gray-600 mt-2 line-clamp-2">
-                              {paper.abstract.slice(0, 200)}...
-                            </p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <span 
-                                className="text-xs font-mono px-2 py-0.5 rounded"
-                                style={{ background: `${THEME.colors.secondary}20`, color: THEME.colors.secondary }}
-                              >
-                                {paper.id}
-                              </span>
-                              {paper.categories.slice(0, 2).map((cat) => (
-                                <span 
-                                  key={cat}
-                                  className="text-xs font-mono px-2 py-0.5 rounded"
-                                  style={{ background: `${THEME.colors.accent}20`, color: THEME.colors.accent }}
-                                >
-                                  {cat}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Ingest Selected Button */}
-                  {selectedPaperIds.length > 0 && (
-                    <button
-                      onClick={handleIngestSelected}
-                      disabled={isIngesting}
-                      className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
-                      style={{
-                        background: `${THEME.colors.primary}20`,
-                        borderWidth: '1px',
-                        borderStyle: 'solid',
-                        borderColor: `${THEME.colors.primary}50`,
-                        color: THEME.colors.primary,
-                      }}
-                    >
-                      {isIngesting ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Ingesting {selectedPaperIds.length} papers...
-                        </>
-                      ) : (
-                        <>
-                          <Database className="h-4 w-4" />
-                          Ingest {selectedPaperIds.length} Selected Paper{selectedPaperIds.length > 1 ? 's' : ''}
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Ingestion Success */}
-              {ingestionResult && (
-                  <div
-                    className="flex items-start gap-3 p-4 rounded-lg"
-                    style={{
-                      background: `${THEME.colors.primary}10`,
-                      border: `1px solid ${THEME.colors.primary}30`,
-                    }}
-                  >
-                    <CheckCircle className="h-5 w-5 mt-0.5" style={{ color: THEME.colors.primary }} />
-                    <div>
-                      <p className="text-sm font-mono" style={{ color: THEME.colors.primary }}>
-                        {ingestionResult.message}
-                      </p>
-                    <p className="text-xs font-mono text-gray-500 mt-1">
-                      {ingestionResult.paper_count} papers queued for background processing.
-                      Check the Statistics tab to monitor progress.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Extract Features Tab */}
-          {activeTab === 'extract' && (
-            <div className="space-y-10">
-              <div className="space-y-2">
-                <h3 className="text-lg font-mono font-semibold text-white flex items-center gap-2">
-                  <Brain className="h-5 w-5" style={{ color: THEME.colors.accent }} />
-                  Extract Features from Papers
-                </h3>
-                <p className="text-sm font-mono text-gray-500">
-                  Extract entities, topics, key phrases, summaries, and citations from ArXiv papers
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-mono text-gray-400">Paper IDs (one per line)</label>
-                <textarea
-                  placeholder="e.g.,&#10;2301.07041&#10;2302.08869&#10;2303.12345"
-                  value={extractPaperIds}
-                  onChange={(e) => setExtractPaperIds(e.target.value)}
-                  className="w-full h-32 px-4 py-3 rounded-lg font-mono text-sm text-white placeholder:text-gray-600 focus:outline-none resize-none"
-                  style={{
-                    background: THEME.colors.borderSubtle,
-                    border: `1px solid ${THEME.colors.borderMuted}`,
-                  }}
-                />
-              </div>
-
-              <div className="space-y-4">
-                <h4 className="text-sm font-mono text-gray-400">Features to Extract:</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {[
-                    { id: 'entities', label: 'Entities', icon: FileText, checked: extractEntities, onChange: setExtractEntities },
-                    { id: 'topics', label: 'Topics', icon: BookOpen, checked: extractTopics, onChange: setExtractTopics },
-                    { id: 'keyphrases', label: 'Key Phrases', icon: Hash, checked: extractKeyphrases, onChange: setExtractKeyphrases },
-                    { id: 'citations', label: 'Citations', icon: Link2, checked: extractCitations, onChange: setExtractCitations },
-                  ].map((feature) => {
-                    const Icon = feature.icon;
-                    return (
-                      <div key={feature.id} className="flex items-center gap-3">
-                        <ToggleSwitch
-                          id={feature.id}
-                          checked={feature.checked}
-                          onCheckedChange={feature.onChange}
-                        />
-                        <label htmlFor={feature.id} className="flex items-center gap-2 text-sm font-mono text-gray-300">
-                          <Icon className="h-4 w-4 text-gray-500" />
-                          {feature.label}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Left Column: Config */}
+                    <div className="space-y-6">
+                      <div className="p-5 rounded-xl bg-[var(--terminal-bg)]/50 border border-[var(--terminal-border)] space-y-5">
+                        <label className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-widest block mb-2">
+                          Neural Category Filter
                         </label>
+                        <div className="grid grid-cols-2 gap-3">
+                          {popularCategories.map((category) => (
+                            <div key={category} className="flex items-center gap-2">
+                              <ToggleSwitch
+                                checked={selectedCategories.includes(category)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) setSelectedCategories([...selectedCategories, category]);
+                                  else setSelectedCategories(selectedCategories.filter(c => c !== category));
+                                }}
+                                label={category}
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-                <div className="flex items-center gap-3">
-                  <ToggleSwitch
-                    id="summaries"
-                    checked={extractSummaries}
-                    onCheckedChange={setExtractSummaries}
-                  />
-                  <label htmlFor="summaries" className="text-sm font-mono text-gray-300">
-                    Generate Summaries
-                  </label>
-                </div>
-                <div className="flex items-center gap-3">
-                  <ToggleSwitch
-                    id="update-kg"
-                    checked={updateKG}
-                    onCheckedChange={setUpdateKG}
-                  />
-                  <label htmlFor="update-kg" className="text-sm font-mono text-gray-300">
-                    Update Knowledge Graph
-                  </label>
-                </div>
-              </div>
 
-              <div className="flex flex-wrap items-center gap-4">
-                <button
-                  onClick={handleExtractFeatures}
-                  disabled={isExtracting || extractPaperIds.trim().length === 0}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
-                  style={{
-                    background: `${THEME.colors.accent}20`,
-                    borderWidth: '1px',
-                    borderStyle: 'solid',
-                    borderColor: `${THEME.colors.accent}50`,
-                    color: THEME.colors.accent,
-                  }}
-                >
-                  {isExtracting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Extracting...
-                    </>
-                  ) : (
-                    <>
-                      <Brain className="h-4 w-4" />
-                      Extract Features
-                    </>
-                  )}
-                </button>
+                      <div className="p-5 rounded-xl bg-[var(--terminal-bg)]/50 border border-[var(--terminal-border)] space-y-6">
+                        <CustomSlider
+                          label="Temporal Depth (Days)"
+                          value={daysBack}
+                          onChange={setDaysBack}
+                          min={1}
+                          max={30}
+                          step={1}
+                        />
+                        
+                        <div className="pt-2">
+                          <ToggleSwitch
+                            id="update-db"
+                            checked={updateDatabase}
+                            onCheckedChange={setUpdateDatabase}
+                            label="AUTO_UPDATE_DATABASE"
+                          />
+                        </div>
+                      </div>
 
-                <button
-                  onClick={handleBulkExtract}
-                  disabled={isExtracting}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
-                  style={{
-                    background: 'transparent',
-                    borderWidth: '1px',
-                    borderStyle: 'solid',
-                    borderColor: THEME.colors.border,
-                    color: THEME.colors.textMuted,
-                  }}
-                >
-                  Bulk Extract from Categories
-                </button>
+                      <div className="flex items-center gap-4">
+                        <button
+                          onClick={handleTrackChanges}
+                          disabled={isTracking || selectedCategories.length === 0}
+                          className={cn(
+                            "flex items-center gap-2 px-6 py-2.5 rounded-lg font-mono text-[11px] font-bold uppercase transition-all shadow-lg",
+                            "bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_20px_var(--phosphor-green-glow)] active:scale-95 disabled:opacity-40"
+                          )}
+                        >
+                          {isTracking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                          INITIALIZE_SCAN
+                        </button>
+                        
+                        <button
+                          onClick={fetchStats}
+                          className="px-6 py-2.5 rounded-lg font-mono text-[11px] font-bold uppercase border border-[var(--terminal-border)] text-[var(--terminal-text-muted)] hover:bg-[var(--terminal-elevated)] transition-all"
+                        >
+                          REFRESH_METRICS
+                        </button>
+                      </div>
+                    </div>
 
-                <button
-                  onClick={handleExtractLocalPdfs}
-                  disabled={isExtracting}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
-                  style={{
-                    background: THEME.colors.borderSubtle,
-                    borderWidth: '1px',
-                    borderStyle: 'solid',
-                    borderColor: THEME.colors.border,
-                    color: THEME.colors.textMuted,
-                  }}
-                >
-                  Extract from Local PDFs
-                </button>
-              </div>
-
-              {(isExtracting || message) && (
-                <div className="space-y-3">
-                  <ProgressBar value={progress} />
-                  <p className="text-sm font-mono text-gray-400">{message}</p>
-                </div>
-              )}
-
-              {extractionResult && (
-                <div className="space-y-4">
-                  <div
-                    className="flex items-start gap-3 p-4 rounded-lg"
-                    style={{
-                      background: `${THEME.colors.primary}10`,
-                      border: `1px solid ${THEME.colors.primary}30`,
-                    }}
-                  >
-                    <CheckCircle className="h-5 w-5 mt-0.5" style={{ color: THEME.colors.primary }} />
-                    <p className="text-sm font-mono" style={{ color: THEME.colors.primary }}>
-                      {extractionResult.message}
-                    </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    {extractionResult.results.map((result, index) => (
-                      <div
-                        key={index}
-                        className="p-4 rounded-lg"
-                        style={{ background: THEME.colors.borderSubtle, border: `1px solid ${THEME.colors.borderMuted}` }}
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1 min-w-0 mr-3">
-                            <h4 className="text-sm font-mono font-medium text-white truncate">
-                              {result.title}
-                            </h4>
-                            <p className="text-xs font-mono text-gray-500">{result.paper_id}</p>
-                          </div>
-                          <span
-                            className="text-xs font-mono px-2 py-1 rounded"
-                            style={{
-                              background: result.extraction_status === 'completed' ? `${THEME.colors.primary}20` : `${THEME.colors.error}20`,
-                              color: result.extraction_status === 'completed' ? THEME.colors.primary : THEME.colors.error,
-                            }}
-                          >
-                            {result.extraction_status}
+                    {/* Right Column: Status & Output */}
+                    <div className="space-y-6">
+                      <div className="p-5 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] min-h-[300px] flex flex-col relative overflow-hidden">
+                        {/* Status Overlay */}
+                        <div className="flex items-center justify-between mb-4 border-b border-[var(--terminal-border)] pb-3">
+                          <span className="text-[9px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-widest">System_Console_Output</span>
+                          <span className="flex items-center gap-1.5 text-[9px] font-mono text-[var(--phosphor-green)]">
+                            <div className="w-1 h-1 rounded-full bg-[var(--phosphor-green)] animate-pulse" />
+                            LIVE
                           </span>
                         </div>
 
-                        {result.error && (
-                          <p className="text-xs font-mono text-red-400 mt-2">Error: {result.error}</p>
+                        {/* Progress */}
+                        {(isTracking || message) && (
+                          <div className="space-y-4 mb-6">
+                            <ProgressBar value={progress} label="Scan_Synchronizing" />
+                            <p className="text-[10px] font-mono text-[var(--terminal-text-dim)] bg-[var(--terminal-elevated)] p-2.5 rounded border border-[var(--terminal-border)] italic leading-relaxed">
+                              {"> "} {message}
+                            </p>
+                          </div>
                         )}
 
-                        {result.extraction_status === 'completed' && (
-                          <div className="space-y-2 mt-3">
-                            {result.features.topics && Array.isArray(result.features.topics) && (
-                              <div>
-                                <p className="text-xs font-mono text-gray-500 mb-1">Topics:</p>
-                                <div className="flex flex-wrap gap-1">
-                                  {result.features.topics.map((topic, i) => (
-                                    <span
-                                      key={i}
-                                      className="text-xs font-mono px-2 py-0.5 rounded"
-                                      style={{ background: THEME.colors.borderMuted, color: THEME.colors.textMuted }}
-                                    >
-                                      {topic}
+                        {/* Results Panel */}
+                        {trackingResult && !isTracking && (
+                          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                            <div className="grid grid-cols-3 gap-2">
+                              {[
+                                { label: 'NEW', value: trackingResult.result.summary.new, color: 'text-[var(--phosphor-green)]' },
+                                { label: 'UPD', value: trackingResult.result.summary.updated, color: 'text-[var(--cyan)]' },
+                                { label: 'DEL', value: trackingResult.result.summary.deleted, color: 'text-[var(--amber-gold)]' },
+                              ].map((stat) => (
+                                <div key={stat.label} className="p-3 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-center">
+                                  <div className={cn("text-xl font-mono font-bold", stat.color)}>{stat.value}</div>
+                                  <div className="text-[8px] font-mono text-[var(--terminal-text-muted)] uppercase mt-1">{stat.label}</div>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {trackingResult.result.applied && (
+                              <div className="p-3 rounded-lg bg-[var(--phosphor-green)]/5 border border-[var(--phosphor-green)]/20 flex items-start gap-3">
+                                <Database className="h-4 w-4 text-[var(--phosphor-green)] shrink-0 mt-0.5" />
+                                <div className="space-y-1">
+                                  <p className="text-[10px] font-mono text-[var(--terminal-text)] font-bold uppercase">KG_LINK_ESTABLISHED</p>
+                                  <p className="text-[9px] font-mono text-[var(--terminal-text-muted)] leading-tight">
+                                    Entity extraction completed. Nodes synchronized with Neo4j graph registry.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {!isTracking && !message && !trackingResult && (
+                          <div className="flex-1 flex flex-col items-center justify-center opacity-30">
+                            <Terminal className="h-8 w-8 text-[var(--terminal-text-muted)] mb-3" />
+                            <p className="text-[9px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-[0.2em]">Awaiting Instruction</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Ingest Tab - Placeholder for visual parity */}
+              {activeTab === 'ingest' && (
+                <div className="space-y-8 max-w-4xl">
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-mono font-bold text-[var(--terminal-text)] flex items-center gap-2 uppercase tracking-tight">
+                      <Upload className="h-4 w-4 text-[var(--cyan)]" />
+                      Protocol: Targeted_Node_Ingestion
+                    </h3>
+                    <p className="text-[11px] font-mono text-[var(--terminal-text-muted)] leading-relaxed">
+                      Search and ingest specific research nodes directly into the RAG intelligence grid.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 rounded-xl bg-[var(--terminal-bg)]/50 border border-[var(--terminal-border)]">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-widest">Query Injection</label>
+                        <div className="relative group">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--terminal-text-muted)] group-hover:text-[var(--phosphor-green)] transition-colors" />
+                          <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSearchPapers()}
+                            placeholder="INJECT SEARCH QUERY..."
+                            className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] font-mono text-xs text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)] focus:outline-none focus:border-[var(--phosphor-green)]/50 transition-all"
+                          />
+                        </div>
+                      </div>
+                      <CustomSlider
+                        label="Maximum Transmission Units"
+                        value={maxResults}
+                        onChange={setMaxResults}
+                        min={1}
+                        max={100}
+                        step={1}
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-6 px-6 py-4 rounded-xl bg-[var(--terminal-bg)]/30 border border-[var(--terminal-border)] border-dashed">
+                      <ToggleSwitch
+                        checked={extractEntities}
+                        onCheckedChange={setExtractEntities}
+                        label="EXTRACT_ENTITIES"
+                      />
+                      <ToggleSwitch
+                        checked={downloadPdfs}
+                        onCheckedChange={setDownloadPdfs}
+                        label="CACHE_SOURCE_PDF"
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleSearchPapers}
+                      disabled={isSearching || !searchQuery.trim()}
+                      className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-lg font-mono text-[11px] font-bold uppercase transition-all bg-[var(--cyan)]/10 border border-[var(--cyan)]/30 text-[var(--cyan)] hover:bg-[var(--cyan)]/20 active:scale-[0.99] disabled:opacity-40"
+                    >
+                      {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                      EXECUTE_SEARCH_QUERY
+                    </button>
+
+                    {/* Progress */}
+                    {(isSearching || isIngesting || message) && (
+                      <ProgressBar value={progress} label="Transmitting_Data" />
+                    )}
+
+                    {/* Search Results Display */}
+                    {searchResults && (
+                      <div className="space-y-4 mt-4 max-h-[400px] overflow-y-auto terminal-scrollbar pr-2">
+                        {searchResults.map((paper) => (
+                          <div 
+                            key={paper.id}
+                            className="p-4 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] hover:border-[var(--phosphor-green)]/30 transition-all group cursor-pointer"
+                            onClick={() => setSelectedPaperIds(prev => 
+                              prev.includes(paper.id) ? prev.filter(id => id !== paper.id) : [...prev, paper.id]
+                            )}
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className={cn(
+                                "mt-1 p-1.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] transition-colors",
+                                selectedPaperIds.includes(paper.id) ? "text-[var(--phosphor-green)] border-[var(--phosphor-green)]/50" : "text-[var(--terminal-text-muted)]"
+                              )}>
+                                {selectedPaperIds.includes(paper.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                              </div>
+                              <div className="flex-1 space-y-2">
+                                <h4 className="text-xs font-mono font-bold text-[var(--terminal-text)] group-hover:text-[var(--phosphor-green)] transition-colors">
+                                  {paper.title}
+                                </h4>
+                                <p className="text-[10px] font-mono text-[var(--terminal-text-muted)] line-clamp-2 leading-relaxed">
+                                  {paper.abstract}
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--cyan)]">
+                                    {paper.id}
+                                  </span>
+                                  {paper.categories.slice(0, 2).map(cat => (
+                                    <span key={cat} className="text-[9px] font-mono px-2 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--amber-gold)]">
+                                      {cat}
                                     </span>
                                   ))}
                                 </div>
                               </div>
-                            )}
-                            {result.features.keyphrases && Array.isArray(result.features.keyphrases) && (
-                              <div>
-                                <p className="text-xs font-mono text-gray-500 mb-1">Key Phrases:</p>
-                                <p className="text-xs font-mono text-gray-400 truncate">
-                                  {result.features.keyphrases.join(', ')}
-                                </p>
-                              </div>
-                            )}
-                            {result.features.summary && typeof result.features.summary === 'string' && (
-                              <div>
-                                <p className="text-xs font-mono text-gray-500 mb-1">Summary:</p>
-                                <p className="text-xs font-mono text-gray-400 line-clamp-3">
-                                  {result.features.summary}
-                                </p>
-                              </div>
-                            )}
+                            </div>
                           </div>
-                        )}
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               )}
-            </div>
-          )}
 
-          {/* Statistics Tab */}
-          {activeTab === 'stats' && (
-            <div className="space-y-10">
-              {stats && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {[
-                    { label: 'Total Papers Tracked', value: stats.statistics.total_papers_tracked, color: THEME.colors.textMuted },
-                    { label: 'Active Papers', value: stats.statistics.active_papers, color: THEME.colors.primary },
-                    { label: 'Categories Tracked', value: stats.statistics.categories_tracked, color: THEME.colors.secondary },
-                    { label: 'New This Week', value: stats.statistics.recent_changes_week?.new || 0, color: THEME.colors.accent },
-                  ].map((stat) => (
-                    <div
-                      key={stat.label}
-                      className="p-5 rounded-lg"
-                      style={{ background: THEME.colors.borderSubtle, border: `1px solid ${THEME.colors.borderMuted}` }}
-                    >
-                      <div className="text-3xl font-mono font-bold" style={{ color: stat.color }}>
-                        {stat.value}
-                      </div>
-                      <p className="text-sm font-mono text-gray-500 mt-1">{stat.label}</p>
+              {/* Stats Tab */}
+              {activeTab === 'stats' && (
+                <div className="space-y-10 max-w-5xl">
+                  {stats && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {[
+                        { label: 'System_Papers', value: stats.statistics.total_papers_tracked, color: 'text-[var(--terminal-text)]', icon: FileText },
+                        { label: 'Active_Transmissions', value: stats.statistics.active_papers, color: 'text-[var(--phosphor-green)]', icon: Activity },
+                        { label: 'Domain_Clusters', value: stats.statistics.categories_tracked, color: 'text-[var(--cyan)]', icon: Layers },
+                        { label: 'Temporal_Sync', value: stats.statistics.recent_changes_week?.new || 0, color: 'text-[var(--amber-gold)]', icon: Zap },
+                      ].map((stat) => (
+                        <div key={stat.label} className="p-5 rounded-xl bg-[var(--terminal-bg)]/50 border border-[var(--terminal-border)] relative overflow-hidden group hover:border-[var(--phosphor-green)]/30 transition-all">
+                          <stat.icon className="absolute -right-2 -top-2 h-16 w-16 text-[var(--terminal-border)] opacity-20 group-hover:opacity-30 transition-all" />
+                          <div className={cn("text-2xl font-mono font-bold mb-1", stat.color)}>{stat.value}</div>
+                          <div className="text-[9px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest">{stat.label}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="p-6 rounded-xl bg-[var(--terminal-bg)]/50 border border-[var(--terminal-border)]">
+                      <div className="flex items-center gap-2 mb-6">
+                        <Cpu className="h-4 w-4 text-[var(--phosphor-green)]" />
+                        <h3 className="text-xs font-mono font-bold text-[var(--terminal-text)] uppercase tracking-widest">Category_Distribution_Map</h3>
+                      </div>
+                      <div className="space-y-3">
+                        {stats?.statistics.top_categories?.map(([category, count]) => (
+                          <div key={category} className="space-y-1.5">
+                            <div className="flex justify-between text-[10px] font-mono uppercase">
+                              <span className="text-[var(--terminal-text-dim)]">{category}</span>
+                              <span className="text-[var(--phosphor-green)] font-bold">{count}</span>
+                            </div>
+                            <div className="h-1 w-full bg-[var(--terminal-border)] rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-[var(--phosphor-green)]/40 rounded-full"
+                                style={{ width: `${(count / stats.statistics.total_papers_tracked) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-6 rounded-xl bg-[var(--terminal-bg)]/50 border border-[var(--terminal-border)] flex flex-col items-center justify-center space-y-4">
+                      <Globe className="h-12 w-12 text-[var(--terminal-border)] animate-pulse" />
+                      <div className="text-center">
+                        <p className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-[0.3em] mb-1">Grid_Status_Active</p>
+                        <p className="text-[9px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest">Synchronization latency: optimal</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
-
-              <div
-                className="p-5 rounded-lg"
-                style={{ background: THEME.colors.borderSubtle, border: `1px solid ${THEME.colors.borderMuted}` }}
-              >
-                <h3 className="text-lg font-mono font-semibold text-white mb-4">Top Categories</h3>
-                <div className="space-y-3">
-                  {stats?.statistics.top_categories?.map(([category, count]) => (
-                    <div
-                      key={category}
-                      className="flex items-center justify-between py-2"
-                      style={{ borderBottom: `1px solid ${THEME.colors.borderMuted}` }}
-                    >
-                      <span
-                        className="text-sm font-mono px-2 py-1 rounded"
-                        style={{ background: THEME.colors.borderMuted, color: THEME.colors.textMuted }}
-                      >
-                        {category}
-                      </span>
-                      <span className="text-sm font-mono" style={{ color: THEME.colors.primary }}>
-                        {count} papers
-                      </span>
-                    </div>
-                  ))}
-                  {(!stats?.statistics.top_categories || stats.statistics.top_categories.length === 0) && (
-                    <p className="text-sm font-mono text-gray-500">No categories tracked yet</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
     </div>

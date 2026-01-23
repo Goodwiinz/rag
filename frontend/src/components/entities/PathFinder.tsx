@@ -68,20 +68,12 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
 
     try {
       setLoading(true);
-      const response = await fetch(
-        `/api/knowledge-graph/paths/${sourceId}/${targetId}?max_depth=${maxDepth}&min_strength=${minStrength}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
-        }
+      const foundPaths = await entityService.findPaths(
+        sourceId,
+        targetId,
+        maxDepth,
+        minStrength
       );
-
-      if (!response.ok) {
-        throw new Error('Failed to find paths');
-      }
-
-      const foundPaths = await response.json();
       setPaths(foundPaths);
 
       if (foundPaths.length === 0) {
