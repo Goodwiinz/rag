@@ -360,7 +360,7 @@ async def get_document(
         content_preview=document.get_content_preview(500),
         content_summary=document.content_summary,
         content_text=document.content_text if include_content else None,
-        metadata=document.metadata,
+        metadata=document.get_metadata(),
         created_at=document.created_at.isoformat(),
         updated_at=document.updated_at.isoformat(),
         uploaded_by_user_id=str(document.uploaded_by_user_id),

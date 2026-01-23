@@ -121,7 +121,7 @@ class Document(BaseModel):
     def can_be_searched(self) -> bool:
         """Check if document can be searched"""
         return (
-            self.is_processing_successful() and
+            self.is_processing_successful and
             self.is_embedded and
             self.is_indexed and
             not self.is_deleted

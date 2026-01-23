@@ -1,0 +1,40 @@
+'use client';
+
+import { SidebarLayout } from '@/components/layout/SidebarLayout';
+import { usePathname } from 'next/navigation';
+
+// Pages that should not show breadcrumb
+const NO_BREADCRUMB_PAGES = [
+  '/', 
+];
+
+// Pages that should not show the default sidebar layout header
+const NO_HEADER_PAGES = [
+  '/chat',
+  '/llm-chat',
+];
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+
+  // Check if current page should show breadcrumb
+  const shouldShowBreadcrumb = !NO_BREADCRUMB_PAGES.includes(pathname || '');
+
+  // Check if current page should show header
+  const shouldShowHeader = !NO_HEADER_PAGES.some(
+    page => pathname === page || pathname?.startsWith(page + '/')
+  );
+
+  return (
+    <SidebarLayout 
+      showBreadcrumb={shouldShowBreadcrumb}
+      showHeader={shouldShowHeader}
+    >
+      {children}
+    </SidebarLayout>
+  );
+}

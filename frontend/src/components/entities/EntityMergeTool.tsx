@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { GitMerge, Loader2, AlertTriangle, CheckCircle2, Search } from 'lucide-react';
+import { GitMerge, Loader2, AlertTriangle, CheckCircle2, Search, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Entity } from '@/types/entity';
 import { entityService } from '@/services/entityService';
+import { useEntityPermissions } from '@/hooks/useEntityPermissions';
 import toast from 'react-hot-toast';
 
 interface DuplicateGroup {
@@ -22,12 +23,38 @@ interface DuplicateGroup {
 }
 
 export const EntityMergeTool: React.FC = () => {
+  const { canBulkEdit, isAdmin } = useEntityPermissions();
   const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
   const [similarityThreshold, setSimilarityThreshold] = useState(0.85);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroups, setSelectedGroups] = useState<Set<number>>(new Set());
+
+  // Show admin-only notice if user lacks permissions
+  if (!canBulkEdit) {
+    return (
+      <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
+        <CardHeader>
+          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+            <Lock className="w-4 h-4" />
+            Entity Merge Tool
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="text-center py-12">
+            <Lock className="w-12 h-12 mx-auto mb-4 text-[var(--terminal-text-dim)]" />
+            <p className="text-sm font-mono text-[var(--terminal-text-dim)]">
+              Entity merging is restricted to administrators only.
+            </p>
+            <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-2">
+              Contact your system administrator for access.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const findDuplicates = async () => {
     try {

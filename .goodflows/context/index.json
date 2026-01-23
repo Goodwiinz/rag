@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "created": "2026-01-11T01:57:27.598Z",
-  "updated": "2026-01-13T05:54:36.428Z",
+  "updated": "2026-01-14T22:13:57.303Z",
   "hashes": {
     "01c4064ecc9b4551": {
       "partition": "2026-01",
@@ -198,6 +198,54 @@
     "833101e69331b76f": {
       "partition": "2026-01",
       "type": "refactor_suggestion"
+    },
+    "cdea8652c85f8464": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
+    },
+    "3d067e332cc2ebe7": {
+      "partition": "2026-01",
+      "type": "review_finding"
+    },
+    "0441ebacee9b43b7": {
+      "partition": "2026-01",
+      "type": "critical_security"
+    },
+    "d2f564db8bf18116": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "9693040eaf5f5504": {
+      "partition": "2026-01",
+      "type": "critical_security"
+    },
+    "0a12ed3f73a8aa7c": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "54451866d7ddf0b8": {
+      "partition": "2026-01",
+      "type": "performance"
+    },
+    "0cf4d1be94cfb8e7": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
+    },
+    "54dfaa3c7f0df4dc": {
+      "partition": "2026-01",
+      "type": "potential_issue"
+    },
+    "2ff819ab426a4ea1": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
+    },
+    "92d9c5ea92fad972": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
+    },
+    "b5de323a205168a4": {
+      "partition": "2026-01",
+      "type": "refactor_suggestion"
     }
   },
   "byFile": {
@@ -263,7 +311,8 @@
     ],
     "backend/src/services/export_service.py": [
       "c99e3574b5034cf7",
-      "6ed6c15d5341ed7e"
+      "6ed6c15d5341ed7e",
+      "9693040eaf5f5504"
     ],
     "frontend/app/chat/layout.tsx": [
       "92d04af475784cb2",
@@ -298,6 +347,35 @@
     ],
     "backend/src/core/database.py": [
       "833101e69331b76f"
+    ],
+    "frontend/src/services/ragService.ts": [
+      "cdea8652c85f8464"
+    ],
+    "specs/003-entity-management-feature/IMPLEMENTATION_SUMMARY.md": [
+      "3d067e332cc2ebe7"
+    ],
+    "scripts/backup/disaster_recovery.py": [
+      "0441ebacee9b43b7"
+    ],
+    "backend/src/api/knowledge_graph.py": [
+      "d2f564db8bf18116"
+    ],
+    "frontend/src/components/entities/BulkOperations.tsx": [
+      "0a12ed3f73a8aa7c"
+    ],
+    "frontend/src/components/entities/EntityMergeTool.tsx": [
+      "54451866d7ddf0b8"
+    ],
+    "frontend/app/entities/page.tsx": [
+      "0cf4d1be94cfb8e7"
+    ],
+    "frontend/app/documents/components/DocumentList.tsx": [
+      "54dfaa3c7f0df4dc",
+      "2ff819ab426a4ea1"
+    ],
+    "frontend/app/documents/page.tsx": [
+      "92d9c5ea92fad972",
+      "b5de323a205168a4"
     ]
   },
   "byType": {
@@ -326,7 +404,9 @@
       "30e0e4db82927841"
     ],
     "critical_security": [
-      "56d0beb9d786ebef"
+      "56d0beb9d786ebef",
+      "0441ebacee9b43b7",
+      "9693040eaf5f5504"
     ],
     "potential_issue": [
       "95b1437f9b96614c",
@@ -352,7 +432,10 @@
       "b7c143d6ec5e159f",
       "935e987153165195",
       "009f56b4783b8467",
-      "ef804222d7ef7171"
+      "ef804222d7ef7171",
+      "d2f564db8bf18116",
+      "0a12ed3f73a8aa7c",
+      "54dfaa3c7f0df4dc"
     ],
     "refactor_suggestion": [
       "fd7e04e33457cf0d",
@@ -364,7 +447,12 @@
       "cb07cacd2e756971",
       "57a8e95ce82664bc",
       "5a76d8dc6a6e9e97",
-      "833101e69331b76f"
+      "833101e69331b76f",
+      "cdea8652c85f8464",
+      "0cf4d1be94cfb8e7",
+      "2ff819ab426a4ea1",
+      "92d9c5ea92fad972",
+      "b5de323a205168a4"
     ],
     "documentation": [
       "c99e3574b5034cf7",
@@ -376,7 +464,11 @@
     "performance": [
       "98fbd32e714d87b2",
       "1713cb423bea2cae",
-      "656f12a2d267cba4"
+      "656f12a2d267cba4",
+      "54451866d7ddf0b8"
+    ],
+    "review_finding": [
+      "3d067e332cc2ebe7"
     ]
   },
   "byIssue": {
@@ -420,8 +512,8 @@
     }
   },
   "stats": {
-    "totalFindings": 82,
-    "uniqueFindings": 49,
+    "totalFindings": 94,
+    "uniqueFindings": 61,
     "duplicatesSkipped": 33,
     "fixesApplied": 1,
     "patternsDiscovered": 1

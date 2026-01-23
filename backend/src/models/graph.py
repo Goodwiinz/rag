@@ -106,6 +106,15 @@ class EntityResponse(BaseModel):
     updated_at: Optional[datetime]
 
 
+class PaginatedEntitiesResponse(BaseModel):
+    """Paginated response for entity listings"""
+    entities: List[EntityResponse]
+    total: int
+    limit: int
+    offset: int
+    has_more: bool
+
+
 class UpdateEntityRequest(BaseModel):
     """Request model for updating entities"""
     name: Optional[str] = Field(None, description="Updated entity name")

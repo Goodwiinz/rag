@@ -9,6 +9,31 @@ import { Entity, EntityResponse, EntityType, GraphEdge } from '@/types/entity';
 import { EntityDetails, GraphNode } from '@/types/graph-api';
 import { apiClient } from './apiClient';
 
+/**
+ * Retry wrapper utility for API calls
+ * Automatically retries failed requests once with exponential backoff
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 1
+): Promise<T> {
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error as Error;
+      if (attempt < maxRetries) {
+        // Exponential backoff: wait 1s on first retry, 2s on second, etc.
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 export interface EntityUpdateRequest {
   name?: string;
   confidence_score?: number;
@@ -44,24 +69,21 @@ class EntityService {
   private baseUrl = 'knowledge-graph';
 
   /**
-   * Get all entities with pagination
+   * Get all entities with pagination (with retry)
    */
   async getEntities(
-    limit: number = 100, 
+    limit: number = 100,
     offset: number = 0,
     entityTypes?: EntityType[]
   ): Promise<PaginatedEntitiesResponse> {
-    try {
+    return withRetry(async () => {
       const params: Record<string, any> = { limit, offset };
       if (entityTypes && entityTypes.length > 0) {
         params.entity_types = entityTypes;
       }
       const response = await apiClient.get(`${this.baseUrl}/entities`, { params });
       return response as PaginatedEntitiesResponse;
-    } catch (error) {
-      console.error('Error in getEntities:', error);
-      throw error;
-    }
+    });
   }
 
   /**
@@ -102,14 +124,16 @@ class EntityService {
   }
 
   /**
-   * Create new entity
+   * Create new entity (with retry)
    */
   async createEntity(entityData: Partial<Entity>): Promise<Entity> {
-    const response = await apiClient.post<Entity>(
-      `${this.baseUrl}/entities`,
-      entityData
-    );
-    return response;
+    return withRetry(async () => {
+      const response = await apiClient.post<Entity>(
+        `${this.baseUrl}/entities`,
+        entityData
+      );
+      return response;
+    });
   }
 
   /**
@@ -168,7 +192,7 @@ class EntityService {
   }
 
   /**
-   * Create relationship between entities
+   * Create relationship between entities (with retry)
    */
   async createRelationship(relationshipData: {
     source_entity_id: string;
@@ -180,11 +204,13 @@ class EntityService {
     evidence?: string[];
     metadata?: Record<string, any>;
   }): Promise<GraphEdge> {
-    const response = await apiClient.post<GraphEdge>(
-      `${this.baseUrl}/relationships`,
-      relationshipData
-    );
-    return response;
+    return withRetry(async () => {
+      const response = await apiClient.post<GraphEdge>(
+        `${this.baseUrl}/relationships`,
+        relationshipData
+      );
+      return response;
+    });
   }
 
   /**
@@ -232,17 +258,19 @@ class EntityService {
   }
 
   /**
-   * Get all available entity types from the backend
+   * Get all available entity types from the backend (with retry)
    */
   async getEntityTypes(): Promise<string[]> {
     try {
-      const response = await apiClient.get<string[]>(
-        `${this.baseUrl}/entity-types`
-      );
-      return response;
+      return await withRetry(async () => {
+        const response = await apiClient.get<string[]>(
+          `${this.baseUrl}/entity-types`
+        );
+        return response;
+      });
     } catch (error) {
       console.error('Error fetching entity types:', error);
-      // Return fallback hardcoded types if API fails
+      // Return fallback hardcoded types if API fails after retry
       return [
         'PERSON', 'ORGANIZATION', 'LOCATION', 'CONCEPT', 'EVENT',
         'PRODUCT', 'DATE', 'TECHNOLOGY', 'DOCUMENT', 'OTHER'
@@ -332,6 +360,67 @@ class EntityService {
       console.error('Error in batch create:', error);
       throw error;
     }
+  }
+
+  /**
+   * Get related entities in neighborhood (with retry)
+   */
+  async getRelatedEntities(
+    entityId: string,
+    maxDepth: number = 2,
+    minStrength: number = 0.1,
+    limit: number = 50
+  ): Promise<Entity[]> {
+    return withRetry(async () => {
+      const response = await apiClient.get(
+        `${this.baseUrl}/entities/${entityId}/related`,
+        {
+          params: {
+            max_depth: maxDepth,
+            min_strength: minStrength,
+            limit
+          }
+        }
+      );
+      return response as Entity[];
+    });
+  }
+
+  /**
+   * Find paths between two entities (with retry)
+   */
+  async findPaths(
+    sourceId: string,
+    targetId: string,
+    maxDepth: number = 3,
+    minStrength: number = 0.1
+  ): Promise<any[]> {
+    return withRetry(async () => {
+      const response = await apiClient.get(
+        `${this.baseUrl}/paths/${sourceId}/${targetId}`,
+        {
+          params: { max_depth: maxDepth, min_strength: minStrength }
+        }
+      );
+      return response as any[];
+    });
+  }
+
+  /**
+   * Get graph analytics including entity type distribution (with retry)
+   */
+  async getAnalytics(): Promise<{
+    total_entities: number;
+    total_relationships: number;
+    entity_type_counts: Record<string, number>;
+    relationship_type_counts: Record<string, number>;
+    orphan_entities: number;
+    average_connections: number;
+  }> {
+    return withRetry(async () => {
+      const response = await apiClient.get(`${this.baseUrl}/analytics`);
+      return response as any;
+    });
   }
 }
 
