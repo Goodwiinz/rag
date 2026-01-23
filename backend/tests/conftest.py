@@ -40,15 +40,32 @@ os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
 
 def pytest_configure(config):
     """Configure custom pytest markers."""
+    # Test type markers
     config.addinivalue_line("markers", "unit: Unit tests (fast, no external deps)")
     config.addinivalue_line("markers", "integration: Integration tests (may use containers)")
     config.addinivalue_line("markers", "e2e: End-to-end tests")
     config.addinivalue_line("markers", "performance: Performance tests")
+
+    # Feature/domain markers
     config.addinivalue_line("markers", "ai: AI-specific tests (mocked or real)")
     config.addinivalue_line("markers", "slow: Tests that take longer to run")
     config.addinivalue_line("markers", "auth: Authentication tests")
     config.addinivalue_line("markers", "search: Search functionality tests")
     config.addinivalue_line("markers", "documents: Document processing tests")
+
+    # External dependency markers (for testcontainers)
+    config.addinivalue_line(
+        "markers",
+        "requires_postgres: Tests requiring real PostgreSQL (via testcontainers)"
+    )
+    config.addinivalue_line(
+        "markers",
+        "requires_redis: Tests requiring real Redis (via testcontainers)"
+    )
+    config.addinivalue_line(
+        "markers",
+        "requires_neo4j: Tests requiring real Neo4j (via testcontainers)"
+    )
 
 
 def pytest_collection_modifyitems(config, items):
