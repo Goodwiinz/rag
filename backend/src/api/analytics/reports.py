@@ -9,10 +9,10 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from fastapi.responses import FileResponse
 
-from ...services.analytics.report_service import report_service
-from ...models.analytics.analytics_models import AnalyticsReport
-from ...auth.dependencies import get_current_user
-from ...models.user import User
+from src.services.analytics.report_service import report_service
+from src.models.analytics.analytics_models import AnalyticsReport
+from src.auth.dependencies import get_current_user
+from src.models.user import User
 
 logger = logging.getLogger(__name__)
 

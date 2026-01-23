@@ -9,13 +9,13 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
-from ...services.analytics.realtime_service import realtime_service
-from ...models.analytics.realtime_models import (
+from src.services.analytics.realtime_service import realtime_service
+from src.models.analytics.realtime_models import (
     SubscriptionCreate, SubscriptionResponse, LiveMetricData, EventStreamData,
     ConnectionStats, RealtimeAnalyticsSummary, ChannelMetrics
 )
-from ...auth.dependencies import get_current_user
-from ...models.user import User
+from src.auth.dependencies import get_current_user
+from src.models.user import User
 
 logger = logging.getLogger(__name__)
 

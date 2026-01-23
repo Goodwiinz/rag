@@ -18,7 +18,7 @@ import psutil
 
 from ..monitoring.opentelemetry import otel_manager, trace_context, trace_span
 from ..monitoring.metrics import business_metrics
-from ..models.websocket_status import WebSocketConnection, StatusUpdate, ConnectionEvent
+from src.models.websocket_status import WebSocketConnection, StatusUpdate, ConnectionEvent
 
 logger = logging.getLogger(__name__)
 

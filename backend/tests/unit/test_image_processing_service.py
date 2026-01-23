@@ -9,7 +9,7 @@ import os
 from PIL import Image
 import io
 
-from src.services.image_processing_service import ImageProcessingService
+from src.services.processing import ImageProcessingService
 from src.models.document import Document
 
 

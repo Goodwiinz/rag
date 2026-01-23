@@ -2,19 +2,19 @@
 
 import { ExportDialog } from '@/components/export';
 import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { DeleteConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -24,39 +24,39 @@ import { useChatStore } from '@/store/chat-store';
 import { extractCitationIndices } from '@/utils/citationParser';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Activity,
-  Archive,
-  BookOpen,
-  Check,
-  CheckCircle,
-  CheckSquare,
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Cpu,
-  Download,
-  FileText,
-  FolderOpen,
-  Loader2,
-  Menu,
-  MessageSquare,
-  MoreVertical,
-  Pin,
-  Plus,
-  Search,
-  Settings,
-  Share2,
-  Sparkles,
-  Sun,
-  Trash2,
-  Users,
-  X
+    Activity,
+    Archive,
+    BookOpen,
+    Check,
+    CheckCircle,
+    CheckSquare,
+    ChevronDown,
+    ChevronRight,
+    Clock,
+    Cpu,
+    Download,
+    FileText,
+    FolderOpen,
+    Loader2,
+    Menu,
+    MessageSquare,
+    MoreVertical,
+    Pin,
+    Plus,
+    Search,
+    Settings,
+    Share2,
+    Sparkles,
+    Sun,
+    Trash2,
+    Users,
+    X
 } from 'lucide-react';
 import Link from 'next/link';
-import { 
-  usePathname, 
-  useRouter, 
-  useSearchParams 
+import {
+    usePathname,
+    useRouter,
+    useSearchParams
 } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -551,11 +551,18 @@ function ConversationSidebar({
           onClick={async () => {
             setIsCreatingChat(true);
             try {
+              console.log('[Sidebar] Creating new chat, current state:', {
+                isInitialized,
+                currentThreadId,
+                currentConversationId,
+                conversationCount: uiConversations.length,
+              });
               const threadId = await createNewChat();
               if (threadId) {
+                console.log('[Sidebar] New chat created successfully, navigating to:', threadId);
                 router.push(`/chat?thread=${threadId}`);
               } else {
-                console.error('[Sidebar] Failed to create new chat - no threadId returned');
+                console.error('[Sidebar] Failed to create new chat - no threadId returned. Check console for [useChatPersistence] logs.');
               }
             } catch (error) {
               console.error('[Sidebar] Error creating new chat:', error);

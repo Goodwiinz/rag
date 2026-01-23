@@ -16,6 +16,8 @@
  */
 
 import { apiClient } from './apiClient';
+import { citationService } from './citationService';
+import type { CitationCreate } from '@/types/research';
 
 // ============================================
 // MODEL SIZE DETECTION
@@ -505,6 +507,82 @@ class RAGService {
     this.cachedKey = '';
     this.cachedResult = null;
     this.lastRetrievalTime = 0;
+  }
+
+  /**
+   * Parse [Doc N] citations from AI response
+   * Returns array of unique citation indices (1-based)
+   */
+  parseCitationIndices(responseText: string): number[] {
+    const pattern = /\[Doc\s+(\d+)\]/g;
+    const matches = [...responseText.matchAll(pattern)];
+    const indices = matches.map(m => parseInt(m[1], 10));
+    return Array.from(new Set(indices)).sort((a, b) => a - b);
+  }
+
+  /**
+   * Persist citations from AI response to backend
+   * 
+   * @param messageId - Chat message ID containing the AI response
+   * @param responseText - AI response text with [Doc N] citations
+   * @param retrievedDocuments - Documents that were used for RAG context
+   * @returns Array of created citation IDs
+   */
+  async persistCitations(
+    messageId: string,
+    responseText: string,
+    retrievedDocuments: RAGContextItem[]
+  ): Promise<string[]> {
+    try {
+      const citationIndices = this.parseCitationIndices(responseText);
+      
+      if (citationIndices.length === 0) {
+        console.log('[RAG] No citations found in response');
+        return [];
+      }
+
+      console.log(`[RAG] Found ${citationIndices.length} unique citations:`, citationIndices);
+
+      const createdIds: string[] = [];
+
+      for (const citationIndex of citationIndices) {
+        // [Doc 1] corresponds to retrievedDocuments[0]
+        const docIndex = citationIndex - 1;
+
+        if (docIndex < 0 || docIndex >= retrievedDocuments.length) {
+          console.warn(`[RAG] Citation index ${citationIndex} out of range (${retrievedDocuments.length} docs)`);
+          continue;
+        }
+
+        const doc = retrievedDocuments[docIndex];
+
+        const citationData: CitationCreate = {
+          messageId,
+          documentId: doc.documentId,
+          documentTitle: doc.title,
+          documentType: doc.documentType || 'document',
+          snippet: doc.content.slice(0, 500), // First 500 chars as snippet
+          score: doc.score,
+          metadataSource: 'rag',
+          needsReview: false,
+        };
+
+        try {
+          const created = await citationService.createCitation(citationData);
+          createdIds.push(created.id);
+          console.log(`[RAG] Created citation ${citationIndex} -> ${created.id}`);
+        } catch (error) {
+          console.error(`[RAG] Failed to create citation ${citationIndex}:`, error);
+        }
+      }
+
+      console.log(`[RAG] Persisted ${createdIds.length}/${citationIndices.length} citations`);
+      return createdIds;
+
+    } catch (error) {
+      console.error('[RAG] Failed to persist citations:', error);
+      return [];
+    }
   }
 }
 

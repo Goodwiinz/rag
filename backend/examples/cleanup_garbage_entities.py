@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import argparse
 import re
 from typing import List, Dict, Any
-from src.services.knowledge_graph_service import knowledge_graph_service
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
 import logging
 
 logging.basicConfig(

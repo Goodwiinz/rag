@@ -33,8 +33,8 @@ from src.models.organization import Organization
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.entity import Entity, EntityType, ExtractionMethod
 from src.models.processing import ProcessingJob, JobType, JobStatus
-from src.services.vector_service import VectorService
-from src.services.knowledge_graph_service import KnowledgeGraphService
+from src.services.search import VectorService
+from src.services.knowledge_graph import KnowledgeGraphService
 from src.core.config import settings
 
 

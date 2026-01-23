@@ -18,7 +18,7 @@ from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.processing import ProcessingJob, JobType, JobStatus
 from src.models.user import User, UserRole
 from src.models.organization import Organization
-from src.services.file_service import FileService
+from src.services.documents import FileService
 from src.services.processing_pipeline import ProcessingPipeline
 from src.core.database import get_db
 

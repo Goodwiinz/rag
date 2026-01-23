@@ -7,13 +7,6 @@ This module provides a modular, testable search architecture that supports:
 - Cohere/custom reranking
 - Search metrics and analytics
 - Caching
-
-Components:
-- SearchOrchestrator: Coordinates multi-source search execution
-- ResultFusion: Fuses results from multiple sources
-- SearchReranker: Reranks results using Cohere or custom scoring
-- SearchMetrics: Tracks search performance and analytics
-- SearchCache: Caches search results for improved performance
 """
 
 from .base import (
@@ -34,7 +27,7 @@ __all__ = [
     "SearchResult",
     "SearchExecutor",
     "SearchSource",
-    # Services
+    # Orchestrator services
     "SearchOrchestrator",
     "ResultFusion",
     "SearchReranker",

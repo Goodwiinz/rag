@@ -11,7 +11,7 @@ from sqlalchemy import Column, String, Integer, DateTime, Boolean, Text, JSON, I
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
-from ...models.base import BaseModel
+from src.models.base import BaseModel
 
 
 class LogLevel(str, Enum):

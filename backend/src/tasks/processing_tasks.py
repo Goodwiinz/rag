@@ -30,8 +30,8 @@ from src.core.database import get_db
 from src.models.document import Document, ProcessingStatus
 from src.models.processing import ProcessingJob, JobStatus
 from src.models.entity import Entity
-from src.services.processing_service import ProcessingPipeline
-from src.services.fulltext_search_service import fulltext_search_service
+from src.services.processing.processing_service import ProcessingPipeline
+from src.services.search.fulltext_search_service import fulltext_search_service
 
 logger = logging.getLogger(__name__)
 

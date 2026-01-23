@@ -17,7 +17,7 @@ import gzip
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 
-from ..models.websocket_status import Priority, MessageType
+from src.models.websocket_status import Priority, MessageType
 from .optimization import SmartCache, CacheConfig
 
 logger = logging.getLogger(__name__)

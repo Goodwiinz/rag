@@ -19,7 +19,7 @@ from src.main import app
 from src.services.websocket_manager import (
     EnhancedConnectionManager, WebSocketMessage, MessageType, Priority, ConnectionInfo
 )
-from src.services.status_update_service import (
+from src.services.infrastructure.status_update_service import (
     StatusUpdateService, Channel, UpdateFrequency, ProcessingProgress, SystemStatus
 )
 from src.services.processing_integration import (

@@ -121,7 +121,7 @@ class WebSocketAuthenticator:
                 "Authentication token has expired. Please refresh and reconnect.",
                 code=4002,
             )
-        except jwt.InvalidTokenError as e:
+        except jwt.JWTError as e:
             logger.warning(f"WebSocket authentication failed: Invalid token - {e}")
             raise WebSocketAuthError(
                 f"Invalid authentication token: {str(e)}", code=4003

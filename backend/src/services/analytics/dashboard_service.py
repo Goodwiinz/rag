@@ -10,14 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, and_, or_, func, desc
 from sqlalchemy.orm import selectinload
 
-from ...core.database import get_async_session
-from ...models.analytics.dashboard_models import (
+from src.core.database import get_async_session
+from src.models.analytics.dashboard_models import (
     Dashboard, DashboardWidget, DashboardLayout, DashboardPermission,
     DashboardCreate, DashboardUpdate, DashboardResponse, DashboardWithWidgets,
     WidgetCreate, WidgetUpdate, WidgetResponse, WidgetConfiguration,
     DashboardWidgetType, DashboardTheme
 )
-from ...models.base import GUID
+from src.models.base import GUID
 
 logger = logging.getLogger(__name__)
 

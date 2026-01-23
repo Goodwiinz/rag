@@ -93,7 +93,7 @@ class GraphAnalyticsResult(SQLBaseModel):
 
     # Results data
     results = Column(JSON, nullable=False)  # Algorithm-specific results
-    metadata = Column(JSON, nullable=True)  # Additional metadata
+    result_metadata = Column(JSON, nullable=True)  # Renamed from 'metadata' to avoid SQLAlchemy conflict
 
     # Relationships
     node_metrics = relationship("NodeMetrics", back_populates="analytics_result", cascade="all, delete-orphan")
@@ -350,7 +350,7 @@ class GraphAnalysisRequest(BaseModel):
 
 class PathAnalysisRequest(BaseModel):
     """Path analysis request"""
-    analysis_type: str = Field(..., regex="^(shortest|all|k_shortest)$")
+    analysis_type: str = Field(..., pattern="^(shortest|all|k_shortest)$")
     source_node_id: str
     target_node_id: str
     max_depth: Optional[int] = Field(None, ge=1, le=10)

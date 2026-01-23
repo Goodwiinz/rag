@@ -9,11 +9,8 @@ from unittest.mock import Mock, patch
 from sqlalchemy.orm import Session
 import json
 
-from src.services.file_service import FileService
-from src.services.entity_extraction_service import EntityExtractionService
-from src.services.image_processing_service import ImageProcessingService
-from src.services.audio_processing_service import AudioProcessingService
-from src.services.video_processing_service import VideoProcessingService
+from src.services.documents import FileService
+from src.services.processing import EntityExtractionService, ImageProcessingService, AudioProcessingService, VideoProcessingService
 from src.services.processing_pipeline import ProcessingPipeline
 from src.models.document import Document, DocumentType
 from src.models.entity import EntityType

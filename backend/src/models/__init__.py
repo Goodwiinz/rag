@@ -21,6 +21,12 @@ from .collection import Collection, CollectionDocument
 from .citation import Citation
 from .message_attachment import MessageAttachment
 
+# Research Assistant models
+from .citation_relationship import CitationRelationship
+from .project_note import ProjectNote
+from .generated_draft import GeneratedDraft
+from .draft_citation import DraftCitation
+
 # Permission and role models
 from .permission import Permission, Role, UserRoleAssignment, PermissionCategory, PermissionScope
 
@@ -100,6 +106,12 @@ __all__ = [
     "CollectionDocument",
     "Citation",
     "MessageAttachment",
+
+    # Research Assistant models
+    "CitationRelationship",
+    "ProjectNote",
+    "GeneratedDraft",
+    "DraftCitation",
 
     # Permission and role models
     "Permission",

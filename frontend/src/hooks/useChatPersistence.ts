@@ -5,16 +5,15 @@
  * Provides a simplified interface for chat persistence operations.
  */
 
-import { useEffect, useCallback, useMemo, useRef } from 'react';
-import { useChatStore, selectCurrentMessages, selectCurrentThread } from '@/store/chat-store';
-import { workspaceService } from '@/services/workspaceService';
+import { useChatStore } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
 import {
-  Thread,
-  ChatMessage,
-  MessageRole,
-  ThreadStatus,
+    ChatMessage,
+    MessageRole,
+    Thread,
+    ThreadStatus,
 } from '@/types/workspace';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 // UI Message type for compatibility with existing components
 export interface UIMessage {
@@ -360,6 +359,12 @@ export function useChatPersistence(): UseChatPersistenceReturn {
 
   // Create new chat (thread)
   const createNewChat = useCallback(async (): Promise<string | null> => {
+    console.log('[useChatPersistence] createNewChat called', {
+      currentConversationId,
+      currentWorkspaceId,
+      isInitialized: !!currentWorkspaceId,
+    });
+
     let conversationId = currentConversationId;
 
     // If no conversation exists, create one first
@@ -367,7 +372,7 @@ export function useChatPersistence(): UseChatPersistenceReturn {
       console.log('[useChatPersistence] No conversation, creating one first...');
 
       if (!currentWorkspaceId) {
-        console.error('[useChatPersistence] No workspace available');
+        console.error('[useChatPersistence] No workspace available - make sure to call initialize() first');
         return null;
       }
 
@@ -379,22 +384,26 @@ export function useChatPersistence(): UseChatPersistenceReturn {
       if (newConv) {
         conversationId = newConv.id;
         setCurrentConversation(newConv.id);
+        console.log('[useChatPersistence] Created conversation:', newConv.id);
       } else {
-        console.error('[useChatPersistence] Failed to create conversation');
+        console.error('[useChatPersistence] Failed to create conversation - API may have returned null');
         return null;
       }
     }
 
     try {
+      console.log('[useChatPersistence] Creating thread for conversation:', conversationId);
       const thread = await createThread({
         conversation_id: conversationId,
         title: 'New Chat',
       });
 
       if (thread) {
+        console.log('[useChatPersistence] Thread created successfully:', thread.id);
         setCurrentThread(thread.id);
         return thread.id;
       }
+      console.error('[useChatPersistence] createThread returned null/undefined - check network tab for API errors');
       return null;
     } catch (error) {
       console.error('[useChatPersistence] Failed to create new chat:', error);

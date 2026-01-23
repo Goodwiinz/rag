@@ -1,0 +1,825 @@
+openapi: 3.1.0
+info:
+  title: Citations API
+  description: |
+    API for citation extraction, management, graph visualization, and bibliography export.
+    Part of the Research Assistant feature (Phase 2).
+  version: 1.0.0
+  contact:
+    name: RAG System Team
+
+servers:
+  - url: /api/v1
+    description: API v1
+
+tags:
+  - name: Citations
+    description: Citation CRUD and metadata operations
+  - name: Extraction
+    description: Citation extraction from documents
+  - name: Graph
+    description: Citation network visualization
+  - name: Export
+    description: Bibliography export in various formats
+
+paths:
+  /citations:
+    get:
+      summary: List citations
+      description: Retrieve paginated list of citations with optional filtering
+      operationId: listCitations
+      tags: [Citations]
+      parameters:
+        - name: document_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by source document
+        - name: project_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by research project
+        - name: needs_review
+          in: query
+          schema:
+            type: boolean
+          description: Filter citations needing manual review
+        - name: metadata_source
+          in: query
+          schema:
+            type: string
+            enum: [arxiv, crossref, semantic_scholar, pdf, manual]
+          description: Filter by extraction source
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Paginated list of citations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CitationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create citation manually
+      description: Create a citation record with manual entry
+      operationId: createCitation
+      tags: [Citations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CitationCreateRequest'
+      responses:
+        '201':
+          description: Citation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Citation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /citations/{citation_id}:
+    get:
+      summary: Get citation details
+      operationId: getCitation
+      tags: [Citations]
+      parameters:
+        - $ref: '#/components/parameters/CitationIdParam'
+      responses:
+        '200':
+          description: Citation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Citation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update citation
+      description: Update citation metadata (e.g., correct extracted data)
+      operationId: updateCitation
+      tags: [Citations]
+      parameters:
+        - $ref: '#/components/parameters/CitationIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CitationUpdateRequest'
+      responses:
+        '200':
+          description: Citation updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Citation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete citation
+      operationId: deleteCitation
+      tags: [Citations]
+      parameters:
+        - $ref: '#/components/parameters/CitationIdParam'
+      responses:
+        '204':
+          description: Citation deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /citations/extract:
+    post:
+      summary: Extract citations from document
+      description: |
+        Extract citation metadata from a document using hybrid strategy:
+        1. ArXiv API (for ArXiv papers)
+        2. Semantic Scholar / CrossRef lookup
+        3. PDF text parsing
+        4. Manual entry fallback
+
+        Returns extracted citations with confidence scores.
+      operationId: extractCitations
+      tags: [Extraction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CitationExtractRequest'
+      responses:
+        '200':
+          description: Extraction results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CitationExtractResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          description: Document cannot be processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /citations/lookup:
+    post:
+      summary: Lookup citation by identifier
+      description: Fetch citation metadata from external APIs by ArXiv ID or DOI
+      operationId: lookupCitation
+      tags: [Extraction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CitationLookupRequest'
+      responses:
+        '200':
+          description: Citation metadata found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Citation'
+        '404':
+          description: Citation not found in external APIs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /citations/graph:
+    get:
+      summary: Get citation graph
+      description: |
+        Retrieve citation network as nodes and edges for visualization.
+        Supports filtering by project, document, or time range.
+        Returns positions computed by backend for optimal layout.
+      operationId: getCitationGraph
+      tags: [Graph]
+      parameters:
+        - name: project_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Scope graph to project documents
+        - name: document_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Center graph on specific document
+        - name: depth
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 3
+            default: 2
+          description: How many citation hops to include
+        - name: include_external
+          in: query
+          schema:
+            type: boolean
+            default: true
+          description: Include papers not uploaded by user
+        - name: min_year
+          in: query
+          schema:
+            type: integer
+          description: Filter citations by minimum publication year
+        - name: max_year
+          in: query
+          schema:
+            type: integer
+          description: Filter citations by maximum publication year
+      responses:
+        '200':
+          description: Citation graph data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CitationGraph'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /citations/graph/node/{node_id}:
+    get:
+      summary: Get graph node details
+      description: Get full details for a citation node in the graph
+      operationId: getGraphNode
+      tags: [Graph]
+      parameters:
+        - name: node_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Node details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CitationGraphNode'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /citations/export:
+    post:
+      summary: Export bibliography
+      description: |
+        Export citations as bibliography in specified format.
+        Supports BibTeX, IEEE, APA, and MLA formats.
+      operationId: exportBibliography
+      tags: [Export]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BibliographyExportRequest'
+      responses:
+        '200':
+          description: Bibliography file
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Formatted bibliography text
+            application/x-bibtex:
+              schema:
+                type: string
+                description: BibTeX file content
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              description: Suggested filename
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /citations/relationships:
+    get:
+      summary: List citation relationships
+      description: Get relationships between citations (cites, extends, contradicts, supports)
+      operationId: listCitationRelationships
+      tags: [Citations]
+      parameters:
+        - name: source_citation_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: target_citation_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: relationship_type
+          in: query
+          schema:
+            type: string
+            enum: [cites, extends, contradicts, supports]
+      responses:
+        '200':
+          description: List of relationships
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CitationRelationship'
+
+    post:
+      summary: Create citation relationship
+      description: Link two citations with a relationship type
+      operationId: createCitationRelationship
+      tags: [Citations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CitationRelationshipCreate'
+      responses:
+        '201':
+          description: Relationship created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CitationRelationship'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+components:
+  parameters:
+    CitationIdParam:
+      name: citation_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Citation unique identifier
+
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Items per page
+
+  schemas:
+    Citation:
+      type: object
+      required:
+        - id
+        - document_title
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        message_id:
+          type: string
+          format: uuid
+          nullable: true
+        document_id:
+          type: string
+          format: uuid
+          nullable: true
+        external_reference_id:
+          type: string
+          nullable: true
+          description: ArXiv ID or DOI
+        document_title:
+          type: string
+          maxLength: 500
+        document_type:
+          type: string
+          enum: [paper, preprint, article, book, thesis]
+          default: paper
+        authors:
+          type: array
+          items:
+            type: string
+          nullable: true
+        year:
+          type: integer
+          minimum: 1900
+          nullable: true
+        venue:
+          type: string
+          maxLength: 255
+          nullable: true
+        doi:
+          type: string
+          maxLength: 100
+          nullable: true
+        arxiv_id:
+          type: string
+          maxLength: 50
+          nullable: true
+          pattern: '^(\d{4}\.\d{4,5}|[a-z-]+/\d{7})$'
+        abstract:
+          type: string
+          nullable: true
+        snippet:
+          type: string
+          nullable: true
+        page_number:
+          type: integer
+          nullable: true
+        score:
+          type: number
+          format: float
+          default: 0.0
+        metadata_source:
+          type: string
+          enum: [arxiv, crossref, semantic_scholar, pdf, manual]
+          default: manual
+        needs_review:
+          type: boolean
+          default: false
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CitationCreateRequest:
+      type: object
+      required:
+        - document_title
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        document_title:
+          type: string
+          maxLength: 500
+        document_type:
+          type: string
+          enum: [paper, preprint, article, book, thesis]
+        authors:
+          type: array
+          items:
+            type: string
+        year:
+          type: integer
+          minimum: 1900
+        venue:
+          type: string
+        doi:
+          type: string
+        arxiv_id:
+          type: string
+        abstract:
+          type: string
+
+    CitationUpdateRequest:
+      type: object
+      properties:
+        document_title:
+          type: string
+          maxLength: 500
+        authors:
+          type: array
+          items:
+            type: string
+        year:
+          type: integer
+          minimum: 1900
+        venue:
+          type: string
+        doi:
+          type: string
+        arxiv_id:
+          type: string
+        abstract:
+          type: string
+        needs_review:
+          type: boolean
+
+    CitationListResponse:
+      type: object
+      required:
+        - items
+        - total
+        - page
+        - limit
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Citation'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        has_more:
+          type: boolean
+
+    CitationExtractRequest:
+      type: object
+      required:
+        - document_id
+      properties:
+        document_id:
+          type: string
+          format: uuid
+          description: Document to extract citations from
+        strategy:
+          type: string
+          enum: [auto, arxiv, crossref, semantic_scholar, pdf]
+          default: auto
+          description: Extraction strategy (auto uses hybrid)
+        include_references:
+          type: boolean
+          default: true
+          description: Also extract papers this document cites
+
+    CitationExtractResponse:
+      type: object
+      required:
+        - citations
+        - extraction_time_ms
+        - strategy_used
+      properties:
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Citation'
+        extraction_time_ms:
+          type: integer
+          description: Time taken to extract
+        strategy_used:
+          type: string
+          enum: [arxiv, crossref, semantic_scholar, pdf, manual]
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        warnings:
+          type: array
+          items:
+            type: string
+          description: Issues encountered during extraction
+
+    CitationLookupRequest:
+      type: object
+      properties:
+        arxiv_id:
+          type: string
+          description: ArXiv identifier (e.g., 2301.00001)
+        doi:
+          type: string
+          description: Digital Object Identifier
+        title:
+          type: string
+          description: Paper title for fuzzy matching
+      minProperties: 1
+
+    CitationRelationship:
+      type: object
+      required:
+        - id
+        - source_citation_id
+        - target_citation_id
+        - relationship_type
+      properties:
+        id:
+          type: string
+          format: uuid
+        source_citation_id:
+          type: string
+          format: uuid
+        target_citation_id:
+          type: string
+          format: uuid
+        relationship_type:
+          type: string
+          enum: [cites, extends, contradicts, supports]
+        citation_context:
+          type: string
+          nullable: true
+        confidence:
+          type: number
+          format: float
+          default: 1.0
+        created_at:
+          type: string
+          format: date-time
+
+    CitationRelationshipCreate:
+      type: object
+      required:
+        - source_citation_id
+        - target_citation_id
+        - relationship_type
+      properties:
+        source_citation_id:
+          type: string
+          format: uuid
+        target_citation_id:
+          type: string
+          format: uuid
+        relationship_type:
+          type: string
+          enum: [cites, extends, contradicts, supports]
+        citation_context:
+          type: string
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+
+    CitationGraph:
+      type: object
+      required:
+        - nodes
+        - edges
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/CitationGraphNode'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/CitationGraphEdge'
+        stats:
+          type: object
+          properties:
+            total_nodes:
+              type: integer
+            total_edges:
+              type: integer
+            uploaded_papers:
+              type: integer
+            external_papers:
+              type: integer
+
+    CitationGraphNode:
+      type: object
+      required:
+        - id
+        - label
+        - type
+      properties:
+        id:
+          type: string
+          format: uuid
+        label:
+          type: string
+          description: Short display label (title truncated)
+        title:
+          type: string
+          description: Full paper title
+        authors:
+          type: array
+          items:
+            type: string
+        year:
+          type: integer
+        type:
+          type: string
+          enum: [uploaded, external]
+          description: Whether paper was uploaded or discovered via citations
+        citation_count:
+          type: integer
+          description: Number of papers citing this
+        position:
+          type: object
+          description: Layout position computed by backend
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+
+    CitationGraphEdge:
+      type: object
+      required:
+        - id
+        - source
+        - target
+      properties:
+        id:
+          type: string
+          format: uuid
+        source:
+          type: string
+          format: uuid
+          description: Citing paper node ID
+        target:
+          type: string
+          format: uuid
+          description: Cited paper node ID
+        relationship_type:
+          type: string
+          enum: [cites, extends, contradicts, supports]
+        weight:
+          type: number
+          format: float
+          description: Edge weight for visualization
+
+    BibliographyExportRequest:
+      type: object
+      required:
+        - format
+      properties:
+        format:
+          type: string
+          enum: [bibtex, ieee, apa, mla]
+        citation_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Specific citations to export (all if empty)
+        project_id:
+          type: string
+          format: uuid
+          description: Export all citations from project
+        document_id:
+          type: string
+          format: uuid
+          description: Export citations from specific document
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []

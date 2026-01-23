@@ -23,7 +23,8 @@ import re
 from src.core.config import settings
 from src.models.user import User
 from src.core.database import get_db
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, or_
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +227,7 @@ class TokenManager:
 
         except jwt.ExpiredSignatureError:
             return None
-        except jwt.InvalidTokenError as e:
+        except jwt.JWTError as e:
             logger.warning(f"Invalid token: {e}")
             return None
 
@@ -261,7 +262,7 @@ class TokenManager:
             )
 
             return True
-        except jwt.InvalidTokenError:
+        except jwt.JWTError:
             return False
 
     def revoke_all_user_tokens(self, user_id: str) -> None:
@@ -368,7 +369,7 @@ class AccountLockout:
 class EnhancedAuthService:
     """Enhanced authentication service with comprehensive security features"""
 
-    def __init__(self, db: Session, redis_client: redis.Redis):
+    def __init__(self, db: AsyncSession, redis_client: redis.Redis):
         self.db = db
         self.redis = redis_client
         self.token_manager = TokenManager(redis_client)
@@ -390,11 +391,13 @@ class EnhancedAuthService:
             raise ValueError(f"Account is temporarily locked. Try again in {remaining_time} seconds.")
 
         # Find user by email or username
-        user = self.db.query(User).filter(
-            (User.email == identifier) | (User.username == identifier),
+        stmt = select(User).where(
+            or_(User.email == identifier, User.username == identifier),
             User.is_active == True,
             User.is_deleted == False
-        ).first()
+        )
+        result = await self.db.execute(stmt)
+        user = result.scalars().first()
 
         if not user:
             # Record failed attempt
@@ -410,7 +413,7 @@ class EnhancedAuthService:
         # Check if user's password needs to be rehashed
         if self._password_needs_rehash(user.password_hash):
             user.password_hash = self._hash_password(password)
-            self.db.commit()
+            await self.db.commit()
 
         # Clear failed attempts
         self.account_lockout.clear_failed_attempts(identifier)
@@ -418,7 +421,7 @@ class EnhancedAuthService:
         # Update last login and device info
         user.last_login_at = datetime.utcnow()
         user.last_login_ip = ip_address
-        self.db.commit()
+        await self.db.commit()
 
         # Generate tokens
         access_token_info = self.token_manager.generate_token(
@@ -456,11 +459,13 @@ class EnhancedAuthService:
 
         # Get user info
         old_token_info = self.token_manager.validate_token(refresh_token, TokenType.REFRESH)
-        user = self.db.query(User).filter(
+        stmt = select(User).where(
             User.id == old_token_info.user_id,
             User.is_active == True,
             User.is_deleted == False
-        ).first()
+        )
+        result = await self.db.execute(stmt)
+        user = result.scalars().first()
 
         if not user:
             raise ValueError("User not found")
@@ -513,7 +518,7 @@ class EnhancedAuthService:
         )
 
         self.db.add(user)
-        self.db.commit()
+        await self.db.commit()
 
         return user.to_dict(exclude_sensitive=True)
 
@@ -540,7 +545,7 @@ class EnhancedAuthService:
         # Update password
         user.password_hash = self._hash_password(new_password)
         user.password_changed_at = datetime.utcnow()
-        self.db.commit()
+        await self.db.commit()
 
         # Revoke all existing tokens for this user
         self.token_manager.revoke_all_user_tokens(str(user.id))
@@ -589,7 +594,7 @@ class EnhancedAuthService:
             return key
 
 # Enhanced authentication dependency for FastAPI
-async def get_enhanced_auth_service(db: Session = Depends(get_db)) -> EnhancedAuthService:
+async def get_enhanced_auth_service(db: AsyncSession = Depends(get_db)) -> EnhancedAuthService:
     """Get enhanced authentication service instance"""
     redis_client = redis.from_url(settings.REDIS_URL)
     return EnhancedAuthService(db, redis_client)

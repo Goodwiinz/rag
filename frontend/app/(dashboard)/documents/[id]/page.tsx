@@ -31,9 +31,13 @@ import {
   Activity,
   Cpu,
   Terminal,
-  Code
+  Code,
+  BookOpen,
+  Loader2
 } from 'lucide-react';
 import { ProcessingStatus } from '@/components/documents/ProcessingStatus';
+import { citationService } from '@/services/citationService';
+import type { CitationResponse } from '@/types/research';
 
 export default function DocumentDetailPage() {
   const params = useParams();
@@ -44,6 +48,11 @@ export default function DocumentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'metadata' | 'preview'>('overview');
+  
+  // Citation extraction state
+  const [citations, setCitations] = useState<CitationResponse[]>([]);
+  const [extracting, setExtracting] = useState(false);
+  const [extractionError, setExtractionError] = useState<string | null>(null);
 
   const documentId = params.id as string;
 
@@ -101,6 +110,40 @@ export default function DocumentDetailPage() {
       alert('Failed to retry processing');
     }
   };
+
+  const handleExtractCitations = async () => {
+    if (!document) return;
+    
+    setExtracting(true);
+    setExtractionError(null);
+    
+    try {
+      // Extract citations using hybrid strategy
+      const result = await citationService.extractCitations(document.id, 'auto');
+      
+      // Fetch all citations for this document
+      const allCitations = await citationService.getCitationsForDocument(document.id);
+      setCitations(allCitations);
+    } catch (err) {
+      console.error('Citation extraction failed:', err);
+      if (err instanceof APIErrorClass) {
+        setExtractionError(err.error.message || 'Failed to extract citations');
+      } else {
+        setExtractionError('An unexpected error occurred during extraction');
+      }
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  // Fetch citations on load
+  useEffect(() => {
+    if (document) {
+      citationService.getCitationsForDocument(document.id)
+        .then(setCitations)
+        .catch(err => console.error('Failed to fetch citations:', err));
+    }
+  }, [document]);
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 B';
@@ -221,6 +264,142 @@ export default function DocumentDetailPage() {
                   compact={false}
                   className="bg-transparent border-none p-0"
                 />
+              </div>
+            </div>
+
+            {/* Citations Card */}
+            <div className="rounded-xl border border-[#1a1a28] bg-[#0d0d14] overflow-hidden">
+              <div className="px-6 py-4 border-b border-[#1a1a28] flex items-center justify-between">
+                <h2 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-[#00ff9f]" />
+                  Research Citations
+                </h2>
+                <button
+                  onClick={handleExtractCitations}
+                  disabled={extracting || document.processing_status !== 'completed'}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all",
+                    extracting || document.processing_status !== 'completed'
+                      ? "bg-gray-800 text-gray-500 cursor-not-allowed"
+                      : "bg-[#00ff9f]/10 border border-[#00ff9f]/30 text-[#00ff9f] hover:bg-[#00ff9f]/20 hover:shadow-[0_0_20px_rgba(0,255,159,0.2)]"
+                  )}
+                >
+                  {extracting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      EXTRACTING...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      EXTRACT CITATIONS
+                    </>
+                  )}
+                </button>
+              </div>
+              
+              <div className="p-6">
+                {/* Extraction Error */}
+                {extractionError && (
+                  <div className="mb-4 p-4 rounded-lg border border-red-500/30 bg-red-500/5 flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-mono font-bold text-red-500">Extraction Failed</p>
+                      <p className="text-xs font-mono text-red-400/80 mt-1">{extractionError}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Extraction Progress */}
+                {extracting && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full border-4 border-[#00ff9f]/30 border-t-[#00ff9f] animate-spin" />
+                      <div>
+                        <p className="text-sm font-mono font-bold text-[#00ff9f]">Analyzing Document...</p>
+                        <p className="text-xs font-mono text-gray-500 mt-0.5">
+                          Using hybrid extraction pipeline (ArXiv → Semantic Scholar → CrossRef)
+                        </p>
+                      </div>
+                    </div>
+                    <div className="h-1 bg-[#1a1a28] rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-[#00ff9f] to-cyan-500 animate-pulse w-2/3" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Citations List */}
+                {!extracting && citations.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-xs font-mono text-gray-400">
+                        Found <span className="text-[#00ff9f] font-bold">{citations.length}</span> citation{citations.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                      {citations.map((citation) => (
+                        <div
+                          key={citation.id}
+                          className="p-4 rounded-lg border border-[#1a1a28] bg-[#1a1a28]/30 hover:bg-[#1a1a28]/50 transition-all"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-mono font-bold text-white line-clamp-2 mb-2">
+                                {citation.documentTitle || 'Untitled'}
+                              </h4>
+                              <p className="text-xs font-mono text-gray-400">
+                                {citation.authors && citation.authors.length > 0
+                                  ? citation.authors.slice(0, 3).join(', ') + 
+                                    (citation.authors.length > 3 ? ', et al.' : '')
+                                  : 'Unknown authors'}
+                                {citation.year && ` (${citation.year})`}
+                              </p>
+                              {citation.venue && (
+                                <p className="text-xs font-mono text-gray-500 mt-1">
+                                  {citation.venue}
+                                </p>
+                              )}
+                            </div>
+                            
+                            {citation.needsReview && (
+                              <span className="px-2 py-1 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-[#ffb700]/10 text-[#ffb700] border border-[#ffb700]/20 flex items-center gap-1 flex-shrink-0">
+                                <AlertTriangle className="w-3 h-3" />
+                                Review
+                              </span>
+                            )}
+                          </div>
+                          
+                          {(citation.arxivId || citation.doi) && (
+                            <div className="mt-3 pt-3 border-t border-[#1a1a28] flex flex-wrap gap-2">
+                              {citation.arxivId && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#00ff9f]/5 text-[#00ff9f] border border-[#00ff9f]/20">
+                                  ArXiv: {citation.arxivId}
+                                </span>
+                              )}
+                              {citation.doi && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/5 text-cyan-500 border border-cyan-500/20">
+                                  DOI: {citation.doi}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {!extracting && citations.length === 0 && !extractionError && (
+                  <div className="text-center py-12">
+                    <BookOpen className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                    <p className="font-mono text-sm text-gray-500 mb-2">No citations extracted yet</p>
+                    <p className="font-mono text-xs text-gray-600">
+                      Click "Extract Citations" to analyze this document
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 

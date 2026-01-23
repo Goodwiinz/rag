@@ -20,7 +20,7 @@ from prometheus_client import Counter, Histogram, Gauge, Summary, CollectorRegis
 from prometheus_client.core import REGISTRY
 
 from ..config.monitoring_config import MetricsConfig
-from ..models.metrics import MetricDefinition, Metric, MetricAggregation, TimeSeriesData
+from src.monitoring.models.metrics import MetricDefinition, Metric, MetricAggregation, TimeSeriesData
 from ..utils.exceptions import MetricsError
 
 logger = logging.getLogger(__name__)

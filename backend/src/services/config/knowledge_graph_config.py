@@ -4,7 +4,10 @@ Configuration for Knowledge Graph Service
 
 import os
 from typing import Optional
-from pydantic import BaseSettings
+try:
+    from pydantic_settings import BaseSettings
+except ImportError:
+    from pydantic import BaseSettings  # Fallback for older pydantic versions
 
 
 class KnowledgeGraphConfig(BaseSettings):
@@ -56,9 +59,11 @@ class KnowledgeGraphConfig(BaseSettings):
     ENABLE_METRICS: bool = True
     METRICS_PORT: int = 9003
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": True,
+        "extra": "ignore",  # Allow extra environment variables without error
+    }
 
 
 # Global configuration instance

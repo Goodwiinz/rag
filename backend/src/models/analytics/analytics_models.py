@@ -67,6 +67,7 @@ class AnalyticsEvent(SQLBaseModel):
     """Analytics event model"""
 
     __tablename__ = "analytics_events"
+    __table_args__ = {"extend_existing": True}
 
     # Event identification
     event_type = Column(SQLEnum(EventType), nullable=False, index=True)

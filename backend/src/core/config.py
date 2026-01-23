@@ -108,16 +108,21 @@ class Settings(BaseSettings):
     @classmethod
     def validate_jwt_secret_key(cls, v, info):
         """Validate JWT_SECRET_KEY - require in production, generate for dev."""
-        weak_patterns = ["change-in-production", "your-secret", "changeme", "jwt-secret", "dev-jwt-persistent"]
+        # Allow the docker-compose default for development persistence
+        if v == "dev-jwt-persistent-secret-key-32chars!":
+            return v
+
+        weak_patterns = ["change-in-production", "your-secret", "changeme", "jwt-secret"]
         is_weak = not v or any(pattern in (v or "").lower() for pattern in weak_patterns)
-        
+
         if is_weak:
             env = os.getenv("ENVIRONMENT", "development")
             if env in ("production", "staging"):
                 raise ValueError(
                     "JWT_SECRET_KEY must be set to a strong value in production/staging"
                 )
-            return _generate_dev_secret()
+            # In development without explicit config, use docker-compose default
+            return "dev-jwt-persistent-secret-key-32chars!"
         if len(v) < 32:
             raise ValueError("JWT_SECRET_KEY must be at least 32 characters")
         return v
@@ -139,6 +144,9 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./uploads"
     MAX_FILE_SIZE_MB: int = 10
     FREE_TIER_STORAGE_GB: int = 10
+    
+    # Security directories
+    SECURITY_DIR: str = "./security"  # Directory for encryption keys and security files
 
     # Security
     BCRYPT_ROUNDS: int = 12

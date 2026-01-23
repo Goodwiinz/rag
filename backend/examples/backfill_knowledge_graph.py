@@ -17,8 +17,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from sqlalchemy import and_
 from src.core.database import SessionLocal
 from src.models.document import Document, ProcessingStatus
-from src.services.knowledge_graph_service import knowledge_graph_service
-from src.services.entity_extraction_service import EntityExtractionService
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+from src.services.processing import EntityExtractionService
 from src.models.graph import CreateEntityRequest, EntityType as GraphEntityType, ExtractionMethod
 
 

@@ -103,6 +103,28 @@ docker exec docker-compose-neo4j-1 cypher-shell -u ${NEO4J_USER:-neo4j} -p ${NEO
   "MATCH (n) RETURN labels(n) as labels, count(n) as count ORDER BY count DESC LIMIT 10"
 ```
 
+## SQLAlchemy Async Greenlet Fix (2026-01-21)
+
+**Issue**: `greenlet_spawn has not been called; can't call await_only() here` error when accessing API endpoints that use `get_current_organization` dependency.
+
+**Root Cause**: The `get_current_organization` function is synchronous but accesses `current_user.organization`, a lazy-loaded relationship on a User object obtained via an async session. SQLAlchemy cannot perform lazy loading outside the async context.
+
+**Fix Applied**:
+Modified `backend/src/core/dependencies.py` to eagerly load the `organization` relationship in `get_current_user`:
+
+```python
+from sqlalchemy.orm import selectinload
+
+async def get_current_user(...) -> User:
+    stmt = select(User).options(
+        selectinload(User.organization)
+    ).where(...)
+```
+
+**Files Modified**: `backend/src/core/dependencies.py`
+
+**Note**: Similar fixes may be needed if other relationships are accessed in synchronous context from async-fetched objects. Always use `selectinload()` or `joinedload()` for relationships that will be accessed outside the async session context.
+
 ## JWT Token Persistence Fix (2026-01-10)
 
 **Issue**: Refresh tokens became invalid after backend restarts

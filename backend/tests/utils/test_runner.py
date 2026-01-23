@@ -137,7 +137,7 @@ class AutomatedTestRunner:
             self.db_session.flush()
 
             # Import here to avoid circular imports
-            from src.services.file_service import FileService
+            from src.services.documents import FileService
             from src.services.processing_pipeline import ProcessingPipeline
 
             import time
@@ -232,7 +232,7 @@ class AutomatedTestRunner:
         ]
 
         # Import entity extraction service
-        from src.services.entity_extraction_service import EntityExtractionService
+        from src.services.processing import EntityExtractionService
         entity_service = EntityExtractionService()
 
         for i, test_doc in enumerate(test_documents):
@@ -471,7 +471,7 @@ class AutomatedTestRunner:
                     file_path = scenario["file_generator"]()
 
                 # Try to process the problematic file
-                from src.services.file_service import FileService
+                from src.services.documents import FileService
                 file_service = FileService(self.db_session)
 
                 try:

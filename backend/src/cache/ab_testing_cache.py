@@ -21,7 +21,7 @@ from redis.asyncio import Redis
 import mmh3  # MurmurHash3 for fast hashing
 
 from ..core.config import settings
-from ..models.ab_testing import Experiment, Variant, ExperimentAssignment
+from src.models.ab_testing import Experiment, Variant, ExperimentAssignment
 from ..cache.cache_keys import get_ab_testing_cache_key
 
 

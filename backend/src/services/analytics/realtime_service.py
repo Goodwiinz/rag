@@ -17,15 +17,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, and_, or_
 from sqlalchemy.orm import selectinload
 
-from ...core.database import get_async_session
-from ...core.config import settings
-from ...models.analytics.realtime_models import (
+from src.core.database import get_async_session
+from src.core.config import settings
+from src.models.analytics.realtime_models import (
     RealtimeSubscription, LiveMetric, EventStream, WebSocketConnection,
     WebSocketMessage, SubscriptionType, WebSocketMessageType,
     SubscriptionCreate, SubscriptionResponse, LiveMetricData,
     ConnectionStats, RealtimeAnalyticsSummary, ChannelMetrics
 )
-from ...models.base import GUID
+from src.models.base import GUID
 
 logger = logging.getLogger(__name__)
 
