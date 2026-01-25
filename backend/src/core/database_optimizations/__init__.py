@@ -12,7 +12,7 @@ This package provides comprehensive database optimizations including:
 - Comprehensive testing and validation
 
 Usage:
-    from src.database.optimizations import DatabaseOptimizationManager
+    from src.core.database_optimizations import DatabaseOptimizationManager
 
     manager = DatabaseOptimizationManager()
     await manager.initialize()
