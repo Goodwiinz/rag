@@ -37,7 +37,7 @@ except ImportError as e:
 
 # Import RAG system components
 try:
-    from src.database import SessionLocal
+    from src.core.database import SessionLocal
     from src.models.document import Document, DocumentStatus
     from src.services.search.vector_service import vector_service
     print("✅ RAG system components loaded")

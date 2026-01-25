@@ -3,13 +3,15 @@ Database configuration and connection management
 """
 
 import os
+import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, event
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 import logging
 
@@ -299,3 +301,21 @@ def check_database_health() -> bool:
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
         return False
+
+
+# Query performance monitoring
+SLOW_QUERY_THRESHOLD = float(os.getenv("SLOW_QUERY_THRESHOLD", "1.0"))
+
+
+@event.listens_for(Engine, "before_cursor_execute")
+def receive_before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    """Record query start time for performance monitoring"""
+    context._query_start_time = time.time()
+
+
+@event.listens_for(Engine, "after_cursor_execute")
+def receive_after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    """Log slow queries for performance analysis"""
+    total = time.time() - context._query_start_time
+    if total > SLOW_QUERY_THRESHOLD:
+        logger.warning(f"Slow query ({total:.2f}s): {statement[:200]}...")

@@ -28,7 +28,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.database.optimizations import (
+from src.core.database_optimizations import (
     DatabaseOptimizationManager,
     initialize_database_optimizations,
     quick_optimize_all_databases
