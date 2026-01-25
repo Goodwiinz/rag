@@ -76,9 +76,6 @@ RUN mkdir -p uploads logs models && \
 # Switch to non-root user
 USER appuser
 
-# Install application as editable
-RUN pip install -e .
-
 # Set environment variables for production
 ENV GUNICORN_WORKERS=4 \
     GUNICORN_THREADS=2 \
