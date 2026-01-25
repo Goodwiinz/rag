@@ -94,7 +94,7 @@ jobs:
             -v
         env:
           ENVIRONMENT: testing
-          DATABASE_URL: sqlite:///:memory:
+          DATABASE_URL: "sqlite:///:memory:"
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -164,8 +164,8 @@ jobs:
             -v
         env:
           ENVIRONMENT: testing
-          DATABASE_URL: postgresql://test:test@localhost:5432/test_db
-          REDIS_URL: redis://localhost:6379/0
+          DATABASE_URL: "postgresql://test:test@localhost:5432/test_db"
+          REDIS_URL: "redis://localhost:6379/0"
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -203,7 +203,7 @@ jobs:
             -v
         env:
           ENVIRONMENT: testing
-          DATABASE_URL: sqlite:///:memory:
+          DATABASE_URL: "sqlite:///:memory:"
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -289,7 +289,7 @@ jobs:
           pytest backend/tests/api_contract/ -v
         env:
           ENVIRONMENT: testing
-          DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+          DATABASE_URL: "postgresql://test:test@localhost:5432/test_db"
         continue-on-error: true  # Allow failures during development
 
   # ==========================================================================
@@ -361,7 +361,7 @@ jobs:
             -v
         env:
           ENVIRONMENT: testing
-          DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+          DATABASE_URL: "postgresql://test:test@localhost:5432/test_db"
 
       - name: Store benchmark results
         uses: actions/upload-artifact@v4
