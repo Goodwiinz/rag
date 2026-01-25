@@ -2,9 +2,14 @@ name: Test Pipeline
 
 on:
   push:
-    branches: [main, develop, feature/*]
+    branches:
+      - main
+      - develop
+      - 'feature/**'
   pull_request:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
 
 env:
   PYTHON_VERSION: "3.11"
