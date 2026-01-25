@@ -3,6 +3,9 @@ const nextConfig = {
   // Enable React strict mode
   reactStrictMode: true,
 
+  // Standalone output for Docker deployments
+  output: 'standalone',
+
   // Output file tracing root to resolve workspace warning
   outputFileTracingRoot: '../..',
 
