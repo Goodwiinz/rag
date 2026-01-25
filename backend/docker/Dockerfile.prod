@@ -66,8 +66,8 @@ COPY --from=dependencies /usr/local/bin /usr/local/bin
 # Copy application code
 COPY backend/ .
 
-# Download spaCy model
-RUN python -m spacy download en_core_web_sm --quiet
+# Download spaCy model using pip (more reliable than spacy download)
+RUN pip install --no-cache-dir https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
 
 # Create necessary directories
 RUN mkdir -p uploads logs models && \
