@@ -1,5 +1,7 @@
+# syntax=docker/dockerfile:1
 # Multi-stage production Dockerfile for React Frontend
 # Optimized for production with caching and security
+# Optimized for Depot remote builds with BuildKit cache mounts
 
 # Stage 1: Base image for node
 FROM node:18-alpine AS base
@@ -21,8 +23,9 @@ FROM base AS deps
 COPY frontend/package.json frontend/package-lock.json ./
 COPY frontend/pnpm-lock.yaml ./ 2>/dev/null || true
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+# Install dependencies with cache mount for faster rebuilds
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 # Stage 3: Build application
 FROM base AS builder
@@ -43,9 +46,7 @@ FROM base AS runner
 # Create directories
 WORKDIR /app
 
-# Set permissions
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001
+# User already created in base stage
 
 # Copy built application
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
