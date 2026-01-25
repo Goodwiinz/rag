@@ -19,26 +19,34 @@ RUN addgroup -g 1001 -S nodejs && \
 # Stage 2: Install dependencies
 FROM base AS deps
 
-# Copy package files
-COPY frontend/package.json frontend/package-lock.json ./
-COPY frontend/pnpm-lock.yaml ./ 2>/dev/null || true
+# Copy package.json first (lock file may not exist)
+COPY frontend/package.json ./
+
+# Copy lock file if it exists (supports npm, pnpm, or yarn)
+COPY frontend/package-lock.jso[n] frontend/pnpm-lock.yam[l] frontend/yarn.loc[k] ./
 
 # Install dependencies with cache mount for faster rebuilds
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile
+# Use npm ci if lock file exists, otherwise npm install
+RUN --mount=type=cache,target=/root/.npm \
+    if [ -f package-lock.json ]; then \
+      npm ci; \
+    elif [ -f pnpm-lock.yaml ]; then \
+      pnpm install --frozen-lockfile; \
+    else \
+      npm install && npm cache clean --force; \
+    fi
 
 # Stage 3: Build application
 FROM base AS builder
 
 # Copy installed dependencies
 COPY --from=deps /app/node_modules /app/node_modules
-COPY --from=deps /app/.pnpm-store /app/.pnpm-store
 
 # Copy source code
 COPY frontend/ .
 
 # Build the application
-RUN pnpm build
+RUN npm run build
 
 # Stage 4: Production image
 FROM base AS runner
@@ -53,7 +61,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
-COPY --from=builder --chown=nextjs:nodejs /app/pnpm-lock.yaml ./pnpm-lock.yaml 2>/dev/null || true
 
 # Set environment variables
 ENV NODE_ENV=production
