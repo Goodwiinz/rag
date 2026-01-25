@@ -5,10 +5,7 @@
 
 'use client';
 
-// Force dynamic rendering - this page uses useSearchParams which requires runtime data
-export const dynamic = 'force-dynamic';
-
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Plus, Download, RefreshCw, Network, TrendingUp, Database, Filter, BarChart3, PieChart, Loader2 } from 'lucide-react';
@@ -39,7 +36,7 @@ import { entityService, PaginatedEntitiesResponse } from '@/services/entityServi
 import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
-export default function EntityManagementPage() {
+function EntityManagementContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { canCreate, canEdit, canDelete } = useEntityPermissions();
@@ -818,5 +815,28 @@ export default function EntityManagementPage() {
         onOpenChange={setShortcutsDialogOpen}
       />
     </div>
+  );
+}
+
+// Loading fallback component
+function EntityPageLoading() {
+  return (
+    <div className="min-h-screen bg-[var(--terminal-bg)] flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="w-8 h-8 text-[var(--phosphor-green)] animate-spin" />
+        <p className="font-mono text-sm text-[var(--terminal-text-dim)]">
+          LOADING_ENTITY_REGISTRY...
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Wrap in Suspense for useSearchParams() compatibility
+export default function EntityManagementPage() {
+  return (
+    <Suspense fallback={<EntityPageLoading />}>
+      <EntityManagementContent />
+    </Suspense>
   );
 }
