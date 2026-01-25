@@ -36,9 +36,11 @@ export interface ParsedSegment {
 
 /**
  * Regular expression to match citation patterns like [Doc 1], [Doc 2], etc.
- * Also matches variations: [Doc1], [Source 1], [Ref 1]
+ * Also matches variations: [Doc1], [Source 1], [Ref 1], and simple [1], [2], [3]
+ * The simple [N] pattern is common when LLMs don't follow the exact [Doc N] format
+ * Uses [\s\u00a0\u2002\u2003]* to match various whitespace including non-breaking spaces
  */
-const CITATION_PATTERN = /\[(Doc|Source|Ref)\s*(\d+)\]/gi;
+const CITATION_PATTERN = /\[(?:(Doc|Source|Ref)[\s\u00a0\u2002\u2003]*)?(\d+)\]/gi;
 
 /**
  * Parse message content into segments of text and citations

@@ -197,6 +197,7 @@ interface ChatActions {
   // Message actions
   loadMessages: (threadId: string) => Promise<void>;
   sendMessage: (content: string, threadId?: string) => Promise<ChatMessage | null>;
+  addMessageToStore: (threadId: string, message: ChatMessage) => void;
   updateMessageFeedback: (id: string, data: ChatMessageUpdate) => Promise<ChatMessage | null>;
   deleteMessage: (id: string) => Promise<boolean>;
 
@@ -929,6 +930,27 @@ export const useChatStore = create<ChatStore>()(
           });
           return null;
         }
+      },
+
+      // Add message directly to store without API call
+      // Used when page.tsx saves messages with citations through its own flow
+      addMessageToStore: (threadId, message) => {
+        set((state) => {
+          if (!state.messages[threadId]) {
+            state.messages[threadId] = [];
+          }
+          // Check if message already exists to prevent duplicates
+          const existingIndex = state.messages[threadId].findIndex(m => m.id === message.id);
+          if (existingIndex === -1) {
+            state.messages[threadId].push(message);
+            state.messageToThread[message.id] = threadId;
+            console.log('[ChatStore] Added message to store:', message.id, 'with', message.citations?.length || 0, 'citations');
+          } else {
+            // Update existing message (e.g., when citations are added later)
+            state.messages[threadId][existingIndex] = message;
+            console.log('[ChatStore] Updated message in store:', message.id, 'with', message.citations?.length || 0, 'citations');
+          }
+        });
       },
 
       updateMessageFeedback: async (id, data) => {

@@ -21,7 +21,6 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { UIConversation, useChatPersistence } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/store/chat-store';
-import { extractCitationIndices } from '@/utils/citationParser';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     Activity,
@@ -1114,14 +1113,10 @@ function CitationsTabContent() {
       if (msg.role === 'assistant' && msg.citations) {
         const msgCitations = msg.citations as CitationItem[];
 
-        // Extract which citations are actually referenced in the text (e.g., [Doc 1], [Doc 3])
-        const referencedIndices = extractCitationIndices(msg.content);
-
-        // If AI used inline citations, filter to only referenced ones
-        // Otherwise fall back to showing all (for responses without inline refs)
-        const citationsToShow = referencedIndices.length > 0
-          ? msgCitations.filter((_, idx) => referencedIndices.includes(idx + 1))
-          : msgCitations;
+        // Show all retrieved sources in the Citations panel
+        // The inline citations in the text ([1], [Doc 1], etc.) will link to specific sources
+        // but the panel shows all available sources for reference
+        const citationsToShow = msgCitations;
 
         citationsToShow.forEach((cit) => {
           const citId = cit.documentId || cit.externalReferenceId || cit.id;

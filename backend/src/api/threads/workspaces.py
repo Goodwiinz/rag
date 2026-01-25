@@ -615,7 +615,7 @@ async def create_message(
         content=request.content
     )
     db.add(message)
-    db.flush()  # Flush to get message.id for citations
+    await db.flush()  # Flush to get message.id for citations
 
     # Handle citations (for assistant messages with RAG sources)
     if request.citations:
@@ -1625,7 +1625,7 @@ async def create_message_standalone(
         content=request.content
     )
     db.add(message)
-    db.flush()  # Flush to get message.id for citations
+    await db.flush()  # Flush to get message.id for citations
 
     # Handle citations (for assistant messages with RAG sources)
     if request.citations:

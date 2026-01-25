@@ -40,43 +40,72 @@ from unittest.mock import Mock, AsyncMock, patch
 
 
 @pytest.fixture(autouse=True)
-def mock_external_services():
+def mock_external_services(request):
     """
-    Auto-mock external services for all integration tests.
+    Auto-mock external services for integration tests that don't use testcontainers.
 
-    This ensures tests don't try to connect to real Redis, Neo4j, Qdrant, etc.
+    Tests marked with @pytest.mark.requires_postgres or @pytest.mark.requires_redis
+    will NOT have those services mocked - they use real containers instead.
     """
-    with (
-        patch("redis.Redis") as mock_redis,
-        patch("redis.asyncio.Redis") as mock_async_redis,
-        patch("qdrant_client.QdrantClient") as mock_qdrant,
-        patch("neo4j.GraphDatabase.driver") as mock_neo4j,
-    ):
-        # Configure Redis mock
+    # Check if test uses real containers
+    markers = {m.name for m in request.node.iter_markers()}
+    uses_postgres = "requires_postgres" in markers
+    uses_redis = "requires_redis" in markers
+
+    # Build context managers for services we need to mock
+    patches = []
+
+    if not uses_redis:
+        patches.append(patch("redis.Redis"))
+        patches.append(patch("redis.asyncio.Redis"))
+
+    patches.append(patch("qdrant_client.QdrantClient"))
+    patches.append(patch("neo4j.GraphDatabase.driver"))
+
+    # Apply patches
+    mocks = [p.start() for p in patches]
+
+    # Configure mocks
+    mock_idx = 0
+    if not uses_redis:
+        # Redis mock
+        mock_redis = mocks[mock_idx]
         mock_redis_instance = Mock()
         mock_redis_instance.ping.return_value = True
         mock_redis_instance.get.return_value = None
         mock_redis_instance.set.return_value = True
         mock_redis.return_value = mock_redis_instance
+        mock_redis.from_url.return_value = mock_redis_instance
+        mock_idx += 1
 
-        # Configure async Redis mock
+        # Async Redis mock
+        mock_async_redis = mocks[mock_idx]
         mock_async_redis_instance = AsyncMock()
         mock_async_redis_instance.ping.return_value = True
         mock_async_redis_instance.get.return_value = None
         mock_async_redis_instance.set.return_value = True
         mock_async_redis.return_value = mock_async_redis_instance
+        mock_async_redis.from_url.return_value = mock_async_redis_instance
+        mock_idx += 1
 
-        # Configure Qdrant mock
-        mock_qdrant_instance = Mock()
-        mock_qdrant_instance.get_collections.return_value = Mock(collections=[])
-        mock_qdrant.return_value = mock_qdrant_instance
+    # Qdrant mock
+    mock_qdrant = mocks[mock_idx]
+    mock_qdrant_instance = Mock()
+    mock_qdrant_instance.get_collections.return_value = Mock(collections=[])
+    mock_qdrant.return_value = mock_qdrant_instance
+    mock_idx += 1
 
-        # Configure Neo4j mock
-        mock_neo4j_driver = Mock()
-        mock_neo4j_driver.verify_connectivity.return_value = None
-        mock_neo4j.return_value = mock_neo4j_driver
+    # Neo4j mock
+    mock_neo4j = mocks[mock_idx]
+    mock_neo4j_driver = Mock()
+    mock_neo4j_driver.verify_connectivity.return_value = None
+    mock_neo4j.return_value = mock_neo4j_driver
 
-        yield
+    yield
+
+    # Stop all patches
+    for p in patches:
+        p.stop()
 
 
 @pytest.fixture
@@ -130,9 +159,9 @@ def postgres_container():
             "url": postgres.get_connection_url(),
             "host": postgres.get_container_host_ip(),
             "port": postgres.get_exposed_port(5432),
-            "user": postgres.POSTGRES_USER,
-            "password": postgres.POSTGRES_PASSWORD,
-            "database": postgres.POSTGRES_DB,
+            "user": postgres.username,
+            "password": postgres.password,
+            "database": postgres.dbname,
         }
 
 
@@ -179,8 +208,11 @@ def postgres_session(postgres_container):
     engine = create_engine(postgres_container["url"])
 
     # Import and create all tables
+    # IMPORTANT: Import all models to ensure SQLAlchemy can resolve relationships
     try:
         from src.models import Base
+        # Import ab_testing models to resolve User -> Experiment relationship
+        from src.models import ab_testing  # noqa: F401
         Base.metadata.create_all(engine)
     except ImportError:
         pass  # Models may not be available
@@ -196,6 +228,7 @@ def postgres_session(postgres_container):
         # Clean up tables after test
         try:
             from src.models import Base
+            from src.models import ab_testing  # noqa: F401
             Base.metadata.drop_all(engine)
         except ImportError:
             pass
@@ -219,3 +252,31 @@ def redis_client(redis_container):
         # Clean up all keys after test
         client.flushdb()
         client.close()
+
+
+try:
+    import pytest_asyncio
+
+    @pytest_asyncio.fixture(scope="function")
+    async def async_redis_client(redis_container):
+        """
+        Create an async Redis client connected to the Redis container.
+
+        Use for testing async cache operations.
+        """
+        import redis.asyncio as aioredis
+
+        client = aioredis.from_url(
+            redis_container["url"],
+            encoding="utf-8",
+            decode_responses=True,
+        )
+
+        try:
+            yield client
+        finally:
+            await client.flushdb()
+            await client.close()
+except ImportError:
+    # pytest_asyncio not installed
+    pass

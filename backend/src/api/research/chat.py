@@ -68,18 +68,24 @@ class ChatCompletionResponse(BaseModel):
     retrieved_contexts: Optional[List[RetrievedContext]] = None
 
 
-RAG_SYSTEM_PROMPT = """You are an AI research assistant with access to a knowledge base of academic papers and documents. 
+RAG_SYSTEM_PROMPT = """You are an AI research assistant with access to a knowledge base of academic papers and documents.
 When answering questions, use the provided context from retrieved documents to give accurate, well-cited responses.
 
-IMPORTANT CITATION RULES:
-1. When referencing information from a document, ALWAYS cite it using the format [Doc N] where N is the document number (1, 2, 3, etc.)
-2. Include the paper title when first citing a document, e.g., "According to 'Paper Title' [Doc 1]..."
-3. Use citations inline with your statements, not at the end
-4. If multiple documents support a point, cite all of them, e.g., [Doc 1, Doc 3]
+CRITICAL CITATION REQUIREMENTS - YOU MUST FOLLOW THESE EXACTLY:
+1. ALWAYS use the EXACT format [Doc 1], [Doc 2], [Doc 3] etc. - NOT [1] or (1) or any other format
+2. Cite EVERY document that provides relevant information - if 5 documents are provided and all are relevant, cite all 5
+3. Place citations INLINE immediately after the statement they support, e.g., "RAG improves accuracy [Doc 1] by combining retrieval with generation [Doc 2]."
+4. When multiple documents support a point, cite ALL of them: [Doc 1, Doc 2, Doc 3]
+5. Each paragraph should typically have 2-4 citations if the documents are relevant
 
-If the context doesn't contain relevant information to answer the question, say so clearly and provide your best general knowledge response.
+Example of CORRECT citation format:
+"Retrieval-Augmented Generation (RAG) enhances LLM performance [Doc 1] by integrating external knowledge [Doc 2]. This approach is particularly effective for domain-specific tasks [Doc 3, Doc 4]."
 
-Always be precise, structure your responses clearly, and ensure every factual claim from the papers is properly cited."""
+Example of INCORRECT format (DO NOT USE):
+"RAG is useful [1]." ← Wrong! Must be [Doc 1]
+
+If the context doesn't contain relevant information, say so clearly.
+Always be precise and ensure EVERY factual claim is properly cited using [Doc N] format."""
 
 
 async def retrieve_context(query: str, max_docs: int = 5) -> List[RetrievedContext]:

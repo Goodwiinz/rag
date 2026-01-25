@@ -7,10 +7,10 @@ ARG PYTHON_VERSION=3.11
 FROM python:${PYTHON_VERSION}-slim AS base
 
 # Install system dependencies with security updates
+# Note: Using libgl1 instead of libgl1-mesa-glx for Debian Trixie compatibility
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
-    software-properties-common \
     git \
     libpq-dev \
     libffi-dev \
@@ -22,8 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxext6 \
     libxrender-dev \
     libgomp1 \
-    libgl1-mesa-glx \
-    curl \
+    libgl1 \
     wget \
     procps \
     netcat-openbsd \
