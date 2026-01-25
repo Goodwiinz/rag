@@ -777,6 +777,7 @@ class ChatService:
             token_count=message_token_count
         )
         self.db.add(message)
+        await self.db.flush()  # Flush to get message.id for citations/attachments
 
         # Handle attachments
         if data.attachment_ids:
@@ -836,6 +837,7 @@ class ChatService:
             latency_ms=latency_ms
         )
         self.db.add(message)
+        await self.db.flush()  # Flush to get message.id for citations
 
         # Add citations if provided
         if citations:

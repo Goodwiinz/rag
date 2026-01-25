@@ -1091,6 +1091,7 @@ function ChatPageContent() {
   const currentThreadIdFromStore = useChatStore((state) => state.currentThreadId);
   const setCurrentThread = useChatStore((state) => state.setCurrentThread);
   const storeMessages = useChatStore((state) => state.messages);
+  const addMessageToStore = useChatStore((state) => state.addMessageToStore);
 
   // Navigation detection
   const pathname = usePathname();
@@ -1501,12 +1502,14 @@ function ChatPageContent() {
     // Save user message to database
     if (currentThreadId && isAuthenticated) {
       try {
-        await workspaceService.createMessage({
+        const savedUserMessage = await workspaceService.createMessage({
           thread_id: currentThreadId,
           content: input.trim(),
           role: MessageRole.USER,
         });
         console.log('[Chat] Saved user message to database');
+        // Sync to Zustand store so layout can see it
+        addMessageToStore(currentThreadId, savedUserMessage);
       } catch (error) {
         console.error('[Chat] Failed to save user message:', error);
       }
@@ -1583,13 +1586,15 @@ function ChatPageContent() {
         // Save assistant message to database with citations
         if (currentThreadId && isAuthenticated) {
           try {
-            await workspaceService.createMessage({
+            const savedMessage = await workspaceService.createMessage({
               thread_id: currentThreadId,
               content: assistantMessage,
               role: MessageRole.ASSISTANT,
               citations: dbCitations.length > 0 ? dbCitations : undefined,
             });
             console.log('[Chat] Saved assistant message to database with', dbCitations.length, 'citations');
+            // Sync to Zustand store so layout's citation panel can read it
+            addMessageToStore(currentThreadId, savedMessage);
           } catch (error) {
             console.error('[Chat] Failed to save assistant message:', error);
           }
@@ -1727,7 +1732,9 @@ function ChatPageContent() {
               citations: dbCitations.length > 0 ? dbCitations : undefined,
             });
             console.log('[Chat] Saved local model response to database with', dbCitations.length, 'citations');
-            
+            // Sync to Zustand store so layout's citation panel can read it
+            addMessageToStore(currentThreadId, savedMessage);
+
             // Persist citations through citation service for better querying
             if (savedMessage?.id && ragContexts.length > 0) {
               try {

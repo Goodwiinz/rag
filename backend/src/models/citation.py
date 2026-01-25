@@ -25,7 +25,8 @@ class Citation(BaseModel):
     __tablename__ = "citations"
 
     # Parent relationships
-    message_id = Column(GUID(), ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=False, index=True)
+    # message_id is nullable to support standalone citations (e.g., bibliography entries)
+    message_id = Column(GUID(), ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=True, index=True)
     document_id = Column(GUID(), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True, index=True)
     
     # External reference (for sources not in database, e.g., arXiv papers)

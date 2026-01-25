@@ -2,16 +2,31 @@
 Document management API endpoints
 """
 
+import uuid as uuid_module
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select, func
 
 from src.core.database import get_db
+
+
+def validate_uuid(value: str, field_name: str = "id") -> str:
+    """Validate that a string is a valid UUID format."""
+    try:
+        uuid_module.UUID(value)
+        return value
+    except (ValueError, AttributeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid {field_name} format. Expected a valid UUID.",
+        )
+
+
 from src.core.dependencies import get_current_organization, get_current_user
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.entity import Entity
@@ -324,7 +339,7 @@ async def list_documents(
 
 @router.get("/{document_id}", response_model=DocumentDetailResponse)
 async def get_document(
-    document_id: str,
+    document_id: str = Path(..., description="Document UUID"),
     include_content: bool = Query(False, description="Include full text content"),
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
@@ -333,6 +348,9 @@ async def get_document(
     """
     Get detailed information about a specific document
     """
+    # Validate UUID format to prevent database errors
+    validate_uuid(document_id, "document_id")
+
     stmt = select(Document).where(
         Document.id == document_id,
         Document.organization_id == organization.id,
@@ -381,7 +399,7 @@ async def get_document(
 
 @router.delete("/{document_id}")
 async def delete_document(
-    document_id: str,
+    document_id: str = Path(..., description="Document UUID"),
     cascade: bool = Query(True, description="Cascade delete related entities and jobs"),
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
@@ -391,6 +409,8 @@ async def delete_document(
     """
     Delete a document with optional cascade deletion
     """
+    validate_uuid(document_id, "document_id")
+
     stmt = select(Document).where(
         Document.id == document_id,
         Document.organization_id == organization.id,
@@ -469,7 +489,7 @@ async def delete_document(
 
 @router.get("/{document_id}/entities", response_model=DocumentEntitiesResponse)
 async def get_document_entities(
-    document_id: str,
+    document_id: str = Path(..., description="Document UUID"),
     entity_type: Optional[str] = Query(None, description="Filter by entity type"),
     min_confidence: Optional[float] = Query(
         0.0, ge=0.0, le=1.0, description="Minimum confidence score"
@@ -483,6 +503,8 @@ async def get_document_entities(
     """
     Get entities extracted from a specific document
     """
+    validate_uuid(document_id, "document_id")
+
     # Verify document exists and user has access
     stmt = select(Document).where(
         Document.id == document_id,
@@ -555,7 +577,7 @@ async def get_document_entities(
 
 @router.get("/{document_id}/status", response_model=DocumentStatusResponse)
 async def get_document_status(
-    document_id: str,
+    document_id: str = Path(..., description="Document UUID"),
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
@@ -563,6 +585,8 @@ async def get_document_status(
     """
     Get real-time processing status of a document
     """
+    validate_uuid(document_id, "document_id")
+
     # Verify document exists and user has access
     stmt = select(Document).where(
         Document.id == document_id,
@@ -908,7 +932,7 @@ async def bulk_delete_documents(
 
 @router.post("/{document_id}/reprocess")
 async def reprocess_document(
-    document_id: str,
+    document_id: str = Path(..., description="Document UUID"),
     force_reprocess: bool = Query(
         False, description="Force reprocess even if already completed"
     ),
@@ -919,6 +943,8 @@ async def reprocess_document(
     """
     Trigger reprocessing of a document
     """
+    validate_uuid(document_id, "document_id")
+
     stmt = select(Document).where(
         Document.id == document_id,
         Document.organization_id == organization.id,
