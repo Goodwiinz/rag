@@ -3,10 +3,10 @@ Graph Analytics API routes
 """
 
 import logging
-import uuid
-from typing import List, Optional, Dict, Any
+from datetime import datetime
+from typing import Dict, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.services.analytics.graph_analytics_service import graph_analytics_service
 from src.models.analytics.graph_analytics import (
@@ -39,7 +39,7 @@ async def run_graph_analysis(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-    except RuntimeError as e:
+    except RuntimeError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Graph analytics service unavailable"
@@ -70,7 +70,7 @@ async def run_path_analysis(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-    except RuntimeError as e:
+    except RuntimeError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Graph analytics service unavailable"
@@ -92,7 +92,7 @@ async def get_graph_statistics(
         stats = await graph_analytics_service.get_graph_statistics()
         return stats
 
-    except RuntimeError as e:
+    except RuntimeError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Graph analytics service unavailable"
@@ -131,7 +131,7 @@ async def get_centrality_analysis(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-    except RuntimeError as e:
+    except RuntimeError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Graph analytics service unavailable"
@@ -150,8 +150,6 @@ async def get_available_algorithms(
 ):
     """Get available graph algorithms"""
     try:
-        from src.models.analytics.graph_analytics import GraphAlgorithmType
-
         algorithms = {
             "pagerank": {
                 "name": "PageRank",
