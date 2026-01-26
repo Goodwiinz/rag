@@ -212,7 +212,7 @@ def profile_performance(operation: Optional[str] = None):
                 profiler.end_profiling(profile_data, success=True)
                 return result
             except Exception as e:
-                profiler.end_profiling(profile_data, success=False, {"error": str(e)})
+                profiler.end_profiling(profile_data, success=False, metadata={"error": str(e)})
                 raise
 
         @wraps(func)
@@ -225,7 +225,7 @@ def profile_performance(operation: Optional[str] = None):
                 profiler.end_profiling(profile_data, success=True)
                 return result
             except Exception as e:
-                profiler.end_profiling(profile_data, success=False, {"error": str(e)})
+                profiler.end_profiling(profile_data, success=False, metadata={"error": str(e)})
                 raise
 
         return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
@@ -243,7 +243,7 @@ def profile_context(operation: str):
         yield profile_data
         profiler.end_profiling(profile_data, success=True)
     except Exception as e:
-        profiler.end_profiling(profile_data, success=False, {"error": str(e)})
+        profiler.end_profiling(profile_data, success=False, metadata={"error": str(e)})
         raise
 
 

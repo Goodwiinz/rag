@@ -101,34 +101,30 @@ export const projectService = {
     limit?: number;
     search?: string;
   }): Promise<ProjectListResponse> {
-    const response = await apiClient.get<ProjectListResponse>('/projects', {
+    return apiClient.get<ProjectListResponse>('/projects', {
       params,
     });
-    return response.data;
   },
 
   /**
    * Create a new project
    */
   async createProject(data: ProjectCreate): Promise<Project> {
-    const response = await apiClient.post<Project>('/projects', data);
-    return response.data;
+    return apiClient.post<Project>('/projects', data);
   },
 
   /**
    * Get a single project by ID
    */
   async getProject(projectId: string): Promise<Project> {
-    const response = await apiClient.get<Project>(`/projects/${projectId}`);
-    return response.data;
+    return apiClient.get<Project>(`/projects/${projectId}`);
   },
 
   /**
    * Update a project
    */
   async updateProject(projectId: string, data: ProjectUpdate): Promise<Project> {
-    const response = await apiClient.patch<Project>(`/projects/${projectId}`, data);
-    return response.data;
+    return apiClient.patch<Project>(`/projects/${projectId}`, data);
   },
 
   /**
@@ -152,11 +148,10 @@ export const projectService = {
       limit?: number;
     }
   ): Promise<ProjectDocumentListResponse> {
-    const response = await apiClient.get<ProjectDocumentListResponse>(
+    return apiClient.get<ProjectDocumentListResponse>(
       `/projects/${projectId}/documents`,
       { params }
     );
-    return response.data;
   },
 
   /**
@@ -166,12 +161,11 @@ export const projectService = {
     projectId: string,
     documentId: string
   ): Promise<ProjectDocument> {
-    const response = await apiClient.post<ProjectDocument>(
+    return apiClient.post<ProjectDocument>(
       `/projects/${projectId}/documents`,
       null,
       { params: { document_id: documentId } }
     );
-    return response.data;
   },
 
   /**
@@ -199,32 +193,29 @@ export const projectService = {
       pinned_only?: boolean;
     }
   ): Promise<ProjectNoteListResponse> {
-    const response = await apiClient.get<ProjectNoteListResponse>(
+    return apiClient.get<ProjectNoteListResponse>(
       `/projects/${projectId}/notes`,
       { params }
     );
-    return response.data;
   },
 
   /**
    * Create a note in a project
    */
   async createNote(projectId: string, data: ProjectNoteCreate): Promise<ProjectNote> {
-    const response = await apiClient.post<ProjectNote>(
+    return apiClient.post<ProjectNote>(
       `/projects/${projectId}/notes`,
       data
     );
-    return response.data;
   },
 
   /**
    * Get a single note
    */
   async getNote(projectId: string, noteId: string): Promise<ProjectNote> {
-    const response = await apiClient.get<ProjectNote>(
+    return apiClient.get<ProjectNote>(
       `/projects/${projectId}/notes/${noteId}`
     );
-    return response.data;
   },
 
   /**
@@ -235,11 +226,10 @@ export const projectService = {
     noteId: string,
     data: ProjectNoteUpdate
   ): Promise<ProjectNote> {
-    const response = await apiClient.patch<ProjectNote>(
+    return apiClient.patch<ProjectNote>(
       `/projects/${projectId}/notes/${noteId}`,
       data
     );
-    return response.data;
   },
 
   /**
@@ -253,10 +243,9 @@ export const projectService = {
    * Toggle note pinned status
    */
   async toggleNotePin(projectId: string, noteId: string): Promise<ProjectNote> {
-    const response = await apiClient.post<ProjectNote>(
+    return apiClient.post<ProjectNote>(
       `/projects/${projectId}/notes/${noteId}/pin`
     );
-    return response.data;
   },
 
   // =========================================================================
@@ -270,11 +259,10 @@ export const projectService = {
     projectId: string,
     format: 'bibtex' | 'ieee' | 'apa' | 'mla' = 'bibtex'
   ): Promise<ProjectBibliography> {
-    const response = await apiClient.get<ProjectBibliography>(
+    return apiClient.get<ProjectBibliography>(
       `/projects/${projectId}/bibliography`,
       { params: { format } }
     );
-    return response.data;
   },
 
   /**
@@ -330,10 +318,9 @@ export const projectService = {
       params.append('include_abstract', options.includeAbstract.toString());
     }
 
-    const response = await apiClient.post<DraftGenerationResponse>(
+    return apiClient.post<DraftGenerationResponse>(
       `/projects/${projectId}/drafts?${params.toString()}`
     );
-    return response.data;
   },
 
   /**
@@ -347,31 +334,28 @@ export const projectService = {
       limit?: number;
     }
   ): Promise<DraftListResponse> {
-    const response = await apiClient.get<DraftListResponse>(
+    return apiClient.get<DraftListResponse>(
       `/projects/${projectId}/drafts`,
       { params: options }
     );
-    return response.data;
   },
 
   /**
    * Get the current draft
    */
   async getCurrentDraft(projectId: string): Promise<Draft> {
-    const response = await apiClient.get<Draft>(
+    return apiClient.get<Draft>(
       `/projects/${projectId}/drafts/current`
     );
-    return response.data;
   },
 
   /**
    * Get a specific draft
    */
   async getDraft(projectId: string, draftId: string): Promise<Draft> {
-    const response = await apiClient.get<Draft>(
+    return apiClient.get<Draft>(
       `/projects/${projectId}/drafts/${draftId}`
     );
-    return response.data;
   },
 
   /**
@@ -385,10 +369,9 @@ export const projectService = {
    * Get draft citations
    */
   async getDraftCitations(projectId: string, draftId: string): Promise<DraftCitationsResponse> {
-    const response = await apiClient.get<DraftCitationsResponse>(
+    return apiClient.get<DraftCitationsResponse>(
       `/projects/${projectId}/drafts/${draftId}/citations`
     );
-    return response.data;
   },
 
   /**
@@ -399,11 +382,10 @@ export const projectService = {
     versionA: number,
     versionB: number
   ): Promise<DraftComparison> {
-    const response = await apiClient.get<DraftComparison>(
+    return apiClient.get<DraftComparison>(
       `/projects/${projectId}/drafts/compare`,
       { params: { version_a: versionA, version_b: versionB } }
     );
-    return response.data;
   },
 
   /**
@@ -415,7 +397,7 @@ export const projectService = {
     format: 'markdown' | 'latex' = 'markdown',
     includeBibliography: boolean = true
   ): Promise<DraftExportResponse> {
-    const response = await apiClient.post<DraftExportResponse>(
+    return apiClient.post<DraftExportResponse>(
       `/projects/${projectId}/drafts/${draftId}/export`,
       null,
       {
@@ -425,17 +407,15 @@ export const projectService = {
         },
       }
     );
-    return response.data;
   },
 
   /**
    * Get generation status
    */
   async getGenerationStatus(projectId: string, taskId: string): Promise<GenerationStatus> {
-    const response = await apiClient.get<GenerationStatus>(
+    return apiClient.get<GenerationStatus>(
       `/projects/${projectId}/drafts/status/${taskId}`
     );
-    return response.data;
   },
 
   /**

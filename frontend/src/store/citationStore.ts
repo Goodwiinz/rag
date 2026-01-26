@@ -55,25 +55,26 @@ export const useCitationStore = create<CitationState>((set, get) => ({
   addCitation: (citation: CitationResponse) => {
     set((state) => {
       const messageId = citation.messageId;
-      
+
       // Add to global citations array if not already present
       const existingCitations = state.citations.some(c => c.id === citation.id)
         ? state.citations
         : [...state.citations, citation];
 
+      // If no messageId, just update citations without modifying citationsByMessage
+      if (!messageId) {
+        return { citations: existingCitations };
+      }
+
       // Add to message-specific citations
-      const messageCitations = messageId
-        ? [...(state.citationsByMessage[messageId] || []), citation]
-        : state.citationsByMessage[messageId];
+      const messageCitations = [...(state.citationsByMessage[messageId] || []), citation];
 
       return {
         citations: existingCitations,
-        citationsByMessage: messageId
-          ? {
-              ...state.citationsByMessage,
-              [messageId]: messageCitations,
-            }
-          : state.citationsByMessage,
+        citationsByMessage: {
+          ...state.citationsByMessage,
+          [messageId]: messageCitations,
+        },
       };
     });
   },
