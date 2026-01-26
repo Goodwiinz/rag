@@ -1,0 +1,41 @@
+# syntax=docker/dockerfile:1
+# Minimal image for Python linting - optimized for Depot caching
+# Contains only lint tools (ruff, mypy, black, isort) - no ML dependencies
+#
+# Build: depot build -f backend/docker/Dockerfile.lint . --load -t rag-lint:test
+# Run:   docker run --rm rag-lint:test ruff check backend/src
+
+ARG PYTHON_VERSION=3.11
+FROM python:${PYTHON_VERSION}-slim AS lint
+
+# Install git (required by some lint tools for config detection)
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Set environment variables for reproducible builds
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+# Copy pyproject.toml for lint tool configuration (black, isort, mypy, ruff)
+COPY pyproject.toml ./
+
+# Install ONLY lint tools with pinned versions for reproducibility
+# Using cache mount for faster rebuilds on Depot
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip && \
+    pip install \
+        ruff==0.1.8 \
+        mypy==1.7.1 \
+        black==23.12.1 \
+        isort==5.13.2
+
+# Copy backend source code for linting
+COPY backend/src ./backend/src
+
+# Default command shows available lint commands
+CMD ["echo", "Available commands: ruff check backend/src, black --check backend/src, isort --check-only backend/src, mypy backend/src --ignore-missing-imports"]

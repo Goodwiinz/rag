@@ -129,3 +129,17 @@ target "frontend-dev" {
   tags       = ["rag-frontend:dev"]
   output     = ["type=docker"]
 }
+
+# Lint tools only (minimal image for CI)
+# Build: depot bake -f docker-bake.hcl lint
+# Usage: docker run --rm rag-lint:latest ruff check backend/src
+target "lint" {
+  dockerfile = "backend/docker/Dockerfile.lint"
+  context    = "."
+  platforms  = ["linux/amd64"]
+  tags       = ["rag-lint:latest"]
+  output     = ["type=docker"]
+  args = {
+    PYTHON_VERSION = "${PYTHON_VERSION}"
+  }
+}
