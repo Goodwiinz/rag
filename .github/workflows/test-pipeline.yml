@@ -6,10 +6,28 @@ on:
       - main
       - develop
       - 'feature/**'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE/**'
+      - 'LICENSE'
+      - '.gitignore'
   pull_request:
     branches:
       - main
       - develop
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE/**'
+      - 'LICENSE'
+      - '.gitignore'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   PYTHON_VERSION: "3.11"
@@ -19,8 +37,8 @@ jobs:
   # ==========================================================================
   # Code Quality Checks (Fast - Run First)
   # ==========================================================================
-  lint:
-    name: Lint & Type Check
+  lint-backend:
+    name: Lint Backend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,8 +52,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements*.txt') }}
+          key: ${{ runner.os }}-pip-lint-${{ hashFiles('backend/requirements*.txt') }}
           restore-keys: |
+            ${{ runner.os }}-pip-lint-
             ${{ runner.os }}-pip-
 
       - name: Install dependencies
@@ -56,13 +75,38 @@ jobs:
         run: mypy backend/src --ignore-missing-imports
         continue-on-error: true  # Allow failures during gradual adoption
 
+  lint-frontend:
+    name: Lint Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run type check
+        run: npm run type-check
+
+      - name: Run linting
+        run: npm run lint
+
   # ==========================================================================
   # Unit Tests (Fast - No External Dependencies)
   # ==========================================================================
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
-    needs: lint
+    needs: lint-backend
     steps:
       - uses: actions/checkout@v4
 
@@ -75,7 +119,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements*.txt') }}
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
@@ -104,12 +151,72 @@ jobs:
           name: unit-tests
 
   # ==========================================================================
+  # Security Scan
+  # ==========================================================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: lint-backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install security tools
+        run: pip install bandit safety
+
+      - name: Run Bandit (Python security)
+        run: bandit -r backend/src -ll -ii -x tests
+
+      - name: Run Safety (dependency vulnerabilities)
+        run: safety check -r backend/requirements.txt
+        continue-on-error: true  # Allow failures for unmaintained packages
+
+  # ==========================================================================
+  # Frontend Tests
+  # ==========================================================================
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    needs: lint-frontend
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- --coverage --watchAll=false
+        env:
+          CI: true
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: frontend/coverage/lcov.info
+          flags: frontend
+          name: frontend-tests
+
+  # ==========================================================================
   # Integration Tests (Require Services)
   # ==========================================================================
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
-    needs: unit-tests
+    needs: [unit-tests, frontend-tests]
     services:
       postgres:
         image: postgres:15
@@ -147,12 +254,6 @@ jobs:
         run: |
           pip install pytest pytest-asyncio pytest-cov
           pip install -r backend/requirements.txt
-
-      - name: Wait for services
-        run: |
-          for i in {1..30}; do
-            pg_isready -h localhost -p 5432 && break || sleep 2
-          done
 
       - name: Run integration tests
         run: |
@@ -213,47 +314,6 @@ jobs:
           name: resilience-tests
 
   # ==========================================================================
-  # Frontend Tests
-  # ==========================================================================
-  frontend-tests:
-    name: Frontend Tests
-    runs-on: ubuntu-latest
-    needs: lint
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run type check
-        run: npm run type-check
-
-      - name: Run linting
-        run: npm run lint
-
-      - name: Run tests
-        run: npm test -- --coverage --watchAll=false
-        env:
-          CI: true
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        with:
-          files: frontend/coverage/lcov.info
-          flags: frontend
-          name: frontend-tests
-
-  # ==========================================================================
   # API Contract Tests
   # ==========================================================================
   api-contract-tests:
@@ -298,31 +358,70 @@ jobs:
   e2e-tests:
     name: E2E Tests
     runs-on: ubuntu-latest
-    needs: [integration-tests, frontend-tests]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    needs: [integration-tests]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Docker Compose
-        run: |
-          docker-compose -f docker-compose.test.yml up -d
-          sleep 30  # Wait for services to be ready
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Run E2E tests
+      - name: Start services with Docker Compose
         run: |
-          docker-compose -f docker-compose.test.yml run --rm e2e-tests
-        continue-on-error: true
+          docker-compose -f docker-compose.ci.yml up -d postgres redis backend frontend
+
+          # Wait for services to be healthy
+          echo "Waiting for services to be healthy..."
+          timeout 180 bash -c 'until docker-compose -f docker-compose.ci.yml ps | grep -E "(healthy)" | wc -l | grep -q "4"; do sleep 5; done'
+
+          echo "Services status:"
+          docker-compose -f docker-compose.ci.yml ps
+
+      - name: Verify services are accessible
+        run: |
+          echo "Checking backend health..."
+          curl -f http://localhost:8000/health || exit 1
+
+          echo "Checking frontend..."
+          curl -f http://localhost:3000 || exit 1
+
+      - name: Run E2E Tests
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          # Determine which tests to run based on event type
+          if [ "$EVENT_NAME" == "pull_request" ]; then
+            echo "Running smoke tests for PR..."
+            docker-compose -f docker-compose.ci.yml --profile smoke run --rm smoke-tests
+          else
+            echo "Running full E2E tests..."
+            docker-compose -f docker-compose.ci.yml --profile e2e run --rm e2e-tests
+          fi
+
+      - name: Upload E2E test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-test-results
+          path: |
+            tests/e2e/test-results/
+            tests/e2e/playwright-report/
+          retention-days: 7
 
       - name: Collect logs on failure
         if: failure()
-        run: docker-compose -f docker-compose.test.yml logs
+        run: |
+          echo "=== Backend Logs ==="
+          docker-compose -f docker-compose.ci.yml logs backend --tail=100
+          echo ""
+          echo "=== Frontend Logs ==="
+          docker-compose -f docker-compose.ci.yml logs frontend --tail=100
 
       - name: Cleanup
         if: always()
-        run: docker-compose -f docker-compose.test.yml down -v
+        run: docker-compose -f docker-compose.ci.yml down -v --remove-orphans
 
   # ==========================================================================
-  # Performance Tests (Scheduled & Main Branch Only)
+  # Performance Tests (Main Branch Only)
   # ==========================================================================
   performance-tests:
     name: Performance Tests
@@ -370,73 +469,113 @@ jobs:
           path: benchmark.json
 
   # ==========================================================================
-  # Security Scan
-  # ==========================================================================
-  security-scan:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install security tools
-        run: pip install bandit safety
-
-      - name: Run Bandit (Python security)
-        run: bandit -r backend/src -ll -ii -x tests
-        continue-on-error: true
-
-      - name: Run Safety (dependency vulnerabilities)
-        run: safety check -r backend/requirements.txt
-        continue-on-error: true
-
-  # ==========================================================================
   # Test Summary
   # ==========================================================================
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests, resilience-tests, frontend-tests]
+    needs: [unit-tests, integration-tests, resilience-tests, frontend-tests, e2e-tests, security-scan, api-contract-tests]
     if: always()
+    env:
+      UNIT_RESULT: ${{ needs.unit-tests.result }}
+      INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
+      RESILIENCE_RESULT: ${{ needs.resilience-tests.result }}
+      FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
+      E2E_RESULT: ${{ needs.e2e-tests.result }}
+      SECURITY_RESULT: ${{ needs.security-scan.result }}
+      CONTRACT_RESULT: ${{ needs.api-contract-tests.result }}
+      GH_WORKFLOW: ${{ github.workflow }}
+      GH_REF: ${{ github.ref_name }}
+      GH_SHA: ${{ github.sha }}
     steps:
-      - name: Check test results
+      - name: Generate test results summary
         run: |
           echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ needs.unit-tests.result }}" == "success" ]; then
-            echo "✅ Unit Tests: Passed" >> $GITHUB_STEP_SUMMARY
+          # Unit Tests
+          if [ "$UNIT_RESULT" == "success" ]; then
+            echo "| Unit Tests | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [ "$UNIT_RESULT" == "skipped" ]; then
+            echo "| Unit Tests | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ Unit Tests: ${{ needs.unit-tests.result }}" >> $GITHUB_STEP_SUMMARY
+            echo "| Unit Tests | :x: $UNIT_RESULT |" >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [ "${{ needs.integration-tests.result }}" == "success" ]; then
-            echo "✅ Integration Tests: Passed" >> $GITHUB_STEP_SUMMARY
+          # Integration Tests
+          if [ "$INTEGRATION_RESULT" == "success" ]; then
+            echo "| Integration Tests | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [ "$INTEGRATION_RESULT" == "skipped" ]; then
+            echo "| Integration Tests | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ Integration Tests: ${{ needs.integration-tests.result }}" >> $GITHUB_STEP_SUMMARY
+            echo "| Integration Tests | :x: $INTEGRATION_RESULT |" >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [ "${{ needs.resilience-tests.result }}" == "success" ]; then
-            echo "✅ Resilience Tests: Passed" >> $GITHUB_STEP_SUMMARY
+          # Resilience Tests
+          if [ "$RESILIENCE_RESULT" == "success" ]; then
+            echo "| Resilience Tests | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [ "$RESILIENCE_RESULT" == "skipped" ]; then
+            echo "| Resilience Tests | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ Resilience Tests: ${{ needs.resilience-tests.result }}" >> $GITHUB_STEP_SUMMARY
+            echo "| Resilience Tests | :x: $RESILIENCE_RESULT |" >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [ "${{ needs.frontend-tests.result }}" == "success" ]; then
-            echo "✅ Frontend Tests: Passed" >> $GITHUB_STEP_SUMMARY
+          # Frontend Tests
+          if [ "$FRONTEND_RESULT" == "success" ]; then
+            echo "| Frontend Tests | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [ "$FRONTEND_RESULT" == "skipped" ]; then
+            echo "| Frontend Tests | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ Frontend Tests: ${{ needs.frontend-tests.result }}" >> $GITHUB_STEP_SUMMARY
+            echo "| Frontend Tests | :x: $FRONTEND_RESULT |" >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Fail if any tests failed
-        if: |
-          needs.unit-tests.result == 'failure' ||
-          needs.integration-tests.result == 'failure' ||
-          needs.resilience-tests.result == 'failure' ||
-          needs.frontend-tests.result == 'failure'
-        run: exit 1
+          # E2E Tests
+          if [ "$E2E_RESULT" == "success" ]; then
+            echo "| E2E Tests | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [ "$E2E_RESULT" == "skipped" ]; then
+            echo "| E2E Tests | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| E2E Tests | :x: $E2E_RESULT |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Security Scan
+          if [ "$SECURITY_RESULT" == "success" ]; then
+            echo "| Security Scan | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [ "$SECURITY_RESULT" == "skipped" ]; then
+            echo "| Security Scan | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Security Scan | :x: $SECURITY_RESULT |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # API Contract Tests
+          if [ "$CONTRACT_RESULT" == "success" ]; then
+            echo "| API Contract Tests | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [ "$CONTRACT_RESULT" == "skipped" ]; then
+            echo "| API Contract Tests | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| API Contract Tests | :x: $CONTRACT_RESULT |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow:** \`$GH_WORKFLOW\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`$GH_REF\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`$GH_SHA\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail if critical tests failed
+        env:
+          UNIT_RESULT: ${{ needs.unit-tests.result }}
+          INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
+          FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
+          E2E_RESULT: ${{ needs.e2e-tests.result }}
+          SECURITY_RESULT: ${{ needs.security-scan.result }}
+        run: |
+          if [ "$UNIT_RESULT" == "failure" ] || \
+             [ "$INTEGRATION_RESULT" == "failure" ] || \
+             [ "$FRONTEND_RESULT" == "failure" ] || \
+             [ "$E2E_RESULT" == "failure" ] || \
+             [ "$SECURITY_RESULT" == "failure" ]; then
+            echo "One or more critical test suites failed!"
+            exit 1
+          fi
