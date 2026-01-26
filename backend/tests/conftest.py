@@ -23,7 +23,9 @@ from datetime import datetime, timedelta
 
 # Add backend to path for imports
 backend_dir = Path(__file__).parent.parent
+tests_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
+sys.path.insert(0, str(tests_dir.parent))  # Add parent of tests for 'tests.mocks' imports
 
 # Set test environment variables before importing application code
 os.environ.setdefault("ENVIRONMENT", "testing")
