@@ -452,18 +452,18 @@ class TracingCollector:
 
             # Group by trace ID
             traces_by_id = {}
-            for trace in filtered_traces:
-                if trace["trace_id"] not in traces_by_id:
-                    traces_by_id[trace["trace_id"]] = {
-                        "trace_id": trace["trace_id"],
+            for span_data in filtered_traces:
+                if span_data["trace_id"] not in traces_by_id:
+                    traces_by_id[span_data["trace_id"]] = {
+                        "trace_id": span_data["trace_id"],
                         "spans": [],
-                        "start_time": trace["start_time"],
-                        "end_time": trace["end_time"],
-                        "duration_ms": trace["duration_ms"],
-                        "service_name": trace["service_name"],
-                        "status": trace["status"]
+                        "start_time": span_data["start_time"],
+                        "end_time": span_data["end_time"],
+                        "duration_ms": span_data["duration_ms"],
+                        "service_name": span_data["service_name"],
+                        "status": span_data["status"]
                     }
-                traces_by_id[trace["trace_id"]]["spans"].append(trace)
+                traces_by_id[span_data["trace_id"]]["spans"].append(span_data)
 
             # Limit results
             trace_ids = list(traces_by_id.keys())[:limit]
