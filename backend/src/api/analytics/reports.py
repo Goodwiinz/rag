@@ -23,8 +23,8 @@ router = APIRouter(prefix="/reports", tags=["analytics-reports"])
 async def create_report(
     name: str,
     title: str,
-    description: Optional[str] = None,
     report_config: Dict[str, Any],
+    description: Optional[str] = None,
     schedule_config: Optional[Dict[str, Any]] = None,
     output_format: str = Query("pdf", regex="^(pdf|csv|xlsx|json)$"),
     delivery_config: Optional[Dict[str, Any]] = None,
@@ -113,8 +113,8 @@ async def get_report(
 @router.post("/{report_id}/generate", status_code=status.HTTP_200_OK)
 async def generate_report(
     report_id: uuid.UUID,
-    force: bool = Query(False, description="Force regeneration even if recently generated"),
     background_tasks: BackgroundTasks,
+    force: bool = Query(False, description="Force regeneration even if recently generated"),
     current_user: User = Depends(get_current_user)
 ):
     """Generate a report"""

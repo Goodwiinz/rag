@@ -247,7 +247,6 @@ class ArXivKnowledgeGraphIntegration:
                 'field': category_mapping.get('field', 'Unknown'),
                 'confidence': 1.0,
                 'type': 'category',
-                'type': 'category',
                 'source': 'arxiv_category',
                 'extraction_method': 'manual'
             })

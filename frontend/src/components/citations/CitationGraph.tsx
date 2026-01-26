@@ -267,14 +267,17 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
   const convertToElements = useCallback((graphData: GraphData): ElementDefinition[] => {
     // Standard non-clustered view
     if (!isClusteredView || !clusterData) {
-      const nodes: ElementDefinition[] = graphData.nodes.map((node) => ({
-        data: {
-          id: node.id,
-          label: node.title || 'Untitled',
-          ...node,
-        },
-        position: node.position || undefined,
-      }));
+      const nodes = graphData.nodes.map((node) => {
+        const { id, ...rest } = node;
+        return {
+          data: {
+            id,
+            label: node.title || 'Untitled',
+            ...rest,
+          },
+          position: node.position || undefined,
+        } as ElementDefinition;
+      });
 
       const edges: ElementDefinition[] = graphData.edges.map((edge) => ({
         data: {
@@ -317,15 +320,16 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
         cluster.nodeIds.forEach(nodeId => {
           const node = graphData.nodes.find(n => n.id === nodeId);
           if (node) {
+            const { id, ...rest } = node;
             elements.push({
               data: {
-                id: node.id,
+                id,
                 label: node.title || 'Untitled',
                 parent: cluster.id, // Compound node parent
-                ...node,
+                ...rest,
               },
               position: node.position || undefined,
-            });
+            } as ElementDefinition);
             visibleNodeIds.add(nodeId);
           }
         });
@@ -444,7 +448,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
             'color': THEME.textColor,
             'text-outline-color': THEME.background,
             'text-outline-width': 2,
-            'text-max-width': 120,
+            'text-max-width': 120 as any,
             'text-wrap': 'ellipsis',
             'opacity': 0.9,
           },
@@ -482,7 +486,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
             'border-width': 2,
             'border-style': 'solid',
             'shape': 'round-rectangle',
-            'padding': 20,
+            'padding': 20 as any,
             'label': 'data(label)',
             'text-valign': 'top',
             'text-halign': 'center',

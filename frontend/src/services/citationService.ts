@@ -15,16 +15,14 @@ export const citationService = {
    * Create a new citation from chat message context
    */
   async createCitation(data: CitationCreate): Promise<CitationResponse> {
-    const response = await apiClient.post<CitationResponse>('/citations', data);
-    return response.data;
+    return apiClient.post<CitationResponse>('/citations', data);
   },
 
   /**
    * Get a single citation by ID
    */
   async getCitation(citationId: string): Promise<CitationResponse> {
-    const response = await apiClient.get<CitationResponse>(`/citations/${citationId}`);
-    return response.data;
+    return apiClient.get<CitationResponse>(`/citations/${citationId}`);
   },
 
   /**
@@ -39,10 +37,9 @@ export const citationService = {
     skip?: number;
     limit?: number;
   }): Promise<CitationListResponse> {
-    const response = await apiClient.get<CitationListResponse>('/citations', {
+    return apiClient.get<CitationListResponse>('/citations', {
       params,
     });
-    return response.data;
   },
 
   /**
@@ -78,11 +75,10 @@ export const citationService = {
     documentId?: string,
     strategy: string = 'auto'
   ): Promise<CitationResponse> {
-    const response = await apiClient.post<CitationResponse>('/citations/extract', {
+    return apiClient.post<CitationResponse>('/citations/extract', {
       document_id: documentId,
       strategy,
     });
-    return response.data;
   },
 
   /**
@@ -94,12 +90,11 @@ export const citationService = {
     doi?: string;
     title?: string;
   }): Promise<CitationResponse> {
-    const response = await apiClient.post<CitationResponse>('/citations/lookup', {
+    return apiClient.post<CitationResponse>('/citations/lookup', {
       arxiv_id: params.arxivId,
       doi: params.doi,
       title: params.title,
     });
-    return response.data;
   },
 
   /**
@@ -114,7 +109,7 @@ export const citationService = {
     citationIds?: string[],
     projectId?: string
   ): Promise<string> {
-    const response = await apiClient.post<string>(
+    return apiClient.post<string>(
       '/citations/export',
       {
         format,
@@ -125,7 +120,6 @@ export const citationService = {
         responseType: 'text',
       }
     );
-    return response.data;
   },
 
   /**
@@ -175,7 +169,7 @@ export const citationService = {
     depth?: number;
     includeExternal?: boolean;
   }): Promise<GraphData> {
-    const response = await apiClient.get<GraphData>('/citations/graph', {
+    return apiClient.get<GraphData>('/citations/graph', {
       params: {
         project_id: params?.projectId,
         document_id: params?.documentId,
@@ -183,7 +177,6 @@ export const citationService = {
         include_external: params?.includeExternal ?? true,
       },
     });
-    return response.data;
   },
 
   /**
@@ -191,10 +184,9 @@ export const citationService = {
    * @param citationId - Citation ID to get details for
    */
   async getGraphNodeDetails(citationId: string): Promise<GraphNodeDetails> {
-    const response = await apiClient.get<GraphNodeDetails>(
+    return apiClient.get<GraphNodeDetails>(
       `/citations/graph/node/${citationId}`
     );
-    return response.data;
   },
 
   /**
@@ -207,7 +199,7 @@ export const citationService = {
     targetId?: string;
     relationshipType?: string;
   }): Promise<RelationshipsResponse> {
-    const response = await apiClient.get<RelationshipsResponse>(
+    return apiClient.get<RelationshipsResponse>(
       '/citations/relationships',
       {
         params: {
@@ -217,7 +209,6 @@ export const citationService = {
         },
       }
     );
-    return response.data;
   },
 
   /**
@@ -235,7 +226,7 @@ export const citationService = {
     citationContext?: string;
     confidence?: number;
   }): Promise<RelationshipResponse> {
-    const response = await apiClient.post<RelationshipResponse>(
+    return apiClient.post<RelationshipResponse>(
       '/citations/relationships',
       null,
       {
@@ -248,7 +239,6 @@ export const citationService = {
         },
       }
     );
-    return response.data;
   },
 };
 

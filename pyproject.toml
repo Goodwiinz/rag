@@ -53,3 +53,46 @@ exclude_lines = [
     "raise AssertionError",
     "raise NotImplementedError",
 ]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "node_modules",
+    "actions-runner",
+]
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = [
+    # Import ordering (handled by isort)
+    "E402",   # Module level import not at top of file
+    # Line length (handled by black)
+    "E501",   # Line too long
+    # Style preferences
+    "E701",   # Multiple statements on one line
+    "E712",   # Comparison to True/False
+    "E722",   # Bare except
+    "E741",   # Ambiguous variable name
+    # Unused code (often intentional)
+    "F401",   # Unused import
+    "F403",   # Star import
+    "F405",   # Name from star import
+    "F541",   # f-string without placeholders
+    "F811",   # Redefinition of unused name
+    "F821",   # Undefined name (many false positives)
+    "F823",   # Local variable referenced before assignment
+    "F841",   # Local variable assigned but never used
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403", "F405"]
+"backend/src/tasks/*.py" = ["E402", "F821"]
+"backend/src/websocket/*.py" = ["F401", "F841", "F821"]
+"backend/src/api/**/*.py" = ["F821"]

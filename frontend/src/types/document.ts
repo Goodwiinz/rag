@@ -19,6 +19,7 @@ export interface Document {
   description?: string;
   tags?: string[];
   custom_fields?: Record<string, any>;
+  mime_type?: string;
 }
 
 export interface DocumentUpload {

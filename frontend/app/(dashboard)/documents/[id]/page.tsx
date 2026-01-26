@@ -276,10 +276,10 @@ export default function DocumentDetailPage() {
                 </h2>
                 <button
                   onClick={handleExtractCitations}
-                  disabled={extracting || document.processing_status !== 'completed'}
+                  disabled={extracting || document.processing_status !== 'indexed'}
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all",
-                    extracting || document.processing_status !== 'completed'
+                    extracting || document.processing_status !== 'indexed'
                       ? "bg-gray-800 text-gray-500 cursor-not-allowed"
                       : "bg-[#00ff9f]/10 border border-[#00ff9f]/30 text-[#00ff9f] hover:bg-[#00ff9f]/20 hover:shadow-[0_0_20px_rgba(0,255,159,0.2)]"
                   )}

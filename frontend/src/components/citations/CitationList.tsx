@@ -366,6 +366,7 @@ export function CitationList({
       <List
         ref={listRef}
         height={height - 36} // Subtract header height
+        width="100%"
         itemCount={citations.length}
         itemSize={180} // Fixed height per item for virtualization
         itemData={itemData}

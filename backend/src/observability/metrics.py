@@ -273,18 +273,18 @@ def create_metrics(configs: List[MetricConfig]) -> Dict[str, Any]:
     """Create multiple metrics from configuration list"""
     metrics_dict = {}
 
-    for config in configs:
-        if config.enabled:
-            if "duration" in config.name or "latency" in config.name:
-                metric = _metrics_registry.create_histogram(config)
-            elif "total" in config.name or "count" in config.name:
-                metric = _metrics_registry.create_counter(config)
-            elif "active" in config.name or "current" in config.name:
-                metric = _metrics_registry.create_updown_counter(config)
+    for metric_config in configs:
+        if metric_config.enabled:
+            if "duration" in metric_config.name or "latency" in metric_config.name:
+                metric = _metrics_registry.create_histogram(metric_config)
+            elif "total" in metric_config.name or "count" in metric_config.name:
+                metric = _metrics_registry.create_counter(metric_config)
+            elif "active" in metric_config.name or "current" in metric_config.name:
+                metric = _metrics_registry.create_updown_counter(metric_config)
             else:
-                metric = _metrics_registry.create_histogram(config)
+                metric = _metrics_registry.create_histogram(metric_config)
 
-            metrics_dict[config.name] = metric
+            metrics_dict[metric_config.name] = metric
 
     return metrics_dict
 
