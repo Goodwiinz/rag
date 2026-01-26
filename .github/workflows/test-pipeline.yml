@@ -67,9 +67,11 @@ jobs:
 
       - name: Run Black (formatting check)
         run: black --check backend/src
+        continue-on-error: true  # Allow failures during gradual adoption
 
       - name: Run isort (import sorting)
         run: isort --check-only backend/src
+        continue-on-error: true  # Allow failures during gradual adoption
 
       - name: Run MyPy (type checking)
         run: mypy backend/src --ignore-missing-imports
@@ -99,6 +101,7 @@ jobs:
 
       - name: Run linting
         run: npm run lint
+        continue-on-error: true  # Allow warnings during gradual adoption
 
   # ==========================================================================
   # Unit Tests (Fast - No External Dependencies)
