@@ -40,41 +40,37 @@ jobs:
   lint-backend:
     name: Lint Backend
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Required for Depot OIDC authentication
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Set up Depot CLI
+        uses: depot/setup-action@v1
 
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
+      - name: Build lint image with Depot
+        uses: depot/build-push-action@v1
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-lint-${{ hashFiles('backend/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-lint-
-            ${{ runner.os }}-pip-
-
-      - name: Install dependencies
-        run: |
-          pip install ruff mypy black isort
-          pip install -r backend/requirements.txt
+          project: ${{ secrets.DEPOT_PROJECT_ID }}
+          context: .
+          file: backend/docker/Dockerfile.lint
+          load: true
+          tags: rag-lint:ci
 
       - name: Run Ruff (linting)
-        run: ruff check backend/src --output-format=github
+        run: docker run --rm rag-lint:ci ruff check backend/src --output-format=github
 
       - name: Run Black (formatting check)
-        run: black --check backend/src
+        run: docker run --rm rag-lint:ci black --check backend/src
         continue-on-error: true  # Allow failures during gradual adoption
 
       - name: Run isort (import sorting)
-        run: isort --check-only backend/src
+        run: docker run --rm rag-lint:ci isort --check-only backend/src
         continue-on-error: true  # Allow failures during gradual adoption
 
       - name: Run MyPy (type checking)
-        run: mypy backend/src --ignore-missing-imports
+        run: docker run --rm rag-lint:ci mypy backend/src --ignore-missing-imports
         continue-on-error: true  # Allow failures during gradual adoption
 
   lint-frontend:
