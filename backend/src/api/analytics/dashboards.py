@@ -7,11 +7,10 @@ import uuid
 from typing import List, Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import JSONResponse
 
 from src.services.analytics.dashboard_service import dashboard_service
 from src.models.analytics.dashboard_models import (
-    DashboardCreate, DashboardUpdate, DashboardResponse, DashboardWithWidgets,
+    DashboardCreate, DashboardUpdate, DashboardResponse,
     WidgetCreate, WidgetUpdate, WidgetResponse
 )
 from src.auth.dependencies import get_current_user
