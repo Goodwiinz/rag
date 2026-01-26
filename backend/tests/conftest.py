@@ -45,6 +45,10 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "integration: Integration tests (may use containers)")
     config.addinivalue_line("markers", "e2e: End-to-end tests")
     config.addinivalue_line("markers", "performance: Performance tests")
+    config.addinivalue_line("markers", "resilience: Resilience pattern tests (retry, circuit breaker, bulkhead)")
+    config.addinivalue_line("markers", "scalability: Scalability tests (caching, pooling)")
+    config.addinivalue_line("markers", "regression: Regression tests for previously fixed bugs")
+    config.addinivalue_line("markers", "smoke: Quick smoke tests for basic validation")
 
     # Feature/domain markers
     config.addinivalue_line("markers", "ai: AI-specific tests (mocked or real)")
@@ -70,9 +74,25 @@ def pytest_configure(config):
 
 def pytest_collection_modifyitems(config, items):
     """Automatically add markers based on file/class names."""
+    skip_template = pytest.mark.skip(reason="Template test - not meant to be run")
+    skip_standalone = pytest.mark.skip(reason="Standalone test - requires external services")
+    skip_performance = pytest.mark.skip(reason="Performance test - run separately with proper infra")
+
     for item in items:
         # Add markers based on test file names
         test_path = str(item.fspath)
+
+        # Skip template and standalone tests if they somehow got collected
+        if "/templates/" in test_path:
+            item.add_marker(skip_template)
+            continue
+        if "/standalone/" in test_path:
+            item.add_marker(skip_standalone)
+            continue
+        if "/performance/" in test_path:
+            item.add_marker(skip_performance)
+            continue
+
         if "test_auth" in test_path:
             item.add_marker(pytest.mark.auth)
         elif "test_search" in test_path:
@@ -88,6 +108,8 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.e2e)
         elif "unit" in test_path:
             item.add_marker(pytest.mark.unit)
+        elif "resilience" in test_path:
+            item.add_marker(pytest.mark.resilience)
 
 
 # ============================================================================

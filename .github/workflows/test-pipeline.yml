@@ -131,6 +131,7 @@ jobs:
       - name: Run unit tests
         run: |
           pytest backend/tests/ \
+            -c backend/pytest.ini \
             -m "unit or not (integration or e2e or slow)" \
             --cov=backend/src \
             --cov-report=xml \
@@ -257,6 +258,7 @@ jobs:
       - name: Run integration tests
         run: |
           pytest backend/tests/ \
+            -c backend/pytest.ini \
             -m "integration" \
             --cov=backend/src \
             --cov-report=xml \
@@ -297,6 +299,7 @@ jobs:
       - name: Run resilience tests
         run: |
           pytest backend/tests/ \
+            -c backend/pytest.ini \
             -m "resilience" \
             --cov=backend/src/core \
             --cov-report=xml \
@@ -345,7 +348,9 @@ jobs:
 
       - name: Run contract tests
         run: |
-          pytest backend/tests/api_contract/ -v
+          pytest backend/tests/api_contract/ \
+            -c backend/pytest.ini \
+            -v
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "postgresql://test:test@localhost:5432/test_db"
@@ -517,6 +522,7 @@ jobs:
       - name: Run performance tests
         run: |
           pytest backend/tests/ \
+            -c backend/pytest.ini \
             -m "slow or scalability" \
             --benchmark-only \
             --benchmark-json=benchmark.json \
