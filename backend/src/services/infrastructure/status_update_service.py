@@ -538,8 +538,8 @@ class StatusUpdateService(BaseService):
         try:
             # Group updates by channel
             channel_batches = {}
-            for update in batch:
-                message_dict = update["message"]
+            for batch_item in batch:
+                message_dict = batch_item["message"]
                 message = WebSocketMessage(**message_dict)
 
                 for channel in message.target_channels:
