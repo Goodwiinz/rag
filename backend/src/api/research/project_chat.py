@@ -96,6 +96,7 @@ async def _get_thread_with_auth(
     """
     query = (
         select(Thread)
+        .options(selectinload(Thread.conversation))
         .join(Conversation, Thread.conversation_id == Conversation.id)
         .join(Workspace, Conversation.workspace_id == Workspace.id)
         .where(
@@ -509,9 +510,10 @@ async def save_thread_to_note(
         # Verify thread access and get messages
         thread = await _get_thread_with_auth(request.thread_id, current_user, db)
 
-        # Get messages
+        # Get messages with eager-loaded citations to avoid lazy-load in async context
         message_query = (
             select(ChatMessage)
+            .options(selectinload(ChatMessage.citations))  # Eager load citations
             .where(
                 and_(
                     ChatMessage.thread_id == request.thread_id,
@@ -524,8 +526,13 @@ async def save_thread_to_note(
         messages = message_result.scalars().all()
 
         # Build note content from messages
-        content_parts = [f"# {thread.title or thread.generate_title()}\n"]
-        content_parts.append(f"*Saved from chat thread on {thread.last_message_at.strftime('%Y-%m-%d')}*\n\n")
+        # Use thread title directly (avoid generate_title() which causes lazy-load issues)
+        thread_title = thread.title or f"Thread {str(thread.id)[:8]}"
+        content_parts = [f"# {thread_title}\n"]
+
+        # Format date safely
+        date_str = thread.last_message_at.strftime('%Y-%m-%d') if thread.last_message_at else "Unknown date"
+        content_parts.append(f"*Saved from chat thread on {date_str}*\n\n")
 
         for msg in messages:
             role_label = msg.role.value.title()

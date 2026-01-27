@@ -20,11 +20,14 @@ import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { UIConversation, useChatPersistence } from '@/hooks';
 import { cn } from '@/lib/utils';
+import { workspaceService } from '@/services/workspaceService';
 import { useChatStore } from '@/store/chat-store';
+import type { Collection as WorkspaceCollection, Workspace as WorkspaceType } from '@/types/workspace';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     Activity,
     Archive,
+    ArrowUp,
     BookOpen,
     Check,
     CheckCircle,
@@ -34,8 +37,10 @@ import {
     Clock,
     Cpu,
     Download,
+    ExternalLink,
     FileText,
     FolderOpen,
+    Library,
     Loader2,
     Menu,
     MessageSquare,
@@ -75,18 +80,8 @@ interface Conversation {
   sharedBy?: string;
 }
 
-interface Collection {
-  id: string;
-  name: string;
-  icon: string;
-  count: number;
-}
-
-interface Workspace {
-  id: string;
-  name: string;
-  isActive: boolean;
-}
+// Note: Collection and Workspace types are imported from @/types/workspace
+// as WorkspaceCollection and WorkspaceType respectively
 
 // ============================================
 // COMMAND PALETTE
@@ -274,18 +269,22 @@ function CommandPalette({
 function WorkspaceBar({
   onCommandPalette,
   onToggleSidebar,
+  workspaces,
+  currentWorkspaceId,
+  onWorkspaceChange,
+  isLoadingWorkspaces,
 }: {
   onCommandPalette: () => void;
   onToggleSidebar: () => void;
+  workspaces: WorkspaceType[];
+  currentWorkspaceId: string | null;
+  onWorkspaceChange: (workspaceId: string) => void;
+  isLoadingWorkspaces: boolean;
 }) {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
 
-  const workspaces: Workspace[] = [
-    { id: '1', name: 'AI Research Lab', isActive: true },
-    { id: '2', name: 'Academic Projects', isActive: false },
-    { id: '3', name: 'Personal', isActive: false },
-  ];
+  const currentWorkspace = workspaces.find(w => w.id === currentWorkspaceId);
 
   useEffect(() => {
     setCurrentTime(new Date());
@@ -335,11 +334,12 @@ function WorkspaceBar({
           <div className="relative hidden md:block">
             <button
               onClick={() => setWorkspaceOpen(!workspaceOpen)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:border-[var(--phosphor-green)]/30 transition-colors"
+              disabled={isLoadingWorkspaces}
+              className="flex items-center gap-2 px-3 py-1.5 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:border-[var(--phosphor-green)]/30 transition-colors disabled:opacity-50"
             >
               <Users className="w-3.5 h-3.5 text-[var(--phosphor-green)]" />
               <span className="text-xs text-[var(--terminal-text)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                AI Research Lab
+                {isLoadingWorkspaces ? 'Loading...' : (currentWorkspace?.name || 'Select Workspace')}
               </span>
               <ChevronDown className={cn(
                 "w-3 h-3 text-[var(--terminal-text-muted)] transition-transform",
@@ -356,26 +356,51 @@ function WorkspaceBar({
                   className="absolute top-full left-0 mt-2 w-56 terminal-window z-50"
                 >
                   <div className="p-2">
-                    {workspaces.map((ws) => (
-                      <button
-                        key={ws.id}
-                        onClick={() => setWorkspaceOpen(false)}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-3 py-2 rounded text-left transition-colors",
-                          ws.isActive
-                            ? "bg-[var(--phosphor-green)]/10 text-[var(--phosphor-green)]"
-                            : "hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text)]"
-                        )}
-                      >
-                        <Users className="w-4 h-4" />
-                        <span className="text-xs" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                          {ws.name}
-                        </span>
-                        {ws.isActive && (
-                          <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)]" />
-                        )}
-                      </button>
-                    ))}
+                    {workspaces.length === 0 ? (
+                      <div className="px-3 py-4 text-center">
+                        <p className="text-xs text-[var(--terminal-text-muted)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                          No workspaces found
+                        </p>
+                      </div>
+                    ) : (
+                      workspaces.map((ws) => (
+                        <button
+                          key={ws.id}
+                          onClick={() => {
+                            onWorkspaceChange(ws.id);
+                            setWorkspaceOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center gap-3 px-3 py-2 rounded text-left transition-colors",
+                            ws.id === currentWorkspaceId
+                              ? "bg-[var(--phosphor-green)]/10 text-[var(--phosphor-green)]"
+                              : "hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text)]"
+                          )}
+                        >
+                          <Users className="w-4 h-4" />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs block truncate" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                              {ws.name}
+                            </span>
+                            {ws.description && (
+                              <span className="text-[10px] text-[var(--terminal-text-muted)] block truncate">
+                                {ws.description.substring(0, 30)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {(ws.collection_count ?? 0) > 0 && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--phosphor-green)]/10 text-[var(--phosphor-green)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                                {ws.collection_count} proj
+                              </span>
+                            )}
+                            {ws.id === currentWorkspaceId && (
+                              <div className="w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)]" />
+                            )}
+                          </div>
+                        </button>
+                      ))
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -432,9 +457,13 @@ function WorkspaceBar({
 function ConversationSidebar({
   isOpen,
   onClose,
+  projects,
+  isLoadingProjects,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  projects: WorkspaceCollection[];
+  isLoadingProjects: boolean;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -523,8 +552,7 @@ function ConversationSidebar({
     }));
   }, [uiConversations]);
 
-  // Collections remain as placeholder for now (can be extended later)
-  const collections: Collection[] = [];
+  // Projects are now passed as props from the parent component
 
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -797,16 +825,20 @@ function ConversationSidebar({
           </AnimatePresence>
         </div>
 
-        {/* Collections Section */}
+        {/* Projects Section (formerly Collections) */}
         <div className="border-t border-[var(--terminal-border)] pt-2 mt-2">
           <button
             onClick={() => toggleSection('collections')}
             className="flex items-center gap-2 w-full px-3 py-2 text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           >
-            <FolderOpen className="w-3 h-3" />
-            <span>Collections</span>
-            <span className="ml-auto text-[var(--terminal-text-dim)]">{collections.length}</span>
+            <Library className="w-3 h-3" />
+            <span>Projects</span>
+            {isLoadingProjects ? (
+              <Loader2 className="w-3 h-3 ml-1 animate-spin" />
+            ) : (
+              <span className="ml-auto text-[var(--terminal-text-dim)]">{projects.length}</span>
+            )}
             <ChevronRight className={cn(
               "w-3 h-3 transition-transform duration-200",
               expandedSections.collections && "rotate-90"
@@ -821,26 +853,46 @@ function ConversationSidebar({
                 transition={{ duration: 0.2 }}
                 className="space-y-1"
               >
-                {collections.length === 0 ? (
+                {isLoadingProjects ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-4 h-4 animate-spin text-[var(--phosphor-green)]" />
+                  </div>
+                ) : projects.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-6 px-4">
-                    <p className="text-[10px] text-[var(--terminal-text-muted)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                      No collections yet
+                    <Library className="w-6 h-6 text-[var(--terminal-text-muted)] mb-2" />
+                    <p className="text-[10px] text-[var(--terminal-text-muted)] text-center" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                      No projects in this workspace
                     </p>
+                    <Link
+                      href="/projects"
+                      className="mt-2 text-[10px] text-[var(--phosphor-green)] hover:underline"
+                      style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                    >
+                      Create a project →
+                    </Link>
                   </div>
                 ) : (
-                  collections.map((collection) => (
-                    <button
-                      key={collection.id}
-                      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left hover:bg-[var(--terminal-elevated)] transition-colors"
+                  projects.map((project) => (
+                    <Link
+                      key={project.id}
+                      href={`/projects/${project.id}?tab=chat`}
+                      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left hover:bg-[var(--terminal-elevated)] transition-colors group"
                     >
-                      <span>{collection.icon}</span>
-                      <span className="flex-1 text-xs text-[var(--terminal-text)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                        {collection.name}
-                      </span>
-                      <span className="text-[10px] text-[var(--terminal-text-muted)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                        {collection.count}
-                      </span>
-                    </button>
+                      <div className="w-6 h-6 rounded bg-[var(--phosphor-green)]/10 flex items-center justify-center shrink-0">
+                        <Library className="w-3 h-3 text-[var(--phosphor-green)]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="block text-xs text-[var(--terminal-text)] truncate group-hover:text-[var(--phosphor-green)] transition-colors" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                          {project.name}
+                        </span>
+                        {project.description && (
+                          <span className="block text-[9px] text-[var(--terminal-text-muted)] truncate" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                            {project.description}
+                          </span>
+                        )}
+                      </div>
+                      <ExternalLink className="w-3 h-3 text-[var(--terminal-text-muted)] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                    </Link>
                   ))
                 )}
               </motion.div>
@@ -1332,9 +1384,19 @@ function ContextPanel({
   const fetchSuggestions = useCallback(async (lastAssistantContent: string, lastCitations: CitationItem[]) => {
     setLoadingSuggestions(true);
     try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setSuggestions([]);
+        setLoadingSuggestions(false);
+        return;
+      }
+      
       const response = await fetch('/api/v1/chat/suggestions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({
           messages: [{ role: 'assistant', content: lastAssistantContent }],
           citations: lastCitations.map(c => ({
@@ -1495,33 +1557,78 @@ function ContextPanel({
 
             {/* AI Suggestions */}
             <div>
-              <div className="text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-wider mb-2"
-                   style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                FOLLOW-UP SUGGESTIONS
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles className="w-3.5 h-3.5" style={{ color: AMBER }} />
+                <div className="text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-wider"
+                     style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  FOLLOW-UP SUGGESTIONS
+                </div>
               </div>
               {loadingSuggestions ? (
-                <div className="flex items-center gap-2 py-3 text-[11px] text-[var(--terminal-text-muted)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                  <Loader2 className="w-3 h-3 animate-spin" style={{ color: PHOSPHOR_GREEN }} />
-                  Generating suggestions...
+                // Skeleton loading state
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
+                    >
+                      <div 
+                        className="w-5 h-5 rounded-md bg-[var(--terminal-elevated)] animate-pulse"
+                        style={{ animationDelay: `${i * 100}ms` }}
+                      />
+                      <div className="flex-1 space-y-1.5">
+                        <div 
+                          className="h-2.5 rounded bg-[var(--terminal-elevated)] animate-pulse"
+                          style={{ width: `${70 - i * 10}%`, animationDelay: `${i * 100}ms` }}
+                        />
+                        <div 
+                          className="h-2 rounded bg-[var(--terminal-elevated)] animate-pulse"
+                          style={{ width: `${40 - i * 5}%`, animationDelay: `${i * 100 + 50}ms` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : suggestions.length > 0 ? (
-                suggestions.map((suggestion, idx) => (
-                  <button
-                    key={idx}
-                    className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-xs text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)] transition-colors mb-1"
-                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                    onClick={() => {
-                      // Dispatch custom event to populate chat input
-                      window.dispatchEvent(new CustomEvent('populate-chat-input', { detail: suggestion }));
-                    }}
-                  >
-                    <Sparkles className="w-3 h-3 shrink-0" style={{ color: AMBER }} />
-                    <span className="truncate">{suggestion}</span>
-                  </button>
-                ))
+                <div className="space-y-2">
+                  {suggestions.map((suggestion, idx) => (
+                    <button
+                      key={idx}
+                      className="group flex items-start gap-3 w-full px-3 py-2.5 rounded-lg text-left border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:border-[var(--amber-gold)]/40 hover:bg-[var(--terminal-elevated)] transition-all duration-200 hover:shadow-[0_0_12px_-4px_var(--amber-gold)]"
+                      style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('populate-chat-input', { detail: suggestion }));
+                      }}
+                    >
+                      {/* Number badge */}
+                      <div className="flex-shrink-0 w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold border border-[var(--terminal-border)] group-hover:border-[var(--amber-gold)]/40 group-hover:text-[var(--amber-gold)] text-[var(--terminal-text-dim)] transition-colors">
+                        {idx + 1}
+                      </div>
+                      
+                      {/* Suggestion text */}
+                      <span className="flex-1 text-[11px] text-[var(--terminal-text)] leading-relaxed group-hover:text-[var(--amber-gold)] transition-colors">
+                        {suggestion}
+                      </span>
+                      
+                      {/* Arrow indicator */}
+                      <ArrowUp className="w-3 h-3 rotate-45 text-[var(--terminal-text-dim)] opacity-0 group-hover:opacity-100 group-hover:text-[var(--amber-gold)] transition-all flex-shrink-0 mt-0.5" />
+                    </button>
+                  ))}
+                </div>
               ) : (
-                <div className="text-[11px] text-[var(--terminal-text-muted)] py-3" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                  Ask a question to get suggestions
+                <div className="flex flex-col items-center py-6 px-3 rounded-lg border border-dashed border-[var(--terminal-border)] bg-[var(--terminal-surface)]/50">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+                       style={{ backgroundColor: `${AMBER}10`, border: `1px solid ${AMBER}20` }}>
+                    <Sparkles className="w-5 h-5" style={{ color: AMBER }} />
+                  </div>
+                  <p className="text-[11px] text-center text-[var(--terminal-text-muted)] mb-1"
+                     style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                    No suggestions yet
+                  </p>
+                  <p className="text-[10px] text-center text-[var(--terminal-text-dim)] max-w-[180px]"
+                     style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                    Ask a question to get AI-powered follow-up ideas
+                  </p>
                 </div>
               )}
             </div>
@@ -1599,6 +1706,78 @@ export default function ChatLayout({
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [contextPanelOpen, setContextPanelOpen] = useState(false);
 
+  // Workspace and project state
+  const [workspaces, setWorkspaces] = useState<WorkspaceType[]>([]);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null);
+  const [projects, setProjects] = useState<WorkspaceCollection[]>([]);
+  const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(true);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
+
+  // Fetch workspaces on mount
+  useEffect(() => {
+    async function fetchWorkspaces() {
+      setIsLoadingWorkspaces(true);
+      try {
+        const fetchedWorkspaces = await workspaceService.listWorkspaces();
+
+        // Sort workspaces: prioritize ones with collections, then by most recent
+        const sortedWorkspaces = [...fetchedWorkspaces].sort((a, b) => {
+          // First prioritize workspaces with collections
+          const aHasCollections = (a.collection_count ?? 0) > 0;
+          const bHasCollections = (b.collection_count ?? 0) > 0;
+          if (aHasCollections && !bHasCollections) return -1;
+          if (!aHasCollections && bHasCollections) return 1;
+          // Then sort by collection count
+          if ((a.collection_count ?? 0) !== (b.collection_count ?? 0)) {
+            return (b.collection_count ?? 0) - (a.collection_count ?? 0);
+          }
+          // Finally by updated_at (most recent first)
+          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+        });
+
+        setWorkspaces(sortedWorkspaces);
+
+        // Set first workspace with collections as current, or just first available
+        if (sortedWorkspaces.length > 0 && !currentWorkspaceId) {
+          const workspaceWithProjects = sortedWorkspaces.find(w => (w.collection_count ?? 0) > 0);
+          setCurrentWorkspaceId(workspaceWithProjects?.id || sortedWorkspaces[0].id);
+        }
+      } catch (error) {
+        console.error('[ChatLayout] Failed to fetch workspaces:', error);
+      } finally {
+        setIsLoadingWorkspaces(false);
+      }
+    }
+    fetchWorkspaces();
+  }, []);
+
+  // Fetch projects when workspace changes
+  useEffect(() => {
+    async function fetchProjects() {
+      if (!currentWorkspaceId) {
+        setProjects([]);
+        return;
+      }
+
+      setIsLoadingProjects(true);
+      try {
+        const response = await workspaceService.listCollections(currentWorkspaceId);
+        setProjects(response.collections || []);
+      } catch (error) {
+        console.error('[ChatLayout] Failed to fetch projects:', error);
+        setProjects([]);
+      } finally {
+        setIsLoadingProjects(false);
+      }
+    }
+    fetchProjects();
+  }, [currentWorkspaceId]);
+
+  // Handle workspace change
+  const handleWorkspaceChange = useCallback((workspaceId: string) => {
+    setCurrentWorkspaceId(workspaceId);
+  }, []);
+
   // Global keyboard shortcut for command palette
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1618,6 +1797,10 @@ export default function ChatLayout({
       <WorkspaceBar
         onCommandPalette={() => setCommandPaletteOpen(true)}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        workspaces={workspaces}
+        currentWorkspaceId={currentWorkspaceId}
+        onWorkspaceChange={handleWorkspaceChange}
+        isLoadingWorkspaces={isLoadingWorkspaces}
       />
 
       {/* Main Layout */}
@@ -1627,6 +1810,8 @@ export default function ChatLayout({
           <ConversationSidebar
             isOpen={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
+            projects={projects}
+            isLoadingProjects={isLoadingProjects}
           />
         </Suspense>
 
