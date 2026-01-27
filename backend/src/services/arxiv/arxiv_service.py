@@ -8,6 +8,7 @@ for testing and evaluating the multimodal RAG system.
 import asyncio
 import logging
 from defusedxml import ElementTree as ET
+from xml.etree.ElementTree import Element  # For type hints only
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple, Any
 from pathlib import Path
@@ -251,7 +252,7 @@ class ArXivIngestionService:
         logger.info(f"Fetched {len(papers)} papers from arXiv")
         return papers[:max_results]
 
-    def _parse_arxiv_entry(self, entry: ET.Element, namespaces: Dict) -> Dict[str, Any]:
+    def _parse_arxiv_entry(self, entry: Element, namespaces: Dict) -> Dict[str, Any]:
         """Parse a single arXiv entry from XML"""
         # Basic metadata
         paper_id = entry.find('atom:id', namespaces).text.split('/')[-1]
