@@ -15,7 +15,7 @@ import structlog
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import List, Optional, Dict, Any, Protocol, BinaryIO
-from jinja2 import Environment, BaseLoader
+from jinja2 import Environment, BaseLoader, select_autoescape
 from jinja2.ext import loopcontrols
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -208,9 +208,14 @@ class ExportFormatter(ABC):
 
 class MarkdownFormatter(ExportFormatter):
     """Format thread as Markdown."""
-    
+
     def __init__(self):
-        self._env = Environment(loader=BaseLoader(), extensions=[loopcontrols])
+        # Enable autoescape for security (even for Markdown)
+        self._env = Environment(
+            loader=BaseLoader(),
+            extensions=[loopcontrols],
+            autoescape=True
+        )
         self._template = self._env.from_string(MARKDOWN_TEMPLATE)
     
     def format(self, thread: ThreadExport, options: ExportOptions) -> bytes:
@@ -233,9 +238,14 @@ class MarkdownFormatter(ExportFormatter):
 
 class HTMLFormatter(ExportFormatter):
     """Format thread as HTML."""
-    
+
     def __init__(self):
-        self._env = Environment(loader=BaseLoader(), extensions=[loopcontrols])
+        # Enable autoescape for HTML/XML to prevent XSS attacks
+        self._env = Environment(
+            loader=BaseLoader(),
+            extensions=[loopcontrols],
+            autoescape=select_autoescape(['html', 'xml'])
+        )
         self._template = self._env.from_string(HTML_TEMPLATE)
     
     def format(self, thread: ThreadExport, options: ExportOptions) -> bytes:
