@@ -3,6 +3,7 @@ Thread model for Terminal Observatory thread-centric chat schema
 """
 
 from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Text, Integer
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from enum import Enum as PyEnum
 from datetime import datetime
@@ -49,10 +50,25 @@ class Thread(BaseModel):
     # Creator tracking
     created_by_id = Column(GUID(), ForeignKey("users.id"), nullable=True)
 
+    # Project integration (optional)
+    source_project_id = Column(
+        GUID(),
+        ForeignKey("collections.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Project that originated this thread (if started from project)",
+    )
+    rag_document_scope = Column(
+        JSONB,
+        nullable=True,
+        comment='Document IDs for RAG filtering. Format: {"document_ids": ["uuid1", "uuid2"]}',
+    )
+
     # Relationships
     conversation = relationship("Conversation", back_populates="threads")
     created_by = relationship("User", foreign_keys=[created_by_id])
     messages = relationship("ChatMessage", back_populates="thread", cascade="all, delete-orphan", order_by="ChatMessage.created_at.asc()")
+    source_project = relationship("Collection", foreign_keys=[source_project_id])
 
     def __repr__(self):
         return f"<Thread(title={self.title}, status={self.status.value}, conversation_id={self.conversation_id})>"
@@ -92,6 +108,8 @@ class Thread(BaseModel):
         data['status'] = self.status.value if self.status else None
         data['message_count'] = self.message_count
         data['token_count'] = self.token_count
+        data['source_project_id'] = self.source_project_id
+        data['rag_document_scope'] = self.rag_document_scope
 
         if include_messages and self.messages:
             data['messages'] = [m.to_dict() for m in self.messages]
