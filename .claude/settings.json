@@ -13,5 +13,8 @@
   "memory": {
     "enabled": true,
     "path": ".serena/memories"
+  },
+  "enabledPlugins": {
+    "obsidian-memory@goodwiins-plugins": true
   }
 }

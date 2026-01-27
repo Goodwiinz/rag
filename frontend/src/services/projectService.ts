@@ -19,6 +19,7 @@ export interface Project {
 }
 
 export interface ProjectCreate {
+  workspace_id: string;
   name: string;
   description?: string;
 }

@@ -53,7 +53,7 @@ async def _validate_project_ownership(
         .where(
             and_(
                 Collection.id == project_id,
-                Workspace.user_id == current_user.id,
+                Workspace.owner_id == current_user.id,
             )
         )
     )

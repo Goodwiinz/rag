@@ -179,3 +179,6 @@ serena_repo/
 
 # GoodFlows session files (contain local paths)
 .goodflows/context/sessions/*.json
+
+# Serena Docker config (local paths)
+serena-docker-config/
