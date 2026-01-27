@@ -59,6 +59,7 @@ from src.api.research import (
     citations_router,
     projects_router,
     drafts_router,
+    project_chat_router,
 )
 from src.api.threads import (
     workspaces_router,
@@ -315,6 +316,7 @@ app.include_router(
 app.include_router(export_router, prefix="/api/v1")  # Thread export endpoints
 app.include_router(citations_router)  # Research Assistant citations endpoints
 app.include_router(projects_router)  # Research Assistant projects endpoints
+app.include_router(project_chat_router)  # Project-Chat integration endpoints
 app.include_router(drafts_router)  # Research Assistant drafts endpoints
 app.include_router(
     thread_search_router, prefix="/api/v2"
