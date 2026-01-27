@@ -515,3 +515,62 @@ class DraftVersionListResponse(BaseModel):
     versions: List[DraftVersion]
     total_versions: int
     current_version: Optional[int] = None
+
+
+# ============================================================================
+# Project-Chat Integration Schemas (Phase 2)
+# ============================================================================
+
+class StartChatFromProjectRequest(BaseModel):
+    """Request to start a new chat from a project with document context"""
+    initial_message: str = Field(..., min_length=1, description="First message in the chat")
+    conversation_id: Optional[UUID] = Field(None, description="Use existing conversation (optional)")
+    thread_title: Optional[str] = Field(None, max_length=500, description="Custom thread title")
+
+
+class StartChatFromProjectResponse(BaseModel):
+    """Response from starting a chat from a project"""
+    thread_id: UUID
+    conversation_id: UUID
+    project_thread_id: UUID
+    document_scope: List[UUID] = Field(..., description="Document IDs included in RAG context")
+
+    class Config:
+        from_attributes = True
+
+
+class LinkThreadRequest(BaseModel):
+    """Request to link an existing thread to a project"""
+    thread_id: UUID = Field(..., description="Thread ID to link")
+    context_note: Optional[str] = Field(None, description="Optional note about why this thread is linked")
+
+
+class ProjectThreadResponse(BaseModel):
+    """Response for a project-thread link"""
+    id: UUID
+    project_id: UUID
+    thread_id: UUID
+    thread_title: str
+    conversation_id: UUID
+    link_type: str
+    linked_at: datetime
+    linked_by_id: Optional[UUID] = None
+    context_note: Optional[str] = None
+    message_count: int = Field(default=0, description="Number of messages in thread")
+    last_message_at: Optional[datetime] = Field(None, description="Last message timestamp")
+
+    class Config:
+        from_attributes = True
+
+
+class ProjectThreadListResponse(BaseModel):
+    """List of threads linked to a project"""
+    threads: List[ProjectThreadResponse]
+    total: int
+
+
+class SaveThreadToNoteRequest(BaseModel):
+    """Request to save thread content to a project note"""
+    thread_id: UUID = Field(..., description="Thread to save")
+    note_title: str = Field(..., min_length=1, max_length=255, description="Title for the new note")
+    include_citations: bool = Field(default=True, description="Include citations in the note")

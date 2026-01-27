@@ -178,6 +178,10 @@ class ThreadCreate(ThreadBase):
     """Create thread request"""
     conversation_id: UUID
     initial_message: Optional[str] = None  # Optional first message
+    project_id: Optional[UUID] = Field(
+        None,
+        description="Optional project ID to auto-link this thread to a research project"
+    )
 
 
 class ThreadUpdate(BaseModel):
