@@ -51,6 +51,12 @@ from .user_session import UserSession, SessionStatus
 from .analytics_event import AnalyticsEvent, EventType, EventSeverity
 from .performance_log import PerformanceLog, MetricCategory, PerformanceLevel
 
+# A/B Testing models (import after User and Organization to avoid circular dependencies)
+from .ab_testing import (
+    Experiment, ExperimentStatus, ExperimentType,
+    Variant, ExperimentAssignment, ExperimentMetric, ExperimentSegment
+)
+
 # Export all models for easy importing
 __all__ = [
     # Base classes
@@ -155,4 +161,13 @@ __all__ = [
     "DocumentQualityMetrics",
     "QualityMetricType",
     "DocumentAccessLog",
+
+    # A/B Testing models
+    "Experiment",
+    "ExperimentStatus",
+    "ExperimentType",
+    "Variant",
+    "ExperimentAssignment",
+    "ExperimentMetric",
+    "ExperimentSegment",
 ]
