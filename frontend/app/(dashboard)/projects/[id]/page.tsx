@@ -22,16 +22,18 @@ import {
   Loader2,
   Save,
   X,
+  MessageSquare,
 } from 'lucide-react';
 import { DraftGenerator, type GenerationConfig } from '@/components/research/DraftGenerator';
 import { DraftViewer } from '@/components/research/DraftViewer';
 import { DraftGenerationProgress } from '@/components/research/DraftGenerationProgress';
+import { ProjectChatTab } from '@/components/research/ProjectChatTab';
 import { projectService, type Draft, type GenerationStatus } from '@/services/projectService';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/stores/authStore';
 import type { ProjectNote, ProjectNoteCreate } from '@/services/projectService';
 
-type TabType = 'documents' | 'notes' | 'bibliography' | 'drafts';
+type TabType = 'documents' | 'notes' | 'bibliography' | 'drafts' | 'chat';
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -280,6 +282,17 @@ export default function ProjectDetailPage() {
         >
           <Sparkles className="h-4 w-4" />
           Drafts
+        </button>
+        <button
+          onClick={() => handleTabChange('chat')}
+          className={`flex items-center gap-2 px-4 py-2 font-mono text-sm border-b-2 transition-colors ${
+            activeTab === 'chat'
+              ? 'text-[#00ff9f] border-[#00ff9f]'
+              : 'text-gray-500 border-transparent hover:text-gray-300'
+          }`}
+        >
+          <MessageSquare className="h-4 w-4" />
+          Chat
         </button>
       </div>
 
@@ -582,6 +595,11 @@ export default function ProjectDetailPage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* Chat Tab */}
+        {activeTab === 'chat' && (
+          <ProjectChatTab projectId={projectId} />
         )}
       </div>
 
