@@ -800,9 +800,16 @@ async def list_collections(
     count_result = await db.execute(count_stmt)
     total = count_result.scalar() or 0
 
-    # Fetch collections
+    # Fetch collections with eager-loaded documents for document_count property
     offset = (page - 1) * limit
-    stmt = select(Collection).where(*base_conditions).order_by(Collection.name).offset(offset).limit(limit)
+    stmt = (
+        select(Collection)
+        .options(selectinload(Collection.documents))
+        .where(*base_conditions)
+        .order_by(Collection.name)
+        .offset(offset)
+        .limit(limit)
+    )
     result = await db.execute(stmt)
     collections = result.scalars().all()
 
