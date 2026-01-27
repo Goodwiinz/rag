@@ -84,6 +84,12 @@ export const useProjectChatStore = create<ProjectChatState>()(
      * Fetch all threads linked to a project
      */
     fetchProjectThreads: async (projectId: string) => {
+      // Guard against invalid project IDs
+      if (!projectId || projectId === 'undefined') {
+        console.warn('[ProjectChatStore] fetchProjectThreads called with invalid projectId:', projectId);
+        return;
+      }
+
       set((state) => {
         state.loadingThreads[projectId] = true;
         state.errors[projectId] = null;
@@ -112,6 +118,12 @@ export const useProjectChatStore = create<ProjectChatState>()(
       projectId: string,
       request: StartChatFromProjectRequest
     ) => {
+      // Guard against invalid project IDs
+      if (!projectId || projectId === 'undefined') {
+        console.warn('[ProjectChatStore] startChatFromProject called with invalid projectId:', projectId);
+        return null;
+      }
+
       set((state) => {
         state.startingChat[projectId] = true;
         state.errors[projectId] = null;
@@ -148,6 +160,12 @@ export const useProjectChatStore = create<ProjectChatState>()(
       projectId: string,
       request: LinkThreadRequest
     ) => {
+      // Guard against invalid project IDs
+      if (!projectId || projectId === 'undefined') {
+        console.warn('[ProjectChatStore] linkThreadToProject called with invalid projectId:', projectId);
+        return null;
+      }
+
       set((state) => {
         state.linkingThread[projectId] = true;
         state.errors[projectId] = null;
@@ -183,6 +201,12 @@ export const useProjectChatStore = create<ProjectChatState>()(
      * Unlink a thread from a project
      */
     unlinkThreadFromProject: async (projectId: string, threadId: string) => {
+      // Guard against invalid project IDs
+      if (!projectId || projectId === 'undefined') {
+        console.warn('[ProjectChatStore] unlinkThreadFromProject called with invalid projectId:', projectId);
+        return;
+      }
+
       set((state) => {
         state.unlinkingThread[projectId] = true;
         state.errors[projectId] = null;
@@ -217,6 +241,12 @@ export const useProjectChatStore = create<ProjectChatState>()(
       projectId: string,
       request: SaveThreadToNoteRequest
     ) => {
+      // Guard against invalid project IDs
+      if (!projectId || projectId === 'undefined') {
+        console.warn('[ProjectChatStore] saveThreadToNote called with invalid projectId:', projectId);
+        return null;
+      }
+
       set((state) => {
         state.savingToNote[projectId] = true;
         state.errors[projectId] = null;
