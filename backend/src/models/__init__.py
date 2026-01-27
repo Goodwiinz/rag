@@ -26,6 +26,7 @@ from .citation_relationship import CitationRelationship
 from .project_note import ProjectNote
 from .generated_draft import GeneratedDraft
 from .draft_citation import DraftCitation
+from .project_thread import ProjectThread, ProjectThreadLinkType
 
 # Permission and role models
 from .permission import Permission, Role, UserRoleAssignment, PermissionCategory, PermissionScope
@@ -112,6 +113,8 @@ __all__ = [
     "ProjectNote",
     "GeneratedDraft",
     "DraftCitation",
+    "ProjectThread",
+    "ProjectThreadLinkType",
 
     # Permission and role models
     "Permission",
