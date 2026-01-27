@@ -7,6 +7,7 @@ cache invalidation patterns, and monitoring.
 
 import asyncio
 import hashlib
+import hmac
 import json
 import logging
 import pickle
@@ -16,6 +17,14 @@ from functools import wraps
 from typing import Any, Callable, Optional, TypeVar, Union
 
 logger = logging.getLogger(__name__)
+
+# Import settings for HMAC key
+try:
+    from src.core.config import settings
+    HMAC_SECRET = settings.SECRET_KEY.encode() if hasattr(settings, 'SECRET_KEY') else b'default-insecure-key-change-in-production'
+except ImportError:
+    logger.warning("Could not import settings, using default HMAC key (INSECURE)")
+    HMAC_SECRET = b'default-insecure-key-change-in-production'
 
 T = TypeVar("T")
 
@@ -134,28 +143,80 @@ def _serialize_for_key(value: Any) -> str:
 # =============================================================================
 
 
+def _secure_pickle_dumps(obj: Any) -> bytes:
+    """
+    Securely serialize object with pickle using HMAC signature.
+
+    Format: [32-byte HMAC-SHA256 signature][pickled data]
+
+    Security: Prevents deserialization attacks by validating data integrity.
+    """
+    pickled_data = pickle.dumps(obj)
+    signature = hmac.new(HMAC_SECRET, pickled_data, hashlib.sha256).digest()
+    return signature + pickled_data
+
+
+def _secure_pickle_loads(data: bytes) -> Any:
+    """
+    Securely deserialize pickle data with HMAC signature validation.
+
+    Raises:
+        ValueError: If signature is invalid or missing (possible tampering)
+    """
+    if len(data) < 32:
+        raise ValueError("Data too short to contain valid HMAC signature")
+
+    signature = data[:32]
+    pickled_data = data[32:]
+
+    # Verify signature
+    expected_signature = hmac.new(HMAC_SECRET, pickled_data, hashlib.sha256).digest()
+    if not hmac.compare_digest(signature, expected_signature):
+        raise ValueError("Invalid HMAC signature - possible data tampering detected")
+
+    # Safe to deserialize after signature validation
+    # nosec B301: pickle.loads is safe here because data integrity is verified via HMAC-SHA256
+    return pickle.loads(pickled_data)  # nosec B301
+
+
 def serialize_value(value: Any) -> bytes:
     """Serialize value for cache storage."""
     if cache_config.serialize_method == "json":
         try:
             return json.dumps(value, default=str).encode()
         except (TypeError, ValueError):
-            # Fall back to pickle for complex objects
-            return pickle.dumps(value)
+            # Fall back to HMAC-signed pickle for complex objects
+            logger.debug("JSON serialization failed, falling back to secure pickle")
+            return _secure_pickle_dumps(value)
     else:
-        return pickle.dumps(value)
+        # Use HMAC-signed pickle
+        return _secure_pickle_dumps(value)
 
 
 def deserialize_value(data: bytes) -> Any:
-    """Deserialize value from cache storage."""
+    """
+    Deserialize value from cache storage.
+
+    Raises:
+        ValueError: If pickle data signature is invalid
+    """
     if cache_config.serialize_method == "json":
         try:
             return json.loads(data.decode())
         except (json.JSONDecodeError, UnicodeDecodeError):
-            # Try pickle as fallback
-            return pickle.loads(data)
+            # Try HMAC-signed pickle as fallback
+            logger.debug("JSON deserialization failed, trying secure pickle")
+            try:
+                return _secure_pickle_loads(data)
+            except ValueError as e:
+                logger.error(f"Pickle deserialization failed: {e}")
+                raise ValueError(
+                    f"Cache data deserialization failed: {e}. "
+                    "Data may be corrupted or from untrusted source."
+                )
     else:
-        return pickle.loads(data)
+        # Use HMAC-signed pickle
+        return _secure_pickle_loads(data)
 
 
 # =============================================================================
