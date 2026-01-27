@@ -280,3 +280,222 @@ try:
 except ImportError:
     # pytest_asyncio not installed
     pass
+"""
+Fixtures for Project-Chat Integration Tests
+
+Provides database fixtures for testing project-chat API endpoints.
+"""
+
+import pytest
+import pytest_asyncio
+from uuid import uuid4
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+
+from src.main import app
+from src.core.database import get_db
+from src.models import (
+    Base, User, UserRole, Workspace, WorkspaceRole,
+    Collection, Conversation, Thread, ChatMessage,
+    MessageRole, ProjectThread, ProjectThreadLinkType
+)
+
+
+# ============================================================================
+# Database Setup
+# ============================================================================
+
+@pytest_asyncio.fixture(scope="function")
+async def test_db():
+    """Create test database with all tables."""
+    # Use in-memory SQLite for tests
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        echo=False,
+    )
+
+    # Create all tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    # Create async session
+    async_session = sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    async with async_session() as session:
+        yield session
+
+    # Cleanup
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def async_client(test_db):
+    """Create async HTTP client with test database override."""
+    async def override_get_db():
+        yield test_db
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        yield client
+
+    app.dependency_overrides.clear()
+
+
+# ============================================================================
+# Model Fixtures
+# ============================================================================
+
+@pytest_asyncio.fixture(scope="function")
+async def test_user(test_db: AsyncSession):
+    """Create a test user."""
+    user = User(
+        id=uuid4(),
+        email="test@example.com",
+        hashed_password="hashed_password_123",
+        role=UserRole.USER,
+        is_active=True,
+    )
+    test_db.add(user)
+    await test_db.commit()
+    await test_db.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture(scope="function")
+async def other_user(test_db: AsyncSession):
+    """Create another test user for isolation tests."""
+    user = User(
+        id=uuid4(),
+        email="other@example.com",
+        hashed_password="hashed_password_456",
+        role=UserRole.USER,
+        is_active=True,
+    )
+    test_db.add(user)
+    await test_db.commit()
+    await test_db.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_workspace(test_db: AsyncSession, test_user: User):
+    """Create a test workspace."""
+    workspace = Workspace(
+        id=uuid4(),
+        name="Test Workspace",
+        owner_id=test_user.id,
+    )
+    test_db.add(workspace)
+    await test_db.commit()
+    await test_db.refresh(workspace)
+    return workspace
+
+
+@pytest_asyncio.fixture(scope="function")
+async def other_workspace(test_db: AsyncSession, other_user: User):
+    """Create workspace for another user (isolation tests)."""
+    workspace = Workspace(
+        id=uuid4(),
+        name="Other Workspace",
+        owner_id=other_user.id,
+    )
+    test_db.add(workspace)
+    await test_db.commit()
+    await test_db.refresh(workspace)
+    return workspace
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_project(test_db: AsyncSession, test_workspace: Workspace):
+    """Create a test project (Collection)."""
+    project = Collection(
+        id=uuid4(),
+        name="Test Research Project",
+        description="A test project for integration testing",
+        workspace_id=test_workspace.id,
+        created_by_id=test_workspace.owner_id,
+    )
+    test_db.add(project)
+    await test_db.commit()
+    await test_db.refresh(project)
+    return project
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_conversation(test_db: AsyncSession, test_workspace: Workspace, test_user: User):
+    """Create a test conversation."""
+    conversation = Conversation(
+        id=uuid4(),
+        title="Test Conversation",
+        workspace_id=test_workspace.id,
+        created_by_id=test_user.id,
+    )
+    test_db.add(conversation)
+    await test_db.commit()
+    await test_db.refresh(conversation)
+    return conversation
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_thread(test_db: AsyncSession, test_conversation: Conversation, test_user: User):
+    """Create a test thread."""
+    thread = Thread(
+        id=uuid4(),
+        title="Test Thread",
+        conversation_id=test_conversation.id,
+        created_by_id=test_user.id,
+        message_count=0,
+    )
+    test_db.add(thread)
+    await test_db.commit()
+    await test_db.refresh(thread)
+    return thread
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_project_thread(
+    test_db: AsyncSession,
+    test_project: Collection,
+    test_thread: Thread,
+    test_user: User
+):
+    """Create a test project-thread link."""
+    project_thread = ProjectThread(
+        id=uuid4(),
+        project_id=test_project.id,
+        thread_id=test_thread.id,
+        link_type=ProjectThreadLinkType.MANUAL.value,
+        linked_by_id=test_user.id,
+        context_note="Test link",
+    )
+    test_db.add(project_thread)
+    await test_db.commit()
+    await test_db.refresh(project_thread)
+    return project_thread
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_message(test_db: AsyncSession, test_thread: Thread, test_user: User):
+    """Create a test message."""
+    message = ChatMessage(
+        id=uuid4(),
+        thread_id=test_thread.id,
+        user_id=test_user.id,
+        role=MessageRole.USER,
+        content="Test message content",
+    )
+    test_db.add(message)
+
+    # Update thread message count
+    test_thread.message_count += 1
+
+    await test_db.commit()
+    await test_db.refresh(message)
+    return message
