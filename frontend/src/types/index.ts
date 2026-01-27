@@ -12,6 +12,7 @@ export type {
 export * from './evaluation';
 export * from './ui';
 export * from './analytics';
+export * from './project-chat';
 
 // Export constants with explicit names to avoid conflicts
 export {

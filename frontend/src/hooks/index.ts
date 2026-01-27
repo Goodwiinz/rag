@@ -17,3 +17,5 @@ export type {
   UIMessage,
   UIConversation,
 } from './useChatPersistence';
+
+export { useProjectChat } from './useProjectChat';
