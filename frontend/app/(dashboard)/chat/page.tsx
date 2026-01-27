@@ -1,56 +1,56 @@
 'use client';
 
 import {
-  ChatSettings,
-  CitationPanel,
-  CitationRenderer,
-  Model,
-  RAGToggle,
+    ChatSettings,
+    CitationPanel,
+    CitationRenderer,
+    Model,
+    RAGToggle,
 } from '@/components/chat';
-import {
-  ragService,
-  buildRAGSystemPrompt,
-  RAGContextItem,
-  getModelSize,
-  getRAGConfigForModel,
-  getModelAwareHistory,
-} from '@/services/ragService';
 import { cn } from '@/lib/utils';
 import apiClient from '@/services/apiClient';
+import {
+    buildRAGSystemPrompt,
+    getModelAwareHistory,
+    getModelSize,
+    getRAGConfigForModel,
+    RAGContextItem,
+    ragService,
+} from '@/services/ragService';
 import { workspaceService } from '@/services/workspaceService';
 import { useChatStore } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
 import {
-  CitationCreate,
-  ChatMessage as DBChatMessage,
-  Conversation as DBConversation,
-  MessageRole,
-  Thread,
-  Workspace,
+    CitationCreate,
+    ChatMessage as DBChatMessage,
+    Conversation as DBConversation,
+    MessageRole,
+    Thread,
+    Workspace,
 } from '@/types/workspace';
 import { Citation } from '@/utils/citationParser';
 import { CreateMLCEngine, InitProgressReport, MLCEngine } from "@mlc-ai/web-llm";
-import { AnimatePresence, motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
+import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import {
-  Activity,
-  ArrowDown,
-  ArrowUp,
-  BookOpen,
-  Check,
-  ChevronDown,
-  Copy,
-  Cpu,
-  FileText,
-  Loader2,
-  Mic,
-  Paperclip,
-  Radio,
-  RefreshCw,
-  Satellite,
-  Shield,
-  Sparkles,
-  Square,
-  Zap,
+    Activity,
+    ArrowDown,
+    ArrowUp,
+    BookOpen,
+    Check,
+    ChevronDown,
+    Copy,
+    Cpu,
+    FileText,
+    Loader2,
+    Mic,
+    Paperclip,
+    Radio,
+    RefreshCw,
+    Satellite,
+    Shield,
+    Sparkles,
+    Square,
+    Zap,
 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
@@ -1105,6 +1105,25 @@ function ChatPageContent() {
       isHydratedRef.current = false;
     }
   }, [isAuthenticated]);
+
+  // Listen for populate-chat-input events from Follow-up Suggestions
+  useEffect(() => {
+    const handlePopulateChatInput = (event: CustomEvent<string>) => {
+      if (event.detail) {
+        setInput(event.detail);
+        // Focus the textarea after populating
+        const textarea = document.querySelector('textarea');
+        if (textarea) {
+          textarea.focus();
+        }
+      }
+    };
+
+    window.addEventListener('populate-chat-input', handlePopulateChatInput as EventListener);
+    return () => {
+      window.removeEventListener('populate-chat-input', handlePopulateChatInput as EventListener);
+    };
+  }, []);
 
   // Redirect to login if not authenticated
   useEffect(() => {
