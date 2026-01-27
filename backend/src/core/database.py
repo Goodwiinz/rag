@@ -72,10 +72,13 @@ if _is_sqlite:
     )
 else:
     # PostgreSQL async configuration
+    # Note: pool_pre_ping is disabled for async engine as it can cause
+    # MissingGreenlet errors with asyncpg when ping runs outside greenlet context.
+    # Instead, we rely on pool_recycle to handle stale connections.
     async_engine = create_async_engine(
         ASYNC_DATABASE_URL,
-        pool_pre_ping=True,
-        pool_recycle=3600,  # Recycle connections after 1 hour (reduced connection churn)
+        pool_pre_ping=False,  # Disabled - causes greenlet issues with asyncpg
+        pool_recycle=300,  # Recycle connections every 5 minutes to avoid stale connections
         pool_size=10,  # Base pool size
         max_overflow=20,  # Allow up to 30 total connections
         pool_timeout=30,  # Wait 30s for available connection

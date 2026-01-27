@@ -43,7 +43,7 @@ router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
 @router.get("", response_model=ProjectListResponse)
 async def list_projects(
     workspace_id: Optional[UUID] = Query(None, description="Filter by workspace"),
-    status: Optional[str] = Query(None, description="Filter by status"),
+    project_status: Optional[str] = Query(None, description="Filter by status"),
     project_type: Optional[str] = Query(None, description="Filter by type"),
     tag: Optional[str] = Query(None, description="Filter by tag"),
     search: Optional[str] = Query(None, description="Search by name"),
@@ -56,7 +56,7 @@ async def list_projects(
 
     Args:
         workspace_id: Optional workspace filter
-        status: Filter by research_status (active/paused/completed/archived)
+        project_status: Filter by research_status (active/paused/completed/archived)
         project_type: Filter by project_type (research/literature_review/thesis/paper)
         tag: Filter by tag
         search: Search by project name
@@ -73,7 +73,7 @@ async def list_projects(
         from src.models import Workspace
 
         # Get user's workspace IDs
-        workspace_query = select(Workspace.id).where(Workspace.user_id == current_user.id)
+        workspace_query = select(Workspace.id).where(Workspace.owner_id == current_user.id)
         workspace_result = await db.execute(workspace_query)
         user_workspace_ids = [row[0] for row in workspace_result.all()]
 
@@ -88,8 +88,8 @@ async def list_projects(
         filters = []
         if workspace_id:
             filters.append(Collection.workspace_id == workspace_id)
-        if status:
-            filters.append(Collection.research_status == status)
+        if project_status:
+            filters.append(Collection.research_status == project_status)
         if project_type:
             filters.append(Collection.project_type == project_type)
         if tag:
@@ -121,11 +121,18 @@ async def list_projects(
         result = await db.execute(query)
         projects = result.scalars().all()
 
+        # Calculate pagination values
+        page = (skip // limit) + 1 if limit > 0 else 1
+        has_next = (skip + limit) < total
+        has_prev = skip > 0
+
         return ProjectListResponse(
             projects=[_to_project_response(p) for p in projects],
             total=total,
-            skip=skip,
-            limit=limit,
+            page=page,
+            size=limit,
+            has_next=has_next,
+            has_prev=has_prev,
         )
 
     except Exception as e:
@@ -158,7 +165,7 @@ async def create_project(
         workspace_query = select(Workspace).where(
             and_(
                 Workspace.id == project_data.workspace_id,
-                Workspace.user_id == current_user.id,
+                Workspace.owner_id == current_user.id,
             )
         )
         workspace_result = await db.execute(workspace_query)
@@ -615,11 +622,14 @@ async def list_project_notes(
         result = await db.execute(query)
         notes = result.scalars().all()
 
+        # Calculate pagination values
+        page = (skip // limit) + 1 if limit > 0 else 1
+
         return NoteListResponse(
             notes=[_to_note_response(n) for n in notes],
             total=total,
-            skip=skip,
-            limit=limit,
+            page=page,
+            size=limit,
         )
 
     except HTTPException:
@@ -965,11 +975,12 @@ async def _get_project_with_auth(
 
     query = (
         select(Collection)
+        .options(selectinload(Collection.documents))
         .join(Workspace, Collection.workspace_id == Workspace.id)
         .where(
             and_(
                 Collection.id == project_id,
-                Workspace.user_id == current_user.id,
+                Workspace.owner_id == current_user.id,
             )
         )
     )
@@ -1042,6 +1053,7 @@ def _to_project_response(project: Collection) -> ProjectResponse:
 
 def _to_note_response(note: ProjectNote) -> NoteResponse:
     """Convert ProjectNote to NoteResponse."""
+    linked_docs = note.linked_document_ids or []
     return NoteResponse(
         id=note.id,
         project_id=note.project_id,
@@ -1049,7 +1061,8 @@ def _to_note_response(note: ProjectNote) -> NoteResponse:
         title=note.title,
         content=note.content,
         content_preview=note.content_preview,
-        linked_document_ids=note.linked_document_ids or [],
+        linked_document_ids=linked_docs,
+        linked_document_count=len(linked_docs),
         tags=note.tags or [],
         is_pinned=note.is_pinned,
         created_at=note.created_at,

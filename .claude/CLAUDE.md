@@ -2,6 +2,74 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## MCP Tools (Model Context Protocol)
+
+This project has powerful MCP servers configured. **Use these tools instead of basic grep/find when exploring code.**
+
+### Available MCP Servers
+
+| Server | Purpose | Key Capabilities |
+|--------|---------|------------------|
+| **Serena** | Semantic code analysis | Symbol search, code editing, project memories |
+| **Redis** | Cache operations | Direct Redis database access |
+
+### Serena Tools (Preferred for Code Navigation)
+
+**Always prefer Serena tools over grep/find for code exploration:**
+
+| Tool | Use Case | Example |
+|------|----------|---------|
+| `mcp__serena__search_for_pattern` | Find code patterns across codebase | Search for `async def.*endpoint` |
+| `mcp__serena__find_symbol` | Find classes, functions, methods | Find `DocumentService` class |
+| `mcp__serena__find_file` | Locate files by name pattern | Find `*_service.py` files |
+| `mcp__serena__get_symbols_overview` | Get file structure (classes, functions) | Understand module structure |
+| `mcp__serena__find_referencing_symbols` | Find all usages of a symbol | Track function callers |
+| `mcp__serena__read_file` | Read file with semantic context | Read with symbol awareness |
+| `mcp__serena__replace_symbol_body` | Replace entire function/class | Refactor complete symbols |
+| `mcp__serena__replace_content` | Regex-based file editing | Targeted code changes |
+| `mcp__serena__insert_after_symbol` | Add code after a symbol | Add new methods to class |
+| `mcp__serena__list_dir` | List directory contents | Explore project structure |
+
+### Serena Memories (Project Knowledge Base)
+
+Read relevant memories before starting tasks. Available memories:
+
+| Memory | Content |
+|--------|---------|
+| `project_structure` | Codebase organization and key directories |
+| `project_overview` | System architecture and components |
+| `design_patterns` | Patterns used in this codebase |
+| `code_style_conventions` | Coding standards and style guide |
+| `suggested_commands` | Common dev commands |
+| `coderabbit_findings` | Code review findings history |
+| `auto_fix_patterns` | Reusable fix templates |
+| `database_fixes_and_indexing` | Database optimization notes |
+| `thread_workflow_analysis` | Thread/conversation workflow docs |
+| `task_completion_checklist` | Task verification checklist |
+
+**Usage:**
+```
+# Read a memory
+mcp__serena__read_memory(memory_file_name="project_structure")
+
+# Write new knowledge
+mcp__serena__write_memory(memory_file_name="new_feature_notes", content="...")
+
+# List all memories
+mcp__serena__list_memories()
+```
+
+### Best Practices
+
+1. **Code Search**: Use `mcp__serena__search_for_pattern` instead of `grep`
+2. **File Discovery**: Use `mcp__serena__find_file` instead of `find` or `glob`
+3. **Symbol Navigation**: Use `mcp__serena__find_symbol` to locate classes/functions
+4. **Understanding Code**: Use `mcp__serena__get_symbols_overview` before reading full files
+5. **Editing Code**: Prefer `mcp__serena__replace_symbol_body` for complete symbol replacement
+6. **Project Context**: Read relevant memories at task start (`project_structure`, `design_patterns`)
+
+---
+
 ## Project Overview
 
 This is a **Multimodal Enterprise RAG System** that processes text, images, audio, and video files. It follows an evaluation-first architecture with comprehensive testing and metrics tracking.
@@ -350,3 +418,11 @@ The system tracks:
 
 - **Security Tests Added**:
   - `backend/src/tests/test_security.py` - Tests for WebSocket auth, SQL injection prevention, CORS, secret validation
+
+### Projects API Parameter Shadowing Fix (2026-01-27)
+
+- **Issue**: `GET /api/v1/projects` returning 500 error: `'NoneType' object has no attribute 'HTTP_500_INTERNAL_SERVER_ERROR'`
+- **Root Cause**: Query parameter `status` on line 46 was shadowing the imported `fastapi.status` module. When `status` query param was `None`, exception handler couldn't access `status.HTTP_500_INTERNAL_SERVER_ERROR`
+- **Solution**: Renamed query parameter from `status` to `project_status`
+- **Files Modified**: `backend/src/api/research/projects.py`
+- **Lesson**: Avoid naming variables/parameters the same as imported modules

@@ -74,12 +74,25 @@ def pytest_configure(config):
     )
 
 
+def pytest_addoption(parser):
+    """Add custom pytest options."""
+    parser.addoption(
+        "--run-scaffolding",
+        action="store_true",
+        default=False,
+        help="Run scaffolding tests (normally skipped)"
+    )
+
+
 def pytest_collection_modifyitems(config, items):
     """Automatically add markers based on file/class names."""
     skip_template = pytest.mark.skip(reason="Template test - not meant to be run")
     skip_standalone = pytest.mark.skip(reason="Standalone test - requires external services")
     skip_performance = pytest.mark.skip(reason="Performance test - run separately with proper infra")
     skip_scaffolding = pytest.mark.skip(reason="Scaffolding test - needs implementation fixes")
+
+    # Check if user wants to run scaffolding tests
+    run_scaffolding = config.getoption("--run-scaffolding", default=False)
 
     for item in items:
         # Add markers based on test file names
@@ -95,7 +108,7 @@ def pytest_collection_modifyitems(config, items):
         if "/performance/" in test_path:
             item.add_marker(skip_performance)
             continue
-        if "/scaffolding/" in test_path:
+        if "/scaffolding/" in test_path and not run_scaffolding:
             item.add_marker(skip_scaffolding)
             continue
 

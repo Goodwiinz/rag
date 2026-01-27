@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, Search, FolderOpen, FileText, BookOpen, Loader2, Trash2 } from 'lucide-react';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/stores/authStore';
+import { workspaceService } from '@/services/workspaceService';
 import type { Project, ProjectCreate } from '@/services/projectService';
 
 export default function ProjectsPage() {
@@ -48,7 +49,11 @@ export default function ProjectsPage() {
 
     setCreating(true);
     try {
+      // Get or create default workspace for the project
+      const workspace = await workspaceService.getOrCreateDefaultWorkspace();
+
       const project = await createProject({
+        workspace_id: workspace.id,
         name: newProjectName.trim(),
         description: newProjectDescription.trim() || undefined,
       });

@@ -96,30 +96,23 @@ class DocumentFactory:
             'has_pages': False,
             'has_duration': False
         },
-        DocumentType.JPG: {
-            'extensions': ['.jpg', '.jpeg'],
-            'mime_types': ['image/jpeg'],
+        DocumentType.IMAGE: {
+            'extensions': ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+            'mime_types': ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
             'size_range': (10 * 1024, 10 * 1024 * 1024),  # 10KB - 10MB
             'has_pages': False,
             'has_duration': False
         },
-        DocumentType.PNG: {
-            'extensions': ['.png'],
-            'mime_types': ['image/png'],
-            'size_range': (10 * 1024, 10 * 1024 * 1024),  # 10KB - 10MB
-            'has_pages': False,
-            'has_duration': False
-        },
-        DocumentType.MP3: {
-            'extensions': ['.mp3'],
-            'mime_types': ['audio/mpeg', 'audio/mp3'],
+        DocumentType.AUDIO: {
+            'extensions': ['.mp3', '.wav', '.ogg', '.m4a'],
+            'mime_types': ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg'],
             'size_range': (100 * 1024, 100 * 1024 * 1024),  # 100KB - 100MB
             'has_pages': False,
             'has_duration': True
         },
-        DocumentType.MP4: {
-            'extensions': ['.mp4', '.avi', '.mov'],
-            'mime_types': ['video/mp4', 'video/avi', 'video/quicktime'],
+        DocumentType.VIDEO: {
+            'extensions': ['.mp4', '.avi', '.mov', '.webm'],
+            'mime_types': ['video/mp4', 'video/avi', 'video/quicktime', 'video/webm'],
             'size_range': (1 * 1024 * 1024, 1024 * 1024 * 1024),  # 1MB - 1GB
             'has_pages': False,
             'has_duration': True
@@ -172,7 +165,7 @@ class DocumentFactory:
 
         # Generate thumbnail URL for supported types
         thumbnail_url = config.thumbnail_url
-        if thumbnail_url is None and config.file_type in [DocumentType.PDF, DocumentType.JPG, DocumentType.PNG]:
+        if thumbnail_url is None and config.file_type in [DocumentType.PDF, DocumentType.IMAGE]:
             thumbnail_url = f"https://test-thumbnails.example.com/{uuid.uuid4()}.jpg"
 
         # Generate custom metadata
@@ -224,7 +217,7 @@ class DocumentFactory:
             doc_config = DocumentConfig() if config is None else DocumentConfig(**config.__dict__)
 
             # Add variation to processing status
-            if config is None or config.processing_status == ProcessingStatus.INDEXED:
+            if config is None or config.processing_status == ProcessingStatus.COMPLETED:
                 doc_config.processing_status = random.choice(list(ProcessingStatus))
 
             # Add variation to file type if not specified
@@ -391,7 +384,7 @@ class DocumentFactory:
             job_config.status = JobStatus.PENDING
         elif document.processing_status == ProcessingStatus.PROCESSING:
             job_config.status = JobStatus.IN_PROGRESS
-        elif document.processing_status == ProcessingStatus.INDEXED:
+        elif document.processing_status == ProcessingStatus.COMPLETED:
             job_config.status = JobStatus.COMPLETED
         elif document.processing_status == ProcessingStatus.FAILED:
             job_config.status = JobStatus.FAILED
@@ -401,7 +394,7 @@ class DocumentFactory:
 
         # Create quality assessment if document is processed
         quality_assessment = None
-        if document.processing_status == ProcessingStatus.INDEXED:
+        if document.processing_status == ProcessingStatus.COMPLETED:
             if qa_config is None:
                 qa_config = QualityMetricConfig()
             qa_config.document_id = document.id
@@ -441,7 +434,7 @@ class DocumentFactory:
                 "Troubleshooting Guide",
                 "Release Notes {version}"
             ],
-            DocumentType.JPG: [
+            DocumentType.IMAGE: [
                 "Product Screenshot {view}",
                 "Architecture Diagram {system}",
                 "Process Flowchart {process}",
@@ -451,21 +444,12 @@ class DocumentFactory:
                 "Photo {subject}",
                 "Diagram {type}",
                 "Illustration {subject}",
-                "Design Mockup {component}"
-            ],
-            DocumentType.PNG: [
+                "Design Mockup {component}",
                 "Logo {brand}",
                 "Icon {type}",
-                "Screenshot {application}",
-                "Chart {type}",
-                "Diagram {system}",
-                "Mockup {screen}",
-                "Illustration {subject}",
-                "Graphic {type}",
-                "Image {description}",
-                "Visual {type}"
+                "Screenshot {application}"
             ],
-            DocumentType.MP3: [
+            DocumentType.AUDIO: [
                 "Meeting Recording {date}",
                 "Podcast Episode {number}",
                 "Interview {guest}",
@@ -477,7 +461,7 @@ class DocumentFactory:
                 "Sound Effect {type}",
                 "Music Track {title}"
             ],
-            DocumentType.MP4: [
+            DocumentType.VIDEO: [
                 "Product Demo {product}",
                 "Training Video {topic}",
                 "Presentation Recording {event}",
@@ -577,27 +561,23 @@ class DocumentFactory:
                 'word_count': random.randint(100, 50000),
                 'character_count': random.randint(500, 200000)
             },
-            DocumentType.JPG: {
+            DocumentType.IMAGE: {
                 'camera_make': random.choice(['Canon', 'Nikon', 'Sony', 'Apple', 'Samsung']),
                 'camera_model': f"{fake.word()} {random.randint(1000, 9999)}",
                 'resolution': f"{random.choice([1920, 2560, 3840, 4096])}x{random.choice([1080, 1440, 2160, 3072])}",
                 'color_space': random.choice(['sRGB', 'Adobe RGB', 'ProPhoto RGB']),
-                'has_exif': random.choice([True, False])
-            },
-            DocumentType.PNG: {
-                'compression_level': random.randint(1, 9),
+                'has_exif': random.choice([True, False]),
                 'has_transparency': random.choice([True, False]),
-                'bit_depth': random.choice([8, 16, 24, 32]),
-                'color_type': random.choice(['RGB', 'RGBA', 'Grayscale', 'Indexed'])
+                'bit_depth': random.choice([8, 16, 24, 32])
             },
-            DocumentType.MP3: {
+            DocumentType.AUDIO: {
                 'bitrate': random.choice([128, 192, 256, 320]),
                 'sample_rate': random.choice([44100, 48000]),
                 'duration_seconds': random.randint(30, 3600),
                 'has_album_art': random.choice([True, False]),
-                'codec': random.choice(['MP3', 'AAC'])
+                'codec': random.choice(['MP3', 'AAC', 'WAV', 'OGG'])
             },
-            DocumentType.MP4: {
+            DocumentType.VIDEO: {
                 'resolution': random.choice(['720p', '1080p', '4K']),
                 'frame_rate': random.choice([24, 30, 60]),
                 'duration_seconds': random.randint(60, 7200),
