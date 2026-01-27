@@ -7,7 +7,7 @@ for testing and evaluating the multimodal RAG system.
 
 import asyncio
 import logging
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple, Any
 from pathlib import Path
