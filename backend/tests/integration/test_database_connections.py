@@ -13,6 +13,12 @@ import qdrant_client
 from neo4j import GraphDatabase
 import time
 
+import sys
+from pathlib import Path
+
+# Add parent directory to path to import conftest_fastapi
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from conftest_fastapi import *
 
 
