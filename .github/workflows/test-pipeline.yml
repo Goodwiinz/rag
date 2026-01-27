@@ -218,6 +218,7 @@ jobs:
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [unit-tests, frontend-tests]
     services:
       postgres:
@@ -284,6 +285,7 @@ jobs:
   resilience-tests:
     name: Resilience Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: unit-tests
     steps:
       - uses: actions/checkout@v4
