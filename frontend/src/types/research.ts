@@ -71,6 +71,7 @@ export interface ProjectCreate {
 export interface ProjectResponse {
   id: string;
   userId: string;
+  workspace_id: string;
   name: string;
   description?: string;
   projectType: string;

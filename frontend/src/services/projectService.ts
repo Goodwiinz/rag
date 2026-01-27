@@ -11,6 +11,7 @@ export interface Project {
   name: string;
   description?: string;
   user_id: string;
+  workspace_id: string;
   created_at: string;
   updated_at: string;
   document_count?: number;

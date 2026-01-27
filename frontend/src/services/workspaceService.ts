@@ -380,24 +380,70 @@ export const workspaceService = {
   // ============================================================================
 
   async getOrCreateDefaultWorkspace(): Promise<Workspace> {
-    try {
-      // Try to get existing workspaces
-      const workspaces = await this.listWorkspaces();
-      if (workspaces.length > 0) {
-        // Return the first (most recent) workspace
-        return workspaces[0];
+    // Check localStorage cache first to avoid unnecessary API calls
+    if (typeof window !== 'undefined') {
+      const cachedId = localStorage.getItem('default-workspace-id');
+      if (cachedId) {
+        try {
+          const workspace = await this.getWorkspace(cachedId);
+          return workspace;
+        } catch (error: any) {
+          // Cache is stale, clear it and continue
+          if (error?.response?.status === 404) {
+            localStorage.removeItem('default-workspace-id');
+          }
+        }
       }
-    } catch (error) {
-      console.warn('[WorkspaceService] Error listing workspaces:', error);
     }
 
-    // Create default workspace if none exists
-    console.log('[WorkspaceService] Creating default workspace');
-    return this.createWorkspace({
+    // Try to get existing workspaces with retry for transient errors
+    let retries = 2;
+    while (retries > 0) {
+      try {
+        const workspaces = await this.listWorkspaces();
+        if (workspaces.length > 0) {
+          // Return workspace with most content, or first available
+          const bestWorkspace = workspaces.reduce((best, current) => {
+            const bestScore = (best.collection_count ?? 0) + (best.conversation_count ?? 0);
+            const currentScore = (current.collection_count ?? 0) + (current.conversation_count ?? 0);
+            return currentScore > bestScore ? current : best;
+          }, workspaces[0]);
+
+          // Cache the ID
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('default-workspace-id', bestWorkspace.id);
+          }
+          return bestWorkspace;
+        }
+        // Only break if we successfully got an empty list (no workspaces exist)
+        break;
+      } catch (error: any) {
+        retries--;
+        if (retries > 0) {
+          console.warn('[WorkspaceService] Error listing workspaces, retrying...', error);
+          await new Promise(resolve => setTimeout(resolve, 500)); // Brief delay before retry
+        } else {
+          // Don't create workspace on error - rethrow to let caller handle
+          console.error('[WorkspaceService] Failed to list workspaces after retries:', error);
+          throw error;
+        }
+      }
+    }
+
+    // Only create workspace if list was successfully empty
+    console.log('[WorkspaceService] No workspaces found, creating default workspace');
+    const newWorkspace = await this.createWorkspace({
       name: 'My Workspace',
       description: 'Default workspace for Terminal Observatory',
       is_public: false,
     });
+
+    // Cache the new workspace ID
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('default-workspace-id', newWorkspace.id);
+    }
+
+    return newWorkspace;
   },
 
   // ============================================================================

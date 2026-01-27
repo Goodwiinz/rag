@@ -16,7 +16,9 @@ import type {
 } from '@/types/project-chat';
 import type { NoteResponse } from '@/types/research';
 
-const BASE_PATH = '/api/v1/projects';
+// Note: apiClient already has baseURL of http://localhost:8000/api/v1
+// So we only need the path after /api/v1
+const BASE_PATH = '/projects';
 
 /**
  * Project-Chat Integration Service
