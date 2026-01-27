@@ -52,7 +52,7 @@ class ProjectThread(BaseModel):
     link_type = Column(
         String(50),
         nullable=False,
-        default=ProjectThreadLinkType.MANUAL.value,
+        default=lambda: ProjectThreadLinkType.MANUAL.value,
     )
     linked_at = Column(
         DateTime(timezone=True),
@@ -74,6 +74,15 @@ class ProjectThread(BaseModel):
     project = relationship("Collection", backref="project_threads")
     thread = relationship("Thread", backref="project_threads")
     linked_by = relationship("User", foreign_keys=[linked_by_id])
+
+    def __init__(self, **kwargs):
+        """Initialize with default values"""
+        # Set default values if not provided
+        if 'link_type' not in kwargs:
+            kwargs['link_type'] = ProjectThreadLinkType.MANUAL.value
+        if 'linked_at' not in kwargs:
+            kwargs['linked_at'] = datetime.utcnow()
+        super().__init__(**kwargs)
 
     def __repr__(self):
         return f"<ProjectThread(project_id={self.project_id}, thread_id={self.thread_id}, link_type={self.link_type})>"
