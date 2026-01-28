@@ -14,6 +14,10 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
+import { enableMapSet } from 'immer';
+
+// Enable Immer support for Map and Set
+enableMapSet();
 
 // Mock workspace service
 const mockWorkspaceService = {
