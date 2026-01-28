@@ -389,14 +389,16 @@ jobs:
           build-args: |
             PYTHON_VERSION=3.11
 
-      - name: Build frontend image with Depot
-        uses: depot/build-push-action@v1
+      - name: Setup Node.js for frontend
+        uses: actions/setup-node@v4
         with:
-          project: ${{ secrets.DEPOT_PROJECT_ID }}
-          context: .
-          file: frontend/Dockerfile.prod
-          load: true
-          tags: rag-frontend:test
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
 
       - name: Start infrastructure services
         run: |
@@ -406,7 +408,7 @@ jobs:
           echo "Waiting for infrastructure services..."
           timeout 60 bash -c 'until docker compose -p rag_system -f docker-compose.ci.yml ps | grep -E "(healthy)" | wc -l | grep -q "2"; do sleep 3; done'
 
-      - name: Start application services
+      - name: Start backend service
         run: |
           # Start backend with pre-built image
           docker run -d --name backend-e2e \
@@ -417,20 +419,12 @@ jobs:
             -e ENVIRONMENT=testing \
             -e SECRET_KEY=ci-test-secret-key-32-characters! \
             -e JWT_SECRET_KEY=ci-test-jwt-secret-key-32chars! \
-            -e CORS_ORIGINS=http://localhost:3000,http://frontend:3000 \
+            -e CORS_ORIGINS=http://localhost:3000 \
             -e ENABLE_AI_PROCESSING=false \
             rag-backend:test
 
-          # Start frontend with pre-built image
-          docker run -d --name frontend-e2e \
-            --network rag_system_ci-network \
-            -p 3000:3000 \
-            -e BACKEND_URL=http://backend-e2e:8000 \
-            -e NEXT_PUBLIC_API_URL=http://localhost:8000 \
-            rag-frontend:test
-
-          # Wait for services to be ready
-          echo "Waiting for application services..."
+          # Wait for backend to be ready
+          echo "Waiting for backend service..."
           for i in {1..30}; do
             if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
               echo "Backend is healthy!"
@@ -439,21 +433,10 @@ jobs:
             sleep 3
           done
 
-          for i in {1..30}; do
-            if curl -sf http://localhost:3000 > /dev/null 2>&1; then
-              echo "Frontend is healthy!"
-              break
-            fi
-            sleep 3
-          done
-
-      - name: Verify services are accessible
+      - name: Verify backend is accessible
         run: |
           echo "Checking backend health..."
           curl -f http://localhost:8000/health || exit 1
-
-          echo "Checking frontend..."
-          curl -f http://localhost:3000 || exit 1
 
       - name: Run E2E Tests
         env:
@@ -483,15 +466,12 @@ jobs:
         run: |
           echo "=== Backend Logs ==="
           docker logs backend-e2e --tail=100 2>&1 || true
-          echo ""
-          echo "=== Frontend Logs ==="
-          docker logs frontend-e2e --tail=100 2>&1 || true
 
       - name: Cleanup
         if: always()
         run: |
-          docker stop backend-e2e frontend-e2e 2>/dev/null || true
-          docker rm backend-e2e frontend-e2e 2>/dev/null || true
+          docker stop backend-e2e 2>/dev/null || true
+          docker rm backend-e2e 2>/dev/null || true
           docker compose -p rag_system -f docker-compose.ci.yml down -v --remove-orphans
 
   # ==========================================================================
