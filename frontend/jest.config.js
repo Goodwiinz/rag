@@ -11,10 +11,14 @@ const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
 
   // Allow tests to be discovered anywhere (src and app imports supported by next/jest)
-  // Include sanity tests and component unit tests
+  // Include sanity tests, component unit tests, service tests, and store tests
   testMatch: [
     '<rootDir>/src/__tests__/sanity.test.ts',
     '<rootDir>/src/components/**/__tests__/**/*.test.{ts,tsx}',
+    '<rootDir>/src/services/__tests__/**/*.test.{ts,tsx}',
+    '<rootDir>/src/store/__tests__/**/*.test.{ts,tsx}',
+    '<rootDir>/src/hooks/__tests__/**/*.test.{ts,tsx}',
+    '<rootDir>/src/utils/__tests__/**/*.test.{ts,tsx}',
   ],
 
   // Ignore Playwright e2e and heavy integration suites in Jest
