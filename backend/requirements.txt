@@ -16,7 +16,7 @@ asyncpg==0.29.0
 # Authentication & Security
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.6
+python-multipart>=0.0.22
 bcrypt==4.1.1
 defusedxml==0.7.1
 
@@ -40,7 +40,7 @@ qdrant-client>=1.9.0
 neo4j==5.15.0
 
 # Multimodal Processing
-pypdf==4.0.1
+pypdf>=6.6.2
 PyMuPDF==1.23.8
 pytesseract==0.3.10
 pillow==10.1.0
@@ -83,7 +83,7 @@ py-spy==0.3.14
 # Utilities
 python-dotenv==1.0.0
 httpx==0.25.2
-aiohttp==3.9.1
+aiohttp>=3.13.3
 aiohttp-retry==2.8.3
 tenacity==8.2.3
 aiofiles==23.2.1
