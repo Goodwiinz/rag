@@ -458,10 +458,12 @@ class GraphAlgorithms:
         start_time = time.time()
 
         try:
-            query = """
-            MATCH (start:Entity {id: $source_entity_id, tenant_id: $tenant_id})
-            MATCH (end:Entity {id: $target_entity_id, tenant_id: $tenant_id})
-            MATCH path = shortestPath((start)-[:RELATED_TO*1..$max_depth]-(end))
+            # Note: Neo4j doesn't support parameters in variable-length patterns
+            # max_depth is validated to be a reasonable integer, safe to interpolate
+            query = f"""
+            MATCH (start:Entity {{id: $source_entity_id, tenant_id: $tenant_id}})
+            MATCH (end:Entity {{id: $target_entity_id, tenant_id: $tenant_id}})
+            MATCH path = shortestPath((start)-[:RELATED_TO*1..{max_depth}]-(end))
             RETURN path, length(path) as path_length
             ORDER BY path_length
             LIMIT $max_paths
@@ -471,7 +473,6 @@ class GraphAlgorithms:
                 "source_entity_id": source_entity_id,
                 "target_entity_id": target_entity_id,
                 "tenant_id": tenant_id,
-                "max_depth": max_depth,
                 "max_paths": max_paths
             })
 

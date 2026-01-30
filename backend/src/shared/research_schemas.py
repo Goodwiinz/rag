@@ -4,7 +4,7 @@ Research Assistant schemas for citation management, citation graphs, research pr
 This module contains Pydantic schemas for the Research Assistant feature (User Stories 1-5).
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -117,9 +117,10 @@ class CitationResponse(BaseModel):
     createdAt: datetime = Field(..., alias="created_at")
     updatedAt: datetime = Field(..., alias="updated_at")
 
-    class Config:
-        from_attributes = True
-        populate_by_name = True
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+    )
 
 
 class CitationListResponse(BaseModel):
