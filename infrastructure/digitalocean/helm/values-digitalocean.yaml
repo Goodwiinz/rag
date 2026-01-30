@@ -1,0 +1,395 @@
+# =============================================================================
+# RAG System - DigitalOcean Helm Values Override
+# =============================================================================
+# This file overrides the default values.yaml for DigitalOcean DOKS deployment
+# Usage: helm upgrade --install rag-system ./deployment/helm/rag-system -f values-digitalocean.yaml
+
+global:
+  name: rag-system
+  namespace: rag-system
+  environment: production
+  domain: app.gen-text.app  # UPDATE: Your domain
+  imageRegistry: "registry.digitalocean.com/ragsystemregistry"
+  imagePullSecrets: "do-registry"
+
+# =============================================================================
+# Backend Service
+# =============================================================================
+backend:
+  name: rag-backend
+  replicas: 2
+  image:
+    repository: registry.digitalocean.com/ragsystemregistry/backend
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 8000
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 2
+  env:
+    ENVIRONMENT: "production"
+    PYTHONPATH: "/app"
+    LOG_LEVEL: "INFO"
+    WORKERS: "4"
+    TIMEOUT: "300"
+  envFrom:
+    - secretRef:
+        name: database-credentials
+    - secretRef:
+        name: spaces-credentials
+    - secretRef:
+        name: app-secrets
+  scaling:
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+
+# =============================================================================
+# Frontend Service
+# =============================================================================
+ui:
+  name: rag-frontend
+  replicas: 2
+  image:
+    repository: registry.digitalocean.com/ragsystemregistry/frontend
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 15
+    periodSeconds: 5
+  env:
+    ENVIRONMENT: "production"
+    NEXT_PUBLIC_API_URL: "https://api.gen-text.app"  # UPDATE
+    LOG_LEVEL: "INFO"
+  scaling:
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+
+# =============================================================================
+# Celery Workers
+# =============================================================================
+celeryWorker:
+  name: rag-celery-worker
+  replicas: 2
+  image:
+    repository: registry.digitalocean.com/ragsystemregistry/backend
+    tag: latest
+    pullPolicy: Always
+  command: ["celery", "-A", "src.celery_app", "worker", "-l", "info", "-c", "4"]
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  envFrom:
+    - secretRef:
+        name: database-credentials
+    - secretRef:
+        name: spaces-credentials
+    - secretRef:
+        name: app-secrets
+  scaling:
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilization: 70
+
+celeryBeat:
+  name: rag-celery-beat
+  replicas: 1
+  image:
+    repository: registry.digitalocean.com/ragsystemregistry/backend
+    tag: latest
+  command: ["celery", "-A", "src.celery_app", "beat", "-l", "info"]
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  envFrom:
+    - secretRef:
+        name: database-credentials
+    - secretRef:
+        name: app-secrets
+
+# =============================================================================
+# Neo4j Graph Database (In-cluster)
+# =============================================================================
+neo4j:
+  name: neo4j
+  enabled: true
+  replicas: 1  # Single node for cost; 3 for HA
+  image:
+    repository: neo4j
+    tag: "5.15-community"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 7474
+    boltPort: 7687
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+  env:
+    NEO4J_AUTH: "neo4j/changeme"  # UPDATE: Use secret
+    NEO4J_PLUGINS: '["apoc"]'
+    NEO4J_dbms_memory_pagecache_size: "1G"
+    NEO4J_dbms_memory_heap_max__size: "2G"
+  persistence:
+    enabled: true
+    size: "50Gi"
+    storageClass: "do-block-storage"
+  nodeSelector:
+    workload: database
+  tolerations:
+    - key: "workload"
+      operator: "Equal"
+      value: "database"
+      effect: "NoSchedule"
+
+# =============================================================================
+# Qdrant Vector Database (In-cluster)
+# =============================================================================
+qdrant:
+  name: qdrant
+  enabled: true
+  replicas: 1  # Single node for cost; 3 for HA
+  image:
+    repository: qdrant/qdrant
+    tag: "v1.7.4"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 6333
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  env:
+    QDRANT__SERVICE__HTTP_PORT: "6333"
+    QDRANT__LOG_LEVEL: "info"
+  persistence:
+    enabled: true
+    size: "100Gi"
+    storageClass: "do-block-storage"
+  nodeSelector:
+    workload: database
+  tolerations:
+    - key: "workload"
+      operator: "Equal"
+      value: "database"
+      effect: "NoSchedule"
+
+# =============================================================================
+# Managed Databases (External - DO Managed)
+# =============================================================================
+# PostgreSQL and Redis are managed by DigitalOcean
+# Connection details are in Kubernetes secrets created by Terraform
+
+postgresql:
+  enabled: false  # Using DO Managed PostgreSQL
+
+redis:
+  enabled: false  # Using DO Managed Redis
+
+# =============================================================================
+# Ingress Configuration
+# =============================================================================
+ingress:
+  name: rag-ingress
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # WebSocket support
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$request_uri"
+  hosts:
+    - name: "api.gen-text.app"  # UPDATE: Your API domain
+      service: "rag-backend"
+      port: 80
+      paths:
+        - path: "/"
+          pathType: "Prefix"
+    - name: "app.gen-text.app"  # UPDATE: Your app domain
+      service: "rag-frontend"
+      port: 80
+      paths:
+        - path: "/"
+          pathType: "Prefix"
+  tls:
+    - secretName: "rag-api-tls"
+      hosts:
+        - "api.gen-text.app"  # UPDATE
+    - secretName: "rag-app-tls"
+      hosts:
+        - "app.gen-text.app"  # UPDATE
+
+# =============================================================================
+# Storage Classes (DigitalOcean Block Storage)
+# =============================================================================
+storageClasses:
+  fast-ssd:
+    provisioner: "dobs.csi.digitalocean.com"
+    parameters:
+      type: "ext4"
+    reclaimPolicy: "Delete"
+    volumeBindingMode: "WaitForFirstConsumer"
+    allowVolumeExpansion: true
+
+# =============================================================================
+# Monitoring Stack
+# =============================================================================
+prometheus:
+  enabled: true
+  name: prometheus
+  service:
+    type: ClusterIP
+    port: 9090
+  persistence:
+    enabled: true
+    size: "50Gi"
+    storageClass: "do-block-storage"
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+grafana:
+  enabled: true
+  name: grafana
+  service:
+    type: ClusterIP
+    port: 3000
+  persistence:
+    enabled: true
+    size: "10Gi"
+    storageClass: "do-block-storage"
+  env:
+    GF_SECURITY_ADMIN_PASSWORD: "admin"  # UPDATE: Use secret
+    GF_AUTH_ANONYMOUS_ENABLED: "false"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# =============================================================================
+# Network Policies
+# =============================================================================
+networkPolicies:
+  enabled: true
+  backend:
+    ingress:
+      - from:
+          - namespaceSelector:
+              matchLabels:
+                name: rag-system
+          - namespaceSelector:
+              matchLabels:
+                name: ingress-nginx
+        ports:
+          - protocol: TCP
+            port: 8000
+  frontend:
+    ingress:
+      - from:
+          - namespaceSelector:
+              matchLabels:
+                name: ingress-nginx
+        ports:
+          - protocol: TCP
+            port: 3000
+
+# =============================================================================
+# Pod Disruption Budgets
+# =============================================================================
+podDisruptionBudgets:
+  backend:
+    minAvailable: 1
+  frontend:
+    minAvailable: 1
+  celeryWorker:
+    minAvailable: 1
+  neo4j:
+    minAvailable: 1
+  qdrant:
+    minAvailable: 1
+
+# =============================================================================
+# Feature Flags
+# =============================================================================
+featureFlags:
+  enableAIBackend: true
+  enableMultimodalProcessing: true
+  enableKnowledgeGraph: true
+  enableVectorSearch: true
+  enableHybridSearch: true
+  enableEvaluationMetrics: true
+  enableMonitoring: true
+  enableLogging: true
+  enableAutoScaling: true
