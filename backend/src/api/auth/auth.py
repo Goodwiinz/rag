@@ -113,6 +113,12 @@ async def login(
     # Get client IP for rate limiting
     client_ip = request.client.host
 
+    if not auth_rate_limiter.is_allowed(client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again later."
+        )
+
     try:
         token_data = await auth_service.login_user(
             email=user_credentials.email,
