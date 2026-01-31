@@ -13,77 +13,104 @@ Key Features:
 - Real-time experiment management
 """
 
-import uuid
 import hashlib
+import uuid
 from datetime import datetime, timedelta
-from typing import Optional, Dict, List, Any, Union
 from enum import Enum as PyEnum
+from typing import Any, Dict, List, Optional, Union
 
 from sqlalchemy import (
-    Column, String, Integer, Float, Boolean, DateTime, Enum, ForeignKey,
-    Text, JSON, CheckConstraint, UniqueConstraint, Index
+    JSON,
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
 )
-from sqlalchemy.orm import relationship, validates
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import relationship, validates
 from sqlalchemy.sql import func
 
-from .base import BaseModel, GUID
+from .base import GUID, BaseModel
 from .utils import StringArray
 
 # ====================================================================
 # Enums
 # ====================================================================
 
+
 class ExperimentStatus(PyEnum):
     """Experiment lifecycle status"""
+
     DRAFT = "draft"
     RUNNING = "running"
     PAUSED = "paused"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
 
+
 class VariantStatus(PyEnum):
     """Variant status"""
+
     ACTIVE = "active"
     DISABLED = "disabled"
     PAUSED = "paused"
 
+
 class SegmentType(PyEnum):
     """User segment types"""
+
     STATIC = "static"
     DYNAMIC = "dynamic"
     BEHAVIORAL = "behavioral"
     DEMOGRAPHIC = "demographic"
 
+
 class QueryType(PyEnum):
     """Query types in RAG system"""
+
     SEARCH = "search"
     REASONING = "reasoning"
     MULTIMODAL = "multimodal"
 
+
 class EventType(PyEnum):
     """Event types for tracking"""
+
     QUERY_COMPLETION = "query_completion"
     USER_FEEDBACK = "user_feedback"
     ERROR = "error"
     TIMEOUT = "timeout"
 
+
 class EvaluationMethod(PyEnum):
     """Quality evaluation methods"""
+
     AUTOMATED = "automated"
     HUMAN = "human"
     HYBRID = "hybrid"
 
+
 class StatisticalTest(PyEnum):
     """Statistical test types"""
+
     TWO_SAMPLE_T_TEST = "two_sample_t_test"
     MANN_WHITNEY = "mann_whitney"
     CHI_SQUARE = "chi_square"
     BOOTSTRAP = "bootstrap"
 
+
 # ====================================================================
 # Core Models
 # ====================================================================
+
 
 class Experiment(BaseModel):
     """A/B Test Experiment Configuration"""
@@ -126,34 +153,51 @@ class Experiment(BaseModel):
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('traffic_percentage >= 0 AND traffic_percentage <= 100'),
-        CheckConstraint('confidence_level > 0 AND confidence_level <= 1'),
-        CheckConstraint('test_duration_days > 0'),
-        CheckConstraint('expected_improvement >= 0'),
-        Index('idx_ab_experiments_status', 'status', postgresql_where=func.not_(BaseModel.is_deleted)),
-        Index('idx_ab_experiments_active_time', 'start_time', 'end_time',
-              postgresql_where=func.and_(
-                  func.not_(BaseModel.is_deleted),
-                  func.text('status') == 'running'
-              )),
-        Index('idx_ab_experiments_tags', 'tags', postgresql_where=func.not_(BaseModel.is_deleted)),
+        CheckConstraint("traffic_percentage >= 0 AND traffic_percentage <= 100"),
+        CheckConstraint("confidence_level > 0 AND confidence_level <= 1"),
+        CheckConstraint("test_duration_days > 0"),
+        CheckConstraint("expected_improvement >= 0"),
+        Index(
+            "idx_ab_experiments_status",
+            "status",
+            postgresql_where=func.not_(BaseModel.is_deleted),
+        ),
+        Index(
+            "idx_ab_experiments_active_time",
+            "start_time",
+            "end_time",
+            postgresql_where=func.and_(
+                func.not_(BaseModel.is_deleted), func.text("status") == "running"
+            ),
+        ),
+        Index(
+            "idx_ab_experiments_tags",
+            "tags",
+            postgresql_where=func.not_(BaseModel.is_deleted),
+        ),
     )
 
     # Relationships
-    variants = relationship("Variant", back_populates="experiment", cascade="all, delete-orphan")
+    variants = relationship(
+        "Variant", back_populates="experiment", cascade="all, delete-orphan"
+    )
     user_assignments = relationship("UserAssignment", back_populates="experiment")
     query_events = relationship("QueryEvent", back_populates="experiment")
-    statistical_analyses = relationship("StatisticalAnalysis", back_populates="experiment")
-    targetings = relationship("ExperimentTargeting", back_populates="experiment", cascade="all, delete-orphan")
+    statistical_analyses = relationship(
+        "StatisticalAnalysis", back_populates="experiment"
+    )
+    targetings = relationship(
+        "ExperimentTargeting", back_populates="experiment", cascade="all, delete-orphan"
+    )
 
-    @validates('start_time', 'end_time')
+    @validates("start_time", "end_time")
     def validate_time_range(self, key, value):
         """Validate that end_time is after start_time"""
-        if key == 'end_time' and value and self.start_time and value <= self.start_time:
+        if key == "end_time" and value and self.start_time and value <= self.start_time:
             raise ValueError("End time must be after start time")
         return value
 
-    @validates('traffic_percentage')
+    @validates("traffic_percentage")
     def validate_traffic_percentage(self, key, value):
         """Validate traffic percentage range"""
         if not (0 <= value <= 100):
@@ -175,7 +219,7 @@ class Experiment(BaseModel):
         return True
 
     @property
-    def control_variant(self) -> Optional['Variant']:
+    def control_variant(self) -> Optional["Variant"]:
         """Get the control variant for this experiment"""
         for variant in self.variants:
             if variant.is_control and variant.is_active:
@@ -183,11 +227,11 @@ class Experiment(BaseModel):
         return None
 
     @property
-    def treatment_variants(self) -> List['Variant']:
+    def treatment_variants(self) -> List["Variant"]:
         """Get all treatment variants for this experiment"""
         return [v for v in self.variants if not v.is_control and v.is_active]
 
-    def get_variant_by_id(self, variant_id: uuid.UUID) -> Optional['Variant']:
+    def get_variant_by_id(self, variant_id: uuid.UUID) -> Optional["Variant"]:
         """Get variant by ID"""
         for variant in self.variants:
             if variant.id == variant_id:
@@ -195,12 +239,153 @@ class Experiment(BaseModel):
         return None
 
     def should_include_user(self, user_context: Dict[str, Any]) -> bool:
-        """Check if user should be included in experiment based on targeting"""
-        # Simple implementation - expand based on segment logic
+        """Check if user should be included in experiment based on targeting
+        
+        Evaluates user_context against target_segments and exclude_segments.
+        A user is included if they match at least one target segment (or no targets are defined)
+        AND do not match any exclude segment.
+        
+        Args:
+            user_context: Dictionary containing user attributes for matching.
+                         Example: {"user_id": "123", "account_age_days": 30, 
+                                   "queries_per_day": 15, "plan": "enterprise"}
+        
+        Returns:
+            True if user should be included in the experiment, False otherwise.
+        """
+        # Check exclusions first - if user matches any exclude segment, reject
+        if self.exclude_segments:
+            for segment_criteria in self.exclude_segments:
+                if self._matches_segment_criteria(user_context, segment_criteria):
+                    return False
+
+        # If no target segments defined, include all non-excluded users
         if not self.target_segments:
             return True
 
-        # TODO: Implement segment matching logic
+        # Check if user matches at least one target segment
+        for segment_criteria in self.target_segments:
+            if self._matches_segment_criteria(user_context, segment_criteria):
+                return True
+
+        return False
+
+    def _matches_segment_criteria(
+        self, user_context: Dict[str, Any], criteria: Dict[str, Any]
+    ) -> bool:
+        """Check if user_context matches the given segment criteria
+        
+        Supports operators:
+            - min: value >= threshold (inclusive)
+            - max: value <= threshold (inclusive)
+            - eq: value == expected
+            - neq: value != expected
+            - in: value in list
+            - not_in: value not in list
+            - contains: string/list contains value
+            - not_contains: string/list does not contain value
+            - exists: field exists (and is truthy if True, or missing/falsy if False)
+            - regex: value matches regex pattern
+            - range: value is within [min, max] range (inclusive)
+        
+        Args:
+            user_context: User attributes dictionary
+            criteria: Segment criteria dictionary with field -> conditions mapping
+        
+        Returns:
+            True if all criteria match, False otherwise
+        """
+        import re
+        
+        for field, conditions in criteria.items():
+            user_value = user_context.get(field)
+            
+            # Handle simple equality (criteria value is not a dict)
+            if not isinstance(conditions, dict):
+                if user_value != conditions:
+                    return False
+                continue
+            
+            # Handle operators
+            for operator, expected in conditions.items():
+                if operator == "min":
+                    if user_value is None or user_value < expected:
+                        return False
+                        
+                elif operator == "max":
+                    if user_value is None or user_value > expected:
+                        return False
+                        
+                elif operator == "eq":
+                    if user_value != expected:
+                        return False
+                        
+                elif operator == "neq":
+                    if user_value == expected:
+                        return False
+                        
+                elif operator == "in":
+                    if not isinstance(expected, (list, tuple, set)):
+                        expected = [expected]
+                    if user_value not in expected:
+                        return False
+                        
+                elif operator == "not_in":
+                    if not isinstance(expected, (list, tuple, set)):
+                        expected = [expected]
+                    if user_value in expected:
+                        return False
+                        
+                elif operator == "contains":
+                    if user_value is None:
+                        return False
+                    if isinstance(user_value, str):
+                        if expected not in user_value:
+                            return False
+                    elif isinstance(user_value, (list, tuple, set)):
+                        if expected not in user_value:
+                            return False
+                    else:
+                        return False
+                        
+                elif operator == "not_contains":
+                    if user_value is not None:
+                        if isinstance(user_value, str) and expected in user_value:
+                            return False
+                        elif isinstance(user_value, (list, tuple, set)) and expected in user_value:
+                            return False
+                            
+                elif operator == "exists":
+                    field_exists = field in user_context and user_context[field] is not None
+                    if expected and not field_exists:
+                        return False
+                    if not expected and field_exists:
+                        return False
+                        
+                elif operator == "regex":
+                    if user_value is None:
+                        return False
+                    try:
+                        if not re.match(expected, str(user_value)):
+                            return False
+                    except re.error:
+                        return False
+                        
+                elif operator == "range":
+                    if user_value is None:
+                        return False
+                    if isinstance(expected, (list, tuple)) and len(expected) == 2:
+                        range_min, range_max = expected
+                        if user_value < range_min or user_value > range_max:
+                            return False
+                    elif isinstance(expected, dict):
+                        range_min = expected.get("min")
+                        range_max = expected.get("max")
+                        if range_min is not None and user_value < range_min:
+                            return False
+                        if range_max is not None and user_value > range_max:
+                            return False
+        
         return True
 
     def get_remaining_days(self) -> int:
@@ -214,13 +399,18 @@ class Experiment(BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary with computed fields"""
         data = super().to_dict()
-        data.update({
-            'is_active': self.is_active,
-            'control_variant_id': self.control_variant.id if self.control_variant else None,
-            'treatment_variant_count': len(self.treatment_variants),
-            'remaining_days': self.get_remaining_days()
-        })
+        data.update(
+            {
+                "is_active": self.is_active,
+                "control_variant_id": self.control_variant.id
+                if self.control_variant
+                else None,
+                "treatment_variant_count": len(self.treatment_variants),
+                "remaining_days": self.get_remaining_days(),
+            }
+        )
         return data
+
 
 class Variant(BaseModel):
     """Experiment Variant Configuration"""
@@ -228,7 +418,9 @@ class Variant(BaseModel):
     __tablename__ = "ab_variants"
 
     # Relationships
-    experiment_id = Column(GUID(), ForeignKey("ab_experiments.id", ondelete="CASCADE"), nullable=False)
+    experiment_id = Column(
+        GUID(), ForeignKey("ab_experiments.id", ondelete="CASCADE"), nullable=False
+    )
 
     # Basic Information
     name = Column(String(100), nullable=False)
@@ -256,13 +448,25 @@ class Variant(BaseModel):
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('traffic_weight > 0'),
-        UniqueConstraint('experiment_id', 'name'),
-        Index('idx_ab_variants_experiment_id', 'experiment_id', postgresql_where=func.not_(BaseModel.is_deleted)),
-        Index('idx_ab_variants_experiment_active', 'experiment_id', 'status',
-              postgresql_where=func.not_(BaseModel.is_deleted)),
-        Index('idx_ab_variants_control', 'experiment_id', 'is_control',
-              postgresql_where=func.not_(BaseModel.is_deleted)),
+        CheckConstraint("traffic_weight > 0"),
+        UniqueConstraint("experiment_id", "name"),
+        Index(
+            "idx_ab_variants_experiment_id",
+            "experiment_id",
+            postgresql_where=func.not_(BaseModel.is_deleted),
+        ),
+        Index(
+            "idx_ab_variants_experiment_active",
+            "experiment_id",
+            "status",
+            postgresql_where=func.not_(BaseModel.is_deleted),
+        ),
+        Index(
+            "idx_ab_variants_control",
+            "experiment_id",
+            "is_control",
+            postgresql_where=func.not_(BaseModel.is_deleted),
+        ),
     )
 
     # Relationships
@@ -270,7 +474,7 @@ class Variant(BaseModel):
     user_assignments = relationship("UserAssignment", back_populates="variant")
     query_events = relationship("QueryEvent", back_populates="variant")
 
-    @validates('traffic_weight')
+    @validates("traffic_weight")
     def validate_traffic_weight(self, key, value):
         """Validate traffic weight is positive"""
         if value <= 0:
@@ -295,11 +499,16 @@ class Variant(BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary with computed fields"""
         data = super().to_dict()
-        data.update({
-            'is_active': self.is_active,
-            'total_traffic_weight': sum(v.traffic_weight for v in self.experiment.variants if v.is_active)
-        })
+        data.update(
+            {
+                "is_active": self.is_active,
+                "total_traffic_weight": sum(
+                    v.traffic_weight for v in self.experiment.variants if v.is_active
+                ),
+            }
+        )
         return data
+
 
 class UserSegment(BaseModel):
     """User Segment Definition"""
@@ -326,24 +535,155 @@ class UserSegment(BaseModel):
 
     # Constraints
     __table_args__ = (
-        Index('idx_ab_user_segments_active', 'is_active', postgresql_where=func.not_(BaseModel.is_deleted)),
-        Index('idx_ab_user_segments_type', 'segment_type', postgresql_where=func.not_(BaseModel.is_deleted)),
+        Index(
+            "idx_ab_user_segments_active",
+            "is_active",
+            postgresql_where=func.not_(BaseModel.is_deleted),
+        ),
+        Index(
+            "idx_ab_user_segments_type",
+            "segment_type",
+            postgresql_where=func.not_(BaseModel.is_deleted),
+        ),
     )
 
     # Relationships
-    targetings = relationship("ExperimentTargeting", back_populates="segment", cascade="all, delete-orphan")
+    targetings = relationship(
+        "ExperimentTargeting", back_populates="segment", cascade="all, delete-orphan"
+    )
 
     def matches_user(self, user_context: Dict[str, Any]) -> bool:
-        """Check if user matches segment criteria"""
-        # TODO: Implement segment matching logic based on criteria
-        # This would depend on your user context structure
+        """Check if user matches segment criteria
+        
+        Evaluates user_context against this segment's criteria to determine
+        if the user belongs to this segment.
+        
+        The criteria field is a JSON object where keys are field names from
+        user_context and values are either:
+        - A direct value for equality matching
+        - A dict with operators: min, max, eq, neq, in, not_in, contains,
+          not_contains, exists, regex, range
+        
+        Example criteria:
+            {
+                "queries_per_day": {"min": 10},
+                "avg_response_rating": {"min": 4.0},
+                "account_age_days": {"min": 30},
+                "plan": {"in": ["enterprise", "premium"]},
+                "region": "US"
+            }
+        
+        Args:
+            user_context: Dictionary containing user attributes for matching.
+                         Example: {"user_id": "123", "account_age_days": 30, 
+                                   "queries_per_day": 15, "plan": "enterprise",
+                                   "region": "US"}
+        
+        Returns:
+            True if user matches all segment criteria, False otherwise.
+        """
+        import re
+        
+        if not self.criteria:
+            return True
+        
+        for field, conditions in self.criteria.items():
+            user_value = user_context.get(field)
+            
+            # Handle simple equality (criteria value is not a dict)
+            if not isinstance(conditions, dict):
+                if user_value != conditions:
+                    return False
+                continue
+            
+            # Handle operators
+            for operator, expected in conditions.items():
+                if operator == "min":
+                    if user_value is None or user_value < expected:
+                        return False
+                        
+                elif operator == "max":
+                    if user_value is None or user_value > expected:
+                        return False
+                        
+                elif operator == "eq":
+                    if user_value != expected:
+                        return False
+                        
+                elif operator == "neq":
+                    if user_value == expected:
+                        return False
+                        
+                elif operator == "in":
+                    if not isinstance(expected, (list, tuple, set)):
+                        expected = [expected]
+                    if user_value not in expected:
+                        return False
+                        
+                elif operator == "not_in":
+                    if not isinstance(expected, (list, tuple, set)):
+                        expected = [expected]
+                    if user_value in expected:
+                        return False
+                        
+                elif operator == "contains":
+                    if user_value is None:
+                        return False
+                    if isinstance(user_value, str):
+                        if expected not in user_value:
+                            return False
+                    elif isinstance(user_value, (list, tuple, set)):
+                        if expected not in user_value:
+                            return False
+                    else:
+                        return False
+                        
+                elif operator == "not_contains":
+                    if user_value is not None:
+                        if isinstance(user_value, str) and expected in user_value:
+                            return False
+                        elif isinstance(user_value, (list, tuple, set)) and expected in user_value:
+                            return False
+                            
+                elif operator == "exists":
+                    field_exists = field in user_context and user_context[field] is not None
+                    if expected and not field_exists:
+                        return False
+                    if not expected and field_exists:
+                        return False
+                        
+                elif operator == "regex":
+                    if user_value is None:
+                        return False
+                    try:
+                        if not re.match(expected, str(user_value)):
+                            return False
+                    except re.error:
+                        return False
+                        
+                elif operator == "range":
+                    if user_value is None:
+                        return False
+                    if isinstance(expected, (list, tuple)) and len(expected) == 2:
+                        range_min, range_max = expected
+                        if user_value < range_min or user_value > range_max:
+                            return False
+                    elif isinstance(expected, dict):
+                        range_min = expected.get("min")
+                        range_max = expected.get("max")
+                        if range_min is not None and user_value < range_min:
+                            return False
+                        if range_max is not None and user_value > range_max:
+                            return False
+        
         return True
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
         data = super().to_dict()
-        data['segment_type'] = self.segment_type.value if self.segment_type else None
+        data["segment_type"] = self.segment_type.value if self.segment_type else None
         return data
+
 
 class UserAssignment(BaseModel):
     """User to Variant Assignment for Consistency"""
@@ -364,16 +704,20 @@ class UserAssignment(BaseModel):
     assignment_hash = Column(String(64), nullable=True)
 
     # Timestamps
-    assigned_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
-    last_seen_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    assigned_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
+    last_seen_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
 
     # Status
     is_active = Column(Boolean, default=True)
 
     # Constraints
     __table_args__ = (
-        UniqueConstraint('user_id', 'experiment_id'),
-        CheckConstraint('assignment_hash IS NULL OR length(assignment_hash) = 64'),
+        UniqueConstraint("user_id", "experiment_id"),
+        CheckConstraint("assignment_hash IS NULL OR length(assignment_hash) = 64"),
         # Note: Partitioning is defined in the SQL schema
     )
 
@@ -382,7 +726,9 @@ class UserAssignment(BaseModel):
     variant = relationship("Variant", back_populates="user_assignments")
 
     @staticmethod
-    def generate_assignment_hash(user_id: str, experiment_id: uuid.UUID, salt: str = "") -> str:
+    def generate_assignment_hash(
+        user_id: str, experiment_id: uuid.UUID, salt: str = ""
+    ) -> str:
         """Generate consistent assignment hash"""
         hash_input = f"{user_id}:{experiment_id}:{salt}"
         return hashlib.sha256(hash_input.encode()).hexdigest()
@@ -395,9 +741,10 @@ class UserAssignment(BaseModel):
         """Convert to dictionary"""
         data = super().to_dict()
         # Remove sensitive information
-        data.pop('assignment_context', None)
-        data.pop('assignment_hash', None)
+        data.pop("assignment_context", None)
+        data.pop("assignment_hash", None)
         return data
+
 
 class QueryEvent(BaseModel):
     """Individual Query Interaction Event"""
@@ -446,15 +793,17 @@ class QueryEvent(BaseModel):
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('query_latency_ms IS NULL OR query_latency_ms >= 0'),
-        CheckConstraint('total_latency_ms IS NULL OR total_latency_ms >= 0'),
+        CheckConstraint("query_latency_ms IS NULL OR query_latency_ms >= 0"),
+        CheckConstraint("total_latency_ms IS NULL OR total_latency_ms >= 0"),
         # Note: Partitioning is defined in the SQL schema
     )
 
     # Relationships
     experiment = relationship("Experiment", back_populates="query_events")
     variant = relationship("Variant", back_populates="query_events")
-    quality_metrics = relationship("ABQualityMetric", back_populates="query_event", uselist=False)
+    quality_metrics = relationship(
+        "ABQualityMetric", back_populates="query_event", uselist=False
+    )
 
     @staticmethod
     def generate_query_hash(query_text: str) -> str:
@@ -477,7 +826,7 @@ class QueryEvent(BaseModel):
             self.vector_search_latency_ms,
             self.graph_search_latency_ms,
             self.keyword_search_latency_ms,
-            self.synthesis_latency_ms
+            self.synthesis_latency_ms,
         ]
         available_latencies = [l for l in latencies if l is not None]
         return sum(available_latencies) if available_latencies else None
@@ -489,13 +838,16 @@ class QueryEvent(BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary with computed fields"""
         data = super().to_dict()
-        data.update({
-            'query_type': self.query_type.value if self.query_type else None,
-            'event_type': self.event_type.value if self.event_type else None,
-            'is_successful': self.is_successful,
-            'total_processing_time_ms': self.total_processing_time_ms
-        })
+        data.update(
+            {
+                "query_type": self.query_type.value if self.query_type else None,
+                "event_type": self.event_type.value if self.event_type else None,
+                "is_successful": self.is_successful,
+                "total_processing_time_ms": self.total_processing_time_ms,
+            }
+        )
         return data
+
 
 class ABQualityMetric(BaseModel):
     """Quality Metrics for Query Events (renamed to avoid conflict with existing QualityMetric)"""
@@ -503,7 +855,9 @@ class ABQualityMetric(BaseModel):
     __tablename__ = "ab_quality_metrics"
 
     # Relationship
-    query_event_id = Column(GUID(), ForeignKey("ab_query_events.id"), nullable=False, unique=True)
+    query_event_id = Column(
+        GUID(), ForeignKey("ab_query_events.id"), nullable=False, unique=True
+    )
 
     # Core RAG Metrics
     answer_relevancy = Column(Float, nullable=True)
@@ -526,7 +880,9 @@ class ABQualityMetric(BaseModel):
     conversion_rate = Column(Float, nullable=True)
 
     # Evaluation Details
-    evaluation_method = Column(Enum(EvaluationMethod), default=EvaluationMethod.AUTOMATED)
+    evaluation_method = Column(
+        Enum(EvaluationMethod), default=EvaluationMethod.AUTOMATED
+    )
     confidence_score = Column(Float, nullable=True)
     evaluation_model = Column(String(100), nullable=True)
 
@@ -536,14 +892,30 @@ class ABQualityMetric(BaseModel):
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('answer_relevancy IS NULL OR (answer_relevancy >= 0 AND answer_relevancy <= 100)'),
-        CheckConstraint('faithfulness IS NULL OR (faithfulness >= 0 AND faithfulness <= 100)'),
-        CheckConstraint('contextual_relevancy IS NULL OR (contextual_relevancy >= 0 AND contextual_relevancy <= 100)'),
-        CheckConstraint('response_coherence IS NULL OR (response_coherence >= 0 AND response_coherence <= 100)'),
-        CheckConstraint('completeness IS NULL OR (completeness >= 0 AND completeness <= 100)'),
-        CheckConstraint('conciseness IS NULL OR (conciseness >= 0 AND conciseness <= 100)'),
-        CheckConstraint('user_satisfaction_score IS NULL OR (user_satisfaction_score >= 1 AND user_satisfaction_score <= 5)'),
-        CheckConstraint('confidence_score IS NULL OR (confidence_score >= 0 AND confidence_score <= 100)'),
+        CheckConstraint(
+            "answer_relevancy IS NULL OR (answer_relevancy >= 0 AND answer_relevancy <= 100)"
+        ),
+        CheckConstraint(
+            "faithfulness IS NULL OR (faithfulness >= 0 AND faithfulness <= 100)"
+        ),
+        CheckConstraint(
+            "contextual_relevancy IS NULL OR (contextual_relevancy >= 0 AND contextual_relevancy <= 100)"
+        ),
+        CheckConstraint(
+            "response_coherence IS NULL OR (response_coherence >= 0 AND response_coherence <= 100)"
+        ),
+        CheckConstraint(
+            "completeness IS NULL OR (completeness >= 0 AND completeness <= 100)"
+        ),
+        CheckConstraint(
+            "conciseness IS NULL OR (conciseness >= 0 AND conciseness <= 100)"
+        ),
+        CheckConstraint(
+            "user_satisfaction_score IS NULL OR (user_satisfaction_score >= 1 AND user_satisfaction_score <= 5)"
+        ),
+        CheckConstraint(
+            "confidence_score IS NULL OR (confidence_score >= 0 AND confidence_score <= 100)"
+        ),
         # Note: Partitioning is defined in the SQL schema
     )
 
@@ -555,15 +927,17 @@ class ABQualityMetric(BaseModel):
         """Calculate average RAG triad score"""
         scores = [self.answer_relevancy, self.faithfulness, self.contextual_relevancy]
         available_scores = [s for s in scores if s is not None]
-        return sum(available_scores) / len(available_scores) if available_scores else None
+        return (
+            sum(available_scores) / len(available_scores) if available_scores else None
+        )
 
     @property
     def passes_thresholds(self) -> Dict[str, bool]:
         """Check if metrics pass quality thresholds"""
         thresholds = {
-            'answer_relevancy': 70.0,
-            'faithfulness': 90.0,
-            'contextual_relevancy': 70.0
+            "answer_relevancy": 70.0,
+            "faithfulness": 90.0,
+            "contextual_relevancy": 70.0,
         }
 
         results = {}
@@ -573,7 +947,9 @@ class ABQualityMetric(BaseModel):
 
         return results
 
-    def set_rag_triad_metrics(self, answer_relevancy: float, faithfulness: float, contextual_relevancy: float) -> None:
+    def set_rag_triad_metrics(
+        self, answer_relevancy: float, faithfulness: float, contextual_relevancy: float
+    ) -> None:
         """Set RAG triad metrics"""
         self.answer_relevancy = answer_relevancy
         self.faithfulness = faithfulness
@@ -582,12 +958,17 @@ class ABQualityMetric(BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary with computed fields"""
         data = super().to_dict()
-        data.update({
-            'evaluation_method': self.evaluation_method.value if self.evaluation_method else None,
-            'rag_triad_score': self.rag_triad_score,
-            'passes_thresholds': self.passes_thresholds
-        })
+        data.update(
+            {
+                "evaluation_method": self.evaluation_method.value
+                if self.evaluation_method
+                else None,
+                "rag_triad_score": self.rag_triad_score,
+                "passes_thresholds": self.passes_thresholds,
+            }
+        )
         return data
+
 
 class StatisticalAnalysis(BaseModel):
     """Statistical Significance Analysis Results"""
@@ -625,7 +1006,9 @@ class StatisticalAnalysis(BaseModel):
     absolute_improvement = Column(Float, nullable=True)
 
     # Test Configuration
-    statistical_test = Column(Enum(StatisticalTest), default=StatisticalTest.TWO_SAMPLE_T_TEST)
+    statistical_test = Column(
+        Enum(StatisticalTest), default=StatisticalTest.TWO_SAMPLE_T_TEST
+    )
     confidence_level = Column(Float, default=0.95)
     minimum_detectable_effect = Column(Float, nullable=True)
 
@@ -634,12 +1017,19 @@ class StatisticalAnalysis(BaseModel):
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('analysis_period_end > analysis_period_start'),
-        CheckConstraint('relative_improvement IS NULL OR relative_improvement >= -100'),
-        CheckConstraint('p_value IS NULL OR (p_value >= 0 AND p_value <= 1)'),
-        CheckConstraint('confidence_level > 0 AND confidence_level <= 1'),
-        Index('idx_ab_statistical_analyses_experiment_metric', 'experiment_id', 'metric_name', 'created_at'),
-        Index('idx_ab_statistical_analyses_significant', 'is_significant', 'created_at'),
+        CheckConstraint("analysis_period_end > analysis_period_start"),
+        CheckConstraint("relative_improvement IS NULL OR relative_improvement >= -100"),
+        CheckConstraint("p_value IS NULL OR (p_value >= 0 AND p_value <= 1)"),
+        CheckConstraint("confidence_level > 0 AND confidence_level <= 1"),
+        Index(
+            "idx_ab_statistical_analyses_experiment_metric",
+            "experiment_id",
+            "metric_name",
+            "created_at",
+        ),
+        Index(
+            "idx_ab_statistical_analyses_significant", "is_significant", "created_at"
+        ),
     )
 
     # Relationships
@@ -648,9 +1038,11 @@ class StatisticalAnalysis(BaseModel):
     @property
     def is_conclusive(self) -> bool:
         """Check if analysis provides conclusive results"""
-        return (self.is_significant and
-                self.sample_size >= 1000 and
-                self.p_value is not None)
+        return (
+            self.is_significant
+            and self.sample_size >= 1000
+            and self.p_value is not None
+        )
 
     @property
     def business_impact(self) -> str:
@@ -665,8 +1057,12 @@ class StatisticalAnalysis(BaseModel):
 
     def calculate_effect_size(self) -> Optional[float]:
         """Calculate Cohen's d effect size"""
-        if (self.control_mean is None or self.treatment_mean is None or
-            self.control_std_dev is None or self.control_std_dev == 0):
+        if (
+            self.control_mean is None
+            or self.treatment_mean is None
+            or self.control_std_dev is None
+            or self.control_std_dev == 0
+        ):
             return None
 
         return (self.treatment_mean - self.control_mean) / self.control_std_dev
@@ -674,13 +1070,18 @@ class StatisticalAnalysis(BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary with computed fields"""
         data = super().to_dict()
-        data.update({
-            'statistical_test': self.statistical_test.value if self.statistical_test else None,
-            'is_conclusive': self.is_conclusive,
-            'business_impact': self.business_impact,
-            'effect_size_calculated': self.calculate_effect_size()
-        })
+        data.update(
+            {
+                "statistical_test": self.statistical_test.value
+                if self.statistical_test
+                else None,
+                "is_conclusive": self.is_conclusive,
+                "business_impact": self.business_impact,
+                "effect_size_calculated": self.calculate_effect_size(),
+            }
+        )
         return data
+
 
 class ExperimentTargeting(BaseModel):
     """Experiment to Segment Targeting Relationship"""
@@ -688,8 +1089,12 @@ class ExperimentTargeting(BaseModel):
     __tablename__ = "ab_experiment_targeting"
 
     # Relationships
-    experiment_id = Column(GUID(), ForeignKey("ab_experiments.id", ondelete="CASCADE"), nullable=False)
-    segment_id = Column(GUID(), ForeignKey("ab_user_segments.id", ondelete="CASCADE"), nullable=False)
+    experiment_id = Column(
+        GUID(), ForeignKey("ab_experiments.id", ondelete="CASCADE"), nullable=False
+    )
+    segment_id = Column(
+        GUID(), ForeignKey("ab_user_segments.id", ondelete="CASCADE"), nullable=False
+    )
 
     # Targeting Configuration
     is_inclusion = Column(Boolean, default=True)
@@ -698,35 +1103,37 @@ class ExperimentTargeting(BaseModel):
 
     # Constraints
     __table_args__ = (
-        UniqueConstraint('experiment_id', 'segment_id'),
-        CheckConstraint('traffic_percentage >= 0 AND traffic_percentage <= 100'),
-        CheckConstraint('priority > 0'),
-        Index('idx_ab_experiment_targeting_experiment', 'experiment_id'),
-        Index('idx_ab_experiment_targeting_segment', 'segment_id'),
-        Index('idx_ab_experiment_targeting_priority', 'priority'),
+        UniqueConstraint("experiment_id", "segment_id"),
+        CheckConstraint("traffic_percentage >= 0 AND traffic_percentage <= 100"),
+        CheckConstraint("priority > 0"),
+        Index("idx_ab_experiment_targeting_experiment", "experiment_id"),
+        Index("idx_ab_experiment_targeting_segment", "segment_id"),
+        Index("idx_ab_experiment_targeting_priority", "priority"),
     )
 
     # Relationships
     experiment = relationship("Experiment", back_populates="targetings")
     segment = relationship("UserSegment", back_populates="targetings")
 
-    @validates('traffic_percentage')
+    @validates("traffic_percentage")
     def validate_traffic_percentage(self, key, value):
         """Validate traffic percentage"""
         if not (0 <= value <= 100):
             raise ValueError("Traffic percentage must be between 0 and 100")
         return value
 
-    @validates('priority')
+    @validates("priority")
     def validate_priority(self, key, value):
         """Validate priority"""
         if value <= 0:
             raise ValueError("Priority must be positive")
         return value
 
+
 # ====================================================================
 # Helper Classes and Functions
 # ====================================================================
+
 
 class AssignmentEngine:
     """Engine for assigning users to experiment variants"""
@@ -735,7 +1142,7 @@ class AssignmentEngine:
     def assign_user_to_variant(
         user_id: str,
         experiment: Experiment,
-        user_context: Optional[Dict[str, Any]] = None
+        user_context: Optional[Dict[str, Any]] = None,
     ) -> Optional[Variant]:
         """Assign user to a variant for an experiment"""
 
@@ -748,9 +1155,7 @@ class AssignmentEngine:
 
         # Check for existing assignment
         existing_assignment = UserAssignment.query.filter_by(
-            user_id=user_id,
-            experiment_id=experiment.id,
-            is_active=True
+            user_id=user_id, experiment_id=experiment.id, is_active=True
         ).first()
 
         if existing_assignment:
@@ -762,7 +1167,9 @@ class AssignmentEngine:
             return None
 
         # Use consistent hashing for assignment
-        hash_value = int(UserAssignment.generate_assignment_hash(user_id, experiment.id), 16)
+        hash_value = int(
+            UserAssignment.generate_assignment_hash(user_id, experiment.id), 16
+        )
         total_weight = sum(v.traffic_weight for v in variants)
 
         cumulative_weight = 0
@@ -774,12 +1181,15 @@ class AssignmentEngine:
                     user_id=user_id,
                     experiment_id=experiment.id,
                     variant_id=variant.id,
-                    assignment_hash=UserAssignment.generate_assignment_hash(user_id, experiment.id),
-                    assignment_context=user_context or {}
+                    assignment_hash=UserAssignment.generate_assignment_hash(
+                        user_id, experiment.id
+                    ),
+                    assignment_context=user_context or {},
                 )
                 return variant
 
         return variants[0]  # Fallback
+
 
 class MetricsCollector:
     """Helper class for collecting and processing metrics"""
@@ -793,7 +1203,7 @@ class MetricsCollector:
         experiment_id: Optional[uuid.UUID] = None,
         variant_id: Optional[uuid.UUID] = None,
         query_type: QueryType = QueryType.SEARCH,
-        **kwargs
+        **kwargs,
     ) -> QueryEvent:
         """Create a new query event"""
         return QueryEvent(
@@ -805,7 +1215,7 @@ class MetricsCollector:
             query_text=query_text,
             query_hash=QueryEvent.generate_query_hash(query_text),
             query_type=query_type,
-            **kwargs
+            **kwargs,
         )
 
     @staticmethod
@@ -814,46 +1224,64 @@ class MetricsCollector:
         answer_relevancy: Optional[float] = None,
         faithfulness: Optional[float] = None,
         contextual_relevancy: Optional[float] = None,
-        **kwargs
+        **kwargs,
     ) -> ABQualityMetric:
         """Create quality metrics for a query event"""
         metrics = ABQualityMetric(query_event_id=query_event_id, **kwargs)
 
-        if answer_relevancy is not None or faithfulness is not None or contextual_relevancy is not None:
+        if (
+            answer_relevancy is not None
+            or faithfulness is not None
+            or contextual_relevancy is not None
+        ):
             metrics.set_rag_triad_metrics(
                 answer_relevancy or 0.0,
                 faithfulness or 0.0,
-                contextual_relevancy or 0.0
+                contextual_relevancy or 0.0,
             )
 
         return metrics
+
 
 # ====================================================================
 # Query Functions for Common Operations
 # ====================================================================
 
-def get_active_experiments_for_user(user_id: str, user_context: Optional[Dict[str, Any]] = None) -> List[Experiment]:
+
+def get_active_experiments_for_user(
+    user_id: str, user_context: Optional[Dict[str, Any]] = None
+) -> List[Experiment]:
     """Get all active experiments for a user"""
     return Experiment.query.filter(
-        Experiment.status == ExperimentStatus.RUNNING,
-        Experiment.is_deleted == False
+        Experiment.status == ExperimentStatus.RUNNING, Experiment.is_deleted == False
     ).all()  # Additional filtering would be done in application layer
 
-def get_user_assignments(user_id: str, active_only: bool = True) -> List[UserAssignment]:
+
+def get_user_assignments(
+    user_id: str, active_only: bool = True
+) -> List[UserAssignment]:
     """Get user's experiment assignments"""
     query = UserAssignment.query.filter(UserAssignment.user_id == user_id)
     if active_only:
         query = query.filter(UserAssignment.is_active == True)
     return query.all()
 
-def get_experiment_metrics(experiment_id: uuid.UUID, metric_name: str, days: int = 7) -> List[ABQualityMetric]:
+
+def get_experiment_metrics(
+    experiment_id: uuid.UUID, metric_name: str, days: int = 7
+) -> List[ABQualityMetric]:
     """Get metrics for an experiment over time period"""
     start_date = datetime.utcnow() - timedelta(days=days)
 
-    return ABQualityMetric.query.join(QueryEvent).filter(
-        QueryEvent.experiment_id == experiment_id,
-        ABQualityMetric.created_at >= start_date
-    ).all()
+    return (
+        ABQualityMetric.query.join(QueryEvent)
+        .filter(
+            QueryEvent.experiment_id == experiment_id,
+            ABQualityMetric.created_at >= start_date,
+        )
+        .all()
+    )
+
 
 def calculate_experiment_summary(experiment_id: uuid.UUID) -> Dict[str, Any]:
     """Calculate summary statistics for an experiment"""
