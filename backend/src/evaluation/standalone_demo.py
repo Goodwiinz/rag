@@ -6,11 +6,11 @@ or complex imports.
 """
 
 import json
-from pathlib import Path
-from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 # Simplified evaluation classes for demo
@@ -51,16 +51,38 @@ def run_standalone_demo():
 
     # Define success thresholds
     success_thresholds = {
-        "answer_relevancy": {"min": 0.70, "target": 0.85, "description": "Answer should be relevant to the query"},
-        "faithfulness": {"min": 0.90, "target": 0.95, "description": "Answer should be supported by retrieved context"},
-        "contextual_relevancy": {"min": 0.70, "target": 0.85, "description": "Retrieved context should be relevant to query"},
-        "hallucination_rate": {"min": 0.0, "target": 0.05, "description": "Rate of fabricated information"},
-        "latency_p95": {"min": 0.0, "target": 2000.0, "description": "95th percentile response time (ms)"}
+        "answer_relevancy": {
+            "min": 0.70,
+            "target": 0.85,
+            "description": "Answer should be relevant to the query",
+        },
+        "faithfulness": {
+            "min": 0.90,
+            "target": 0.95,
+            "description": "Answer should be supported by retrieved context",
+        },
+        "contextual_relevancy": {
+            "min": 0.70,
+            "target": 0.85,
+            "description": "Retrieved context should be relevant to query",
+        },
+        "hallucination_rate": {
+            "min": 0.0,
+            "target": 0.05,
+            "description": "Rate of fabricated information",
+        },
+        "latency_p95": {
+            "min": 0.0,
+            "target": 2000.0,
+            "description": "95th percentile response time (ms)",
+        },
     }
 
     print("🎯 Success Thresholds:")
     for metric, thresholds in success_thresholds.items():
-        print(f"  • {metric}: {thresholds['min']:.2f} (min) → {thresholds['target']:.2f} (target)")
+        print(
+            f"  • {metric}: {thresholds['min']:.2f} (min) → {thresholds['target']:.2f} (target)"
+        )
         print(f"    {thresholds['description']}")
 
     # Query type requirements
@@ -68,23 +90,23 @@ def run_standalone_demo():
         QueryType.FACTUAL_LOOKUP: {
             "description": "Direct fact retrieval queries",
             "min_threshold": 0.80,
-            "example": "What is the revenue of Microsoft in 2023?"
+            "example": "What is the revenue of Microsoft in 2023?",
         },
         QueryType.REASONING: {
             "description": "Complex reasoning and inference queries",
             "min_threshold": 0.75,
-            "example": "How might the acquisition affect market position?"
+            "example": "How might the acquisition affect market position?",
         },
         QueryType.SUMMARIZATION: {
             "description": "Document and multi-document summarization",
             "min_threshold": 0.70,
-            "example": "Summarize the key findings from the financial report"
+            "example": "Summarize the key findings from the financial report",
         },
         QueryType.MULTIMODAL_QUERY: {
             "description": "Queries spanning multiple modalities",
             "min_threshold": 0.65,
-            "example": "What information do the charts in the presentation convey?"
-        }
+            "example": "What information do the charts in the presentation convey?",
+        },
     }
 
     print(f"\n🔍 Supported Query Types: {len(QueryType)}")
@@ -103,26 +125,26 @@ def run_standalone_demo():
             input="What is the annual revenue of Microsoft for fiscal year 2023?",
             expected_output="Microsoft's annual revenue for fiscal year 2023 was $211.9 billion.",
             query_type=QueryType.FACTUAL_LOOKUP,
-            modalities=[ModalityType.TEXT]
+            modalities=[ModalityType.TEXT],
         ),
         SimpleTestCase(
             input="Based on the financial trends, what might be the outlook for the tech sector in 2024?",
             expected_output="The tech sector outlook for 2024 appears cautiously optimistic with continued growth in cloud computing and AI.",
             query_type=QueryType.REASONING,
-            modalities=[ModalityType.TEXT]
+            modalities=[ModalityType.TEXT],
         ),
         SimpleTestCase(
             input="Summarize the key findings from the Q3 financial report",
             expected_output="Q3 financial report shows revenue growth, improved margins, and positive outlook.",
             query_type=QueryType.SUMMARIZATION,
-            modalities=[ModalityType.TEXT, ModalityType.IMAGE]
+            modalities=[ModalityType.TEXT, ModalityType.IMAGE],
         ),
         SimpleTestCase(
             input="What information do the charts in the Q3 financial report presentation convey?",
             expected_output="Charts show revenue growth of 15% YoY with cloud services at 40% of revenue.",
             query_type=QueryType.MULTIMODAL_QUERY,
-            modalities=[ModalityType.TEXT, ModalityType.IMAGE]
-        )
+            modalities=[ModalityType.TEXT, ModalityType.IMAGE],
+        ),
     ]
 
     print(f"📊 Sample Test Dataset:")
@@ -143,29 +165,29 @@ def run_standalone_demo():
             "faithfulness": 0.92,
             "contextual_relevancy": 0.78,
             "hallucination_rate": 0.05,
-            "latency_p95": 1850.0
+            "latency_p95": 1850.0,
         },
         "test_case_2": {
             "answer_relevancy": 0.78,
             "faithfulness": 0.88,
             "contextual_relevancy": 0.72,
             "hallucination_rate": 0.12,
-            "latency_p95": 2100.0
+            "latency_p95": 2100.0,
         },
         "test_case_3": {
             "answer_relevancy": 0.82,
             "faithfulness": 0.90,
             "contextual_relevancy": 0.75,
             "hallucination_rate": 0.08,
-            "latency_p95": 1950.0
+            "latency_p95": 1950.0,
         },
         "test_case_4": {
             "answer_relevancy": 0.73,
             "faithfulness": 0.85,
             "contextual_relevancy": 0.68,
             "hallucination_rate": 0.15,
-            "latency_p95": 2400.0
-        }
+            "latency_p95": 2400.0,
+        },
     }
 
     print("📊 Simulated Evaluation Results:")
@@ -183,9 +205,13 @@ def run_standalone_demo():
                 if score >= threshold:
                     passing_metrics += 1
                 total_metrics += 1
-                print(f"    {status} {metric}: {score:.3f} (threshold: {threshold:.2f})")
+                print(
+                    f"    {status} {metric}: {score:.3f} (threshold: {threshold:.2f})"
+                )
 
-        success_rate = (passing_metrics / total_metrics) * 100 if total_metrics > 0 else 0
+        success_rate = (
+            (passing_metrics / total_metrics) * 100 if total_metrics > 0 else 0
+        )
         print(f"    📈 Success Rate: {success_rate:.1f}%")
 
     # Calculate overall metrics
@@ -197,7 +223,9 @@ def run_standalone_demo():
     print(f"\n🎯 Overall Performance:")
     print(f"  • Average Score: {overall_avg:.3f}")
     print(f"  • Total Test Cases: {len(simulated_results)}")
-    print(f"  • Status: {'✅ GOOD' if overall_avg >= 0.75 else '⚠️ NEEDS IMPROVEMENT' if overall_avg >= 0.6 else '❌ POOR'}")
+    print(
+        f"  • Status: {'✅ GOOD' if overall_avg >= 0.75 else '⚠️ NEEDS IMPROVEMENT' if overall_avg >= 0.6 else '❌ POOR'}"
+    )
 
     # 4. Recommendations Generation
     print("\n💡 4. Recommendations")
@@ -207,28 +235,44 @@ def run_standalone_demo():
 
     # Analyze performance and generate recommendations
     if overall_avg >= 0.8:
-        recommendations.append("✅ **Excellent Performance**: System is performing well above standards")
+        recommendations.append(
+            "✅ **Excellent Performance**: System is performing well above standards"
+        )
     elif overall_avg >= 0.7:
-        recommendations.append("⚠️ **Good Performance**: System meets quality standards but has room for improvement")
+        recommendations.append(
+            "⚠️ **Good Performance**: System meets quality standards but has room for improvement"
+        )
     else:
-        recommendations.append("❌ **Needs Improvement**: System performance requires attention and optimization")
+        recommendations.append(
+            "❌ **Needs Improvement**: System performance requires attention and optimization"
+        )
 
     # Specific metric recommendations
     metric_averages = {}
     for metric in success_thresholds.keys():
         if metric in simulated_results["test_case_1"]:
-            avg_score = sum(results[metric] for results in simulated_results.values()) / len(simulated_results)
+            avg_score = sum(
+                results[metric] for results in simulated_results.values()
+            ) / len(simulated_results)
             metric_averages[metric] = avg_score
 
             if avg_score < success_thresholds[metric]["min"]:
                 if "hallucination" in metric:
-                    recommendations.append(f"🛡️ **Reduce {metric}**: Implement stricter fact-checking and validation")
+                    recommendations.append(
+                        f"🛡️ **Reduce {metric}**: Implement stricter fact-checking and validation"
+                    )
                 elif "faithfulness" in metric:
-                    recommendations.append(f"🔗 **Improve {metric}**: Ensure answers are grounded in context")
+                    recommendations.append(
+                        f"🔗 **Improve {metric}**: Ensure answers are grounded in context"
+                    )
                 elif "relevancy" in metric:
-                    recommendations.append(f"🎯 **Enhance {metric}**: Improve query understanding and retrieval")
+                    recommendations.append(
+                        f"🎯 **Enhance {metric}**: Improve query understanding and retrieval"
+                    )
                 elif "latency" in metric:
-                    recommendations.append(f"⚡ **Optimize {metric}**: Improve response time performance")
+                    recommendations.append(
+                        f"⚡ **Optimize {metric}**: Improve response time performance"
+                    )
 
     for rec in recommendations:
         print(f"  {rec}")
@@ -243,26 +287,26 @@ def run_standalone_demo():
         "success_criteria": {
             "thresholds": success_thresholds,
             "query_types": {qt.value: req for qt, req in query_requirements.items()},
-            "supported_modalities": [m.value for m in ModalityType]
+            "supported_modalities": [m.value for m in ModalityType],
         },
         "test_dataset": {
             "total_test_cases": len(test_cases),
             "test_cases": [
                 {
-                    "id": i+1,
+                    "id": i + 1,
                     "input": tc.input,
                     "expected_output": tc.expected_output,
                     "query_type": tc.query_type.value,
-                    "modalities": [m.value for m in tc.modalities]
+                    "modalities": [m.value for m in tc.modalities],
                 }
                 for i, tc in enumerate(test_cases)
-            ]
+            ],
         },
         "evaluation_results": simulated_results,
         "overall_performance": {
             "average_score": overall_avg,
             "total_test_cases": len(simulated_results),
-            "metric_averages": metric_averages
+            "metric_averages": metric_averages,
         },
         "recommendations": recommendations,
         "system_capabilities": [
@@ -270,13 +314,13 @@ def run_standalone_demo():
             "comprehensive_metrics",
             "multimodal_testing",
             "automated_validation",
-            "enterprise_readiness"
-        ]
+            "enterprise_readiness",
+        ],
     }
 
     # Save results
     results_file = output_dir / "standalone_demo_results.json"
-    with open(results_file, 'w') as f:
+    with open(results_file, "w") as f:
         json.dump(comprehensive_results, f, indent=2)
     print(f"  📄 Full results: {results_file}")
 
@@ -337,7 +381,7 @@ This demo showcases a comprehensive evaluation framework for multimodal Enterpri
 """
 
     report_file = output_dir / "demo_report.md"
-    with open(report_file, 'w') as f:
+    with open(report_file, "w") as f:
         f.write(summary_report)
     print(f"  📝 Summary report: {report_file}")
 
@@ -353,7 +397,9 @@ This demo showcases a comprehensive evaluation framework for multimodal Enterpri
     print(f"  • Achieved overall performance score: {overall_avg:.3f}")
 
     print(f"\n🚀 Production Readiness:")
-    print(f"  {'✅ READY' if overall_avg >= 0.7 else '⚠️ NEEDS TUNING'} for enterprise deployment")
+    print(
+        f"  {'✅ READY' if overall_avg >= 0.7 else '⚠️ NEEDS TUNING'} for enterprise deployment"
+    )
     print(f"  Framework provides foundation for comprehensive RAG evaluation")
     print(f"  Ready for integration with existing RAG implementations")
 

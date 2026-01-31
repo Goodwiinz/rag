@@ -4,26 +4,27 @@ Provides organization-based data isolation and tenant-aware request handling
 """
 
 import logging
-from typing import Optional, Callable, Any
-from functools import wraps
 from contextvars import ContextVar
-from fastapi import HTTPException, status, Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
-from sqlalchemy.orm import Session
+from functools import wraps
+from typing import Any, Callable, Optional
+
+from fastapi import HTTPException, Request, Response, status
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.core.database import get_db
-from src.models.user import User
-from src.models.organization import Organization
 from src.exceptions.analytics_exceptions import PermissionDeniedException
+from src.models.organization import Organization
+from src.models.user import User
 
 logger = logging.getLogger(__name__)
 
 # Context variables for tenant information
-tenant_context: ContextVar[Optional[str]] = ContextVar('tenant_id', default=None)
-user_context: ContextVar[Optional[str]] = ContextVar('user_id', default=None)
-role_context: ContextVar[Optional[str]] = ContextVar('user_role', default=None)
+tenant_context: ContextVar[Optional[str]] = ContextVar("tenant_id", default=None)
+user_context: ContextVar[Optional[str]] = ContextVar("user_id", default=None)
+role_context: ContextVar[Optional[str]] = ContextVar("user_role", default=None)
 
 
 class MultiTenancyMiddleware(BaseHTTPMiddleware):
@@ -43,17 +44,19 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
 
             if tenant_info:
                 # Set tenant context
-                tenant_context.set(tenant_info['organization_id'])
-                user_context.set(tenant_info['user_id'])
-                role_context.set(tenant_info['role'])
+                tenant_context.set(tenant_info["organization_id"])
+                user_context.set(tenant_info["user_id"])
+                role_context.set(tenant_info["role"])
 
                 # Validate tenant access
-                await self._validate_tenant_access(tenant_info['organization_id'], request)
+                await self._validate_tenant_access(
+                    tenant_info["organization_id"], request
+                )
 
                 # Add tenant info to request state
-                request.state.tenant_id = tenant_info['organization_id']
-                request.state.user_id = tenant_info['user_id']
-                request.state.user_role = tenant_info['role']
+                request.state.tenant_id = tenant_info["organization_id"]
+                request.state.user_id = tenant_info["user_id"]
+                request.state.user_role = tenant_info["role"]
 
             response = await call_next(request)
 
@@ -63,27 +66,24 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
             return response
 
         except PermissionDeniedException as e:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=str(e)
-            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
         except Exception as e:
             logger.error(f"Multi-tenancy middleware error: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Internal server error during tenant validation"
+                detail="Internal server error during tenant validation",
             )
 
     def _should_skip_tenant_validation(self, request: Request) -> bool:
         """Check if tenant validation should be skipped for this endpoint"""
         skip_paths = [
-            '/health',
-            '/auth/login',
-            '/auth/register',
-            '/auth/refresh',
-            '/docs',
-            '/redoc',
-            '/openapi.json'
+            "/health",
+            "/auth/login",
+            "/auth/register",
+            "/auth/refresh",
+            "/docs",
+            "/redoc",
+            "/openapi.json",
         ]
 
         return any(request.url.path.startswith(path) for path in skip_paths)
@@ -92,12 +92,12 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
         """Extract tenant information from JWT token or session"""
         try:
             # Try to get user from request state (set by auth middleware)
-            if hasattr(request.state, 'user'):
+            if hasattr(request.state, "user"):
                 user = request.state.user
                 return {
-                    'organization_id': str(user.organization_id),
-                    'user_id': str(user.id),
-                    'role': user.role.value if user.role else 'user'
+                    "organization_id": str(user.organization_id),
+                    "user_id": str(user.id),
+                    "role": user.role.value if user.role else "user",
                 }
 
             # TODO: Implement JWT token extraction if needed
@@ -109,22 +109,27 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
             logger.error(f"Error extracting tenant info: {e}")
             return None
 
-    async def _validate_tenant_access(self, organization_id: str, request: Request) -> bool:
+    async def _validate_tenant_access(
+        self, organization_id: str, request: Request
+    ) -> bool:
         """Validate that the organization exists and is active"""
         try:
             db = next(get_db())
 
             # Check if organization exists and is active
-            organization = db.query(Organization).filter(
-                Organization.id == organization_id,
-                Organization.is_active == True
-            ).first()
+            organization = (
+                db.query(Organization)
+                .filter(
+                    Organization.id == organization_id, Organization.is_active == True
+                )
+                .first()
+            )
 
             if not organization:
                 raise PermissionDeniedException(
                     required_permission="organization_access",
                     user_role="unknown",
-                    details={"organization_id": organization_id}
+                    details={"organization_id": organization_id},
                 )
 
             db.close()
@@ -137,7 +142,7 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
             raise PermissionDeniedException(
                 required_permission="organization_access",
                 user_role="unknown",
-                details={"organization_id": organization_id, "error": str(e)}
+                details={"organization_id": organization_id, "error": str(e)},
             )
 
     def _clear_tenant_context(self):
@@ -148,6 +153,7 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
 
 
 # Row Level Security functions
+
 
 def get_current_tenant_id() -> Optional[str]:
     """Get current tenant ID from context"""
@@ -166,11 +172,12 @@ def get_current_user_role() -> Optional[str]:
 
 # Database row-level security
 
+
 def add_row_level_security_filters(query, model_class):
     """Add organization filter to query for row-level security"""
     tenant_id = get_current_tenant_id()
 
-    if tenant_id and hasattr(model_class, 'organization_id'):
+    if tenant_id and hasattr(model_class, "organization_id"):
         query = query.filter(model_class.organization_id == tenant_id)
 
     return query
@@ -178,36 +185,40 @@ def add_row_level_security_filters(query, model_class):
 
 def enforce_tenant_access(model_class):
     """Decorator to enforce tenant access on database operations"""
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             tenant_id = get_current_tenant_id()
 
-            if not tenant_id and hasattr(model_class, 'organization_id'):
+            if not tenant_id and hasattr(model_class, "organization_id"):
                 raise PermissionDeniedException(
                     required_permission="tenant_access",
                     user_role=get_current_user_role() or "unknown",
-                    details={"model": model_class.__name__}
+                    details={"model": model_class.__name__},
                 )
 
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
 # PostgreSQL Row Level Security setup
+
 
 def setup_row_level_security(db: Session):
     """Set up PostgreSQL Row Level Security policies"""
 
     # Enable RLS on relevant tables
     tables_with_rls = [
-        'documents',
-        'users',
-        'analytics_events',
-        'user_sessions',
-        'performance_logs',
-        'quality_metrics'
+        "documents",
+        "users",
+        "analytics_events",
+        "user_sessions",
+        "performance_logs",
+        "quality_metrics",
     ]
 
     for table_name in tables_with_rls:
@@ -240,8 +251,9 @@ def setup_row_level_security(db: Session):
 
 from contextlib import contextmanager
 
+
 @contextmanager
-def tenant_context_manager(organization_id: str, user_id: str, user_role: str = 'user'):
+def tenant_context_manager(organization_id: str, user_id: str, user_role: str = "user"):
     """Context manager for setting tenant information"""
     try:
         # Set context
@@ -262,26 +274,40 @@ def tenant_context_manager(organization_id: str, user_id: str, user_role: str = 
 
 # Role-based permissions mapping
 ROLE_PERMISSIONS = {
-    'super_admin': [
-        'organization_create', 'organization_read', 'organization_update', 'organization_delete',
-        'organization_users_read', 'organization_users_manage', 'organization_analytics',
-        'tenant_access', 'cross_tenant_access', 'update_access', 'delete_access',
-        'system_admin', 'audit_logs', 'security_management'
+    "super_admin": [
+        "organization_create",
+        "organization_read",
+        "organization_update",
+        "organization_delete",
+        "organization_users_read",
+        "organization_users_manage",
+        "organization_analytics",
+        "tenant_access",
+        "cross_tenant_access",
+        "update_access",
+        "delete_access",
+        "system_admin",
+        "audit_logs",
+        "security_management",
     ],
-    'admin': [
-        'organization_read', 'organization_update', 'organization_users_read',
-        'organization_users_manage', 'organization_analytics', 'tenant_access',
-        'update_access', 'delete_access'
+    "admin": [
+        "organization_read",
+        "organization_update",
+        "organization_users_read",
+        "organization_users_manage",
+        "organization_analytics",
+        "tenant_access",
+        "update_access",
+        "delete_access",
     ],
-    'content_manager': [
-        'organization_read', 'organization_users_read', 'tenant_access', 'update_access'
+    "content_manager": [
+        "organization_read",
+        "organization_users_read",
+        "tenant_access",
+        "update_access",
     ],
-    'analyst': [
-        'organization_read', 'organization_analytics', 'tenant_access'
-    ],
-    'user': [
-        'organization_read', 'tenant_access'
-    ]
+    "analyst": ["organization_read", "organization_analytics", "tenant_access"],
+    "user": ["organization_read", "tenant_access"],
 }
 
 
@@ -312,7 +338,7 @@ def validate_cross_tenant_access(organization_ids: list) -> bool:
     current_tenant = get_current_tenant_id()
 
     # Admin users can access cross-tenant data
-    if current_role in ['admin', 'super_admin']:
+    if current_role in ["admin", "super_admin"]:
         return True
 
     # Regular users can only access their own tenant
@@ -321,18 +347,22 @@ def validate_cross_tenant_access(organization_ids: list) -> bool:
 
 # Database event listeners for automatic tenant filtering
 
+
 @event.listens_for(Engine, "before_cursor_execute")
-def receive_before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+def receive_before_cursor_execute(
+    conn, cursor, statement, parameters, context, executemany
+):
     """Add tenant filtering to SELECT queries automatically"""
     tenant_id = get_current_tenant_id()
 
-    if tenant_id and statement.strip().upper().startswith('SELECT'):
+    if tenant_id and statement.strip().upper().startswith("SELECT"):
         # TODO: Implement automatic query modification for tenant filtering
         # This is complex and requires SQL parsing - implement as needed
         pass
 
 
 # Tenant-aware query builder
+
 
 class TenantAwareQuery:
     """Helper class for building tenant-aware queries"""
@@ -346,7 +376,7 @@ class TenantAwareQuery:
         """Add tenant filter to query"""
         query = self.db.query(self.model_class)
 
-        if self.tenant_id and hasattr(self.model_class, 'organization_id'):
+        if self.tenant_id and hasattr(self.model_class, "organization_id"):
             query = query.filter(self.model_class.organization_id == self.tenant_id)
 
         return query
@@ -358,8 +388,8 @@ class TenantAwareQuery:
 
     def create_with_tenant(self, **kwargs):
         """Create entity with current tenant context"""
-        if self.tenant_id and hasattr(self.model_class, 'organization_id'):
-            kwargs['organization_id'] = self.tenant_id
+        if self.tenant_id and hasattr(self.model_class, "organization_id"):
+            kwargs["organization_id"] = self.tenant_id
 
         entity = self.model_class(**kwargs)
         self.db.add(entity)
@@ -373,7 +403,7 @@ class TenantAwareQuery:
             raise PermissionDeniedException(
                 required_permission="update_access",
                 user_role=get_current_user_role() or "unknown",
-                details={"entity_id": entity_id, "model": self.model_class.__name__}
+                details={"entity_id": entity_id, "model": self.model_class.__name__},
             )
 
         for key, value in kwargs.items():
@@ -389,7 +419,7 @@ class TenantAwareQuery:
             raise PermissionDeniedException(
                 required_permission="delete_access",
                 user_role=get_current_user_role() or "unknown",
-                details={"entity_id": entity_id, "model": self.model_class.__name__}
+                details={"entity_id": entity_id, "model": self.model_class.__name__},
             )
 
         self.db.delete(entity)
@@ -398,17 +428,17 @@ class TenantAwareQuery:
 
 # Export main components
 __all__ = [
-    'MultiTenancyMiddleware',
-    'get_current_tenant_id',
-    'get_current_user_id',
-    'get_current_user_role',
-    'add_row_level_security_filters',
-    'enforce_tenant_access',
-    'setup_row_level_security',
-    'tenant_context_manager',
-    'check_tenant_permission',
-    'validate_tenant_access',
-    'validate_cross_tenant_access',
-    'TenantAwareQuery',
-    'ROLE_PERMISSIONS'
+    "MultiTenancyMiddleware",
+    "get_current_tenant_id",
+    "get_current_user_id",
+    "get_current_user_role",
+    "add_row_level_security_filters",
+    "enforce_tenant_access",
+    "setup_row_level_security",
+    "tenant_context_manager",
+    "check_tenant_permission",
+    "validate_tenant_access",
+    "validate_cross_tenant_access",
+    "TenantAwareQuery",
+    "ROLE_PERMISSIONS",
 ]

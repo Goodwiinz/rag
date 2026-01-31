@@ -2,26 +2,45 @@
 Evaluation API endpoints for RAG Triad metrics and evaluation workflows
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks, Body, Path
-from fastapi.responses import JSONResponse
-from typing import List, Dict, Any, Optional
-from pydantic import BaseModel, Field
 import logging
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from src.core.dependencies import get_current_user
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Body,
+    Depends,
+    HTTPException,
+    Path,
+    Query,
+)
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+
 from src.core.database import get_db
+from src.core.dependencies import get_current_user
 from src.models.evaluation import (
-    EvaluationJob, EvaluationMetric, EvaluationReport, EvaluationComparison,
-    EvaluationType, EvaluationStatus, MetricType
+    EvaluationComparison,
+    EvaluationJob,
+    EvaluationMetric,
+    EvaluationReport,
+    EvaluationStatus,
+    EvaluationType,
+    MetricType,
 )
 from src.models.user import User
 from src.services.evaluation.rag_evaluation_service import (
-    rag_evaluation_service, RAGEvaluationInput, EvaluationRequest
+    EvaluationRequest,
+    RAGEvaluationInput,
+    rag_evaluation_service,
 )
 from src.tasks.evaluation_tasks import (
-    run_rag_triad_evaluation, run_batch_evaluation, run_real_time_evaluation,
-    run_comparison_evaluation, generate_evaluation_report
+    generate_evaluation_report,
+    run_batch_evaluation,
+    run_comparison_evaluation,
+    run_rag_triad_evaluation,
+    run_real_time_evaluation,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,33 +51,45 @@ router = APIRouter(prefix="/evaluation", tags=["evaluation"])
 # Pydantic models for API requests/responses
 class EvaluationInput(BaseModel):
     """Input for evaluation"""
+
     query: str = Field(..., description="Query to evaluate")
     generated_answer: str = Field(..., description="Generated answer")
     retrieved_context: List[str] = Field(..., description="Retrieved context passages")
-    reference_answer: Optional[str] = Field(None, description="Reference answer for comparison")
+    reference_answer: Optional[str] = Field(
+        None, description="Reference answer for comparison"
+    )
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
 class BatchEvaluationRequest(BaseModel):
     """Request for batch evaluation"""
+
     name: str = Field(..., description="Name of the evaluation job")
-    description: Optional[str] = Field(None, description="Description of the evaluation")
+    description: Optional[str] = Field(
+        None, description="Description of the evaluation"
+    )
     queries: List[str] = Field(..., description="List of queries to evaluate")
     search_type: str = Field("hybrid", description="Search type to use")
     search_limit: int = Field(5, description="Number of search results to retrieve")
-    reference_answers: Optional[List[str]] = Field(None, description="Reference answers for queries")
+    reference_answers: Optional[List[str]] = Field(
+        None, description="Reference answers for queries"
+    )
 
 
 class RealTimeEvaluationRequest(BaseModel):
     """Request for real-time evaluation"""
+
     query: str = Field(..., description="Query to evaluate")
     generated_answer: str = Field(..., description="Generated answer")
     retrieved_context: List[str] = Field(..., description="Retrieved context passages")
-    reference_answer: Optional[str] = Field(None, description="Reference answer for comparison")
+    reference_answer: Optional[str] = Field(
+        None, description="Reference answer for comparison"
+    )
 
 
 class ComparisonRequest(BaseModel):
     """Request for evaluation comparison"""
+
     name: str = Field(..., description="Name of the comparison")
     baseline_job_id: str = Field(..., description="ID of baseline evaluation job")
     comparison_job_id: str = Field(..., description="ID of comparison evaluation job")
@@ -66,14 +97,25 @@ class ComparisonRequest(BaseModel):
 
 class DatasetEvaluationRequest(BaseModel):
     """Request for dataset-based evaluation"""
+
     name: str = Field(..., description="Name of the evaluation job")
-    description: Optional[str] = Field(None, description="Description of the evaluation")
+    description: Optional[str] = Field(
+        None, description="Description of the evaluation"
+    )
     evaluation_type: str = Field("rag_triad", description="Type of evaluation")
     questions: List[str] = Field(..., description="List of questions")
-    reference_answers: Optional[List[str]] = Field(None, description="Reference answers")
-    contexts: Optional[List[List[str]]] = Field(None, description="Expected contexts for each question")
-    search_type: str = Field("hybrid", description="Search type if contexts not provided")
-    search_limit: int = Field(5, description="Search results limit if contexts not provided")
+    reference_answers: Optional[List[str]] = Field(
+        None, description="Reference answers"
+    )
+    contexts: Optional[List[List[str]]] = Field(
+        None, description="Expected contexts for each question"
+    )
+    search_type: str = Field(
+        "hybrid", description="Search type if contexts not provided"
+    )
+    search_limit: int = Field(
+        5, description="Search results limit if contexts not provided"
+    )
 
 
 # Evaluation job endpoints
@@ -82,7 +124,7 @@ async def create_evaluation_job(
     request: DatasetEvaluationRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Create a new evaluation job and start processing
@@ -90,18 +132,21 @@ async def create_evaluation_job(
     try:
         # Validate input
         if not request.questions:
-            raise HTTPException(status_code=400, detail="Questions list cannot be empty")
+            raise HTTPException(
+                status_code=400, detail="Questions list cannot be empty"
+            )
 
-        if request.reference_answers and len(request.reference_answers) != len(request.questions):
+        if request.reference_answers and len(request.reference_answers) != len(
+            request.questions
+        ):
             raise HTTPException(
                 status_code=400,
-                detail="Reference answers length must match questions length"
+                detail="Reference answers length must match questions length",
             )
 
         if request.contexts and len(request.contexts) != len(request.questions):
             raise HTTPException(
-                status_code=400,
-                detail="Contexts length must match questions length"
+                status_code=400, detail="Contexts length must match questions length"
             )
 
         # Create evaluation request
@@ -111,17 +156,15 @@ async def create_evaluation_job(
             evaluation_type=EvaluationType(request.evaluation_type),
             dataset=[],  # Will be populated from questions/answers
             parameters={
-                'search_type': request.search_type,
-                'search_limit': request.search_limit
+                "search_type": request.search_type,
+                "search_limit": request.search_limit,
             },
             user_id=str(current_user.id),
-            organization_id=str(current_user.organization_id)
+            organization_id=str(current_user.organization_id),
         )
 
         # Create evaluation job
-        job = await rag_evaluation_service.create_evaluation_job(
-            evaluation_request, db
-        )
+        job = await rag_evaluation_service.create_evaluation_job(evaluation_request, db)
 
         # Create dataset entries
         from src.models.evaluation import EvaluationDataset
@@ -133,17 +176,14 @@ async def create_evaluation_job(
             questions=request.questions,
             reference_answers=request.reference_answers,
             contexts=request.contexts,
-            dataset_type="qa_pairs"
+            dataset_type="qa_pairs",
         )
 
         db.add(dataset)
         db.commit()
 
         # Start evaluation task in background
-        background_tasks.add_task(
-            run_rag_triad_evaluation.delay,
-            str(job.id)
-        )
+        background_tasks.add_task(run_rag_triad_evaluation.delay, str(job.id))
 
         logger.info(f"Created evaluation job {job.id} for user {current_user.id}")
 
@@ -153,7 +193,7 @@ async def create_evaluation_job(
             "status": job.status,
             "dataset_size": len(request.questions),
             "created_at": job.created_at.isoformat(),
-            "message": "Evaluation job created and started"
+            "message": "Evaluation job created and started",
         }
 
     except HTTPException:
@@ -168,7 +208,7 @@ async def create_batch_evaluation_job(
     request: BatchEvaluationRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Create a batch evaluation job for a list of queries
@@ -183,12 +223,12 @@ async def create_batch_evaluation_job(
             description=request.description,
             evaluation_type=EvaluationType.BATCH_EVALUATION.value,
             parameters={
-                'search_type': request.search_type,
-                'search_limit': request.search_limit
+                "search_type": request.search_type,
+                "search_limit": request.search_limit,
             },
             dataset_size=len(request.queries),
             user_id=str(current_user.id),
-            organization_id=str(current_user.organization_id)
+            organization_id=str(current_user.organization_id),
         )
 
         db.add(job)
@@ -197,9 +237,7 @@ async def create_batch_evaluation_job(
 
         # Start batch evaluation task in background
         background_tasks.add_task(
-            run_batch_evaluation.delay,
-            str(job.id),
-            request.queries
+            run_batch_evaluation.delay, str(job.id), request.queries
         )
 
         logger.info(f"Created batch evaluation job {job.id} for user {current_user.id}")
@@ -210,7 +248,7 @@ async def create_batch_evaluation_job(
             "status": job.status,
             "dataset_size": len(request.queries),
             "created_at": job.created_at.isoformat(),
-            "message": "Batch evaluation job created and started"
+            "message": "Batch evaluation job created and started",
         }
 
     except HTTPException:
@@ -224,7 +262,7 @@ async def create_batch_evaluation_job(
 async def evaluate_real_time(
     request: RealTimeEvaluationRequest,
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Perform real-time evaluation of a single query-answer pair
@@ -236,7 +274,7 @@ async def evaluate_real_time(
             request.generated_answer,
             request.retrieved_context,
             request.reference_answer,
-            str(current_user.organization_id)
+            str(current_user.organization_id),
         )
 
         logger.info(f"Started real-time evaluation for user {current_user.id}")
@@ -244,7 +282,7 @@ async def evaluate_real_time(
         return {
             "task_id": task.id,
             "status": "started",
-            "message": "Real-time evaluation started"
+            "message": "Real-time evaluation started",
         }
 
     except Exception as e:
@@ -254,18 +292,20 @@ async def evaluate_real_time(
 
 @router.get("/jobs/{job_id}", response_model=Dict[str, Any])
 async def get_evaluation_job(
-    job_id: str,
-    current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    job_id: str, current_user: User = Depends(get_current_user), db=Depends(get_db)
 ):
     """
     Get details of an evaluation job
     """
     try:
-        job = db.query(EvaluationJob).filter(
-            EvaluationJob.id == job_id,
-            EvaluationJob.organization_id == current_user.organization_id
-        ).first()
+        job = (
+            db.query(EvaluationJob)
+            .filter(
+                EvaluationJob.id == job_id,
+                EvaluationJob.organization_id == current_user.organization_id,
+            )
+            .first()
+        )
 
         if not job:
             raise HTTPException(status_code=404, detail="Evaluation job not found")
@@ -291,7 +331,7 @@ async def list_evaluation_jobs(
     status: Optional[str] = Query(None),
     evaluation_type: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     List evaluation jobs for the current user's organization
@@ -307,7 +347,12 @@ async def list_evaluation_jobs(
         if evaluation_type:
             query = query.filter(EvaluationJob.evaluation_type == evaluation_type)
 
-        jobs = query.order_by(EvaluationJob.created_at.desc()).offset(offset).limit(limit).all()
+        jobs = (
+            query.order_by(EvaluationJob.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
 
         return [
             {
@@ -318,13 +363,15 @@ async def list_evaluation_jobs(
                 "evaluation_type": job.evaluation_type,
                 "created_at": job.created_at.isoformat(),
                 "started_at": job.started_at.isoformat() if job.started_at else None,
-                "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                "completed_at": job.completed_at.isoformat()
+                if job.completed_at
+                else None,
                 "duration_seconds": job.duration_seconds,
                 "dataset_size": job.dataset_size,
                 "processed_count": job.processed_count,
                 "overall_score": job.overall_score,
                 "success_rate": job.success_rate,
-                "error_message": job.error_message
+                "error_message": job.error_message,
             }
             for job in jobs
         ]
@@ -340,17 +387,21 @@ async def get_evaluation_metrics(
     metric_types: Optional[List[str]] = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Get metrics for a specific evaluation job
     """
     try:
         # Verify job exists and user has access
-        job = db.query(EvaluationJob).filter(
-            EvaluationJob.id == job_id,
-            EvaluationJob.organization_id == current_user.organization_id
-        ).first()
+        job = (
+            db.query(EvaluationJob)
+            .filter(
+                EvaluationJob.id == job_id,
+                EvaluationJob.organization_id == current_user.organization_id,
+            )
+            .first()
+        )
 
         if not job:
             raise HTTPException(status_code=404, detail="Evaluation job not found")
@@ -373,9 +424,13 @@ async def get_evaluation_metrics(
                 "threshold_max": metric.threshold_max,
                 "is_threshold_violation": metric.is_threshold_violation,
                 "query": metric.query,
-                "calculation_method": metric.metadata.get('calculation_method') if metric.metadata else None,
-                "model_used": metric.metadata.get('model_used') if metric.metadata else None,
-                "created_at": metric.created_at.isoformat()
+                "calculation_method": metric.metadata.get("calculation_method")
+                if metric.metadata
+                else None,
+                "model_used": metric.metadata.get("model_used")
+                if metric.metadata
+                else None,
+                "created_at": metric.created_at.isoformat(),
             }
             for metric in metrics
         ]
@@ -393,28 +448,40 @@ async def create_evaluation_comparison(
     request: ComparisonRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Create a comparison between two evaluation jobs
     """
     try:
         # Verify jobs exist and user has access
-        baseline_job = db.query(EvaluationJob).filter(
-            EvaluationJob.id == request.baseline_job_id,
-            EvaluationJob.organization_id == current_user.organization_id
-        ).first()
+        baseline_job = (
+            db.query(EvaluationJob)
+            .filter(
+                EvaluationJob.id == request.baseline_job_id,
+                EvaluationJob.organization_id == current_user.organization_id,
+            )
+            .first()
+        )
 
-        comparison_job = db.query(EvaluationJob).filter(
-            EvaluationJob.id == request.comparison_job_id,
-            EvaluationJob.organization_id == current_user.organization_id
-        ).first()
+        comparison_job = (
+            db.query(EvaluationJob)
+            .filter(
+                EvaluationJob.id == request.comparison_job_id,
+                EvaluationJob.organization_id == current_user.organization_id,
+            )
+            .first()
+        )
 
         if not baseline_job:
-            raise HTTPException(status_code=404, detail="Baseline evaluation job not found")
+            raise HTTPException(
+                status_code=404, detail="Baseline evaluation job not found"
+            )
 
         if not comparison_job:
-            raise HTTPException(status_code=404, detail="Comparison evaluation job not found")
+            raise HTTPException(
+                status_code=404, detail="Comparison evaluation job not found"
+            )
 
         # Start comparison task in background
         background_tasks.add_task(
@@ -423,7 +490,7 @@ async def create_evaluation_comparison(
             request.baseline_job_id,
             request.comparison_job_id,
             str(current_user.id),
-            str(current_user.organization_id)
+            str(current_user.organization_id),
         )
 
         logger.info(f"Started evaluation comparison: {request.name}")
@@ -433,7 +500,7 @@ async def create_evaluation_comparison(
             "message": "Evaluation comparison started",
             "baseline_job": request.baseline_job_id,
             "comparison_job": request.comparison_job_id,
-            "name": request.name
+            "name": request.name,
         }
 
     except HTTPException:
@@ -448,15 +515,22 @@ async def list_evaluation_comparisons(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     List evaluation comparisons for the current user's organization
     """
     try:
-        comparisons = db.query(EvaluationComparison).filter(
-            EvaluationComparison.organization_id == current_user.organization_id
-        ).order_by(EvaluationComparison.created_at.desc()).offset(offset).limit(limit).all()
+        comparisons = (
+            db.query(EvaluationComparison)
+            .filter(
+                EvaluationComparison.organization_id == current_user.organization_id
+            )
+            .order_by(EvaluationComparison.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
 
         return [
             {
@@ -469,7 +543,7 @@ async def list_evaluation_comparisons(
                 "comparison_score": comparison.comparison_score,
                 "improvement_percentage": comparison.improvement_percentage,
                 "statistical_significance": comparison.statistical_significance,
-                "created_at": comparison.created_at.isoformat()
+                "created_at": comparison.created_at.isoformat(),
             }
             for comparison in comparisons
         ]
@@ -486,30 +560,33 @@ async def generate_evaluation_report(
     report_type: str,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Generate a report for an evaluation job
     """
     try:
         # Verify job exists and user has access
-        job = db.query(EvaluationJob).filter(
-            EvaluationJob.id == job_id,
-            EvaluationJob.organization_id == current_user.organization_id
-        ).first()
+        job = (
+            db.query(EvaluationJob)
+            .filter(
+                EvaluationJob.id == job_id,
+                EvaluationJob.organization_id == current_user.organization_id,
+            )
+            .first()
+        )
 
         if not job:
             raise HTTPException(status_code=404, detail="Evaluation job not found")
 
         if job.status != EvaluationStatus.COMPLETED.value:
-            raise HTTPException(status_code=400, detail="Evaluation job must be completed to generate report")
+            raise HTTPException(
+                status_code=400,
+                detail="Evaluation job must be completed to generate report",
+            )
 
         # Start report generation task in background
-        background_tasks.add_task(
-            generate_evaluation_report.delay,
-            job_id,
-            report_type
-        )
+        background_tasks.add_task(generate_evaluation_report.delay, job_id, report_type)
 
         logger.info(f"Started {report_type} report generation for job {job_id}")
 
@@ -517,7 +594,7 @@ async def generate_evaluation_report(
             "status": "started",
             "message": f"{report_type.title()} report generation started",
             "job_id": job_id,
-            "report_type": report_type
+            "report_type": report_type,
         }
 
     except HTTPException:
@@ -532,15 +609,20 @@ async def list_evaluation_reports(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     List evaluation reports for the current user's organization
     """
     try:
-        reports = db.query(EvaluationReport).filter(
-            EvaluationReport.organization_id == current_user.organization_id
-        ).order_by(EvaluationReport.created_at.desc()).offset(offset).limit(limit).all()
+        reports = (
+            db.query(EvaluationReport)
+            .filter(EvaluationReport.organization_id == current_user.organization_id)
+            .order_by(EvaluationReport.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
 
         return [
             {
@@ -551,7 +633,7 @@ async def list_evaluation_reports(
                 "format_type": report.format_type,
                 "file_size_bytes": report.file_size_bytes,
                 "created_at": report.created_at.isoformat(),
-                "executive_summary": report.executive_summary
+                "executive_summary": report.executive_summary,
             }
             for report in reports
         ]
@@ -563,18 +645,20 @@ async def list_evaluation_reports(
 
 @router.get("/reports/{report_id}", response_model=Dict[str, Any])
 async def get_evaluation_report(
-    report_id: str,
-    current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    report_id: str, current_user: User = Depends(get_current_user), db=Depends(get_db)
 ):
     """
     Get details of an evaluation report
     """
     try:
-        report = db.query(EvaluationReport).filter(
-            EvaluationReport.id == report_id,
-            EvaluationReport.organization_id == current_user.organization_id
-        ).first()
+        report = (
+            db.query(EvaluationReport)
+            .filter(
+                EvaluationReport.id == report_id,
+                EvaluationReport.organization_id == current_user.organization_id,
+            )
+            .first()
+        )
 
         if not report:
             raise HTTPException(status_code=404, detail="Evaluation report not found")
@@ -592,7 +676,7 @@ async def get_evaluation_report(
             "generated_by_model": report.generated_by_model,
             "file_path": report.file_path,
             "file_size_bytes": report.file_size_bytes,
-            "created_at": report.created_at.isoformat()
+            "created_at": report.created_at.isoformat(),
         }
 
     except HTTPException:
@@ -607,7 +691,7 @@ async def get_evaluation_report(
 async def get_metrics_summary(
     days: int = Query(30, ge=1, le=365),
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Get summary of evaluation metrics for the organization
@@ -618,11 +702,16 @@ async def get_metrics_summary(
         start_date = datetime.utcnow() - timedelta(days=days)
 
         # Get metrics for the period
-        metrics = db.query(EvaluationMetric).join(EvaluationJob).filter(
-            EvaluationJob.organization_id == current_user.organization_id,
-            EvaluationJob.created_at >= start_date,
-            EvaluationJob.status == EvaluationStatus.COMPLETED.value
-        ).all()
+        metrics = (
+            db.query(EvaluationMetric)
+            .join(EvaluationJob)
+            .filter(
+                EvaluationJob.organization_id == current_user.organization_id,
+                EvaluationJob.created_at >= start_date,
+                EvaluationJob.status == EvaluationStatus.COMPLETED.value,
+            )
+            .all()
+        )
 
         if not metrics:
             return {
@@ -630,7 +719,7 @@ async def get_metrics_summary(
                 "total_metrics": 0,
                 "metric_summary": {},
                 "threshold_violations": 0,
-                "average_scores": {}
+                "average_scores": {},
             }
 
         # Group metrics by type
@@ -648,6 +737,7 @@ async def get_metrics_summary(
 
         # Calculate statistics for each metric type
         import statistics
+
         metric_summary = {}
         average_scores = {}
 
@@ -658,7 +748,7 @@ async def get_metrics_summary(
                     "mean": statistics.mean(values),
                     "min": min(values),
                     "max": max(values),
-                    "std_dev": statistics.stdev(values) if len(values) > 1 else 0.0
+                    "std_dev": statistics.stdev(values) if len(values) > 1 else 0.0,
                 }
                 average_scores[metric_type] = statistics.mean(values)
 
@@ -668,7 +758,7 @@ async def get_metrics_summary(
             "metric_summary": metric_summary,
             "threshold_violations": total_violations,
             "average_scores": average_scores,
-            "violation_rate": (total_violations / len(metrics)) * 100 if metrics else 0
+            "violation_rate": (total_violations / len(metrics)) * 100 if metrics else 0,
         }
 
     except Exception as e:
@@ -678,18 +768,20 @@ async def get_metrics_summary(
 
 @router.delete("/jobs/{job_id}")
 async def delete_evaluation_job(
-    job_id: str,
-    current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    job_id: str, current_user: User = Depends(get_current_user), db=Depends(get_db)
 ):
     """
     Delete an evaluation job (soft delete)
     """
     try:
-        job = db.query(EvaluationJob).filter(
-            EvaluationJob.id == job_id,
-            EvaluationJob.organization_id == current_user.organization_id
-        ).first()
+        job = (
+            db.query(EvaluationJob)
+            .filter(
+                EvaluationJob.id == job_id,
+                EvaluationJob.organization_id == current_user.organization_id,
+            )
+            .first()
+        )
 
         if not job:
             raise HTTPException(status_code=404, detail="Evaluation job not found")
@@ -720,10 +812,10 @@ async def evaluation_health_check():
             "services": {
                 "evaluation_service": {
                     "status": "healthy",
-                    "message": "RAG evaluation service is available"
+                    "message": "RAG evaluation service is available",
                 }
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         return health_status
@@ -735,6 +827,6 @@ async def evaluation_health_check():
             content={
                 "status": "unhealthy",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
-            }
+                "timestamp": datetime.utcnow().isoformat(),
+            },
         )

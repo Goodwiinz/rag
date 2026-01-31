@@ -2,29 +2,30 @@
 Vector database API endpoints
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query
-from fastapi.responses import JSONResponse
-from typing import List, Dict, Any, Optional
 import logging
+from typing import Any, Dict, List, Optional
 
-from src.core.dependencies import get_current_user
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
+
 from src.core.database import get_db
-from src.services.search.vector_search_service import vector_search_service
-from src.services.embedding.embedding_service import embedding_service
-from src.services.search.vector_service import vector_service
+from src.core.dependencies import get_current_user
+from src.models.user import User
 from src.models.vector import (
-    VectorSearchRequest,
-    VectorSearchResponse,
-    EmbeddingRequest,
-    EmbeddingResponse,
     BatchEmbeddingRequest,
     BatchEmbeddingResponse,
     CollectionConfig,
+    EmbeddingRequest,
+    EmbeddingResponse,
+    VectorCollectionType,
+    VectorHealthStatus,
     VectorOperationResult,
-    VectorHealthStatus
+    VectorSearchRequest,
+    VectorSearchResponse,
 )
-from src.models.user import User
-from src.models.vector import VectorCollectionType
+from src.services.embedding.embedding_service import embedding_service
+from src.services.search.vector_search_service import vector_search_service
+from src.services.search.vector_service import vector_service
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +34,7 @@ router = APIRouter(prefix="/vectors", tags=["vectors"])
 
 @router.post("/embeddings", response_model=EmbeddingResponse)
 async def create_embedding(
-    request: EmbeddingRequest,
-    current_user: User = Depends(get_current_user)
+    request: EmbeddingRequest, current_user: User = Depends(get_current_user)
 ):
     """Generate embedding for a single text"""
     try:
@@ -47,8 +47,7 @@ async def create_embedding(
 
 @router.post("/embeddings/batch", response_model=BatchEmbeddingResponse)
 async def create_batch_embeddings(
-    request: BatchEmbeddingRequest,
-    current_user: User = Depends(get_current_user)
+    request: BatchEmbeddingRequest, current_user: User = Depends(get_current_user)
 ):
     """Generate embeddings for multiple texts"""
     try:
@@ -66,7 +65,7 @@ async def search_documents(
     limit: int = Query(default=10, ge=1, le=100),
     score_threshold: float = Query(default=0.7, ge=0.0, le=1.0),
     filters: Optional[Dict[str, Any]] = None,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Search for similar documents"""
     try:
@@ -75,7 +74,7 @@ async def search_documents(
             organization_id=organization_id,
             limit=limit,
             score_threshold=score_threshold,
-            filters=filters
+            filters=filters,
         )
         return result
     except Exception as e:
@@ -90,7 +89,7 @@ async def search_entities(
     entity_type: Optional[str] = None,
     limit: int = Query(default=10, ge=1, le=100),
     score_threshold: float = Query(default=0.7, ge=0.0, le=1.0),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Search for similar entities"""
     try:
@@ -99,7 +98,7 @@ async def search_entities(
             organization_id=organization_id,
             entity_type=entity_type,
             limit=limit,
-            score_threshold=score_threshold
+            score_threshold=score_threshold,
         )
         return result
     except Exception as e:
@@ -117,9 +116,9 @@ async def list_collections(current_user: User = Depends(get_current_user)):
                 "name": coll.name,
                 "vectors_count": vector_service.get_collection_stats(
                     VectorCollectionType(coll.name)
-                ).vectors_count if vector_service.get_collection_stats(
-                    VectorCollectionType(coll.name)
-                ) else 0
+                ).vectors_count
+                if vector_service.get_collection_stats(VectorCollectionType(coll.name))
+                else 0,
             }
             for coll in collections.collections
         ]
@@ -130,8 +129,7 @@ async def list_collections(current_user: User = Depends(get_current_user)):
 
 @router.post("/collections", response_model=VectorOperationResult)
 async def create_collection(
-    config: CollectionConfig,
-    current_user: User = Depends(get_current_user)
+    config: CollectionConfig, current_user: User = Depends(get_current_user)
 ):
     """Create a new vector collection"""
     try:
@@ -150,8 +148,7 @@ async def create_collection(
 
 @router.get("/collections/{collection_name}/stats")
 async def get_collection_stats(
-    collection_name: str,
-    current_user: User = Depends(get_current_user)
+    collection_name: str, current_user: User = Depends(get_current_user)
 ):
     """Get statistics for a collection"""
     try:
@@ -175,8 +172,7 @@ async def get_collection_stats(
 
 @router.delete("/collections/{collection_name}", response_model=VectorOperationResult)
 async def delete_collection(
-    collection_name: str,
-    current_user: User = Depends(get_current_user)
+    collection_name: str, current_user: User = Depends(get_current_user)
 ):
     """Delete a collection"""
     try:
@@ -199,10 +195,11 @@ async def delete_collection(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/collections/{collection_name}/clear", response_model=VectorOperationResult)
+@router.post(
+    "/collections/{collection_name}/clear", response_model=VectorOperationResult
+)
 async def clear_collection(
-    collection_name: str,
-    current_user: User = Depends(get_current_user)
+    collection_name: str, current_user: User = Depends(get_current_user)
 ):
     """Clear all vectors from a collection"""
     try:
@@ -249,8 +246,7 @@ async def get_embedding_model_info(current_user: User = Depends(get_current_user
 
 @router.post("/model/test-quality")
 async def test_embedding_quality(
-    test_texts: List[str],
-    current_user: User = Depends(get_current_user)
+    test_texts: List[str], current_user: User = Depends(get_current_user)
 ):
     """Test embedding quality with sample texts"""
     try:
@@ -278,12 +274,15 @@ async def index_document(
     source_type: str = "document",
     chunk_size: int = Query(default=500, ge=100, le=2000),
     overlap: int = Query(default=50, ge=0, le=200),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Index a document in the vector database"""
     try:
         # Validate user has access to the organization
-        if current_user.organization_id != organization_id and current_user.role.value != "admin":
+        if (
+            current_user.organization_id != organization_id
+            and current_user.role.value != "admin"
+        ):
             raise HTTPException(status_code=403, detail="Access denied")
 
         result = vector_search_service.index_document(
@@ -293,7 +292,7 @@ async def index_document(
             content_type=content_type,
             source_type=source_type,
             chunk_size=chunk_size,
-            overlap=overlap
+            overlap=overlap,
         )
         return result
     except HTTPException:
@@ -312,17 +311,22 @@ async def index_entity(
     organization_id: str,
     document_id: Optional[str] = None,
     additional_data: Optional[Dict[str, Any]] = None,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Index an entity in the vector database"""
     try:
         # Validate user has access to the organization
-        if current_user.organization_id != organization_id and current_user.role.value != "admin":
+        if (
+            current_user.organization_id != organization_id
+            and current_user.role.value != "admin"
+        ):
             raise HTTPException(status_code=403, detail="Access denied")
 
         # Validate confidence score
         if not 0.0 <= confidence_score <= 1.0:
-            raise HTTPException(status_code=400, detail="Confidence score must be between 0.0 and 1.0")
+            raise HTTPException(
+                status_code=400, detail="Confidence score must be between 0.0 and 1.0"
+            )
 
         result = vector_search_service.index_entity(
             entity_id=entity_id,
@@ -331,7 +335,7 @@ async def index_entity(
             confidence_score=confidence_score,
             organization_id=organization_id,
             document_id=document_id,
-            additional_data=additional_data
+            additional_data=additional_data,
         )
         return result
     except HTTPException:
@@ -343,8 +347,7 @@ async def index_entity(
 
 @router.delete("/documents/{document_id}/vectors", response_model=VectorOperationResult)
 async def delete_document_vectors(
-    document_id: str,
-    current_user: User = Depends(get_current_user)
+    document_id: str, current_user: User = Depends(get_current_user)
 ):
     """Delete all vectors associated with a document"""
     try:
@@ -357,8 +360,7 @@ async def delete_document_vectors(
 
 @router.delete("/entities/{entity_id}/vectors", response_model=VectorOperationResult)
 async def delete_entity_vectors(
-    entity_id: str,
-    current_user: User = Depends(get_current_user)
+    entity_id: str, current_user: User = Depends(get_current_user)
 ):
     """Delete entity vectors"""
     try:
@@ -373,7 +375,7 @@ async def delete_entity_vectors(
 async def reindex_organization_content(
     organization_id: str,
     batch_size: int = Query(default=100, ge=10, le=1000),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Reindex all content for an organization"""
     try:
@@ -382,8 +384,7 @@ async def reindex_organization_content(
             raise HTTPException(status_code=403, detail="Admin access required")
 
         result = vector_search_service.reindex_all_content(
-            organization_id=organization_id,
-            batch_size=batch_size
+            organization_id=organization_id, batch_size=batch_size
         )
         return result
     except HTTPException:
@@ -399,19 +400,22 @@ async def update_document_index(
     text: str,
     organization_id: str,
     content_type: str = "text",
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Update document index by deleting old vectors and re-indexing"""
     try:
         # Validate user has access to the organization
-        if current_user.organization_id != organization_id and current_user.role.value != "admin":
+        if (
+            current_user.organization_id != organization_id
+            and current_user.role.value != "admin"
+        ):
             raise HTTPException(status_code=403, detail="Access denied")
 
         result = vector_search_service.update_document_index(
             document_id=document_id,
             text=text,
             organization_id=organization_id,
-            content_type=content_type
+            content_type=content_type,
         )
         return result
     except HTTPException:

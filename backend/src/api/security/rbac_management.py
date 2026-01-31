@@ -3,32 +3,40 @@ RBAC management API endpoints
 Provides role and permission management for fine-grained access control
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
-from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from src.core.database import get_db
+from src.exceptions.analytics_exceptions import (
+    ConfigurationException,
+    PermissionDeniedException,
+    create_permission_denied_http_exception,
+)
 from src.middleware.multi_tenancy import get_current_tenant_id, get_current_user_id
 from src.middleware.rbac import require_permission, require_role
-from src.services.security.rbac_service import RBACService, get_rbac_service
-from src.models.permission import Permission, Role, UserRoleAssignment, PermissionCategory
-from src.models.user import User
-from src.exceptions.analytics_exceptions import (
-    PermissionDeniedException,
-    ConfigurationException,
-    create_permission_denied_http_exception
+from src.models.permission import (
+    Permission,
+    PermissionCategory,
+    Role,
+    UserRoleAssignment,
 )
+from src.models.user import User
+from src.services.security.rbac_service import RBACService, get_rbac_service
 
 router = APIRouter(prefix="/rbac", tags=["RBAC Management"])
 
 
 # Pydantic models for request/response
 
+
 class PermissionResponse(BaseModel):
     """Response model for permission data"""
+
     id: str
     name: str
     display_name: str
@@ -44,15 +52,25 @@ class PermissionResponse(BaseModel):
 
 class RoleCreate(BaseModel):
     """Request model for creating role"""
+
     name: str = Field(..., min_length=2, max_length=100, description="Role name")
-    display_name: str = Field(..., min_length=2, max_length=255, description="Display name")
-    description: Optional[str] = Field(None, max_length=1000, description="Role description")
-    permission_names: List[str] = Field(default=[], description="List of permission names")
-    priority: int = Field(default=0, description="Role priority (higher overrides lower)")
+    display_name: str = Field(
+        ..., min_length=2, max_length=255, description="Display name"
+    )
+    description: Optional[str] = Field(
+        None, max_length=1000, description="Role description"
+    )
+    permission_names: List[str] = Field(
+        default=[], description="List of permission names"
+    )
+    priority: int = Field(
+        default=0, description="Role priority (higher overrides lower)"
+    )
 
 
 class RoleUpdate(BaseModel):
     """Request model for updating role"""
+
     display_name: Optional[str] = Field(None, min_length=2, max_length=255)
     description: Optional[str] = Field(None, max_length=1000)
     permission_names: Optional[List[str]] = None
@@ -62,6 +80,7 @@ class RoleUpdate(BaseModel):
 
 class RoleResponse(BaseModel):
     """Response model for role data"""
+
     id: str
     name: str
     display_name: str
@@ -77,13 +96,17 @@ class RoleResponse(BaseModel):
 
 class RoleAssignmentCreate(BaseModel):
     """Request model for assigning role to user"""
+
     user_id: str = Field(..., description="User ID")
     role_id: str = Field(..., description="Role ID")
-    expires_at: Optional[datetime] = Field(None, description="Expiration time (optional)")
+    expires_at: Optional[datetime] = Field(
+        None, description="Expiration time (optional)"
+    )
 
 
 class RoleAssignmentResponse(BaseModel):
     """Response model for role assignment data"""
+
     id: str
     user_id: str
     role_id: str
@@ -97,6 +120,7 @@ class RoleAssignmentResponse(BaseModel):
 
 class UserPermissionsResponse(BaseModel):
     """Response model for user permissions"""
+
     user_id: str
     organization_id: str
     permissions: List[str]
@@ -105,11 +129,13 @@ class UserPermissionsResponse(BaseModel):
 
 class PermissionCategoryResponse(BaseModel):
     """Response model for permission category"""
+
     category: str
     permissions: List[PermissionResponse]
 
 
 # Helper functions
+
 
 def get_current_user_role():
     """Get current user role from RBAC service"""
@@ -129,13 +155,14 @@ def get_current_user_role():
 
 # API Endpoints
 
+
 @router.get("/permissions", response_model=List[PermissionResponse])
 async def get_permissions(
     category: Optional[str] = Query(None, description="Filter by category"),
     scope: Optional[str] = Query(None, description="Filter by scope"),
     active_only: bool = Query(True, description="Only active permissions"),
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("permission_read"))
+    _: str = Depends(require_permission("permission_read")),
 ):
     """Get list of available permissions"""
     try:
@@ -148,21 +175,23 @@ async def get_permissions(
         if active_only:
             query = query.filter(Permission.is_active == True)
 
-        permissions = query.order_by(Permission.category, Permission.scope, Permission.display_name).all()
+        permissions = query.order_by(
+            Permission.category, Permission.scope, Permission.display_name
+        ).all()
 
         return [PermissionResponse(**perm.to_dict()) for perm in permissions]
 
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve permissions"
+            detail="Failed to retrieve permissions",
         )
 
 
 @router.get("/permissions/categories", response_model=List[PermissionCategoryResponse])
 async def get_permission_categories(
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("permission_read"))
+    _: str = Depends(require_permission("permission_read")),
 ):
     """Get permissions grouped by category"""
     try:
@@ -172,7 +201,7 @@ async def get_permission_categories(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve permission categories"
+            detail="Failed to retrieve permission categories",
         )
 
 
@@ -180,7 +209,7 @@ async def get_permission_categories(
 async def create_role(
     role_data: RoleCreate,
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("role_create"))
+    _: str = Depends(require_permission("role_create")),
 ):
     """Create a new role"""
     try:
@@ -188,7 +217,7 @@ async def create_role(
         if not organization_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Organization context required"
+                detail="Organization context required",
             )
 
         role = rbac_service.create_role(
@@ -197,7 +226,7 @@ async def create_role(
             display_name=role_data.display_name,
             description=role_data.description,
             permission_names=role_data.permission_names,
-            priority=role_data.priority
+            priority=role_data.priority,
         )
 
         # Refresh role with permissions
@@ -205,14 +234,11 @@ async def create_role(
         return RoleResponse(**role.to_dict())
 
     except ConfigurationException as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create role"
+            detail="Failed to create role",
         )
 
 
@@ -222,7 +248,7 @@ async def get_roles(
     include_custom: bool = Query(True, description="Include custom roles"),
     active_only: bool = Query(True, description="Only active roles"),
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("role_read"))
+    _: str = Depends(require_permission("role_read")),
 ):
     """Get roles for current organization"""
     try:
@@ -230,14 +256,14 @@ async def get_roles(
         if not organization_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Organization context required"
+                detail="Organization context required",
             )
 
         roles = rbac_service.get_organization_roles(
             organization_id=organization_id,
             include_system=include_system,
             include_custom=include_custom,
-            active_only=active_only
+            active_only=active_only,
         )
 
         return [RoleResponse(**role.to_dict()) for role in roles]
@@ -245,7 +271,7 @@ async def get_roles(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve roles"
+            detail="Failed to retrieve roles",
         )
 
 
@@ -253,21 +279,21 @@ async def get_roles(
 async def get_role(
     role_id: str = Path(..., description="Role ID"),
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("role_read"))
+    _: str = Depends(require_permission("role_read")),
 ):
     """Get specific role details"""
     try:
         organization_id = get_current_tenant_id()
 
-        role = rbac_service.db.query(Role).filter(
-            Role.id == role_id,
-            Role.organization_id == organization_id
-        ).first()
+        role = (
+            rbac_service.db.query(Role)
+            .filter(Role.id == role_id, Role.organization_id == organization_id)
+            .first()
+        )
 
         if not role:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Role not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Role not found"
             )
 
         return RoleResponse(**role.to_dict())
@@ -277,7 +303,7 @@ async def get_role(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve role"
+            detail="Failed to retrieve role",
         )
 
 
@@ -286,32 +312,32 @@ async def update_role(
     role_id: str,
     role_data: RoleUpdate,
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("role_update"))
+    _: str = Depends(require_permission("role_update")),
 ):
     """Update role details"""
     try:
         organization_id = get_current_tenant_id()
 
-        role = rbac_service.db.query(Role).filter(
-            Role.id == role_id,
-            Role.organization_id == organization_id
-        ).first()
+        role = (
+            rbac_service.db.query(Role)
+            .filter(Role.id == role_id, Role.organization_id == organization_id)
+            .first()
+        )
 
         if not role:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Role not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Role not found"
             )
 
         if role.is_system:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="System roles cannot be modified"
+                detail="System roles cannot be modified",
             )
 
         # Update allowed fields
         update_data = role_data.dict(exclude_unset=True)
-        permission_names = update_data.pop('permission_names', None)
+        permission_names = update_data.pop("permission_names", None)
 
         for field, value in update_data.items():
             if hasattr(role, field):
@@ -322,7 +348,7 @@ async def update_role(
             # Remove existing permissions
             rbac_service.db.execute(
                 "DELETE FROM role_permissions WHERE role_id = :role_id",
-                {"role_id": role_id}
+                {"role_id": role_id},
             )
 
             # Add new permissions
@@ -340,7 +366,7 @@ async def update_role(
         rbac_service.db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update role"
+            detail="Failed to update role",
         )
 
 
@@ -348,39 +374,43 @@ async def update_role(
 async def delete_role(
     role_id: str,
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("role_delete"))
+    _: str = Depends(require_permission("role_delete")),
 ):
     """Delete a role"""
     try:
         organization_id = get_current_tenant_id()
 
-        role = rbac_service.db.query(Role).filter(
-            Role.id == role_id,
-            Role.organization_id == organization_id
-        ).first()
+        role = (
+            rbac_service.db.query(Role)
+            .filter(Role.id == role_id, Role.organization_id == organization_id)
+            .first()
+        )
 
         if not role:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Role not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Role not found"
             )
 
         if role.is_system:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="System roles cannot be deleted"
+                detail="System roles cannot be deleted",
             )
 
         # Check for active assignments
-        active_assignments = rbac_service.db.query(UserRoleAssignment).filter(
-            UserRoleAssignment.role_id == role_id,
-            UserRoleAssignment.is_active == True
-        ).count()
+        active_assignments = (
+            rbac_service.db.query(UserRoleAssignment)
+            .filter(
+                UserRoleAssignment.role_id == role_id,
+                UserRoleAssignment.is_active == True,
+            )
+            .count()
+        )
 
         if active_assignments > 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot delete role with active user assignments"
+                detail="Cannot delete role with active user assignments",
             )
 
         rbac_service.db.delete(role)
@@ -392,7 +422,7 @@ async def delete_role(
         rbac_service.db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete role"
+            detail="Failed to delete role",
         )
 
 
@@ -401,7 +431,7 @@ async def assign_role_to_user(
     user_id: str,
     assignment_data: RoleAssignmentCreate,
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("user_manage_roles"))
+    _: str = Depends(require_permission("user_manage_roles")),
 ):
     """Assign a role to a user"""
     try:
@@ -410,8 +440,7 @@ async def assign_role_to_user(
 
         if assignment_data.user_id != user_id:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User ID mismatch"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="User ID mismatch"
             )
 
         assignment = rbac_service.assign_role_to_user(
@@ -419,7 +448,7 @@ async def assign_role_to_user(
             role_id=assignment_data.role_id,
             organization_id=organization_id,
             assigned_by=current_user_id,
-            expires_at=assignment_data.expires_at
+            expires_at=assignment_data.expires_at,
         )
 
         # Refresh with role data
@@ -427,38 +456,35 @@ async def assign_role_to_user(
         return RoleAssignmentResponse(**assignment.to_dict())
 
     except ConfigurationException as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to assign role to user"
+            detail="Failed to assign role to user",
         )
 
 
-@router.delete("/users/{user_id}/roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/users/{user_id}/roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def revoke_role_from_user(
     user_id: str,
     role_id: str,
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("user_manage_roles"))
+    _: str = Depends(require_permission("user_manage_roles")),
 ):
     """Revoke a role from a user"""
     try:
         organization_id = get_current_tenant_id()
 
         success = rbac_service.revoke_role_from_user(
-            user_id=user_id,
-            role_id=role_id,
-            organization_id=organization_id
+            user_id=user_id, role_id=role_id, organization_id=organization_id
         )
 
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Role assignment not found"
+                detail="Role assignment not found",
             )
 
     except HTTPException:
@@ -466,7 +492,7 @@ async def revoke_role_from_user(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to revoke role from user"
+            detail="Failed to revoke role from user",
         )
 
 
@@ -474,7 +500,7 @@ async def revoke_role_from_user(
 async def get_user_permissions(
     user_id: str,
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("user_read"))
+    _: str = Depends(require_permission("user_read")),
 ):
     """Get user's permissions and roles"""
     try:
@@ -487,19 +513,19 @@ async def get_user_permissions(
             user_id=user_id,
             organization_id=organization_id,
             permissions=list(permissions),
-            roles=[RoleResponse(**role.to_dict()) for role in roles]
+            roles=[RoleResponse(**role.to_dict()) for role in roles],
         )
 
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve user permissions"
+            detail="Failed to retrieve user permissions",
         )
 
 
 @router.get("/users/current/permissions", response_model=UserPermissionsResponse)
 async def get_current_user_permissions(
-    rbac_service: RBACService = Depends(get_rbac_service)
+    rbac_service: RBACService = Depends(get_rbac_service),
 ):
     """Get current user's permissions and roles"""
     try:
@@ -509,7 +535,7 @@ async def get_current_user_permissions(
         if not user_id or not organization_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required"
+                detail="Authentication required",
             )
 
         permissions = rbac_service.get_user_permissions(user_id, organization_id)
@@ -519,7 +545,7 @@ async def get_current_user_permissions(
             user_id=user_id,
             organization_id=organization_id,
             permissions=list(permissions),
-            roles=[RoleResponse(**role.to_dict()) for role in roles]
+            roles=[RoleResponse(**role.to_dict()) for role in roles],
         )
 
     except HTTPException:
@@ -527,7 +553,7 @@ async def get_current_user_permissions(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve current user permissions"
+            detail="Failed to retrieve current user permissions",
         )
 
 
@@ -535,7 +561,7 @@ async def get_current_user_permissions(
 async def get_users_with_role(
     role_id: str,
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("user_read"))
+    _: str = Depends(require_permission("user_read")),
 ):
     """Get all users assigned to a specific role"""
     try:
@@ -545,28 +571,32 @@ async def get_users_with_role(
 
         user_data = []
         for user in users:
-            user_data.append({
-                "id": str(user.id),
-                "email": user.email,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "is_active": user.is_active,
-                "created_at": user.created_at.isoformat() if user.created_at else None
-        })
+            user_data.append(
+                {
+                    "id": str(user.id),
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "is_active": user.is_active,
+                    "created_at": user.created_at.isoformat()
+                    if user.created_at
+                    else None,
+                }
+            )
 
         return user_data
 
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve users for role"
+            detail="Failed to retrieve users for role",
         )
 
 
 @router.post("/initialize", response_model=Dict[str, Any])
 async def initialize_rbac_system(
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("system_admin"))
+    _: str = Depends(require_permission("system_admin")),
 ):
     """Initialize RBAC system with permissions and default roles"""
     try:
@@ -574,7 +604,7 @@ async def initialize_rbac_system(
         if not organization_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Organization context required"
+                detail="Organization context required",
             )
 
         # Initialize system permissions
@@ -587,20 +617,20 @@ async def initialize_rbac_system(
             "message": "RBAC system initialization completed",
             "permissions_initialized": permissions_success,
             "roles_initialized": roles_success,
-            "organization_id": organization_id
+            "organization_id": organization_id,
         }
 
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to initialize RBAC system"
+            detail="Failed to initialize RBAC system",
         )
 
 
 @router.post("/cleanup-expired", response_model=Dict[str, Any])
 async def cleanup_expired_assignments(
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("system_admin"))
+    _: str = Depends(require_permission("system_admin")),
 ):
     """Clean up expired role assignments"""
     try:
@@ -608,11 +638,11 @@ async def cleanup_expired_assignments(
 
         return {
             "message": "Cleanup completed",
-            "expired_assignments_removed": expired_count
+            "expired_assignments_removed": expired_count,
         }
 
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to cleanup expired assignments"
+            detail="Failed to cleanup expired assignments",
         )

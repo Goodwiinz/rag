@@ -5,36 +5,43 @@ This service implements intelligent search orchestration using multiple speciali
 that collaborate to improve search result quality and provide comprehensive answers.
 """
 
-import logging
-import time
 import asyncio
-from typing import List, Dict, Any, Optional, Tuple
-from dataclasses import dataclass, asdict
-from enum import Enum
-from datetime import datetime
 import json
+import logging
 import os
+import time
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 # CrewAI imports
 try:
-    from crewai import Agent, Task, Crew, Process
+    from crewai import Agent, Crew, Process, Task
     from crewai.tools import BaseTool
-    from langchain_openai import ChatOpenAI, AzureChatOpenAI
     from langchain_community.llms import OpenAI
+    from langchain_openai import AzureChatOpenAI, ChatOpenAI
+
     CREWAI_AVAILABLE = True
 except ImportError:
     CREWAI_AVAILABLE = False
     BaseTool = object  # Fallback base class
-    logging.warning("CrewAI not available. Multi-agent search will use fallback implementation.")
+    logging.warning(
+        "CrewAI not available. Multi-agent search will use fallback implementation."
+    )
 
 from src.core.config import settings
-
-
 from src.core.database import get_db
 from src.models.document import Document
-from src.models.search_schemas import SearchQuery, SearchResponse, SearchResult, SearchType
-from .hybrid_search_service import hybrid_search_service
+from src.models.search_schemas import (
+    SearchQuery,
+    SearchResponse,
+    SearchResult,
+    SearchType,
+)
 from src.services.knowledge_graph import knowledge_graph_service
+
+from .hybrid_search_service import hybrid_search_service
 from .search_quality_service import search_quality_service
 
 logger = logging.getLogger(__name__)
@@ -42,6 +49,7 @@ logger = logging.getLogger(__name__)
 
 class AgentType(Enum):
     """Types of search agents"""
+
     RETRIEVAL = "retrieval"
     GRAPH_NAVIGATION = "graph_navigation"
     QUALITY_ASSURANCE = "quality_assurance"
@@ -53,6 +61,7 @@ class AgentType(Enum):
 @dataclass
 class AgentTask:
     """Individual agent task definition"""
+
     task_id: str
     agent_type: AgentType
     description: str
@@ -66,6 +75,7 @@ class AgentTask:
 @dataclass
 class AgentExecution:
     """Execution result from an agent"""
+
     task_id: str
     agent_type: AgentType
     execution_time: float
@@ -78,6 +88,7 @@ class AgentExecution:
 @dataclass
 class MultiAgentSearchResult:
     """Complete multi-agent search result"""
+
     original_query: str
     refined_query: str
     search_results: List[SearchResult]
@@ -92,6 +103,7 @@ class MultiAgentSearchResult:
 
 class SearchTool(BaseTool):
     """Custom tool for search operations"""
+
     name: str = "hybrid_search"
     description: str = "Perform hybrid search across multiple data sources"
 
@@ -99,25 +111,25 @@ class SearchTool(BaseTool):
         """Execute the tool"""
         try:
             search_query = SearchQuery(
-                query=query,
-                search_type=SearchType.HYBRID,
-                limit=max_results
+                query=query, search_type=SearchType.HYBRID, limit=max_results
             )
 
             search_response = hybrid_search_service.search(
                 search_request=search_query,
                 user_id="multi_agent_user",
-                organization_id="default_org"
+                organization_id="default_org",
             )
 
             results = []
             for result in search_response.results[:5]:  # Limit for context
-                results.append({
-                    "title": result.title,
-                    "content": result.content_preview,
-                    "score": result.relevance_score,
-                    "source": result.source_type.value
-                })
+                results.append(
+                    {
+                        "title": result.title,
+                        "content": result.content_preview,
+                        "score": result.relevance_score,
+                        "source": result.source_type.value,
+                    }
+                )
 
             return json.dumps(results, indent=2)
 
@@ -128,6 +140,7 @@ class SearchTool(BaseTool):
 
 class KnowledgeGraphTool(BaseTool):
     """Custom tool for knowledge graph operations"""
+
     name: str = "knowledge_graph"
     description: str = "Query the knowledge graph for entity relationships"
 
@@ -162,26 +175,47 @@ class MultiAgentSearchService:
     def __init__(self):
         self.agent_tools = {
             "search": SearchTool(),
-            "knowledge_graph": KnowledgeGraphTool()
+            "knowledge_graph": KnowledgeGraphTool(),
         }
 
         if CREWAI_AVAILABLE:
             # Prioritize Azure OpenAI if configured
-            if settings.AZURE_OPENAI_API_KEY and (settings.AZURE_OPENAI_ENDPOINT or settings.AZURE_OPENAI_CHAT_ENDPOINT):
+            if settings.AZURE_OPENAI_API_KEY and (
+                settings.AZURE_OPENAI_ENDPOINT or settings.AZURE_OPENAI_CHAT_ENDPOINT
+            ):
                 try:
                     # Set environment variables for CrewAI/LiteLLM
-                    os.environ["AZURE_OPENAI_API_KEY"] = settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY
-                    os.environ["AZURE_OPENAI_ENDPOINT"] = settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT
-                    os.environ["OPENAI_API_VERSION"] = settings.AZURE_OPENAI_CHAT_API_VERSION
+                    os.environ["AZURE_OPENAI_API_KEY"] = (
+                        settings.AZURE_OPENAI_CHAT_API_KEY
+                        or settings.AZURE_OPENAI_API_KEY
+                    )
+                    os.environ["AZURE_OPENAI_ENDPOINT"] = (
+                        settings.AZURE_OPENAI_CHAT_ENDPOINT
+                        or settings.AZURE_OPENAI_ENDPOINT
+                    )
+                    os.environ[
+                        "OPENAI_API_VERSION"
+                    ] = settings.AZURE_OPENAI_CHAT_API_VERSION
                     os.environ["OPENAI_API_TYPE"] = "azure"
-                    
+
                     # Set variables for CrewAI Native Azure Provider
-                    os.environ["AZURE_API_KEY"] = settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY
-                    os.environ["AZURE_ENDPOINT"] = settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT
-                    
-                    deployment = settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME or settings.AZURE_OPENAI_DEPLOYMENT_NAME
+                    os.environ["AZURE_API_KEY"] = (
+                        settings.AZURE_OPENAI_CHAT_API_KEY
+                        or settings.AZURE_OPENAI_API_KEY
+                    )
+                    os.environ["AZURE_ENDPOINT"] = (
+                        settings.AZURE_OPENAI_CHAT_ENDPOINT
+                        or settings.AZURE_OPENAI_ENDPOINT
+                    )
+
+                    deployment = (
+                        settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+                        or settings.AZURE_OPENAI_DEPLOYMENT_NAME
+                    )
                     self.llm = f"azure/{deployment}"
-                    logger.info(f"Initialized MultiAgentSearchService with Azure OpenAI using model: {self.llm}")
+                    logger.info(
+                        f"Initialized MultiAgentSearchService with Azure OpenAI using model: {self.llm}"
+                    )
                 except Exception as e:
                     logger.error(f"Failed to initialize Azure OpenAI: {e}")
                     self.llm = None
@@ -192,7 +226,9 @@ class MultiAgentSearchService:
                 self.llm = "gpt-3.5-turbo"
                 logger.info("Initialized MultiAgentSearchService with standard OpenAI")
             else:
-                logger.warning("No valid OpenAI API key found (Azure or Standard). Multi-agent search will be disabled.")
+                logger.warning(
+                    "No valid OpenAI API key found (Azure or Standard). Multi-agent search will be disabled."
+                )
                 self.llm = None
 
             if self.llm:
@@ -208,76 +244,76 @@ class MultiAgentSearchService:
 
         # Retrieval Agent - finds relevant content
         self.retrieval_agent = Agent(
-            role='Content Retrieval Specialist',
-            goal='Find the most relevant and comprehensive content for user queries',
+            role="Content Retrieval Specialist",
+            goal="Find the most relevant and comprehensive content for user queries",
             backstory="""You are an expert information retrieval specialist with deep knowledge
             of search strategies across multiple data sources. You excel at understanding user intent
             and finding the most relevant documents, entities, and information.""",
             verbose=True,
             allow_delegation=False,
             tools=[self.agent_tools["search"]],
-            llm=self.llm
+            llm=self.llm,
         )
 
         # Graph Navigation Agent - explores entity relationships
         self.graph_agent = Agent(
-            role='Knowledge Graph Navigator',
-            goal='Discover related entities and concepts through graph traversal',
+            role="Knowledge Graph Navigator",
+            goal="Discover related entities and concepts through graph traversal",
             backstory="""You are an expert knowledge graph analyst who can navigate complex
             entity relationships to find connected concepts, related topics, and hidden patterns
             that enhance search results.""",
             verbose=True,
             allow_delegation=False,
             tools=[self.agent_tools["knowledge_graph"]],
-            llm=self.llm
+            llm=self.llm,
         )
 
         # Quality Assurance Agent - validates result accuracy
         self.qa_agent = Agent(
-            role='Search Quality Assurance Specialist',
-            goal='Validate search result accuracy, relevance, and completeness',
+            role="Search Quality Assurance Specialist",
+            goal="Validate search result accuracy, relevance, and completeness",
             backstory="""You are a meticulous quality assurance specialist who evaluates
             search results for accuracy, relevance to the query, completeness of information,
             and overall quality. You identify gaps and suggest improvements.""",
             verbose=True,
             allow_delegation=False,
-            llm=self.llm
+            llm=self.llm,
         )
 
         # Answer Synthesis Agent - generates comprehensive responses
         self.synthesis_agent = Agent(
-            role='Answer Synthesis Expert',
-            goal='Synthesize search results into coherent, comprehensive responses',
+            role="Answer Synthesis Expert",
+            goal="Synthesize search results into coherent, comprehensive responses",
             backstory="""You are an expert communicator who can synthesize information
             from multiple sources into clear, accurate, and comprehensive answers that
             directly address user queries.""",
             verbose=True,
             allow_delegation=False,
-            llm=self.llm
+            llm=self.llm,
         )
 
         # Query Understanding Agent - refines and expands queries
         self.query_agent = Agent(
-            role='Query Understanding Specialist',
-            goal='Analyze, refine, and expand user queries for better search results',
+            role="Query Understanding Specialist",
+            goal="Analyze, refine, and expand user queries for better search results",
             backstory="""You are an expert in natural language understanding who can
             analyze user intent, identify key concepts, suggest query refinements, and
             expand queries with related terms for comprehensive search coverage.""",
             verbose=True,
             allow_delegation=False,
-            llm=self.llm
+            llm=self.llm,
         )
 
         # Result Enrichment Agent - enhances search results
         self.enrichment_agent = Agent(
-            role='Search Result Enrichment Specialist',
-            goal='Enhance search results with additional context and metadata',
+            role="Search Result Enrichment Specialist",
+            goal="Enhance search results with additional context and metadata",
             backstory="""You are an expert in information enrichment who can add valuable
             context, summaries, categorizations, and metadata to search results to make
             them more useful and actionable.""",
             verbose=True,
             allow_delegation=False,
-            llm=self.llm
+            llm=self.llm,
         )
 
     async def orchestrate_search(
@@ -286,7 +322,7 @@ class MultiAgentSearchService:
         user_id: str,
         organization_id: str,
         max_agents: int = 4,
-        timeout: float = 120.0
+        timeout: float = 120.0,
     ) -> MultiAgentSearchResult:
         """
         Orchestrate multi-agent search workflow
@@ -340,8 +376,10 @@ class MultiAgentSearchService:
                 metadata={
                     "agents_used": len(selected_tasks),
                     "query_complexity": self._assess_query_complexity(query),
-                    "collaboration_score": self._calculate_collaboration_score(execution_results)
-                }
+                    "collaboration_score": self._calculate_collaboration_score(
+                        execution_results
+                    ),
+                },
             )
 
         except Exception as e:
@@ -349,80 +387,98 @@ class MultiAgentSearchService:
             # Fallback to simple hybrid search
             return await self._fallback_search(query, user_id, organization_id)
 
-    def _create_agent_tasks(self, query: str, user_id: str, organization_id: str) -> List[AgentTask]:
+    def _create_agent_tasks(
+        self, query: str, user_id: str, organization_id: str
+    ) -> List[AgentTask]:
         """Create tasks for different agents based on query analysis"""
         tasks = []
 
         # Query understanding task
-        tasks.append(AgentTask(
-            task_id="query_understanding",
-            agent_type=AgentType.QUERY_UNDERSTANDING,
-            description=f"Analyze the query '{query}' and provide refined queries, key entities, and search strategy",
-            expected_output="Refined query, key entities, search terms, and strategy recommendations",
-            context={"query": query, "user_id": user_id},
-            priority=1,
-            estimated_duration=15.0
-        ))
+        tasks.append(
+            AgentTask(
+                task_id="query_understanding",
+                agent_type=AgentType.QUERY_UNDERSTANDING,
+                description=f"Analyze the query '{query}' and provide refined queries, key entities, and search strategy",
+                expected_output="Refined query, key entities, search terms, and strategy recommendations",
+                context={"query": query, "user_id": user_id},
+                priority=1,
+                estimated_duration=15.0,
+            )
+        )
 
         # Retrieval task
-        tasks.append(AgentTask(
-            task_id="content_retrieval",
-            agent_type=AgentType.RETRIEVAL,
-            description=f"Find relevant documents and content for the query '{query}' using hybrid search",
-            expected_output="List of relevant documents with relevance scores and summaries",
-            context={"query": query, "organization_id": organization_id},
-            dependencies=["query_understanding"],
-            priority=2,
-            estimated_duration=20.0
-        ))
+        tasks.append(
+            AgentTask(
+                task_id="content_retrieval",
+                agent_type=AgentType.RETRIEVAL,
+                description=f"Find relevant documents and content for the query '{query}' using hybrid search",
+                expected_output="List of relevant documents with relevance scores and summaries",
+                context={"query": query, "organization_id": organization_id},
+                dependencies=["query_understanding"],
+                priority=2,
+                estimated_duration=20.0,
+            )
+        )
 
         # Graph navigation task
-        tasks.append(AgentTask(
-            task_id="graph_navigation",
-            agent_type=AgentType.GRAPH_NAVIGATION,
-            description=f"Explore knowledge graph for entities related to '{query}' and find connected concepts",
-            expected_output="Related entities, relationships, and conceptual connections",
-            context={"query": query},
-            dependencies=["query_understanding"],
-            priority=2,
-            estimated_duration=25.0
-        ))
+        tasks.append(
+            AgentTask(
+                task_id="graph_navigation",
+                agent_type=AgentType.GRAPH_NAVIGATION,
+                description=f"Explore knowledge graph for entities related to '{query}' and find connected concepts",
+                expected_output="Related entities, relationships, and conceptual connections",
+                context={"query": query},
+                dependencies=["query_understanding"],
+                priority=2,
+                estimated_duration=25.0,
+            )
+        )
 
         # Quality assurance task
-        tasks.append(AgentTask(
-            task_id="quality_assurance",
-            agent_type=AgentType.QUALITY_ASSURANCE,
-            description="Evaluate search results for accuracy, relevance, and completeness",
-            expected_output="Quality assessment with scores and improvement suggestions",
-            context={"query": query},
-            dependencies=["content_retrieval", "graph_navigation"],
-            priority=3,
-            estimated_duration=20.0
-        ))
+        tasks.append(
+            AgentTask(
+                task_id="quality_assurance",
+                agent_type=AgentType.QUALITY_ASSURANCE,
+                description="Evaluate search results for accuracy, relevance, and completeness",
+                expected_output="Quality assessment with scores and improvement suggestions",
+                context={"query": query},
+                dependencies=["content_retrieval", "graph_navigation"],
+                priority=3,
+                estimated_duration=20.0,
+            )
+        )
 
         # Answer synthesis task
-        tasks.append(AgentTask(
-            task_id="answer_synthesis",
-            agent_type=AgentType.ANSWER_SYNTHESIS,
-            description=f"Synthesize all gathered information into a comprehensive answer for '{query}'",
-            expected_output="Coherent, comprehensive answer addressing the original query",
-            context={"query": query},
-            dependencies=["content_retrieval", "graph_navigation", "quality_assurance"],
-            priority=4,
-            estimated_duration=30.0
-        ))
+        tasks.append(
+            AgentTask(
+                task_id="answer_synthesis",
+                agent_type=AgentType.ANSWER_SYNTHESIS,
+                description=f"Synthesize all gathered information into a comprehensive answer for '{query}'",
+                expected_output="Coherent, comprehensive answer addressing the original query",
+                context={"query": query},
+                dependencies=[
+                    "content_retrieval",
+                    "graph_navigation",
+                    "quality_assurance",
+                ],
+                priority=4,
+                estimated_duration=30.0,
+            )
+        )
 
         # Result enrichment task
-        tasks.append(AgentTask(
-            task_id="result_enrichment",
-            agent_type=AgentType.RESULT_ENRICHMENT,
-            description="Enhance search results with additional context and metadata",
-            expected_output="Enriched results with categories, summaries, and additional context",
-            context={"query": query},
-            dependencies=["content_retrieval"],
-            priority=3,
-            estimated_duration=15.0
-        ))
+        tasks.append(
+            AgentTask(
+                task_id="result_enrichment",
+                agent_type=AgentType.RESULT_ENRICHMENT,
+                description="Enhance search results with additional context and metadata",
+                expected_output="Enriched results with categories, summaries, and additional context",
+                context={"query": query},
+                dependencies=["content_retrieval"],
+                priority=3,
+                estimated_duration=15.0,
+            )
+        )
 
         return tasks
 
@@ -433,12 +489,16 @@ class MultiAgentSearchService:
         selected = []
 
         # Always include query understanding
-        query_task = next((t for t in tasks if t.agent_type == AgentType.QUERY_UNDERSTANDING), None)
+        query_task = next(
+            (t for t in tasks if t.agent_type == AgentType.QUERY_UNDERSTANDING), None
+        )
         if query_task:
             selected.append(query_task)
 
         # Add retrieval task
-        retrieval_task = next((t for t in tasks if t.agent_type == AgentType.RETRIEVAL), None)
+        retrieval_task = next(
+            (t for t in tasks if t.agent_type == AgentType.RETRIEVAL), None
+        )
         if retrieval_task:
             selected.append(retrieval_task)
 
@@ -446,11 +506,13 @@ class MultiAgentSearchService:
         remaining_tasks = [t for t in tasks if t not in selected]
         remaining_tasks.sort(key=lambda x: x.priority)
 
-        selected.extend(remaining_tasks[:max_agents - len(selected)])
+        selected.extend(remaining_tasks[: max_agents - len(selected)])
 
         return selected
 
-    async def _execute_agent_tasks(self, tasks: List[AgentTask], timeout: float) -> List[AgentExecution]:
+    async def _execute_agent_tasks(
+        self, tasks: List[AgentTask], timeout: float
+    ) -> List[AgentExecution]:
         """Execute agent tasks with dependency management"""
         if not CREWAI_AVAILABLE:
             return []
@@ -464,8 +526,10 @@ class MultiAgentSearchService:
         while remaining_tasks and len(executions) < len(tasks):
             # Find tasks whose dependencies are satisfied
             ready_tasks = [
-                task for task in remaining_tasks
-                if not task.dependencies or all(dep in completed_tasks for dep in task.dependencies)
+                task
+                for task in remaining_tasks
+                if not task.dependencies
+                or all(dep in completed_tasks for dep in task.dependencies)
             ]
 
             if not ready_tasks:
@@ -490,7 +554,7 @@ class MultiAgentSearchService:
                         execution_time=0.0,
                         success=False,
                         result={},
-                        error_message=str(e)
+                        error_message=str(e),
                     )
                     executions.append(execution)
                     completed_tasks.add(task.task_id)
@@ -513,15 +577,12 @@ class MultiAgentSearchService:
                 description=task.description,
                 expected_output=task.expected_output,
                 agent=agent,
-                tools=self._get_tools_for_task(task)
+                tools=self._get_tools_for_task(task),
             )
 
             # Create crew with single agent
             crew = Crew(
-                agents=[agent],
-                tasks=[crew_task],
-                verbose=1,
-                process=Process.sequential
+                agents=[agent], tasks=[crew_task], verbose=1, process=Process.sequential
             )
 
             # Execute task
@@ -537,8 +598,8 @@ class MultiAgentSearchService:
                 result={"output": str(result)},
                 metadata={
                     "estimated_duration": task.estimated_duration,
-                    "priority": task.priority
-                }
+                    "priority": task.priority,
+                },
             )
 
         except Exception as e:
@@ -554,8 +615,8 @@ class MultiAgentSearchService:
                 error_message=str(e),
                 metadata={
                     "estimated_duration": task.estimated_duration,
-                    "priority": task.priority
-                }
+                    "priority": task.priority,
+                },
             )
 
     def _get_agent_for_type(self, agent_type: AgentType):
@@ -564,12 +625,12 @@ class MultiAgentSearchService:
             return None
 
         agent_map = {
-            AgentType.RETRIEVAL: getattr(self, 'retrieval_agent', None),
-            AgentType.GRAPH_NAVIGATION: getattr(self, 'graph_agent', None),
-            AgentType.QUALITY_ASSURANCE: getattr(self, 'qa_agent', None),
-            AgentType.ANSWER_SYNTHESIS: getattr(self, 'synthesis_agent', None),
-            AgentType.QUERY_UNDERSTANDING: getattr(self, 'query_agent', None),
-            AgentType.RESULT_ENRICHMENT: getattr(self, 'enrichment_agent', None)
+            AgentType.RETRIEVAL: getattr(self, "retrieval_agent", None),
+            AgentType.GRAPH_NAVIGATION: getattr(self, "graph_agent", None),
+            AgentType.QUALITY_ASSURANCE: getattr(self, "qa_agent", None),
+            AgentType.ANSWER_SYNTHESIS: getattr(self, "synthesis_agent", None),
+            AgentType.QUERY_UNDERSTANDING: getattr(self, "query_agent", None),
+            AgentType.RESULT_ENRICHMENT: getattr(self, "enrichment_agent", None),
         }
 
         return agent_map.get(agent_type)
@@ -586,22 +647,22 @@ class MultiAgentSearchService:
 
         return tools
 
-    async def _fallback_search(self, query: str, user_id: str, organization_id: str) -> MultiAgentSearchResult:
+    async def _fallback_search(
+        self, query: str, user_id: str, organization_id: str
+    ) -> MultiAgentSearchResult:
         """Fallback implementation when CrewAI is not available"""
         start_time = time.time()
 
         try:
             # Perform simple hybrid search
             search_query = SearchQuery(
-                query=query,
-                search_type=SearchType.HYBRID,
-                limit=10
+                query=query, search_type=SearchType.HYBRID, limit=10
             )
 
             search_response = hybrid_search_service.search(
                 search_request=search_query,
                 user_id=user_id,
-                organization_id=organization_id
+                organization_id=organization_id,
             )
 
             # Create mock agent execution
@@ -610,12 +671,16 @@ class MultiAgentSearchService:
                 agent_type=AgentType.RETRIEVAL,
                 execution_time=time.time() - start_time,
                 success=True,
-                result={"output": f"Found {len(search_response.results)} results for '{query}'"},
-                metadata={"fallback": True}
+                result={
+                    "output": f"Found {len(search_response.results)} results for '{query}'"
+                },
+                metadata={"fallback": True},
             )
 
             # Generate simple synthesized answer
-            synthesized_answer = self._generate_simple_answer(query, search_response.results)
+            synthesized_answer = self._generate_simple_answer(
+                query, search_response.results
+            )
 
             execution_time = time.time() - start_time
 
@@ -628,8 +693,10 @@ class MultiAgentSearchService:
                 confidence_score=0.7,
                 execution_time=execution_time,
                 quality_metrics={"relevancy": 0.7, "completeness": 0.6},
-                recommendations=["Consider adding more specific terms to refine results"],
-                metadata={"fallback_mode": True, "agents_used": 1}
+                recommendations=[
+                    "Consider adding more specific terms to refine results"
+                ],
+                metadata={"fallback_mode": True, "agents_used": 1},
             )
 
         except Exception as e:
@@ -646,7 +713,7 @@ class MultiAgentSearchService:
                 execution_time=execution_time,
                 quality_metrics={},
                 recommendations=["Please try rephrasing your query or contact support"],
-                metadata={"error": str(e), "fallback_mode": True}
+                metadata={"error": str(e), "fallback_mode": True},
             )
 
     def _generate_simple_answer(self, query: str, results: List[SearchResult]) -> str:
@@ -661,42 +728,64 @@ class MultiAgentSearchService:
             answer_parts.append(f"{i}. {result.title}")
             if result.content_preview:
                 # Truncate preview to reasonable length
-                preview = result.content_preview[:200] + "..." if len(result.content_preview) > 200 else result.content_preview
+                preview = (
+                    result.content_preview[:200] + "..."
+                    if len(result.content_preview) > 200
+                    else result.content_preview
+                )
                 answer_parts.append(f"   {preview}")
 
         answer_parts.append(f"\nFound {len(results)} total results.")
 
         return "\n".join(answer_parts)
 
-    async def _synthesize_answer(self, query: str, executions: List[AgentExecution]) -> str:
+    async def _synthesize_answer(
+        self, query: str, executions: List[AgentExecution]
+    ) -> str:
         """Synthesize final answer from agent executions"""
         # Look for synthesis agent result
         synthesis_execution = next(
-            (e for e in executions if e.agent_type == AgentType.ANSWER_SYNTHESIS and e.success),
-            None
+            (
+                e
+                for e in executions
+                if e.agent_type == AgentType.ANSWER_SYNTHESIS and e.success
+            ),
+            None,
         )
 
         if synthesis_execution:
-            return synthesis_execution.result.get("output", "Unable to synthesize answer")
+            return synthesis_execution.result.get(
+                "output", "Unable to synthesize answer"
+            )
 
         # Fallback: combine results from other agents
-        relevant_results = [e for e in executions if e.success and e.result.get("output")]
+        relevant_results = [
+            e for e in executions if e.success and e.result.get("output")
+        ]
 
         if relevant_results:
-            combined_output = "\n\n".join([
-                f"{e.agent_type.value}: {e.result.get('output', '')}"
-                for e in relevant_results[:3]  # Limit to avoid too much text
-            ])
+            combined_output = "\n\n".join(
+                [
+                    f"{e.agent_type.value}: {e.result.get('output', '')}"
+                    for e in relevant_results[:3]  # Limit to avoid too much text
+                ]
+            )
             return f"Search results for '{query}':\n\n{combined_output}"
 
         return f"No agent could provide results for '{query}'"
 
-    def _extract_search_results(self, executions: List[AgentExecution]) -> List[SearchResult]:
+    def _extract_search_results(
+        self, executions: List[AgentExecution]
+    ) -> List[SearchResult]:
         """Extract search results from agent executions"""
         # Look for retrieval agent results
         retrieval_execution = next(
-            (e for e in executions if e.agent_type == AgentType.RETRIEVAL and e.success),
-            None
+            (
+                e
+                for e in executions
+                if e.agent_type == AgentType.RETRIEVAL and e.success
+            ),
+            None,
         )
 
         if retrieval_execution:
@@ -714,15 +803,19 @@ class MultiAgentSearchService:
     def _get_refined_query(self, executions: List[AgentExecution]) -> str:
         """Get refined query from query understanding agent"""
         query_execution = next(
-            (e for e in executions if e.agent_type == AgentType.QUERY_UNDERSTANDING and e.success),
-            None
+            (
+                e
+                for e in executions
+                if e.agent_type == AgentType.QUERY_UNDERSTANDING and e.success
+            ),
+            None,
         )
 
         if query_execution:
             # Parse refined query from agent output
             output = query_execution.result.get("output", "")
             # Simple extraction - would need more sophisticated parsing
-            return output.split('\n')[0] if output else ""
+            return output.split("\n")[0] if output else ""
 
         return ""
 
@@ -736,8 +829,13 @@ class MultiAgentSearchService:
         base_confidence = len(successful_executions) / len(executions)
 
         # Adjust based on agent types that succeeded
-        has_synthesis = any(e.agent_type == AgentType.ANSWER_SYNTHESIS and e.success for e in executions)
-        has_quality_check = any(e.agent_type == AgentType.QUALITY_ASSURANCE and e.success for e in executions)
+        has_synthesis = any(
+            e.agent_type == AgentType.ANSWER_SYNTHESIS and e.success for e in executions
+        )
+        has_quality_check = any(
+            e.agent_type == AgentType.QUALITY_ASSURANCE and e.success
+            for e in executions
+        )
 
         if has_synthesis and has_quality_check:
             base_confidence *= 1.2
@@ -746,26 +844,38 @@ class MultiAgentSearchService:
 
         return min(base_confidence, 1.0)
 
-    async def _generate_quality_metrics(self, executions: List[AgentExecution]) -> Dict[str, float]:
+    async def _generate_quality_metrics(
+        self, executions: List[AgentExecution]
+    ) -> Dict[str, float]:
         """Generate quality metrics from agent executions"""
         metrics = {}
 
         # Success rate
         successful = len([e for e in executions if e.success])
-        metrics["agent_success_rate"] = successful / len(executions) if executions else 0.0
+        metrics["agent_success_rate"] = (
+            successful / len(executions) if executions else 0.0
+        )
 
         # Execution efficiency
-        total_estimated = sum(e.metadata.get("estimated_duration", 30) for e in executions)
+        total_estimated = sum(
+            e.metadata.get("estimated_duration", 30) for e in executions
+        )
         total_actual = sum(e.execution_time for e in executions)
-        metrics["execution_efficiency"] = min(total_estimated / total_actual, 2.0) if total_actual > 0 else 1.0
+        metrics["execution_efficiency"] = (
+            min(total_estimated / total_actual, 2.0) if total_actual > 0 else 1.0
+        )
 
         # Collaboration score
         metrics["collaboration_score"] = self._calculate_collaboration_score(executions)
 
         # Quality assurance score
         qa_execution = next(
-            (e for e in executions if e.agent_type == AgentType.QUALITY_ASSURANCE and e.success),
-            None
+            (
+                e
+                for e in executions
+                if e.agent_type == AgentType.QUALITY_ASSURANCE and e.success
+            ),
+            None,
         )
         if qa_execution:
             # Extract quality score from QA agent output
@@ -795,25 +905,41 @@ class MultiAgentSearchService:
         # Check for failed executions
         failed_executions = [e for e in executions if not e.success]
         if failed_executions:
-            recommendations.append(f"Some agents failed: {', '.join(e.agent_type.value for e in failed_executions)}")
+            recommendations.append(
+                f"Some agents failed: {', '.join(e.agent_type.value for e in failed_executions)}"
+            )
 
         # Check for long execution times
-        slow_executions = [e for e in executions if e.execution_time > e.metadata.get("estimated_duration", 30) * 1.5]
+        slow_executions = [
+            e
+            for e in executions
+            if e.execution_time > e.metadata.get("estimated_duration", 30) * 1.5
+        ]
         if slow_executions:
-            recommendations.append("Some agents took longer than expected - consider optimizing queries")
+            recommendations.append(
+                "Some agents took longer than expected - consider optimizing queries"
+            )
 
         # Quality recommendations
         qa_execution = next(
-            (e for e in executions if e.agent_type == AgentType.QUALITY_ASSURANCE and e.success),
-            None
+            (
+                e
+                for e in executions
+                if e.agent_type == AgentType.QUALITY_ASSURANCE and e.success
+            ),
+            None,
         )
         if qa_execution and qa_execution.result.get("output"):
-            recommendations.append("Quality assessment completed - see detailed quality report")
+            recommendations.append(
+                "Quality assessment completed - see detailed quality report"
+            )
 
         # General recommendations
         successful_executions = len([e for e in executions if e.success])
         if successful_executions < len(executions):
-            recommendations.append("Consider enabling more agents for comprehensive results")
+            recommendations.append(
+                "Consider enabling more agents for comprehensive results"
+            )
 
         return recommendations
 
@@ -821,7 +947,10 @@ class MultiAgentSearchService:
         """Assess the complexity of the original query"""
         # Simple complexity assessment
         word_count = len(query.split())
-        has_question_words = any(word in query.lower() for word in ['what', 'how', 'why', 'when', 'where', 'who'])
+        has_question_words = any(
+            word in query.lower()
+            for word in ["what", "how", "why", "when", "where", "who"]
+        )
         has_entities = any(word[0].isupper() for word in query.split())
 
         if word_count > 10 or has_question_words:
@@ -838,7 +967,7 @@ class MultiAgentSearchService:
             "crewai_available": CREWAI_AVAILABLE,
             "agents_configured": configured_agents,
             "tools_available": list(self.agent_tools.keys()),
-            "llm_configured": self.llm is not None
+            "llm_configured": self.llm is not None,
         }
 
     def _get_configured_agents(self) -> List[str]:
@@ -848,13 +977,17 @@ class MultiAgentSearchService:
 
         agents = []
         agent_attrs = [
-            'retrieval_agent', 'graph_agent', 'qa_agent', 'synthesis_agent',
-            'query_agent', 'enrichment_agent'
+            "retrieval_agent",
+            "graph_agent",
+            "qa_agent",
+            "synthesis_agent",
+            "query_agent",
+            "enrichment_agent",
         ]
 
         for attr in agent_attrs:
             if hasattr(self, attr) and getattr(self, attr) is not None:
-                agents.append(attr.replace('_agent', ''))
+                agents.append(attr.replace("_agent", ""))
 
         return agents
 

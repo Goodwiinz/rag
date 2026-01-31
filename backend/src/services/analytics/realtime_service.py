@@ -7,23 +7,32 @@ import json
 import logging
 import time
 import uuid
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Set, Callable, Union
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
+from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 import redis.asyncio as redis
-from fastapi import WebSocket, WebSocketDisconnect, HTTPException, status
+from fastapi import HTTPException, WebSocket, WebSocketDisconnect, status
+from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, and_, or_
 from sqlalchemy.orm import selectinload
 
-from src.core.database import get_async_session
 from src.core.config import settings
+from src.core.database import get_async_session
 from src.models.analytics.realtime_models import (
-    RealtimeSubscription, LiveMetric, EventStream, WebSocketConnection,
-    WebSocketMessage, SubscriptionType, WebSocketMessageType,
-    SubscriptionCreate, SubscriptionResponse, LiveMetricData,
-    ConnectionStats, RealtimeAnalyticsSummary, ChannelMetrics
+    ChannelMetrics,
+    ConnectionStats,
+    EventStream,
+    LiveMetric,
+    LiveMetricData,
+    RealtimeAnalyticsSummary,
+    RealtimeSubscription,
+    SubscriptionCreate,
+    SubscriptionResponse,
+    SubscriptionType,
+    WebSocketConnection,
+    WebSocketMessage,
+    WebSocketMessageType,
 )
 from src.models.base import GUID
 
@@ -36,7 +45,9 @@ class RealtimeAnalyticsService:
     def __init__(self):
         self.redis_client: Optional[redis.Redis] = None
         self.active_connections: Dict[str, WebSocket] = {}
-        self.subscriptions: Dict[str, Dict[str, Any]] = {}  # websocket_id -> subscriptions
+        self.subscriptions: Dict[
+            str, Dict[str, Any]
+        ] = {}  # websocket_id -> subscriptions
         self.event_handlers: Dict[str, List[Callable]] = {}
         self.running = False
         self.background_tasks: Set[asyncio.Task] = set()
@@ -52,7 +63,7 @@ class RealtimeAnalyticsService:
                 retry_on_timeout=True,
                 socket_keepalive=True,
                 socket_keepalive_options={},
-                health_check_interval=30
+                health_check_interval=30,
             )
 
             # Test Redis connection
@@ -116,7 +127,9 @@ class RealtimeAnalyticsService:
         self.background_tasks.add(cleanup_task)
         cleanup_task.add_done_callback(self.background_tasks.discard)
 
-    async def websocket_endpoint(self, websocket: WebSocket, user_id: uuid.UUID, session_id: str):
+    async def websocket_endpoint(
+        self, websocket: WebSocket, user_id: uuid.UUID, session_id: str
+    ):
         """WebSocket endpoint for real-time analytics"""
         connection_id = str(uuid.uuid4())
 
@@ -134,39 +147,49 @@ class RealtimeAnalyticsService:
                     session_id=session_id,
                     client_ip=websocket.client.host if websocket.client else "unknown",
                     user_agent=websocket.headers.get("user-agent"),
-                    origin=websocket.headers.get("origin")
+                    origin=websocket.headers.get("origin"),
                 )
                 db.add(db_connection)
                 await db.commit()
 
-            logger.info(f"WebSocket connection established: {connection_id} for user {user_id}")
+            logger.info(
+                f"WebSocket connection established: {connection_id} for user {user_id}"
+            )
 
             # Send welcome message
-            await self.send_message(connection_id, {
-                "type": WebSocketMessageType.AUTH,
-                "data": {
-                    "connection_id": connection_id,
-                    "user_id": str(user_id),
-                    "session_id": session_id,
-                    "timestamp": datetime.utcnow().isoformat()
-                }
-            })
+            await self.send_message(
+                connection_id,
+                {
+                    "type": WebSocketMessageType.AUTH,
+                    "data": {
+                        "connection_id": connection_id,
+                        "user_id": str(user_id),
+                        "session_id": session_id,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
+                },
+            )
 
             # Handle WebSocket messages
             while self.running:
                 try:
                     # Receive message with timeout
-                    message = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                    message = await asyncio.wait_for(
+                        websocket.receive_text(), timeout=30.0
+                    )
 
                     # Process message
                     await self.handle_websocket_message(connection_id, message)
 
                 except asyncio.TimeoutError:
                     # Send heartbeat ping
-                    await self.send_message(connection_id, {
-                        "type": WebSocketMessageType.PING,
-                        "data": {"timestamp": datetime.utcnow().isoformat()}
-                    })
+                    await self.send_message(
+                        connection_id,
+                        {
+                            "type": WebSocketMessageType.PING,
+                            "data": {"timestamp": datetime.utcnow().isoformat()},
+                        },
+                    )
 
                 except WebSocketDisconnect:
                     break
@@ -194,10 +217,13 @@ class RealtimeAnalyticsService:
                 await self.handle_pong(connection_id, data)
 
             elif message_type == WebSocketMessageType.PING:
-                await self.send_message(connection_id, {
-                    "type": WebSocketMessageType.PONG,
-                    "data": {"timestamp": datetime.utcnow().isoformat()}
-                })
+                await self.send_message(
+                    connection_id,
+                    {
+                        "type": WebSocketMessageType.PONG,
+                        "data": {"timestamp": datetime.utcnow().isoformat()},
+                    },
+                )
 
             else:
                 logger.warning(f"Unknown message type: {message_type}")
@@ -232,7 +258,7 @@ class RealtimeAnalyticsService:
                 "filters": data.get("filters", {}),
                 "batch_size": data.get("batch_size", 100),
                 "update_interval": data.get("update_interval", 1000),
-                "created_at": datetime.utcnow()
+                "created_at": datetime.utcnow(),
             }
 
             # Store in database
@@ -245,23 +271,28 @@ class RealtimeAnalyticsService:
                     channel=channel,
                     filters=data.get("filters"),
                     batch_size=data.get("batch_size", 100),
-                    update_interval=data.get("update_interval", 1000)
+                    update_interval=data.get("update_interval", 1000),
                 )
                 db.add(db_subscription)
                 await db.commit()
 
             # Send confirmation
-            await self.send_message(connection_id, {
-                "type": WebSocketMessageType.DATA,
-                "data": {
-                    "subscription_id": subscription_id,
-                    "status": "subscribed",
-                    "channel": channel,
-                    "type": subscription_type
-                }
-            })
+            await self.send_message(
+                connection_id,
+                {
+                    "type": WebSocketMessageType.DATA,
+                    "data": {
+                        "subscription_id": subscription_id,
+                        "status": "subscribed",
+                        "channel": channel,
+                        "type": subscription_type,
+                    },
+                },
+            )
 
-            logger.info(f"Subscription created: {subscription_id} for connection {connection_id}")
+            logger.info(
+                f"Subscription created: {subscription_id} for connection {connection_id}"
+            )
 
         except Exception as e:
             logger.error(f"Error creating subscription: {e}")
@@ -282,8 +313,10 @@ class RealtimeAnalyticsService:
                 elif channel and subscription_type:
                     # Remove all subscriptions for channel/type
                     to_remove = [
-                        sub_id for sub_id, sub in self.subscriptions[connection_id].items()
-                        if sub["channel"] == channel and sub["type"] == subscription_type
+                        sub_id
+                        for sub_id, sub in self.subscriptions[connection_id].items()
+                        if sub["channel"] == channel
+                        and sub["type"] == subscription_type
                     ]
                     for sub_id in to_remove:
                         del self.subscriptions[connection_id][sub_id]
@@ -297,27 +330,36 @@ class RealtimeAnalyticsService:
                     and_(
                         RealtimeSubscription.websocket_id == connection_id,
                         or_(
-                            RealtimeSubscription.id == (uuid.UUID(subscription_id) if subscription_id else None),
+                            RealtimeSubscription.id
+                            == (
+                                uuid.UUID(subscription_id) if subscription_id else None
+                            ),
                             and_(
                                 RealtimeSubscription.channel == channel,
-                                RealtimeSubscription.subscription_type == subscription_type
-                            ) if channel and subscription_type else False
-                        )
+                                RealtimeSubscription.subscription_type
+                                == subscription_type,
+                            )
+                            if channel and subscription_type
+                            else False,
+                        ),
                     )
                 )
                 await db.execute(query)
                 await db.commit()
 
             # Send confirmation
-            await self.send_message(connection_id, {
-                "type": WebSocketMessageType.DATA,
-                "data": {
-                    "status": "unsubscribed",
-                    "subscription_id": subscription_id,
-                    "channel": channel,
-                    "type": subscription_type
-                }
-            })
+            await self.send_message(
+                connection_id,
+                {
+                    "type": WebSocketMessageType.DATA,
+                    "data": {
+                        "status": "unsubscribed",
+                        "subscription_id": subscription_id,
+                        "channel": channel,
+                        "type": subscription_type,
+                    },
+                },
+            )
 
             logger.info(f"Unsubscription completed for connection {connection_id}")
 
@@ -330,9 +372,11 @@ class RealtimeAnalyticsService:
         try:
             # Update connection ping time
             async with get_async_session() as db:
-                query = update(WebSocketConnection).where(
-                    WebSocketConnection.connection_id == connection_id
-                ).values(last_pong=datetime.utcnow())
+                query = (
+                    update(WebSocketConnection)
+                    .where(WebSocketConnection.connection_id == connection_id)
+                    .values(last_pong=datetime.utcnow())
+                )
                 await db.execute(query)
                 await db.commit()
 
@@ -348,11 +392,14 @@ class RealtimeAnalyticsService:
 
                 # Update connection stats
                 async with get_async_session() as db:
-                    query = update(WebSocketConnection).where(
-                        WebSocketConnection.connection_id == connection_id
-                    ).values(
-                        messages_sent=WebSocketConnection.messages_sent + 1,
-                        bytes_sent=WebSocketConnection.bytes_sent + len(json.dumps(message))
+                    query = (
+                        update(WebSocketConnection)
+                        .where(WebSocketConnection.connection_id == connection_id)
+                        .values(
+                            messages_sent=WebSocketConnection.messages_sent + 1,
+                            bytes_sent=WebSocketConnection.bytes_sent
+                            + len(json.dumps(message)),
+                        )
                     )
                     await db.execute(query)
                     await db.commit()
@@ -363,13 +410,18 @@ class RealtimeAnalyticsService:
             if connection_id in self.active_connections:
                 del self.active_connections[connection_id]
 
-    async def send_error(self, connection_id: str, error_message: str, error_code: str = None):
+    async def send_error(
+        self, connection_id: str, error_message: str, error_code: str = None
+    ):
         """Send error message to WebSocket connection"""
-        await self.send_message(connection_id, {
-            "type": WebSocketMessageType.ERROR,
-            "error": error_message,
-            "error_code": error_code
-        })
+        await self.send_message(
+            connection_id,
+            {
+                "type": WebSocketMessageType.ERROR,
+                "error": error_message,
+                "error_code": error_code,
+            },
+        )
 
     async def broadcast_to_channel(self, channel: str, message: Dict[str, Any]):
         """Broadcast message to all subscribers of a channel"""
@@ -384,24 +436,26 @@ class RealtimeAnalyticsService:
 
             # Send to all target connections
             for connection_id in target_connections:
-                await self.send_message(connection_id, {
-                    "type": WebSocketMessageType.DATA,
-                    "data": {
-                        "channel": channel,
-                        **message
-                    }
-                })
+                await self.send_message(
+                    connection_id,
+                    {
+                        "type": WebSocketMessageType.DATA,
+                        "data": {"channel": channel, **message},
+                    },
+                )
 
             # Also publish to Redis for other instances
             if self.redis_client:
                 await self.redis_client.publish(
                     f"analytics:{channel}",
-                    json.dumps({
-                        "type": "broadcast",
-                        "channel": channel,
-                        "message": message,
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
+                    json.dumps(
+                        {
+                            "type": "broadcast",
+                            "channel": channel,
+                            "message": message,
+                            "timestamp": datetime.utcnow().isoformat(),
+                        }
+                    ),
                 )
 
         except Exception as e:
@@ -430,7 +484,7 @@ class RealtimeAnalyticsService:
                     alert_threshold_min=metric_data.alert_threshold_min,
                     alert_threshold_max=metric_data.alert_threshold_max,
                     source=metric_data.source,
-                    confidence=metric_data.confidence
+                    confidence=metric_data.confidence,
                 )
                 db.add(db_metric)
                 await db.commit()
@@ -438,10 +492,7 @@ class RealtimeAnalyticsService:
             # Broadcast to subscribers
             await self.broadcast_to_channel(
                 metric_data.channel,
-                {
-                    "type": "metric_update",
-                    "metric": metric_data.model_dump()
-                }
+                {"type": "metric_update", "metric": metric_data.model_dump()},
             )
 
         except Exception as e:
@@ -467,7 +518,7 @@ class RealtimeAnalyticsService:
                     status=event_data.status,
                     error_message=event_data.error_message,
                     routing_key=event_data.routing_key,
-                    channels=event_data.channels
+                    channels=event_data.channels,
                 )
                 db.add(db_event)
                 await db.commit()
@@ -476,11 +527,7 @@ class RealtimeAnalyticsService:
             channels = event_data.channels or [f"events:{event_data.event_type}"]
             for channel in channels:
                 await self.broadcast_to_channel(
-                    channel,
-                    {
-                        "type": "event",
-                        "event": event_data.model_dump()
-                    }
+                    channel, {"type": "event", "event": event_data.model_dump()}
                 )
 
         except Exception as e:
@@ -494,10 +541,13 @@ class RealtimeAnalyticsService:
 
                 # Send heartbeat to all connections
                 for connection_id in list(self.active_connections.keys()):
-                    await self.send_message(connection_id, {
-                        "type": WebSocketMessageType.PING,
-                        "data": {"timestamp": datetime.utcnow().isoformat()}
-                    })
+                    await self.send_message(
+                        connection_id,
+                        {
+                            "type": WebSocketMessageType.PING,
+                            "data": {"timestamp": datetime.utcnow().isoformat()},
+                        },
+                    )
 
             except Exception as e:
                 logger.error(f"Error in heartbeat loop: {e}")
@@ -511,12 +561,17 @@ class RealtimeAnalyticsService:
                 # Get recent live metrics and aggregate
                 async with get_async_session() as db:
                     # Find metrics that need aggregation
-                    query = select(LiveMetric).where(
-                        and_(
-                            LiveMetric.timestamp > datetime.utcnow() - timedelta(minutes=5),
-                            LiveMetric.time_window.in_(["1m", "5m"])
+                    query = (
+                        select(LiveMetric)
+                        .where(
+                            and_(
+                                LiveMetric.timestamp
+                                > datetime.utcnow() - timedelta(minutes=5),
+                                LiveMetric.time_window.in_(["1m", "5m"]),
+                            )
                         )
-                    ).order_by(LiveMetric.timestamp.desc())
+                        .order_by(LiveMetric.timestamp.desc())
+                    )
 
                     result = await db.execute(query)
                     metrics = result.scalars().all()
@@ -582,11 +637,10 @@ class RealtimeAnalyticsService:
 
             # Update database
             async with get_async_session() as db:
-                query = update(WebSocketConnection).where(
-                    WebSocketConnection.connection_id == connection_id
-                ).values(
-                    is_connected=False,
-                    disconnected_at=datetime.utcnow()
+                query = (
+                    update(WebSocketConnection)
+                    .where(WebSocketConnection.connection_id == connection_id)
+                    .values(is_connected=False, disconnected_at=datetime.utcnow())
                 )
                 await db.execute(query)
 
@@ -609,7 +663,7 @@ class RealtimeAnalyticsService:
                 query = delete(RealtimeSubscription).where(
                     and_(
                         RealtimeSubscription.expires_at < datetime.utcnow(),
-                        RealtimeSubscription.auto_renew == False
+                        RealtimeSubscription.auto_renew == False,
                     )
                 )
                 result = await db.execute(query)
@@ -627,14 +681,15 @@ class RealtimeAnalyticsService:
             cutoff_time = datetime.utcnow() - timedelta(minutes=5)
 
             async with get_async_session() as db:
-                query = update(WebSocketConnection).where(
-                    and_(
-                        WebSocketConnection.is_connected == True,
-                        WebSocketConnection.last_pong < cutoff_time
+                query = (
+                    update(WebSocketConnection)
+                    .where(
+                        and_(
+                            WebSocketConnection.is_connected == True,
+                            WebSocketConnection.last_pong < cutoff_time,
+                        )
                     )
-                ).values(
-                    is_connected=False,
-                    disconnected_at=datetime.utcnow()
+                    .values(is_connected=False, disconnected_at=datetime.utcnow())
                 )
                 result = await db.execute(query)
                 await db.commit()
@@ -652,9 +707,7 @@ class RealtimeAnalyticsService:
             cutoff_time = datetime.utcnow() - timedelta(hours=24)
 
             async with get_async_session() as db:
-                query = delete(LiveMetric).where(
-                    LiveMetric.timestamp < cutoff_time
-                )
+                query = delete(LiveMetric).where(LiveMetric.timestamp < cutoff_time)
                 result = await db.execute(query)
                 await db.commit()
 
@@ -688,9 +741,12 @@ class RealtimeAnalyticsService:
     def validate_channel(self, channel: str) -> bool:
         """Validate channel name"""
         import re
-        return bool(re.match(r'^[a-zA-Z0-9._-]+$', channel))
 
-    async def get_connection_stats(self, connection_id: str) -> Optional[ConnectionStats]:
+        return bool(re.match(r"^[a-zA-Z0-9._-]+$", channel))
+
+    async def get_connection_stats(
+        self, connection_id: str
+    ) -> Optional[ConnectionStats]:
         """Get connection statistics"""
         try:
             async with get_async_session() as db:
@@ -705,7 +761,9 @@ class RealtimeAnalyticsService:
                     uptime = None
                     if connection.connected_at:
                         end_time = connection.disconnected_at or datetime.utcnow()
-                        uptime = int((end_time - connection.connected_at).total_seconds())
+                        uptime = int(
+                            (end_time - connection.connected_at).total_seconds()
+                        )
 
                     return ConnectionStats(
                         connection_id=connection.connection_id,
@@ -723,7 +781,7 @@ class RealtimeAnalyticsService:
                         bytes_received=connection.bytes_received,
                         active_subscriptions=connection.active_subscriptions,
                         max_subscriptions=connection.max_subscriptions,
-                        uptime_seconds=uptime
+                        uptime_seconds=uptime,
                     )
 
         except Exception as e:
@@ -769,7 +827,7 @@ class RealtimeAnalyticsService:
                     metrics_updated=metrics_updated,
                     alerts_triggered=alerts_triggered,
                     system_health="healthy",  # Would need health check logic
-                    last_updated=datetime.utcnow()
+                    last_updated=datetime.utcnow(),
                 )
 
         except Exception as e:
@@ -782,7 +840,7 @@ class RealtimeAnalyticsService:
                 metrics_updated=0,
                 alerts_triggered=0,
                 system_health="error",
-                last_updated=datetime.utcnow()
+                last_updated=datetime.utcnow(),
             )
 
     async def get_channel_metrics(self, channel: str) -> ChannelMetrics:
@@ -793,7 +851,7 @@ class RealtimeAnalyticsService:
                 query = select(RealtimeSubscription).where(
                     and_(
                         RealtimeSubscription.channel == channel,
-                        RealtimeSubscription.is_active == True
+                        RealtimeSubscription.is_active == True,
                     )
                 )
                 result = await db.execute(query)
@@ -816,7 +874,7 @@ class RealtimeAnalyticsService:
                     messages_per_second=messages_per_second,
                     average_message_size=average_message_size,
                     last_message_at=last_message_at,
-                    error_rate=error_rate
+                    error_rate=error_rate,
                 )
 
         except Exception as e:
@@ -827,7 +885,7 @@ class RealtimeAnalyticsService:
                 messages_per_second=0.0,
                 average_message_size=0.0,
                 last_message_at=None,
-                error_rate=0.0
+                error_rate=0.0,
             )
 
 

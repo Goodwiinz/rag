@@ -8,24 +8,24 @@ points with the existing RAG system components.
 
 import asyncio
 import json
+import logging
 import uuid
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Dict, List, Any, Optional, Union, Callable
-from dataclasses import dataclass, field
-import logging
+from typing import Any, Callable, Dict, List, Optional, Union
 
+import aiohttp
+import redis.asyncio as redis
+from aiohttp import ClientSession, ClientTimeout
 from fastapi import BackgroundTasks
 from pydantic import BaseModel
-import redis.asyncio as redis
-import aiohttp
-from aiohttp import ClientTimeout, ClientSession
 
-from ..core.config import settings
-from src.models.ab_testing import Experiment, Variant, ExperimentAssignment
+from src.models.ab_testing import Experiment, ExperimentAssignment, Variant
+
 from ..cache.cache_keys import get_ab_testing_cache_key
-
+from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +34,10 @@ logger = logging.getLogger(__name__)
 # SERVICE ENUMS AND CONFIGURATIONS
 # ============================================================================
 
+
 class ServiceType(str, Enum):
     """Types of microservices in the A/B testing system"""
+
     EXPERIMENT_MANAGER = "experiment_manager"
     QUERY_ROUTER = "query_router"
     METRICS_COLLECTOR = "metrics_collector"
@@ -48,6 +50,7 @@ class ServiceType(str, Enum):
 
 class CommunicationPattern(str, Enum):
     """Communication patterns between services"""
+
     SYNC_REQUEST_RESPONSE = "sync_request_response"
     ASYNC_EVENT_DRIVEN = "async_event_driven"
     STREAMING = "streaming"
@@ -57,6 +60,7 @@ class CommunicationPattern(str, Enum):
 
 class Priority(str, Enum):
     """Message priority levels"""
+
     LOW = "low"
     NORMAL = "normal"
     HIGH = "high"
@@ -67,9 +71,11 @@ class Priority(str, Enum):
 # SERVICE DISCOVERY AND REGISTRATION
 # ============================================================================
 
+
 @dataclass
 class ServiceEndpoint:
     """Service endpoint configuration"""
+
     service_type: ServiceType
     service_id: str
     host: str
@@ -113,7 +119,7 @@ class ServiceRegistry:
             "health_check_path": endpoint.health_check_path,
             "protocol": endpoint.protocol,
             "metadata": endpoint.metadata,
-            "registered_at": datetime.now(timezone.utc).isoformat()
+            "registered_at": datetime.now(timezone.utc).isoformat(),
         }
 
         await self.redis_client.hset(key, mapping=service_data)
@@ -128,9 +134,13 @@ class ServiceRegistry:
         cache_key = f"{endpoint.service_type}:{endpoint.service_id}"
         self.service_cache[cache_key] = endpoint
 
-        logger.info(f"Registered service: {endpoint.service_type}:{endpoint.service_id}")
+        logger.info(
+            f"Registered service: {endpoint.service_type}:{endpoint.service_id}"
+        )
 
-    async def discover_services(self, service_type: ServiceType) -> List[ServiceEndpoint]:
+    async def discover_services(
+        self, service_type: ServiceType
+    ) -> List[ServiceEndpoint]:
         """Discover all services of a given type"""
         index_key = f"service_index:{service_type}"
         service_ids = await self.redis_client.smembers(index_key)
@@ -143,15 +153,22 @@ class ServiceRegistry:
 
         return endpoints
 
-    async def get_service_endpoint(self, service_type: ServiceType, service_id: str) -> Optional[ServiceEndpoint]:
+    async def get_service_endpoint(
+        self, service_type: ServiceType, service_id: str
+    ) -> Optional[ServiceEndpoint]:
         """Get specific service endpoint"""
         cache_key = f"{service_type}:{service_id}"
 
         # Check local cache first
         if cache_key in self.service_cache:
             endpoint = self.service_cache[cache_key]
-            if endpoint.last_health_check is not None and \
-               (datetime.now(timezone.utc) - endpoint.last_health_check).total_seconds() < self.cache_ttl:
+            if (
+                endpoint.last_health_check is not None
+                and (
+                    datetime.now(timezone.utc) - endpoint.last_health_check
+                ).total_seconds()
+                < self.cache_ttl
+            ):
                 return endpoint
 
         # Fetch from Redis
@@ -169,7 +186,7 @@ class ServiceRegistry:
             version=service_data.get("version", "1.0.0"),
             health_check_path=service_data.get("health_check_path", "/health"),
             protocol=service_data.get("protocol", "http"),
-            metadata=json.loads(service_data.get("metadata", "{}"))
+            metadata=json.loads(service_data.get("metadata", "{}")),
         )
 
         # Update cache
@@ -196,9 +213,11 @@ class ServiceRegistry:
 # MESSAGE BROKER AND EVENT SYSTEM
 # ============================================================================
 
+
 @dataclass
 class EventMessage:
     """Event message for inter-service communication"""
+
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     event_type: str = ""
     service_type: ServiceType = ServiceType.EXPERIMENT_MANAGER
@@ -224,7 +243,9 @@ class EventMessage:
             "event_type": self.event_type,
             "service_type": self.service_type.value,
             "source_service_id": self.source_service_id,
-            "target_service_type": self.target_service_type.value if self.target_service_type else None,
+            "target_service_type": self.target_service_type.value
+            if self.target_service_type
+            else None,
             "target_service_id": self.target_service_id,
             "payload": self.payload,
             "metadata": self.metadata,
@@ -233,18 +254,20 @@ class EventMessage:
             "reply_to": self.reply_to,
             "timestamp": self.timestamp.isoformat(),
             "retry_count": self.retry_count,
-            "max_retries": self.max_retries
+            "max_retries": self.max_retries,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'EventMessage':
+    def from_dict(cls, data: Dict[str, Any]) -> "EventMessage":
         """Create from dictionary"""
         return cls(
             event_id=data["event_id"],
             event_type=data["event_type"],
             service_type=ServiceType(data["service_type"]),
             source_service_id=data["source_service_id"],
-            target_service_type=ServiceType(data["target_service_type"]) if data.get("target_service_type") else None,
+            target_service_type=ServiceType(data["target_service_type"])
+            if data.get("target_service_type")
+            else None,
             target_service_id=data.get("target_service_id"),
             payload=data["payload"],
             metadata=data["metadata"],
@@ -253,7 +276,7 @@ class EventMessage:
             reply_to=data.get("reply_to"),
             timestamp=datetime.fromisoformat(data["timestamp"]),
             retry_count=data.get("retry_count", 0),
-            max_retries=data.get("max_retries", 3)
+            max_retries=data.get("max_retries", 3),
         )
 
 
@@ -293,7 +316,9 @@ class MessageBroker:
             logger.error(f"Failed to publish event {event.event_id}: {e}")
             return False
 
-    async def subscribe(self, service_type: ServiceType, service_id: str, handler: Callable):
+    async def subscribe(
+        self, service_type: ServiceType, service_id: str, handler: Callable
+    ):
         """Subscribe to events for a specific service"""
         channel_pattern = f"events:{service_type.value}:*"
 
@@ -302,10 +327,9 @@ class MessageBroker:
             # Start listener for this pattern
             asyncio.create_task(self._listen_for_events(channel_pattern))
 
-        self.subscribers[channel_pattern].append({
-            "service_id": service_id,
-            "handler": handler
-        })
+        self.subscribers[channel_pattern].append(
+            {"service_id": service_id, "handler": handler}
+        )
 
         logger.info(f"Subscribed service {service_id} to {channel_pattern}")
 
@@ -334,7 +358,9 @@ class MessageBroker:
         except Exception as e:
             logger.error(f"Failed to process event {event_id}: {e}")
 
-    async def _find_event_in_queue(self, queue_key: str, event_id: str) -> Optional[Dict[str, Any]]:
+    async def _find_event_in_queue(
+        self, queue_key: str, event_id: str
+    ) -> Optional[Dict[str, Any]]:
         """Find specific event in queue"""
         events = await self.redis_client.lrange(queue_key, 0, -1)
         for event_json in events:
@@ -357,6 +383,7 @@ class MessageBroker:
 # ABSTRACT SERVICE BASE CLASS
 # ============================================================================
 
+
 class MicroService(ABC):
     """Base class for all microservices"""
 
@@ -366,17 +393,14 @@ class MicroService(ABC):
         service_id: str,
         redis_client: redis.Redis,
         host: str = "localhost",
-        port: int = 8000
+        port: int = 8000,
     ):
         self.service_type = service_type
         self.service_id = service_id
         self.redis_client = redis_client
 
         self.endpoint = ServiceEndpoint(
-            service_type=service_type,
-            service_id=service_id,
-            host=host,
-            port=port
+            service_type=service_type, service_id=service_id, host=host, port=port
         )
 
         self.service_registry = ServiceRegistry(redis_client)
@@ -415,7 +439,9 @@ class MicroService(ABC):
         await self.stop_service()
 
         # Deregister from service registry
-        await self.service_registry.deregister_service(self.service_type, self.service_id)
+        await self.service_registry.deregister_service(
+            self.service_type, self.service_id
+        )
 
         # Close HTTP session
         if self.http_session:
@@ -451,12 +477,14 @@ class MicroService(ABC):
         endpoint: str,
         method: str = "GET",
         payload: Optional[Dict[str, Any]] = None,
-        timeout: float = 10.0
+        timeout: float = 10.0,
     ) -> Optional[Dict[str, Any]]:
         """Make synchronous call to another service"""
         try:
             # Discover target service
-            services = await self.service_registry.discover_services(target_service_type)
+            services = await self.service_registry.discover_services(
+                target_service_type
+            )
             if not services:
                 raise Exception(f"No available services of type {target_service_type}")
 
@@ -469,7 +497,7 @@ class MicroService(ABC):
                 method=method,
                 url=url,
                 json=payload,
-                timeout=aiohttp.ClientTimeout(total=timeout)
+                timeout=aiohttp.ClientTimeout(total=timeout),
             ) as response:
                 if response.status == 200:
                     return await response.json()
@@ -478,7 +506,9 @@ class MicroService(ABC):
                     return None
 
         except Exception as e:
-            logger.error(f"Failed to call service {target_service_type}:{endpoint}: {e}")
+            logger.error(
+                f"Failed to call service {target_service_type}:{endpoint}: {e}"
+            )
             return None
 
     async def health_check(self) -> Dict[str, Any]:
@@ -488,13 +518,16 @@ class MicroService(ABC):
             "service_id": self.service_id,
             "status": "healthy" if self.is_running else "unhealthy",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "uptime_seconds": (datetime.now(timezone.utc) - self.start_time).seconds if hasattr(self, 'start_time') else 0
+            "uptime_seconds": (datetime.now(timezone.utc) - self.start_time).seconds
+            if hasattr(self, "start_time")
+            else 0,
         }
 
 
 # ============================================================================
 # QUERY ROUTER SERVICE
 # ============================================================================
+
 
 class QueryRouterService(MicroService):
     """Service for real-time query routing and experiment assignment"""
@@ -522,7 +555,7 @@ class QueryRouterService(MicroService):
         await self.message_broker.subscribe(
             ServiceType.EXPERIMENT_MANAGER,
             self.service_id,
-            self.handle_experiment_events
+            self.handle_experiment_events,
         )
 
     async def handle_experiment_events(self, event: EventMessage):
@@ -539,7 +572,7 @@ class QueryRouterService(MicroService):
         user_id: Optional[str],
         session_id: Optional[str],
         organization_id: str,
-        query_context: Dict[str, Any]
+        query_context: Dict[str, Any],
     ) -> Optional[ExperimentAssignment]:
         """Assign user to experiment variant"""
         try:
@@ -561,10 +594,7 @@ class QueryRouterService(MicroService):
 
             # Find matching experiments
             matching_experiments = await self.filter_matching_experiments(
-                active_experiments,
-                user_id,
-                session_id,
-                query_context
+                active_experiments, user_id, session_id, query_context
             )
 
             if not matching_experiments:
@@ -572,7 +602,9 @@ class QueryRouterService(MicroService):
 
             # Select experiment and assign variant
             selected_experiment = await self.select_experiment(matching_experiments)
-            variant = await self.select_variant(selected_experiment, user_id, session_id)
+            variant = await self.select_variant(
+                selected_experiment, user_id, session_id
+            )
 
             # Create assignment
             assignment = ExperimentAssignment(
@@ -580,7 +612,7 @@ class QueryRouterService(MicroService):
                 session_id=session_id,
                 experiment_id=selected_experiment.id,
                 variant_id=variant.id,
-                assignment_type="automatic"
+                assignment_type="automatic",
             )
 
             # Cache assignment
@@ -595,8 +627,8 @@ class QueryRouterService(MicroService):
                     "experiment_id": str(selected_experiment.id),
                     "variant_id": str(variant.id),
                     "user_id": user_id,
-                    "session_id": session_id
-                }
+                    "session_id": session_id,
+                },
             )
             await self.send_event(event)
 
@@ -611,7 +643,7 @@ class QueryRouterService(MicroService):
         # This would query the experiment manager service
         experiments_data = await self.call_service(
             ServiceType.EXPERIMENT_MANAGER,
-            f"/experiments/active?organization_id={organization_id}"
+            f"/experiments/active?organization_id={organization_id}",
         )
 
         if experiments_data:
@@ -623,13 +655,15 @@ class QueryRouterService(MicroService):
         experiments: List[Experiment],
         user_id: Optional[str],
         session_id: Optional[str],
-        query_context: Dict[str, Any]
+        query_context: Dict[str, Any],
     ) -> List[Experiment]:
         """Filter experiments that match user and query criteria"""
         matching_experiments = []
 
         for experiment in experiments:
-            if await self.experiment_matches(experiment, user_id, session_id, query_context):
+            if await self.experiment_matches(
+                experiment, user_id, session_id, query_context
+            ):
                 matching_experiments.append(experiment)
 
         return matching_experiments
@@ -639,34 +673,38 @@ class QueryRouterService(MicroService):
         experiment: Experiment,
         user_id: Optional[str],
         session_id: Optional[str],
-        query_context: Dict[str, Any]
+        query_context: Dict[str, Any],
     ) -> bool:
         """Check if experiment matches user and query criteria"""
         # Check user segment targeting
         if experiment.target_user_segments:
             user_segments = await self.get_user_segments(user_id, session_id)
-            if not any(segment in user_segments for segment in experiment.target_user_segments):
+            if not any(
+                segment in user_segments for segment in experiment.target_user_segments
+            ):
                 return False
 
         # Check query pattern targeting
         if experiment.target_query_patterns:
             query_text = query_context.get("query", "")
-            if not any(pattern.lower() in query_text.lower() for pattern in experiment.target_query_patterns):
+            if not any(
+                pattern.lower() in query_text.lower()
+                for pattern in experiment.target_query_patterns
+            ):
                 return False
 
         return True
 
     async def select_variant(
-        self,
-        experiment: Experiment,
-        user_id: Optional[str],
-        session_id: Optional[str]
+        self, experiment: Experiment, user_id: Optional[str], session_id: Optional[str]
     ) -> Variant:
         """Select variant based on experiment configuration"""
         import random
 
         # Filter active variants
-        active_variants = [variant for variant in experiment.variants if variant.is_deleted == False]
+        active_variants = [
+            variant for variant in experiment.variants if variant.is_deleted == False
+        ]
 
         if not active_variants:
             logger.error(f"No active variants found for experiment")
@@ -690,7 +728,7 @@ class QueryRouterService(MicroService):
             "experiment_id": str(assignment.experiment_id),
             "variant_id": str(assignment.variant_id),
             "assignment_type": assignment.assignment_type,
-            "assigned_at": assignment.assigned_at.isoformat()
+            "assigned_at": assignment.assigned_at.isoformat(),
         }
 
         # Cache for 1 hour
@@ -702,8 +740,7 @@ class QueryRouterService(MicroService):
             # Check if experiment is still active
             experiment_id = assignment_data["experiment_id"]
             experiment_status = await self.call_service(
-                ServiceType.EXPERIMENT_MANAGER,
-                f"/experiments/{experiment_id}/status"
+                ServiceType.EXPERIMENT_MANAGER, f"/experiments/{experiment_id}/status"
             )
 
             return experiment_status and experiment_status.get("status") == "running"
@@ -732,7 +769,9 @@ class QueryRouterService(MicroService):
         # Load configuration from config service or database
         pass
 
-    async def get_user_segments(self, user_id: Optional[str], session_id: Optional[str]) -> List[str]:
+    async def get_user_segments(
+        self, user_id: Optional[str], session_id: Optional[str]
+    ) -> List[str]:
         """Get user segments for targeting"""
         # This would call the segment manager service
         return []
@@ -741,6 +780,7 @@ class QueryRouterService(MicroService):
 # ============================================================================
 # METRICS COLLECTOR SERVICE
 # ============================================================================
+
 
 class MetricsCollectorService(MicroService):
     """Service for collecting and processing experiment metrics"""
@@ -766,9 +806,7 @@ class MetricsCollectorService(MicroService):
     async def setup_event_subscriptions(self):
         """Setup event subscriptions"""
         await self.message_broker.subscribe(
-            ServiceType.QUERY_ROUTER,
-            self.service_id,
-            self.handle_assignment_events
+            ServiceType.QUERY_ROUTER, self.service_id, self.handle_assignment_events
         )
 
     async def handle_assignment_events(self, event: EventMessage):
@@ -781,11 +819,13 @@ class MetricsCollectorService(MicroService):
         """Collect a metric event"""
         try:
             # Add to buffer
-            self.metrics_buffer.append({
-                "data": metric_data,
-                "timestamp": datetime.now(timezone.utc),
-                "processed": False
-            })
+            self.metrics_buffer.append(
+                {
+                    "data": metric_data,
+                    "timestamp": datetime.now(timezone.utc),
+                    "processed": False,
+                }
+            )
 
             # Process immediately if buffer is full
             if len(self.metrics_buffer) >= self.buffer_size:
@@ -801,7 +841,9 @@ class MetricsCollectorService(MicroService):
 
         try:
             # Batch process metrics
-            batch_metrics = [m["data"] for m in self.metrics_buffer if not m["processed"]]
+            batch_metrics = [
+                m["data"] for m in self.metrics_buffer if not m["processed"]
+            ]
 
             # Send to storage service
             success = await self.store_metrics_batch(batch_metrics)
@@ -812,7 +854,9 @@ class MetricsCollectorService(MicroService):
                     metric["processed"] = True
 
                 # Clear processed metrics
-                self.metrics_buffer = [m for m in self.metrics_buffer if not m["processed"]]
+                self.metrics_buffer = [
+                    m for m in self.metrics_buffer if not m["processed"]
+                ]
 
                 logger.info(f"Processed batch of {len(batch_metrics)} metrics")
 
@@ -834,8 +878,7 @@ class MetricsCollectorService(MicroService):
             # This would call the storage service or database directly
             # For now, we'll simulate storage
             await self.redis_client.lpush(
-                "metrics_storage_queue",
-                *[json.dumps(metric) for metric in metrics]
+                "metrics_storage_queue", *[json.dumps(metric) for metric in metrics]
             )
 
             # Keep only last 10000 metrics in queue
@@ -855,7 +898,7 @@ class MetricsCollectorService(MicroService):
             "variant_id": assignment_data["variant_id"],
             "user_id": assignment_data.get("user_id"),
             "session_id": assignment_data.get("session_id"),
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         await self.collect_metric(tracking_data)
@@ -864,6 +907,7 @@ class MetricsCollectorService(MicroService):
 # ============================================================================
 # SERVICE ORCHESTRATION
 # ============================================================================
+
 
 class ServiceOrchestrator:
     """Orchestrates the microservice ecosystem"""
@@ -922,7 +966,10 @@ class ServiceOrchestrator:
 # INITIALIZATION AND CONFIGURATION
 # ============================================================================
 
-async def initialize_ab_testing_microservices(redis_client: redis.Redis) -> ServiceOrchestrator:
+
+async def initialize_ab_testing_microservices(
+    redis_client: redis.Redis,
+) -> ServiceOrchestrator:
     """Initialize the A/B testing microservice ecosystem"""
     orchestrator = ServiceOrchestrator(redis_client)
 
@@ -940,7 +987,7 @@ def create_service_config(service_type: ServiceType) -> Dict[str, Any]:
         "redis_url": settings.REDIS_URL,
         "log_level": settings.LOG_LEVEL,
         "max_retries": 3,
-        "timeout": 30
+        "timeout": 30,
     }
 
     service_configs = {
@@ -948,27 +995,24 @@ def create_service_config(service_type: ServiceType) -> Dict[str, Any]:
             **base_config,
             "cache_ttl": 3600,
             "max_cache_size": 10000,
-            "assignment_timeout": 100  # milliseconds
+            "assignment_timeout": 100,  # milliseconds
         },
-
         ServiceType.METRICS_COLLECTOR: {
             **base_config,
             "buffer_size": 100,
             "batch_interval": 60,  # seconds
-            "max_queue_size": 10000
+            "max_queue_size": 10000,
         },
-
         ServiceType.EXPERIMENT_MANAGER: {
             **base_config,
             "default_experiment_duration": 30,  # days
-            "max_concurrent_experiments": 100
+            "max_concurrent_experiments": 100,
         },
-
         ServiceType.STATISTICAL_ANALYZER: {
             **base_config,
             "confidence_level": 0.95,
-            "min_sample_size": 1000
-        }
+            "min_sample_size": 1000,
+        },
     }
 
     return service_configs.get(service_type, base_config)

@@ -3,7 +3,8 @@ Observability configuration for the Multimodal RAG System.
 """
 
 import os
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
@@ -12,28 +13,33 @@ class ObservabilityConfig(BaseSettings):
     """Configuration for observability components."""
 
     # OpenTelemetry Configuration
-    otel_service_name: str = Field(default="multimodal-rag-system", env="OTEL_SERVICE_NAME")
+    otel_service_name: str = Field(
+        default="multimodal-rag-system", env="OTEL_SERVICE_NAME"
+    )
     otel_service_version: str = Field(default="1.0.0", env="OTEL_SERVICE_VERSION")
     otel_environment: str = Field(default="development", env="OTEL_ENVIRONMENT")
     otel_exporter_otlp_endpoint: str = Field(
-        default="http://jaeger:4317",
-        env="OTEL_EXPORTER_OTLP_ENDPOINT"
+        default="http://jaeger:4317", env="OTEL_EXPORTER_OTLP_ENDPOINT"
     )
     otel_exporter_jaeger_endpoint: str = Field(
-        default="http://jaeger:14250",
-        env="OTEL_EXPORTER_JAEGER_ENDPOINT"
+        default="http://jaeger:14250", env="OTEL_EXPORTER_JAEGER_ENDPOINT"
     )
     otel_sampling_probability: float = Field(
-        default=0.1,
-        env="OTEL_SAMPLING_PROBABILITY"
+        default=0.1, env="OTEL_SAMPLING_PROBABILITY"
     )
     otel_batch_timeout: int = Field(default=5000, env="OTEL_BATCH_TIMEOUT")
-    otel_max_export_batch_size: int = Field(default=512, env="OTEL_MAX_EXPORT_BATCH_SIZE")
+    otel_max_export_batch_size: int = Field(
+        default=512, env="OTEL_MAX_EXPORT_BATCH_SIZE"
+    )
 
     # Prometheus Configuration
     prometheus_port: int = Field(default=9090, env="PROMETHEUS_PORT")
-    prometheus_metrics_path: str = Field(default="/metrics", env="PROMETHEUS_METRICS_PATH")
-    prometheus_registry_enabled: bool = Field(default=True, env="PROMETHEUS_REGISTRY_ENABLED")
+    prometheus_metrics_path: str = Field(
+        default="/metrics", env="PROMETHEUS_METRICS_PATH"
+    )
+    prometheus_registry_enabled: bool = Field(
+        default=True, env="PROMETHEUS_REGISTRY_ENABLED"
+    )
 
     # Logging Configuration
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
@@ -42,15 +48,27 @@ class ObservabilityConfig(BaseSettings):
     log_file_path: Optional[str] = Field(default=None, env="LOG_FILE_PATH")
 
     # Performance Monitoring
-    performance_profiling_enabled: bool = Field(default=False, env="PERFORMANCE_PROFILING_ENABLED")
-    memory_profiling_enabled: bool = Field(default=False, env="MEMORY_PROFILING_ENABLED")
+    performance_profiling_enabled: bool = Field(
+        default=False, env="PERFORMANCE_PROFILING_ENABLED"
+    )
+    memory_profiling_enabled: bool = Field(
+        default=False, env="MEMORY_PROFILING_ENABLED"
+    )
     cpu_profiling_enabled: bool = Field(default=False, env="CPU_PROFILING_ENABLED")
 
     # SLI/SLO Configuration
-    slo_response_time_p95_target: float = Field(default=3000.0, env="SLO_RESPONSE_TIME_P95_TARGET")  # ms
-    slo_response_time_p99_target: float = Field(default=5000.0, env="SLO_RESPONSE_TIME_P99_TARGET")  # ms
-    slo_error_rate_target: float = Field(default=0.005, env="SLO_ERROR_RATE_TARGET")  # 0.5%
-    slo_availability_target: float = Field(default=0.995, env="SLO_AVAILABILITY_TARGET")  # 99.5%
+    slo_response_time_p95_target: float = Field(
+        default=3000.0, env="SLO_RESPONSE_TIME_P95_TARGET"
+    )  # ms
+    slo_response_time_p99_target: float = Field(
+        default=5000.0, env="SLO_RESPONSE_TIME_P99_TARGET"
+    )  # ms
+    slo_error_rate_target: float = Field(
+        default=0.005, env="SLO_ERROR_RATE_TARGET"
+    )  # 0.5%
+    slo_availability_target: float = Field(
+        default=0.995, env="SLO_AVAILABILITY_TARGET"
+    )  # 99.5%
 
     # Business Metrics
     business_metrics_enabled: bool = Field(default=True, env="BUSINESS_METRICS_ENABLED")

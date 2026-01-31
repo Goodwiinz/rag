@@ -3,45 +3,80 @@ Enhanced Document Upload API endpoints with multipart file upload, validation,
 security scanning, and real-time processing status updates
 """
 
-import os
-import uuid
 import asyncio
 import json
-from typing import Optional, List, Dict, Any, BinaryIO
-from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field, validator
 import logging
+import os
+import uuid
+from datetime import datetime
+from typing import Any, BinaryIO, Dict, List, Optional
+
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, validator
+from sqlalchemy.orm import Session
 
 from src.core.database import get_db
-from src.core.dependencies import get_current_user, get_current_organization
-from src.models.user import User, UserRole
-from src.models.organization import Organization
+from src.core.dependencies import get_current_organization, get_current_user
 from src.models.document import Document, DocumentType, ProcessingStatus
-from src.models.processing import ProcessingJob, JobType, JobStatus, JobPriority
-from src.services.documents.enhanced_file_service import EnhancedFileService, get_enhanced_file_service
-from src.services.processing.multimodal_processing_service import MultimodalProcessingService, get_multimodal_processing_service
-from src.services.documents.document_quality_service import DocumentQualityService, get_document_quality_service
+from src.models.organization import Organization
+from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
+from src.models.user import User, UserRole
+from src.services.documents.document_quality_service import (
+    DocumentQualityService,
+    get_document_quality_service,
+)
+from src.services.documents.enhanced_file_service import (
+    EnhancedFileService,
+    get_enhanced_file_service,
+)
+from src.services.processing.multimodal_processing_service import (
+    MultimodalProcessingService,
+    get_multimodal_processing_service,
+)
 from src.tasks.document_processing_tasks import process_document_upload
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v2/documents/upload", tags=["enhanced-document-upload"])
 
+
 # Request/Response Models
 class DocumentUploadRequest(BaseModel):
     """Enhanced document upload request"""
+
     title: str = Field(..., min_length=1, max_length=500, description="Document title")
-    description: Optional[str] = Field(None, max_length=2000, description="Document description")
+    description: Optional[str] = Field(
+        None, max_length=2000, description="Document description"
+    )
     tags: List[str] = Field(default_factory=list, description="Document tags")
-    is_public: bool = Field(default=False, description="Whether document is publicly accessible")
-    processing_priority: str = Field("normal", regex="^(low|normal|high|urgent)$", description="Processing priority")
-    enable_quality_check: bool = Field(default=True, description="Enable quality assessment")
-    custom_metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom metadata")
+    is_public: bool = Field(
+        default=False, description="Whether document is publicly accessible"
+    )
+    processing_priority: str = Field(
+        "normal", regex="^(low|normal|high|urgent)$", description="Processing priority"
+    )
+    enable_quality_check: bool = Field(
+        default=True, description="Enable quality assessment"
+    )
+    custom_metadata: Dict[str, Any] = Field(
+        default_factory=dict, description="Custom metadata"
+    )
+
 
 class DocumentUploadResponse(BaseModel):
     """Enhanced document upload response"""
+
     document_id: str
     upload_id: str
     title: str
@@ -59,14 +94,22 @@ class DocumentUploadResponse(BaseModel):
     message: str
     created_at: datetime
 
+
 class BatchUploadRequest(BaseModel):
     """Batch upload request"""
+
     documents: List[DocumentUploadRequest] = Field(..., min_items=1, max_items=50)
-    processing_mode: str = Field("parallel", regex="^(parallel|sequential)$", description="Processing mode")
-    enable_deduplication: bool = Field(default=True, description="Enable duplicate detection")
+    processing_mode: str = Field(
+        "parallel", regex="^(parallel|sequential)$", description="Processing mode"
+    )
+    enable_deduplication: bool = Field(
+        default=True, description="Enable duplicate detection"
+    )
+
 
 class UploadProgressResponse(BaseModel):
     """Upload progress response"""
+
     upload_id: str
     progress_percentage: float
     current_step: str
@@ -75,8 +118,10 @@ class UploadProgressResponse(BaseModel):
     estimated_remaining_seconds: Optional[int] = None
     error_message: Optional[str] = None
 
+
 class QualityAssessmentResponse(BaseModel):
     """Quality assessment response"""
+
     document_id: str
     overall_score: float
     readability_score: float
@@ -86,8 +131,10 @@ class QualityAssessmentResponse(BaseModel):
     issues: List[Dict[str, Any]]
     processing_time_ms: float
 
+
 class SecurityScanResult(BaseModel):
     """Security scan result"""
+
     scan_status: str  # passed, failed, warning
     virus_detected: bool
     suspicious_content: bool
@@ -95,6 +142,7 @@ class SecurityScanResult(BaseModel):
     scan_timestamp: datetime
     threats: List[Dict[str, Any]] = []
     warnings: List[str] = []
+
 
 # WebSocket connection manager for real-time updates
 class UploadManager:
@@ -113,7 +161,7 @@ class UploadManager:
             "current_step": "Initializing",
             "total_steps": 10,
             "completed_steps": 0,
-            "error_message": None
+            "error_message": None,
         }
 
     def disconnect(self, upload_id: str):
@@ -123,7 +171,13 @@ class UploadManager:
         if upload_id in self.upload_progress:
             del self.upload_progress[upload_id]
 
-    async def update_progress(self, upload_id: str, progress: float, current_step: str = None, error_message: str = None):
+    async def update_progress(
+        self,
+        upload_id: str,
+        progress: float,
+        current_step: str = None,
+        error_message: str = None,
+    ):
         """Update upload progress"""
         if upload_id in self.upload_progress:
             self.upload_progress[upload_id]["progress"] = progress
@@ -135,11 +189,13 @@ class UploadManager:
             # Send update via WebSocket
             if upload_id in self.active_connections:
                 try:
-                    await self.active_connections[upload_id].send_json({
-                        "type": "progress_update",
-                        "upload_id": upload_id,
-                        **self.upload_progress[upload_id]
-                    })
+                    await self.active_connections[upload_id].send_json(
+                        {
+                            "type": "progress_update",
+                            "upload_id": upload_id,
+                            **self.upload_progress[upload_id],
+                        }
+                    )
                 except:
                     # Connection might be closed
                     pass
@@ -148,16 +204,20 @@ class UploadManager:
         """Send completion notification"""
         if upload_id in self.active_connections:
             try:
-                await self.active_connections[upload_id].send_json({
-                    "type": "upload_complete",
-                    "upload_id": upload_id,
-                    "result": result
-                })
+                await self.active_connections[upload_id].send_json(
+                    {
+                        "type": "upload_complete",
+                        "upload_id": upload_id,
+                        "result": result,
+                    }
+                )
             except:
                 pass
 
+
 # Global upload manager
 upload_manager = UploadManager()
+
 
 @router.post("/single", response_model=DocumentUploadResponse)
 async def upload_single_document(
@@ -165,7 +225,9 @@ async def upload_single_document(
     title: str = Form(..., description="Document title"),
     description: Optional[str] = Form(None, description="Document description"),
     tags: str = Form("", description="Comma-separated tags"),
-    is_public: bool = Form(False, description="Whether document is publicly accessible"),
+    is_public: bool = Form(
+        False, description="Whether document is publicly accessible"
+    ),
     processing_priority: str = Form("normal", description="Processing priority"),
     enable_quality_check: bool = Form(True, description="Enable quality assessment"),
     custom_metadata: str = Form("{}", description="Custom metadata as JSON string"),
@@ -174,8 +236,10 @@ async def upload_single_document(
     organization: Organization = Depends(get_current_organization),
     db: Session = Depends(get_db),
     file_service: EnhancedFileService = Depends(get_enhanced_file_service),
-    processing_service: MultimodalProcessingService = Depends(get_multimodal_processing_service),
-    quality_service: DocumentQualityService = Depends(get_document_quality_service)
+    processing_service: MultimodalProcessingService = Depends(
+        get_multimodal_processing_service
+    ),
+    quality_service: DocumentQualityService = Depends(get_document_quality_service),
 ):
     """
     Enhanced single document upload with validation, security scanning, and quality assessment
@@ -185,7 +249,9 @@ async def upload_single_document(
 
     try:
         # Parse form inputs
-        tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()] if tags else []
+        tag_list = (
+            [tag.strip() for tag in tags.split(",") if tag.strip()] if tags else []
+        )
 
         # Safe JSON parsing for custom metadata
         try:
@@ -198,18 +264,18 @@ async def upload_single_document(
 
         # Enhanced file validation and security scanning
         validation_result = await file_service.validate_and_scan_file(
-            file=file,
-            user=current_user,
-            organization=organization
+            file=file, user=current_user, organization=organization
         )
 
-        await upload_manager.update_progress(upload_id, 25.0, "Security scanning completed")
+        await upload_manager.update_progress(
+            upload_id, 25.0, "Security scanning completed"
+        )
 
         # Check security scan results
         if validation_result["security_scan"]["virus_detected"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File contains malware and cannot be uploaded"
+                detail="File contains malware and cannot be uploaded",
             )
 
         # Generate file path and save
@@ -224,7 +290,7 @@ async def upload_single_document(
             tags=tag_list,
             is_public=is_public,
             custom_metadata=metadata_dict,
-            validation_result=validation_result
+            validation_result=validation_result,
         )
 
         await upload_manager.update_progress(upload_id, 60.0, "File saved successfully")
@@ -244,17 +310,17 @@ async def upload_single_document(
                 "document_type": document.document_type.value,
                 "mime_type": document.mime_type,
                 "enable_quality_check": enable_quality_check,
-                "upload_id": upload_id
+                "upload_id": upload_id,
             },
             config={
                 "max_retries": 3,
                 "timeout_seconds": 600,
                 "enable_ocr": True,
                 "enable_entity_extraction": True,
-                "enable_embedding_generation": True
+                "enable_embedding_generation": True,
             },
             total_steps=8,  # Enhanced processing pipeline
-            queue_name="document_processing"
+            queue_name="document_processing",
         )
 
         db.add(processing_job)
@@ -265,17 +331,14 @@ async def upload_single_document(
 
         # Queue background processing
         background_tasks.add_task(
-            process_document_upload,
-            str(processing_job.id),
-            upload_id
+            process_document_upload, str(processing_job.id), upload_id
         )
 
         await upload_manager.update_progress(upload_id, 90.0, "Processing queued")
 
         # Estimate processing time based on file size and type
         estimated_time = processing_service.estimate_processing_time(
-            document.document_type,
-            document.file_size_bytes
+            document.document_type, document.file_size_bytes
         )
 
         # Perform initial quality assessment if enabled
@@ -287,11 +350,14 @@ async def upload_single_document(
         await upload_manager.update_progress(upload_id, 100.0, "Upload completed")
 
         # Send completion notification
-        await upload_manager.send_completion(upload_id, {
-            "document_id": str(document.id),
-            "job_id": str(processing_job.id),
-            "status": "success"
-        })
+        await upload_manager.send_completion(
+            upload_id,
+            {
+                "document_id": str(document.id),
+                "job_id": str(processing_job.id),
+                "status": "success",
+            },
+        )
 
         return DocumentUploadResponse(
             document_id=str(document.id),
@@ -309,18 +375,21 @@ async def upload_single_document(
             security_scan_result=validation_result["security_scan"],
             upload_progress=100.0,
             message="Document uploaded successfully and queued for processing",
-            created_at=document.created_at
+            created_at=document.created_at,
         )
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Document upload failed: {str(e)}")
-        await upload_manager.update_progress(upload_id, 0.0, error_message=f"Upload failed: {str(e)}")
+        await upload_manager.update_progress(
+            upload_id, 0.0, error_message=f"Upload failed: {str(e)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload document: {str(e)}"
+            detail=f"Failed to upload document: {str(e)}",
         )
+
 
 @router.post("/batch")
 async def upload_batch_documents(
@@ -329,7 +398,9 @@ async def upload_batch_documents(
     organization: Organization = Depends(get_current_organization),
     db: Session = Depends(get_db),
     file_service: EnhancedFileService = Depends(get_enhanced_file_service),
-    processing_service: MultimodalProcessingService = Depends(get_multimodal_processing_service)
+    processing_service: MultimodalProcessingService = Depends(
+        get_multimodal_processing_service
+    ),
 ):
     """
     Batch upload multiple documents with parallel processing
@@ -337,16 +408,15 @@ async def upload_batch_documents(
     # Implementation for batch upload
     pass
 
+
 @router.get("/progress/{upload_id}", response_model=UploadProgressResponse)
 async def get_upload_progress(
-    upload_id: str,
-    current_user: User = Depends(get_current_user)
+    upload_id: str, current_user: User = Depends(get_current_user)
 ):
     """Get upload progress for a specific upload"""
     if upload_id not in upload_manager.upload_progress:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Upload session not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Upload session not found"
         )
 
     progress_data = upload_manager.upload_progress[upload_id]
@@ -358,14 +428,12 @@ async def get_upload_progress(
         total_steps=progress_data["total_steps"],
         completed_steps=progress_data["completed_steps"],
         estimated_remaining_seconds=progress_data.get("estimated_remaining_seconds"),
-        error_message=progress_data.get("error_message")
+        error_message=progress_data.get("error_message"),
     )
 
+
 @router.websocket("/progress/{upload_id}/ws")
-async def websocket_upload_progress(
-    websocket: WebSocket,
-    upload_id: str
-):
+async def websocket_upload_progress(websocket: WebSocket, upload_id: str):
     """WebSocket endpoint for real-time upload progress updates"""
     await upload_manager.connect(websocket, upload_id)
 
@@ -376,36 +444,42 @@ async def websocket_upload_progress(
     except WebSocketDisconnect:
         upload_manager.disconnect(upload_id)
 
+
 @router.get("/{document_id}/quality", response_model=QualityAssessmentResponse)
 async def get_document_quality(
     document_id: str,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
     db: Session = Depends(get_db),
-    quality_service: DocumentQualityService = Depends(get_document_quality_service)
+    quality_service: DocumentQualityService = Depends(get_document_quality_service),
 ):
     """Get comprehensive quality assessment for a document"""
-    document = db.query(Document).filter(
-        Document.id == document_id,
-        Document.organization_id == organization.id,
-        Document.is_deleted == False
-    ).first()
+    document = (
+        db.query(Document)
+        .filter(
+            Document.id == document_id,
+            Document.organization_id == organization.id,
+            Document.is_deleted == False,
+        )
+        .first()
+    )
 
     if not document:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
         )
 
     # Check permissions
     if not document.is_public and not current_user.has_permission(UserRole.USER):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this document"
+            detail="Access denied to this document",
         )
 
     try:
-        quality_result = await quality_service.comprehensive_quality_assessment(document)
+        quality_result = await quality_service.comprehensive_quality_assessment(
+            document
+        )
 
         return QualityAssessmentResponse(
             document_id=document_id,
@@ -415,15 +489,16 @@ async def get_document_quality(
             technical_quality_score=quality_result["technical_quality_score"],
             recommendations=quality_result["recommendations"],
             issues=quality_result["issues"],
-            processing_time_ms=quality_result["processing_time_ms"]
+            processing_time_ms=quality_result["processing_time_ms"],
         )
 
     except Exception as e:
         logger.error(f"Quality assessment failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to assess document quality: {str(e)}"
+            detail=f"Failed to assess document quality: {str(e)}",
         )
+
 
 @router.post("/{document_id}/rescan")
 async def rescan_document_security(
@@ -431,27 +506,32 @@ async def rescan_document_security(
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
     db: Session = Depends(get_db),
-    file_service: EnhancedFileService = Depends(get_enhanced_file_service)
+    file_service: EnhancedFileService = Depends(get_enhanced_file_service),
 ):
     """Rescan document for security threats"""
-    document = db.query(Document).filter(
-        Document.id == document_id,
-        Document.organization_id == organization.id,
-        Document.is_deleted == False
-    ).first()
+    document = (
+        db.query(Document)
+        .filter(
+            Document.id == document_id,
+            Document.organization_id == organization.id,
+            Document.is_deleted == False,
+        )
+        .first()
+    )
 
     if not document:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
         )
 
     # Check permissions (owner or admin)
-    if (document.uploaded_by_user_id != current_user.id and
-        not current_user.has_permission(UserRole.ADMIN)):
+    if (
+        document.uploaded_by_user_id != current_user.id
+        and not current_user.has_permission(UserRole.ADMIN)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Can only rescan your own documents or require admin role"
+            detail="Can only rescan your own documents or require admin role",
         )
 
     try:
@@ -462,43 +542,39 @@ async def rescan_document_security(
             "message": "Security scan completed",
             "document_id": document_id,
             "scan_result": scan_result,
-            "scanned_at": datetime.utcnow()
+            "scanned_at": datetime.utcnow(),
         }
 
     except Exception as e:
         logger.error(f"Security rescan failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to rescan document: {str(e)}"
+            detail=f"Failed to rescan document: {str(e)}",
         )
 
+
 @router.delete("/cancel/{upload_id}")
-async def cancel_upload(
-    upload_id: str,
-    current_user: User = Depends(get_current_user)
-):
+async def cancel_upload(upload_id: str, current_user: User = Depends(get_current_user)):
     """Cancel an ongoing upload"""
     if upload_id not in upload_manager.upload_progress:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Upload session not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Upload session not found"
         )
 
     try:
         # Update progress to cancelled
-        await upload_manager.update_progress(upload_id, 0.0, error_message="Upload cancelled by user")
+        await upload_manager.update_progress(
+            upload_id, 0.0, error_message="Upload cancelled by user"
+        )
 
         # Disconnect WebSocket
         upload_manager.disconnect(upload_id)
 
-        return {
-            "message": "Upload cancelled successfully",
-            "upload_id": upload_id
-        }
+        return {"message": "Upload cancelled successfully", "upload_id": upload_id}
 
     except Exception as e:
         logger.error(f"Failed to cancel upload: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to cancel upload: {str(e)}"
+            detail=f"Failed to cancel upload: {str(e)}",
         )

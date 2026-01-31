@@ -2,17 +2,17 @@
 Celery task for async thread summarization.
 """
 
+import asyncio
+import logging
 import os
 import sys
-import logging
-import asyncio
 from typing import Optional
 from uuid import UUID
 
 # Add src directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from celery import current_app, Task, group
+from celery import Task, current_app, group
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -128,8 +128,7 @@ def batch_summarize_threads_task(thread_ids: list[str]) -> dict:
 
     # Create parallel task group
     job = group(
-        summarize_thread_task.s(thread_id, force=False)
-        for thread_id in thread_ids
+        summarize_thread_task.s(thread_id, force=False) for thread_id in thread_ids
     )
 
     try:

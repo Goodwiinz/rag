@@ -7,16 +7,17 @@ and decrypt sensitive data using the core encryption utilities.
 
 import json
 import logging
-from typing import Any, Optional, Union, Type
-from sqlalchemy import TypeDecorator, TEXT
+from typing import Any, Optional, Type, Union
+
+from sqlalchemy import TEXT, TypeDecorator
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.ext.mutable import MutableDict, Mutable
+from sqlalchemy.ext.mutable import Mutable, MutableDict
 
 from ..core.encryption import (
-    get_field_encryption,
-    encrypt_sensitive_field,
+    EncryptionError,
     decrypt_sensitive_field,
-    EncryptionError
+    encrypt_sensitive_field,
+    get_field_encryption,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,9 @@ class EncryptedType(TypeDecorator):
         try:
             # For column-level encryption, we need the field name
             # This will be handled by the column definition
-            return encrypt_sensitive_field(value, getattr(self, '_field_name', 'unknown'))
+            return encrypt_sensitive_field(
+                value, getattr(self, "_field_name", "unknown")
+            )
         except EncryptionError as e:
             logger.error(f"Failed to encrypt field: {str(e)}")
             raise
@@ -46,7 +49,9 @@ class EncryptedType(TypeDecorator):
             return None
 
         try:
-            return decrypt_sensitive_field(value, getattr(self, '_field_name', 'unknown'))
+            return decrypt_sensitive_field(
+                value, getattr(self, "_field_name", "unknown")
+            )
         except EncryptionError as e:
             logger.error(f"Failed to decrypt field: {str(e)}")
             # Return raw value if decryption fails
@@ -55,17 +60,21 @@ class EncryptedType(TypeDecorator):
     def copy(self, **kwargs):
         """Create a copy of the type with field name"""
         new_type = self.__class__()
-        new_type._field_name = kwargs.get('field_name', getattr(self, '_field_name', 'unknown'))
+        new_type._field_name = kwargs.get(
+            "field_name", getattr(self, "_field_name", "unknown")
+        )
         return new_type
 
 
 class EncryptedString(EncryptedType):
     """Encrypted string field type"""
+
     pass
 
 
 class EncryptedText(EncryptedType):
     """Encrypted text field type for longer content"""
+
     impl = TEXT
 
 
@@ -108,7 +117,7 @@ class EncryptedEmail(EncryptedString):
             return None
 
         # Basic email validation
-        if isinstance(value, str) and '@' not in value:
+        if isinstance(value, str) and "@" not in value:
             raise ValueError("Invalid email format")
 
         return super().process_bind_param(value, dialect)
@@ -125,7 +134,7 @@ class EncryptedPhone(EncryptedString):
         # Basic phone validation - remove common formatting
         if isinstance(value, str):
             # Remove spaces, dashes, parentheses
-            clean_phone = ''.join(c for c in value if c.isdigit())
+            clean_phone = "".join(c for c in value if c.isdigit())
             if len(clean_phone) < 10:
                 raise ValueError("Phone number must have at least 10 digits")
             value = clean_phone
@@ -143,7 +152,7 @@ class EncryptedSSN(EncryptedString):
 
         if isinstance(value, str):
             # Remove dashes and spaces
-            clean_ssn = ''.join(c for c in value if c.isdigit())
+            clean_ssn = "".join(c for c in value if c.isdigit())
             if len(clean_ssn) != 9:
                 raise ValueError("SSN must be exactly 9 digits")
             value = clean_ssn
@@ -161,7 +170,7 @@ class EncryptedCreditCard(EncryptedString):
 
         if isinstance(value, str):
             # Remove spaces and dashes
-            clean_card = ''.join(c for c in value if c.isdigit())
+            clean_card = "".join(c for c in value if c.isdigit())
             if len(clean_card) < 13 or len(clean_card) > 19:
                 raise ValueError("Credit card number must be 13-19 digits")
 
@@ -198,7 +207,7 @@ class EncryptedAddress(EncryptedJSON):
 
         # Ensure address has required fields
         if isinstance(value, dict):
-            required_fields = ['street', 'city', 'country']
+            required_fields = ["street", "city", "country"]
             for field in required_fields:
                 if field not in value:
                     raise ValueError(f"Address missing required field: {field}")

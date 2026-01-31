@@ -4,8 +4,9 @@ Analytics scheduler for recurring jobs
 
 import asyncio
 import logging
-from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
 try:
     from croniter import croniter
 except ImportError:
@@ -27,7 +28,7 @@ class ScheduledJob:
         cron_expression: str,
         parameters: Dict[str, Any],
         tenant_id: str,
-        created_at: datetime = None
+        created_at: datetime = None,
     ):
         self.schedule_id = schedule_id
         self.job_type = job_type
@@ -87,7 +88,7 @@ class AnalyticsScheduler:
         job_type: JobType,
         cron_expression: str,
         parameters: Dict[str, Any],
-        tenant_id: str
+        tenant_id: str,
     ) -> str:
         """Schedule a recurring analytics job"""
         try:
@@ -101,12 +102,14 @@ class AnalyticsScheduler:
                 job_type=job_type,
                 cron_expression=cron_expression,
                 parameters=parameters,
-                tenant_id=tenant_id
+                tenant_id=tenant_id,
             )
 
             self.scheduled_jobs[schedule_id] = scheduled_job
 
-            logger.info(f"Scheduled job {schedule_id} for tenant {tenant_id} with cron '{cron_expression}'")
+            logger.info(
+                f"Scheduled job {schedule_id} for tenant {tenant_id} with cron '{cron_expression}'"
+            )
             return schedule_id
 
         except Exception as e:
@@ -124,21 +127,25 @@ class AnalyticsScheduler:
                 return True
         return False
 
-    async def get_scheduled_jobs(self, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def get_scheduled_jobs(
+        self, tenant_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Get scheduled jobs"""
         jobs = []
         for schedule_id, job in self.scheduled_jobs.items():
             if tenant_id is None or job.tenant_id == tenant_id:
-                jobs.append({
-                    "schedule_id": schedule_id,
-                    "job_type": job.job_type.value,
-                    "cron_expression": job.cron_expression,
-                    "tenant_id": job.tenant_id,
-                    "created_at": job.created_at,
-                    "last_run": job.last_run,
-                    "next_run": job.next_run,
-                    "active": job.active
-                })
+                jobs.append(
+                    {
+                        "schedule_id": schedule_id,
+                        "job_type": job.job_type.value,
+                        "cron_expression": job.cron_expression,
+                        "tenant_id": job.tenant_id,
+                        "created_at": job.created_at,
+                        "last_run": job.last_run,
+                        "next_run": job.next_run,
+                        "active": job.active,
+                    }
+                )
         return jobs
 
     async def _scheduler_loop(self):
@@ -172,17 +179,21 @@ class AnalyticsScheduler:
         """Execute a scheduled job"""
         # This would integrate with the background job processor
         # For now, just log the execution
-        logger.info(f"Executing scheduled job {job.schedule_id} of type {job.job_type.value}")
+        logger.info(
+            f"Executing scheduled job {job.schedule_id} of type {job.job_type.value}"
+        )
 
     async def get_scheduler_status(self) -> Dict[str, Any]:
         """Get scheduler status"""
         active_jobs = len([j for j in self.scheduled_jobs.values() if j.active])
-        next_runs = sorted([j.next_run for j in self.scheduled_jobs.values() if j.active])
+        next_runs = sorted(
+            [j.next_run for j in self.scheduled_jobs.values() if j.active]
+        )
 
         return {
             "running": self.running,
             "total_scheduled_jobs": len(self.scheduled_jobs),
             "active_jobs": active_jobs,
             "next_run": next_runs[0] if next_runs else None,
-            "uptime_seconds": 0  # Would track actual uptime
+            "uptime_seconds": 0,  # Would track actual uptime
         }

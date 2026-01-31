@@ -8,18 +8,23 @@ metrics, traces, logs, alerts, and health status updates with proper authenticat
 import asyncio
 import json
 import logging
-from typing import Dict, List, Optional, Any, Set
 from datetime import datetime
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, HTTPException
+from typing import Any, Dict, List, Optional, Set
+
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from ..services.observability_manager import get_observability_manager, ObservabilityManager
-from ..security.websocket_auth import (
-    websocket_authenticator,
-    secure_websocket_manager,
-    require_websocket_auth
-)
 from src.auth.rbac_decorator import AnalyticsPermissionsChecker
+
+from ..security.websocket_auth import (
+    require_websocket_auth,
+    secure_websocket_manager,
+    websocket_authenticator,
+)
+from ..services.observability_manager import (
+    ObservabilityManager,
+    get_observability_manager,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +42,7 @@ class WebSocketManager:
             "logs": set(),
             "alerts": set(),
             "health": set(),
-            "dashboard": set()
+            "dashboard": set(),
         }
 
         # Connection metadata
@@ -58,10 +63,12 @@ class WebSocketManager:
         self._connection_metadata[websocket] = {
             "type": connection_type,
             "connected_at": datetime.utcnow(),
-            "metadata": metadata
+            "metadata": metadata,
         }
 
-        logger.info(f"WebSocket connected: {connection_type} (total: {len(self._connections[connection_type])})")
+        logger.info(
+            f"WebSocket connected: {connection_type} (total: {len(self._connections[connection_type])})"
+        )
 
         # Start background broadcast tasks if not running
         if not self._running:
@@ -87,7 +94,9 @@ class WebSocketManager:
         if total_connections == 0:
             await self.stop_broadcasting()
 
-    async def send_personal_message(self, websocket: WebSocket, message: Dict[str, Any]):
+    async def send_personal_message(
+        self, websocket: WebSocket, message: Dict[str, Any]
+    ):
         """Send a message to a specific WebSocket connection"""
         try:
             await websocket.send_text(json.dumps(message))
@@ -173,14 +182,13 @@ class WebSocketManager:
             start_time = end_time - timedelta(minutes=5)
 
             metrics_data = await manager.get_metrics(
-                start_time=start_time,
-                end_time=end_time
+                start_time=start_time, end_time=end_time
             )
 
             message = {
                 "type": "metrics_update",
                 "timestamp": datetime.utcnow().isoformat(),
-                "data": metrics_data
+                "data": metrics_data,
             }
 
             await self.broadcast_to_type("metrics", message)
@@ -196,15 +204,13 @@ class WebSocketManager:
             start_time = end_time - timedelta(minutes=5)
 
             traces_data = await manager.get_traces(
-                start_time=start_time,
-                end_time=end_time,
-                limit=50
+                start_time=start_time, end_time=end_time, limit=50
             )
 
             message = {
                 "type": "traces_update",
                 "timestamp": datetime.utcnow().isoformat(),
-                "data": traces_data
+                "data": traces_data,
             }
 
             await self.broadcast_to_type("traces", message)
@@ -220,15 +226,13 @@ class WebSocketManager:
             start_time = end_time - timedelta(minutes=5)
 
             logs_data = await manager.get_logs(
-                start_time=start_time,
-                end_time=end_time,
-                limit=100
+                start_time=start_time, end_time=end_time, limit=100
             )
 
             message = {
                 "type": "logs_update",
                 "timestamp": datetime.utcnow().isoformat(),
-                "data": logs_data
+                "data": logs_data,
             }
 
             await self.broadcast_to_type("logs", message)
@@ -240,15 +244,12 @@ class WebSocketManager:
         """Broadcast recent alerts"""
         try:
             # Get active alerts
-            alerts_data = await manager.get_alerts(
-                status="open",
-                limit=50
-            )
+            alerts_data = await manager.get_alerts(status="open", limit=50)
 
             message = {
                 "type": "alerts_update",
                 "timestamp": datetime.utcnow().isoformat(),
-                "data": alerts_data
+                "data": alerts_data,
             }
 
             await self.broadcast_to_type("alerts", message)
@@ -264,7 +265,7 @@ class WebSocketManager:
             message = {
                 "type": "health_update",
                 "timestamp": datetime.utcnow().isoformat(),
-                "data": health_data
+                "data": health_data,
             }
 
             await self.broadcast_to_type("health", message)
@@ -284,15 +285,12 @@ class WebSocketManager:
 
             # Get metrics summary
             metrics_data = await manager.get_metrics(
-                start_time=start_time,
-                end_time=end_time
+                start_time=start_time, end_time=end_time
             )
 
             # Get recent alerts
             alerts_data = await manager.get_alerts(
-                start_time=start_time,
-                end_time=end_time,
-                limit=10
+                start_time=start_time, end_time=end_time, limit=10
             )
 
             message = {
@@ -304,15 +302,20 @@ class WebSocketManager:
                         "total_metrics": len(metrics_data.get("metrics", {})),
                         "time_range": {
                             "start": start_time.isoformat(),
-                            "end": end_time.isoformat()
-                        }
+                            "end": end_time.isoformat(),
+                        },
                     },
                     "recent_alerts": alerts_data.get("alerts", {}),
                     "connections": {
-                        "active_websockets": sum(len(conns) for conns in self._connections.values()),
-                        "connection_types": {conn_type: len(conns) for conn_type, conns in self._connections.items()}
-                    }
-                }
+                        "active_websockets": sum(
+                            len(conns) for conns in self._connections.values()
+                        ),
+                        "connection_types": {
+                            conn_type: len(conns)
+                            for conn_type, conns in self._connections.items()
+                        },
+                    },
+                },
             }
 
             await self.broadcast_to_type("dashboard", message)
@@ -327,8 +330,7 @@ websocket_manager = WebSocketManager()
 
 @router.websocket("/metrics")
 async def websocket_metrics(
-    websocket: WebSocket,
-    token: str = Query(..., description="Authentication token")
+    websocket: WebSocket, token: str = Query(..., description="Authentication token")
 ):
     """WebSocket endpoint for real-time metrics updates"""
     connection_id = f"metrics_{datetime.utcnow().timestamp()}"
@@ -339,22 +341,30 @@ async def websocket_metrics(
         return  # Connection already closed by authenticator
 
     # Authorize access to metrics endpoint
-    if not await websocket_authenticator.authorize_websocket_access(user_info, "metrics"):
+    if not await websocket_authenticator.authorize_websocket_access(
+        user_info, "metrics"
+    ):
         await websocket.close(4003, "Insufficient permissions for metrics access")
         return
 
     # Add secure connection
-    if not await secure_websocket_manager.add_connection(websocket, connection_id, user_info, "metrics"):
+    if not await secure_websocket_manager.add_connection(
+        websocket, connection_id, user_info, "metrics"
+    ):
         return
 
     try:
-        await websocket.send_text(json.dumps({
-            "type": "connection_established",
-            "message": "Connected to metrics stream",
-            "timestamp": datetime.utcnow().isoformat(),
-            "user_id": user_info['user_id'],
-            "permissions": user_info['role']
-        }))
+        await websocket.send_text(
+            json.dumps(
+                {
+                    "type": "connection_established",
+                    "message": "Connected to metrics stream",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "user_id": user_info["user_id"],
+                    "permissions": user_info["role"],
+                }
+            )
+        )
 
         while True:
             try:
@@ -362,39 +372,56 @@ async def websocket_metrics(
                 message = json.loads(data)
 
                 # Update last activity
-                connection_info = secure_websocket_manager.get_connection_info(connection_id)
+                connection_info = secure_websocket_manager.get_connection_info(
+                    connection_id
+                )
                 if connection_info:
-                    connection_info['last_activity'] = datetime.utcnow()
+                    connection_info["last_activity"] = datetime.utcnow()
 
                 # Handle client messages
                 if message.get("type") == "ping":
-                    await websocket.send_text(json.dumps({
-                        "type": "pong",
-                        "timestamp": datetime.utcnow().isoformat()
-                    }))
+                    await websocket.send_text(
+                        json.dumps(
+                            {"type": "pong", "timestamp": datetime.utcnow().isoformat()}
+                        )
+                    )
                 elif message.get("type") == "subscribe":
                     # Validate subscription
-                    if await websocket_authenticator.validate_websocket_subscription(user_info, message):
-                        await websocket.send_text(json.dumps({
-                            "type": "subscription_confirmed",
-                            "metric": message.get("metric"),
-                            "timestamp": datetime.utcnow().isoformat()
-                        }))
+                    if await websocket_authenticator.validate_websocket_subscription(
+                        user_info, message
+                    ):
+                        await websocket.send_text(
+                            json.dumps(
+                                {
+                                    "type": "subscription_confirmed",
+                                    "metric": message.get("metric"),
+                                    "timestamp": datetime.utcnow().isoformat(),
+                                }
+                            )
+                        )
                     else:
-                        await websocket.send_text(json.dumps({
-                            "type": "subscription_denied",
-                            "reason": "Insufficient permissions for subscription",
-                            "timestamp": datetime.utcnow().isoformat()
-                        }))
+                        await websocket.send_text(
+                            json.dumps(
+                                {
+                                    "type": "subscription_denied",
+                                    "reason": "Insufficient permissions for subscription",
+                                    "timestamp": datetime.utcnow().isoformat(),
+                                }
+                            )
+                        )
 
             except WebSocketDisconnect:
                 break
             except json.JSONDecodeError:
-                await websocket.send_text(json.dumps({
-                    "type": "error",
-                    "message": "Invalid JSON format",
-                    "timestamp": datetime.utcnow().isoformat()
-                }))
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "message": "Invalid JSON format",
+                            "timestamp": datetime.utcnow().isoformat(),
+                        }
+                    )
+                )
             except Exception as e:
                 logger.error(f"Error in metrics WebSocket: {e}")
                 break
@@ -413,17 +440,20 @@ async def websocket_metrics(
 
             # Handle client messages
             if message.get("type") == "ping":
-                await websocket_manager.send_personal_message(websocket, {
-                    "type": "pong",
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                await websocket_manager.send_personal_message(
+                    websocket,
+                    {"type": "pong", "timestamp": datetime.utcnow().isoformat()},
+                )
             elif message.get("type") == "subscribe":
                 # Handle subscription to specific metrics
-                await websocket_manager.send_personal_message(websocket, {
-                    "type": "subscription_confirmed",
-                    "metric": message.get("metric"),
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                await websocket_manager.send_personal_message(
+                    websocket,
+                    {
+                        "type": "subscription_confirmed",
+                        "metric": message.get("metric"),
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
+                )
 
     except WebSocketDisconnect:
         await websocket_manager.disconnect(websocket)
@@ -434,11 +464,14 @@ async def websocket_metrics(
 
 @router.websocket("/traces")
 async def websocket_traces(
-    websocket: WebSocket,
-    token: str = Query(..., description="Authentication token")
+    websocket: WebSocket, token: str = Query(..., description="Authentication token")
 ):
     """WebSocket endpoint for real-time trace updates"""
-    # TODO: Validate token here
+    # Validate authentication token
+    user_info = await websocket_authenticator.authenticate_websocket(websocket, token)
+    if not user_info:
+        return  # Connection already closed by authenticator
+    
     await websocket_manager.connect(websocket, "traces")
 
     try:
@@ -447,18 +480,21 @@ async def websocket_traces(
             message = json.loads(data)
 
             if message.get("type") == "ping":
-                await websocket_manager.send_personal_message(websocket, {
-                    "type": "pong",
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                await websocket_manager.send_personal_message(
+                    websocket,
+                    {"type": "pong", "timestamp": datetime.utcnow().isoformat()},
+                )
             elif message.get("type") == "subscribe_trace":
                 # Handle subscription to specific trace
                 trace_id = message.get("trace_id")
-                await websocket_manager.send_personal_message(websocket, {
-                    "type": "trace_subscription_confirmed",
-                    "trace_id": trace_id,
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                await websocket_manager.send_personal_message(
+                    websocket,
+                    {
+                        "type": "trace_subscription_confirmed",
+                        "trace_id": trace_id,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
+                )
 
     except WebSocketDisconnect:
         await websocket_manager.disconnect(websocket)
@@ -469,11 +505,14 @@ async def websocket_traces(
 
 @router.websocket("/logs")
 async def websocket_logs(
-    websocket: WebSocket,
-    token: str = Query(..., description="Authentication token")
+    websocket: WebSocket, token: str = Query(..., description="Authentication token")
 ):
     """WebSocket endpoint for real-time log updates"""
-    # TODO: Validate token here
+    # Validate authentication token
+    user_info = await websocket_authenticator.authenticate_websocket(websocket, token)
+    if not user_info:
+        return  # Connection already closed by authenticator
+    
     await websocket_manager.connect(websocket, "logs")
 
     try:
@@ -482,18 +521,21 @@ async def websocket_logs(
             message = json.loads(data)
 
             if message.get("type") == "ping":
-                await websocket_manager.send_personal_message(websocket, {
-                    "type": "pong",
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                await websocket_manager.send_personal_message(
+                    websocket,
+                    {"type": "pong", "timestamp": datetime.utcnow().isoformat()},
+                )
             elif message.get("type") == "subscribe_logs":
                 # Handle subscription to specific log filters
                 filters = message.get("filters", {})
-                await websocket_manager.send_personal_message(websocket, {
-                    "type": "logs_subscription_confirmed",
-                    "filters": filters,
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                await websocket_manager.send_personal_message(
+                    websocket,
+                    {
+                        "type": "logs_subscription_confirmed",
+                        "filters": filters,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
+                )
 
     except WebSocketDisconnect:
         await websocket_manager.disconnect(websocket)
@@ -504,11 +546,14 @@ async def websocket_logs(
 
 @router.websocket("/alerts")
 async def websocket_alerts(
-    websocket: WebSocket,
-    token: str = Query(..., description="Authentication token")
+    websocket: WebSocket, token: str = Query(..., description="Authentication token")
 ):
     """WebSocket endpoint for real-time alert updates"""
-    # TODO: Validate token here
+    # Validate authentication token
+    user_info = await websocket_authenticator.authenticate_websocket(websocket, token)
+    if not user_info:
+        return  # Connection already closed by authenticator
+    
     await websocket_manager.connect(websocket, "alerts")
 
     try:
@@ -517,18 +562,21 @@ async def websocket_alerts(
             message = json.loads(data)
 
             if message.get("type") == "ping":
-                await websocket_manager.send_personal_message(websocket, {
-                    "type": "pong",
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                await websocket_manager.send_personal_message(
+                    websocket,
+                    {"type": "pong", "timestamp": datetime.utcnow().isoformat()},
+                )
             elif message.get("type") == "subscribe_alerts":
                 # Handle subscription to specific alert filters
                 filters = message.get("filters", {})
-                await websocket_manager.send_personal_message(websocket, {
-                    "type": "alerts_subscription_confirmed",
-                    "filters": filters,
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                await websocket_manager.send_personal_message(
+                    websocket,
+                    {
+                        "type": "alerts_subscription_confirmed",
+                        "filters": filters,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
+                )
 
     except WebSocketDisconnect:
         await websocket_manager.disconnect(websocket)
@@ -539,11 +587,14 @@ async def websocket_alerts(
 
 @router.websocket("/health")
 async def websocket_health(
-    websocket: WebSocket,
-    token: str = Query(..., description="Authentication token")
+    websocket: WebSocket, token: str = Query(..., description="Authentication token")
 ):
     """WebSocket endpoint for real-time health status updates"""
-    # TODO: Validate token here
+    # Validate authentication token
+    user_info = await websocket_authenticator.authenticate_websocket(websocket, token)
+    if not user_info:
+        return  # Connection already closed by authenticator
+    
     await websocket_manager.connect(websocket, "health")
 
     try:
@@ -552,10 +603,10 @@ async def websocket_health(
             message = json.loads(data)
 
             if message.get("type") == "ping":
-                await websocket_manager.send_personal_message(websocket, {
-                    "type": "pong",
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                await websocket_manager.send_personal_message(
+                    websocket,
+                    {"type": "pong", "timestamp": datetime.utcnow().isoformat()},
+                )
 
     except WebSocketDisconnect:
         await websocket_manager.disconnect(websocket)
@@ -566,11 +617,14 @@ async def websocket_health(
 
 @router.websocket("/dashboard")
 async def websocket_dashboard(
-    websocket: WebSocket,
-    token: str = Query(..., description="Authentication token")
+    websocket: WebSocket, token: str = Query(..., description="Authentication token")
 ):
     """WebSocket endpoint for real-time dashboard updates"""
-    # TODO: Validate token here
+    # Validate authentication token
+    user_info = await websocket_authenticator.authenticate_websocket(websocket, token)
+    if not user_info:
+        return  # Connection already closed by authenticator
+    
     await websocket_manager.connect(websocket, "dashboard")
 
     try:
@@ -579,10 +633,10 @@ async def websocket_dashboard(
             message = json.loads(data)
 
             if message.get("type") == "ping":
-                await websocket_manager.send_personal_message(websocket, {
-                    "type": "pong",
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                await websocket_manager.send_personal_message(
+                    websocket,
+                    {"type": "pong", "timestamp": datetime.utcnow().isoformat()},
+                )
 
     except WebSocketDisconnect:
         await websocket_manager.disconnect(websocket)

@@ -6,27 +6,31 @@ Handles high-volume metrics collection with async processing and minimal latency
 import asyncio
 import json
 import logging
-import time
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Union
-from dataclasses import dataclass, asdict
-from enum import Enum
-from collections import defaultdict, deque
 import queue
+import time
+from collections import defaultdict, deque
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional, Union
 
 import redis.asyncio as redis
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func, desc
 from pydantic import BaseModel
+from sqlalchemy import and_, desc, func, or_
+from sqlalchemy.orm import Session
 
 from src.core.config import settings
 from src.core.database import get_db
 from src.models.ab_testing import (
-    Experiment, Variant, ExperimentMetric, QueryRouting,
-    MetricType, ExperimentAssignment
+    Experiment,
+    ExperimentAssignment,
+    ExperimentMetric,
+    MetricType,
+    QueryRouting,
+    Variant,
 )
-from src.models.search_schemas import SearchResponse, SearchResult
 from src.models.analytics_event import AnalyticsEvent
+from src.models.search_schemas import SearchResponse, SearchResult
 from src.services.cache.analytics_cache import analytics_cache
 
 logger = logging.getLogger(__name__)
@@ -34,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 class MetricCategory(Enum):
     """Categories of metrics for organization"""
+
     RELEVANCE = "relevance"
     PERFORMANCE = "performance"
     ENGAGEMENT = "engagement"
@@ -44,6 +49,7 @@ class MetricCategory(Enum):
 @dataclass
 class MetricEvent:
     """Individual metric event data structure"""
+
     experiment_id: str
     variant_id: str
     metric_type: MetricType
@@ -59,6 +65,7 @@ class MetricEvent:
 @dataclass
 class BatchMetrics:
     """Batch of metrics for efficient processing"""
+
     events: List[MetricEvent]
     batch_id: str
     created_at: datetime
@@ -95,7 +102,7 @@ class MetricsCollectionService:
                 decode_responses=True,
                 socket_connect_timeout=5,
                 socket_timeout=5,
-                retry_on_timeout=True
+                retry_on_timeout=True,
             )
 
             # Test connection
@@ -117,7 +124,7 @@ class MetricsCollectionService:
         assignment_result: Any,
         context: Dict[str, Any],
         start_time: float,
-        db: Session
+        db: Session,
     ):
         """
         Collect metrics from search operation with minimal latency impact
@@ -137,7 +144,9 @@ class MetricsCollectionService:
             for metric_event in metrics:
                 await self._queue_metric_event(metric_event)
 
-            logger.debug(f"Queued {len(metrics)} metrics for experiment {assignment_result.experiment_id}")
+            logger.debug(
+                f"Queued {len(metrics)} metrics for experiment {assignment_result.experiment_id}"
+            )
 
         except Exception as e:
             logger.error(f"Error collecting search metrics: {e}")
@@ -149,16 +158,16 @@ class MetricsCollectionService:
         user_id: str,
         feedback_type: str,
         feedback_value: Union[int, float],
-        context: Dict[str, Any] = None
+        context: Dict[str, Any] = None,
     ):
         """Collect user feedback metrics"""
         try:
             # Map feedback types to metric types
             metric_type_mapping = {
-                'satisfaction': MetricType.USER_SATISFACTION,
-                'relevance_rating': MetricType.RELEVANCE_SCORE,
-                'click': None,  # Handled separately
-                'conversion': MetricType.CONVERSION_RATE
+                "satisfaction": MetricType.USER_SATISFACTION,
+                "relevance_rating": MetricType.RELEVANCE_SCORE,
+                "click": None,  # Handled separately
+                "conversion": MetricType.CONVERSION_RATE,
             }
 
             metric_type = metric_type_mapping.get(feedback_type)
@@ -171,13 +180,13 @@ class MetricsCollectionService:
                 metric_type=metric_type,
                 metric_value=float(feedback_value),
                 user_id=user_id,
-                session_id=context.get('session_id') if context else None,
-                query_id=context.get('query_id') if context else None,
+                session_id=context.get("session_id") if context else None,
+                query_id=context.get("query_id") if context else None,
                 metric_metadata={
-                    'feedback_type': feedback_type,
-                    'context': context or {}
+                    "feedback_type": feedback_type,
+                    "context": context or {},
                 },
-                timestamp=datetime.utcnow()
+                timestamp=datetime.utcnow(),
             )
 
             await self._queue_metric_event(metric_event, priority=2)
@@ -190,39 +199,43 @@ class MetricsCollectionService:
         experiment_id: str,
         variant_id: str,
         performance_data: Dict[str, Any],
-        context: Dict[str, Any] = None
+        context: Dict[str, Any] = None,
     ):
         """Collect performance metrics"""
         try:
             metrics = []
 
             # Response time metric
-            if 'response_time_ms' in performance_data:
-                metrics.append(MetricEvent(
-                    experiment_id=experiment_id,
-                    variant_id=variant_id,
-                    metric_type=MetricType.RESPONSE_TIME,
-                    metric_value=float(performance_data['response_time_ms']),
-                    user_id=context.get('user_id') if context else None,
-                    session_id=context.get('session_id') if context else None,
-                    query_id=context.get('query_id') if context else None,
-                    metric_metadata=performance_data,
-                    timestamp=datetime.utcnow()
-                ))
+            if "response_time_ms" in performance_data:
+                metrics.append(
+                    MetricEvent(
+                        experiment_id=experiment_id,
+                        variant_id=variant_id,
+                        metric_type=MetricType.RESPONSE_TIME,
+                        metric_value=float(performance_data["response_time_ms"]),
+                        user_id=context.get("user_id") if context else None,
+                        session_id=context.get("session_id") if context else None,
+                        query_id=context.get("query_id") if context else None,
+                        metric_metadata=performance_data,
+                        timestamp=datetime.utcnow(),
+                    )
+                )
 
             # Result count metric
-            if 'result_count' in performance_data:
-                metrics.append(MetricEvent(
-                    experiment_id=experiment_id,
-                    variant_id=variant_id,
-                    metric_type=MetricType.RESULT_COUNT,
-                    metric_value=float(performance_data['result_count']),
-                    user_id=context.get('user_id') if context else None,
-                    session_id=context.get('session_id') if context else None,
-                    query_id=context.get('query_id') if context else None,
-                    metric_metadata=performance_data,
-                    timestamp=datetime.utcnow()
-                ))
+            if "result_count" in performance_data:
+                metrics.append(
+                    MetricEvent(
+                        experiment_id=experiment_id,
+                        variant_id=variant_id,
+                        metric_type=MetricType.RESULT_COUNT,
+                        metric_value=float(performance_data["result_count"]),
+                        user_id=context.get("user_id") if context else None,
+                        session_id=context.get("session_id") if context else None,
+                        query_id=context.get("query_id") if context else None,
+                        metric_metadata=performance_data,
+                        timestamp=datetime.utcnow(),
+                    )
+                )
 
             # Queue all performance metrics
             for metric_event in metrics:
@@ -236,7 +249,7 @@ class MetricsCollectionService:
         experiment_id: str,
         variant_id: str,
         user_id: str,
-        click_data: Dict[str, Any]
+        click_data: Dict[str, Any],
     ):
         """Collect click-through metrics"""
         try:
@@ -246,14 +259,14 @@ class MetricsCollectionService:
                 metric_type=MetricType.CLICK_THROUGH_RATE,
                 metric_value=1.0,  # Binary click event
                 user_id=user_id,
-                session_id=click_data.get('session_id'),
-                query_id=click_data.get('query_id'),
+                session_id=click_data.get("session_id"),
+                query_id=click_data.get("query_id"),
                 metric_metadata={
-                    'click_position': click_data.get('position'),
-                    'document_id': click_data.get('document_id'),
-                    'click_data': click_data
+                    "click_position": click_data.get("position"),
+                    "document_id": click_data.get("document_id"),
+                    "click_data": click_data,
                 },
-                timestamp=datetime.utcnow()
+                timestamp=datetime.utcnow(),
             )
 
             await self._queue_metric_event(metric_event, priority=2)
@@ -266,101 +279,111 @@ class MetricsCollectionService:
         search_response: SearchResponse,
         assignment_result: Any,
         context: Dict[str, Any],
-        processing_time: float
+        processing_time: float,
     ) -> List[MetricEvent]:
         """Extract multiple metrics from search response"""
         metrics = []
 
         try:
             # Response time metric
-            metrics.append(MetricEvent(
-                experiment_id=assignment_result.experiment_id,
-                variant_id=assignment_result.variant_id,
-                metric_type=MetricType.RESPONSE_TIME,
-                metric_value=processing_time,
-                user_id=context.get('user_id'),
-                session_id=context.get('session_id'),
-                query_id=context.get('query_id'),
-                metric_metadata={
-                    'search_type': search_response.search_type.value if search_response.search_type else 'unknown',
-                    'total_results': len(search_response.results),
-                    'search_time_ms': search_response.search_time_ms
-                },
-                timestamp=datetime.utcnow(),
-                processing_time_ms=processing_time
-            ))
+            metrics.append(
+                MetricEvent(
+                    experiment_id=assignment_result.experiment_id,
+                    variant_id=assignment_result.variant_id,
+                    metric_type=MetricType.RESPONSE_TIME,
+                    metric_value=processing_time,
+                    user_id=context.get("user_id"),
+                    session_id=context.get("session_id"),
+                    query_id=context.get("query_id"),
+                    metric_metadata={
+                        "search_type": search_response.search_type.value
+                        if search_response.search_type
+                        else "unknown",
+                        "total_results": len(search_response.results),
+                        "search_time_ms": search_response.search_time_ms,
+                    },
+                    timestamp=datetime.utcnow(),
+                    processing_time_ms=processing_time,
+                )
+            )
 
             # Result count metric
-            metrics.append(MetricEvent(
-                experiment_id=assignment_result.experiment_id,
-                variant_id=assignment_result.variant_id,
-                metric_type=MetricType.RESULT_COUNT,
-                metric_value=float(len(search_response.results)),
-                user_id=context.get('user_id'),
-                session_id=context.get('session_id'),
-                query_id=context.get('query_id'),
-                metric_metadata={
-                    'search_time_ms': search_response.search_time_ms,
-                    'has_results': len(search_response.results) > 0
-                },
-                timestamp=datetime.utcnow()
-            ))
+            metrics.append(
+                MetricEvent(
+                    experiment_id=assignment_result.experiment_id,
+                    variant_id=assignment_result.variant_id,
+                    metric_type=MetricType.RESULT_COUNT,
+                    metric_value=float(len(search_response.results)),
+                    user_id=context.get("user_id"),
+                    session_id=context.get("session_id"),
+                    query_id=context.get("query_id"),
+                    metric_metadata={
+                        "search_time_ms": search_response.search_time_ms,
+                        "has_results": len(search_response.results) > 0,
+                    },
+                    timestamp=datetime.utcnow(),
+                )
+            )
 
             # Query success rate (binary - successful if we got results)
             success_value = 1.0 if len(search_response.results) > 0 else 0.0
-            metrics.append(MetricEvent(
-                experiment_id=assignment_result.experiment_id,
-                variant_id=assignment_result.variant_id,
-                metric_type=MetricType.QUERY_SUCCESS_RATE,
-                metric_value=success_value,
-                user_id=context.get('user_id'),
-                session_id=context.get('session_id'),
-                query_id=context.get('query_id'),
-                metric_metadata={
-                    'query_text': context.get('query_text', ''),
-                    'result_count': len(search_response.results)
-                },
-                timestamp=datetime.utcnow()
-            ))
+            metrics.append(
+                MetricEvent(
+                    experiment_id=assignment_result.experiment_id,
+                    variant_id=assignment_result.variant_id,
+                    metric_type=MetricType.QUERY_SUCCESS_RATE,
+                    metric_value=success_value,
+                    user_id=context.get("user_id"),
+                    session_id=context.get("session_id"),
+                    query_id=context.get("query_id"),
+                    metric_metadata={
+                        "query_text": context.get("query_text", ""),
+                        "result_count": len(search_response.results),
+                    },
+                    timestamp=datetime.utcnow(),
+                )
+            )
 
             # Relevance score (if available in results)
             if search_response.results:
                 avg_relevance = sum(
-                    getattr(result, 'relevance_score', 0.0) for result in search_response.results
+                    getattr(result, "relevance_score", 0.0)
+                    for result in search_response.results
                 ) / len(search_response.results)
 
-                metrics.append(MetricEvent(
-                    experiment_id=assignment_result.experiment_id,
-                    variant_id=assignment_result.variant_id,
-                    metric_type=MetricType.RELEVANCE_SCORE,
-                    metric_value=avg_relevance,
-                    user_id=context.get('user_id'),
-                    session_id=context.get('session_id'),
-                    query_id=context.get('query_id'),
-                    metric_metadata={
-                        'individual_scores': [
-                            getattr(result, 'relevance_score', 0.0) for result in search_response.results
-                        ],
-                        'result_count': len(search_response.results)
-                    },
-                    timestamp=datetime.utcnow()
-                ))
+                metrics.append(
+                    MetricEvent(
+                        experiment_id=assignment_result.experiment_id,
+                        variant_id=assignment_result.variant_id,
+                        metric_type=MetricType.RELEVANCE_SCORE,
+                        metric_value=avg_relevance,
+                        user_id=context.get("user_id"),
+                        session_id=context.get("session_id"),
+                        query_id=context.get("query_id"),
+                        metric_metadata={
+                            "individual_scores": [
+                                getattr(result, "relevance_score", 0.0)
+                                for result in search_response.results
+                            ],
+                            "result_count": len(search_response.results),
+                        },
+                        timestamp=datetime.utcnow(),
+                    )
+                )
 
         except Exception as e:
             logger.error(f"Error extracting search metrics: {e}")
 
         return metrics
 
-    async def _queue_metric_event(
-        self,
-        metric_event: MetricEvent,
-        priority: int = 1
-    ):
+    async def _queue_metric_event(self, metric_event: MetricEvent, priority: int = 1):
         """Queue metric event for processing with backpressure handling"""
         try:
             # Check queue size and apply backpressure
             if self._metrics_queue.qsize() >= 9000:  # 90% capacity
-                logger.warning("Metrics queue approaching capacity, applying backpressure")
+                logger.warning(
+                    "Metrics queue approaching capacity, applying backpressure"
+                )
                 # Could implement sampling or priority-based dropping here
 
             await self._metrics_queue.put((priority, metric_event))
@@ -368,7 +391,7 @@ class MetricsCollectionService:
 
         except asyncio.QueueFull:
             logger.error("Metrics queue full, dropping metric event")
-            self._error_count['queue_full'] += 1
+            self._error_count["queue_full"] += 1
 
     async def _batch_processor(self):
         """Background task to batch metrics for efficient processing"""
@@ -380,8 +403,10 @@ class MetricsCollectionService:
                 batch_start = time.time()
 
                 # Collect batch or timeout
-                while (len(batch_events) < self._batch_size and
-                       time.time() - batch_start < self._batch_timeout):
+                while (
+                    len(batch_events) < self._batch_size
+                    and time.time() - batch_start < self._batch_timeout
+                ):
                     try:
                         priority, event = await asyncio.wait_for(
                             self._metrics_queue.get(), timeout=1.0
@@ -400,7 +425,7 @@ class MetricsCollectionService:
                         events=events,
                         batch_id=f"batch_{int(time.time() * 1000)}_{len(events)}",
                         created_at=datetime.utcnow(),
-                        priority=max(priority for priority, _ in batch_events)
+                        priority=max(priority for priority, _ in batch_events),
                     )
 
                     # Queue for processing
@@ -433,7 +458,7 @@ class MetricsCollectionService:
                     logger.info(f"Flushing {len(batches_to_process)} batches")
                     await asyncio.gather(
                         *[self._process_batch(batch) for batch in batches_to_process],
-                        return_exceptions=True
+                        return_exceptions=True,
                     )
 
             except Exception as e:
@@ -469,11 +494,13 @@ class MetricsCollectionService:
             processing_time = time.time() - start_time
             self._processing_times.append(processing_time)
 
-            logger.debug(f"Processed batch {batch.batch_id} with {len(batch.events)} events in {processing_time:.3f}s")
+            logger.debug(
+                f"Processed batch {batch.batch_id} with {len(batch.events)} events in {processing_time:.3f}s"
+            )
 
         except Exception as e:
             logger.error(f"Error processing batch {batch.batch_id}: {e}")
-            self._error_count['batch_processing'] += 1
+            self._error_count["batch_processing"] += 1
 
     async def _persist_metrics(self, events: List[MetricEvent], db: Session):
         """Persist metrics to database with bulk operations"""
@@ -490,7 +517,7 @@ class MetricsCollectionService:
                     session_id=event.session_id,
                     query_id=event.query_id,
                     metric_metadata=event.metric_metadata,
-                    timestamp=event.timestamp
+                    timestamp=event.timestamp,
                 )
                 metric_records.append(metric_record)
 
@@ -523,9 +550,15 @@ class MetricsCollectionService:
                     if event.metric_type == MetricType.RESPONSE_TIME:
                         # Update average response time
                         if variant.query_count > 0:
-                            current_avg = variant.total_response_time_ms / variant.query_count
-                            new_avg = ((current_avg * variant.query_count) + event.metric_value) / (variant.query_count + 1)
-                            variant.total_response_time_ms = int(new_avg * (variant.query_count + 1))
+                            current_avg = (
+                                variant.total_response_time_ms / variant.query_count
+                            )
+                            new_avg = (
+                                (current_avg * variant.query_count) + event.metric_value
+                            ) / (variant.query_count + 1)
+                            variant.total_response_time_ms = int(
+                                new_avg * (variant.query_count + 1)
+                            )
                         else:
                             variant.total_response_time_ms = int(event.metric_value)
 
@@ -539,7 +572,9 @@ class MetricsCollectionService:
                         # Update satisfaction score (running average)
                         if variant.query_count > 0:
                             current_avg = variant.user_satisfaction_score or 0
-                            new_avg = ((current_avg * variant.query_count) + event.metric_value) / (variant.query_count + 1)
+                            new_avg = (
+                                (current_avg * variant.query_count) + event.metric_value
+                            ) / (variant.query_count + 1)
                             variant.user_satisfaction_score = new_avg
                         else:
                             variant.user_satisfaction_score = event.metric_value
@@ -548,13 +583,23 @@ class MetricsCollectionService:
                     variant.query_count += 1
 
                 # Update primary metric value if it's the experiment's primary metric
-                experiment = db.query(Experiment).filter(Experiment.id == events[0].experiment_id).first()
+                experiment = (
+                    db.query(Experiment)
+                    .filter(Experiment.id == events[0].experiment_id)
+                    .first()
+                )
                 if experiment and experiment.primary_metric:
-                    primary_events = [e for e in variant_events if e.metric_type == experiment.primary_metric]
+                    primary_events = [
+                        e
+                        for e in variant_events
+                        if e.metric_type == experiment.primary_metric
+                    ]
                     if primary_events:
                         # Calculate new primary metric value (simplified - could be more sophisticated)
                         primary_values = [e.metric_value for e in primary_events]
-                        variant.primary_metric_value = sum(primary_values) / len(primary_values)
+                        variant.primary_metric_value = sum(primary_values) / len(
+                            primary_values
+                        )
 
         except Exception as e:
             logger.error(f"Error updating variant metrics: {e}")
@@ -569,16 +614,14 @@ class MetricsCollectionService:
             # Store batch in Redis for later processing
             fallback_key = f"ab_metrics_fallback:{batch.batch_id}"
             batch_data = {
-                'batch_id': batch.batch_id,
-                'created_at': batch.created_at.isoformat(),
-                'events': [asdict(event) for event in batch.events],
-                'priority': batch.priority
+                "batch_id": batch.batch_id,
+                "created_at": batch.created_at.isoformat(),
+                "events": [asdict(event) for event in batch.events],
+                "priority": batch.priority,
             }
 
             await self.redis_client.setex(
-                fallback_key,
-                3600,  # 1 hour TTL
-                json.dumps(batch_data)
+                fallback_key, 3600, json.dumps(batch_data)  # 1 hour TTL
             )
 
             logger.info(f"Stored batch {batch.batch_id} in Redis fallback")
@@ -622,7 +665,9 @@ class MetricsCollectionService:
         """Log performance metrics for monitoring"""
         try:
             if self._processing_times:
-                avg_processing_time = sum(self._processing_times) / len(self._processing_times)
+                avg_processing_time = sum(self._processing_times) / len(
+                    self._processing_times
+                )
                 max_processing_time = max(self._processing_times)
 
                 logger.info(
@@ -648,9 +693,7 @@ class MetricsCollectionService:
             logger.error(f"Error logging performance metrics: {e}")
 
     async def get_metrics_summary(
-        self,
-        experiment_id: str,
-        time_range: timedelta = timedelta(hours=24)
+        self, experiment_id: str, time_range: timedelta = timedelta(hours=24)
     ) -> Dict[str, Any]:
         """Get summary of metrics for an experiment"""
         try:
@@ -662,7 +705,7 @@ class MetricsCollectionService:
             metrics_query = db.query(ExperimentMetric).filter(
                 and_(
                     ExperimentMetric.experiment_id == experiment_id,
-                    ExperimentMetric.timestamp >= cutoff_time
+                    ExperimentMetric.timestamp >= cutoff_time,
                 )
             )
 
@@ -676,11 +719,11 @@ class MetricsCollectionService:
             for metric_type, values in metrics_by_type.items():
                 if values:
                     summary[metric_type] = {
-                        'count': len(values),
-                        'mean': sum(values) / len(values),
-                        'min': min(values),
-                        'max': max(values),
-                        'sum': sum(values)
+                        "count": len(values),
+                        "mean": sum(values) / len(values),
+                        "min": min(values),
+                        "max": max(values),
+                        "sum": sum(values),
                     }
 
             db.close()
@@ -708,7 +751,7 @@ class MetricsCollectionService:
             logger.info(f"Processing {len(batches_to_process)} remaining batches")
             await asyncio.gather(
                 *[self._process_batch(batch) for batch in batches_to_process],
-                return_exceptions=True
+                return_exceptions=True,
             )
 
 

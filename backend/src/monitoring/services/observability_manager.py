@@ -7,20 +7,20 @@ alerting, and health checking components.
 """
 
 import asyncio
-import logging
-from typing import Dict, List, Optional, Any, Union
-from datetime import datetime, timedelta
-import uuid
 import json
+import logging
+import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Union
 
-from ..config.monitoring_config import get_monitoring_config, MonitoringConfig
-from .metrics_collector import MetricsCollector
-from .tracing_collector import TracingCollector
-from .log_aggregator import LogAggregator
+from ..config.monitoring_config import MonitoringConfig, get_monitoring_config
+from ..utils.exceptions import ObservabilityError
 from .alert_handler import AlertHandler
 from .health_check_hub import HealthCheckHub
-from ..utils.exceptions import ObservabilityError
+from .log_aggregator import LogAggregator
+from .metrics_collector import MetricsCollector
+from .tracing_collector import TracingCollector
 
 logger = logging.getLogger(__name__)
 
@@ -151,9 +151,9 @@ class ObservabilityManager:
                 "running": self._running,
                 "uptime_seconds": self._get_uptime_seconds() if self._running else 0,
                 "background_tasks_count": len(self._background_tasks),
-                "status": "healthy" if self._running else "stopped"
+                "status": "healthy" if self._running else "stopped",
             },
-            "services": {}
+            "services": {},
         }
 
         if not self._initialized:
@@ -162,19 +162,29 @@ class ObservabilityManager:
         try:
             # Get health status from each service
             if self.metrics_collector:
-                health_status["services"]["metrics"] = await self.metrics_collector.get_health_status()
+                health_status["services"][
+                    "metrics"
+                ] = await self.metrics_collector.get_health_status()
 
             if self.tracing_collector:
-                health_status["services"]["tracing"] = await self.tracing_collector.get_health_status()
+                health_status["services"][
+                    "tracing"
+                ] = await self.tracing_collector.get_health_status()
 
             if self.log_aggregator:
-                health_status["services"]["logging"] = await self.log_aggregator.get_health_status()
+                health_status["services"][
+                    "logging"
+                ] = await self.log_aggregator.get_health_status()
 
             if self.alert_handler:
-                health_status["services"]["alerting"] = await self.alert_handler.get_health_status()
+                health_status["services"][
+                    "alerting"
+                ] = await self.alert_handler.get_health_status()
 
             if self.health_check_hub:
-                health_status["services"]["health_checks"] = await self.health_check_hub.get_health_status()
+                health_status["services"][
+                    "health_checks"
+                ] = await self.health_check_hub.get_health_status()
 
             # Determine overall health
             service_statuses = [
@@ -194,12 +204,14 @@ class ObservabilityManager:
 
         return health_status
 
-    async def get_metrics(self,
-                         service: Optional[str] = None,
-                         metric_name: Optional[str] = None,
-                         start_time: Optional[datetime] = None,
-                         end_time: Optional[datetime] = None,
-                         labels: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    async def get_metrics(
+        self,
+        service: Optional[str] = None,
+        metric_name: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        labels: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
         """
         Get metrics from the metrics collector
 
@@ -221,16 +233,18 @@ class ObservabilityManager:
             metric_name=metric_name,
             start_time=start_time,
             end_time=end_time,
-            labels=labels
+            labels=labels,
         )
 
-    async def get_traces(self,
-                        trace_id: Optional[str] = None,
-                        service: Optional[str] = None,
-                        operation: Optional[str] = None,
-                        start_time: Optional[datetime] = None,
-                        end_time: Optional[datetime] = None,
-                        limit: int = 100) -> Dict[str, Any]:
+    async def get_traces(
+        self,
+        trace_id: Optional[str] = None,
+        service: Optional[str] = None,
+        operation: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 100,
+    ) -> Dict[str, Any]:
         """
         Get traces from the tracing collector
 
@@ -254,16 +268,18 @@ class ObservabilityManager:
             operation=operation,
             start_time=start_time,
             end_time=end_time,
-            limit=limit
+            limit=limit,
         )
 
-    async def get_logs(self,
-                      level: Optional[str] = None,
-                      service: Optional[str] = None,
-                      start_time: Optional[datetime] = None,
-                      end_time: Optional[datetime] = None,
-                      search: Optional[str] = None,
-                      limit: int = 100) -> Dict[str, Any]:
+    async def get_logs(
+        self,
+        level: Optional[str] = None,
+        service: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        search: Optional[str] = None,
+        limit: int = 100,
+    ) -> Dict[str, Any]:
         """
         Get logs from the log aggregator
 
@@ -287,16 +303,18 @@ class ObservabilityManager:
             start_time=start_time,
             end_time=end_time,
             search=search,
-            limit=limit
+            limit=limit,
         )
 
-    async def get_alerts(self,
-                        severity: Optional[str] = None,
-                        status: Optional[str] = None,
-                        service: Optional[str] = None,
-                        start_time: Optional[datetime] = None,
-                        end_time: Optional[datetime] = None,
-                        limit: int = 100) -> Dict[str, Any]:
+    async def get_alerts(
+        self,
+        severity: Optional[str] = None,
+        status: Optional[str] = None,
+        service: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 100,
+    ) -> Dict[str, Any]:
         """
         Get alerts from the alert handler
 
@@ -320,15 +338,17 @@ class ObservabilityManager:
             service=service,
             start_time=start_time,
             end_time=end_time,
-            limit=limit
+            limit=limit,
         )
 
-    async def create_alert_rule(self,
-                               name: str,
-                               conditions: Dict[str, Any],
-                               severity: str = "medium",
-                               channels: Optional[List[str]] = None,
-                               **kwargs) -> str:
+    async def create_alert_rule(
+        self,
+        name: str,
+        conditions: Dict[str, Any],
+        severity: str = "medium",
+        channels: Optional[List[str]] = None,
+        **kwargs,
+    ) -> str:
         """
         Create a new alert rule
 
@@ -350,10 +370,12 @@ class ObservabilityManager:
             conditions=conditions,
             severity=severity,
             channels=channels,
-            **kwargs
+            **kwargs,
         )
 
-    async def acknowledge_alert(self, alert_id: str, user: str, message: Optional[str] = None) -> bool:
+    async def acknowledge_alert(
+        self, alert_id: str, user: str, message: Optional[str] = None
+    ) -> bool:
         """
         Acknowledge an alert
 
@@ -369,12 +391,12 @@ class ObservabilityManager:
             raise ObservabilityError("Alert handler not initialized")
 
         return await self.alert_handler.acknowledge_alert(
-            alert_id=alert_id,
-            user=user,
-            message=message
+            alert_id=alert_id, user=user, message=message
         )
 
-    async def resolve_alert(self, alert_id: str, user: str, message: Optional[str] = None) -> bool:
+    async def resolve_alert(
+        self, alert_id: str, user: str, message: Optional[str] = None
+    ) -> bool:
         """
         Resolve an alert
 
@@ -390,9 +412,7 @@ class ObservabilityManager:
             raise ObservabilityError("Alert handler not initialized")
 
         return await self.alert_handler.resolve_alert(
-            alert_id=alert_id,
-            user=user,
-            message=message
+            alert_id=alert_id, user=user, message=message
         )
 
     async def get_service_health(self) -> Dict[str, Any]:
@@ -407,11 +427,13 @@ class ObservabilityManager:
         return str(uuid.uuid4())
 
     @asynccontextmanager
-    async def trace_operation(self,
-                             operation_name: str,
-                             service: str,
-                             component: Optional[str] = None,
-                             labels: Optional[Dict[str, str]] = None):
+    async def trace_operation(
+        self,
+        operation_name: str,
+        service: str,
+        component: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
+    ):
         """
         Context manager for tracing operations
 
@@ -430,7 +452,7 @@ class ObservabilityManager:
             operation_name=operation_name,
             service=service,
             component=component,
-            labels=labels or {}
+            labels=labels or {},
         )
 
         try:
@@ -438,9 +460,7 @@ class ObservabilityManager:
             await self.tracing_collector.finish_span(span_context, status="ok")
         except Exception as e:
             await self.tracing_collector.finish_span(
-                span_context,
-                status="error",
-                error=str(e)
+                span_context, status="error", error=str(e)
             )
             raise
 
@@ -520,32 +540,40 @@ class ObservabilityManager:
             "metrics": {
                 "instance": self.metrics_collector,
                 "enabled": self.metrics_collector is not None,
-                "config": self.config.metrics.dict() if self.metrics_collector else None
+                "config": self.config.metrics.dict()
+                if self.metrics_collector
+                else None,
             },
             "tracing": {
                 "instance": self.tracing_collector,
                 "enabled": self.tracing_collector is not None,
-                "config": self.config.tracing.dict() if self.tracing_collector else None
+                "config": self.config.tracing.dict()
+                if self.tracing_collector
+                else None,
             },
             "logging": {
                 "instance": self.log_aggregator,
                 "enabled": self.log_aggregator is not None,
-                "config": self.config.logging.dict() if self.log_aggregator else None
+                "config": self.config.logging.dict() if self.log_aggregator else None,
             },
             "alerting": {
                 "instance": self.alert_handler,
                 "enabled": self.alert_handler is not None,
-                "config": self.config.alerting.dict() if self.alert_handler else None
+                "config": self.config.alerting.dict() if self.alert_handler else None,
             },
             "health_checks": {
                 "instance": self.health_check_hub,
                 "enabled": self.health_check_hub is not None,
-                "config": self.config.health_check.dict() if self.health_check_hub else None
-            }
+                "config": self.config.health_check.dict()
+                if self.health_check_hub
+                else None,
+            },
         }
 
         self.service_registry = services
-        logger.info(f"✅ Registered {len([s for s in services.values() if s['enabled']])} monitoring services")
+        logger.info(
+            f"✅ Registered {len([s for s in services.values() if s['enabled']])} monitoring services"
+        )
 
     async def _start_services(self) -> None:
         """Start all monitoring services"""
@@ -554,7 +582,7 @@ class ObservabilityManager:
             self.tracing_collector,
             self.log_aggregator,
             self.alert_handler,
-            self.health_check_hub
+            self.health_check_hub,
         ]
 
         for service in services_to_start:
@@ -573,7 +601,7 @@ class ObservabilityManager:
             self.alert_handler,
             self.log_aggregator,
             self.tracing_collector,
-            self.metrics_collector
+            self.metrics_collector,
         ]
 
         for service in services_to_stop:
@@ -623,7 +651,7 @@ class ObservabilityManager:
             self.alert_handler,
             self.log_aggregator,
             self.tracing_collector,
-            self.metrics_collector
+            self.metrics_collector,
         ]
 
         for service in services_to_cleanup:
@@ -631,7 +659,9 @@ class ObservabilityManager:
                 try:
                     await self._cleanup_service(service)
                 except Exception as e:
-                    logger.error(f"❌ Error cleaning up {service.__class__.__name__}: {e}")
+                    logger.error(
+                        f"❌ Error cleaning up {service.__class__.__name__}: {e}"
+                    )
 
         # Clear service references
         self.metrics_collector = None
@@ -642,9 +672,9 @@ class ObservabilityManager:
 
     async def _cleanup_service(self, service) -> None:
         """Cleanup individual service"""
-        if hasattr(service, 'cleanup'):
+        if hasattr(service, "cleanup"):
             await service.cleanup()
-        elif hasattr(service, 'close'):
+        elif hasattr(service, "close"):
             await service.close()
 
     async def _metrics_collection_loop(self) -> None:
@@ -662,7 +692,9 @@ class ObservabilityManager:
                 break
             except Exception as e:
                 logger.error(f"Error in metrics collection loop: {e}")
-                await asyncio.sleep(min(interval, 60))  # Wait at least 1 minute on error
+                await asyncio.sleep(
+                    min(interval, 60)
+                )  # Wait at least 1 minute on error
 
     async def _health_check_loop(self) -> None:
         """Background loop for health checks"""
@@ -679,7 +711,9 @@ class ObservabilityManager:
                 break
             except Exception as e:
                 logger.error(f"Error in health check loop: {e}")
-                await asyncio.sleep(min(interval, 60))  # Wait at least 1 minute on error
+                await asyncio.sleep(
+                    min(interval, 60)
+                )  # Wait at least 1 minute on error
 
     async def _log_aggregation_loop(self) -> None:
         """Background loop for log aggregation"""
@@ -697,7 +731,9 @@ class ObservabilityManager:
                 break
             except Exception as e:
                 logger.error(f"Error in log aggregation loop: {e}")
-                await asyncio.sleep(min(interval, 60))  # Wait at least 1 minute on error
+                await asyncio.sleep(
+                    min(interval, 60)
+                )  # Wait at least 1 minute on error
 
 
 # Global observability manager instance

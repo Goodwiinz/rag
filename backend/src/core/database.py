@@ -2,23 +2,24 @@
 Database configuration and connection management
 """
 
+import logging
 import os
 import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
-from sqlalchemy import create_engine, text, event
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import StaticPool
-from sqlalchemy.exc import SQLAlchemyError
+
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-import logging
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 # Import base model from models
 from src.models.base import Base
-from src.models.user import User, UserRole
 from src.models.organization import Organization, StorageTier
+from src.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -311,13 +312,17 @@ SLOW_QUERY_THRESHOLD = float(os.getenv("SLOW_QUERY_THRESHOLD", "1.0"))
 
 
 @event.listens_for(Engine, "before_cursor_execute")
-def receive_before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+def receive_before_cursor_execute(
+    conn, cursor, statement, parameters, context, executemany
+):
     """Record query start time for performance monitoring"""
     context._query_start_time = time.time()
 
 
 @event.listens_for(Engine, "after_cursor_execute")
-def receive_after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+def receive_after_cursor_execute(
+    conn, cursor, statement, parameters, context, executemany
+):
     """Log slow queries for performance analysis"""
     total = time.time() - context._query_start_time
     if total > SLOW_QUERY_THRESHOLD:

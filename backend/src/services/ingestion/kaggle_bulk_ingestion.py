@@ -10,10 +10,10 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
-from typing import Any, Dict, Generator, List, Optional
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Dict, Generator, List, Optional
 
 import kagglehub
 from kagglehub import KaggleDatasetAdapter
@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class IngestionProgress:
     """Tracks ingestion progress"""
+
     total_papers: int = 0
     processed: int = 0
     ingested: int = 0
@@ -68,7 +69,7 @@ class IngestionProgress:
             "eta_seconds": round(self.eta_seconds, 2),
             "current_batch": self.current_batch,
             "total_batches": self.total_batches,
-            "progress_percent": self.progress_percent
+            "progress_percent": self.progress_percent,
         }
 
 
@@ -93,7 +94,7 @@ class KaggleBulkIngestionService:
         neo4j_user: str = None,
         neo4j_password: str = None,
         batch_size: int = 1000,
-        max_papers: int = 500000
+        max_papers: int = 500000,
     ):
         self.neo4j_uri = neo4j_uri or os.getenv("NEO4J_URI", "bolt://localhost:7687")
         self.neo4j_user = neo4j_user or os.getenv("NEO4J_USER", "neo4j")
@@ -110,9 +111,11 @@ class KaggleBulkIngestionService:
         self.STATE_FILE.parent.mkdir(exist_ok=True)
         if self.STATE_FILE.exists():
             try:
-                with open(self.STATE_FILE, 'r') as f:
+                with open(self.STATE_FILE, "r") as f:
                     self._state = json.load(f)
-                logger.info(f"Loaded state: {self._state.get('processed', 0)} papers previously processed")
+                logger.info(
+                    f"Loaded state: {self._state.get('processed', 0)} papers previously processed"
+                )
             except Exception as e:
                 logger.warning(f"Could not load state: {e}")
                 self._state = {}
@@ -123,7 +126,7 @@ class KaggleBulkIngestionService:
             self._state["processed"] = self.progress.processed
             self._state["ingested"] = self.progress.ingested
             self._state["last_updated"] = datetime.now(timezone.utc).isoformat()
-            with open(self.STATE_FILE, 'w') as f:
+            with open(self.STATE_FILE, "w") as f:
                 json.dump(self._state, f, indent=2)
         except Exception as e:
             logger.error(f"Could not save state: {e}")
@@ -131,9 +134,9 @@ class KaggleBulkIngestionService:
     async def connect_neo4j(self):
         """Connect to Neo4j database"""
         from neo4j import AsyncGraphDatabase
+
         self.driver = AsyncGraphDatabase.driver(
-            self.neo4j_uri,
-            auth=(self.neo4j_user, self.neo4j_password)
+            self.neo4j_uri, auth=(self.neo4j_user, self.neo4j_password)
         )
         # Verify connection
         async with self.driver.session() as session:
@@ -159,7 +162,14 @@ class KaggleBulkIngestionService:
         logger.info(f"Loading ArXiv dataset with streaming={streaming}")
 
         # Check for cached dataset file first
-        cache_dir = Path.home() / ".cache" / "kagglehub" / "datasets" / "Cornell-University" / "arxiv"
+        cache_dir = (
+            Path.home()
+            / ".cache"
+            / "kagglehub"
+            / "datasets"
+            / "Cornell-University"
+            / "arxiv"
+        )
         local_json = None
 
         # Search for existing downloaded file
@@ -174,7 +184,9 @@ class KaggleBulkIngestionService:
 
         # If not found, download in background thread
         if not local_json:
-            logger.info("Dataset not cached, downloading via kagglehub (this may take a while)...")
+            logger.info(
+                "Dataset not cached, downloading via kagglehub (this may take a while)..."
+            )
 
             # Run blocking download in thread pool
             def download_dataset():
@@ -207,7 +219,7 @@ class KaggleBulkIngestionService:
             Dict records from the file
         """
         logger.info(f"Reading dataset from {json_file}")
-        with open(json_file, 'r', encoding='utf-8') as f:
+        with open(json_file, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -227,7 +239,14 @@ class KaggleBulkIngestionService:
         logger.warning("Using synchronous load - this may block the event loop!")
 
         # Check for cached file
-        cache_dir = Path.home() / ".cache" / "kagglehub" / "datasets" / "Cornell-University" / "arxiv"
+        cache_dir = (
+            Path.home()
+            / ".cache"
+            / "kagglehub"
+            / "datasets"
+            / "Cornell-University"
+            / "arxiv"
+        )
         if cache_dir.exists():
             for version_dir in cache_dir.iterdir():
                 if version_dir.is_dir():
@@ -253,18 +272,19 @@ class KaggleBulkIngestionService:
         """
         try:
             # Extract paper ID from the record
-            paper_id = record.get('id', '')
+            paper_id = record.get("id", "")
             if not paper_id:
                 return None
 
             # Parse authors (stored as JSON string in the dataset)
-            authors_raw = record.get('authors_parsed', '[]')
+            authors_raw = record.get("authors_parsed", "[]")
             if isinstance(authors_raw, str):
                 try:
                     authors_list = json.loads(authors_raw)
                     authors = [
                         " ".join(filter(None, [a[1], a[0]])).strip()
-                        for a in authors_list if isinstance(a, list) and len(a) >= 2
+                        for a in authors_list
+                        if isinstance(a, list) and len(a) >= 2
                     ]
                 except json.JSONDecodeError:
                     authors = []
@@ -272,11 +292,11 @@ class KaggleBulkIngestionService:
                 authors = []
 
             # Parse categories
-            categories_raw = record.get('categories', '')
+            categories_raw = record.get("categories", "")
             categories = categories_raw.split() if categories_raw else []
 
             # Parse versions for dates
-            versions_raw = record.get('versions', '[]')
+            versions_raw = record.get("versions", "[]")
             published_date = None
             if isinstance(versions_raw, str):
                 try:
@@ -284,22 +304,22 @@ class KaggleBulkIngestionService:
                     if versions and isinstance(versions, list):
                         first_version = versions[0]
                         if isinstance(first_version, dict):
-                            published_date = first_version.get('created')
+                            published_date = first_version.get("created")
                 except json.JSONDecodeError:
                     pass
 
             return {
-                'id': paper_id,
-                'title': record.get('title', '').replace('\n', ' ').strip(),
-                'abstract': record.get('abstract', '').replace('\n', ' ').strip(),
-                'authors': authors,
-                'categories': categories,
-                'primary_category': categories[0] if categories else 'unknown',
-                'published': published_date or record.get('update_date', ''),
-                'doi': record.get('doi', ''),
-                'journal_ref': record.get('journal-ref', ''),
-                'license': record.get('license', ''),
-                'source': 'kaggle_arxiv'
+                "id": paper_id,
+                "title": record.get("title", "").replace("\n", " ").strip(),
+                "abstract": record.get("abstract", "").replace("\n", " ").strip(),
+                "authors": authors,
+                "categories": categories,
+                "primary_category": categories[0] if categories else "unknown",
+                "published": published_date or record.get("update_date", ""),
+                "doi": record.get("doi", ""),
+                "journal_ref": record.get("journal-ref", ""),
+                "license": record.get("license", ""),
+                "source": "kaggle_arxiv",
             }
 
         except Exception as e:
@@ -343,20 +363,24 @@ class KaggleBulkIngestionService:
 
             await session.run(
                 query,
-                paper_id=paper['id'],
-                title=paper['title'][:500] if paper['title'] else '',  # Limit title length
-                abstract=paper['abstract'][:5000] if paper['abstract'] else '',  # Limit abstract
-                primary_category=paper['primary_category'],
-                categories=paper['categories'],
-                published=paper['published'],
-                doi=paper.get('doi', ''),
-                journal_ref=paper.get('journal_ref', ''),
-                license=paper.get('license', ''),
-                source=paper['source']
+                paper_id=paper["id"],
+                title=paper["title"][:500]
+                if paper["title"]
+                else "",  # Limit title length
+                abstract=paper["abstract"][:5000]
+                if paper["abstract"]
+                else "",  # Limit abstract
+                primary_category=paper["primary_category"],
+                categories=paper["categories"],
+                published=paper["published"],
+                doi=paper.get("doi", ""),
+                journal_ref=paper.get("journal_ref", ""),
+                license=paper.get("license", ""),
+                source=paper["source"],
             )
 
             # Create author entities and relationships
-            for i, author in enumerate(paper['authors'][:20]):  # Limit to 20 authors
+            for i, author in enumerate(paper["authors"][:20]):  # Limit to 20 authors
                 if not author.strip():
                     continue
 
@@ -377,12 +401,12 @@ class KaggleBulkIngestionService:
                 await session.run(
                     author_query,
                     name=author[:200],  # Limit name length
-                    paper_id=paper['id'],
-                    position=i + 1
+                    paper_id=paper["id"],
+                    position=i + 1,
                 )
 
             # Create category nodes
-            for category in paper['categories'][:10]:  # Limit categories
+            for category in paper["categories"][:10]:  # Limit categories
                 cat_query = """
                 MERGE (c:CATEGORY {name: $name})
                 ON CREATE SET c.id = randomUUID(), c.created_at = datetime()
@@ -391,7 +415,7 @@ class KaggleBulkIngestionService:
                 MERGE (d)-[r:IN_CATEGORY]->(c)
                 ON CREATE SET r.created_at = datetime()
                 """
-                await session.run(cat_query, name=category, paper_id=paper['id'])
+                await session.run(cat_query, name=category, paper_id=paper["id"])
 
             return True
 
@@ -428,7 +452,7 @@ class KaggleBulkIngestionService:
         self,
         categories: Optional[List[str]] = None,
         resume: bool = True,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[callable] = None,
     ) -> Dict[str, Any]:
         """
         Run the bulk ingestion process
@@ -459,10 +483,10 @@ class KaggleBulkIngestionService:
 
             # Determine starting point for resume
             start_offset = 0
-            if resume and self._state.get('processed', 0) > 0:
-                start_offset = self._state['processed']
+            if resume and self._state.get("processed", 0) > 0:
+                start_offset = self._state["processed"]
                 self.progress.processed = start_offset
-                self.progress.ingested = self._state.get('ingested', 0)
+                self.progress.ingested = self._state.get("ingested", 0)
                 logger.info(f"Resuming from paper {start_offset}")
 
             batch = []
@@ -490,7 +514,7 @@ class KaggleBulkIngestionService:
 
                 # Filter by category if specified
                 if categories:
-                    if not any(cat in paper['categories'] for cat in categories):
+                    if not any(cat in paper["categories"] for cat in categories):
                         self.progress.skipped += 1
                         self.progress.processed += 1
                         continue
@@ -543,7 +567,7 @@ class KaggleBulkIngestionService:
                 "total_skipped": self.progress.skipped,
                 "elapsed_seconds": self.progress.elapsed_seconds,
                 "papers_per_second": self.progress.papers_per_second,
-                "categories_filter": categories
+                "categories_filter": categories,
             }
 
             logger.info(f"Ingestion completed: {summary}")
@@ -575,7 +599,7 @@ async def run_bulk_ingestion(
     max_papers: int = 500000,
     batch_size: int = 1000,
     categories: Optional[List[str]] = None,
-    resume: bool = True
+    resume: bool = True,
 ) -> Dict[str, Any]:
     """
     Convenience function to run bulk ingestion
@@ -589,36 +613,36 @@ async def run_bulk_ingestion(
     Returns:
         Ingestion summary
     """
-    service = KaggleBulkIngestionService(
-        batch_size=batch_size,
-        max_papers=max_papers
-    )
+    service = KaggleBulkIngestionService(batch_size=batch_size, max_papers=max_papers)
 
-    return await service.run_ingestion(
-        categories=categories,
-        resume=resume
-    )
+    return await service.run_ingestion(categories=categories, resume=resume)
 
 
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Bulk ingest ArXiv papers from Kaggle")
-    parser.add_argument("--max-papers", type=int, default=500000, help="Maximum papers to ingest")
+    parser.add_argument(
+        "--max-papers", type=int, default=500000, help="Maximum papers to ingest"
+    )
     parser.add_argument("--batch-size", type=int, default=1000, help="Batch size")
     parser.add_argument("--categories", nargs="+", help="Filter by categories")
-    parser.add_argument("--no-resume", action="store_true", help="Start fresh (don't resume)")
+    parser.add_argument(
+        "--no-resume", action="store_true", help="Start fresh (don't resume)"
+    )
 
     args = parser.parse_args()
 
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
-    asyncio.run(run_bulk_ingestion(
-        max_papers=args.max_papers,
-        batch_size=args.batch_size,
-        categories=args.categories,
-        resume=not args.no_resume
-    ))
+    asyncio.run(
+        run_bulk_ingestion(
+            max_papers=args.max_papers,
+            batch_size=args.batch_size,
+            categories=args.categories,
+            resume=not args.no_resume,
+        )
+    )

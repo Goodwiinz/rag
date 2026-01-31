@@ -8,31 +8,40 @@ system performance metrics with WebSocket support for live updates.
 import asyncio
 import json
 import logging
-import time
-import psutil
 import threading
-from typing import Dict, List, Any, Optional, Callable
-from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
-from collections import deque, defaultdict
-import redis
-import aiofiles
-import websockets
-import aiohttp
-from fastapi import WebSocket, WebSocketDisconnect
+import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from typing import Any, Callable, Dict, List, Optional
+
+import aiofiles
+import aiohttp
+import asyncio_mqtt as aiomqtt
 import numpy as np
 import pandas as pd
-from prometheus_client import Counter, Histogram, Gauge, CollectorRegistry, start_http_server
-import asyncio_mqtt as aiomqtt
+import psutil
+import redis
+import websockets
+from fastapi import WebSocket, WebSocketDisconnect
+from prometheus_client import (
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    Histogram,
+    start_http_server,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class RealtimeMetric:
     """Real-time metric data point"""
+
     timestamp: datetime
     name: str
     value: float
@@ -41,9 +50,11 @@ class RealtimeMetric:
     source: str
     severity: str = "info"  # info, warning, critical
 
+
 @dataclass
 class Alert:
     """Performance alert definition"""
+
     id: str
     name: str
     description: str
@@ -57,9 +68,11 @@ class Alert:
     trigger_count: int = 0
     cooldown_minutes: int = 5
 
+
 @dataclass
 class PerformanceSnapshot:
     """Complete performance snapshot"""
+
     timestamp: datetime
     system_metrics: Dict[str, Any]
     application_metrics: Dict[str, Any]
@@ -67,6 +80,7 @@ class PerformanceSnapshot:
     network_metrics: Dict[str, Any]
     custom_metrics: Dict[str, Any]
     alerts: List[Alert]
+
 
 class RealtimeMetricsCollector:
     """Collects real-time performance metrics from various sources"""
@@ -177,7 +191,7 @@ class RealtimeMetricsCollector:
             database_metrics=database_metrics,
             network_metrics=network_metrics,
             custom_metrics=custom_metrics,
-            alerts=list(self.active_alerts.values())
+            alerts=list(self.active_alerts.values()),
         )
 
     async def _process_snapshot(self, snapshot: PerformanceSnapshot):
@@ -199,7 +213,9 @@ class RealtimeMetricsCollector:
         # Broadcast to subscribers
         await self._broadcast_to_subscribers(snapshot)
 
-    def _snapshot_to_metrics(self, snapshot: PerformanceSnapshot) -> List[RealtimeMetric]:
+    def _snapshot_to_metrics(
+        self, snapshot: PerformanceSnapshot
+    ) -> List[RealtimeMetric]:
         """Convert snapshot to individual metrics"""
         metrics = []
         timestamp = snapshot.timestamp
@@ -207,50 +223,58 @@ class RealtimeMetricsCollector:
         # System metrics
         for key, value in snapshot.system_metrics.items():
             if isinstance(value, (int, float)):
-                metrics.append(RealtimeMetric(
-                    timestamp=timestamp,
-                    name=f"system.{key}",
-                    value=float(value),
-                    unit=self._get_metric_unit(key),
-                    tags={"source": "system"},
-                    source="system"
-                ))
+                metrics.append(
+                    RealtimeMetric(
+                        timestamp=timestamp,
+                        name=f"system.{key}",
+                        value=float(value),
+                        unit=self._get_metric_unit(key),
+                        tags={"source": "system"},
+                        source="system",
+                    )
+                )
 
         # Application metrics
         for key, value in snapshot.application_metrics.items():
             if isinstance(value, (int, float)):
-                metrics.append(RealtimeMetric(
-                    timestamp=timestamp,
-                    name=f"app.{key}",
-                    value=float(value),
-                    unit=self._get_metric_unit(key),
-                    tags={"source": "application"},
-                    source="application"
-                ))
+                metrics.append(
+                    RealtimeMetric(
+                        timestamp=timestamp,
+                        name=f"app.{key}",
+                        value=float(value),
+                        unit=self._get_metric_unit(key),
+                        tags={"source": "application"},
+                        source="application",
+                    )
+                )
 
         # Database metrics
         for key, value in snapshot.database_metrics.items():
             if isinstance(value, (int, float)):
-                metrics.append(RealtimeMetric(
-                    timestamp=timestamp,
-                    name=f"db.{key}",
-                    value=float(value),
-                    unit=self._get_metric_unit(key),
-                    tags={"source": "database"},
-                    source="database"
-                ))
+                metrics.append(
+                    RealtimeMetric(
+                        timestamp=timestamp,
+                        name=f"db.{key}",
+                        value=float(value),
+                        unit=self._get_metric_unit(key),
+                        tags={"source": "database"},
+                        source="database",
+                    )
+                )
 
         # Network metrics
         for key, value in snapshot.network_metrics.items():
             if isinstance(value, (int, float)):
-                metrics.append(RealtimeMetric(
-                    timestamp=timestamp,
-                    name=f"network.{key}",
-                    value=float(value),
-                    unit=self._get_metric_unit(key),
-                    tags={"source": "network"},
-                    source="network"
-                ))
+                metrics.append(
+                    RealtimeMetric(
+                        timestamp=timestamp,
+                        name=f"network.{key}",
+                        value=float(value),
+                        unit=self._get_metric_unit(key),
+                        tags={"source": "network"},
+                        source="network",
+                    )
+                )
 
         return metrics
 
@@ -281,7 +305,7 @@ class RealtimeMetricsCollector:
         swap = psutil.swap_memory()
 
         # Disk metrics
-        disk = psutil.disk_usage('/')
+        disk = psutil.disk_usage("/")
         disk_io = psutil.disk_io_counters()
 
         # Process metrics
@@ -316,7 +340,9 @@ class RealtimeMetricsCollector:
             "process_memory_vms": process_memory.vms,
             "process_cpu_percent": process_cpu,
             "process_num_threads": process.num_threads(),
-            "process_num_handles": process.num_handles() if hasattr(process, 'num_handles') else 0
+            "process_num_handles": process.num_handles()
+            if hasattr(process, "num_handles")
+            else 0,
         }
 
     async def _collect_application_metrics(self) -> Dict[str, Any]:
@@ -331,7 +357,7 @@ class RealtimeMetricsCollector:
             "cache_hit_ratio": 0.0,
             "active_sessions": 0,
             "queue_size": 0,
-            "processing_time": 0.0
+            "processing_time": 0.0,
         }
 
     async def _collect_database_metrics(self) -> Dict[str, Any]:
@@ -347,7 +373,7 @@ class RealtimeMetricsCollector:
             "buffer_pool_hit_ratio": 0.0,
             "temp_tables_created": 0,
             "lock_waits": 0,
-            "deadlocks": 0
+            "deadlocks": 0,
         }
 
     async def _collect_network_metrics(self) -> Dict[str, Any]:
@@ -361,7 +387,7 @@ class RealtimeMetricsCollector:
             "packets_sent": network.packets_sent if network else 0,
             "packets_recv": network.packets_recv if network else 0,
             "connections": connections,
-            "connection_rate": 0.0  # Would need to track over time
+            "connection_rate": 0.0,  # Would need to track over time
         }
 
     async def _store_in_redis(self, snapshot: PerformanceSnapshot):
@@ -382,11 +408,14 @@ class RealtimeMetricsCollector:
         if not self.subscribers:
             return
 
-        message = json.dumps({
-            "type": "snapshot",
-            "data": asdict(snapshot),
-            "timestamp": snapshot.timestamp.isoformat()
-        }, default=str)
+        message = json.dumps(
+            {
+                "type": "snapshot",
+                "data": asdict(snapshot),
+                "timestamp": snapshot.timestamp.isoformat(),
+            },
+            default=str,
+        )
 
         disconnected_clients = []
 
@@ -404,12 +433,36 @@ class RealtimeMetricsCollector:
     def _setup_prometheus_metrics(self):
         """Setup Prometheus metrics"""
         self.prometheus_metrics = {
-            "cpu_usage": Gauge("cpu_usage_percent", "CPU usage percentage", registry=self.prometheus_registry),
-            "memory_usage": Gauge("memory_usage_percent", "Memory usage percentage", registry=self.prometheus_registry),
-            "disk_usage": Gauge("disk_usage_percent", "Disk usage percentage", registry=self.prometheus_registry),
-            "request_duration": Histogram("request_duration_seconds", "Request duration", registry=self.prometheus_registry),
-            "request_count": Counter("request_count_total", "Total number of requests", registry=self.prometheus_registry),
-            "error_count": Counter("error_count_total", "Total number of errors", registry=self.prometheus_registry)
+            "cpu_usage": Gauge(
+                "cpu_usage_percent",
+                "CPU usage percentage",
+                registry=self.prometheus_registry,
+            ),
+            "memory_usage": Gauge(
+                "memory_usage_percent",
+                "Memory usage percentage",
+                registry=self.prometheus_registry,
+            ),
+            "disk_usage": Gauge(
+                "disk_usage_percent",
+                "Disk usage percentage",
+                registry=self.prometheus_registry,
+            ),
+            "request_duration": Histogram(
+                "request_duration_seconds",
+                "Request duration",
+                registry=self.prometheus_registry,
+            ),
+            "request_count": Counter(
+                "request_count_total",
+                "Total number of requests",
+                registry=self.prometheus_registry,
+            ),
+            "error_count": Counter(
+                "error_count_total",
+                "Total number of errors",
+                registry=self.prometheus_registry,
+            ),
         }
 
     def _update_prometheus_metrics(self, metrics: List[RealtimeMetric]):
@@ -417,9 +470,9 @@ class RealtimeMetricsCollector:
         for metric in metrics:
             prom_metric = self.prometheus_metrics.get(metric.name.replace(".", "_"))
             if prom_metric:
-                if hasattr(prom_metric, 'set'):
+                if hasattr(prom_metric, "set"):
                     prom_metric.set(metric.value)
-                elif hasattr(prom_metric, 'observe'):
+                elif hasattr(prom_metric, "observe"):
                     prom_metric.observe(metric.value)
 
     async def add_subscriber(self, websocket: WebSocket, client_id: str):
@@ -462,16 +515,16 @@ class RealtimeMetricsCollector:
 
                 # Evaluate alert condition
                 should_trigger = self._evaluate_alert_condition(
-                    latest_metric.value,
-                    alert_rule.condition,
-                    alert_rule.threshold
+                    latest_metric.value, alert_rule.condition, alert_rule.threshold
                 )
 
                 if should_trigger:
                     # Check cooldown
-                    if (alert_rule.last_triggered is None or
-                        current_time - alert_rule.last_triggered > timedelta(minutes=alert_rule.cooldown_minutes)):
-
+                    if (
+                        alert_rule.last_triggered is None
+                        or current_time - alert_rule.last_triggered
+                        > timedelta(minutes=alert_rule.cooldown_minutes)
+                    ):
                         await self._trigger_alert(alert_rule, latest_metric)
                 else:
                     # Clear alert if it was active
@@ -488,7 +541,9 @@ class RealtimeMetricsCollector:
                 return metric
         return None
 
-    def _evaluate_alert_condition(self, value: float, condition: str, threshold: float) -> bool:
+    def _evaluate_alert_condition(
+        self, value: float, condition: str, threshold: float
+    ) -> bool:
         """Evaluate alert condition"""
         if condition == "gt":
             return value > threshold
@@ -511,10 +566,7 @@ class RealtimeMetricsCollector:
         alert_rule.trigger_count += 1
 
         # Create active alert
-        active_alert = Alert(
-            **asdict(alert_rule),
-            is_active=True
-        )
+        active_alert = Alert(**asdict(alert_rule), is_active=True)
         self.active_alerts[alert_rule.id] = active_alert
 
         # Log alert
@@ -533,7 +585,7 @@ class RealtimeMetricsCollector:
             await self.redis_client.setex(
                 alert_key,
                 3600,  # Store for 1 hour
-                json.dumps(asdict(active_alert), default=str)
+                json.dumps(asdict(active_alert), default=str),
             )
 
     async def _clear_alert(self, alert_id: str):
@@ -558,11 +610,14 @@ class RealtimeMetricsCollector:
         if not self.subscribers:
             return
 
-        message = json.dumps({
-            "type": "alert",
-            "data": asdict(alert),
-            "timestamp": datetime.now().isoformat()
-        }, default=str)
+        message = json.dumps(
+            {
+                "type": "alert",
+                "data": asdict(alert),
+                "timestamp": datetime.now().isoformat(),
+            },
+            default=str,
+        )
 
         for client_id, websocket in self.subscribers.items():
             try:
@@ -575,17 +630,22 @@ class RealtimeMetricsCollector:
         if not self.subscribers:
             return
 
-        message = json.dumps({
-            "type": "alert_cleared",
-            "data": asdict(alert),
-            "timestamp": datetime.now().isoformat()
-        }, default=str)
+        message = json.dumps(
+            {
+                "type": "alert_cleared",
+                "data": asdict(alert),
+                "timestamp": datetime.now().isoformat(),
+            },
+            default=str,
+        )
 
         for client_id, websocket in self.subscribers.items():
             try:
                 await websocket.send_text(message)
             except Exception as e:
-                logger.error(f"Error broadcasting alert clearance to client {client_id}: {e}")
+                logger.error(
+                    f"Error broadcasting alert clearance to client {client_id}: {e}"
+                )
 
     async def _cleanup_loop(self):
         """Cleanup old data"""
@@ -621,15 +681,20 @@ class RealtimeMetricsCollector:
         """Get active alerts"""
         return list(self.active_alerts.values())
 
-    def get_metric_history(self, metric_name: str, minutes: int = 60) -> List[RealtimeMetric]:
+    def get_metric_history(
+        self, metric_name: str, minutes: int = 60
+    ) -> List[RealtimeMetric]:
         """Get history for a specific metric"""
         cutoff_time = datetime.now() - timedelta(minutes=minutes)
         return [
-            m for m in self.metrics_buffer
+            m
+            for m in self.metrics_buffer
             if m.name == metric_name and m.timestamp > cutoff_time
         ]
 
-    async def export_metrics(self, filename: str, format: str = "json", minutes: int = 60):
+    async def export_metrics(
+        self, filename: str, format: str = "json", minutes: int = 60
+    ):
         """Export metrics to file"""
         cutoff_time = datetime.now() - timedelta(minutes=minutes)
         recent_metrics = [m for m in self.metrics_buffer if m.timestamp > cutoff_time]
@@ -639,9 +704,9 @@ class RealtimeMetricsCollector:
                 "export_time": datetime.now().isoformat(),
                 "time_range_minutes": minutes,
                 "metrics_count": len(recent_metrics),
-                "metrics": [asdict(m) for m in recent_metrics]
+                "metrics": [asdict(m) for m in recent_metrics],
             }
-            with open(filename, 'w') as f:
+            with open(filename, "w") as f:
                 json.dump(data, f, indent=2, default=str)
 
         elif format.lower() == "csv":
@@ -650,6 +715,7 @@ class RealtimeMetricsCollector:
                 df.to_csv(filename, index=False)
 
         logger.info(f"Metrics exported to {filename}")
+
 
 # WebSocket manager for real-time updates
 class WebSocketManager:
@@ -678,15 +744,18 @@ class WebSocketManager:
         recent_metrics = self.metrics_collector.get_recent_metrics(minutes=1)
         active_alerts = self.metrics_collector.get_active_alerts()
 
-        message = json.dumps({
-            "type": "initial_state",
-            "data": {
-                "recent_metrics": [asdict(m) for m in recent_metrics],
-                "active_alerts": [asdict(a) for a in active_alerts],
-                "subscriber_count": len(self.metrics_collector.subscribers)
+        message = json.dumps(
+            {
+                "type": "initial_state",
+                "data": {
+                    "recent_metrics": [asdict(m) for m in recent_metrics],
+                    "active_alerts": [asdict(a) for a in active_alerts],
+                    "subscriber_count": len(self.metrics_collector.subscribers),
+                },
+                "timestamp": datetime.now().isoformat(),
             },
-            "timestamp": datetime.now().isoformat()
-        }, default=str)
+            default=str,
+        )
 
         await websocket.send_text(message)
 
@@ -702,6 +771,7 @@ class WebSocketManager:
                 await websocket.send_text(message)
             except Exception as e:
                 logger.error(f"Error broadcasting to client {client_id}: {e}")
+
 
 # Alert management system
 class AlertManager:
@@ -723,6 +793,7 @@ class AlertManager:
             except Exception as e:
                 logger.error(f"Error sending notification via {channel_name}: {e}")
 
+
 # Predefined alert rules
 def create_default_alert_rules() -> List[Alert]:
     """Create default alert rules"""
@@ -737,7 +808,7 @@ def create_default_alert_rules() -> List[Alert]:
             metric_name="system.cpu_percent",
             is_active=False,
             created_at=datetime.now(),
-            cooldown_minutes=5
+            cooldown_minutes=5,
         ),
         Alert(
             id="high_memory_usage",
@@ -749,7 +820,7 @@ def create_default_alert_rules() -> List[Alert]:
             metric_name="system.memory_percent",
             is_active=False,
             created_at=datetime.now(),
-            cooldown_minutes=5
+            cooldown_minutes=5,
         ),
         Alert(
             id="high_disk_usage",
@@ -761,7 +832,7 @@ def create_default_alert_rules() -> List[Alert]:
             metric_name="system.disk_percent",
             is_active=False,
             created_at=datetime.now(),
-            cooldown_minutes=10
+            cooldown_minutes=10,
         ),
         Alert(
             id="high_error_rate",
@@ -773,7 +844,7 @@ def create_default_alert_rules() -> List[Alert]:
             metric_name="app.error_rate",
             is_active=False,
             created_at=datetime.now(),
-            cooldown_minutes=5
+            cooldown_minutes=5,
         ),
         Alert(
             id="slow_response_time",
@@ -785,14 +856,16 @@ def create_default_alert_rules() -> List[Alert]:
             metric_name="app.avg_response_time",
             is_active=False,
             created_at=datetime.now(),
-            cooldown_minutes=5
-        )
+            cooldown_minutes=5,
+        ),
     ]
+
 
 # Initialize global instances
 metrics_collector = RealtimeMetricsCollector()
 websocket_manager = WebSocketManager(metrics_collector)
 alert_manager = AlertManager(metrics_collector)
+
 
 # Startup and shutdown functions
 async def initialize_monitoring(redis_url: Optional[str] = None):
@@ -808,6 +881,7 @@ async def initialize_monitoring(redis_url: Optional[str] = None):
     start_http_server(8001)
 
     logger.info("Real-time monitoring system initialized")
+
 
 async def shutdown_monitoring():
     """Shutdown monitoring system"""

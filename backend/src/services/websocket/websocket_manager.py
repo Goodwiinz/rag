@@ -6,36 +6,39 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timezone as dt_timezone, timedelta
-from typing import Dict, List, Optional, Set, Any, Callable
 from collections import defaultdict
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Set
 
 import redis.asyncio as redis
-from fastapi import WebSocket, WebSocketDisconnect, status, HTTPException
-from jose import jwt, JWTError
+from fastapi import HTTPException, WebSocket, WebSocketDisconnect, status
+from jose import JWTError, jwt
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
 
-from src.services.base import BaseService
 from src.core.config import settings
 from src.core.database import get_async_session
-from src.models.websocket_status import (
-    WebSocketConnection,
-    StatusUpdate,
-    ConnectionEvent,
-    ConnectionStatus,
-    UpdateType,
-    Priority
-)
 from src.models.document import ProcessingStatus
 from src.models.processing import JobStatus
+from src.models.websocket_status import (
+    ConnectionEvent,
+    ConnectionStatus,
+    Priority,
+    StatusUpdate,
+    UpdateType,
+    WebSocketConnection,
+)
+from src.services.base import BaseService
 
 logger = logging.getLogger(__name__)
 
+
 class MessageType(Enum):
     """WebSocket message types"""
+
     CONNECT = "connect"
     DISCONNECT = "disconnect"
     PING = "ping"
@@ -56,9 +59,11 @@ class MessageType(Enum):
     MESSAGE_UPDATED = "message_updated"
     CONVERSATION_UPDATED = "conversation_updated"
 
+
 @dataclass
 class WebSocketMessage:
     """Structured WebSocket message"""
+
     type: MessageType
     data: Dict[str, Any]
     timestamp: datetime
@@ -77,9 +82,11 @@ class WebSocketMessage:
         if isinstance(self.priority, str):
             self.priority = Priority(self.priority)
 
+
 @dataclass
 class ConnectionInfo:
     """Connection metadata"""
+
     user_id: str
     organization_id: str
     connection_id: str
@@ -120,6 +127,7 @@ class ConnectionInfo:
 
         return True
 
+
 class EnhancedConnectionManager(BaseService):
     """Enterprise-grade WebSocket connection manager with Redis clustering support"""
 
@@ -155,7 +163,7 @@ class EnhancedConnectionManager(BaseService):
                 settings.REDIS_URL,
                 encoding="utf-8",
                 decode_responses=True,
-                health_check_interval=30
+                health_check_interval=30,
             )
 
             # Test Redis connection
@@ -169,7 +177,9 @@ class EnhancedConnectionManager(BaseService):
             # Start background tasks
             self.heartbeat_task = asyncio.create_task(self._heartbeat_monitor())
             self.cleanup_task = asyncio.create_task(self._cleanup_stale_connections())
-            self.redis_listener_task = asyncio.create_task(self._redis_message_listener())
+            self.redis_listener_task = asyncio.create_task(
+                self._redis_message_listener()
+            )
 
         except Exception as e:
             logger.warning(f"Redis not available, running in single-instance mode: {e}")
@@ -207,21 +217,21 @@ class EnhancedConnectionManager(BaseService):
         await super().shutdown()
         logger.info("WebSocket Connection Manager shutdown complete")
 
-    async def authenticate_websocket(self, websocket: WebSocket, token: str) -> Optional[Dict[str, Any]]:
+    async def authenticate_websocket(
+        self, websocket: WebSocket, token: str
+    ) -> Optional[Dict[str, Any]]:
         """Authenticate WebSocket connection using JWT token"""
         try:
             if not token:
                 await websocket.close(
                     code=status.WS_1008_POLICY_VIOLATION,
-                    reason="Authentication token required"
+                    reason="Authentication token required",
                 )
                 return None
 
             # Decode JWT token
             payload = jwt.decode(
-                token,
-                settings.JWT_SECRET_KEY,
-                algorithms=[settings.JWT_ALGORITHM]
+                token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
             )
 
             user_id = payload.get("sub")
@@ -229,29 +239,26 @@ class EnhancedConnectionManager(BaseService):
 
             if not user_id or not organization_id:
                 await websocket.close(
-                    code=status.WS_1008_POLICY_VIOLATION,
-                    reason="Invalid token payload"
+                    code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token payload"
                 )
                 return None
 
             return {
                 "user_id": user_id,
                 "organization_id": organization_id,
-                "token_payload": payload
+                "token_payload": payload,
             }
 
         except JWTError as e:
             logger.warning(f"JWT authentication failed: {e}")
             await websocket.close(
-                code=status.WS_1008_POLICY_VIOLATION,
-                reason="Invalid or expired token"
+                code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired token"
             )
             return None
         except Exception as e:
             logger.error(f"WebSocket authentication error: {e}")
             await websocket.close(
-                code=status.WS_1011_INTERNAL_ERROR,
-                reason="Authentication error"
+                code=status.WS_1011_INTERNAL_ERROR, reason="Authentication error"
             )
             return None
 
@@ -261,7 +268,7 @@ class EnhancedConnectionManager(BaseService):
         user_id: str,
         organization_id: str,
         client_info: Dict[str, Any] = None,
-        auth_method: Optional[str] = None
+        auth_method: Optional[str] = None,
     ) -> str:
         """
         Internal helper that handles the common connection setup logic.
@@ -292,7 +299,7 @@ class EnhancedConnectionManager(BaseService):
             last_heartbeat=datetime.now(dt_timezone.utc),
             subscribed_channels=set(),
             message_filter=client_info.get("message_filter") if client_info else None,
-            client_info=client_info or {}
+            client_info=client_info or {},
         )
 
         # Store connection
@@ -306,7 +313,7 @@ class EnhancedConnectionManager(BaseService):
             event_type="connect",
             user_id=user_id,
             organization_id=organization_id,
-            client_info=client_info
+            client_info=client_info,
         )
 
         # Build welcome message data
@@ -315,7 +322,7 @@ class EnhancedConnectionManager(BaseService):
             "user_id": user_id,
             "organization_id": organization_id,
             "server_time": datetime.now(dt_timezone.utc).isoformat(),
-            "heartbeat_interval": self.heartbeat_interval
+            "heartbeat_interval": self.heartbeat_interval,
         }
         if auth_method:
             welcome_data["auth_method"] = auth_method
@@ -324,18 +331,22 @@ class EnhancedConnectionManager(BaseService):
         welcome_message = WebSocketMessage(
             type=MessageType.CONNECT,
             data=welcome_data,
-            timestamp=datetime.now(dt_timezone.utc)
+            timestamp=datetime.now(dt_timezone.utc),
         )
 
         await self.send_message_to_connection(connection_id, welcome_message)
 
         # Log connection established
         auth_label = f" ({auth_method})" if auth_method else ""
-        logger.info(f"WebSocket connection established{auth_label}: {connection_id} for user {user_id}")
+        logger.info(
+            f"WebSocket connection established{auth_label}: {connection_id} for user {user_id}"
+        )
 
         return connection_id
 
-    async def connect(self, websocket: WebSocket, token: str, client_info: Dict[str, Any] = None) -> Optional[str]:
+    async def connect(
+        self, websocket: WebSocket, token: str, client_info: Dict[str, Any] = None
+    ) -> Optional[str]:
         """Accept and manage new WebSocket connection with token authentication"""
         # Authenticate connection
         auth_result = await self.authenticate_websocket(websocket, token)
@@ -345,8 +356,7 @@ class EnhancedConnectionManager(BaseService):
         # Check connection limits
         if len(self.active_connections) >= self.max_connections:
             await websocket.close(
-                code=status.WS_1013_TRY_AGAIN_LATER,
-                reason="Server at maximum capacity"
+                code=status.WS_1013_TRY_AGAIN_LATER, reason="Server at maximum capacity"
             )
             return None
 
@@ -359,7 +369,7 @@ class EnhancedConnectionManager(BaseService):
             user_id=auth_result["user_id"],
             organization_id=auth_result["organization_id"],
             client_info=client_info,
-            auth_method=None
+            auth_method=None,
         )
 
     async def connect_authenticated(
@@ -368,7 +378,7 @@ class EnhancedConnectionManager(BaseService):
         user_id: str,
         organization_id: str,
         client_info: Dict[str, Any] = None,
-        subprotocol: Optional[str] = None
+        subprotocol: Optional[str] = None,
     ) -> Optional[str]:
         """
         Accept and manage a pre-authenticated WebSocket connection.
@@ -390,8 +400,7 @@ class EnhancedConnectionManager(BaseService):
         # Check connection limits
         if len(self.active_connections) >= self.max_connections:
             await websocket.close(
-                code=status.WS_1013_TRY_AGAIN_LATER,
-                reason="Server at maximum capacity"
+                code=status.WS_1013_TRY_AGAIN_LATER, reason="Server at maximum capacity"
             )
             return None
 
@@ -407,7 +416,7 @@ class EnhancedConnectionManager(BaseService):
             user_id=user_id,
             organization_id=organization_id,
             client_info=client_info,
-            auth_method="secure"
+            auth_method="secure",
         )
 
     async def disconnect(self, connection_id: str, reason: str = None):
@@ -420,7 +429,9 @@ class EnhancedConnectionManager(BaseService):
         # Remove from tracking
         del self.active_connections[connection_id]
         self.user_connections[connection_info.user_id].discard(connection_id)
-        self.organization_connections[connection_info.organization_id].discard(connection_id)
+        self.organization_connections[connection_info.organization_id].discard(
+            connection_id
+        )
 
         # Remove from channel subscriptions
         for channel in connection_info.subscribed_channels:
@@ -432,10 +443,12 @@ class EnhancedConnectionManager(BaseService):
             event_type="disconnect",
             user_id=connection_info.user_id,
             organization_id=connection_info.organization_id,
-            event_data={"reason": reason}
+            event_data={"reason": reason},
         )
 
-        logger.info(f"WebSocket connection closed: {connection_id} - {reason or 'Unknown reason'}")
+        logger.info(
+            f"WebSocket connection closed: {connection_id} - {reason or 'Unknown reason'}"
+        )
 
     async def subscribe_to_channel(self, connection_id: str, channel: str) -> bool:
         """Subscribe connection to a channel"""
@@ -449,11 +462,8 @@ class EnhancedConnectionManager(BaseService):
         # Send confirmation
         confirmation_message = WebSocketMessage(
             type=MessageType.SUBSCRIBE,
-            data={
-                "channel": channel,
-                "subscribed": True
-            },
-            timestamp=datetime.now(dt_timezone.utc)
+            data={"channel": channel, "subscribed": True},
+            timestamp=datetime.now(dt_timezone.utc),
         )
 
         await self.send_message_to_connection(connection_id, confirmation_message)
@@ -471,17 +481,16 @@ class EnhancedConnectionManager(BaseService):
         # Send confirmation
         confirmation_message = WebSocketMessage(
             type=MessageType.UNSUBSCRIBE,
-            data={
-                "channel": channel,
-                "subscribed": False
-            },
-            timestamp=datetime.now(dt_timezone.utc)
+            data={"channel": channel, "subscribed": False},
+            timestamp=datetime.now(dt_timezone.utc),
         )
 
         await self.send_message_to_connection(connection_id, confirmation_message)
         return True
 
-    async def send_message_to_connection(self, connection_id: str, message: WebSocketMessage) -> bool:
+    async def send_message_to_connection(
+        self, connection_id: str, message: WebSocketMessage
+    ) -> bool:
         """Send message to specific connection"""
         if connection_id not in self.active_connections:
             return False
@@ -495,14 +504,16 @@ class EnhancedConnectionManager(BaseService):
                 "type": message.type.value,
                 "data": message.data,
                 "timestamp": message.timestamp.isoformat(),
-                "priority": message.priority.value
+                "priority": message.priority.value,
             }
 
             # Send message
             await connection_info.websocket.send_json(payload)
 
             # Record message metrics if we have a database record
-            await self._record_message_metrics(connection_id, "sent", len(json.dumps(payload)))
+            await self._record_message_metrics(
+                connection_id, "sent", len(json.dumps(payload))
+            )
 
             return True
 
@@ -535,9 +546,11 @@ class EnhancedConnectionManager(BaseService):
                 broadcast_payload = {
                     "channel": channel,
                     "message": asdict(message),
-                    "source_instance": getattr(self, 'instance_id', 'unknown')
+                    "source_instance": getattr(self, "instance_id", "unknown"),
                 }
-                await self.redis_client.publish("websocket_broadcast", json.dumps(broadcast_payload))
+                await self.redis_client.publish(
+                    "websocket_broadcast", json.dumps(broadcast_payload)
+                )
             except Exception as e:
                 logger.error(f"Failed to broadcast message via Redis: {e}")
 
@@ -551,7 +564,9 @@ class EnhancedConnectionManager(BaseService):
                 if connection_info.should_receive_message(message):
                     await self.send_message_to_connection(connection_id, message)
 
-    async def broadcast_to_organization(self, organization_id: str, message: WebSocketMessage):
+    async def broadcast_to_organization(
+        self, organization_id: str, message: WebSocketMessage
+    ):
         """Broadcast message to all connections in an organization"""
         connection_ids = self.organization_connections.get(organization_id, set())
 
@@ -580,7 +595,7 @@ class EnhancedConnectionManager(BaseService):
                 pong_message = WebSocketMessage(
                     type=MessageType.PONG,
                     data={"timestamp": datetime.now(dt_timezone.utc).isoformat()},
-                    timestamp=datetime.now(dt_timezone.utc)
+                    timestamp=datetime.now(dt_timezone.utc),
                 )
                 await self.send_message_to_connection(connection_id, pong_message)
 
@@ -599,7 +614,9 @@ class EnhancedConnectionManager(BaseService):
                 await self._handle_status_update(connection_id, message_data)
 
             else:
-                logger.warning(f"Unknown message type: {message_type} from {connection_id}")
+                logger.warning(
+                    f"Unknown message type: {message_type} from {connection_id}"
+                )
 
         except json.JSONDecodeError:
             logger.warning(f"Invalid JSON from {connection_id}: {raw_message}")
@@ -610,13 +627,15 @@ class EnhancedConnectionManager(BaseService):
                 type=MessageType.ERROR,
                 data={
                     "error": "Message processing failed",
-                    "details": str(e) if settings.DEBUG else "Internal error"
+                    "details": str(e) if settings.DEBUG else "Internal error",
                 },
-                timestamp=datetime.now(dt_timezone.utc)
+                timestamp=datetime.now(dt_timezone.utc),
             )
             await self.send_message_to_connection(connection_id, error_message)
 
-    async def _handle_status_update(self, connection_id: str, status_data: Dict[str, Any]):
+    async def _handle_status_update(
+        self, connection_id: str, status_data: Dict[str, Any]
+    ):
         """Handle status update from client"""
         connection_info = self.active_connections[connection_id]
 
@@ -633,7 +652,7 @@ class EnhancedConnectionManager(BaseService):
             event_type="status_update",
             user_id=connection_info.user_id,
             organization_id=connection_info.organization_id,
-            event_data=status_data
+            event_data=status_data,
         )
 
     async def _heartbeat_monitor(self):
@@ -647,7 +666,9 @@ class EnhancedConnectionManager(BaseService):
 
                 for connection_id, connection_info in self.active_connections.items():
                     # Check if connection is stale
-                    time_since_heartbeat = (current_time - connection_info.last_heartbeat).total_seconds()
+                    time_since_heartbeat = (
+                        current_time - connection_info.last_heartbeat
+                    ).total_seconds()
 
                     if time_since_heartbeat > self.connection_timeout:
                         stale_connections.append(connection_id)
@@ -656,16 +677,22 @@ class EnhancedConnectionManager(BaseService):
                         ping_message = WebSocketMessage(
                             type=MessageType.PING,
                             data={"timestamp": current_time.isoformat()},
-                            timestamp=current_time
+                            timestamp=current_time,
                         )
-                        await self.send_message_to_connection(connection_id, ping_message)
+                        await self.send_message_to_connection(
+                            connection_id, ping_message
+                        )
 
                 # Clean up stale connections
                 for connection_id in stale_connections:
-                    await self.disconnect(connection_id, "Connection timeout - no heartbeat")
+                    await self.disconnect(
+                        connection_id, "Connection timeout - no heartbeat"
+                    )
 
                 if stale_connections:
-                    logger.info(f"Cleaned up {len(stale_connections)} stale WebSocket connections")
+                    logger.info(
+                        f"Cleaned up {len(stale_connections)} stale WebSocket connections"
+                    )
 
             except asyncio.CancelledError:
                 break
@@ -706,27 +733,27 @@ class EnhancedConnectionManager(BaseService):
         while True:
             try:
                 message = await self.redis_pubsub.get_message(timeout=1.0)
-                if message and message['type'] == 'message':
+                if message and message["type"] == "message":
                     try:
-                        broadcast_data = json.loads(message['data'])
+                        broadcast_data = json.loads(message["data"])
 
                         # Ignore our own broadcasts
-                        source_instance = broadcast_data.get('source_instance')
-                        if source_instance == getattr(self, 'instance_id', 'unknown'):
+                        source_instance = broadcast_data.get("source_instance")
+                        if source_instance == getattr(self, "instance_id", "unknown"):
                             continue
 
                         # Process the broadcast
-                        channel = broadcast_data['channel']
-                        message_dict = broadcast_data['message']
+                        channel = broadcast_data["channel"]
+                        message_dict = broadcast_data["message"]
 
                         # Reconstruct WebSocketMessage
                         message = WebSocketMessage(
-                            type=MessageType(message_dict['type']),
-                            data=message_dict['data'],
-                            timestamp=datetime.fromisoformat(message_dict['timestamp']),
-                            message_id=message_dict['id'],
-                            priority=Priority(message_dict['priority']),
-                            target_channels=message_dict.get('target_channels', [])
+                            type=MessageType(message_dict["type"]),
+                            data=message_dict["data"],
+                            timestamp=datetime.fromisoformat(message_dict["timestamp"]),
+                            message_id=message_dict["id"],
+                            priority=Priority(message_dict["priority"]),
+                            target_channels=message_dict.get("target_channels", []),
                         )
 
                         # Forward to local subscribers
@@ -741,9 +768,15 @@ class EnhancedConnectionManager(BaseService):
                 logger.error(f"Redis message listener error: {e}")
                 await asyncio.sleep(1)
 
-    async def _log_connection_event(self, connection_id: str, event_type: str,
-                                  user_id: str, organization_id: str,
-                                  client_info: Dict = None, event_data: Dict = None):
+    async def _log_connection_event(
+        self,
+        connection_id: str,
+        event_type: str,
+        user_id: str,
+        organization_id: str,
+        client_info: Dict = None,
+        event_data: Dict = None,
+    ):
         """Log connection event to database"""
         try:
             async with get_async_session() as session:
@@ -754,12 +787,16 @@ class EnhancedConnectionManager(BaseService):
         except Exception as e:
             logger.error(f"Failed to log connection event: {e}")
 
-    async def _record_message_metrics(self, connection_id: str, direction: str, size_bytes: int):
+    async def _record_message_metrics(
+        self, connection_id: str, direction: str, size_bytes: int
+    ):
         """Record message metrics in database"""
         try:
             # For now, just log metrics - full implementation would update
             # the WebSocketConnection record in the database
-            logger.debug(f"Message metrics: {direction} {size_bytes} bytes to {connection_id}")
+            logger.debug(
+                f"Message metrics: {direction} {size_bytes} bytes to {connection_id}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to record message metrics: {e}")
@@ -775,7 +812,7 @@ class EnhancedConnectionManager(BaseService):
                 for channel, subscribers in self.channel_subscribers.items()
             },
             "max_connections": self.max_connections,
-            "redis_enabled": self.redis_client is not None
+            "redis_enabled": self.redis_client is not None,
         }
 
     def get_user_connections(self, user_id: str) -> List[str]:
@@ -785,6 +822,7 @@ class EnhancedConnectionManager(BaseService):
     def get_organization_connections(self, organization_id: str) -> List[str]:
         """Get all connection IDs for an organization"""
         return list(self.organization_connections.get(organization_id, set()))
+
 
 # Global connection manager instance
 connection_manager = EnhancedConnectionManager()

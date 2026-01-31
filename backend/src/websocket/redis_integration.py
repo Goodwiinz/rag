@@ -7,16 +7,18 @@ import asyncio
 import json
 import logging
 import time
+import uuid
 import zlib
-from typing import Dict, List, Optional, Any, Callable, Union, Set
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Set, Union
+
 import redis.asyncio as redis
 from redis.asyncio import ConnectionPool
-import uuid
 
 logger = logging.getLogger(__name__)
+
 
 class CacheStrategy(Enum):
     LRU = "lru"
@@ -25,13 +27,16 @@ class CacheStrategy(Enum):
     WRITE_THROUGH = "write_through"
     WRITE_BEHIND = "write_behind"
 
+
 class SerializationMethod(Enum):
     JSON = "json"
     COMPRESSED_JSON = "compressed_json"
 
+
 @dataclass
 class RedisConfig:
     """Redis configuration for WebSocket services"""
+
     url: str = "redis://localhost:6379"
     max_connections: int = 100
     retry_on_timeout: bool = True
@@ -40,23 +45,28 @@ class RedisConfig:
     health_check_interval: int = 30
     decode_responses: bool = True
 
+
 @dataclass
 class CacheConfig:
     """Cache configuration"""
+
     default_ttl: int = 3600  # 1 hour
     max_size: int = 10000
     cleanup_interval: int = 300  # 5 minutes
     compression_threshold: int = 1024  # Compress if > 1KB
     serialization_method: SerializationMethod = SerializationMethod.JSON
 
+
 @dataclass
 class PubSubConfig:
     """Pub/Sub configuration"""
+
     max_subscribers: int = 1000
     message_queue_size: int = 10000
     retry_attempts: int = 3
     retry_delay: float = 1.0
     dead_letter_queue: str = "ws:dlq"
+
 
 class WebSocketRedisManager:
     """
@@ -67,7 +77,7 @@ class WebSocketRedisManager:
         self,
         redis_config: RedisConfig = None,
         cache_config: CacheConfig = None,
-        pubsub_config: PubSubConfig = None
+        pubsub_config: PubSubConfig = None,
     ):
         self.redis_config = redis_config or RedisConfig()
         self.cache_config = cache_config or CacheConfig()
@@ -89,16 +99,16 @@ class WebSocketRedisManager:
 
         # Performance metrics
         self._metrics = {
-            'cache_hits': 0,
-            'cache_misses': 0,
-            'cache_sets': 0,
-            'cache_deletes': 0,
-            'pubsub_messages_sent': 0,
-            'pubsub_messages_received': 0,
-            'redis_commands': 0,
-            'redis_errors': 0,
-            'serialization_time': 0,
-            'compression_time': 0
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "cache_sets": 0,
+            "cache_deletes": 0,
+            "pubsub_messages_sent": 0,
+            "pubsub_messages_received": 0,
+            "redis_commands": 0,
+            "redis_errors": 0,
+            "serialization_time": 0,
+            "compression_time": 0,
         }
 
         # Background tasks
@@ -115,7 +125,7 @@ class WebSocketRedisManager:
                 retry_on_timeout=self.redis_config.retry_on_timeout,
                 socket_timeout=self.redis_config.socket_timeout,
                 socket_connect_timeout=self.redis_config.socket_connect_timeout,
-                decode_responses=self.redis_config.decode_responses
+                decode_responses=self.redis_config.decode_responses,
             )
 
             # Create Redis client
@@ -178,7 +188,7 @@ class WebSocketRedisManager:
             if use_local_cache:
                 local_value = self._get_from_local_cache(key)
                 if local_value is not None:
-                    self._metrics['cache_hits'] += 1
+                    self._metrics["cache_hits"] += 1
                     return local_value
 
             # Try Redis
@@ -191,14 +201,14 @@ class WebSocketRedisManager:
                 if use_local_cache:
                     self._set_local_cache(key, deserialized_value)
 
-                self._metrics['cache_hits'] += 1
+                self._metrics["cache_hits"] += 1
                 return deserialized_value
 
-            self._metrics['cache_misses'] += 1
+            self._metrics["cache_misses"] += 1
             return None
 
         except Exception as e:
-            self._metrics['redis_errors'] += 1
+            self._metrics["redis_errors"] += 1
             logger.error(f"Error getting cache key {key}: {e}")
             return None
 
@@ -208,7 +218,7 @@ class WebSocketRedisManager:
         value: Any,
         ttl: Optional[int] = None,
         use_local_cache: bool = True,
-        serialize_method: Optional[SerializationMethod] = None
+        serialize_method: Optional[SerializationMethod] = None,
     ) -> bool:
         """Set value in cache (Redis and optionally local cache)"""
         start_time = time.time()
@@ -217,10 +227,9 @@ class WebSocketRedisManager:
             # Serialize value
             serialization_start = time.time()
             serialized_value = await self._serialize(
-                value,
-                serialize_method or self.cache_config.serialization_method
+                value, serialize_method or self.cache_config.serialization_method
             )
-            self._metrics['serialization_time'] += time.time() - serialization_start
+            self._metrics["serialization_time"] += time.time() - serialization_start
 
             # Set in Redis
             ttl = ttl or self.cache_config.default_ttl
@@ -230,12 +239,12 @@ class WebSocketRedisManager:
             if use_local_cache:
                 self._set_local_cache(key, value, ttl)
 
-            self._metrics['cache_sets'] += 1
-            self._metrics['redis_commands'] += 1
+            self._metrics["cache_sets"] += 1
+            self._metrics["redis_commands"] += 1
             return True
 
         except Exception as e:
-            self._metrics['redis_errors'] += 1
+            self._metrics["redis_errors"] += 1
             logger.error(f"Error setting cache key {key}: {e}")
             return False
 
@@ -244,12 +253,12 @@ class WebSocketRedisManager:
         try:
             await self._redis_client.delete(key)
             self._delete_from_local_cache(key)
-            self._metrics['cache_deletes'] += 1
-            self._metrics['redis_commands'] += 1
+            self._metrics["cache_deletes"] += 1
+            self._metrics["redis_commands"] += 1
             return True
 
         except Exception as e:
-            self._metrics['redis_errors'] += 1
+            self._metrics["redis_errors"] += 1
             logger.error(f"Error deleting cache key {key}: {e}")
             return False
 
@@ -270,18 +279,16 @@ class WebSocketRedisManager:
                 else:
                     result[key] = None
 
-            self._metrics['redis_commands'] += 1
+            self._metrics["redis_commands"] += 1
             return result
 
         except Exception as e:
-            self._metrics['redis_errors'] += 1
+            self._metrics["redis_errors"] += 1
             logger.error(f"Error getting multiple cache keys: {e}")
             return {key: None for key in keys}
 
     async def set_multiple(
-        self,
-        items: Dict[str, Any],
-        ttl: Optional[int] = None
+        self, items: Dict[str, Any], ttl: Optional[int] = None
     ) -> bool:
         """Set multiple values in cache efficiently"""
         try:
@@ -293,12 +300,12 @@ class WebSocketRedisManager:
                 pipe.setex(key, ttl, serialized_value)
 
             await pipe.execute()
-            self._metrics['cache_sets'] += len(items)
-            self._metrics['redis_commands'] += 1
+            self._metrics["cache_sets"] += len(items)
+            self._metrics["redis_commands"] += 1
             return True
 
         except Exception as e:
-            self._metrics['redis_errors'] += 1
+            self._metrics["redis_errors"] += 1
             logger.error(f"Error setting multiple cache keys: {e}")
             return False
 
@@ -309,12 +316,12 @@ class WebSocketRedisManager:
         try:
             serialized_message = json.dumps(message, default=str)
             await self._redis_client.publish(channel, serialized_message)
-            self._metrics['pubsub_messages_sent'] += 1
-            self._metrics['redis_commands'] += 1
+            self._metrics["pubsub_messages_sent"] += 1
+            self._metrics["redis_commands"] += 1
             return True
 
         except Exception as e:
-            self._metrics['redis_errors'] += 1
+            self._metrics["redis_errors"] += 1
             logger.error(f"Error publishing to channel {channel}: {e}")
             return False
 
@@ -332,7 +339,7 @@ class WebSocketRedisManager:
             return True
 
         except Exception as e:
-            self._metrics['redis_errors'] += 1
+            self._metrics["redis_errors"] += 1
             logger.error(f"Error subscribing to channel {channel}: {e}")
             return False
 
@@ -352,7 +359,7 @@ class WebSocketRedisManager:
             return True
 
         except Exception as e:
-            self._metrics['redis_errors'] += 1
+            self._metrics["redis_errors"] += 1
             logger.error(f"Error unsubscribing from channel {channel}: {e}")
             return False
 
@@ -364,17 +371,17 @@ class WebSocketRedisManager:
         user_id: str,
         organization_id: str,
         data: Dict[str, Any],
-        ttl: int = 3600
+        ttl: int = 3600,
     ) -> bool:
         """Create WebSocket session in Redis"""
         session_key = f"ws:session:{session_id}"
         session_data = {
-            'session_id': session_id,
-            'user_id': user_id,
-            'organization_id': organization_id,
-            'created_at': datetime.utcnow().isoformat(),
-            'last_activity': datetime.utcnow().isoformat(),
-            'data': json.dumps(data)
+            "session_id": session_id,
+            "user_id": user_id,
+            "organization_id": organization_id,
+            "created_at": datetime.utcnow().isoformat(),
+            "last_activity": datetime.utcnow().isoformat(),
+            "data": json.dumps(data),
         }
 
         return await self.set(session_key, session_data, ttl, use_local_cache=False)
@@ -386,9 +393,9 @@ class WebSocketRedisManager:
 
         if session_data:
             # Parse JSON data
-            if isinstance(session_data.get('data'), str):
+            if isinstance(session_data.get("data"), str):
                 try:
-                    session_data['data'] = json.loads(session_data['data'])
+                    session_data["data"] = json.loads(session_data["data"])
                 except json.JSONDecodeError:
                     pass
 
@@ -399,9 +406,7 @@ class WebSocketRedisManager:
         session_key = f"ws:session:{session_id}"
         try:
             await self._redis_client.hset(
-                session_key,
-                'last_activity',
-                datetime.utcnow().isoformat()
+                session_key, "last_activity", datetime.utcnow().isoformat()
             )
             return True
         except Exception as e:
@@ -420,19 +425,21 @@ class WebSocketRedisManager:
         connection_id: str,
         user_id: str,
         organization_id: str,
-        metadata: Dict[str, Any] = None
+        metadata: Dict[str, Any] = None,
     ) -> bool:
         """Add WebSocket connection to registry"""
         conn_key = f"ws:connection:{connection_id}"
         conn_data = {
-            'connection_id': connection_id,
-            'user_id': user_id,
-            'organization_id': organization_id,
-            'created_at': datetime.utcnow().isoformat(),
-            'metadata': json.dumps(metadata or {})
+            "connection_id": connection_id,
+            "user_id": user_id,
+            "organization_id": organization_id,
+            "created_at": datetime.utcnow().isoformat(),
+            "metadata": json.dumps(metadata or {}),
         }
 
-        return await self.set(conn_key, conn_data, ttl=7200, use_local_cache=False)  # 2 hours
+        return await self.set(
+            conn_key, conn_data, ttl=7200, use_local_cache=False
+        )  # 2 hours
 
     async def remove_connection(self, connection_id: str) -> bool:
         """Remove WebSocket connection from registry"""
@@ -448,8 +455,8 @@ class WebSocketRedisManager:
 
             for key in keys:
                 conn_data = await self.get(key, use_local_cache=False)
-                if conn_data and conn_data.get('user_id') == user_id:
-                    user_connections.append(conn_data['connection_id'])
+                if conn_data and conn_data.get("user_id") == user_id:
+                    user_connections.append(conn_data["connection_id"])
 
             return user_connections
 
@@ -466,8 +473,8 @@ class WebSocketRedisManager:
 
             for key in keys:
                 conn_data = await self.get(key, use_local_cache=False)
-                if conn_data and conn_data.get('organization_id') == organization_id:
-                    org_connections.append(conn_data['connection_id'])
+                if conn_data and conn_data.get("organization_id") == organization_id:
+                    org_connections.append(conn_data["connection_id"])
 
             return org_connections
 
@@ -484,30 +491,36 @@ class WebSocketRedisManager:
             redis_info = await self._redis_client.info()
 
             return {
-                'redis_metrics': {
-                    'connected_clients': redis_info.get('connected_clients', 0),
-                    'used_memory': redis_info.get('used_memory', 0),
-                    'used_memory_human': redis_info.get('used_memory_human', '0B'),
-                    'total_commands_processed': redis_info.get('total_commands_processed', 0),
-                    'instantaneous_ops_per_sec': redis_info.get('instantaneous_ops_per_sec', 0),
-                    'keyspace_hits': redis_info.get('keyspace_hits', 0),
-                    'keyspace_misses': redis_info.get('keyspace_misses', 0),
+                "redis_metrics": {
+                    "connected_clients": redis_info.get("connected_clients", 0),
+                    "used_memory": redis_info.get("used_memory", 0),
+                    "used_memory_human": redis_info.get("used_memory_human", "0B"),
+                    "total_commands_processed": redis_info.get(
+                        "total_commands_processed", 0
+                    ),
+                    "instantaneous_ops_per_sec": redis_info.get(
+                        "instantaneous_ops_per_sec", 0
+                    ),
+                    "keyspace_hits": redis_info.get("keyspace_hits", 0),
+                    "keyspace_misses": redis_info.get("keyspace_misses", 0),
                 },
-                'websocket_metrics': self._metrics.copy(),
-                'local_cache_metrics': {
-                    'local_cache_size': len(self._local_cache),
-                    'cache_hit_ratio': self._calculate_hit_ratio(),
-                    'local_memory_usage': sum(self._cache_sizes.values())
+                "websocket_metrics": self._metrics.copy(),
+                "local_cache_metrics": {
+                    "local_cache_size": len(self._local_cache),
+                    "cache_hit_ratio": self._calculate_hit_ratio(),
+                    "local_memory_usage": sum(self._cache_sizes.values()),
                 },
-                'subscription_metrics': {
-                    'active_subscriptions': len(self._subscribers),
-                    'total_subscribers': sum(len(subs) for subs in self._subscribers.values())
-                }
+                "subscription_metrics": {
+                    "active_subscriptions": len(self._subscribers),
+                    "total_subscribers": sum(
+                        len(subs) for subs in self._subscribers.values()
+                    ),
+                },
             }
 
         except Exception as e:
             logger.error(f"Error getting performance metrics: {e}")
-            return {'error': str(e), 'websocket_metrics': self._metrics}
+            return {"error": str(e), "websocket_metrics": self._metrics}
 
     # Private methods
 
@@ -551,7 +564,7 @@ class WebSocketRedisManager:
 
         elif method == SerializationMethod.COMPRESSED_JSON:
             json_str = json.dumps(value, default=str)
-            compressed = zlib.compress(json_str.encode('utf-8'))
+            compressed = zlib.compress(json_str.encode("utf-8"))
             return compressed.hex()
 
         else:
@@ -566,7 +579,7 @@ class WebSocketRedisManager:
             try:
                 # Try hex-decoded compressed JSON
                 decoded = bytes.fromhex(value)
-                decompressed = zlib.decompress(decoded).decode('utf-8')
+                decompressed = zlib.decompress(decoded).decode("utf-8")
                 return json.loads(decompressed)
             except (ValueError, zlib.error, json.JSONDecodeError):
                 # Return as string if all else fails
@@ -578,11 +591,11 @@ class WebSocketRedisManager:
             await self._pubsub.subscribe(channel)
 
             async for message in self._pubsub.listen():
-                if message['type'] == 'message':
+                if message["type"] == "message":
                     try:
                         # Parse message
-                        data = json.loads(message['data'])
-                        self._metrics['pubsub_messages_received'] += 1
+                        data = json.loads(message["data"])
+                        self._metrics["pubsub_messages_received"] += 1
 
                         # Call all handlers for this channel
                         if channel in self._subscribers:
@@ -590,10 +603,14 @@ class WebSocketRedisManager:
                                 try:
                                     await handler(data)
                                 except Exception as e:
-                                    logger.error(f"Error in pubsub handler for {channel}: {e}")
+                                    logger.error(
+                                        f"Error in pubsub handler for {channel}: {e}"
+                                    )
 
                     except json.JSONDecodeError as e:
-                        logger.error(f"Error parsing pubsub message from {channel}: {e}")
+                        logger.error(
+                            f"Error parsing pubsub message from {channel}: {e}"
+                        )
 
         except asyncio.CancelledError:
             pass
@@ -646,7 +663,9 @@ class WebSocketRedisManager:
                 session_data = await self.get(key, use_local_cache=False)
                 if session_data:
                     try:
-                        last_activity = datetime.fromisoformat(session_data.get('last_activity', ''))
+                        last_activity = datetime.fromisoformat(
+                            session_data.get("last_activity", "")
+                        )
                         if (current_time - last_activity).seconds > 7200:  # 2 hours
                             await self.delete(key)
                             expired_count += 1
@@ -682,13 +701,15 @@ class WebSocketRedisManager:
 
     def _calculate_hit_ratio(self) -> float:
         """Calculate cache hit ratio"""
-        total_requests = self._metrics['cache_hits'] + self._metrics['cache_misses']
+        total_requests = self._metrics["cache_hits"] + self._metrics["cache_misses"]
         if total_requests == 0:
             return 0.0
-        return (self._metrics['cache_hits'] / total_requests) * 100
+        return (self._metrics["cache_hits"] / total_requests) * 100
+
 
 # Global Redis manager instance
 _websocket_redis_manager: Optional[WebSocketRedisManager] = None
+
 
 def get_websocket_redis_manager() -> WebSocketRedisManager:
     """Get or create the global WebSocket Redis manager"""

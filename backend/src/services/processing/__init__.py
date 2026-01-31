@@ -2,16 +2,19 @@
 Multimodal processing services
 """
 
-from .processing_service import ProcessingPipeline
+from .audio_processing_service import AudioProcessingService
+from .data_preprocessor import DataPreprocessor
+from .entity_extraction_service import EntityExtractionService
+from .image_processing_service import ImageProcessingService
 from .multimodal_processing_service import MultimodalProcessingService
 from .multimodal_processing_service import ProcessingStep as MultimodalProcessingStep
-from .processing_integration import ProcessingIntegrationService, DocumentProcessingStages
+from .processing_integration import (
+    DocumentProcessingStages,
+    ProcessingIntegrationService,
+)
 from .processing_integration import ProcessingStep as IntegrationProcessingStep
-from .audio_processing_service import AudioProcessingService
+from .processing_service import ProcessingPipeline
 from .video_processing_service import VideoProcessingService
-from .image_processing_service import ImageProcessingService
-from .entity_extraction_service import EntityExtractionService
-from .data_preprocessor import DataPreprocessor
 
 __all__ = [
     "ProcessingPipeline",

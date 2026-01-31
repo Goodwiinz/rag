@@ -3,31 +3,36 @@ SLI/SLO Monitoring Framework
 Service Level Indicators and Service Level Objectives for the RAG System
 """
 
-import time
 import asyncio
-import statistics
-from typing import Dict, Any, Optional, List, Tuple, Union
-from dataclasses import dataclass, field
-from enum import Enum
-from datetime import datetime, timezone as dt_timezone, timedelta
-from collections import defaultdict, deque
 import json
 import logging
+import statistics
+import time
+from collections import defaultdict, deque
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from .prometheus_metrics import prometheus_metrics
 from .document_processing_observability import document_processing_observability
+from .prometheus_metrics import prometheus_metrics
 
 logger = logging.getLogger(__name__)
 
+
 class SLOStatus(Enum):
     """SLO compliance status"""
+
     COMPLIANT = "compliant"
     WARNING = "warning"
     VIOLATION = "violation"
     UNKNOWN = "unknown"
 
+
 class SLIType(Enum):
     """Types of Service Level Indicators"""
+
     AVAILABILITY = "availability"
     LATENCY = "latency"
     THROUGHPUT = "throughput"
@@ -35,16 +40,20 @@ class SLIType(Enum):
     SUCCESS_RATE = "success_rate"
     QUALITY_SCORE = "quality_score"
 
+
 class TimeWindow(Enum):
     """SLO time windows"""
+
     LAST_1H = "1h"
     LAST_24H = "24h"
     LAST_7D = "7d"
     LAST_30D = "30d"
 
+
 @dataclass
 class SLIDefinition:
     """Service Level Indicator definition"""
+
     name: str
     description: str
     metric_name: str
@@ -55,9 +64,11 @@ class SLIDefinition:
     good_threshold: Optional[float] = None  # For binary good/bad classification
     measurement_window: int = 300  # seconds
 
+
 @dataclass
 class SLODefinition:
     """Service Level Objective definition"""
+
     name: str
     description: str
     sli: SLIDefinition
@@ -67,9 +78,11 @@ class SLODefinition:
     alerting_threshold: float  # Alert when SLO falls below this
     is_business_critical: bool = True
 
+
 @dataclass
 class SLIMeasurement:
     """SLI measurement with metadata"""
+
     sli_name: str
     timestamp: float
     value: float
@@ -78,9 +91,11 @@ class SLIMeasurement:
     window_end: float
     labels: Dict[str, Any] = field(default_factory=dict)
 
+
 @dataclass
 class SLOResult:
     """SLO compliance result"""
+
     slo_name: str
     sli_value: float
     target_percentage: float
@@ -91,6 +106,7 @@ class SLOResult:
     time_window: TimeWindow
     measurement_timestamp: float
     sample_count: int
+
 
 class SLIMonitor:
     """Service Level Indicator Monitor"""
@@ -118,7 +134,7 @@ class SLIMonitor:
             unit="percentage",
             sli_type=SLIType.SUCCESS_RATE,
             labels={"status": "completed"},
-            aggregation="rate"
+            aggregation="rate",
         )
 
         self.slo_definitions["document_processing_reliability"] = SLODefinition(
@@ -129,7 +145,7 @@ class SLIMonitor:
             time_window=TimeWindow.LAST_24H,
             error_budget_percentage=1.0,
             alerting_threshold=98.0,
-            is_business_critical=True
+            is_business_critical=True,
         )
 
         # API Response Time SLI
@@ -140,7 +156,7 @@ class SLIMonitor:
             unit="seconds",
             sli_type=SLIType.LATENCY,
             aggregation="p99",
-            good_threshold=2.0  # 2 seconds is good
+            good_threshold=2.0,  # 2 seconds is good
         )
 
         self.slo_definitions["api_latency_slo"] = SLODefinition(
@@ -151,7 +167,7 @@ class SLIMonitor:
             time_window=TimeWindow.LAST_1H,
             error_budget_percentage=1.0,
             alerting_threshold=95.0,
-            is_business_critical=True
+            is_business_critical=True,
         )
 
         # API Availability SLI
@@ -162,7 +178,7 @@ class SLIMonitor:
             unit="percentage",
             sli_type=SLIType.AVAILABILITY,
             labels={"status_code": ["2xx", "3xx"]},  # Success codes
-            aggregation="rate"
+            aggregation="rate",
         )
 
         self.slo_definitions["api_availability_slo"] = SLODefinition(
@@ -173,7 +189,7 @@ class SLIMonitor:
             time_window=TimeWindow.LAST_24H,
             error_budget_percentage=0.1,
             alerting_threshold=99.5,
-            is_business_critical=True
+            is_business_critical=True,
         )
 
         # WebSocket Connection SLI
@@ -183,7 +199,7 @@ class SLIMonitor:
             metric_name="websocket_connections_total",
             unit="percentage",
             sli_type=SLIType.SUCCESS_RATE,
-            aggregation="rate"
+            aggregation="rate",
         )
 
         self.slo_definitions["websocket_reliability_slo"] = SLODefinition(
@@ -194,7 +210,7 @@ class SLIMonitor:
             time_window=TimeWindow.LAST_1H,
             error_budget_percentage=0.5,
             alerting_threshold=98.0,
-            is_business_critical=True
+            is_business_critical=True,
         )
 
         # Search Query Performance SLI
@@ -205,7 +221,7 @@ class SLIMonitor:
             unit="seconds",
             sli_type=SLIType.LATENCY,
             aggregation="p95",
-            good_threshold=1.0  # 1 second is good
+            good_threshold=1.0,  # 1 second is good
         )
 
         self.slo_definitions["search_performance_slo"] = SLODefinition(
@@ -216,7 +232,7 @@ class SLIMonitor:
             time_window=TimeWindow.LAST_1H,
             error_budget_percentage=5.0,
             alerting_threshold=90.0,
-            is_business_critical=True
+            is_business_critical=True,
         )
 
         # Database Query Performance SLI
@@ -227,7 +243,7 @@ class SLIMonitor:
             unit="seconds",
             sli_type=SLIType.LATENCY,
             aggregation="p95",
-            good_threshold=0.5  # 500ms is good
+            good_threshold=0.5,  # 500ms is good
         )
 
         self.slo_definitions["database_performance_slo"] = SLODefinition(
@@ -238,7 +254,7 @@ class SLIMonitor:
             time_window=TimeWindow.LAST_1H,
             error_budget_percentage=5.0,
             alerting_threshold=90.0,
-            is_business_critical=True
+            is_business_critical=True,
         )
 
         # ML Model Quality SLI
@@ -249,7 +265,7 @@ class SLIMonitor:
             unit="score",
             sli_type=SLIType.QUALITY_SCORE,
             aggregation="avg",
-            good_threshold=0.85  # 85% accuracy is good
+            good_threshold=0.85,  # 85% accuracy is good
         )
 
         self.slo_definitions["ml_quality_slo"] = SLODefinition(
@@ -260,23 +276,27 @@ class SLIMonitor:
             time_window=TimeWindow.LAST_7D,
             error_budget_percentage=15.0,
             alerting_threshold=80.0,
-            is_business_critical=False
+            is_business_critical=False,
         )
 
-    def record_metric_value(self, metric_name: str, value: float,
-                           labels: Optional[Dict[str, Any]] = None,
-                           timestamp: Optional[float] = None):
+    def record_metric_value(
+        self,
+        metric_name: str,
+        value: float,
+        labels: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[float] = None,
+    ):
         """Record a raw metric value for SLI calculations"""
         timestamp = timestamp or time.time()
         labels = labels or {}
 
-        self.raw_metrics[metric_name].append({
-            'timestamp': timestamp,
-            'value': value,
-            'labels': labels
-        })
+        self.raw_metrics[metric_name].append(
+            {"timestamp": timestamp, "value": value, "labels": labels}
+        )
 
-    def calculate_sli(self, sli_name: str, time_window: Optional[TimeWindow] = None) -> Optional[float]:
+    def calculate_sli(
+        self, sli_name: str, time_window: Optional[TimeWindow] = None
+    ) -> Optional[float]:
         """Calculate SLI value for a given time window"""
         if sli_name not in self.sli_definitions:
             logger.error(f"Unknown SLI: {sli_name}")
@@ -292,12 +312,15 @@ class SLIMonitor:
 
         # Get relevant metrics
         metrics = [
-            m for m in self.raw_metrics.get(sli.metric_name, [])
-            if m['timestamp'] >= window_start
+            m
+            for m in self.raw_metrics.get(sli.metric_name, [])
+            if m["timestamp"] >= window_start
         ]
 
         if not metrics:
-            logger.warning(f"No metrics found for SLI {sli_name} in time window {time_window.value}")
+            logger.warning(
+                f"No metrics found for SLI {sli_name} in time window {time_window.value}"
+            )
             return None
 
         # Filter by labels if specified
@@ -307,11 +330,11 @@ class SLIMonitor:
                 match = True
                 for key, expected_value in sli.labels.items():
                     if isinstance(expected_value, list):
-                        if metric['labels'].get(key) not in expected_value:
+                        if metric["labels"].get(key) not in expected_value:
                             match = False
                             break
                     else:
-                        if metric['labels'].get(key) != expected_value:
+                        if metric["labels"].get(key) != expected_value:
                             match = False
                             break
                 if match:
@@ -342,15 +365,20 @@ class SLIMonitor:
             logger.error(f"Error calculating SLI {sli_name}: {e}")
             return None
 
-    def _calculate_success_rate(self, sli: SLIDefinition, metrics: List[Dict[str, Any]]) -> float:
+    def _calculate_success_rate(
+        self, sli: SLIDefinition, metrics: List[Dict[str, Any]]
+    ) -> float:
         """Calculate success rate SLI"""
         if sli.aggregation == "rate":
             total_requests = len(metrics)
             if total_requests == 0:
                 return 100.0
 
-            successful_requests = sum(1 for m in metrics
-                                    if m['labels'].get('status') in ['completed', 'success'])
+            successful_requests = sum(
+                1
+                for m in metrics
+                if m["labels"].get("status") in ["completed", "success"]
+            )
             return (successful_requests / total_requests) * 100
         else:
             # Use good_threshold for binary classification
@@ -358,10 +386,14 @@ class SLIMonitor:
             if total == 0:
                 return 100.0
 
-            good_count = sum(1 for m in metrics if m['value'] >= (sli.good_threshold or 0))
+            good_count = sum(
+                1 for m in metrics if m["value"] >= (sli.good_threshold or 0)
+            )
             return (good_count / total) * 100
 
-    def _calculate_availability(self, sli: SLIDefinition, metrics: List[Dict[str, Any]]) -> float:
+    def _calculate_availability(
+        self, sli: SLIDefinition, metrics: List[Dict[str, Any]]
+    ) -> float:
         """Calculate availability SLI"""
         total_requests = len(metrics)
         if total_requests == 0:
@@ -369,18 +401,25 @@ class SLIMonitor:
 
         # Count successful requests based on status codes
         successful_statuses = sli.labels.get("status_code", ["2xx", "3xx"])
-        successful_requests = sum(1 for m in metrics
-                                if any(m['labels'].get('status_code', '').startswith(code[:-1])
-                                      for code in successful_statuses))
+        successful_requests = sum(
+            1
+            for m in metrics
+            if any(
+                m["labels"].get("status_code", "").startswith(code[:-1])
+                for code in successful_statuses
+            )
+        )
 
         return (successful_requests / total_requests) * 100
 
-    def _calculate_latency_sli(self, sli: SLIDefinition, metrics: List[Dict[str, Any]]) -> float:
+    def _calculate_latency_sli(
+        self, sli: SLIDefinition, metrics: List[Dict[str, Any]]
+    ) -> float:
         """Calculate latency SLI"""
         if not metrics:
             return 100.0
 
-        values = [m['value'] for m in metrics]
+        values = [m["value"] for m in metrics]
 
         if sli.aggregation == "p95":
             threshold_value = self._percentile(values, 95)
@@ -393,7 +432,9 @@ class SLIMonitor:
 
         # Convert to percentage based on good threshold
         if sli.good_threshold:
-            good_percentage = max(0, 100 - ((threshold_value / sli.good_threshold - 1) * 100))
+            good_percentage = max(
+                0, 100 - ((threshold_value / sli.good_threshold - 1) * 100)
+            )
             return min(100, good_percentage)
         else:
             # If no threshold, return inverse of latency (normalized)
@@ -401,38 +442,47 @@ class SLIMonitor:
             max_acceptable = 5.0  # 5 seconds
             return max(0, 100 - ((threshold_value / max_acceptable) * 100))
 
-    def _calculate_error_rate(self, sli: SLIDefinition, metrics: List[Dict[str, Any]]) -> float:
+    def _calculate_error_rate(
+        self, sli: SLIDefinition, metrics: List[Dict[str, Any]]
+    ) -> float:
         """Calculate error rate SLI"""
         total_requests = len(metrics)
         if total_requests == 0:
             return 0.0  # No errors if no requests
 
-        error_count = sum(1 for m in metrics
-                        if m['labels'].get('status') in ['error', 'failed', 'timeout'])
+        error_count = sum(
+            1
+            for m in metrics
+            if m["labels"].get("status") in ["error", "failed", "timeout"]
+        )
 
         return (error_count / total_requests) * 100
 
-    def _calculate_quality_score(self, sli: SLIDefinition, metrics: List[Dict[str, Any]]) -> float:
+    def _calculate_quality_score(
+        self, sli: SLIDefinition, metrics: List[Dict[str, Any]]
+    ) -> float:
         """Calculate quality score SLI"""
         if not metrics:
             return 0.0
 
         if sli.aggregation == "avg":
-            score = statistics.mean([m['value'] for m in metrics])
+            score = statistics.mean([m["value"] for m in metrics])
         elif sli.aggregation == "p95":
-            score = self._percentile([m['value'] for m in metrics], 95)
+            score = self._percentile([m["value"] for m in metrics], 95)
         else:
-            score = statistics.mean([m['value'] for m in metrics])
+            score = statistics.mean([m["value"] for m in metrics])
 
         # Convert to percentage (assuming scores are 0-1)
         return score * 100
 
-    def _calculate_simple_aggregation(self, sli: SLIDefinition, metrics: List[Dict[str, Any]]) -> float:
+    def _calculate_simple_aggregation(
+        self, sli: SLIDefinition, metrics: List[Dict[str, Any]]
+    ) -> float:
         """Calculate simple aggregation SLI"""
         if not metrics:
             return 0.0
 
-        values = [m['value'] for m in metrics]
+        values = [m["value"] for m in metrics]
 
         if sli.aggregation == "avg":
             return statistics.mean(values)
@@ -462,7 +512,7 @@ class SLIMonitor:
             TimeWindow.LAST_1H: 3600,
             TimeWindow.LAST_24H: 86400,
             TimeWindow.LAST_7D: 604800,
-            TimeWindow.LAST_30D: 2592000
+            TimeWindow.LAST_30D: 2592000,
         }
         return window_map.get(time_window, 3600)
 
@@ -481,7 +531,10 @@ class SLIMonitor:
 
         # Calculate SLO compliance
         achieved_percentage = min(sli_value, slo.target_percentage)
-        error_budget_consumed = max(0, (slo.target_percentage - achieved_percentage) / slo.target_percentage * 100)
+        error_budget_consumed = max(
+            0,
+            (slo.target_percentage - achieved_percentage) / slo.target_percentage * 100,
+        )
         error_budget_remaining = max(0, 100 - error_budget_consumed)
 
         # Determine status
@@ -503,8 +556,14 @@ class SLIMonitor:
             status=status,
             time_window=slo.time_window,
             measurement_timestamp=time.time(),
-            sample_count=len([m for m in self.raw_metrics.get(slo.sli.metric_name, [])
-                            if m['timestamp'] >= time.time() - self._get_window_seconds(slo.time_window)])
+            sample_count=len(
+                [
+                    m
+                    for m in self.raw_metrics.get(slo.sli.metric_name, [])
+                    if m["timestamp"]
+                    >= time.time() - self._get_window_seconds(slo.time_window)
+                ]
+            ),
         )
 
         self.slo_results[slo_name] = result
@@ -536,7 +595,9 @@ class SLIMonitor:
 
         # Overall health score
         total_slos = len(all_results)
-        compliant_slos = sum(1 for r in all_results.values() if r.status == SLOStatus.COMPLIANT)
+        compliant_slos = sum(
+            1 for r in all_results.values() if r.status == SLOStatus.COMPLIANT
+        )
         overall_health = (compliant_slos / total_slos * 100) if total_slos > 0 else 0
 
         return {
@@ -553,10 +614,12 @@ class SLIMonitor:
                     "error_budget_remaining": result.error_budget_remaining,
                     "status": result.status.value,
                     "time_window": result.time_window.value,
-                    "is_business_critical": self.slo_definitions[name].is_business_critical
+                    "is_business_critical": self.slo_definitions[
+                        name
+                    ].is_business_critical,
                 }
                 for name, result in all_results.items()
-            }
+            },
         }
 
     def add_custom_sli(self, sli: SLIDefinition):
@@ -575,62 +638,60 @@ class SLIMonitor:
 
         for metric_name in self.raw_metrics:
             self.raw_metrics[metric_name] = deque(
-                [m for m in self.raw_metrics[metric_name] if m['timestamp'] > cutoff_time],
-                maxlen=5000
+                [
+                    m
+                    for m in self.raw_metrics[metric_name]
+                    if m["timestamp"] > cutoff_time
+                ],
+                maxlen=5000,
             )
+
 
 # Global SLI/SLO monitor instance
 sli_slo_monitor = SLIMonitor()
 
+
 # Convenience functions
-def record_api_metric(method: str, endpoint: str, status_code: str,
-                     duration_seconds: float):
+def record_api_metric(
+    method: str, endpoint: str, status_code: str, duration_seconds: float
+):
     """Record API metric for SLI monitoring"""
     # Record for latency SLI
     sli_slo_monitor.record_metric_value(
         "http_request_duration_seconds",
         duration_seconds,
-        {
-            "method": method,
-            "endpoint": endpoint,
-            "status_code": str(status_code)
-        }
+        {"method": method, "endpoint": endpoint, "status_code": str(status_code)},
     )
 
     # Record for availability SLI
     sli_slo_monitor.record_metric_value(
         "http_requests_total",
         1,  # Count
-        {
-            "method": method,
-            "endpoint": endpoint,
-            "status_code": str(status_code)
-        }
+        {"method": method, "endpoint": endpoint, "status_code": str(status_code)},
     )
 
-def record_document_processing_metric(file_type: str, status: str,
-                                    duration_seconds: Optional[float] = None):
+
+def record_document_processing_metric(
+    file_type: str, status: str, duration_seconds: Optional[float] = None
+):
     """Record document processing metric for SLI monitoring"""
     sli_slo_monitor.record_metric_value(
         "document_processing_total",
         1,  # Count
-        {
-            "file_type": file_type,
-            "status": status
-        }
+        {"file_type": file_type, "status": status},
     )
 
-def record_websocket_metric(event_type: str, success: bool = True,
-                          latency_ms: Optional[float] = None):
+
+def record_websocket_metric(
+    event_type: str, success: bool = True, latency_ms: Optional[float] = None
+):
     """Record WebSocket metric for SLI monitoring"""
     sli_slo_monitor.record_metric_value(
         "websocket_connections_total",
         1,  # Count
-        {
-            "event_type": event_type,
-            "status": "success" if success else "error"
-        }
+        {"event_type": event_type, "status": "success" if success else "error"},
     )
+
 
 def get_slo_status() -> Dict[str, Any]:
     """Get current SLO status"""

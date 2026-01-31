@@ -2,14 +2,16 @@
 Graph Analytics Service Models
 """
 
-from typing import List, Dict, Any, Optional, Union
-from pydantic import BaseModel, Field
-from enum import Enum
 from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional, Union
+
+from pydantic import BaseModel, Field
 
 
 class CentralityAlgorithm(str, Enum):
     """Centrality algorithms supported"""
+
     PAGERANK = "pagerank"
     BETWEENNESS = "betweenness"
     CLOSENESS = "closeness"
@@ -19,6 +21,7 @@ class CentralityAlgorithm(str, Enum):
 
 class PathAlgorithm(str, Enum):
     """Path finding algorithms supported"""
+
     DIJKSTRA = "dijkstra"
     BFS = "bfs"
     ASTAR = "astar"
@@ -27,6 +30,7 @@ class PathAlgorithm(str, Enum):
 
 class CommunityAlgorithm(str, Enum):
     """Community detection algorithms supported"""
+
     LOUVAIN = "louvain"
     LABEL_PROPAGATION = "label_propagation"
     WALKTRAP = "walktrap"
@@ -35,6 +39,7 @@ class CommunityAlgorithm(str, Enum):
 
 class JobType(str, Enum):
     """Background job types"""
+
     CENTRALITY_COMPUTATION = "centrality_computation"
     COMMUNITY_DETECTION = "community_detection"
     PATH_ANALYSIS = "path_analysis"
@@ -45,6 +50,7 @@ class JobType(str, Enum):
 
 class JobStatus(str, Enum):
     """Job status values"""
+
     QUEUED = "queued"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -54,6 +60,7 @@ class JobStatus(str, Enum):
 
 class InsightType(str, Enum):
     """Graph insight types"""
+
     KEY_ENTITIES = "key_entities"
     BRIDGE_ENTITIES = "bridge_entities"
     CLUSTERS = "clusters"
@@ -66,26 +73,43 @@ class InsightType(str, Enum):
 # Request Models
 class CentralityRequest(BaseModel):
     """Request for centrality analysis"""
-    algorithm: CentralityAlgorithm = Field(..., description="Centrality algorithm to use")
-    entity_types: Optional[List[str]] = Field(None, description="Filter by entity types")
-    limit: int = Field(default=100, ge=1, le=1000, description="Maximum number of results")
-    weight_property: Optional[str] = Field(None, description="Property to use as weight")
-    force_recompute: bool = Field(default=False, description="Force recomputation, ignore cache")
-    parameters: Dict[str, Any] = Field(default_factory=dict, description="Algorithm-specific parameters")
+
+    algorithm: CentralityAlgorithm = Field(
+        ..., description="Centrality algorithm to use"
+    )
+    entity_types: Optional[List[str]] = Field(
+        None, description="Filter by entity types"
+    )
+    limit: int = Field(
+        default=100, ge=1, le=1000, description="Maximum number of results"
+    )
+    weight_property: Optional[str] = Field(
+        None, description="Property to use as weight"
+    )
+    force_recompute: bool = Field(
+        default=False, description="Force recomputation, ignore cache"
+    )
+    parameters: Dict[str, Any] = Field(
+        default_factory=dict, description="Algorithm-specific parameters"
+    )
 
 
 class CentralityResult(BaseModel):
     """Single centrality result"""
+
     entity_id: str = Field(..., description="Entity ID")
     entity_name: str = Field(..., description="Entity name")
     entity_type: str = Field(..., description="Entity type")
     centrality_score: float = Field(..., description="Centrality score")
     rank: int = Field(..., description="Rank in results")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict, description="Additional metadata"
+    )
 
 
 class CentralityResponse(BaseModel):
     """Response for centrality analysis"""
+
     algorithm: CentralityAlgorithm = Field(..., description="Algorithm used")
     results: List[CentralityResult] = Field(..., description="Centrality results")
     computation_time: float = Field(..., description="Time taken to compute in seconds")
@@ -95,28 +119,41 @@ class CentralityResponse(BaseModel):
 
 class PathRequest(BaseModel):
     """Request for path finding"""
+
     source_entity_id: str = Field(..., description="Source entity ID")
     target_entity_id: str = Field(..., description="Target entity ID")
-    algorithm: PathAlgorithm = Field(default=PathAlgorithm.BFS, description="Path algorithm")
-    weight_property: Optional[str] = Field("strength", description="Property to use as weight")
+    algorithm: PathAlgorithm = Field(
+        default=PathAlgorithm.BFS, description="Path algorithm"
+    )
+    weight_property: Optional[str] = Field(
+        "strength", description="Property to use as weight"
+    )
     max_depth: int = Field(default=5, ge=1, le=10, description="Maximum path depth")
-    max_paths: int = Field(default=10, ge=1, le=100, description="Maximum number of paths")
+    max_paths: int = Field(
+        default=10, ge=1, le=100, description="Maximum number of paths"
+    )
     force_recompute: bool = Field(default=False, description="Force recomputation")
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
 class PathStep(BaseModel):
     """Single step in a path"""
+
     entity_id: str = Field(..., description="Entity ID")
     entity_name: str = Field(..., description="Entity name")
     entity_type: str = Field(..., description="Entity type")
-    relationship_id: Optional[str] = Field(None, description="Relationship ID to next step")
-    relationship_type: Optional[str] = Field(None, description="Relationship type to next step")
+    relationship_id: Optional[str] = Field(
+        None, description="Relationship ID to next step"
+    )
+    relationship_type: Optional[str] = Field(
+        None, description="Relationship type to next step"
+    )
     weight: Optional[float] = Field(None, description="Weight of this step")
 
 
 class GraphPath(BaseModel):
     """A path through the graph"""
+
     path_id: str = Field(..., description="Unique path identifier")
     steps: List[PathStep] = Field(..., description="Path steps")
     total_weight: float = Field(..., description="Total path weight")
@@ -126,6 +163,7 @@ class GraphPath(BaseModel):
 
 class PathResponse(BaseModel):
     """Response for path finding"""
+
     source_entity_id: str = Field(..., description="Source entity ID")
     target_entity_id: str = Field(..., description="Target entity ID")
     algorithm: PathAlgorithm = Field(..., description="Algorithm used")
@@ -137,17 +175,29 @@ class PathResponse(BaseModel):
 
 class CommunityRequest(BaseModel):
     """Request for community detection"""
-    algorithm: CommunityAlgorithm = Field(..., description="Community detection algorithm")
-    entity_types: Optional[List[str]] = Field(None, description="Filter by entity types")
-    resolution: float = Field(default=1.0, ge=0.1, le=10.0, description="Resolution parameter")
-    max_iterations: int = Field(default=100, ge=1, le=1000, description="Maximum iterations")
-    min_community_size: int = Field(default=3, ge=2, description="Minimum community size")
+
+    algorithm: CommunityAlgorithm = Field(
+        ..., description="Community detection algorithm"
+    )
+    entity_types: Optional[List[str]] = Field(
+        None, description="Filter by entity types"
+    )
+    resolution: float = Field(
+        default=1.0, ge=0.1, le=10.0, description="Resolution parameter"
+    )
+    max_iterations: int = Field(
+        default=100, ge=1, le=1000, description="Maximum iterations"
+    )
+    min_community_size: int = Field(
+        default=3, ge=2, description="Minimum community size"
+    )
     force_recompute: bool = Field(default=False, description="Force recomputation")
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
 class Community(BaseModel):
     """Detected community"""
+
     community_id: str = Field(..., description="Community identifier")
     entity_count: int = Field(..., description="Number of entities in community")
     entities: List[str] = Field(..., description="Entity IDs in community")
@@ -158,6 +208,7 @@ class Community(BaseModel):
 
 class CommunityResponse(BaseModel):
     """Response for community detection"""
+
     algorithm: CommunityAlgorithm = Field(..., description="Algorithm used")
     communities: List[Community] = Field(..., description="Detected communities")
     computation_time: float = Field(..., description="Computation time in seconds")
@@ -169,16 +220,20 @@ class CommunityResponse(BaseModel):
 # Background Job Models
 class AnalyticsJobRequest(BaseModel):
     """Request for background analytics job"""
+
     job_type: JobType = Field(..., description="Type of analytics job")
     parameters: Dict[str, Any] = Field(..., description="Job parameters")
     priority: int = Field(default=5, ge=1, le=10, description="Job priority")
-    scheduled_time: Optional[datetime] = Field(None, description="Scheduled execution time")
+    scheduled_time: Optional[datetime] = Field(
+        None, description="Scheduled execution time"
+    )
     timeout_seconds: Optional[int] = Field(None, description="Custom timeout")
     retry_count: int = Field(default=3, ge=0, le=10, description="Number of retries")
 
 
 class AnalyticsJobResponse(BaseModel):
     """Response for analytics job"""
+
     job_id: str = Field(..., description="Unique job identifier")
     job_type: JobType = Field(..., description="Job type")
     status: JobStatus = Field(..., description="Current job status")
@@ -190,21 +245,31 @@ class AnalyticsJobResponse(BaseModel):
     result: Optional[Dict[str, Any]] = Field(None, description="Job result")
     error_message: Optional[str] = Field(None, description="Error message if failed")
     progress: float = Field(default=0.0, ge=0.0, le=1.0, description="Job progress")
-    estimated_completion: Optional[datetime] = Field(None, description="Estimated completion time")
+    estimated_completion: Optional[datetime] = Field(
+        None, description="Estimated completion time"
+    )
 
 
 # Graph Insights Models
 class GraphInsightsRequest(BaseModel):
     """Request for graph insights"""
-    insight_types: List[InsightType] = Field(..., description="Types of insights to generate")
-    entity_types: Optional[List[str]] = Field(None, description="Filter by entity types")
-    time_range: Optional[Dict[str, datetime]] = Field(None, description="Time range for analysis")
+
+    insight_types: List[InsightType] = Field(
+        ..., description="Types of insights to generate"
+    )
+    entity_types: Optional[List[str]] = Field(
+        None, description="Filter by entity types"
+    )
+    time_range: Optional[Dict[str, datetime]] = Field(
+        None, description="Time range for analysis"
+    )
     force_recompute: bool = Field(default=False, description="Force recomputation")
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
 class KeyEntityInsight(BaseModel):
     """Key entity insight"""
+
     entity_id: str = Field(..., description="Entity ID")
     entity_name: str = Field(..., description="Entity name")
     entity_type: str = Field(..., description="Entity type")
@@ -215,6 +280,7 @@ class KeyEntityInsight(BaseModel):
 
 class BridgeEntityInsight(BaseModel):
     """Bridge entity insight"""
+
     entity_id: str = Field(..., description="Entity ID")
     entity_name: str = Field(..., description="Entity name")
     entity_type: str = Field(..., description="Entity type")
@@ -225,16 +291,20 @@ class BridgeEntityInsight(BaseModel):
 
 class ClusterInsight(BaseModel):
     """Graph cluster insight"""
+
     cluster_id: str = Field(..., description="Cluster identifier")
     entity_count: int = Field(..., description="Number of entities")
     density: float = Field(..., description="Cluster density")
-    dominant_entity_types: List[str] = Field(..., description="Most common entity types")
+    dominant_entity_types: List[str] = Field(
+        ..., description="Most common entity types"
+    )
     key_entities: List[str] = Field(..., description="Key entities in cluster")
     description: str = Field(..., description="Cluster description")
 
 
 class AnomalyInsight(BaseModel):
     """Graph anomaly insight"""
+
     anomaly_id: str = Field(..., description="Anomaly identifier")
     anomaly_type: str = Field(..., description="Type of anomaly")
     entities_involved: List[str] = Field(..., description="Entities involved")
@@ -245,6 +315,7 @@ class AnomalyInsight(BaseModel):
 
 class GrowthTrendInsight(BaseModel):
     """Growth trend insight"""
+
     metric_name: str = Field(..., description="Metric name")
     time_period: str = Field(..., description="Time period analyzed")
     growth_rate: float = Field(..., description="Growth rate")
@@ -254,8 +325,11 @@ class GrowthTrendInsight(BaseModel):
 
 class GraphInsightsResponse(BaseModel):
     """Response for graph insights"""
+
     insights: Dict[str, Any] = Field(..., description="Generated insights")
-    insight_types: List[InsightType] = Field(..., description="Types of insights generated")
+    insight_types: List[InsightType] = Field(
+        ..., description="Types of insights generated"
+    )
     computation_time: float = Field(..., description="Computation time in seconds")
     timestamp: datetime = Field(..., description="Analysis timestamp")
 
@@ -263,19 +337,25 @@ class GraphInsightsResponse(BaseModel):
 # Analytics Models
 class AnalyticsMetrics(BaseModel):
     """Analytics service metrics"""
+
     total_jobs_processed: int = Field(default=0, description="Total jobs processed")
     active_jobs: int = Field(default=0, description="Currently active jobs")
     failed_jobs: int = Field(default=0, description="Failed jobs")
-    average_computation_time: float = Field(default=0.0, description="Average computation time")
+    average_computation_time: float = Field(
+        default=0.0, description="Average computation time"
+    )
     cache_hit_rate: float = Field(default=0.0, description="Cache hit rate")
     queue_depth: int = Field(default=0, description="Current queue depth")
     memory_usage_mb: float = Field(default=0.0, description="Memory usage in MB")
     cpu_usage_percent: float = Field(default=0.0, description="CPU usage percentage")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Metrics timestamp")
+    timestamp: datetime = Field(
+        default_factory=datetime.utcnow, description="Metrics timestamp"
+    )
 
 
 class AlgorithmPerformance(BaseModel):
     """Algorithm performance metrics"""
+
     algorithm_name: str = Field(..., description="Algorithm name")
     average_execution_time: float = Field(..., description="Average execution time")
     success_rate: float = Field(..., description="Success rate")
@@ -286,11 +366,16 @@ class AlgorithmPerformance(BaseModel):
 
 class SystemStatus(BaseModel):
     """Analytics service system status"""
+
     status: str = Field(..., description="System status")
     neo4j_status: str = Field(..., description="Neo4j connection status")
     redis_status: str = Field(..., description="Redis connection status")
     celery_status: str = Field(..., description="Celery status")
     active_workers: int = Field(default=0, description="Active Celery workers")
-    queue_status: Dict[str, int] = Field(default_factory=dict, description="Queue status")
+    queue_status: Dict[str, int] = Field(
+        default_factory=dict, description="Queue status"
+    )
     uptime_seconds: float = Field(default=0.0, description="Service uptime")
-    last_health_check: datetime = Field(default_factory=datetime.utcnow, description="Last health check")
+    last_health_check: datetime = Field(
+        default_factory=datetime.utcnow, description="Last health check"
+    )

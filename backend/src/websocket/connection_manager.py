@@ -7,16 +7,18 @@ import asyncio
 import json
 import logging
 import time
-from typing import Dict, List, Set, Optional, Callable, Any
-from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
-from enum import Enum
-import redis.asyncio as redis
-from fastapi import WebSocket, WebSocketDisconnect, status
 import uuid
 import weakref
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Set
+
+import redis.asyncio as redis
+from fastapi import WebSocket, WebSocketDisconnect, status
 
 logger = logging.getLogger(__name__)
+
 
 class ConnectionStatus(Enum):
     CONNECTING = "connecting"
@@ -24,6 +26,7 @@ class ConnectionStatus(Enum):
     DISCONNECTING = "disconnecting"
     DISCONNECTED = "disconnected"
     ERROR = "error"
+
 
 class MessageType(Enum):
     # Connection management
@@ -50,6 +53,7 @@ class MessageType(Enum):
     UNSUBSCRIBE = "unsubscribe"
     SUBSCRIPTION_CONFIRMED = "subscription_confirmed"
 
+
 @dataclass
 class ConnectionInfo:
     connection_id: str
@@ -63,6 +67,7 @@ class ConnectionInfo:
     subscriptions: Set[str]
     metadata: Dict[str, Any]
 
+
 @dataclass
 class WebSocketMessage:
     message_id: str
@@ -72,6 +77,7 @@ class WebSocketMessage:
     organization_id: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
+
 
 class RedisBackedConnectionManager:
     """
@@ -85,7 +91,7 @@ class RedisBackedConnectionManager:
         ping_interval: int = 30,  # 30 seconds
         cleanup_interval: int = 60,  # 1 minute
         max_connections_per_user: int = 10,
-        max_connections_total: int = 15000
+        max_connections_total: int = 15000,
     ):
         self.redis_url = redis_url
         self.connection_ttl = connection_ttl
@@ -111,18 +117,18 @@ class RedisBackedConnectionManager:
         # Event handlers
         self._message_handlers: Dict[MessageType, List[Callable]] = {}
         self._connection_handlers: Dict[str, List[Callable]] = {
-            'connect': [],
-            'disconnect': [],
-            'error': []
+            "connect": [],
+            "disconnect": [],
+            "error": [],
         }
 
         # Metrics
         self._metrics = {
-            'total_connections': 0,
-            'active_connections': 0,
-            'messages_sent': 0,
-            'messages_received': 0,
-            'errors': 0
+            "total_connections": 0,
+            "active_connections": 0,
+            "messages_sent": 0,
+            "messages_received": 0,
+            "errors": 0,
         }
 
     async def initialize(self):
@@ -165,9 +171,9 @@ class RedisBackedConnectionManager:
         # Close all WebSocket connections
         for conn_ref in list(self._local_connections.values()):
             conn = conn_ref()
-            if conn and conn['websocket']:
+            if conn and conn["websocket"]:
                 try:
-                    await conn['websocket'].close()
+                    await conn["websocket"].close()
                 except Exception:
                     pass
 
@@ -178,7 +184,7 @@ class RedisBackedConnectionManager:
         websocket: WebSocket,
         user_id: str,
         organization_id: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Establish a new WebSocket connection
@@ -205,7 +211,7 @@ class RedisBackedConnectionManager:
                 last_ping=now,
                 last_activity=now,
                 subscriptions=set(),
-                metadata=metadata or {}
+                metadata=metadata or {},
             )
 
             # Store in Redis
@@ -213,7 +219,7 @@ class RedisBackedConnectionManager:
 
             # Store in memory with weak reference
             self._local_connections[connection_id] = weakref.ref(
-                {**asdict(connection_info), 'websocket': websocket}
+                {**asdict(connection_info), "websocket": websocket}
             )
 
             # Update user/org mappings
@@ -226,31 +232,39 @@ class RedisBackedConnectionManager:
             self._org_connections[organization_id].add(connection_id)
 
             # Update metrics
-            self._metrics['total_connections'] += 1
-            self._metrics['active_connections'] += 1
+            self._metrics["total_connections"] += 1
+            self._metrics["active_connections"] += 1
 
             # Send welcome message
-            await self.send_message(connection_id, WebSocketMessage(
-                message_id=str(uuid.uuid4()),
-                message_type=MessageType.CONNECT,
-                timestamp=now,
-                user_id=user_id,
-                organization_id=organization_id,
-                data={"connection_id": connection_id}
-            ))
+            await self.send_message(
+                connection_id,
+                WebSocketMessage(
+                    message_id=str(uuid.uuid4()),
+                    message_type=MessageType.CONNECT,
+                    timestamp=now,
+                    user_id=user_id,
+                    organization_id=organization_id,
+                    data={"connection_id": connection_id},
+                ),
+            )
 
             # Publish connection event
-            await self._publish_event('connection_established', {
-                'connection_id': connection_id,
-                'user_id': user_id,
-                'organization_id': organization_id,
-                'timestamp': now.isoformat()
-            })
+            await self._publish_event(
+                "connection_established",
+                {
+                    "connection_id": connection_id,
+                    "user_id": user_id,
+                    "organization_id": organization_id,
+                    "timestamp": now.isoformat(),
+                },
+            )
 
             # Call connection handlers
-            await self._call_connection_handlers('connect', connection_info)
+            await self._call_connection_handlers("connect", connection_info)
 
-            logger.info(f"WebSocket connection established: {connection_id} for user {user_id}")
+            logger.info(
+                f"WebSocket connection established: {connection_id} for user {user_id}"
+            )
             return connection_id
 
         except Exception as e:
@@ -269,9 +283,9 @@ class RedisBackedConnectionManager:
             if not conn_data:
                 return
 
-            websocket = conn_data.get('websocket')
-            user_id = conn_data.get('user_id')
-            organization_id = conn_data.get('organization_id')
+            websocket = conn_data.get("websocket")
+            user_id = conn_data.get("user_id")
+            organization_id = conn_data.get("organization_id")
 
             # Close WebSocket
             if websocket:
@@ -298,16 +312,21 @@ class RedisBackedConnectionManager:
                     self._org_connections.pop(organization_id, None)
 
             # Update metrics
-            self._metrics['active_connections'] = max(0, self._metrics['active_connections'] - 1)
+            self._metrics["active_connections"] = max(
+                0, self._metrics["active_connections"] - 1
+            )
 
             # Publish disconnection event
-            await self._publish_event('connection_closed', {
-                'connection_id': connection_id,
-                'user_id': user_id,
-                'organization_id': organization_id,
-                'reason': reason,
-                'timestamp': datetime.utcnow().isoformat()
-            })
+            await self._publish_event(
+                "connection_closed",
+                {
+                    "connection_id": connection_id,
+                    "user_id": user_id,
+                    "organization_id": organization_id,
+                    "reason": reason,
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+            )
 
             logger.info(f"WebSocket connection closed: {connection_id} ({reason})")
 
@@ -325,26 +344,26 @@ class RedisBackedConnectionManager:
             if not conn_data:
                 return False
 
-            websocket = conn_data.get('websocket')
+            websocket = conn_data.get("websocket")
             if not websocket:
                 return False
 
             # Prepare message payload
             payload = {
-                'message_id': message.message_id,
-                'type': message.message_type.value,
-                'timestamp': message.timestamp.isoformat(),
-                'user_id': message.user_id,
-                'organization_id': message.organization_id,
-                'data': message.data,
-                'error': message.error
+                "message_id": message.message_id,
+                "type": message.message_type.value,
+                "timestamp": message.timestamp.isoformat(),
+                "user_id": message.user_id,
+                "organization_id": message.organization_id,
+                "data": message.data,
+                "error": message.error,
             }
 
             # Send message
             await websocket.send_json(payload)
 
             # Update metrics
-            self._metrics['messages_sent'] += 1
+            self._metrics["messages_sent"] += 1
 
             return True
 
@@ -356,61 +375,60 @@ class RedisBackedConnectionManager:
     async def broadcast_to_user(self, user_id: str, message: WebSocketMessage):
         """Broadcast a message to all connections for a user"""
         connection_ids = self._user_connections.get(user_id, set()).copy()
-        tasks = [
-            self.send_message(conn_id, message)
-            for conn_id in connection_ids
-        ]
+        tasks = [self.send_message(conn_id, message) for conn_id in connection_ids]
 
         if tasks:
             results = await asyncio.gather(*tasks, return_exceptions=True)
             success_count = sum(1 for result in results if result is True)
-            logger.info(f"Broadcasted to {success_count}/{len(tasks)} connections for user {user_id}")
+            logger.info(
+                f"Broadcasted to {success_count}/{len(tasks)} connections for user {user_id}"
+            )
 
-    async def broadcast_to_organization(self, organization_id: str, message: WebSocketMessage):
+    async def broadcast_to_organization(
+        self, organization_id: str, message: WebSocketMessage
+    ):
         """Broadcast a message to all connections in an organization"""
         connection_ids = self._org_connections.get(organization_id, set()).copy()
-        tasks = [
-            self.send_message(conn_id, message)
-            for conn_id in connection_ids
-        ]
+        tasks = [self.send_message(conn_id, message) for conn_id in connection_ids]
 
         if tasks:
             results = await asyncio.gather(*tasks, return_exceptions=True)
             success_count = sum(1 for result in results if result is True)
-            logger.info(f"Broadcasted to {success_count}/{len(tasks)} connections for org {organization_id}")
+            logger.info(
+                f"Broadcasted to {success_count}/{len(tasks)} connections for org {organization_id}"
+            )
 
     async def broadcast_to_all(self, message: WebSocketMessage):
         """Broadcast a message to all active connections"""
         connection_ids = list(self._local_connections.keys())
-        tasks = [
-            self.send_message(conn_id, message)
-            for conn_id in connection_ids
-        ]
+        tasks = [self.send_message(conn_id, message) for conn_id in connection_ids]
 
         if tasks:
             results = await asyncio.gather(*tasks, return_exceptions=True)
             success_count = sum(1 for result in results if result is True)
-            logger.info(f"Broadcasted to {success_count}/{len(tasks)} connections globally")
+            logger.info(
+                f"Broadcasted to {success_count}/{len(tasks)} connections globally"
+            )
 
     async def handle_message(self, connection_id: str, raw_message: str):
         """Handle incoming message from client"""
         try:
             # Parse message
             data = json.loads(raw_message)
-            message_type = MessageType(data.get('type'))
+            message_type = MessageType(data.get("type"))
 
             # Create message object
             message = WebSocketMessage(
-                message_id=data.get('message_id', str(uuid.uuid4())),
+                message_id=data.get("message_id", str(uuid.uuid4())),
                 message_type=message_type,
                 timestamp=datetime.utcnow(),
-                data=data.get('data'),
-                user_id=data.get('user_id'),
-                organization_id=data.get('organization_id')
+                data=data.get("data"),
+                user_id=data.get("user_id"),
+                organization_id=data.get("organization_id"),
             )
 
             # Update metrics
-            self._metrics['messages_received'] += 1
+            self._metrics["messages_received"] += 1
 
             # Handle specific message types
             if message_type == MessageType.PING:
@@ -424,12 +442,15 @@ class RedisBackedConnectionManager:
 
         except Exception as e:
             logger.error(f"Error handling message from {connection_id}: {e}")
-            await self.send_message(connection_id, WebSocketMessage(
-                message_id=str(uuid.uuid4()),
-                message_type=MessageType.ERROR,
-                timestamp=datetime.utcnow(),
-                error=f"Message processing error: {str(e)}"
-            ))
+            await self.send_message(
+                connection_id,
+                WebSocketMessage(
+                    message_id=str(uuid.uuid4()),
+                    message_type=MessageType.ERROR,
+                    timestamp=datetime.utcnow(),
+                    error=f"Message processing error: {str(e)}",
+                ),
+            )
 
     def add_message_handler(self, message_type: MessageType, handler: Callable):
         """Add a custom message handler"""
@@ -449,16 +470,16 @@ class RedisBackedConnectionManager:
             redis_stats = await self._get_redis_connection_stats()
 
             return {
-                'local_connections': len(self._local_connections),
-                'user_connections': len(self._user_connections),
-                'organization_connections': len(self._org_connections),
-                'redis_connections': redis_stats,
-                'metrics': self._metrics.copy(),
-                'timestamp': datetime.utcnow().isoformat()
+                "local_connections": len(self._local_connections),
+                "user_connections": len(self._user_connections),
+                "organization_connections": len(self._org_connections),
+                "redis_connections": redis_stats,
+                "metrics": self._metrics.copy(),
+                "timestamp": datetime.utcnow().isoformat(),
             }
         except Exception as e:
             logger.error(f"Error getting connection stats: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     # Private methods
 
@@ -481,11 +502,11 @@ class RedisBackedConnectionManager:
         key = f"ws:connection:{connection_info.connection_id}"
         data = {
             **asdict(connection_info),
-            'status': connection_info.status.value,
-            'connected_at': connection_info.connected_at.isoformat(),
-            'last_ping': connection_info.last_ping.isoformat(),
-            'last_activity': connection_info.last_activity.isoformat(),
-            'subscriptions': list(connection_info.subscriptions)
+            "status": connection_info.status.value,
+            "connected_at": connection_info.connected_at.isoformat(),
+            "last_ping": connection_info.last_ping.isoformat(),
+            "last_activity": connection_info.last_activity.isoformat(),
+            "subscriptions": list(connection_info.subscriptions),
         }
 
         await self._redis_client.hset(key, mapping=data)
@@ -511,14 +532,11 @@ class RedisBackedConnectionManager:
 
             active_count = 0
             for key in keys:
-                status = await self._redis_client.hget(key, 'status')
+                status = await self._redis_client.hget(key, "status")
                 if status == ConnectionStatus.CONNECTED.value:
                     active_count += 1
 
-            return {
-                'total_stored': len(keys),
-                'active': active_count
-            }
+            return {"total_stored": len(keys), "active": active_count}
         except Exception as e:
             logger.error(f"Error getting Redis stats: {e}")
             return {}
@@ -532,7 +550,7 @@ class RedisBackedConnectionManager:
                 ping_message = WebSocketMessage(
                     message_id=str(uuid.uuid4()),
                     message_type=MessageType.PING,
-                    timestamp=datetime.utcnow()
+                    timestamp=datetime.utcnow(),
                 )
 
                 # Send ping to all connections
@@ -548,9 +566,11 @@ class RedisBackedConnectionManager:
                     if conn_ref:
                         conn_data = conn_ref()
                         if conn_data:
-                            last_activity_str = conn_data.get('last_activity')
+                            last_activity_str = conn_data.get("last_activity")
                             if last_activity_str:
-                                last_activity = datetime.fromisoformat(last_activity_str)
+                                last_activity = datetime.fromisoformat(
+                                    last_activity_str
+                                )
                                 if last_activity < stale_threshold:
                                     await self.disconnect(conn_id, "Stale connection")
 
@@ -592,9 +612,9 @@ class RedisBackedConnectionManager:
             await self._redis_pubsub.subscribe("ws:events")
 
             async for message in self._redis_pubsub.listen():
-                if message['type'] == 'message':
+                if message["type"] == "message":
                     try:
-                        data = json.loads(message['data'])
+                        data = json.loads(message["data"])
                         # Handle cross-node events
                         await self._handle_cross_node_event(data)
                     except Exception as e:
@@ -612,9 +632,9 @@ class RedisBackedConnectionManager:
 
         try:
             event = {
-                'type': event_type,
-                'data': data,
-                'timestamp': datetime.utcnow().isoformat()
+                "type": event_type,
+                "data": data,
+                "timestamp": datetime.utcnow().isoformat(),
             }
             await self._redis_client.publish("ws:events", json.dumps(event))
         except Exception as e:
@@ -622,14 +642,14 @@ class RedisBackedConnectionManager:
 
     async def _handle_cross_node_event(self, event: Dict[str, Any]):
         """Handle events from other WebSocket nodes"""
-        event_type = event.get('type')
-        data = event.get('data', {})
+        event_type = event.get("type")
+        data = event.get("data", {})
 
-        if event_type == 'document_status_update':
+        if event_type == "document_status_update":
             # Forward to relevant connections
-            user_id = data.get('user_id')
-            organization_id = data.get('organization_id')
-            message_data = data.get('message', {})
+            user_id = data.get("user_id")
+            organization_id = data.get("organization_id")
+            message_data = data.get("message", {})
 
             message = WebSocketMessage(
                 message_id=str(uuid.uuid4()),
@@ -637,7 +657,7 @@ class RedisBackedConnectionManager:
                 timestamp=datetime.utcnow(),
                 user_id=user_id,
                 organization_id=organization_id,
-                data=message_data
+                data=message_data,
             )
 
             if user_id:
@@ -652,18 +672,21 @@ class RedisBackedConnectionManager:
         if conn_ref:
             conn_data = conn_ref()
             if conn_data:
-                conn_data['last_activity'] = datetime.utcnow().isoformat()
+                conn_data["last_activity"] = datetime.utcnow().isoformat()
 
         # Send pong response
-        await self.send_message(connection_id, WebSocketMessage(
-            message_id=str(uuid.uuid4()),
-            message_type=MessageType.PONG,
-            timestamp=datetime.utcnow()
-        ))
+        await self.send_message(
+            connection_id,
+            WebSocketMessage(
+                message_id=str(uuid.uuid4()),
+                message_type=MessageType.PONG,
+                timestamp=datetime.utcnow(),
+            ),
+        )
 
     async def _handle_subscribe(self, connection_id: str, message: WebSocketMessage):
         """Handle subscription request"""
-        channel = message.data.get('channel') if message.data else None
+        channel = message.data.get("channel") if message.data else None
         if not channel:
             return
 
@@ -672,21 +695,24 @@ class RedisBackedConnectionManager:
         if conn_ref:
             conn_data = conn_ref()
             if conn_data:
-                subscriptions = conn_data.get('subscriptions', set())
+                subscriptions = conn_data.get("subscriptions", set())
                 subscriptions.add(channel)
-                conn_data['subscriptions'] = list(subscriptions)
+                conn_data["subscriptions"] = list(subscriptions)
 
         # Send confirmation
-        await self.send_message(connection_id, WebSocketMessage(
-            message_id=str(uuid.uuid4()),
-            message_type=MessageType.SUBSCRIPTION_CONFIRMED,
-            timestamp=datetime.utcnow(),
-            data={'channel': channel}
-        ))
+        await self.send_message(
+            connection_id,
+            WebSocketMessage(
+                message_id=str(uuid.uuid4()),
+                message_type=MessageType.SUBSCRIPTION_CONFIRMED,
+                timestamp=datetime.utcnow(),
+                data={"channel": channel},
+            ),
+        )
 
     async def _handle_unsubscribe(self, connection_id: str, message: WebSocketMessage):
         """Handle unsubscribe request"""
-        channel = message.data.get('channel') if message.data else None
+        channel = message.data.get("channel") if message.data else None
         if not channel:
             return
 
@@ -695,9 +721,9 @@ class RedisBackedConnectionManager:
         if conn_ref:
             conn_data = conn_ref()
             if conn_data:
-                subscriptions = conn_data.get('subscriptions', set())
+                subscriptions = conn_data.get("subscriptions", set())
                 subscriptions.discard(channel)
-                conn_data['subscriptions'] = list(subscriptions)
+                conn_data["subscriptions"] = list(subscriptions)
 
     async def _handle_connection_error(self, websocket: WebSocket, error: str):
         """Handle connection establishment error"""
@@ -706,7 +732,9 @@ class RedisBackedConnectionManager:
         except Exception:
             pass
 
-    async def _call_message_handlers(self, message_type: MessageType, connection_id: str, message: WebSocketMessage):
+    async def _call_message_handlers(
+        self, message_type: MessageType, connection_id: str, message: WebSocketMessage
+    ):
         """Call registered message handlers"""
         handlers = self._message_handlers.get(message_type, [])
         for handler in handlers:
@@ -715,7 +743,9 @@ class RedisBackedConnectionManager:
             except Exception as e:
                 logger.error(f"Error in message handler: {e}")
 
-    async def _call_connection_handlers(self, event: str, connection_info: ConnectionInfo):
+    async def _call_connection_handlers(
+        self, event: str, connection_info: ConnectionInfo
+    ):
         """Call registered connection handlers"""
         handlers = self._connection_handlers.get(event, [])
         for handler in handlers:

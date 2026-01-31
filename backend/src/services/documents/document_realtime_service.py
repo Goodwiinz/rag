@@ -6,33 +6,43 @@ Bridges document processing events with WebSocket broadcasting for live updates
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone as dt_timezone, timedelta
-from typing import Dict, List, Optional, Any, Set
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from enum import Enum
+from typing import Any, Dict, List, Optional, Set
 
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
 
-from src.services.base import BaseService
-from src.services.websocket.websocket_manager import connection_manager, WebSocketMessage, MessageType, Priority
-from src.services.infrastructure.status_update_service import (
-    status_update_service,
-    ProcessingProgress,
-    Channel,
-    UpdateFrequency
-)
-from src.core.database import get_async_session
 from src.core.config import settings
-from src.models.document import Document, ProcessingStatus as DocumentProcessingStatus
-from src.models.processing import ProcessingJob, JobStatus, JobType
-from src.models.websocket_status import StatusUpdate, UpdateType, Priority as UpdatePriority
+from src.core.database import get_async_session
+from src.models.document import Document
+from src.models.document import ProcessingStatus as DocumentProcessingStatus
+from src.models.processing import JobStatus, JobType, ProcessingJob
+from src.models.websocket_status import Priority as UpdatePriority
+from src.models.websocket_status import StatusUpdate, UpdateType
+from src.services.base import BaseService
+from src.services.infrastructure.status_update_service import (
+    Channel,
+    ProcessingProgress,
+    UpdateFrequency,
+    status_update_service,
+)
+from src.services.websocket.websocket_manager import (
+    MessageType,
+    Priority,
+    WebSocketMessage,
+    connection_manager,
+)
 
 logger = logging.getLogger(__name__)
 
+
 class ProcessingEventType(Enum):
     """Document processing event types"""
+
     DOCUMENT_UPLOADED = "document_uploaded"
     PROCESSING_STARTED = "processing_started"
     PROCESSING_COMPLETED = "processing_completed"
@@ -47,9 +57,11 @@ class ProcessingEventType(Enum):
     ERROR_OCCURRED = "error_occurred"
     WARNING_ISSUED = "warning_issued"
 
+
 @dataclass
 class ProcessingEvent:
     """Document processing event"""
+
     event_id: str
     event_type: ProcessingEventType
     document_id: str
@@ -68,6 +80,7 @@ class ProcessingEvent:
         if self.metadata is None:
             self.metadata = {}
 
+
 class DocumentRealtimeService(BaseService):
     """
     Real-time service for document processing events
@@ -81,7 +94,9 @@ class DocumentRealtimeService(BaseService):
         self._active_documents: Set[str] = set()
         self._document_progress: Dict[str, ProcessingProgress] = {}
         self._event_history: List[ProcessingEvent] = []
-        self._subscribers: Dict[str, Set[str]] = {}  # document_id -> set of connection_ids
+        self._subscribers: Dict[
+            str, Set[str]
+        ] = {}  # document_id -> set of connection_ids
         self._background_tasks: List[asyncio.Task] = []
 
         # Configuration
@@ -97,7 +112,7 @@ class DocumentRealtimeService(BaseService):
         self._background_tasks = [
             asyncio.create_task(self._monitor_document_processing()),
             asyncio.create_task(self._cleanup_old_data()),
-            asyncio.create_task(self._update_progress_indicators())
+            asyncio.create_task(self._update_progress_indicators()),
         ]
 
         logger.info("Document Real-time Service initialized")
@@ -118,7 +133,9 @@ class DocumentRealtimeService(BaseService):
         await super().shutdown()
         logger.info("Document Real-time Service shutdown complete")
 
-    async def track_document_processing(self, document_id: str, user_id: str = None, organization_id: str = None):
+    async def track_document_processing(
+        self, document_id: str, user_id: str = None, organization_id: str = None
+    ):
         """
         Start tracking a document for real-time updates
 
@@ -137,7 +154,7 @@ class DocumentRealtimeService(BaseService):
                 document_id=document_id,
                 user_id=user_id,
                 organization_id=organization_id,
-                data={"tracking_started": True}
+                data={"tracking_started": True},
             )
 
             await self._process_event(event)
@@ -157,7 +174,7 @@ class DocumentRealtimeService(BaseService):
                 event_id=str(uuid.uuid4()),
                 event_type=ProcessingEventType.PROCESSING_COMPLETED,
                 document_id=document_id,
-                data={"tracking_stopped": True}
+                data={"tracking_stopped": True},
             )
 
             await self._process_event(event)
@@ -178,14 +195,18 @@ class DocumentRealtimeService(BaseService):
         except Exception as e:
             logger.error(f"Error broadcasting document event: {e}")
 
-    async def update_document_progress(self, document_id: str, current_step: str,
-                                     progress_percentage: float,
-                                     total_steps: int = None,
-                                     completed_steps: int = None,
-                                     current_operation: str = None,
-                                     step_details: Dict[str, Any] = None,
-                                     warnings: List[str] = None,
-                                     errors: List[str] = None):
+    async def update_document_progress(
+        self,
+        document_id: str,
+        current_step: str,
+        progress_percentage: float,
+        total_steps: int = None,
+        completed_steps: int = None,
+        current_operation: str = None,
+        step_details: Dict[str, Any] = None,
+        warnings: List[str] = None,
+        errors: List[str] = None,
+    ):
         """
         Update processing progress for a document
 
@@ -205,12 +226,18 @@ class DocumentRealtimeService(BaseService):
             estimated_remaining = None
             if document_id in self._document_progress:
                 previous_progress = self._document_progress[document_id]
-                if (previous_progress.progress_percentage < progress_percentage and
-                    previous_progress.progress_percentage > 0):
+                if (
+                    previous_progress.progress_percentage < progress_percentage
+                    and previous_progress.progress_percentage > 0
+                ):
                     # Simple linear estimation
-                    progress_delta = progress_percentage - previous_progress.progress_percentage
+                    progress_delta = (
+                        progress_percentage - previous_progress.progress_percentage
+                    )
                     if progress_delta > 0:
-                        time_since_last = (datetime.now(dt_timezone.utc) - previous_progress.timestamp).total_seconds()
+                        time_since_last = (
+                            datetime.now(dt_timezone.utc) - previous_progress.timestamp
+                        ).total_seconds()
                         if time_since_last > 0:
                             time_per_percent = time_since_last / progress_delta
                             remaining_percent = 100 - progress_percentage
@@ -227,7 +254,7 @@ class DocumentRealtimeService(BaseService):
                 current_operation=current_operation or current_step,
                 step_details=step_details or {},
                 warnings=warnings or [],
-                errors=errors or []
+                errors=errors or [],
             )
 
             # Create progress update event
@@ -242,8 +269,8 @@ class DocumentRealtimeService(BaseService):
                     "estimated_remaining_seconds": estimated_remaining,
                     "step_details": step_details or {},
                     "warnings": warnings or [],
-                    "errors": errors or []
-                }
+                    "errors": errors or [],
+                },
             )
 
             await self._process_event(event)
@@ -251,8 +278,13 @@ class DocumentRealtimeService(BaseService):
         except Exception as e:
             logger.error(f"Error updating document progress {document_id}: {e}")
 
-    async def handle_document_status_change(self, document_id: str, old_status: DocumentProcessingStatus,
-                                          new_status: DocumentProcessingStatus, error: str = None):
+    async def handle_document_status_change(
+        self,
+        document_id: str,
+        old_status: DocumentProcessingStatus,
+        new_status: DocumentProcessingStatus,
+        error: str = None,
+    ):
         """
         Handle document processing status changes
 
@@ -289,7 +321,9 @@ class DocumentRealtimeService(BaseService):
                 document = result.scalar_one_or_none()
 
                 if not document:
-                    logger.warning(f"Document {document_id} not found for status change event")
+                    logger.warning(
+                        f"Document {document_id} not found for status change event"
+                    )
                     return
 
             # Create status change event
@@ -306,26 +340,35 @@ class DocumentRealtimeService(BaseService):
                     "document_title": document.title,
                     "document_filename": document.filename,
                     "document_type": document.document_type.value,
-                    "processing_started_at": document.processing_started_at.isoformat() if document.processing_started_at else None,
-                    "processing_completed_at": document.processing_completed_at.isoformat() if document.processing_completed_at else None,
-                    "retry_count": document.processing_retry_count
-                }
+                    "processing_started_at": document.processing_started_at.isoformat()
+                    if document.processing_started_at
+                    else None,
+                    "processing_completed_at": document.processing_completed_at.isoformat()
+                    if document.processing_completed_at
+                    else None,
+                    "retry_count": document.processing_retry_count,
+                },
             )
 
             await self._process_event(event)
 
             # Also broadcast via status update service
             await status_update_service.broadcast_document_update(
-                document_id=document_id,
-                status=new_status,
-                error=error
+                document_id=document_id, status=new_status, error=error
             )
 
         except Exception as e:
             logger.error(f"Error handling document status change {document_id}: {e}")
 
-    async def handle_job_status_change(self, job_id: str, document_id: str, old_status: JobStatus,
-                                     new_status: JobStatus, progress: float = None, error: str = None):
+    async def handle_job_status_change(
+        self,
+        job_id: str,
+        document_id: str,
+        old_status: JobStatus,
+        new_status: JobStatus,
+        progress: float = None,
+        error: str = None,
+    ):
         """
         Handle processing job status changes
 
@@ -379,27 +422,30 @@ class DocumentRealtimeService(BaseService):
                     "total_steps": job.total_steps,
                     "completed_steps": job.completed_steps,
                     "error": error or job.error_message,
-                    "started_at": job.started_at.isoformat() if job.started_at else None,
-                    "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                    "started_at": job.started_at.isoformat()
+                    if job.started_at
+                    else None,
+                    "completed_at": job.completed_at.isoformat()
+                    if job.completed_at
+                    else None,
                     "duration_seconds": job.duration_seconds,
-                    "retry_count": job.retry_count
-                }
+                    "retry_count": job.retry_count,
+                },
             )
 
             await self._process_event(event)
 
             # Also broadcast via status update service
             await status_update_service.broadcast_job_update(
-                job_id=job_id,
-                status=new_status,
-                progress=progress,
-                error=error
+                job_id=job_id, status=new_status, progress=progress, error=error
             )
 
         except Exception as e:
             logger.error(f"Error handling job status change {job_id}: {e}")
 
-    async def get_document_event_history(self, document_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+    async def get_document_event_history(
+        self, document_id: str, limit: int = 50
+    ) -> List[Dict[str, Any]]:
         """
         Get event history for a specific document
 
@@ -412,7 +458,8 @@ class DocumentRealtimeService(BaseService):
         """
         try:
             events = [
-                event for event in self._event_history
+                event
+                for event in self._event_history
                 if event.document_id == document_id
             ]
 
@@ -426,7 +473,7 @@ class DocumentRealtimeService(BaseService):
                     "event_type": event.event_type.value,
                     "timestamp": event.timestamp.isoformat(),
                     "data": event.data,
-                    "metadata": event.metadata
+                    "metadata": event.metadata,
                 }
                 for event in events
             ]
@@ -443,19 +490,22 @@ class DocumentRealtimeService(BaseService):
 
             # Trim event history if too long
             if len(self._event_history) > self.max_event_history:
-                self._event_history = self._event_history[-self.max_event_history:]
+                self._event_history = self._event_history[-self.max_event_history :]
 
             # Get document information if not provided
             if not event.user_id or not event.organization_id:
                 async with get_async_session() as session:
                     result = await session.execute(
-                        select(Document)
-                        .where(Document.id == event.document_id)
+                        select(Document).where(Document.id == event.document_id)
                     )
                     document = result.scalar_one_or_none()
                     if document:
-                        event.user_id = event.user_id or str(document.uploaded_by_user_id)
-                        event.organization_id = event.organization_id or str(document.organization_id)
+                        event.user_id = event.user_id or str(
+                            document.uploaded_by_user_id
+                        )
+                        event.organization_id = event.organization_id or str(
+                            document.organization_id
+                        )
 
             # Create WebSocket message
             message = WebSocketMessage(
@@ -468,12 +518,12 @@ class DocumentRealtimeService(BaseService):
                         "job_id": event.job_id,
                         "timestamp": event.timestamp.isoformat(),
                         "data": event.data,
-                        "metadata": event.metadata
+                        "metadata": event.metadata,
                     }
                 },
                 timestamp=event.timestamp,
                 priority=self._get_priority_for_event(event.event_type),
-                target_channels=[Channel.DOCUMENT_PROCESSING.value]
+                target_channels=[Channel.DOCUMENT_PROCESSING.value],
             )
 
             # Broadcast to relevant users
@@ -482,7 +532,9 @@ class DocumentRealtimeService(BaseService):
 
             # Broadcast to organization if specified
             if event.organization_id:
-                await connection_manager.broadcast_to_organization(event.organization_id, message)
+                await connection_manager.broadcast_to_organization(
+                    event.organization_id, message
+                )
 
             # Log to database
             await self._log_event_to_database(event)
@@ -511,7 +563,7 @@ class DocumentRealtimeService(BaseService):
                         document_id=document_id,
                         current_step=progress.current_step,
                         progress_percentage=progress.progress_percentage,
-                        current_operation=progress.current_operation
+                        current_operation=progress.current_operation,
                     )
 
             except asyncio.CancelledError:
@@ -548,29 +600,37 @@ class DocumentRealtimeService(BaseService):
 
                 # Clean up old event history
                 old_events = [
-                    event for event in self._event_history
+                    event
+                    for event in self._event_history
                     if event.timestamp < cutoff_time
                 ]
 
                 if old_events:
                     self._event_history = [
-                        event for event in self._event_history
+                        event
+                        for event in self._event_history
                         if event.timestamp >= cutoff_time
                     ]
-                    logger.info(f"Cleaned up {len(old_events)} old document processing events")
+                    logger.info(
+                        f"Cleaned up {len(old_events)} old document processing events"
+                    )
 
                 # Clean up progress data for inactive documents
                 inactive_progress = [
-                    doc_id for doc_id, progress in self._document_progress.items()
-                    if doc_id not in self._active_documents and
-                    (current_time - progress.timestamp).total_seconds() > 3600  # 1 hour
+                    doc_id
+                    for doc_id, progress in self._document_progress.items()
+                    if doc_id not in self._active_documents
+                    and (current_time - progress.timestamp).total_seconds()
+                    > 3600  # 1 hour
                 ]
 
                 for doc_id in inactive_progress:
                     del self._document_progress[doc_id]
 
                 if inactive_progress:
-                    logger.info(f"Cleaned up progress data for {len(inactive_progress)} inactive documents")
+                    logger.info(
+                        f"Cleaned up progress data for {len(inactive_progress)} inactive documents"
+                    )
 
             except asyncio.CancelledError:
                 break
@@ -592,11 +652,13 @@ class DocumentRealtimeService(BaseService):
                         "job_id": event.job_id,
                         "event_type": event.event_type.value,
                         "event_data": event.data,
-                        "metadata": event.metadata
+                        "metadata": event.metadata,
                     },
                     target_users=[event.user_id] if event.user_id else [],
-                    target_organizations=[event.organization_id] if event.organization_id else [],
-                    priority=self._map_event_priority(event.event_type)
+                    target_organizations=[event.organization_id]
+                    if event.organization_id
+                    else [],
+                    priority=self._map_event_priority(event.event_type),
                 )
 
                 session.add(status_update)
@@ -620,7 +682,7 @@ class DocumentRealtimeService(BaseService):
             ProcessingEventType.PROGRESS_UPDATE: Priority.LOW,
             ProcessingEventType.STAGE_CHANGED: Priority.NORMAL,
             ProcessingEventType.ERROR_OCCURRED: Priority.HIGH,
-            ProcessingEventType.WARNING_ISSUED: Priority.NORMAL
+            ProcessingEventType.WARNING_ISSUED: Priority.NORMAL,
         }
         return priority_map.get(event_type, Priority.NORMAL)
 
@@ -630,9 +692,12 @@ class DocumentRealtimeService(BaseService):
             Priority.CRITICAL: UpdatePriority.CRITICAL,
             Priority.HIGH: UpdatePriority.HIGH,
             Priority.NORMAL: UpdatePriority.NORMAL,
-            Priority.LOW: UpdatePriority.LOW
+            Priority.LOW: UpdatePriority.LOW,
         }
-        return priority_map.get(self._get_priority_for_event(event_type), UpdatePriority.NORMAL)
+        return priority_map.get(
+            self._get_priority_for_event(event_type), UpdatePriority.NORMAL
+        )
+
 
 # Global service instance
 document_realtime_service = DocumentRealtimeService()

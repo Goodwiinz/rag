@@ -3,47 +3,59 @@ Tenant management API endpoints
 Provides organization management, quota monitoring, and multi-tenancy operations
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
 from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from src.core.database import get_db
-from src.middleware.multi_tenancy import get_current_tenant_id, check_tenant_permission
-from src.services.security.tenant_service import TenantService, get_tenant_service
-from src.models.organization import StorageTier
 from src.exceptions.analytics_exceptions import (
-    PermissionDeniedException,
     ConfigurationException,
-    create_permission_denied_http_exception
+    PermissionDeniedException,
+    create_permission_denied_http_exception,
 )
+from src.middleware.multi_tenancy import check_tenant_permission, get_current_tenant_id
+from src.models.organization import StorageTier
+from src.services.security.tenant_service import TenantService, get_tenant_service
 
 router = APIRouter(prefix="/tenants", tags=["Tenant Management"])
 
 
 # Pydantic models for request/response
 
+
 class OrganizationCreate(BaseModel):
     """Request model for creating organization"""
-    name: str = Field(..., min_length=2, max_length=255, description="Organization name")
-    storage_tier: StorageTier = Field(default=StorageTier.FREE, description="Storage tier")
+
+    name: str = Field(
+        ..., min_length=2, max_length=255, description="Organization name"
+    )
+    storage_tier: StorageTier = Field(
+        default=StorageTier.FREE, description="Storage tier"
+    )
 
 
 class OrganizationUpdate(BaseModel):
     """Request model for updating organization"""
-    name: Optional[str] = Field(None, min_length=2, max_length=255, description="Organization name")
+
+    name: Optional[str] = Field(
+        None, min_length=2, max_length=255, description="Organization name"
+    )
     storage_tier: Optional[StorageTier] = Field(None, description="Storage tier")
     is_active: Optional[bool] = Field(None, description="Organization status")
 
 
 class StorageTierUpgrade(BaseModel):
     """Request model for storage tier upgrade"""
+
     storage_tier: StorageTier = Field(..., description="New storage tier")
 
 
 class OrganizationResponse(BaseModel):
     """Response model for organization data"""
+
     id: str
     name: str
     storage_tier: str
@@ -59,6 +71,7 @@ class OrganizationResponse(BaseModel):
 
 class StorageQuotaResponse(BaseModel):
     """Response model for storage quota status"""
+
     tier: str
     limit_gb: float
     used_gb: float
@@ -76,12 +89,14 @@ class StorageQuotaResponse(BaseModel):
 
 class UserCountResponse(BaseModel):
     """Response model for user count"""
+
     organization_id: str
     user_count: int
 
 
 class OrganizationAnalyticsResponse(BaseModel):
     """Response model for organization analytics"""
+
     period_days: int
     analytics_events_count: int
     active_sessions_count: int
@@ -91,6 +106,7 @@ class OrganizationAnalyticsResponse(BaseModel):
 
 class OrganizationLimitsResponse(BaseModel):
     """Response model for organization limits validation"""
+
     organization_id: str
     storage_tier: str
     limits_status: dict
@@ -99,58 +115,63 @@ class OrganizationLimitsResponse(BaseModel):
 
 # Helper functions
 
+
 def require_tenant_permission(required_permission: str):
     """Decorator to check tenant permissions"""
+
     def dependency():
         tenant_id = get_current_tenant_id()
         if not tenant_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required"
+                detail="Authentication required",
             )
 
         if not check_tenant_permission(required_permission):
             raise create_permission_denied_http_exception(
                 required_permission=required_permission,
-                user_role=get_current_user_role() or "unknown"
+                user_role=get_current_user_role() or "unknown",
             )
 
         return tenant_id
+
     return dependency
 
 
 def get_current_user_role():
     """Get current user role from context"""
     from src.middleware.multi_tenancy import get_current_user_role as get_role
+
     return get_role()
 
 
 # API Endpoints
 
-@router.post("/organizations", response_model=OrganizationResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/organizations",
+    response_model=OrganizationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_organization(
     organization_data: OrganizationCreate,
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_create"))
+    _: str = Depends(require_tenant_permission("organization_create")),
 ):
     """Create a new organization"""
     try:
         organization = tenant_service.create_organization(
-            name=organization_data.name,
-            storage_tier=organization_data.storage_tier
+            name=organization_data.name, storage_tier=organization_data.storage_tier
         )
 
         return OrganizationResponse(**organization.to_dict())
 
     except ConfigurationException as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create organization"
+            detail="Failed to create organization",
         )
 
 
@@ -158,7 +179,7 @@ async def create_organization(
 async def get_organization(
     organization_id: str,
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_read"))
+    _: str = Depends(require_tenant_permission("organization_read")),
 ):
     """Get organization details"""
     try:
@@ -166,21 +187,22 @@ async def get_organization(
 
         if not organization:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found"
             )
 
         return OrganizationResponse(**organization.to_dict())
 
     except PermissionDeniedException as e:
         raise create_permission_denied_http_exception(
-            required_permission=e.details.get("required_permission", "organization_read"),
-            user_role=e.details.get("user_role", "unknown")
+            required_permission=e.details.get(
+                "required_permission", "organization_read"
+            ),
+            user_role=e.details.get("user_role", "unknown"),
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve organization"
+            detail="Failed to retrieve organization",
         )
 
 
@@ -189,70 +211,74 @@ async def update_organization(
     organization_id: str,
     organization_data: OrganizationUpdate,
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_update"))
+    _: str = Depends(require_tenant_permission("organization_update")),
 ):
     """Update organization settings"""
     try:
         update_data = organization_data.dict(exclude_unset=True)
-        organization = tenant_service.update_organization(organization_id, **update_data)
+        organization = tenant_service.update_organization(
+            organization_id, **update_data
+        )
 
         return OrganizationResponse(**organization.to_dict())
 
     except PermissionDeniedException as e:
         raise create_permission_denied_http_exception(
-            required_permission=e.details.get("required_permission", "organization_update"),
-            user_role=e.details.get("user_role", "unknown")
+            required_permission=e.details.get(
+                "required_permission", "organization_update"
+            ),
+            user_role=e.details.get("user_role", "unknown"),
         )
     except ConfigurationException as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update organization"
+            detail="Failed to update organization",
         )
 
 
-@router.post("/organizations/{organization_id}/upgrade-tier", response_model=OrganizationResponse)
+@router.post(
+    "/organizations/{organization_id}/upgrade-tier", response_model=OrganizationResponse
+)
 async def upgrade_storage_tier(
     organization_id: str,
     upgrade_data: StorageTierUpgrade,
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_update"))
+    _: str = Depends(require_tenant_permission("organization_update")),
 ):
     """Upgrade organization storage tier"""
     try:
         organization = tenant_service.upgrade_storage_tier(
-            organization_id,
-            upgrade_data.storage_tier
+            organization_id, upgrade_data.storage_tier
         )
 
         return OrganizationResponse(**organization.to_dict())
 
     except PermissionDeniedException as e:
         raise create_permission_denied_http_exception(
-            required_permission=e.details.get("required_permission", "organization_update"),
-            user_role=e.details.get("user_role", "unknown")
+            required_permission=e.details.get(
+                "required_permission", "organization_update"
+            ),
+            user_role=e.details.get("user_role", "unknown"),
         )
     except ConfigurationException as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to upgrade storage tier"
+            detail="Failed to upgrade storage tier",
         )
 
 
-@router.get("/organizations/{organization_id}/storage-quota", response_model=StorageQuotaResponse)
+@router.get(
+    "/organizations/{organization_id}/storage-quota",
+    response_model=StorageQuotaResponse,
+)
 async def get_storage_quota_status(
     organization_id: str,
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_read"))
+    _: str = Depends(require_tenant_permission("organization_read")),
 ):
     """Get detailed storage quota status"""
     try:
@@ -261,54 +287,59 @@ async def get_storage_quota_status(
 
     except PermissionDeniedException as e:
         raise create_permission_denied_http_exception(
-            required_permission=e.details.get("required_permission", "organization_read"),
-            user_role=e.details.get("user_role", "unknown")
+            required_permission=e.details.get(
+                "required_permission", "organization_read"
+            ),
+            user_role=e.details.get("user_role", "unknown"),
         )
     except ConfigurationException as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve storage quota status"
+            detail="Failed to retrieve storage quota status",
         )
 
 
-@router.get("/organizations/{organization_id}/users/count", response_model=UserCountResponse)
+@router.get(
+    "/organizations/{organization_id}/users/count", response_model=UserCountResponse
+)
 async def get_user_count(
     organization_id: str,
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_users_read"))
+    _: str = Depends(require_tenant_permission("organization_users_read")),
 ):
     """Get number of users in organization"""
     try:
         user_count = tenant_service.get_user_count(organization_id)
 
-        return UserCountResponse(
-            organization_id=organization_id,
-            user_count=user_count
-        )
+        return UserCountResponse(organization_id=organization_id, user_count=user_count)
 
     except PermissionDeniedException as e:
         raise create_permission_denied_http_exception(
-            required_permission=e.details.get("required_permission", "organization_users_read"),
-            user_role=e.details.get("user_role", "unknown")
+            required_permission=e.details.get(
+                "required_permission", "organization_users_read"
+            ),
+            user_role=e.details.get("user_role", "unknown"),
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve user count"
+            detail="Failed to retrieve user count",
         )
 
 
-@router.get("/organizations/{organization_id}/analytics", response_model=OrganizationAnalyticsResponse)
+@router.get(
+    "/organizations/{organization_id}/analytics",
+    response_model=OrganizationAnalyticsResponse,
+)
 async def get_organization_analytics(
     organization_id: str,
-    days: int = Query(default=30, ge=1, le=365, description="Number of days to analyze"),
+    days: int = Query(
+        default=30, ge=1, le=365, description="Number of days to analyze"
+    ),
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_analytics"))
+    _: str = Depends(require_tenant_permission("organization_analytics")),
 ):
     """Get organization analytics summary"""
     try:
@@ -317,21 +348,25 @@ async def get_organization_analytics(
 
     except PermissionDeniedException as e:
         raise create_permission_denied_http_exception(
-            required_permission=e.details.get("required_permission", "organization_analytics"),
-            user_role=e.details.get("user_role", "unknown")
+            required_permission=e.details.get(
+                "required_permission", "organization_analytics"
+            ),
+            user_role=e.details.get("user_role", "unknown"),
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve organization analytics"
+            detail="Failed to retrieve organization analytics",
         )
 
 
-@router.get("/organizations/{organization_id}/limits", response_model=OrganizationLimitsResponse)
+@router.get(
+    "/organizations/{organization_id}/limits", response_model=OrganizationLimitsResponse
+)
 async def validate_organization_limits(
     organization_id: str,
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_read"))
+    _: str = Depends(require_tenant_permission("organization_read")),
 ):
     """Validate organization against various limits"""
     try:
@@ -340,24 +375,23 @@ async def validate_organization_limits(
 
     except PermissionDeniedException as e:
         raise create_permission_denied_http_exception(
-            required_permission=e.details.get("required_permission", "organization_read"),
-            user_role=e.details.get("user_role", "unknown")
+            required_permission=e.details.get(
+                "required_permission", "organization_read"
+            ),
+            user_role=e.details.get("user_role", "unknown"),
         )
     except ConfigurationException as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to validate organization limits"
+            detail="Failed to validate organization limits",
         )
 
 
 @router.get("/current-tenant")
 async def get_current_tenant_info(
-    tenant_service: TenantService = Depends(get_tenant_service)
+    tenant_service: TenantService = Depends(get_tenant_service),
 ):
     """Get current tenant information"""
     try:
@@ -365,21 +399,21 @@ async def get_current_tenant_info(
         if not tenant_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required"
+                detail="Authentication required",
             )
 
         organization = tenant_service.get_organization(tenant_id)
         if not organization:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Tenant organization not found"
+                detail="Tenant organization not found",
             )
 
         return {
             "tenant_id": tenant_id,
             "organization": OrganizationResponse(**organization.to_dict()),
             "user_role": get_current_user_role(),
-            "permissions": _get_user_permissions(get_current_user_role())
+            "permissions": _get_user_permissions(get_current_user_role()),
         }
 
     except HTTPException:
@@ -387,7 +421,7 @@ async def get_current_tenant_info(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve tenant information"
+            detail="Failed to retrieve tenant information",
         )
 
 
@@ -395,7 +429,7 @@ async def get_current_tenant_info(
 async def test_tenant_isolation(
     organization_id: str,
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_read"))
+    _: str = Depends(require_tenant_permission("organization_read")),
 ):
     """Test tenant data isolation (for security validation)"""
     try:
@@ -406,7 +440,7 @@ async def test_tenant_isolation(
             "organization_id": organization_id,
             "test_timestamp": "2025-01-01T00:00:00Z",  # Placeholder
             "data_access_verified": True,
-            "isolation_status": "secure"
+            "isolation_status": "secure",
         }
 
         return isolation_test
@@ -418,40 +452,55 @@ async def test_tenant_isolation(
             "test_timestamp": "2025-01-01T00:00:00Z",
             "data_access_verified": False,
             "isolation_status": "access_denied",
-            "reason": "Tenant isolation working correctly"
+            "reason": "Tenant isolation working correctly",
         }
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Tenant isolation test failed"
+            detail="Tenant isolation test failed",
         )
 
 
 # Helper functions
 
+
 def _get_user_permissions(role: str) -> List[str]:
     """Get list of permissions for user role"""
     role_permissions = {
-        'super_admin': [
-            'organization_create', 'organization_read', 'organization_update', 'organization_delete',
-            'organization_users_read', 'organization_users_manage', 'organization_analytics',
-            'tenant_access', 'cross_tenant_access', 'update_access', 'delete_access',
-            'system_admin', 'audit_logs', 'security_management'
+        "super_admin": [
+            "organization_create",
+            "organization_read",
+            "organization_update",
+            "organization_delete",
+            "organization_users_read",
+            "organization_users_manage",
+            "organization_analytics",
+            "tenant_access",
+            "cross_tenant_access",
+            "update_access",
+            "delete_access",
+            "system_admin",
+            "audit_logs",
+            "security_management",
         ],
-        'admin': [
-            'organization_read', 'organization_update', 'organization_users_read',
-            'organization_users_manage', 'organization_analytics', 'tenant_access',
-            'update_access', 'delete_access'
+        "admin": [
+            "organization_read",
+            "organization_update",
+            "organization_users_read",
+            "organization_users_manage",
+            "organization_analytics",
+            "tenant_access",
+            "update_access",
+            "delete_access",
         ],
-        'content_manager': [
-            'organization_read', 'organization_users_read', 'tenant_access', 'update_access'
+        "content_manager": [
+            "organization_read",
+            "organization_users_read",
+            "tenant_access",
+            "update_access",
         ],
-        'analyst': [
-            'organization_read', 'organization_analytics', 'tenant_access'
-        ],
-        'user': [
-            'organization_read', 'tenant_access'
-        ]
+        "analyst": ["organization_read", "organization_analytics", "tenant_access"],
+        "user": ["organization_read", "tenant_access"],
     }
 
     return role_permissions.get(role, [])

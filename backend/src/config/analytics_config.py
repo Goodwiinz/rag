@@ -4,14 +4,16 @@ Provides environment-based configuration for T3 analytics system
 """
 
 import os
-from typing import Dict, Any, Optional, List
-from pydantic import field_validator, BaseModel
-from pydantic_settings import BaseSettings
 from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, field_validator
+from pydantic_settings import BaseSettings
 
 
 class AnalyticsEnvironment(str, Enum):
     """Analytics deployment environments"""
+
     DEVELOPMENT = "development"
     STAGING = "staging"
     PRODUCTION = "production"
@@ -135,7 +137,7 @@ class AnalyticsPrivacyConfig(BaseModel):
     regional_data_retention: Dict[str, int] = {
         "EU": 2555,  # 7 years for GDPR
         "US": 1825,  # 5 years for CCPA
-        "DEFAULT": 1095  # 3 years default
+        "DEFAULT": 1095,  # 3 years default
     }
 
 
@@ -236,25 +238,36 @@ class AnalyticsConfig(BaseSettings):
                 "enable_test_endpoints": True,
                 "test_data_generation_enabled": True,
                 "cache": {"metrics_cache_ttl": 60, "reports_cache_ttl": 300},
-                "monitoring": {"enable_metrics_collection": True, "health_check_interval_seconds": 30}
+                "monitoring": {
+                    "enable_metrics_collection": True,
+                    "health_check_interval_seconds": 30,
+                },
             },
             AnalyticsEnvironment.STAGING: {
                 "debug_mode": False,
                 "enable_test_endpoints": False,
                 "test_data_generation_enabled": False,
                 "cache": {"metrics_cache_ttl": 180, "reports_cache_ttl": 1800},
-                "monitoring": {"enable_metrics_collection": True, "health_check_interval_seconds": 60}
+                "monitoring": {
+                    "enable_metrics_collection": True,
+                    "health_check_interval_seconds": 60,
+                },
             },
             AnalyticsEnvironment.PRODUCTION: {
                 "debug_mode": False,
                 "enable_test_endpoints": False,
                 "test_data_generation_enabled": False,
                 "cache": {"metrics_cache_ttl": 300, "reports_cache_ttl": 3600},
-                "monitoring": {"enable_metrics_collection": True, "health_check_interval_seconds": 60}
-            }
+                "monitoring": {
+                    "enable_metrics_collection": True,
+                    "health_check_interval_seconds": 60,
+                },
+            },
         }
 
-        return env_configs.get(self.analytics_environment, env_configs[AnalyticsEnvironment.DEVELOPMENT])
+        return env_configs.get(
+            self.analytics_environment, env_configs[AnalyticsEnvironment.DEVELOPMENT]
+        )
 
     def apply_environment_overrides(self):
         """Apply environment-specific configuration overrides"""
@@ -263,8 +276,8 @@ class AnalyticsConfig(BaseSettings):
         for key, value in env_config.items():
             if hasattr(self, key):
                 setattr(self, key, value)
-            elif hasattr(self, key.replace('_', '')):
-                setattr(self, key.replace('_', ''), value)
+            elif hasattr(self, key.replace("_", "")):
+                setattr(self, key.replace("_", ""), value)
 
     def get_retention_policy(self, data_type: str, region: str = "DEFAULT") -> int:
         """Get retention period for a specific data type and region"""
