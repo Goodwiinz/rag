@@ -16,6 +16,20 @@ Follow-up TODOs: None - all placeholders resolved
 
 ## Core Principles
 
+### 0. Research-First Philosophy (FOUNDATIONAL)
+
+**This is a RESEARCH assistant, not a general-purpose RAG system.**
+
+Every decision must prioritize research integrity:
+
+- **Deterministic Outputs**: Same query + same data = same answer. Always. Users must be able to reproduce results for academic integrity.
+- **Citation-Backed Everything**: No claim without a source. Every statement must trace to verifiable evidence.
+- **Multimodal Advantage**: Research spans PDFs, figures, audio lectures, video presentations. We process all of it.
+- **Knowledge Graph as First-Class Citizen**: Relationships between concepts, authors, and papers are as important as the content itself.
+- **Transparency Over Magic**: Show reasoning traces, source agreement, and confidence levels. Researchers need to understand *how* conclusions are reached.
+
+**Rationale**: Researchers cannot afford to be wrong. Trust is earned through reproducibility, traceability, and transparency—not through impressive-sounding AI responses.
+
 ### I. Evaluation-First Development (NON-NEGOTIABLE)
 
 **All features MUST be built with evaluation and testing specifications before implementation.**
