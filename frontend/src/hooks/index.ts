@@ -19,3 +19,11 @@ export type {
 } from './useChatPersistence';
 
 export { useProjectChat } from './useProjectChat';
+
+export { 
+  useEvidenceMeter, 
+  useEvidenceBreakdown,
+  getConsensusText,
+  getConsensusColor,
+  getConsensusEmoji,
+} from './useEvidenceMeter';
