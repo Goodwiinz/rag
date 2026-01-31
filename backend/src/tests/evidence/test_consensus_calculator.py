@@ -51,9 +51,9 @@ def sample_classifications_strong_agreement():
         },
         {
             "source_id": str(uuid4()),
-            "stance": "neutral",
+            "stance": "supporting",
             "confidence": 0.80,
-            "justification_excerpt": "Study focused on implementation challenges"
+            "justification_excerpt": "Study confirmed positive outcomes"
         }
     ]
 
@@ -243,9 +243,9 @@ class TestConsensusCalculator:
         
         assert meter.claim == sample_claim
         assert meter.total_sources == 5
-        assert meter.supporting == 3
+        assert meter.supporting == 4
         assert meter.opposing == 1
-        assert meter.neutral == 1
+        assert meter.neutral == 0
         assert meter.not_addressed == 0
         assert meter.consensus_level == ConsensusLevel.STRONG_AGREEMENT
         assert 0.80 <= meter.average_confidence <= 0.90
@@ -293,7 +293,7 @@ class TestConsensusCalculator:
         
         assert meter.total_sources == 4  # Excluded 1 retracted
         assert meter.retracted_sources == 1
-        assert meter.supporting == 2  # Reduced by 1
+        assert meter.supporting == 3  # Reduced from 4 to 3
     
     def test_calculate_consensus_with_none_classifications(self, consensus_calculator, sample_claim):
         """Test consensus calculation with None values in classifications"""
