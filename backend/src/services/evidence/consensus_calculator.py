@@ -32,22 +32,29 @@ class ConsensusCalculator:
         return hashlib.sha256(normalized.encode('utf-8')).hexdigest()
     
     def _determine_consensus_level(
-        self, total_sources: int, supporting: int, opposing: int, neutral: int
+        self, total_sources: int, supporting: int, opposing: int, neutral: int, not_addressed: int
     ) -> ConsensusLevel:
         """Determine consensus level based on stance distribution"""
         
+        # Handle insufficient evidence case (<3 sources)
         if total_sources < 3:
             return ConsensusLevel.INSUFFICIENT_DATA
         
-        # Calculate agreement percentage (supporting vs opposing, excluding neutral)
+        # Calculate relevant sources (supporting + opposing, excluding neutral and not_addressed)
         relevant_sources = supporting + opposing
-        if relevant_sources == 0:
-            # All sources are neutral - treat as insufficient data
+        
+        # Handle "Not Addressed" stance - if most sources don't address the claim
+        if not_addressed > (total_sources // 2):
             return ConsensusLevel.INSUFFICIENT_DATA
         
+        # If no sources take a position, insufficient data
+        if relevant_sources == 0:
+            return ConsensusLevel.INSUFFICIENT_DATA
+        
+        # Calculate agreement ratio
         agreement_ratio = supporting / relevant_sources
         
-        # Classify consensus level
+        # Classify consensus level with enhanced logic
         if agreement_ratio >= 0.8:
             return ConsensusLevel.STRONG_AGREEMENT
         elif agreement_ratio >= 0.6:
@@ -132,7 +139,7 @@ class ConsensusCalculator:
         
         # Calculate metrics
         average_confidence = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0.0
-        consensus_level = self._determine_consensus_level(total_sources, supporting, opposing, neutral)
+        consensus_level = self._determine_consensus_level(total_sources, supporting, opposing, neutral, not_addressed)
         
         # Generate reproducibility hash
         reproducibility_hash = self._generate_reproducibility_hash(
