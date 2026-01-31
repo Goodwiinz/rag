@@ -2,15 +2,16 @@
 Document Quality Service for real-time quality assessment and metrics collection
 """
 
-import re
 import asyncio
-import time
-from typing import Dict, Any, List, Tuple, Optional
-from datetime import datetime
-from sqlalchemy.orm import Session
-from fastapi import Depends
 import logging
+import re
+import time
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
+from fastapi import Depends
+from sqlalchemy.orm import Session
 
 # Initialize logger early so it's available for import-time initialization
 logger = logging.getLogger(__name__)
@@ -19,23 +20,28 @@ logger = logging.getLogger(__name__)
 SPACY_AVAILABLE = False
 nlp = None
 
+
 def load_spacy_if_available():
     """Load spaCy model if available"""
     global SPACY_AVAILABLE, nlp
     # Only try to load once - use a flag to track if we've attempted loading
-    if not hasattr(load_spacy_if_available, '_attempted'):
+    if not hasattr(load_spacy_if_available, "_attempted"):
         try:
             import spacy
+
             nlp = spacy.load("en_core_web_sm")
             SPACY_AVAILABLE = True
             logger.info("spaCy model loaded successfully")
         except (ImportError, OSError) as e:
-            logger.warning(f"spaCy not available or model not found: {e}. Using basic text analysis.")
+            logger.warning(
+                f"spaCy not available or model not found: {e}. Using basic text analysis."
+            )
             SPACY_AVAILABLE = False
             nlp = None
 
         # Mark that we've attempted loading
         load_spacy_if_available._attempted = True
+
 
 # Initialize spaCy availability status
 load_spacy_if_available()
@@ -43,6 +49,7 @@ load_spacy_if_available()
 # AI processing for quality assessment
 try:
     from textstat import textstat
+
     TEXTSTAT_AVAILABLE = True
 except ImportError:
     TEXTSTAT_AVAILABLE = False
@@ -54,16 +61,25 @@ from src.models.document import Document, DocumentType
 # from src.models.quality import QualityMetrics, QualityDimension, QualityThreshold
 QualityMetrics = None  # Placeholder until model is properly implemented
 
+
 class QualityIssue:
     """Represents a quality issue found in a document"""
 
-    def __init__(self, dimension: str, severity: str, description: str, location: str = None, suggestion: str = None):
+    def __init__(
+        self,
+        dimension: str,
+        severity: str,
+        description: str,
+        location: str = None,
+        suggestion: str = None,
+    ):
         self.dimension = dimension
         self.severity = severity  # low, medium, high, critical
         self.description = description
         self.location = location
         self.suggestion = suggestion
         self.detected_at = datetime.utcnow()
+
 
 class DocumentQualityService:
     """Service for assessing and monitoring document quality"""
@@ -82,7 +98,7 @@ class DocumentQualityService:
             "technical_quality": 0.7,
             "content_quality": 0.75,
             "metadata_quality": 0.8,
-            "overall": 0.7
+            "overall": 0.7,
         }
 
     async def quick_quality_assessment(self, document: Document) -> Dict[str, Any]:
@@ -101,16 +117,18 @@ class DocumentQualityService:
                 "technical_quality_score": 0.0,
                 "recommendations": [],
                 "issues": [],
-                "processing_time_ms": 0
+                "processing_time_ms": 0,
             }
 
             if not text_content:
-                assessment["issues"].append({
-                    "dimension": "content_quality",
-                    "severity": "high",
-                    "description": "No text content found for quality assessment",
-                    "suggestion": "Ensure the document contains extractable text"
-                })
+                assessment["issues"].append(
+                    {
+                        "dimension": "content_quality",
+                        "severity": "high",
+                        "description": "No text content found for quality assessment",
+                        "suggestion": "Ensure the document contains extractable text",
+                    }
+                )
                 assessment["processing_time_ms"] = (time.time() - start_time) * 1000
                 return assessment
 
@@ -119,7 +137,9 @@ class DocumentQualityService:
             assessment["readability_score"] = readability_score
 
             # Quick content quality assessment
-            content_score = self.quick_content_quality_assessment(text_content, document)
+            content_score = self.quick_content_quality_assessment(
+                text_content, document
+            )
             assessment["content_quality_score"] = content_score
 
             # Quick technical quality assessment
@@ -127,10 +147,14 @@ class DocumentQualityService:
             assessment["technical_quality_score"] = technical_score
 
             # Calculate overall score
-            assessment["overall_score"] = (readability_score + content_score + technical_score) / 3
+            assessment["overall_score"] = (
+                readability_score + content_score + technical_score
+            ) / 3
 
             # Generate quick recommendations
-            assessment["recommendations"] = self.generate_quick_recommendations(assessment)
+            assessment["recommendations"] = self.generate_quick_recommendations(
+                assessment
+            )
 
             assessment["processing_time_ms"] = (time.time() - start_time) * 1000
 
@@ -141,10 +165,14 @@ class DocumentQualityService:
             return {
                 "overall_score": 0.0,
                 "error": str(e),
-                "processing_time_ms": (time.time() - start_time) * 1000 if 'start_time' in locals() else 0
+                "processing_time_ms": (time.time() - start_time) * 1000
+                if "start_time" in locals()
+                else 0,
             }
 
-    async def comprehensive_quality_assessment(self, document: Document) -> Dict[str, Any]:
+    async def comprehensive_quality_assessment(
+        self, document: Document
+    ) -> Dict[str, Any]:
         """
         Perform comprehensive quality assessment
         Includes detailed analysis of multiple quality dimensions
@@ -166,16 +194,18 @@ class DocumentQualityService:
                 "recommendations": [],
                 "issues": [],
                 "detailed_metrics": {},
-                "processing_time_ms": 0
+                "processing_time_ms": 0,
             }
 
             if not text_content:
-                assessment["issues"].append({
-                    "dimension": "content_quality",
-                    "severity": "high",
-                    "description": "No text content available for comprehensive quality assessment",
-                    "suggestion": "Ensure document processing extracted text successfully"
-                })
+                assessment["issues"].append(
+                    {
+                        "dimension": "content_quality",
+                        "severity": "high",
+                        "description": "No text content available for comprehensive quality assessment",
+                        "suggestion": "Ensure document processing extracted text successfully",
+                    }
+                )
                 assessment["processing_time_ms"] = (time.time() - start_time) * 1000
                 return assessment
 
@@ -186,8 +216,13 @@ class DocumentQualityService:
                 ("completeness", self.assess_completeness, text_content, document),
                 ("accuracy", self.assess_accuracy, text_content),
                 ("technical_quality", self.assess_technical_quality, document),
-                ("content_quality", self.assess_content_quality, text_content, document),
-                ("metadata_quality", self.assess_metadata_quality, document)
+                (
+                    "content_quality",
+                    self.assess_content_quality,
+                    text_content,
+                    document,
+                ),
+                ("metadata_quality", self.assess_metadata_quality, document),
             ]
 
             # Run assessments in parallel where possible
@@ -210,7 +245,9 @@ class DocumentQualityService:
                         all_issues.extend(result["issues"])
 
                 except Exception as e:
-                    logger.error(f"Dimension {dimension_name} assessment failed: {str(e)}")
+                    logger.error(
+                        f"Dimension {dimension_name} assessment failed: {str(e)}"
+                    )
                     dimension_scores[dimension_name] = 0.0
                     assessment[f"{dimension_name}_score"] = 0.0
 
@@ -222,7 +259,7 @@ class DocumentQualityService:
                 "accuracy": 0.20,
                 "technical_quality": 0.10,
                 "content_quality": 0.15,
-                "metadata_quality": 0.05
+                "metadata_quality": 0.05,
             }
 
             overall_score = sum(
@@ -238,13 +275,15 @@ class DocumentQualityService:
                     "severity": issue.severity,
                     "description": issue.description,
                     "location": issue.location,
-                    "suggestion": issue.suggestion
+                    "suggestion": issue.suggestion,
                 }
                 for issue in all_issues
             ]
 
             # Generate comprehensive recommendations
-            assessment["recommendations"] = self.generate_comprehensive_recommendations(assessment, dimension_scores)
+            assessment["recommendations"] = self.generate_comprehensive_recommendations(
+                assessment, dimension_scores
+            )
 
             # Store quality metrics in database
             await self.store_quality_metrics(document, assessment)
@@ -258,7 +297,9 @@ class DocumentQualityService:
             return {
                 "overall_score": 0.0,
                 "error": str(e),
-                "processing_time_ms": (time.time() - start_time) * 1000 if 'start_time' in locals() else 0
+                "processing_time_ms": (time.time() - start_time) * 1000
+                if "start_time" in locals()
+                else 0,
             }
 
     def quick_readability_assessment(self, text: str) -> float:
@@ -268,7 +309,7 @@ class DocumentQualityService:
                 return 0.3
 
             # Basic readability metrics
-            sentences = re.split(r'[.!?]+', text)
+            sentences = re.split(r"[.!?]+", text)
             sentences = [s.strip() for s in sentences if s.strip()]
 
             words = text.split()
@@ -287,10 +328,12 @@ class DocumentQualityService:
             complexity_penalty = min(0.3, long_words / len(words) * 2) if words else 0
 
             # Basic text structure check
-            has_paragraphs = '\n\n' in text
+            has_paragraphs = "\n\n" in text
             structure_score = 0.8 if has_paragraphs else 0.5
 
-            readability_score = (sentence_score + structure_score) / 2 - complexity_penalty
+            readability_score = (
+                sentence_score + structure_score
+            ) / 2 - complexity_penalty
             return max(0.0, min(1.0, readability_score))
 
         except Exception as e:
@@ -315,14 +358,14 @@ class DocumentQualityService:
                 score -= 0.1
 
             # Language pattern check (basic)
-            if re.search(r'\b(the|and|or|but|in|on|at|to|for)\b', text, re.IGNORECASE):
+            if re.search(r"\b(the|and|or|but|in|on|at|to|for)\b", text, re.IGNORECASE):
                 score += 0.1  # Has common English words
 
             # Structure check
-            if re.search(r'[.!?]', text):  # Has sentence endings
+            if re.search(r"[.!?]", text):  # Has sentence endings
                 score += 0.1
 
-            if '\n' in text:  # Has line breaks
+            if "\n" in text:  # Has line breaks
                 score += 0.1
 
             # Content type specific checks
@@ -345,7 +388,9 @@ class DocumentQualityService:
             # File size checks
             if document.file_size_bytes < 100:  # Very small file
                 score -= 0.3
-            elif document.file_size_bytes > 100 * 1024 * 1024:  # Very large file (>100MB)
+            elif (
+                document.file_size_bytes > 100 * 1024 * 1024
+            ):  # Very large file (>100MB)
                 score -= 0.1
 
             # Processing status check
@@ -375,29 +420,35 @@ class DocumentQualityService:
             result = {"score": 0.0, "issues": [], "metrics": {}}
 
             if not text:
-                result["issues"].append(QualityIssue(
-                    dimension="readability",
-                    severity="high",
-                    description="No text content for readability assessment"
-                ))
+                result["issues"].append(
+                    QualityIssue(
+                        dimension="readability",
+                        severity="high",
+                        description="No text content for readability assessment",
+                    )
+                )
                 return result
 
             metrics = {}
 
             # Basic text statistics
             words = text.split()
-            sentences = re.split(r'[.!?]+', text)
+            sentences = re.split(r"[.!?]+", text)
             sentences = [s.strip() for s in sentences if s.strip()]
 
             metrics["word_count"] = len(words)
             metrics["sentence_count"] = len(sentences)
-            metrics["avg_sentence_length"] = len(words) / len(sentences) if sentences else 0
+            metrics["avg_sentence_length"] = (
+                len(words) / len(sentences) if sentences else 0
+            )
 
             # Advanced readability metrics (if textstat is available)
             if TEXTSTAT_AVAILABLE:
                 try:
                     metrics["flesch_reading_ease"] = textstat.flesch_reading_ease(text)
-                    metrics["flesch_kincaid_grade"] = textstat.flesch_kincaid_grade(text)
+                    metrics["flesch_kincaid_grade"] = textstat.flesch_kincaid_grade(
+                        text
+                    )
                     metrics["gunning_fog"] = textstat.gunning_fog(text)
                     metrics["coleman_liau_index"] = textstat.coleman_liau_index(text)
                 except Exception as e:
@@ -413,12 +464,14 @@ class DocumentQualityService:
             elif 10 <= avg_len < 15 or 20 < avg_len <= 25:
                 readability_score += 0.2
             elif avg_len > 35 or avg_len < 5:
-                result["issues"].append(QualityIssue(
-                    dimension="readability",
-                    severity="medium",
-                    description=f"Average sentence length is {avg_len:.1f} words (ideal: 15-20)",
-                    suggestion="Break long sentences or combine short ones for better readability"
-                ))
+                result["issues"].append(
+                    QualityIssue(
+                        dimension="readability",
+                        severity="medium",
+                        description=f"Average sentence length is {avg_len:.1f} words (ideal: 15-20)",
+                        suggestion="Break long sentences or combine short ones for better readability",
+                    )
+                )
                 readability_score -= 0.2
 
             # Score based on text length
@@ -426,12 +479,14 @@ class DocumentQualityService:
             if 100 <= word_count <= 5000:
                 readability_score += 0.2
             elif word_count < 50:
-                result["issues"].append(QualityIssue(
-                    dimension="readability",
-                    severity="high",
-                    description="Text is very short for meaningful readability assessment",
-                    suggestion="Consider adding more content"
-                ))
+                result["issues"].append(
+                    QualityIssue(
+                        dimension="readability",
+                        severity="high",
+                        description="Text is very short for meaningful readability assessment",
+                        suggestion="Consider adding more content",
+                    )
+                )
                 readability_score -= 0.3
 
             result["score"] = max(0.0, min(1.0, readability_score))
@@ -441,7 +496,11 @@ class DocumentQualityService:
 
         except Exception as e:
             logger.error(f"Readability assessment failed: {str(e)}")
-            return {"score": 0.0, "issues": [QualityIssue("readability", "high", str(e))], "metrics": {}}
+            return {
+                "score": 0.0,
+                "issues": [QualityIssue("readability", "high", str(e))],
+                "metrics": {},
+            }
 
     async def assess_coherence(self, text: str) -> Dict[str, Any]:
         """Assess text coherence and logical flow"""
@@ -450,29 +509,49 @@ class DocumentQualityService:
 
             if not text or len(text.strip()) < 100:
                 result["score"] = 0.3
-                result["issues"].append(QualityIssue(
-                    dimension="coherence",
-                    severity="medium",
-                    description="Text too short for coherence assessment"
-                ))
+                result["issues"].append(
+                    QualityIssue(
+                        dimension="coherence",
+                        severity="medium",
+                        description="Text too short for coherence assessment",
+                    )
+                )
                 return result
 
             metrics = {}
 
             # Basic coherence indicators
-            sentences = re.split(r'[.!?]+', text)
+            sentences = re.split(r"[.!?]+", text)
             sentences = [s.strip() for s in sentences if s.strip()]
 
             # Check for transition words
-            transition_words = ['however', 'therefore', 'moreover', 'furthermore', 'consequently',
-                              'meanwhile', 'nevertheless', 'nonetheless', 'thus', 'hence']
-            transition_count = sum(1 for s in sentences if any(word in s.lower() for word in transition_words))
-            metrics["transition_word_ratio"] = transition_count / len(sentences) if sentences else 0
+            transition_words = [
+                "however",
+                "therefore",
+                "moreover",
+                "furthermore",
+                "consequently",
+                "meanwhile",
+                "nevertheless",
+                "nonetheless",
+                "thus",
+                "hence",
+            ]
+            transition_count = sum(
+                1
+                for s in sentences
+                if any(word in s.lower() for word in transition_words)
+            )
+            metrics["transition_word_ratio"] = (
+                transition_count / len(sentences) if sentences else 0
+            )
 
             # Check paragraph structure
-            paragraphs = text.split('\n\n')
+            paragraphs = text.split("\n\n")
             metrics["paragraph_count"] = len(paragraphs)
-            metrics["avg_paragraph_length"] = len(text) / len(paragraphs) if paragraphs else 0
+            metrics["avg_paragraph_length"] = (
+                len(text) / len(paragraphs) if paragraphs else 0
+            )
 
             # Calculate coherence score
             coherence_score = 0.5
@@ -481,23 +560,27 @@ class DocumentQualityService:
             if metrics["transition_word_ratio"] > 0.1:
                 coherence_score += 0.2
             elif metrics["transition_word_ratio"] < 0.02:
-                result["issues"].append(QualityIssue(
-                    dimension="coherence",
-                    severity="low",
-                    description="Few transition words detected",
-                    suggestion="Add transition words to improve logical flow"
-                ))
+                result["issues"].append(
+                    QualityIssue(
+                        dimension="coherence",
+                        severity="low",
+                        description="Few transition words detected",
+                        suggestion="Add transition words to improve logical flow",
+                    )
+                )
 
             # Paragraph structure
             if 2 <= metrics["paragraph_count"] <= 10:
                 coherence_score += 0.2
             elif metrics["paragraph_count"] == 1 and len(text) > 500:
-                result["issues"].append(QualityIssue(
-                    dimension="coherence",
-                    severity="medium",
-                    description="Long text without paragraph breaks",
-                    suggestion="Break text into paragraphs for better readability"
-                ))
+                result["issues"].append(
+                    QualityIssue(
+                        dimension="coherence",
+                        severity="medium",
+                        description="Long text without paragraph breaks",
+                        suggestion="Break text into paragraphs for better readability",
+                    )
+                )
 
             # Check for repetitive patterns (simple heuristic)
             words = text.lower().split()
@@ -508,12 +591,14 @@ class DocumentQualityService:
 
                 if repetition_ratio < 0.3:
                     coherence_score -= 0.2
-                    result["issues"].append(QualityIssue(
-                        dimension="coherence",
-                        severity="medium",
-                        description="High word repetition detected",
-                        suggestion="Vary vocabulary to improve text quality"
-                    ))
+                    result["issues"].append(
+                        QualityIssue(
+                            dimension="coherence",
+                            severity="medium",
+                            description="High word repetition detected",
+                            suggestion="Vary vocabulary to improve text quality",
+                        )
+                    )
 
             result["score"] = max(0.0, min(1.0, coherence_score))
             result["metrics"] = metrics
@@ -522,9 +607,15 @@ class DocumentQualityService:
 
         except Exception as e:
             logger.error(f"Coherence assessment failed: {str(e)}")
-            return {"score": 0.0, "issues": [QualityIssue("coherence", "high", str(e))], "metrics": {}}
+            return {
+                "score": 0.0,
+                "issues": [QualityIssue("coherence", "high", str(e))],
+                "metrics": {},
+            }
 
-    async def assess_completeness(self, text: str, document: Document) -> Dict[str, Any]:
+    async def assess_completeness(
+        self, text: str, document: Document
+    ) -> Dict[str, Any]:
         """Assess document completeness"""
         try:
             result = {"score": 0.5, "issues": [], "metrics": {}}
@@ -538,9 +629,13 @@ class DocumentQualityService:
             # Document type specific completeness
             if document.document_type == DocumentType.PDF:
                 # Check for common PDF document elements
-                has_title = bool(re.search(r'^[A-Z\s]{20,}', text, re.MULTILINE))
-                has_conclusion = bool(re.search(r'(conclusion|summary|final)', text, re.IGNORECASE))
-                has_structure = bool(re.search(r'(chapter|section|part)', text, re.IGNORECASE))
+                has_title = bool(re.search(r"^[A-Z\s]{20,}", text, re.MULTILINE))
+                has_conclusion = bool(
+                    re.search(r"(conclusion|summary|final)", text, re.IGNORECASE)
+                )
+                has_structure = bool(
+                    re.search(r"(chapter|section|part)", text, re.IGNORECASE)
+                )
 
                 completeness_score = 0.3
                 if has_title:
@@ -558,25 +653,29 @@ class DocumentQualityService:
                 # Generic completeness assessment
                 if word_count < 50:
                     completeness_score = 0.2
-                    result["issues"].append(QualityIssue(
-                        dimension="completeness",
-                        severity="high",
-                        description="Document appears incomplete (very short)",
-                        suggestion="Ensure document has sufficient content"
-                    ))
+                    result["issues"].append(
+                        QualityIssue(
+                            dimension="completeness",
+                            severity="high",
+                            description="Document appears incomplete (very short)",
+                            suggestion="Ensure document has sufficient content",
+                        )
+                    )
                 elif word_count > 100:
                     completeness_score = 0.8
                 else:
                     completeness_score = 0.5
 
             # Check for abrupt ending
-            if text and not text.endswith(('.', '!', '?', '"', "'")):
-                result["issues"].append(QualityIssue(
-                    dimension="completeness",
-                    severity="low",
-                    description="Document may end abruptly",
-                    suggestion="Review document ending"
-                ))
+            if text and not text.endswith((".", "!", "?", '"', "'")):
+                result["issues"].append(
+                    QualityIssue(
+                        dimension="completeness",
+                        severity="low",
+                        description="Document may end abruptly",
+                        suggestion="Review document ending",
+                    )
+                )
                 completeness_score -= 0.1
 
             result["score"] = max(0.0, min(1.0, completeness_score))
@@ -586,7 +685,11 @@ class DocumentQualityService:
 
         except Exception as e:
             logger.error(f"Completeness assessment failed: {str(e)}")
-            return {"score": 0.0, "issues": [QualityIssue("completeness", "high", str(e))], "metrics": {}}
+            return {
+                "score": 0.0,
+                "issues": [QualityIssue("completeness", "high", str(e))],
+                "metrics": {},
+            }
 
     async def assess_accuracy(self, text: str) -> Dict[str, Any]:
         """Assess text accuracy (basic heuristics)"""
@@ -604,35 +707,41 @@ class DocumentQualityService:
             for word in words:
                 if len(word) > 8 and word.isalpha() and not word[0].isupper():
                     # Very basic heuristic for potential misspellings
-                    if re.search(r'[qjxzx]', word.lower()):
+                    if re.search(r"[qjxzx]", word.lower()):
                         misspelled_count += 1
 
             metrics["potential_spelling_errors"] = misspelled_count
-            metrics["spelling_error_rate"] = misspelled_count / len(words) if words else 0
+            metrics["spelling_error_rate"] = (
+                misspelled_count / len(words) if words else 0
+            )
 
             accuracy_score = 0.7
 
             if metrics["spelling_error_rate"] > 0.05:
                 accuracy_score -= 0.2
-                result["issues"].append(QualityIssue(
-                    dimension="accuracy",
-                    severity="low",
-                    description="Potential spelling errors detected",
-                    suggestion="Review document for spelling accuracy"
-                ))
+                result["issues"].append(
+                    QualityIssue(
+                        dimension="accuracy",
+                        severity="low",
+                        description="Potential spelling errors detected",
+                        suggestion="Review document for spelling accuracy",
+                    )
+                )
 
             # Check for formatting consistency
-            has_inconsistent_spacing = bool(re.search(r' {2,}', text))
-            has_inconsistent_capitalization = bool(re.search(r'[a-z][A-Z]', text))
+            has_inconsistent_spacing = bool(re.search(r" {2,}", text))
+            has_inconsistent_capitalization = bool(re.search(r"[a-z][A-Z]", text))
 
             if has_inconsistent_spacing or has_inconsistent_capitalization:
                 accuracy_score -= 0.1
-                result["issues"].append(QualityIssue(
-                    dimension="accuracy",
-                    severity="low",
-                    description="Formatting inconsistencies detected",
-                    suggestion="Review document formatting for consistency"
-                ))
+                result["issues"].append(
+                    QualityIssue(
+                        dimension="accuracy",
+                        severity="low",
+                        description="Formatting inconsistencies detected",
+                        suggestion="Review document formatting for consistency",
+                    )
+                )
 
             result["score"] = max(0.0, min(1.0, accuracy_score))
             result["metrics"] = metrics
@@ -641,7 +750,11 @@ class DocumentQualityService:
 
         except Exception as e:
             logger.error(f"Accuracy assessment failed: {str(e)}")
-            return {"score": 0.0, "issues": [QualityIssue("accuracy", "high", str(e))], "metrics": {}}
+            return {
+                "score": 0.0,
+                "issues": [QualityIssue("accuracy", "high", str(e))],
+                "metrics": {},
+            }
 
     async def assess_technical_quality(self, document: Document) -> Dict[str, Any]:
         """Assess technical quality of document"""
@@ -661,28 +774,34 @@ class DocumentQualityService:
             # Check processing status
             if document.processing_status.value == "failed":
                 technical_score -= 0.4
-                result["issues"].append(QualityIssue(
-                    dimension="technical_quality",
-                    severity="high",
-                    description="Document processing failed",
-                    suggestion="Review document format and content"
-                ))
+                result["issues"].append(
+                    QualityIssue(
+                        dimension="technical_quality",
+                        severity="high",
+                        description="Document processing failed",
+                        suggestion="Review document format and content",
+                    )
+                )
             elif document.processing_status.value == "completed":
                 technical_score += 0.1
 
             # Check file size reasonableness
             if document.file_size_bytes < 100:
                 technical_score -= 0.2
-                result["issues"].append(QualityIssue(
-                    dimension="technical_quality",
-                    severity="medium",
-                    description="File size is suspiciously small",
-                    suggestion="Verify file integrity"
-                ))
+                result["issues"].append(
+                    QualityIssue(
+                        dimension="technical_quality",
+                        severity="medium",
+                        description="File size is suspiciously small",
+                        suggestion="Verify file integrity",
+                    )
+                )
 
             # Check metadata completeness
             metadata = document.get_metadata()
-            metadata_score = min(1.0, len(metadata) / 5)  # Normalize to 5 expected metadata fields
+            metadata_score = min(
+                1.0, len(metadata) / 5
+            )  # Normalize to 5 expected metadata fields
             technical_score = (technical_score * 0.7) + (metadata_score * 0.3)
 
             metrics["metadata_completeness"] = metadata_score
@@ -695,9 +814,15 @@ class DocumentQualityService:
 
         except Exception as e:
             logger.error(f"Technical quality assessment failed: {str(e)}")
-            return {"score": 0.0, "issues": [QualityIssue("technical_quality", "high", str(e))], "metrics": {}}
+            return {
+                "score": 0.0,
+                "issues": [QualityIssue("technical_quality", "high", str(e))],
+                "metrics": {},
+            }
 
-    async def assess_content_quality(self, text: str, document: Document) -> Dict[str, Any]:
+    async def assess_content_quality(
+        self, text: str, document: Document
+    ) -> Dict[str, Any]:
         """Assess overall content quality"""
         try:
             result = {"score": 0.6, "issues": [], "metrics": {}}
@@ -710,7 +835,7 @@ class DocumentQualityService:
             metrics["character_count"] = len(text)
 
             # Content structure assessment
-            sentences = re.split(r'[.!?]+', text)
+            sentences = re.split(r"[.!?]+", text)
             metrics["sentence_count"] = len([s for s in sentences if s.strip()])
 
             # Vocabulary richness
@@ -725,24 +850,28 @@ class DocumentQualityService:
                 content_score += 0.2
             elif word_count < 50:
                 content_score -= 0.3
-                result["issues"].append(QualityIssue(
-                    dimension="content_quality",
-                    severity="medium",
-                    description="Very limited content",
-                    suggestion="Consider expanding document content"
-                ))
+                result["issues"].append(
+                    QualityIssue(
+                        dimension="content_quality",
+                        severity="medium",
+                        description="Very limited content",
+                        suggestion="Consider expanding document content",
+                    )
+                )
 
             # Score based on vocabulary richness
             if metrics["vocabulary_richness"] > 0.6:
                 content_score += 0.1
             elif metrics["vocabulary_richness"] < 0.3:
                 content_score -= 0.1
-                result["issues"].append(QualityIssue(
-                    dimension="content_quality",
-                    severity="low",
-                    description="Limited vocabulary diversity",
-                    suggestion="Vary word choice to improve content quality"
-                ))
+                result["issues"].append(
+                    QualityIssue(
+                        dimension="content_quality",
+                        severity="low",
+                        description="Limited vocabulary diversity",
+                        suggestion="Vary word choice to improve content quality",
+                    )
+                )
 
             # Check for meaningful content (basic heuristic)
             meaningful_words = [w for w in words if len(w) > 3 and w.isalpha()]
@@ -759,7 +888,11 @@ class DocumentQualityService:
 
         except Exception as e:
             logger.error(f"Content quality assessment failed: {str(e)}")
-            return {"score": 0.0, "issues": [QualityIssue("content_quality", "high", str(e))], "metrics": {}}
+            return {
+                "score": 0.0,
+                "issues": [QualityIssue("content_quality", "high", str(e))],
+                "metrics": {},
+            }
 
     async def assess_metadata_quality(self, document: Document) -> Dict[str, Any]:
         """Assess metadata quality"""
@@ -772,41 +905,51 @@ class DocumentQualityService:
                 "has_title": bool(document.title),
                 "has_tags": bool(document.tags),
                 "has_description": bool(document.get_metadata_value("description")),
-                "creation_date": document.created_at.isoformat() if document.created_at else None
+                "creation_date": document.created_at.isoformat()
+                if document.created_at
+                else None,
             }
 
             # Essential metadata fields
             essential_fields = ["title", "file_hash"]
-            present_essential = sum(1 for field in essential_fields
-                                 if field in metadata or
-                                 (field == "title" and document.title))
+            present_essential = sum(
+                1
+                for field in essential_fields
+                if field in metadata or (field == "title" and document.title)
+            )
 
             metadata_score = present_essential / len(essential_fields)
 
             # Optional metadata fields
             optional_fields = ["description", "author", "language", "keywords"]
             present_optional = sum(1 for field in optional_fields if field in metadata)
-            optional_score = present_optional / len(optional_fields) * 0.3  # Weight less
+            optional_score = (
+                present_optional / len(optional_fields) * 0.3
+            )  # Weight less
 
             total_score = metadata_score + optional_score
 
             # Check metadata quality issues
             if not document.title or len(document.title.strip()) < 3:
-                result["issues"].append(QualityIssue(
-                    dimension="metadata_quality",
-                    severity="medium",
-                    description="Missing or inadequate title",
-                    suggestion="Add a descriptive title"
-                ))
+                result["issues"].append(
+                    QualityIssue(
+                        dimension="metadata_quality",
+                        severity="medium",
+                        description="Missing or inadequate title",
+                        suggestion="Add a descriptive title",
+                    )
+                )
                 total_score -= 0.2
 
             if not document.tags:
-                result["issues"].append(QualityIssue(
-                    dimension="metadata_quality",
-                    severity="low",
-                    description="No tags assigned",
-                    suggestion="Add relevant tags for better organization"
-                ))
+                result["issues"].append(
+                    QualityIssue(
+                        dimension="metadata_quality",
+                        severity="low",
+                        description="No tags assigned",
+                        suggestion="Add relevant tags for better organization",
+                    )
+                )
                 total_score -= 0.1
 
             result["score"] = max(0.0, min(1.0, total_score))
@@ -816,59 +959,93 @@ class DocumentQualityService:
 
         except Exception as e:
             logger.error(f"Metadata quality assessment failed: {str(e)}")
-            return {"score": 0.0, "issues": [QualityIssue("metadata_quality", "high", str(e))], "metrics": {}}
+            return {
+                "score": 0.0,
+                "issues": [QualityIssue("metadata_quality", "high", str(e))],
+                "metrics": {},
+            }
 
     def generate_quick_recommendations(self, assessment: Dict[str, Any]) -> List[str]:
         """Generate quick recommendations based on assessment"""
         recommendations = []
 
         if assessment["readability_score"] < 0.6:
-            recommendations.append("Consider breaking long sentences and improving text structure for better readability")
+            recommendations.append(
+                "Consider breaking long sentences and improving text structure for better readability"
+            )
 
         if assessment["content_quality_score"] < 0.5:
-            recommendations.append("Document content appears limited. Consider expanding with more detailed information")
+            recommendations.append(
+                "Document content appears limited. Consider expanding with more detailed information"
+            )
 
         if assessment["technical_quality_score"] < 0.6:
-            recommendations.append("Technical issues detected. Check document processing status and file integrity")
+            recommendations.append(
+                "Technical issues detected. Check document processing status and file integrity"
+            )
 
         return recommendations
 
-    def generate_comprehensive_recommendations(self, assessment: Dict[str, Any], dimension_scores: Dict[str, float]) -> List[str]:
+    def generate_comprehensive_recommendations(
+        self, assessment: Dict[str, Any], dimension_scores: Dict[str, float]
+    ) -> List[str]:
         """Generate comprehensive recommendations"""
         recommendations = []
 
         # Overall score recommendations
         if assessment["overall_score"] < 0.4:
-            recommendations.append("Document requires significant improvement across multiple quality dimensions")
+            recommendations.append(
+                "Document requires significant improvement across multiple quality dimensions"
+            )
         elif assessment["overall_score"] < 0.7:
-            recommendations.append("Document quality can be improved with targeted enhancements")
+            recommendations.append(
+                "Document quality can be improved with targeted enhancements"
+            )
 
         # Dimension-specific recommendations
         for dimension, score in dimension_scores.items():
             threshold = self.quality_thresholds.get(dimension, 0.7)
             if score < threshold:
                 if dimension == "readability":
-                    recommendations.append("Improve readability by using shorter sentences and clearer language")
+                    recommendations.append(
+                        "Improve readability by using shorter sentences and clearer language"
+                    )
                 elif dimension == "coherence":
-                    recommendations.append("Enhance logical flow with transition words and better paragraph structure")
+                    recommendations.append(
+                        "Enhance logical flow with transition words and better paragraph structure"
+                    )
                 elif dimension == "completeness":
-                    recommendations.append("Expand content to ensure document completeness")
+                    recommendations.append(
+                        "Expand content to ensure document completeness"
+                    )
                 elif dimension == "accuracy":
-                    recommendations.append("Review content for accuracy and proper formatting")
+                    recommendations.append(
+                        "Review content for accuracy and proper formatting"
+                    )
                 elif dimension == "technical_quality":
-                    recommendations.append("Address technical issues and improve file processing")
+                    recommendations.append(
+                        "Address technical issues and improve file processing"
+                    )
                 elif dimension == "content_quality":
-                    recommendations.append("Enhance content quality with more detailed and diverse information")
+                    recommendations.append(
+                        "Enhance content quality with more detailed and diverse information"
+                    )
                 elif dimension == "metadata_quality":
-                    recommendations.append("Improve metadata by adding titles, descriptions, and tags")
+                    recommendations.append(
+                        "Improve metadata by adding titles, descriptions, and tags"
+                    )
 
         return recommendations
 
-    async def store_quality_metrics(self, document: Document, assessment: Dict[str, Any]):
+    async def store_quality_metrics(
+        self, document: Document, assessment: Dict[str, Any]
+    ):
         """Store quality metrics in database"""
         # Skip if QualityMetrics model not implemented yet
         if QualityMetrics is None:
-            logger.warning("QualityMetrics model not implemented - skipping quality metrics storage")
+            logger.warning(
+                "QualityMetrics model not implemented - skipping quality metrics storage"
+            )
             return
 
         try:
@@ -886,7 +1063,7 @@ class DocumentQualityService:
                 metadata_quality_score=assessment.get("metadata_quality_score", 0.0),
                 detailed_metrics=assessment.get("detailed_metrics", {}),
                 recommendations=assessment.get("recommendations", []),
-                assessment_version="1.0"
+                assessment_version="1.0",
             )
 
             self.db.add(quality_metrics)
@@ -896,7 +1073,10 @@ class DocumentQualityService:
             logger.error(f"Failed to store quality metrics: {str(e)}")
             # Don't raise error as this is not critical
 
+
 # Dependency injection
-def get_document_quality_service(db: Session = Depends(get_db)) -> DocumentQualityService:
+def get_document_quality_service(
+    db: Session = Depends(get_db),
+) -> DocumentQualityService:
     """Get document quality service instance"""
     return DocumentQualityService(db)

@@ -2,12 +2,13 @@
 Authentication and authorization for microservices
 """
 
-import jwt
 import logging
-from typing import Optional, Dict, Any
-from fastapi import Depends, HTTPException, status, WebSocket
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
+
+import jwt
+from fastapi import Depends, HTTPException, WebSocket, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from ..config.knowledge_graph_config import config
 
@@ -19,13 +20,9 @@ security = HTTPBearer()
 
 class User:
     """User model for authentication"""
+
     def __init__(
-        self,
-        id: str,
-        email: str,
-        tenant_id: str,
-        role: str,
-        permissions: list = None
+        self, id: str, email: str, tenant_id: str, role: str, permissions: list = None
     ):
         self.id = id
         self.email = email
@@ -46,9 +43,7 @@ async def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
     """Decode JWT token and return payload"""
     try:
         payload = jwt.decode(
-            token,
-            config.JWT_SECRET_KEY,
-            algorithms=[config.JWT_ALGORITHM]
+            token, config.JWT_SECRET_KEY, algorithms=[config.JWT_ALGORITHM]
         )
         return payload
     except jwt.ExpiredSignatureError:
@@ -59,7 +54,9 @@ async def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> User:
     """Get current user from JWT token"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -86,7 +83,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             email=email,
             tenant_id=tenant_id,
             role=role,
-            permissions=permissions
+            permissions=permissions,
         )
 
     except Exception as e:
@@ -115,7 +112,7 @@ async def verify_websocket_token(token: str) -> Optional[User]:
             email=email,
             tenant_id=tenant_id,
             role=role,
-            permissions=permissions
+            permissions=permissions,
         )
 
     except Exception as e:
@@ -125,25 +122,28 @@ async def verify_websocket_token(token: str) -> Optional[User]:
 
 def require_permission(permission: str):
     """Decorator to require specific permission"""
+
     def permission_dependency(current_user: User = Depends(get_current_user)):
         if not current_user.has_permission(permission):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission '{permission}' required"
+                detail=f"Permission '{permission}' required",
             )
         return current_user
+
     return permission_dependency
 
 
 def require_role(role: str):
     """Decorator to require specific role"""
+
     def role_dependency(current_user: User = Depends(get_current_user)):
         if not current_user.has_role(role):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Role '{role}' required"
+                status_code=status.HTTP_403_FORBIDDEN, detail=f"Role '{role}' required"
             )
         return current_user
+
     return role_dependency
 
 
@@ -157,7 +157,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         expire = datetime.utcnow() + timedelta(minutes=config.JWT_EXPIRE_MINUTES)
 
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, config.JWT_SECRET_KEY, algorithm=config.JWT_ALGORITHM)
+    encoded_jwt = jwt.encode(
+        to_encode, config.JWT_SECRET_KEY, algorithm=config.JWT_ALGORITHM
+    )
     return encoded_jwt
 
 
@@ -174,10 +176,13 @@ async def get_websocket_user(websocket: WebSocket, token: str) -> Optional[User]
 # Rate limiting by user
 class UserRateLimiter:
     """Simple in-memory rate limiter by user"""
+
     def __init__(self):
         self.requests = {}
 
-    async def is_allowed(self, user_id: str, limit: int = 100, window: int = 60) -> bool:
+    async def is_allowed(
+        self, user_id: str, limit: int = 100, window: int = 60
+    ) -> bool:
         """Check if user is allowed to make request"""
         now = datetime.utcnow().timestamp()
 
@@ -186,8 +191,7 @@ class UserRateLimiter:
 
         # Remove old requests outside the window
         self.requests[user_id] = [
-            req_time for req_time in self.requests[user_id]
-            if now - req_time < window
+            req_time for req_time in self.requests[user_id] if now - req_time < window
         ]
 
         # Check if under limit
@@ -206,7 +210,6 @@ async def rate_limit_by_user(current_user: User = Depends(get_current_user)):
     """Rate limiting dependency"""
     if not await rate_limiter.is_allowed(current_user.id, limit=1000, window=60):
         raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded"
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded"
         )
     return current_user

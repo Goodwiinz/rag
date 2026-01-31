@@ -7,39 +7,37 @@ Provides REST endpoints for thread and message management.
 import logging
 import threading
 import time
-from typing import Optional, List
+from typing import List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.core.config import settings
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
-from src.core.config import settings
-from src.models.user import User
-from src.models.thread import ThreadStatus
-from src.services.threads.chat_service import ChatService, get_chat_service
-from src.services.threads.thread_event_service import thread_event_service
 from src.middleware.rate_limiting import get_rate_limiter
-from src.schemas.chat import (
-    # Thread schemas
-    ThreadCreate,
-    ThreadUpdate,
-    ThreadResponse,
-    ThreadDetailResponse,
-    ThreadListResponse,
-    # Bulk thread schemas
+from src.models.thread import ThreadStatus
+from src.models.user import User
+from src.schemas.chat import (  # Thread schemas; Bulk thread schemas; Message schemas
     BulkThreadRequest,
-    BulkThreadResult,
     BulkThreadResponse,
-    # Message schemas
+    BulkThreadResult,
     ChatMessageCreate,
-    ChatMessageUpdate,
-    ChatMessageResponse,
     ChatMessageListResponse,
+    ChatMessageResponse,
+    ChatMessageUpdate,
     CitationResponse,
     MessageAttachmentResponse,
+    ThreadCreate,
+    ThreadDetailResponse,
+    ThreadListResponse,
+    ThreadResponse,
+    ThreadUpdate,
 )
+from src.services.threads.chat_service import ChatService, get_chat_service
+from src.services.threads.thread_event_service import thread_event_service
 
 logger = logging.getLogger(__name__)
 
@@ -62,13 +60,16 @@ def get_bulk_rate_limiter():
                     import redis
 
                     redis_client = redis.Redis.from_url(
-                        settings.REDIS_URL or "redis://localhost:6379/0", decode_responses=True
+                        settings.REDIS_URL or "redis://localhost:6379/0",
+                        decode_responses=True,
                     )
                     redis_client.ping()
                     _rate_limiter = get_rate_limiter(redis_client)
                     logger.info("Bulk thread rate limiter initialized with Redis")
                 except Exception as e:
-                    logger.warning(f"Redis unavailable for rate limiting, using in-memory: {e}")
+                    logger.warning(
+                        f"Redis unavailable for rate limiting, using in-memory: {e}"
+                    )
                     _rate_limiter = get_rate_limiter(None)
     return _rate_limiter
 
@@ -186,8 +187,14 @@ async def create_thread(
     # Auto-link to project if project_id provided (Phase 2: Project-Chat Integration)
     if data.project_id:
         try:
-            from src.models import ProjectThread, ProjectThreadLinkType, Collection, Workspace
             from sqlalchemy import and_
+
+            from src.models import (
+                Collection,
+                ProjectThread,
+                ProjectThreadLinkType,
+                Workspace,
+            )
 
             # Verify project exists and user has access
             project_query = (
@@ -219,6 +226,7 @@ async def create_thread(
 
                 # Get project documents for RAG scope
                 from src.models import CollectionDocument
+
                 doc_query = select(CollectionDocument.document_id).where(
                     CollectionDocument.collection_id == data.project_id
                 )
@@ -614,7 +622,9 @@ async def regenerate_thread_summary(
         )
 
     # Import and call summarization service
-    from src.services.threads.thread_summarization_service import get_thread_summarization_service
+    from src.services.threads.thread_summarization_service import (
+        get_thread_summarization_service,
+    )
 
     summarization_service = get_thread_summarization_service(db)
 

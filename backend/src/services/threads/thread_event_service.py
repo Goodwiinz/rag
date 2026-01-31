@@ -29,9 +29,7 @@ class ThreadEventService:
         self._manager = connection_manager
 
     async def _broadcast_to_channels(
-        self,
-        channels: list[str],
-        message: WebSocketMessage
+        self, channels: list[str], message: WebSocketMessage
     ) -> None:
         """Broadcast message to multiple channels with recipient deduplication.
 
@@ -50,24 +48,26 @@ class ThreadEventService:
         # Track which connection IDs have already received the message
         # Note: Local set is inherently thread-safe - no shared state between calls
         sent_to: set[str] = set()
-        
+
         for channel in channels:
             # Add channel to target channels if not already present
             if channel not in message.target_channels:
                 message.target_channels.append(channel)
-            
+
             # Get subscribers for this channel
             subscriber_ids = self._manager.channel_subscribers.get(channel, set())
-            
+
             # Send only to subscribers we haven't sent to yet
             for connection_id in subscriber_ids:
                 if connection_id in sent_to:
                     continue  # Skip - already received message
-                    
+
                 if connection_id in self._manager.active_connections:
                     connection_info = self._manager.active_connections[connection_id]
                     if connection_info.should_receive_message(message):
-                        await self._manager.send_message_to_connection(connection_id, message)
+                        await self._manager.send_message_to_connection(
+                            connection_id, message
+                        )
                         sent_to.add(connection_id)
 
     async def broadcast_thread_created(
@@ -105,13 +105,10 @@ class ThreadEventService:
 
         # Broadcast to all channels with deduplication
         await self._broadcast_to_channels(
-            [f"conversation:{conversation_id}", f"user:{user_id}:threads"],
-            message
+            [f"conversation:{conversation_id}", f"user:{user_id}:threads"], message
         )
 
-        logger.debug(
-            f"Broadcasted thread_created event for thread {thread_id}"
-        )
+        logger.debug(f"Broadcasted thread_created event for thread {thread_id}")
 
     async def broadcast_thread_updated(
         self,
@@ -144,13 +141,10 @@ class ThreadEventService:
         )
 
         await self._broadcast_to_channels(
-            [f"thread:{thread_id}", f"conversation:{conversation_id}"],
-            message
+            [f"thread:{thread_id}", f"conversation:{conversation_id}"], message
         )
 
-        logger.debug(
-            f"Broadcasted thread_updated event for thread {thread_id}"
-        )
+        logger.debug(f"Broadcasted thread_updated event for thread {thread_id}")
 
     async def broadcast_thread_deleted(
         self,
@@ -180,13 +174,10 @@ class ThreadEventService:
         )
 
         await self._broadcast_to_channels(
-            [f"thread:{thread_id}", f"conversation:{conversation_id}"],
-            message
+            [f"thread:{thread_id}", f"conversation:{conversation_id}"], message
         )
 
-        logger.debug(
-            f"Broadcasted thread_deleted event for thread {thread_id}"
-        )
+        logger.debug(f"Broadcasted thread_deleted event for thread {thread_id}")
 
     async def broadcast_message_created(
         self,
@@ -228,13 +219,10 @@ class ThreadEventService:
         )
 
         await self._broadcast_to_channels(
-            [f"thread:{thread_id}", f"conversation:{conversation_id}"],
-            message
+            [f"thread:{thread_id}", f"conversation:{conversation_id}"], message
         )
 
-        logger.debug(
-            f"Broadcasted message_created event for message {message_id}"
-        )
+        logger.debug(f"Broadcasted message_created event for message {message_id}")
 
     async def broadcast_message_updated(
         self,
@@ -267,13 +255,10 @@ class ThreadEventService:
         )
 
         await self._broadcast_to_channels(
-            [f"thread:{thread_id}", f"conversation:{conversation_id}"],
-            message
+            [f"thread:{thread_id}", f"conversation:{conversation_id}"], message
         )
 
-        logger.debug(
-            f"Broadcasted message_updated event for message {message_id}"
-        )
+        logger.debug(f"Broadcasted message_updated event for message {message_id}")
 
     async def broadcast_conversation_updated(
         self,
@@ -303,14 +288,12 @@ class ThreadEventService:
         )
 
         await self._broadcast_to_channels(
-            [f"conversation:{conversation_id}", f"user:{user_id}:threads"],
-            message
+            [f"conversation:{conversation_id}", f"user:{user_id}:threads"], message
         )
 
         logger.debug(
             f"Broadcasted conversation_updated event for conversation {conversation_id}"
         )
-
 
     async def broadcast_threads_bulk_updated(
         self,
@@ -344,9 +327,7 @@ class ThreadEventService:
         channels = [f"thread:{tid}" for tid in thread_ids]
         await self._broadcast_to_channels(channels, message)
 
-        logger.info(
-            f"Broadcasted bulk {action} event for {len(thread_ids)} threads"
-        )
+        logger.info(f"Broadcasted bulk {action} event for {len(thread_ids)} threads")
 
 
 # Singleton instance

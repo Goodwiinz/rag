@@ -2,17 +2,28 @@
 Thread model for Terminal Observatory thread-centric chat schema
 """
 
-from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Text, Integer
+from datetime import datetime
+from enum import Enum as PyEnum
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
-from enum import Enum as PyEnum
-from datetime import datetime
 
-from .base import BaseModel, GUID
+from .base import GUID, BaseModel
 
 
 class ThreadStatus(PyEnum):
     """Thread status states"""
+
     ACTIVE = "active"
     RESOLVED = "resolved"
     ARCHIVED = "archived"
@@ -29,7 +40,12 @@ class Thread(BaseModel):
     __tablename__ = "threads"
 
     # Parent relationship
-    conversation_id = Column(GUID(), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    conversation_id = Column(
+        GUID(),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     # Basic information
     title = Column(String(500), nullable=True)  # Optional - can be auto-generated
@@ -37,13 +53,20 @@ class Thread(BaseModel):
 
     # State - Use values_callable to use lowercase enum values matching the database
     status = Column(
-        Enum(ThreadStatus, values_callable=lambda x: [e.value for e in x], native_enum=True, name='threadstatus'),
+        Enum(
+            ThreadStatus,
+            values_callable=lambda x: [e.value for e in x],
+            native_enum=True,
+            name="threadstatus",
+        ),
         nullable=False,
-        default=ThreadStatus.ACTIVE
+        default=ThreadStatus.ACTIVE,
     )
 
     # Metadata
-    last_message_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    last_message_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
     message_count = Column(Integer, default=0, nullable=False)
     token_count = Column(Integer, default=0, nullable=False)
 
@@ -67,7 +90,12 @@ class Thread(BaseModel):
     # Relationships
     conversation = relationship("Conversation", back_populates="threads")
     created_by = relationship("User", foreign_keys=[created_by_id])
-    messages = relationship("ChatMessage", back_populates="thread", cascade="all, delete-orphan", order_by="ChatMessage.created_at.asc()")
+    messages = relationship(
+        "ChatMessage",
+        back_populates="thread",
+        cascade="all, delete-orphan",
+        order_by="ChatMessage.created_at.asc()",
+    )
     source_project = relationship("Collection", foreign_keys=[source_project_id])
 
     def __repr__(self):
@@ -105,14 +133,14 @@ class Thread(BaseModel):
     def to_dict(self, include_messages: bool = False) -> dict:
         """Convert to dictionary"""
         data = super().to_dict()
-        data['status'] = self.status.value if self.status else None
-        data['message_count'] = self.message_count
-        data['token_count'] = self.token_count
-        data['source_project_id'] = self.source_project_id
-        data['rag_document_scope'] = self.rag_document_scope
+        data["status"] = self.status.value if self.status else None
+        data["message_count"] = self.message_count
+        data["token_count"] = self.token_count
+        data["source_project_id"] = self.source_project_id
+        data["rag_document_scope"] = self.rag_document_scope
 
         if include_messages and self.messages:
-            data['messages'] = [m.to_dict() for m in self.messages]
+            data["messages"] = [m.to_dict() for m in self.messages]
 
         return data
 
@@ -128,8 +156,8 @@ class Thread(BaseModel):
             return self.title
 
         if self.messages:
-            from .chat_message import MessageRole
             from ..services.thread_title_generator import generate_title_sync
+            from .chat_message import MessageRole
 
             for msg in self.messages:
                 if msg.role == MessageRole.USER and msg.content:

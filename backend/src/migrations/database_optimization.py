@@ -5,9 +5,10 @@ Database optimization scripts for enhanced document processing performance
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple
-from sqlalchemy import text, Index, and_, or_, func
+
+from sqlalchemy import Index, and_, func, or_, text
+from sqlalchemy.dialects.postgresql import ANALYZE, VACUUM
 from sqlalchemy.orm import Session
-from sqlalchemy.dialects.postgresql import VACUUM, ANALYZE
 
 logger = logging.getLogger(__name__)
 
@@ -31,16 +32,19 @@ class DatabaseOptimizer:
             row_count = count_result.row_count if count_result else 0
 
             # Get table size
-            size_query = text(f"""
+            size_query = text(
+                f"""
                 SELECT
                     pg_size_pretty(pg_total_relation_size('{table_name}')) as total_size,
                     pg_size_pretty(pg_relation_size('{table_name}')) as table_size,
                     pg_size_pretty(pg_total_relation_size('{table_name}') - pg_relation_size('{table_name}')) as index_size
-            """)
+            """
+            )
             size_result = self.db.execute(size_query).fetchone()
 
             # Get index usage statistics
-            index_query = text(f"""
+            index_query = text(
+                f"""
                 SELECT
                     schemaname,
                     tablename,
@@ -51,31 +55,32 @@ class DatabaseOptimizer:
                 FROM pg_stat_user_indexes
                 WHERE tablename = '{table_name}'
                 ORDER BY idx_scan DESC
-            """)
+            """
+            )
             index_results = self.db.execute(index_query).fetchall()
 
             return {
-                'table_name': table_name,
-                'row_count': row_count,
-                'size_info': {
-                    'total_size': size_result.total_size if size_result else 'Unknown',
-                    'table_size': size_result.table_size if size_result else 'Unknown',
-                    'index_size': size_result.index_size if size_result else 'Unknown'
+                "table_name": table_name,
+                "row_count": row_count,
+                "size_info": {
+                    "total_size": size_result.total_size if size_result else "Unknown",
+                    "table_size": size_result.table_size if size_result else "Unknown",
+                    "index_size": size_result.index_size if size_result else "Unknown",
                 },
-                'index_usage': [
+                "index_usage": [
                     {
-                        'index_name': row.indexname,
-                        'tuples_read': row.idx_tup_read,
-                        'tuples_fetched': row.idx_tup_fetch,
-                        'scans': row.idx_scan
+                        "index_name": row.indexname,
+                        "tuples_read": row.idx_tup_read,
+                        "tuples_fetched": row.idx_tup_fetch,
+                        "scans": row.idx_scan,
                     }
                     for row in index_results
-                ]
+                ],
             }
 
         except Exception as e:
             logger.error(f"Error analyzing table {table_name}: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     def create_missing_indexes(self) -> Dict[str, List[str]]:
         """
@@ -91,10 +96,12 @@ class DatabaseOptimizer:
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_documents_searchable_content ON documents (organization_id, is_embedded, is_indexed, document_type) WHERE is_deleted = false",
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_documents_user_recent ON documents (uploaded_by_user_id, created_at DESC)",
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_documents_metadata_gin ON documents USING GIN (document_metadata)",
-                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_documents_tags_gin ON documents USING GIN (tags)"
+                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_documents_tags_gin ON documents USING GIN (tags)",
             ]
 
-            created_indexes['documents'] = self._execute_index_commands(documents_indexes)
+            created_indexes["documents"] = self._execute_index_commands(
+                documents_indexes
+            )
 
             # Processing history indexes
             processing_history_indexes = [
@@ -102,10 +109,12 @@ class DatabaseOptimizer:
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_processing_history_org_stage_status ON processing_history (organization_id, stage, status)",
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_processing_history_processor_queue ON processing_history (status, processor_id, created_at) WHERE status IN ('pending', 'running')",
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_processing_history_error_retry ON processing_history (status, retry_count, created_at) WHERE status = 'failed'",
-                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_processing_history_duration_analysis ON processing_history (duration_seconds, stage, organization_id)"
+                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_processing_history_duration_analysis ON processing_history (duration_seconds, stage, organization_id)",
             ]
 
-            created_indexes['processing_history'] = self._execute_index_commands(processing_history_indexes)
+            created_indexes["processing_history"] = self._execute_index_commands(
+                processing_history_indexes
+            )
 
             # Multimodal content indexes
             multimodal_content_indexes = [
@@ -114,10 +123,12 @@ class DatabaseOptimizer:
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_multimodal_content_quality_filter ON multimodal_content (quality_score, content_type) WHERE quality_score >= 0.5",
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_multimodal_content_media_specific ON multimodal_content (content_type, media_duration_seconds, media_format) WHERE content_type IN ('audio', 'video')",
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_multimodal_content_language_specific ON multimodal_content (language_code, content_type, word_count)",
-                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_multimodal_content_metadata_gin ON multimodal_content USING GIN (content_metadata)"
+                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_multimodal_content_metadata_gin ON multimodal_content USING GIN (content_metadata)",
             ]
 
-            created_indexes['multimodal_content'] = self._execute_index_commands(multimodal_content_indexes)
+            created_indexes["multimodal_content"] = self._execute_index_commands(
+                multimodal_content_indexes
+            )
 
             # Document versions indexes
             document_versions_indexes = [
@@ -125,10 +136,12 @@ class DatabaseOptimizer:
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_document_versions_org_timeline ON document_versions (organization_id, created_at DESC)",
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_document_versions_user_versions ON document_versions (created_by_user_id, created_at DESC)",
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_document_versions_major_minor ON document_versions (document_id, is_major_version, version_number)",
-                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_document_versions_hash_lookup ON document_versions (file_hash)"
+                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_document_versions_hash_lookup ON document_versions (file_hash)",
             ]
 
-            created_indexes['document_versions'] = self._execute_index_commands(document_versions_indexes)
+            created_indexes["document_versions"] = self._execute_index_commands(
+                document_versions_indexes
+            )
 
             # Quality metrics indexes
             quality_metrics_indexes = [
@@ -136,10 +149,12 @@ class DatabaseOptimizer:
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quality_metrics_threshold_analysis ON document_quality_metrics (meets_threshold, metric_type, metric_value)",
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quality_metrics_assessment_confidence ON document_quality_metrics (assessment_method, confidence_score, created_at)",
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quality_metrics_org_metric_summary ON document_quality_metrics (organization_id, metric_type, created_at DESC)",
-                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quality_metrics_details_gin ON document_quality_metrics USING GIN (metric_details)"
+                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quality_metrics_details_gin ON document_quality_metrics USING GIN (metric_details)",
             ]
 
-            created_indexes['document_quality_metrics'] = self._execute_index_commands(quality_metrics_indexes)
+            created_indexes["document_quality_metrics"] = self._execute_index_commands(
+                quality_metrics_indexes
+            )
 
             # Access log indexes (for time-series analysis)
             access_log_indexes = [
@@ -150,10 +165,12 @@ class DatabaseOptimizer:
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_access_log_ip_analysis ON document_access_log (ip_address, created_at DESC)",
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_access_log_response_analysis ON document_access_log (response_status_code, response_time_ms)",
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_access_log_session_tracking ON document_access_log (session_id, created_at DESC)",
-                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_access_log_security_flags_gin ON document_access_log USING GIN (security_flags)"
+                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_access_log_security_flags_gin ON document_access_log USING GIN (security_flags)",
             ]
 
-            created_indexes['document_access_log'] = self._execute_index_commands(access_log_indexes)
+            created_indexes["document_access_log"] = self._execute_index_commands(
+                access_log_indexes
+            )
 
             # Processing jobs indexes
             processing_jobs_indexes = [
@@ -163,17 +180,19 @@ class DatabaseOptimizer:
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_processing_jobs_worker_performance ON processing_jobs (worker_id, duration_seconds, created_at DESC)",
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_processing_jobs_retry_analysis ON processing_jobs (status, retry_count, created_at)",
                 "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_processing_jobs_config_gin ON processing_jobs USING GIN (config)",
-                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_processing_jobs_artifacts_gin ON processing_jobs USING GIN (artifacts)"
+                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_processing_jobs_artifacts_gin ON processing_jobs USING GIN (artifacts)",
             ]
 
-            created_indexes['processing_jobs'] = self._execute_index_commands(processing_jobs_indexes)
+            created_indexes["processing_jobs"] = self._execute_index_commands(
+                processing_jobs_indexes
+            )
 
             logger.info("Database indexes created successfully")
             return created_indexes
 
         except Exception as e:
             logger.error(f"Error creating indexes: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     def _execute_index_commands(self, index_commands: List[str]) -> List[str]:
         """Execute index creation commands and return successful ones"""
@@ -200,13 +219,13 @@ class DatabaseOptimizer:
         try:
             # Tables to optimize
             tables = [
-                'documents',
-                'processing_history',
-                'document_versions',
-                'multimodal_content',
-                'document_quality_metrics',
-                'document_access_log',
-                'processing_jobs'
+                "documents",
+                "processing_history",
+                "document_versions",
+                "multimodal_content",
+                "document_quality_metrics",
+                "document_access_log",
+                "processing_jobs",
             ]
 
             for table in tables:
@@ -217,7 +236,8 @@ class DatabaseOptimizer:
                     results[f"{table}_analyze"] = "completed"
 
                     # Check if table needs vacuum (high bloat)
-                    bloat_query = text(f"""
+                    bloat_query = text(
+                        f"""
                         SELECT
                             schemaname,
                             tablename,
@@ -260,7 +280,8 @@ class DatabaseOptimizer:
                             JOIN pg_namespace nn ON cc.relnamespace = nn.oid AND nn.nspname = rs.schemaname AND nn.nspname <> 'information_schema'
                         ) AS sml
                         WHERE tbloat > 1.5 AND tablename = '{table}'
-                    """)
+                    """
+                    )
 
                     bloat_result = self.db.execute(bloat_query).fetchone()
 
@@ -268,8 +289,12 @@ class DatabaseOptimizer:
                         # Run vacuum if significant bloat detected
                         vacuum_query = text(f"VACUUM ANALYZE {table}")
                         self.db.execute(vacuum_query)
-                        results[f"{table}_vacuum"] = f"completed (bloat: {bloat_result.tbloat})"
-                        logger.info(f"Vacuumed table {table} due to bloat: {bloat_result.tbloat}")
+                        results[
+                            f"{table}_vacuum"
+                        ] = f"completed (bloat: {bloat_result.tbloat})"
+                        logger.info(
+                            f"Vacuumed table {table} due to bloat: {bloat_result.tbloat}"
+                        )
                     else:
                         results[f"{table}_vacuum"] = "skipped (low bloat)"
 
@@ -282,7 +307,7 @@ class DatabaseOptimizer:
 
         except Exception as e:
             logger.error(f"Critical error during table maintenance: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     def create_partitioned_tables(self) -> Dict[str, str]:
         """
@@ -292,7 +317,8 @@ class DatabaseOptimizer:
 
         try:
             # Create partitioned access log table by date
-            partition_access_log = text("""
+            partition_access_log = text(
+                """
                 -- Create partitioned table for access logs
                 CREATE TABLE IF NOT EXISTS document_access_log_partitioned (
                     LIKE document_access_log INCLUDING ALL
@@ -315,13 +341,15 @@ class DatabaseOptimizer:
                                        partition_name, start_date, end_date);
                     END LOOP;
                 END $$;
-            """)
+            """
+            )
 
             self.db.execute(partition_access_log)
-            results['access_log_partitioning'] = 'completed'
+            results["access_log_partitioning"] = "completed"
 
             # Create partitioned processing history table
-            partition_processing_history = text("""
+            partition_processing_history = text(
+                """
                 -- Create partitioned table for processing history
                 CREATE TABLE IF NOT EXISTS processing_history_partitioned (
                     LIKE processing_history INCLUDING ALL
@@ -344,17 +372,18 @@ class DatabaseOptimizer:
                                        partition_name, start_date, end_date);
                     END LOOP;
                 END $$;
-            """)
+            """
+            )
 
             self.db.execute(partition_processing_history)
-            results['processing_history_partitioning'] = 'completed'
+            results["processing_history_partitioning"] = "completed"
 
             logger.info("Table partitioning completed")
             return results
 
         except Exception as e:
             logger.error(f"Error creating partitioned tables: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     def setup_query_performance_monitoring(self) -> Dict[str, str]:
         """
@@ -364,18 +393,23 @@ class DatabaseOptimizer:
 
         try:
             # Enable pg_stat_statements if not already enabled
-            check_extension = text("SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements'")
+            check_extension = text(
+                "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements'"
+            )
             extension_exists = self.db.execute(check_extension).fetchone()
 
             if not extension_exists:
-                create_extension = text("CREATE EXTENSION IF NOT EXISTS pg_stat_statements")
+                create_extension = text(
+                    "CREATE EXTENSION IF NOT EXISTS pg_stat_statements"
+                )
                 self.db.execute(create_extension)
-                results['pg_stat_statements'] = 'enabled'
+                results["pg_stat_statements"] = "enabled"
             else:
-                results['pg_stat_statements'] = 'already_enabled'
+                results["pg_stat_statements"] = "already_enabled"
 
             # Create performance monitoring view
-            create_monitoring_view = text("""
+            create_monitoring_view = text(
+                """
                 CREATE OR REPLACE VIEW slow_queries AS
                 SELECT
                     query,
@@ -388,13 +422,15 @@ class DatabaseOptimizer:
                 WHERE mean_time > 1000  -- queries taking more than 1 second on average
                 ORDER BY mean_time DESC
                 LIMIT 50;
-            """)
+            """
+            )
 
             self.db.execute(create_monitoring_view)
-            results['slow_queries_view'] = 'created'
+            results["slow_queries_view"] = "created"
 
             # Create index usage monitoring view
-            create_index_usage_view = text("""
+            create_index_usage_view = text(
+                """
                 CREATE OR REPLACE VIEW index_usage_report AS
                 SELECT
                     schemaname,
@@ -407,13 +443,15 @@ class DatabaseOptimizer:
                 FROM pg_stat_user_indexes
                 WHERE idx_scan = 0
                 ORDER BY pg_relation_size(indexrelid) DESC;
-            """)
+            """
+            )
 
             self.db.execute(create_index_usage_view)
-            results['index_usage_view'] = 'created'
+            results["index_usage_view"] = "created"
 
             # Create table size monitoring view
-            create_table_size_view = text("""
+            create_table_size_view = text(
+                """
                 CREATE OR REPLACE VIEW table_size_report AS
                 SELECT
                     schemaname,
@@ -428,10 +466,11 @@ class DatabaseOptimizer:
                     n_dead_tup as dead_rows
                 FROM pg_stat_user_tables
                 ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
-            """)
+            """
+            )
 
             self.db.execute(create_table_size_view)
-            results['table_size_view'] = 'created'
+            results["table_size_view"] = "created"
 
             self.db.commit()
             logger.info("Query performance monitoring setup completed")
@@ -439,7 +478,7 @@ class DatabaseOptimizer:
 
         except Exception as e:
             logger.error(f"Error setting up query performance monitoring: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     def run_full_optimization(self) -> Dict:
         """
@@ -448,11 +487,11 @@ class DatabaseOptimizer:
         logger.info("Starting full database optimization")
 
         results = {
-            'index_creation': self.create_missing_indexes(),
-            'table_maintenance': self.optimize_table_maintenance(),
-            'partitioning': self.create_partitioned_tables(),
-            'performance_monitoring': self.setup_query_performance_monitoring(),
-            'timestamp': datetime.utcnow().isoformat()
+            "index_creation": self.create_missing_indexes(),
+            "table_maintenance": self.optimize_table_maintenance(),
+            "partitioning": self.create_partitioned_tables(),
+            "performance_monitoring": self.setup_query_performance_monitoring(),
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         logger.info("Database optimization completed")
@@ -467,50 +506,48 @@ def analyze_database_performance(db: Session) -> Dict:
 
     # Analyze key tables
     tables_to_analyze = [
-        'documents',
-        'processing_history',
-        'document_versions',
-        'multimodal_content',
-        'document_quality_metrics',
-        'document_access_log',
-        'processing_jobs'
+        "documents",
+        "processing_history",
+        "document_versions",
+        "multimodal_content",
+        "document_quality_metrics",
+        "document_access_log",
+        "processing_jobs",
     ]
 
-    analysis = {
-        'table_analysis': {},
-        'recommendations': [],
-        'performance_summary': {}
-    }
+    analysis = {"table_analysis": {}, "recommendations": [], "performance_summary": {}}
 
     for table in tables_to_analyze:
-        analysis['table_analysis'][table] = optimizer.analyze_table_statistics(table)
+        analysis["table_analysis"][table] = optimizer.analyze_table_statistics(table)
 
     # Get slow queries
     try:
-        slow_queries_query = text("""
+        slow_queries_query = text(
+            """
             SELECT query, calls, total_time, mean_time, rows
             FROM pg_stat_statements
             WHERE mean_time > 500
             ORDER BY mean_time DESC
             LIMIT 10
-        """)
+        """
+        )
 
         slow_queries = db.execute(slow_queries_query).fetchall()
-        analysis['performance_summary']['slow_queries'] = [
+        analysis["performance_summary"]["slow_queries"] = [
             {
-                'query': row.query[:200] + '...' if len(row.query) > 200 else row.query,
-                'calls': row.calls,
-                'mean_time_ms': row.mean_time,
-                'total_time_ms': row.total_time
+                "query": row.query[:200] + "..." if len(row.query) > 200 else row.query,
+                "calls": row.calls,
+                "mean_time_ms": row.mean_time,
+                "total_time_ms": row.total_time,
             }
             for row in slow_queries
         ]
     except Exception as e:
         logger.warning(f"Could not retrieve slow queries: {e}")
-        analysis['performance_summary']['slow_queries'] = []
+        analysis["performance_summary"]["slow_queries"] = []
 
     # Generate recommendations
-    analysis['recommendations'] = _generate_performance_recommendations(analysis)
+    analysis["recommendations"] = _generate_performance_recommendations(analysis)
 
     return analysis
 
@@ -519,27 +556,37 @@ def _generate_performance_recommendations(analysis: Dict) -> List[str]:
     """Generate performance recommendations based on analysis"""
     recommendations = []
 
-    for table_name, table_info in analysis['table_analysis'].items():
-        if 'error' in table_info:
-            recommendations.append(f"Fix error in table {table_name}: {table_info['error']}")
+    for table_name, table_info in analysis["table_analysis"].items():
+        if "error" in table_info:
+            recommendations.append(
+                f"Fix error in table {table_name}: {table_info['error']}"
+            )
             continue
 
         # Check for unused indexes
-        unused_indexes = [idx for idx in table_info.get('index_usage', []) if idx['scans'] == 0]
+        unused_indexes = [
+            idx for idx in table_info.get("index_usage", []) if idx["scans"] == 0
+        ]
         if unused_indexes:
-            recommendations.append(f"Consider removing unused indexes on {table_name}: {[idx['index_name'] for idx in unused_indexes]}")
+            recommendations.append(
+                f"Consider removing unused indexes on {table_name}: {[idx['index_name'] for idx in unused_indexes]}"
+            )
 
         # Check for large tables
-        if 'MB' in table_info.get('size_info', {}).get('total_size', ''):
-            size_str = table_info['size_info']['total_size']
-            if 'GB' in size_str:
-                size_gb = float(size_str.replace('GB', '').strip())
+        if "MB" in table_info.get("size_info", {}).get("total_size", ""):
+            size_str = table_info["size_info"]["total_size"]
+            if "GB" in size_str:
+                size_gb = float(size_str.replace("GB", "").strip())
                 if size_gb > 10:
-                    recommendations.append(f"Large table {table_name} ({size_str} GB) - consider partitioning")
+                    recommendations.append(
+                        f"Large table {table_name} ({size_str} GB) - consider partitioning"
+                    )
 
     # Add general recommendations
-    if analysis['performance_summary'].get('slow_queries'):
-        recommendations.append("Found slow queries - review and optimize query performance")
+    if analysis["performance_summary"].get("slow_queries"):
+        recommendations.append(
+            "Found slow queries - review and optimize query performance"
+        )
 
     recommendations.append("Run regular VACUUM and ANALYZE operations")
     recommendations.append("Monitor index usage and remove unused indexes")

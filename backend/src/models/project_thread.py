@@ -6,16 +6,18 @@ and Chat systems (Thread/Conversation) by tracking which threads are
 associated with which projects.
 """
 
-from sqlalchemy import Column, String, ForeignKey, Text, DateTime
-from sqlalchemy.orm import relationship
-from enum import Enum as PyEnum
 from datetime import datetime
+from enum import Enum as PyEnum
 
-from .base import BaseModel, GUID
+from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy.orm import relationship
+
+from .base import GUID, BaseModel
 
 
 class ProjectThreadLinkType(PyEnum):
     """Type of link between project and thread"""
+
     AUTO = "auto"  # Automatically created when starting chat from project
     MANUAL = "manual"  # Manually linked by user
     FROM_CHAT = "from_chat"  # Linked from chat interface
@@ -78,10 +80,10 @@ class ProjectThread(BaseModel):
     def __init__(self, **kwargs):
         """Initialize with default values"""
         # Set default values if not provided
-        if 'link_type' not in kwargs:
-            kwargs['link_type'] = ProjectThreadLinkType.MANUAL.value
-        if 'linked_at' not in kwargs:
-            kwargs['linked_at'] = datetime.utcnow()
+        if "link_type" not in kwargs:
+            kwargs["link_type"] = ProjectThreadLinkType.MANUAL.value
+        if "linked_at" not in kwargs:
+            kwargs["linked_at"] = datetime.utcnow()
         super().__init__(**kwargs)
 
     def __repr__(self):

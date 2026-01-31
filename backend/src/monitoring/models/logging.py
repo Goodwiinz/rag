@@ -7,15 +7,27 @@ Models for storing structured log data and log patterns.
 import uuid
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, String, Integer, DateTime, Boolean, Text, JSON, Index, ForeignKey
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from src.models.base import BaseModel
 
 
 class LogLevel(str, Enum):
     """Log levels"""
+
     TRACE = "TRACE"
     DEBUG = "DEBUG"
     INFO = "INFO"
@@ -26,6 +38,7 @@ class LogLevel(str, Enum):
 
 class LogEntry(BaseModel):
     """Structured log entry"""
+
     __tablename__ = "monitoring_logs"
 
     # Basic log information
@@ -77,27 +90,32 @@ class LogEntry(BaseModel):
     retention_days = Column(Integer, default=30)
 
     # Relationships
-    patterns = relationship("LogPattern", secondary="monitoring_log_pattern_matches", back_populates="logs")
+    patterns = relationship(
+        "LogPattern", secondary="monitoring_log_pattern_matches", back_populates="logs"
+    )
 
     # Indexes for efficient querying
     __table_args__ = (
-        Index('idx_logs_timestamp_level', 'timestamp', 'level'),
-        Index('idx_logs_service_timestamp', 'service_name', 'timestamp'),
-        Index('idx_logs_correlation', 'correlation_id'),
-        Index('idx_logs_trace_span', 'trace_id', 'span_id'),
-        Index('idx_logs_user_session', 'user_id', 'session_id'),
-        Index('idx_logs_exception', 'exception_class'),
-        Index('idx_logs_fields', 'fields', postgresql_using='gin'),
-        Index('idx_logs_tags', 'tags', postgresql_using='gin'),
+        Index("idx_logs_timestamp_level", "timestamp", "level"),
+        Index("idx_logs_service_timestamp", "service_name", "timestamp"),
+        Index("idx_logs_correlation", "correlation_id"),
+        Index("idx_logs_trace_span", "trace_id", "span_id"),
+        Index("idx_logs_user_session", "user_id", "session_id"),
+        Index("idx_logs_exception", "exception_class"),
+        Index("idx_logs_fields", "fields", postgresql_using="gin"),
+        Index("idx_logs_tags", "tags", postgresql_using="gin"),
     )
 
 
 class LogPattern(BaseModel):
     """Detected log patterns"""
+
     __tablename__ = "monitoring_log_patterns"
 
     name = Column(String(255), nullable=False, index=True)
-    pattern_type = Column(String(50), nullable=False)  # error_pattern, performance_pattern, business_pattern
+    pattern_type = Column(
+        String(50), nullable=False
+    )  # error_pattern, performance_pattern, business_pattern
     pattern_regex = Column(Text, nullable=False)
     description = Column(Text)
 
@@ -119,37 +137,49 @@ class LogPattern(BaseModel):
     auto_tag = Column(JSONB, default=dict)
 
     # Relationships
-    logs = relationship("LogEntry", secondary="monitoring_log_pattern_matches", back_populates="patterns")
+    logs = relationship(
+        "LogEntry",
+        secondary="monitoring_log_pattern_matches",
+        back_populates="patterns",
+    )
     aggregations = relationship("LogAggregation", back_populates="pattern")
 
     # Indexes
     __table_args__ = (
-        Index('idx_log_patterns_type_active', 'pattern_type', 'is_active'),
-        Index('idx_log_patterns_frequency', 'frequency_per_hour'),
+        Index("idx_log_patterns_type_active", "pattern_type", "is_active"),
+        Index("idx_log_patterns_frequency", "frequency_per_hour"),
     )
 
 
 # Association table for log-pattern many-to-many relationship
 class LogPatternMatch(BaseModel):
     """Association table for log pattern matches"""
+
     __tablename__ = "monitoring_log_pattern_matches"
 
-    log_id = Column(UUID(as_uuid=True), ForeignKey("monitoring_logs.id"), nullable=False)
-    pattern_id = Column(UUID(as_uuid=True), ForeignKey("monitoring_log_patterns.id"), nullable=False)
-    match_timestamp = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    log_id = Column(
+        UUID(as_uuid=True), ForeignKey("monitoring_logs.id"), nullable=False
+    )
+    pattern_id = Column(
+        UUID(as_uuid=True), ForeignKey("monitoring_log_patterns.id"), nullable=False
+    )
+    match_timestamp = Column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
     confidence = Column(Float, default=1.0)  # 0.0 to 1.0
     match_details = Column(JSONB, default=dict)
 
     # Indexes
     __table_args__ = (
-        Index('idx_log_pattern_matches_log', 'log_id'),
-        Index('idx_log_pattern_matches_pattern', 'pattern_id'),
-        Index('idx_log_pattern_matches_timestamp', 'match_timestamp'),
+        Index("idx_log_pattern_matches_log", "log_id"),
+        Index("idx_log_pattern_matches_pattern", "pattern_id"),
+        Index("idx_log_pattern_matches_timestamp", "match_timestamp"),
     )
 
 
 class LogAggregation(BaseModel):
     """Aggregated log statistics"""
+
     __tablename__ = "monitoring_log_aggregations"
 
     # Aggregation dimensions
@@ -160,7 +190,9 @@ class LogAggregation(BaseModel):
     logger_name = Column(String(255), index=True)
 
     # Pattern aggregation
-    pattern_id = Column(UUID(as_uuid=True), ForeignKey("monitoring_log_patterns.id"), index=True)
+    pattern_id = Column(
+        UUID(as_uuid=True), ForeignKey("monitoring_log_patterns.id"), index=True
+    )
 
     # Aggregated metrics
     count = Column(Integer, default=0)
@@ -183,7 +215,7 @@ class LogAggregation(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_log_aggregations_time_service', 'time_bucket', 'service_name'),
-        Index('idx_log_aggregations_time_level', 'time_bucket', 'level'),
-        Index('idx_log_aggregations_pattern_time', 'pattern_id', 'time_bucket'),
+        Index("idx_log_aggregations_time_service", "time_bucket", "service_name"),
+        Index("idx_log_aggregations_time_level", "time_bucket", "level"),
+        Index("idx_log_aggregations_pattern_time", "pattern_id", "time_bucket"),
     )

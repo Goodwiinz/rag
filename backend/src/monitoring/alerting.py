@@ -3,41 +3,48 @@ Alert Management and Escalation System for Knowledge Graph Analytics Dashboard
 Comprehensive alerting with multi-channel notification and escalation policies
 """
 
-import os
-import json
 import asyncio
+import json
 import logging
+import os
 import smtplib
-from typing import Dict, Any, List, Optional, Union
-from datetime import datetime, timedelta
 from dataclasses import dataclass, field
-from enum import Enum
-from email.mime.text import MimeText
+from datetime import datetime, timedelta
 from email.mime.multipart import MimeMultipart
+from email.mime.text import MimeText
+from enum import Enum
+from typing import Any, Dict, List, Optional, Union
+
 import aiohttp
 import jinja2
 
-from .opentelemetry import otel_manager
 from .metrics import business_metrics
+from .opentelemetry import otel_manager
 
 logger = logging.getLogger(__name__)
 
+
 class AlertSeverity(Enum):
     """Alert severity levels"""
+
     INFO = "info"
     WARNING = "warning"
     CRITICAL = "critical"
     EMERGENCY = "emergency"
 
+
 class AlertStatus(Enum):
     """Alert status states"""
+
     FIRING = "firing"
     RESOLVED = "resolved"
     ACKNOWLEDGED = "acknowledged"
     SUPPRESSED = "suppressed"
 
+
 class NotificationChannel(Enum):
     """Available notification channels"""
+
     EMAIL = "email"
     SLACK = "slack"
     WEBHOOK = "webhook"
@@ -45,9 +52,11 @@ class NotificationChannel(Enum):
     PAGERDUTY = "pagerduty"
     TEAMS = "teams"
 
+
 @dataclass
 class Alert:
     """Alert data structure"""
+
     id: str
     name: str
     severity: AlertSeverity
@@ -64,23 +73,28 @@ class Alert:
     service: Optional[str] = None
     environment: Optional[str] = None
 
+
 @dataclass
 class EscalationPolicy:
     """Escalation policy configuration"""
+
     id: str
     name: str
     severity_threshold: AlertSeverity
     steps: List[Dict[str, Any]] = field(default_factory=list)
     enabled: bool = True
 
+
 @dataclass
 class NotificationConfig:
     """Notification channel configuration"""
+
     channel: NotificationChannel
     enabled: bool = True
     config: Dict[str, Any] = field(default_factory=dict)
     rate_limit_minutes: int = 5
     max_per_hour: int = 20
+
 
 class AlertManager:
     """Centralized alert management system"""
@@ -109,12 +123,14 @@ class AlertManager:
                 "smtp_port": int(os.environ.get("SMTP_PORT", "587")),
                 "smtp_username": os.environ.get("SMTP_USERNAME", ""),
                 "smtp_password": os.environ.get("SMTP_PASSWORD", ""),
-                "from_address": os.environ.get("ALERT_FROM_EMAIL", "alerts@knowledge-graph.dev"),
+                "from_address": os.environ.get(
+                    "ALERT_FROM_EMAIL", "alerts@knowledge-graph.dev"
+                ),
                 "to_addresses": os.environ.get("ALERT_TO_EMAILS", "").split(","),
-                "use_tls": os.environ.get("SMTP_USE_TLS", "true").lower() == "true"
+                "use_tls": os.environ.get("SMTP_USE_TLS", "true").lower() == "true",
             },
             rate_limit_minutes=5,
-            max_per_hour=20
+            max_per_hour=20,
         )
 
         # Slack configuration
@@ -124,10 +140,10 @@ class AlertManager:
             config={
                 "webhook_url": os.environ.get("SLACK_WEBHOOK_URL", ""),
                 "channel": os.environ.get("SLACK_CHANNEL", "#alerts"),
-                "username": "Knowledge Graph Alerts"
+                "username": "Knowledge Graph Alerts",
             },
             rate_limit_minutes=2,
-            max_per_hour=30
+            max_per_hour=30,
         )
 
         # Webhook configuration
@@ -137,23 +153,24 @@ class AlertManager:
             config={
                 "url": os.environ.get("ALERT_WEBHOOK_URL", ""),
                 "headers": json.loads(os.environ.get("ALERT_WEBHOOK_HEADERS", "{}")),
-                "timeout": int(os.environ.get("ALERT_WEBHOOK_TIMEOUT", "30"))
+                "timeout": int(os.environ.get("ALERT_WEBHOOK_TIMEOUT", "30")),
             },
             rate_limit_minutes=1,
-            max_per_hour=100
+            max_per_hour=100,
         )
 
         # PagerDuty configuration
         self.notification_configs[NotificationChannel.PAGERDUTY] = NotificationConfig(
             channel=NotificationChannel.PAGERDUTY,
-            enabled=os.environ.get("ALERT_PAGERDUTY_ENABLED", "false").lower() == "true",
+            enabled=os.environ.get("ALERT_PAGERDUTY_ENABLED", "false").lower()
+            == "true",
             config={
                 "integration_key": os.environ.get("PAGERDUTY_INTEGRATION_KEY", ""),
                 "service_key": os.environ.get("PAGERDUTY_SERVICE_KEY", ""),
-                "api_url": "https://events.pagerduty.com/v2/enqueue"
+                "api_url": "https://events.pagerduty.com/v2/enqueue",
             },
             rate_limit_minutes=1,
-            max_per_hour=50
+            max_per_hour=50,
         )
 
     def _initialize_escalation_policies(self):
@@ -167,21 +184,21 @@ class AlertManager:
                 {
                     "delay_minutes": 0,
                     "channels": [NotificationChannel.SLACK, NotificationChannel.EMAIL],
-                    "message": "Immediate notification required"
+                    "message": "Immediate notification required",
                 },
                 {
                     "delay_minutes": 5,
                     "channels": [NotificationChannel.PAGERDUTY],
-                    "message": "Critical alert not acknowledged in 5 minutes"
+                    "message": "Critical alert not acknowledged in 5 minutes",
                 },
                 {
                     "delay_minutes": 15,
                     "channels": [NotificationChannel.EMAIL],
                     "message": "Critical alert escalation - management notification",
-                    "additional_recipients": ["management@company.com"]
-                }
+                    "additional_recipients": ["management@company.com"],
+                },
             ],
-            enabled=True
+            enabled=True,
         )
 
         # Warning escalation policy
@@ -193,15 +210,15 @@ class AlertManager:
                 {
                     "delay_minutes": 0,
                     "channels": [NotificationChannel.SLACK],
-                    "message": "Warning notification"
+                    "message": "Warning notification",
                 },
                 {
                     "delay_minutes": 10,
                     "channels": [NotificationChannel.EMAIL],
-                    "message": "Warning alert persists for 10 minutes"
-                }
+                    "message": "Warning alert persists for 10 minutes",
+                },
             ],
-            enabled=True
+            enabled=True,
         )
 
         # Info escalation policy
@@ -213,10 +230,10 @@ class AlertManager:
                 {
                     "delay_minutes": 0,
                     "channels": [NotificationChannel.SLACK],
-                    "message": "Informational alert"
+                    "message": "Informational alert",
                 }
             ],
-            enabled=True
+            enabled=True,
         )
 
     async def process_alert(self, alert_data: Dict[str, Any]) -> Alert:
@@ -232,17 +249,24 @@ class AlertManager:
                 description=alert_data.get("description", ""),
                 labels=alert_data.get("labels", {}),
                 annotations=alert_data.get("annotations", {}),
-                starts_at=datetime.fromisoformat(alert_data.get("startsAt", datetime.utcnow().isoformat())),
-                ends_at=datetime.fromisoformat(alert_data["endsAt"]) if "endsAt" in alert_data else None,
+                starts_at=datetime.fromisoformat(
+                    alert_data.get("startsAt", datetime.utcnow().isoformat())
+                ),
+                ends_at=datetime.fromisoformat(alert_data["endsAt"])
+                if "endsAt" in alert_data
+                else None,
                 generator_url=alert_data.get("generatorURL"),
                 fingerprint=alert_data.get("fingerprint", ""),
                 runbook_url=alert_data.get("annotations", {}).get("runbook_url"),
                 service=alert_data.get("labels", {}).get("service"),
-                environment=alert_data.get("labels", {}).get("environment")
+                environment=alert_data.get("labels", {}).get("environment"),
             )
 
             # Handle alert state
-            fingerprint = alert.fingerprint or f"{alert.name}_{alert.severity.value}_{alert.service}"
+            fingerprint = (
+                alert.fingerprint
+                or f"{alert.name}_{alert.severity.value}_{alert.service}"
+            )
 
             if alert.status == AlertStatus.FIRING:
                 if fingerprint not in self.active_alerts:
@@ -296,7 +320,9 @@ class AlertManager:
         # Send resolution notifications
         await self._send_resolution_notifications(alert)
 
-    def _get_escalation_policy(self, severity: AlertSeverity) -> Optional[EscalationPolicy]:
+    def _get_escalation_policy(
+        self, severity: AlertSeverity
+    ) -> Optional[EscalationPolicy]:
         """Get escalation policy for severity level"""
         for policy in self.escalation_policies.values():
             if severity.value >= policy.severity_threshold.value:
@@ -305,9 +331,13 @@ class AlertManager:
 
     async def _schedule_escalations(self, alert: Alert, policy: EscalationPolicy):
         """Schedule delayed escalations for an alert"""
-        fingerprint = alert.fingerprint or f"{alert.name}_{alert.severity.value}_{alert.service}"
+        fingerprint = (
+            alert.fingerprint or f"{alert.name}_{alert.severity.value}_{alert.service}"
+        )
 
-        for i, step in enumerate(policy.steps[1:], 1):  # Skip first step (handled immediately)
+        for i, step in enumerate(
+            policy.steps[1:], 1
+        ):  # Skip first step (handled immediately)
             delay_seconds = step["delay_minutes"] * 60
 
             # Wait for the delay
@@ -324,7 +354,9 @@ class AlertManager:
             # Execute escalation step
             await self._execute_escalation_step(current_alert, policy, i)
 
-    async def _execute_escalation_step(self, alert: Alert, policy: EscalationPolicy, step_index: int):
+    async def _execute_escalation_step(
+        self, alert: Alert, policy: EscalationPolicy, step_index: int
+    ):
         """Execute an escalation step"""
         if step_index >= len(policy.steps):
             return
@@ -335,9 +367,13 @@ class AlertManager:
             try:
                 await self._send_notification(alert, channel, step)
             except Exception as e:
-                logger.error(f"Failed to send {channel.value} notification for alert {alert.id}: {e}")
+                logger.error(
+                    f"Failed to send {channel.value} notification for alert {alert.id}: {e}"
+                )
 
-    async def _send_notification(self, alert: Alert, channel: NotificationChannel, step: Dict[str, Any]):
+    async def _send_notification(
+        self, alert: Alert, channel: NotificationChannel, step: Dict[str, Any]
+    ):
         """Send notification through specified channel"""
         config = self.notification_configs.get(channel)
         if not config or not config.enabled:
@@ -407,29 +443,33 @@ class AlertManager:
         body = template.render(
             alert=alert,
             step=step,
-            timestamp=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+            timestamp=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
         )
 
         # Send email
         msg = MimeMultipart()
-        msg['From'] = email_config["from_address"]
-        msg['To'] = ", ".join(email_config["to_addresses"])
-        msg['Subject'] = subject
-        msg.attach(MimeText(body, 'html'))
+        msg["From"] = email_config["from_address"]
+        msg["To"] = ", ".join(email_config["to_addresses"])
+        msg["Subject"] = subject
+        msg.attach(MimeText(body, "html"))
 
         # Add additional recipients if specified
         if "additional_recipients" in step:
             additional_to = step["additional_recipients"]
             if isinstance(additional_to, str):
                 additional_to = [additional_to]
-            msg['To'] += ", " + ", ".join(additional_to)
+            msg["To"] += ", " + ", ".join(additional_to)
 
         # Send via SMTP
-        with smtplib.SMTP(email_config["smtp_server"], email_config["smtp_port"]) as server:
+        with smtplib.SMTP(
+            email_config["smtp_server"], email_config["smtp_port"]
+        ) as server:
             if email_config["use_tls"]:
                 server.starttls()
             if email_config["smtp_username"]:
-                server.login(email_config["smtp_username"], email_config["smtp_password"])
+                server.login(
+                    email_config["smtp_username"], email_config["smtp_password"]
+                )
             server.send_message(msg)
 
     async def _send_slack_notification(self, alert: Alert, step: Dict[str, Any]):
@@ -456,33 +496,29 @@ class AlertManager:
                         {
                             "title": "Service",
                             "value": alert.service or "Unknown",
-                            "short": True
+                            "short": True,
                         },
                         {
                             "title": "Severity",
                             "value": alert.severity.value.upper(),
-                            "short": True
+                            "short": True,
                         },
                         {
                             "title": "Started",
                             "value": alert.starts_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
-                            "short": True
-                        }
+                            "short": True,
+                        },
                     ],
                     "footer": step.get("message", ""),
-                    "ts": int(alert.starts_at.timestamp())
+                    "ts": int(alert.starts_at.timestamp()),
                 }
-            ]
+            ],
         }
 
         # Add runbook link if available
         if alert.runbook_url:
             payload["attachments"][0]["actions"] = [
-                {
-                    "type": "button",
-                    "text": "View Runbook",
-                    "url": alert.runbook_url
-                }
+                {"type": "button", "text": "View Runbook", "url": alert.runbook_url}
             ]
 
         async with aiohttp.ClientSession() as session:
@@ -511,14 +547,16 @@ class AlertManager:
             "ends_at": alert.ends_at.isoformat() if alert.ends_at else None,
             "service": alert.service,
             "environment": alert.environment,
-            "escalation_step": step
+            "escalation_step": step,
         }
 
         headers = webhook_config.get("headers", {})
         timeout = webhook_config.get("timeout", 30)
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(webhook_url, json=payload, headers=headers, timeout=timeout) as response:
+            async with session.post(
+                webhook_url, json=payload, headers=headers, timeout=timeout
+            ) as response:
                 response.raise_for_status()
 
     async def _send_pagerduty_notification(self, alert: Alert, step: Dict[str, Any]):
@@ -546,9 +584,9 @@ class AlertManager:
                     "labels": alert.labels,
                     "annotations": alert.annotations,
                     "runbook_url": alert.runbook_url,
-                    "escalation_message": step.get("message", "")
-                }
-            }
+                    "escalation_message": step.get("message", ""),
+                },
+            },
         }
 
         async with aiohttp.ClientSession() as session:
@@ -558,7 +596,9 @@ class AlertManager:
     async def _send_resolution_notifications(self, alert: Alert):
         """Send notifications when alert is resolved"""
         # Send to all channels that were used for this alert
-        fingerprint = alert.fingerprint or f"{alert.name}_{alert.severity.value}_{alert.service}"
+        fingerprint = (
+            alert.fingerprint or f"{alert.name}_{alert.severity.value}_{alert.service}"
+        )
 
         # Send resolution to Slack
         if self.notification_configs[NotificationChannel.SLACK].enabled:
@@ -590,17 +630,19 @@ class AlertManager:
                         {
                             "title": "Service",
                             "value": alert.service or "Unknown",
-                            "short": True
+                            "short": True,
                         },
                         {
                             "title": "Duration",
-                            "value": self._format_duration(alert.starts_at, alert.ends_at),
-                            "short": True
-                        }
+                            "value": self._format_duration(
+                                alert.starts_at, alert.ends_at
+                            ),
+                            "short": True,
+                        },
                     ],
-                    "ts": int(datetime.utcnow().timestamp())
+                    "ts": int(datetime.utcnow().timestamp()),
                 }
-            ]
+            ],
         }
 
         async with aiohttp.ClientSession() as session:
@@ -635,16 +677,20 @@ class AlertManager:
         """
 
         msg = MimeMultipart()
-        msg['From'] = email_config["from_address"]
-        msg['To'] = ", ".join(email_config["to_addresses"])
-        msg['Subject'] = subject
-        msg.attach(MimeText(body, 'html'))
+        msg["From"] = email_config["from_address"]
+        msg["To"] = ", ".join(email_config["to_addresses"])
+        msg["Subject"] = subject
+        msg.attach(MimeText(body, "html"))
 
-        with smtplib.SMTP(email_config["smtp_server"], email_config["smtp_port"]) as server:
+        with smtplib.SMTP(
+            email_config["smtp_server"], email_config["smtp_port"]
+        ) as server:
             if email_config["use_tls"]:
                 server.starttls()
             if email_config["smtp_username"]:
-                server.login(email_config["smtp_username"], email_config["smtp_password"])
+                server.login(
+                    email_config["smtp_username"], email_config["smtp_password"]
+                )
             server.send_message(msg)
 
     def _get_email_template(self, alert: Alert) -> jinja2.Template:
@@ -711,12 +757,12 @@ class AlertManager:
             "info": "#17a2b8",
             "warning": "#ffc107",
             "critical": "#dc3545",
-            "emergency": "#721c24"
+            "emergency": "#721c24",
         }
 
         return jinja2.Template(template_str).render(
             alert=alert,
-            severity_color=severity_colors.get(alert.severity.value, "#6c757d")
+            severity_color=severity_colors.get(alert.severity.value, "#6c757d"),
         )
 
     def _get_slack_color(self, severity: AlertSeverity) -> str:
@@ -725,7 +771,7 @@ class AlertManager:
             AlertSeverity.INFO: "#36a64f",
             AlertSeverity.WARNING: "#ff9500",
             AlertSeverity.CRITICAL: "#ff0000",
-            AlertSeverity.EMERGENCY: "#8b0000"
+            AlertSeverity.EMERGENCY: "#8b0000",
         }
         return colors.get(severity, "#808080")
 
@@ -735,7 +781,7 @@ class AlertManager:
             AlertSeverity.INFO: "info",
             AlertSeverity.WARNING: "warning",
             AlertSeverity.CRITICAL: "critical",
-            AlertSeverity.EMERGENCY: "critical"
+            AlertSeverity.EMERGENCY: "critical",
         }
         return mapping.get(severity, "error")
 
@@ -759,8 +805,13 @@ class AlertManager:
 
         return " ".join(parts)
 
-    def _record_notification(self, alert: Alert, channel: NotificationChannel,
-                           step: Dict[str, Any], success: bool = True):
+    def _record_notification(
+        self,
+        alert: Alert,
+        channel: NotificationChannel,
+        step: Dict[str, Any],
+        success: bool = True,
+    ):
         """Record notification in history"""
         notification = {
             "alert_id": alert.id,
@@ -769,7 +820,7 @@ class AlertManager:
             "timestamp": datetime.utcnow().isoformat(),
             "success": success,
             "step": step,
-            "severity": alert.severity.value
+            "severity": alert.severity.value,
         }
 
         self.notification_history.append(notification)
@@ -786,8 +837,8 @@ class AlertManager:
             {
                 "severity": alert.severity.value,
                 "status": alert.status.value,
-                "service": alert.service or "unknown"
-            }
+                "service": alert.service or "unknown",
+            },
         )
 
         if alert.status == AlertStatus.FIRING:
@@ -795,12 +846,13 @@ class AlertManager:
                 "alerts_active",
                 {
                     "severity": alert.severity.value,
-                    "service": alert.service or "unknown"
-                }
+                    "service": alert.service or "unknown",
+                },
             )
 
-    def get_active_alerts(self, severity: Optional[AlertSeverity] = None,
-                         service: Optional[str] = None) -> List[Alert]:
+    def get_active_alerts(
+        self, severity: Optional[AlertSeverity] = None, service: Optional[str] = None
+    ) -> List[Alert]:
         """Get active alerts with optional filtering"""
         alerts = list(self.active_alerts.values())
 
@@ -822,29 +874,41 @@ class AlertManager:
             severity_counts[severity] = severity_counts.get(severity, 0) + 1
 
         recent_notifications = [
-            n for n in self.notification_history
-            if datetime.fromisoformat(n["timestamp"]) > datetime.utcnow() - timedelta(hours=24)
+            n
+            for n in self.notification_history
+            if datetime.fromisoformat(n["timestamp"])
+            > datetime.utcnow() - timedelta(hours=24)
         ]
 
         return {
             "total_active_alerts": total_active,
             "severity_breakdown": severity_counts,
             "notifications_last_24h": len(recent_notifications),
-            "last_updated": datetime.utcnow().isoformat()
+            "last_updated": datetime.utcnow().isoformat(),
         }
+
 
 # Global alert manager instance
 alert_manager = AlertManager()
+
 
 # Convenience functions
 async def handle_prometheus_alert(alert_data: Dict[str, Any]) -> Alert:
     """Handle Prometheus alert"""
     return await alert_manager.process_alert(alert_data)
 
+
 def get_active_alerts_count() -> int:
     """Get count of active alerts"""
     return len(alert_manager.active_alerts)
 
+
 def get_critical_alerts_count() -> int:
     """Get count of critical alerts"""
-    return len([a for a in alert_manager.active_alerts.values() if a.severity == AlertSeverity.CRITICAL])
+    return len(
+        [
+            a
+            for a in alert_manager.active_alerts.values()
+            if a.severity == AlertSeverity.CRITICAL
+        ]
+    )

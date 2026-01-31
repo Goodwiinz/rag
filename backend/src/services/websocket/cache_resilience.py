@@ -4,31 +4,36 @@ Handles high-throughput message delivery, caching, and failure recovery
 """
 
 import asyncio
-import logging
-import json
-import time
+import gzip
 import hashlib
-from typing import Dict, List, Optional, Set, Any, Callable
+import json
+import logging
+import time
+import zlib
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from enum import Enum
-from collections import defaultdict, deque
+from typing import Any, Callable, Dict, List, Optional, Set
+
 import aioredis
 from async_lru import alru_cache
-import zlib
-import gzip
 
 logger = logging.getLogger(__name__)
 
+
 class MessagePriority(str, Enum):
     """Message priority levels"""
+
     LOW = "low"
     NORMAL = "normal"
     HIGH = "high"
     CRITICAL = "critical"
     URGENT = "urgent"
 
+
 class DeliveryStatus(str, Enum):
     """Message delivery status"""
+
     QUEUED = "queued"
     PROCESSING = "processing"
     SENT = "sent"
@@ -37,15 +42,19 @@ class DeliveryStatus(str, Enum):
     EXPIRED = "expired"
     CANCELLED = "cancelled"
 
+
 class CircuitState(str, Enum):
     """Circuit breaker states"""
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Circuit is open, blocking requests
+
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Circuit is open, blocking requests
     HALF_OPEN = "half_open"  # Testing if service is recovered
+
 
 @dataclass
 class CachedMessage:
     """Cached message with metadata"""
+
     message_id: str
     message_data: dict
     message_type: str
@@ -81,12 +90,14 @@ class CachedMessage:
         """Calculate exponential backoff retry delay"""
         base_delay = 1.0  # 1 second
         max_delay = 300.0  # 5 minutes
-        delay = min(base_delay * (2 ** self.retry_count), max_delay)
+        delay = min(base_delay * (2**self.retry_count), max_delay)
         return delay
+
 
 @dataclass
 class CircuitBreaker:
     """Circuit breaker for external service resilience"""
+
     failure_threshold: int = 5
     recovery_timeout: float = 60.0
     half_open_max_calls: int = 3
@@ -125,8 +136,10 @@ class CircuitBreaker:
 
         if self.state == CircuitState.HALF_OPEN:
             self.state = CircuitState.OPEN
-        elif (self.state == CircuitState.CLOSED and
-              self.failure_count >= self.failure_threshold):
+        elif (
+            self.state == CircuitState.CLOSED
+            and self.failure_count >= self.failure_threshold
+        ):
             self.state = CircuitState.OPEN
 
     def reset(self):
@@ -135,6 +148,7 @@ class CircuitBreaker:
         self.last_failure_time = 0
         self.half_open_calls = 0
         self.state = CircuitState.CLOSED
+
 
 class WebSocketCache:
     """High-performance caching layer for WebSocket messages"""
@@ -155,19 +169,23 @@ class WebSocketCache:
 
         # Circuit breakers for external services
         self.circuit_breakers: Dict[str, CircuitBreaker] = {
-            'database': CircuitBreaker(failure_threshold=5, recovery_timeout=30.0),
-            'search_service': CircuitBreaker(failure_threshold=3, recovery_timeout=60.0),
-            'notification_service': CircuitBreaker(failure_threshold=5, recovery_timeout=45.0)
+            "database": CircuitBreaker(failure_threshold=5, recovery_timeout=30.0),
+            "search_service": CircuitBreaker(
+                failure_threshold=3, recovery_timeout=60.0
+            ),
+            "notification_service": CircuitBreaker(
+                failure_threshold=5, recovery_timeout=45.0
+            ),
         }
 
         # Performance metrics
         self.metrics = {
-            'messages_cached': 0,
-            'messages_sent': 0,
-            'messages_failed': 0,
-            'cache_hit_rate': 0.0,
-            'average_delivery_time': 0.0,
-            'compression_ratio': 0.0
+            "messages_cached": 0,
+            "messages_sent": 0,
+            "messages_failed": 0,
+            "cache_hit_rate": 0.0,
+            "average_delivery_time": 0.0,
+            "compression_ratio": 0.0,
         }
 
         # Background tasks
@@ -216,7 +234,7 @@ class WebSocketCache:
         target_connections: Optional[Set[str]] = None,
         target_users: Optional[Set[str]] = None,
         target_channels: Optional[Set[str]] = None,
-        compress: bool = True
+        compress: bool = True,
     ) -> bool:
         """Cache message for delivery"""
         try:
@@ -229,11 +247,11 @@ class WebSocketCache:
 
             # Compress message if enabled
             compressed_json = None
-            original_size = len(json.dumps(message_data).encode('utf-8'))
+            original_size = len(json.dumps(message_data).encode("utf-8"))
 
             if compress and original_size > 1024:  # Only compress messages > 1KB
-                json_str = json.dumps(message_data, separators=(',', ':'))
-                compressed_bytes = gzip.compress(json_str.encode('utf-8'), level=6)
+                json_str = json.dumps(message_data, separators=(",", ":"))
+                compressed_bytes = gzip.compress(json_str.encode("utf-8"), level=6)
                 compressed_json = compressed_bytes.hex()
                 compression_ratio = len(compressed_bytes) / original_size
             else:
@@ -250,22 +268,24 @@ class WebSocketCache:
                 target_connections=target_connections or set(),
                 target_users=target_users or set(),
                 target_channels=target_channels or set(),
-                compression_enabled=compressed_json is not None
+                compression_enabled=compressed_json is not None,
             )
 
             # Store in Redis (compressed or uncompressed)
             redis_data = {
-                'message_data': compressed_json if compressed_json else json.dumps(message_data, separators=(',', ':')),
-                'message_type': message_type,
-                'priority': priority.value,
-                'created_at': str(cached_msg.created_at),
-                'expires_at': str(cached_msg.expires_at) if expires_at else None,
-                'target_connections': json.dumps(list(target_connections or [])),
-                'target_users': json.dumps(list(target_users or [])),
-                'target_channels': json.dumps(list(target_channels or [])),
-                'compressed': str(compressed_json is not None),
-                'delivery_count': '0',
-                'retry_count': '0'
+                "message_data": compressed_json
+                if compressed_json
+                else json.dumps(message_data, separators=(",", ":")),
+                "message_type": message_type,
+                "priority": priority.value,
+                "created_at": str(cached_msg.created_at),
+                "expires_at": str(cached_msg.expires_at) if expires_at else None,
+                "target_connections": json.dumps(list(target_connections or [])),
+                "target_users": json.dumps(list(target_users or [])),
+                "target_channels": json.dumps(list(target_channels or [])),
+                "compressed": str(compressed_json is not None),
+                "delivery_count": "0",
+                "retry_count": "0",
             }
 
             # Store with TTL
@@ -281,10 +301,10 @@ class WebSocketCache:
                 self.memory_cache[cache_key] = cached_msg
 
             # Update metrics
-            self.metrics['messages_cached'] += 1
+            self.metrics["messages_cached"] += 1
             if compressed_json:
-                self.metrics['compression_ratio'] = (
-                    self.metrics['compression_ratio'] + compression_ratio
+                self.metrics["compression_ratio"] = (
+                    self.metrics["compression_ratio"] + compression_ratio
                 ) / 2
 
             logger.debug(f"Message cached: {message_id} (priority: {priority.value})")
@@ -317,40 +337,41 @@ class WebSocketCache:
 
             # Parse cached data
             message_data = None
-            if redis_data.get(b'compressed', b'false').decode() == 'true':
+            if redis_data.get(b"compressed", b"false").decode() == "true":
                 # Decompress message
-                compressed_hex = redis_data.get(b'message_data').decode()
+                compressed_hex = redis_data.get(b"message_data").decode()
                 compressed_bytes = bytes.fromhex(compressed_hex)
                 decompressed_bytes = gzip.decompress(compressed_bytes)
-                message_data = json.loads(decompressed_bytes.decode('utf-8'))
+                message_data = json.loads(decompressed_bytes.decode("utf-8"))
             else:
                 # Parse JSON message
-                message_data = json.loads(redis_data.get(b'message_data').decode())
+                message_data = json.loads(redis_data.get(b"message_data").decode())
 
             # Reconstruct cached message
             cached_msg = CachedMessage(
                 message_id=message_id,
                 message_data=message_data,
-                message_type=redis_data.get(b'message_type').decode(),
-                priority=MessagePriority(redis_data.get(b'priority').decode()),
-                created_at=float(redis_data.get(b'created_at').decode()),
+                message_type=redis_data.get(b"message_type").decode(),
+                priority=MessagePriority(redis_data.get(b"priority").decode()),
+                created_at=float(redis_data.get(b"created_at").decode()),
                 expires_at=(
-                    float(redis_data.get(b'expires_at').decode())
-                    if redis_data.get(b'expires_at')
+                    float(redis_data.get(b"expires_at").decode())
+                    if redis_data.get(b"expires_at")
                     else None
                 ),
                 target_connections=set(
-                    json.loads(redis_data.get(b'target_connections', b'[]').decode())
+                    json.loads(redis_data.get(b"target_connections", b"[]").decode())
                 ),
                 target_users=set(
-                    json.loads(redis_data.get(b'target_users', b'[]').decode())
+                    json.loads(redis_data.get(b"target_users", b"[]").decode())
                 ),
                 target_channels=set(
-                    json.loads(redis_data.get(b'target_channels', b'[]').decode())
+                    json.loads(redis_data.get(b"target_channels", b"[]").decode())
                 ),
-                delivery_count=int(redis_data.get(b'delivery_count', b'0').decode()),
-                retry_count=int(redis_data.get(b'retry_count', b'0').decode()),
-                compression_enabled=redis_data.get(b'compressed', b'false').decode() == 'true'
+                delivery_count=int(redis_data.get(b"delivery_count", b"0").decode()),
+                retry_count=int(redis_data.get(b"retry_count", b"0").decode()),
+                compression_enabled=redis_data.get(b"compressed", b"false").decode()
+                == "true",
             )
 
             # Add to memory cache
@@ -367,8 +388,7 @@ class WebSocketCache:
 
     @alru_cache(maxsize=1000)
     async def get_connection_subscriptions(
-        self,
-        connection_id: str
+        self, connection_id: str
     ) -> Dict[str, Set[str]]:
         """Get connection subscriptions with caching"""
         try:
@@ -381,8 +401,8 @@ class WebSocketCache:
             subscriptions = {}
             for key_bytes, value_bytes in subscription_data.items():
                 key = key_bytes.decode()
-                if ':' in key:
-                    category, resource = key.split(':', 1)
+                if ":" in key:
+                    category, resource = key.split(":", 1)
                     if category not in subscriptions:
                         subscriptions[category] = set()
                     subscriptions[category].add(resource)
@@ -414,13 +434,15 @@ class WebSocketCache:
                     MessagePriority.CRITICAL,
                     MessagePriority.HIGH,
                     MessagePriority.NORMAL,
-                    MessagePriority.LOW
+                    MessagePriority.LOW,
                 ]
 
                 messages_processed = 0
                 for priority in priorities:
                     queue = self.priority_queues[priority]
-                    processed_count = await self._process_priority_queue(queue, priority)
+                    processed_count = await self._process_priority_queue(
+                        queue, priority
+                    )
                     messages_processed += processed_count
 
                 if messages_processed == 0:
@@ -431,9 +453,7 @@ class WebSocketCache:
                 await asyncio.sleep(1)
 
     async def _process_priority_queue(
-        self,
-        queue: deque,
-        priority: MessagePriority
+        self, queue: deque, priority: MessagePriority
     ) -> int:
         """Process messages in a priority queue"""
         processed = 0
@@ -458,7 +478,9 @@ class WebSocketCache:
 
                 # Calculate next retry time
                 if cached_msg.retry_count > 0 and cached_msg.next_retry_at is None:
-                    cached_msg.next_retry_at = time.time() + cached_msg.calculate_retry_delay()
+                    cached_msg.next_retry_at = (
+                        time.time() + cached_msg.calculate_retry_delay()
+                    )
 
                 if cached_msg.next_retry_at and time.time() < cached_msg.next_retry_at:
                     # Put message back in queue
@@ -489,9 +511,11 @@ class WebSocketCache:
                     del self.memory_cache[key]
 
                 # Clean up Redis (scan for expired messages)
-                async for key in self.redis_client.scan_iter(match="ws:message:*", count=100):
+                async for key in self.redis_client.scan_iter(
+                    match="ws:message:*", count=100
+                ):
                     try:
-                        expires_at = await self.redis_client.hget(key, 'expires_at')
+                        expires_at = await self.redis_client.hget(key, "expires_at")
                         if expires_at:
                             expiry_time = float(expires_at.decode())
                             if time.time() > expiry_time:
@@ -512,7 +536,7 @@ class WebSocketCache:
                 # Calculate cache hit rate
                 total_requests = self.cache_hits + self.cache_misses
                 if total_requests > 0:
-                    self.metrics['cache_hit_rate'] = self.cache_hits / total_requests
+                    self.metrics["cache_hit_rate"] = self.cache_hits / total_requests
 
                 # Log metrics
                 logger.debug(
@@ -532,8 +556,10 @@ class WebSocketCache:
         """Mark message as failed"""
         try:
             cache_key = f"ws:message:{cached_msg.message_id}"
-            await self.redis_client.hset(cache_key, 'delivery_status', 'failed')
-            await self.redis_client.expire(cache_key, 3600)  # Keep failed messages for 1 hour
+            await self.redis_client.hset(cache_key, "delivery_status", "failed")
+            await self.redis_client.expire(
+                cache_key, 3600
+            )  # Keep failed messages for 1 hour
 
         except Exception as e:
             logger.error(f"Failed to mark message as failed: {e}")
@@ -544,21 +570,22 @@ class WebSocketCache:
         cache_hit_rate = self.cache_hits / total_requests if total_requests > 0 else 0
 
         return {
-            'cache_hit_rate': cache_hit_rate,
-            'cache_hits': self.cache_hits,
-            'cache_misses': self.cache_misses,
-            'memory_cache_size': len(self.memory_cache),
-            'messages_cached': self.metrics['messages_cached'],
-            'compression_ratio': self.metrics['compression_ratio'],
-            'queue_lengths': {
+            "cache_hit_rate": cache_hit_rate,
+            "cache_hits": self.cache_hits,
+            "cache_misses": self.cache_misses,
+            "memory_cache_size": len(self.memory_cache),
+            "messages_cached": self.metrics["messages_cached"],
+            "compression_ratio": self.metrics["compression_ratio"],
+            "queue_lengths": {
                 priority.value: len(queue)
                 for priority, queue in self.priority_queues.items()
             },
-            'circuit_breaker_states': {
+            "circuit_breaker_states": {
                 name: breaker.state.value
                 for name, breaker in self.circuit_breakers.items()
-            }
+            },
         }
+
 
 class ResilientMessageDelivery:
     """Resilient message delivery with retry logic and circuit breakers"""
@@ -575,12 +602,12 @@ class ResilientMessageDelivery:
         message_type: str,
         priority: MessagePriority = MessagePriority.NORMAL,
         max_retries: int = 3,
-        timeout_seconds: int = 30
+        timeout_seconds: int = 30,
     ) -> bool:
         """Send message with resilience patterns"""
         try:
             # Check circuit breaker for WebSocket delivery
-            if not self.cache.circuit_breakers['websocket'].can_execute():
+            if not self.cache.circuit_breakers["websocket"].can_execute():
                 logger.warning(f"Circuit breaker open for WebSocket delivery")
                 return False
 
@@ -594,7 +621,7 @@ class ResilientMessageDelivery:
                 priority=priority,
                 expires_in_seconds=timeout_seconds,
                 target_connections={connection_id},
-                compress=True
+                compress=True,
             )
 
             if not success:
@@ -606,36 +633,31 @@ class ResilientMessageDelivery:
             )
 
             if delivery_success:
-                self.cache.circuit_breakers['websocket'].record_success()
+                self.cache.circuit_breakers["websocket"].record_success()
                 return True
             else:
-                self.cache.circuit_breakers['websocket'].record_failure()
+                self.cache.circuit_breakers["websocket"].record_failure()
                 # Message will be retried from cache
                 return False
 
         except Exception as e:
             logger.error(f"Failed to send message to {connection_id}: {e}")
-            self.cache.circuit_breakers['websocket'].record_failure()
+            self.cache.circuit_breakers["websocket"].record_failure()
             return False
 
     async def _attempt_delivery(
-        self,
-        connection_id: str,
-        message_id: str,
-        message: dict,
-        timeout_seconds: int
+        self, connection_id: str, message_id: str, message: dict, timeout_seconds: int
     ) -> bool:
         """Attempt message delivery with timeout"""
         try:
             # Get delivery handler (would be injected by connection manager)
-            handler = self.delivery_handlers.get('websocket_send')
+            handler = self.delivery_handlers.get("websocket_send")
             if not handler:
                 return False
 
             # Send with timeout
             return await asyncio.wait_for(
-                handler(connection_id, message),
-                timeout=timeout_seconds
+                handler(connection_id, message), timeout=timeout_seconds
             )
 
         except asyncio.TimeoutError:

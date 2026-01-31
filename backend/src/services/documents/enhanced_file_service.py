@@ -2,30 +2,32 @@
 Enhanced File Service with advanced validation, security scanning, and storage management
 """
 
-import os
-import uuid
-import hashlib
-import mimetypes
-import magic
-import time
 import asyncio
-import tempfile
-from pathlib import Path
-from typing import Optional, Dict, Any, List, BinaryIO, Tuple
-from datetime import datetime, timedelta
-from fastapi import UploadFile, HTTPException, status, Depends
-from sqlalchemy.orm import Session
-import aiofiles
+import hashlib
 import logging
+import mimetypes
+import os
 import struct
-import zipfile
 import tarfile
+import tempfile
+import time
+import uuid
+import zipfile
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, BinaryIO, Dict, List, Optional, Tuple
+
+import aiofiles
+import magic
+from fastapi import Depends, HTTPException, UploadFile, status
 from PIL import Image
 from pypdf import PdfReader
+from sqlalchemy.orm import Session
 
 # ClamAV integration - only available if properly configured
 try:
     import pyclamd
+
     CLAMD_AVAILABLE = True
 except ImportError:
     CLAMD_AVAILABLE = False
@@ -34,36 +36,48 @@ from src.core.config import settings
 from src.core.database import get_db
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.organization import Organization
+from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
 from src.models.user import User, UserRole
-from src.models.processing import ProcessingJob, JobType, JobStatus, JobPriority
 
 logger = logging.getLogger(__name__)
 
+
 class EnhancedFileValidationError(Exception):
     """Enhanced file validation related errors"""
+
     pass
+
 
 class SecurityScanError(Exception):
     """Security scanning related errors"""
+
     pass
+
 
 class FileStorageError(Exception):
     """File storage related errors"""
+
     pass
+
 
 class FileIntegrityError(Exception):
     """File integrity related errors"""
+
     pass
+
 
 class SecurityThreat:
     """Represents a security threat detected during scanning"""
 
-    def __init__(self, threat_type: str, description: str, severity: str, location: str = None):
+    def __init__(
+        self, threat_type: str, description: str, severity: str, location: str = None
+    ):
         self.threat_type = threat_type
         self.description = description
         self.severity = severity  # low, medium, high, critical
         self.location = location
         self.detected_at = datetime.utcnow()
+
 
 class EnhancedFileService:
     """Enhanced service for handling file uploads, validation, and security scanning"""
@@ -74,28 +88,46 @@ class EnhancedFileService:
         self.upload_dir.mkdir(parents=True, exist_ok=True)
 
         # Security scan configuration
-        self.clamd_socket = getattr(settings, 'CLAMD_SOCKET', '/tmp/clamd.socket')
-        self.max_scan_size_mb = getattr(settings, 'MAX_VIRUS_SCAN_SIZE_MB', 100)
+        self.clamd_socket = getattr(settings, "CLAMD_SOCKET", "/tmp/clamd.socket")
+        self.max_scan_size_mb = getattr(settings, "MAX_VIRUS_SCAN_SIZE_MB", 100)
 
         # File validation configuration
         self.allowed_mime_types = {
             # Documents
-            'text/plain', 'text/csv', 'text/markdown',
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'application/vnd.ms-excel',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'application/vnd.ms-powerpoint',
-            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            "text/plain",
+            "text/csv",
+            "text/markdown",
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             # Images
-            'image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/tiff', 'image/webp',
+            "image/jpeg",
+            "image/png",
+            "image/gif",
+            "image/bmp",
+            "image/tiff",
+            "image/webp",
             # Audio
-            'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/aac',
+            "audio/mpeg",
+            "audio/wav",
+            "audio/ogg",
+            "audio/flac",
+            "audio/aac",
             # Video
-            'video/mp4', 'video/avi', 'video/mkv', 'video/mov', 'video/wmv', 'video/webm',
+            "video/mp4",
+            "video/avi",
+            "video/mkv",
+            "video/mov",
+            "video/wmv",
+            "video/webm",
             # Archives
-            'application/zip', 'application/x-tar', 'application/x-rar-compressed'
+            "application/zip",
+            "application/x-tar",
+            "application/x-rar-compressed",
         }
 
         # Create subdirectories
@@ -104,25 +136,31 @@ class EnhancedFileService:
     def create_subdirectories(self):
         """Create subdirectories for different file types and security"""
         subdirs = [
-            "documents", "images", "audio", "video", "archives",
-            "temp", "processed", "quarantine", "scanning"
+            "documents",
+            "images",
+            "audio",
+            "video",
+            "archives",
+            "temp",
+            "processed",
+            "quarantine",
+            "scanning",
         ]
 
         for subdir in subdirs:
             (self.upload_dir / subdir).mkdir(parents=True, exist_ok=True)
 
     async def validate_and_scan_file(
-        self,
-        file: UploadFile,
-        user: User,
-        organization: Organization
+        self, file: UploadFile, user: User, organization: Organization
     ) -> Dict[str, Any]:
         """
         Comprehensive file validation and security scanning
         """
         try:
             # Step 1: Basic validation
-            basic_validation = await self.perform_basic_validation(file, user, organization)
+            basic_validation = await self.perform_basic_validation(
+                file, user, organization
+            )
 
             # Step 2: Security scanning
             security_scan = await self.perform_security_scan(file, basic_validation)
@@ -135,7 +173,9 @@ class EnhancedFileService:
                 "security_scan": security_scan,
                 "integrity_check": integrity_check,
                 "validation_timestamp": datetime.utcnow(),
-                "validation_status": "passed" if not security_scan["virus_detected"] else "failed"
+                "validation_status": "passed"
+                if not security_scan["virus_detected"]
+                else "failed",
             }
 
         except Exception as e:
@@ -143,15 +183,12 @@ class EnhancedFileService:
             raise EnhancedFileValidationError(f"Validation failed: {str(e)}")
 
     async def perform_basic_validation(
-        self,
-        file: UploadFile,
-        user: User,
-        organization: Organization
+        self, file: UploadFile, user: User, organization: Organization
     ) -> Dict[str, Any]:
         """Perform basic file validation"""
 
         # Get file size
-        if hasattr(file, 'size') and file.size:
+        if hasattr(file, "size") and file.size:
             file_size = file.size
         else:
             # Read content to get size if not available
@@ -204,10 +241,12 @@ class EnhancedFileService:
             "detected_mime_type": detected_mime_type,
             "document_type": document_type,
             "filename_validation": "passed",
-            "size_validation": "passed"
+            "size_validation": "passed",
         }
 
-    async def perform_security_scan(self, file: UploadFile, validation_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def perform_security_scan(
+        self, file: UploadFile, validation_result: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Perform comprehensive security scanning"""
 
         threats = []
@@ -229,23 +268,32 @@ class EnhancedFileService:
                     logger.warning("ClamAV not available, skipping virus scan")
 
                 # Step 2: Content analysis for suspicious patterns
-                content_analysis = await self.analyze_content_for_threats(temp_file_path, validation_result)
+                content_analysis = await self.analyze_content_for_threats(
+                    temp_file_path, validation_result
+                )
                 threats.extend(content_analysis["threats"])
                 warnings.extend(content_analysis["warnings"])
 
                 # Step 3: Archive bomb detection
-                if validation_result["detected_mime_type"] in ['application/zip', 'application/x-tar']:
+                if validation_result["detected_mime_type"] in [
+                    "application/zip",
+                    "application/x-tar",
+                ]:
                     archive_analysis = await self.analyze_archive_safety(temp_file_path)
                     if archive_analysis["is_bomb"]:
-                        threats.append(SecurityThreat(
-                            threat_type="archive_bomb",
-                            description="Potential zip bomb detected",
-                            severity="high",
-                            location="archive_structure"
-                        ))
+                        threats.append(
+                            SecurityThreat(
+                                threat_type="archive_bomb",
+                                description="Potential zip bomb detected",
+                                severity="high",
+                                location="archive_structure",
+                            )
+                        )
 
                 # Step 4: Metadata analysis for suspicious content
-                metadata_analysis = await self.analyze_metadata_for_threats(temp_file_path, validation_result)
+                metadata_analysis = await self.analyze_metadata_for_threats(
+                    temp_file_path, validation_result
+                )
                 warnings.extend(metadata_analysis["warnings"])
 
             finally:
@@ -261,13 +309,13 @@ class EnhancedFileService:
                         "description": threat.description,
                         "severity": threat.severity,
                         "location": threat.location,
-                        "detected_at": threat.detected_at.isoformat()
+                        "detected_at": threat.detected_at.isoformat(),
                     }
                     for threat in threats
                 ],
                 "warnings": warnings,
                 "scan_timestamp": datetime.utcnow(),
-                "scan_status": "completed"
+                "scan_status": "completed",
             }
 
         except Exception as e:
@@ -278,7 +326,11 @@ class EnhancedFileService:
         """Scan file with ClamAV"""
         try:
             if not CLAMD_AVAILABLE:
-                return {"infected": False, "threats": [], "error": "ClamAV not available"}
+                return {
+                    "infected": False,
+                    "threats": [],
+                    "error": "ClamAV not available",
+                }
 
             cd = pyclamd.ClamdUnixSocket()
 
@@ -293,17 +345,19 @@ class EnhancedFileService:
             if scan_result is None:
                 # No threats found
                 return {"infected": False, "threats": []}
-            elif scan_result[file_path][0] == 'FOUND':
+            elif scan_result[file_path][0] == "FOUND":
                 # Virus found
                 threat_name = scan_result[file_path][1]
                 return {
                     "infected": True,
-                    "threats": [SecurityThreat(
-                        threat_type="virus",
-                        description=f"Virus detected: {threat_name}",
-                        severity="critical",
-                        location=file_path
-                    )]
+                    "threats": [
+                        SecurityThreat(
+                            threat_type="virus",
+                            description=f"Virus detected: {threat_name}",
+                            severity="critical",
+                            location=file_path,
+                        )
+                    ],
                 }
             else:
                 return {"infected": False, "threats": []}
@@ -312,37 +366,41 @@ class EnhancedFileService:
             logger.error(f"ClamAV scan failed: {str(e)}")
             return {"infected": False, "threats": [], "error": str(e)}
 
-    async def analyze_content_for_threats(self, file_path: str, validation_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def analyze_content_for_threats(
+        self, file_path: str, validation_result: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Analyze file content for suspicious patterns"""
         threats = []
         warnings = []
 
         try:
             # Read file content for analysis
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 content = f.read(min(1024 * 1024, 10 * 1024 * 1024))  # Read max 10MB
 
             # Check for common malware signatures
             malware_signatures = [
-                b'eval(base64_decode',
-                b'shell_exec',
-                b'passthru',
-                b'system(',
-                b'exec(',
-                b'<script',
-                b'javascript:',
-                b'vbscript:'
+                b"eval(base64_decode",
+                b"shell_exec",
+                b"passthru",
+                b"system(",
+                b"exec(",
+                b"<script",
+                b"javascript:",
+                b"vbscript:",
             ]
 
             content_lower = content.lower()
             for signature in malware_signatures:
                 if signature in content_lower:
-                    threats.append(SecurityThreat(
-                        threat_type="suspicious_code",
-                        description=f"Suspicious code pattern detected: {signature.decode('utf-8', errors='ignore')}",
-                        severity="medium",
-                        location="content_analysis"
-                    ))
+                    threats.append(
+                        SecurityThreat(
+                            threat_type="suspicious_code",
+                            description=f"Suspicious code pattern detected: {signature.decode('utf-8', errors='ignore')}",
+                            severity="medium",
+                            location="content_analysis",
+                        )
+                    )
 
             # Check for suspicious file headers
             if self.is_suspicious_file_header(content):
@@ -351,7 +409,9 @@ class EnhancedFileService:
             # Check for encrypted/obfuscated content
             high_entropy = self.calculate_entropy(content) > 7.0
             if high_entropy:
-                warnings.append("File has high entropy, possibly encrypted or obfuscated")
+                warnings.append(
+                    "File has high entropy, possibly encrypted or obfuscated"
+                )
 
         except Exception as e:
             logger.error(f"Content analysis failed: {str(e)}")
@@ -362,9 +422,9 @@ class EnhancedFileService:
     async def analyze_archive_safety(self, file_path: str) -> Dict[str, Any]:
         """Analyze archive for zip bomb or other safety issues"""
         try:
-            if file_path.endswith('.zip'):
+            if file_path.endswith(".zip"):
                 return await self.analyze_zip_safety(file_path)
-            elif file_path.endswith(('.tar', '.tar.gz', '.tgz')):
+            elif file_path.endswith((".tar", ".tar.gz", ".tgz")):
                 return await self.analyze_tar_safety(file_path)
             else:
                 return {"is_bomb": False, "compression_ratio": 1.0}
@@ -376,7 +436,7 @@ class EnhancedFileService:
     async def analyze_zip_safety(self, file_path: str) -> Dict[str, Any]:
         """Analyze ZIP file for zip bomb"""
         try:
-            with zipfile.ZipFile(file_path, 'r') as zip_file:
+            with zipfile.ZipFile(file_path, "r") as zip_file:
                 total_size = 0
                 max_file_size = 0
 
@@ -388,20 +448,27 @@ class EnhancedFileService:
                     if file_size > 0:
                         compression_ratio = file_size / compressed_size
                         if compression_ratio > 1000:  # Very high compression ratio
-                            return {"is_bomb": True, "compression_ratio": compression_ratio}
+                            return {
+                                "is_bomb": True,
+                                "compression_ratio": compression_ratio,
+                            }
 
                     total_size += file_size
                     max_file_size = max(max_file_size, file_size)
 
                     # Check for path traversal attempts
-                    if '..' in info.filename or info.filename.startswith('/'):
+                    if ".." in info.filename or info.filename.startswith("/"):
                         return {"is_bomb": True, "reason": "path_traversal"}
 
                 # Check total uncompressed size
                 if total_size > 1024 * 1024 * 1024:  # 1GB
                     return {"is_bomb": True, "reason": "excessive_size"}
 
-                compression_ratio = total_size / os.path.getsize(file_path) if os.path.getsize(file_path) > 0 else 1.0
+                compression_ratio = (
+                    total_size / os.path.getsize(file_path)
+                    if os.path.getsize(file_path) > 0
+                    else 1.0
+                )
 
                 return {"is_bomb": False, "compression_ratio": compression_ratio}
 
@@ -412,12 +479,12 @@ class EnhancedFileService:
     async def analyze_tar_safety(self, file_path: str) -> Dict[str, Any]:
         """Analyze TAR file for safety issues"""
         try:
-            with tarfile.open(file_path, 'r:*') as tar_file:
+            with tarfile.open(file_path, "r:*") as tar_file:
                 total_size = 0
 
                 for member in tar_file:
                     # Check for path traversal attempts
-                    if '..' in member.name or member.name.startswith('/'):
+                    if ".." in member.name or member.name.startswith("/"):
                         return {"is_bomb": True, "reason": "path_traversal"}
 
                     total_size += member.size
@@ -432,7 +499,9 @@ class EnhancedFileService:
             logger.error(f"TAR analysis failed: {str(e)}")
             return {"is_bomb": False, "error": str(e)}
 
-    async def analyze_metadata_for_threats(self, file_path: str, validation_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def analyze_metadata_for_threats(
+        self, file_path: str, validation_result: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Analyze file metadata for suspicious content"""
         warnings = []
 
@@ -443,8 +512,14 @@ class EnhancedFileService:
                 warnings.extend(await self.analyze_pdf_metadata(file_path))
             elif document_type == DocumentType.IMAGE:
                 warnings.extend(await self.analyze_image_metadata(file_path))
-            elif document_type in [DocumentType.TEXT, DocumentType.SPREADSHEET, DocumentType.PRESENTATION]:
-                warnings.extend(await self.analyze_document_metadata(file_path, document_type))
+            elif document_type in [
+                DocumentType.TEXT,
+                DocumentType.SPREADSHEET,
+                DocumentType.PRESENTATION,
+            ]:
+                warnings.extend(
+                    await self.analyze_document_metadata(file_path, document_type)
+                )
 
         except Exception as e:
             logger.error(f"Metadata analysis failed: {str(e)}")
@@ -457,19 +532,27 @@ class EnhancedFileService:
         warnings = []
 
         try:
-            with open(file_path, 'rb') as file:
+            with open(file_path, "rb") as file:
                 pdf_reader = PdfReader(file)
 
                 if pdf_reader.metadata:
                     # Check for suspicious metadata
-                    title = pdf_reader.metadata.get('/Title', '')
-                    author = pdf_reader.metadata.get('/Author', '')
-                    creator = pdf_reader.metadata.get('/Creator', '')
+                    title = pdf_reader.metadata.get("/Title", "")
+                    author = pdf_reader.metadata.get("/Author", "")
+                    creator = pdf_reader.metadata.get("/Creator", "")
 
-                    suspicious_strings = ['hack', 'exploit', 'malware', 'virus', 'payload']
+                    suspicious_strings = [
+                        "hack",
+                        "exploit",
+                        "malware",
+                        "virus",
+                        "payload",
+                    ]
 
                     for field_value in [title, author, creator]:
-                        if any(sus in field_value.lower() for sus in suspicious_strings):
+                        if any(
+                            sus in field_value.lower() for sus in suspicious_strings
+                        ):
                             warnings.append(f"Suspicious content found in PDF metadata")
                             break
 
@@ -504,7 +587,9 @@ class EnhancedFileService:
 
         return warnings
 
-    async def analyze_document_metadata(self, file_path: str, document_type: DocumentType) -> List[str]:
+    async def analyze_document_metadata(
+        self, file_path: str, document_type: DocumentType
+    ) -> List[str]:
         """Analyze document metadata for suspicious content"""
         warnings = []
 
@@ -513,7 +598,7 @@ class EnhancedFileService:
             file_size = os.path.getsize(file_path)
 
             # Check for suspicious file names or extensions
-            suspicious_extensions = ['.exe', '.bat', '.cmd', '.scr', '.pif', '.com']
+            suspicious_extensions = [".exe", ".bat", ".cmd", ".scr", ".pif", ".com"]
             filename = os.path.basename(file_path)
 
             if any(filename.lower().endswith(ext) for ext in suspicious_extensions):
@@ -528,7 +613,9 @@ class EnhancedFileService:
 
         return warnings
 
-    async def verify_file_integrity(self, file: UploadFile, validation_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def verify_file_integrity(
+        self, file: UploadFile, validation_result: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Verify file integrity"""
         try:
             # Save temporary file for integrity checks
@@ -539,16 +626,22 @@ class EnhancedFileService:
                 file_hash = self.calculate_file_hash(temp_file_path)
 
                 # Verify file structure
-                structure_valid = await self.verify_file_structure(temp_file_path, validation_result)
+                structure_valid = await self.verify_file_structure(
+                    temp_file_path, validation_result
+                )
 
                 # Check for corruption
-                corruption_check = await self.check_file_corruption(temp_file_path, validation_result)
+                corruption_check = await self.check_file_corruption(
+                    temp_file_path, validation_result
+                )
 
                 return {
                     "file_hash": file_hash,
                     "structure_valid": structure_valid,
                     "corruption_check": corruption_check,
-                    "integrity_status": "passed" if structure_valid and not corruption_check else "failed"
+                    "integrity_status": "passed"
+                    if structure_valid and not corruption_check
+                    else "failed",
                 }
 
             finally:
@@ -560,7 +653,9 @@ class EnhancedFileService:
             logger.error(f"File integrity verification failed: {str(e)}")
             raise FileIntegrityError(f"Integrity verification failed: {str(e)}")
 
-    async def verify_file_structure(self, file_path: str, validation_result: Dict[str, Any]) -> bool:
+    async def verify_file_structure(
+        self, file_path: str, validation_result: Dict[str, Any]
+    ) -> bool:
         """Verify file structure based on type"""
         try:
             document_type = validation_result["document_type"]
@@ -570,7 +665,11 @@ class EnhancedFileService:
                 return self.verify_pdf_structure(file_path)
             elif document_type == DocumentType.IMAGE:
                 return self.verify_image_structure(file_path)
-            elif document_type in [DocumentType.TEXT, DocumentType.SPREADSHEET, DocumentType.PRESENTATION]:
+            elif document_type in [
+                DocumentType.TEXT,
+                DocumentType.SPREADSHEET,
+                DocumentType.PRESENTATION,
+            ]:
                 return self.verify_document_structure(file_path, detected_mime_type)
             else:
                 return True  # Default to valid for unknown types
@@ -582,10 +681,10 @@ class EnhancedFileService:
     def verify_pdf_structure(self, file_path: str) -> bool:
         """Verify PDF file structure"""
         try:
-            with open(file_path, 'rb') as file:
+            with open(file_path, "rb") as file:
                 # Check PDF header
                 header = file.read(4)
-                if header != b'%PDF':
+                if header != b"%PDF":
                     return False
 
                 # Try to read with PyPDF2
@@ -624,20 +723,26 @@ class EnhancedFileService:
                 return False
 
             # Check for common document headers
-            with open(file_path, 'rb') as file:
+            with open(file_path, "rb") as file:
                 header = file.read(8)
 
                 # Office documents
                 if mime_type in [
-                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
                 ]:
-                    return header.startswith(b'PK\x03\x04')  # ZIP header
+                    return header.startswith(b"PK\x03\x04")  # ZIP header
 
                 # Old Office documents
-                elif mime_type in ['application/msword', 'application/vnd.ms-excel', 'application/vnd.ms-powerpoint']:
-                    return header.startswith(b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1')  # OLE header
+                elif mime_type in [
+                    "application/msword",
+                    "application/vnd.ms-excel",
+                    "application/vnd.ms-powerpoint",
+                ]:
+                    return header.startswith(
+                        b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+                    )  # OLE header
 
             return True
 
@@ -645,7 +750,9 @@ class EnhancedFileService:
             logger.error(f"Document structure verification failed: {str(e)}")
             return False
 
-    async def check_file_corruption(self, file_path: str, validation_result: Dict[str, Any]) -> bool:
+    async def check_file_corruption(
+        self, file_path: str, validation_result: Dict[str, Any]
+    ) -> bool:
         """Check for file corruption"""
         try:
             document_type = validation_result["document_type"]
@@ -664,7 +771,7 @@ class EnhancedFileService:
     def is_pdf_corrupted(self, file_path: str) -> bool:
         """Check if PDF is corrupted"""
         try:
-            with open(file_path, 'rb') as file:
+            with open(file_path, "rb") as file:
                 pdf_reader = PdfReader(file)
                 # Try to extract text from first page
                 if len(pdf_reader.pages) > 0:
@@ -689,7 +796,7 @@ class EnhancedFileService:
         temp_dir = self.upload_dir / "temp"
         temp_file_path = temp_dir / f"temp_{uuid.uuid4().hex}"
 
-        async with aiofiles.open(temp_file_path, 'wb') as f:
+        async with aiofiles.open(temp_file_path, "wb") as f:
             content = await file.read()
             await f.write(content)
 
@@ -700,24 +807,24 @@ class EnhancedFileService:
 
     def get_document_type(self, filename: str, mime_type: str) -> DocumentType:
         """Determine document type based on filename and MIME type"""
-        if mime_type.startswith('text/'):
+        if mime_type.startswith("text/"):
             return DocumentType.TEXT
-        elif mime_type.startswith('image/'):
+        elif mime_type.startswith("image/"):
             return DocumentType.IMAGE
-        elif mime_type.startswith('audio/'):
+        elif mime_type.startswith("audio/"):
             return DocumentType.AUDIO
-        elif mime_type.startswith('video/'):
+        elif mime_type.startswith("video/"):
             return DocumentType.VIDEO
-        elif mime_type == 'application/pdf':
+        elif mime_type == "application/pdf":
             return DocumentType.PDF
         elif mime_type in [
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'application/vnd.ms-excel'
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-excel",
         ]:
             return DocumentType.SPREADSHEET
         elif mime_type in [
-            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            'application/vnd.ms-powerpoint'
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/vnd.ms-powerpoint",
         ]:
             return DocumentType.PRESENTATION
         else:
@@ -726,10 +833,38 @@ class EnhancedFileService:
     def is_suspicious_filename(self, filename: str) -> bool:
         """Check if filename is suspicious"""
         suspicious_patterns = [
-            '..', '\\', '/', ':', '*', '?', '"', '<', '>', '|',
-            'con', 'prn', 'aux', 'nul',
-            'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
-            'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
+            "..",
+            "\\",
+            "/",
+            ":",
+            "*",
+            "?",
+            '"',
+            "<",
+            ">",
+            "|",
+            "con",
+            "prn",
+            "aux",
+            "nul",
+            "com1",
+            "com2",
+            "com3",
+            "com4",
+            "com5",
+            "com6",
+            "com7",
+            "com8",
+            "com9",
+            "lpt1",
+            "lpt2",
+            "lpt3",
+            "lpt4",
+            "lpt5",
+            "lpt6",
+            "lpt7",
+            "lpt8",
+            "lpt9",
         ]
 
         filename_lower = filename.lower()
@@ -738,10 +873,10 @@ class EnhancedFileService:
     def is_suspicious_file_header(self, content: bytes) -> bool:
         """Check if file header is suspicious"""
         suspicious_headers = [
-            b'MZ',  # Windows executable
-            b'\x7fELF',  # Linux executable
-            b'\xca\xfe\xba\xbe',  # Java class
-            b'#!',  # Script files
+            b"MZ",  # Windows executable
+            b"\x7fELF",  # Linux executable
+            b"\xca\xfe\xba\xbe",  # Java class
+            b"#!",  # Script files
         ]
 
         return any(content.startswith(header) for header in suspicious_headers)
@@ -785,14 +920,14 @@ class EnhancedFileService:
         tags: List[str],
         is_public: bool,
         custom_metadata: Dict[str, Any],
-        validation_result: Dict[str, Any]
+        validation_result: Dict[str, Any],
     ) -> Document:
         """Process and store uploaded file with enhanced validation"""
         try:
             # Generate file path
             file_path = self.generate_file_path(
                 validation_result["basic_validation"]["document_type"],
-                str(organization.id)
+                str(organization.id),
             )
 
             # Add original extension to file path
@@ -817,14 +952,16 @@ class EnhancedFileService:
                 is_public=is_public,
                 tags=tags,
                 organization_id=organization.id,
-                uploaded_by_user_id=user.id
+                uploaded_by_user_id=user.id,
             )
 
             # Add metadata
             document.add_metadata("file_hash", file_hash)
             document.add_metadata("original_filename", file.filename)
             document.add_metadata("security_scan", validation_result["security_scan"])
-            document.add_metadata("integrity_check", validation_result["integrity_check"])
+            document.add_metadata(
+                "integrity_check", validation_result["integrity_check"]
+            )
             document.add_metadata("custom_metadata", custom_metadata)
 
             if description:
@@ -835,7 +972,9 @@ class EnhancedFileService:
             self.db.refresh(document)
 
             # Update organization storage usage
-            organization.update_storage_usage(validation_result["basic_validation"]["file_size"])
+            organization.update_storage_usage(
+                validation_result["basic_validation"]["file_size"]
+            )
             self.db.commit()
 
             return document
@@ -844,7 +983,9 @@ class EnhancedFileService:
             self.db.rollback()
             raise FileStorageError(f"Failed to upload file: {str(e)}")
 
-    def generate_file_path(self, document_type: DocumentType, organization_id: str) -> str:
+    def generate_file_path(
+        self, document_type: DocumentType, organization_id: str
+    ) -> str:
         """Generate unique file path for uploaded file"""
         timestamp = int(time.time())
         unique_id = str(uuid.uuid4())
@@ -857,7 +998,7 @@ class EnhancedFileService:
             DocumentType.IMAGE: "images",
             DocumentType.AUDIO: "audio",
             DocumentType.VIDEO: "video",
-            DocumentType.MULTIMODAL: "documents"
+            DocumentType.MULTIMODAL: "documents",
         }
 
         directory = type_dir.get(document_type, "documents")
@@ -872,7 +1013,7 @@ class EnhancedFileService:
             Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
             # Save file asynchronously
-            async with aiofiles.open(file_path, 'wb') as f:
+            async with aiofiles.open(file_path, "wb") as f:
                 content = await file.read()
                 await f.write(content)
 
@@ -888,7 +1029,7 @@ class EnhancedFileService:
         """Rescan document for security threats"""
         try:
             # Read file content
-            with open(document.file_path, 'rb') as f:
+            with open(document.file_path, "rb") as f:
                 content = f.read()
 
             # This is a simplified implementation
@@ -908,11 +1049,13 @@ class EnhancedFileService:
             validation_result = await self.validate_and_scan_file(
                 file=temp_file,
                 user=document.uploaded_by_user,
-                organization=document.organization
+                organization=document.organization,
             )
 
             # Update document metadata with new scan results
-            document.add_metadata("last_security_scan", validation_result["security_scan"])
+            document.add_metadata(
+                "last_security_scan", validation_result["security_scan"]
+            )
             document.add_metadata("last_scan_timestamp", datetime.utcnow().isoformat())
 
             self.db.commit()
@@ -922,6 +1065,7 @@ class EnhancedFileService:
         except Exception as e:
             logger.error(f"Security rescan failed: {str(e)}")
             raise SecurityScanError(f"Security rescan failed: {str(e)}")
+
 
 # Dependency injection
 def get_enhanced_file_service(db: Session = Depends(get_db)) -> EnhancedFileService:

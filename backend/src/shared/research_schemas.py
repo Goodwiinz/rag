@@ -4,19 +4,21 @@ Research Assistant schemas for citation management, citation graphs, research pr
 This module contains Pydantic schemas for the Research Assistant feature (User Stories 1-5).
 """
 
-from pydantic import BaseModel, Field, validator
-from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from pydantic import BaseModel, Field, validator
 
 # ============================================================================
 # Enums
 # ============================================================================
 
+
 class ProjectType(str, Enum):
     """Research project types"""
+
     RESEARCH = "research"
     LITERATURE_REVIEW = "literature_review"
     THESIS = "thesis"
@@ -25,6 +27,7 @@ class ProjectType(str, Enum):
 
 class ResearchStatus(str, Enum):
     """Research project status"""
+
     ACTIVE = "active"
     PAUSED = "paused"
     COMPLETED = "completed"
@@ -33,6 +36,7 @@ class ResearchStatus(str, Enum):
 
 class CitationRelationshipType(str, Enum):
     """Citation relationship types for graph edges"""
+
     CITES = "cites"
     CITED_BY = "cited_by"
     RELATED_TO = "related_to"
@@ -40,6 +44,7 @@ class CitationRelationshipType(str, Enum):
 
 class MetadataSource(str, Enum):
     """Sources for citation metadata extraction"""
+
     ARXIV = "arxiv"
     SEMANTIC_SCHOLAR = "semantic_scholar"
     CROSSREF = "crossref"
@@ -50,19 +55,28 @@ class MetadataSource(str, Enum):
 # T019: Citation Schemas (User Story 2)
 # ============================================================================
 
+
 class CitationAuthor(BaseModel):
     """Author information for citations"""
+
     name: str = Field(..., description="Author's full name")
-    affiliation: Optional[str] = Field(None, description="Author's institution/affiliation")
+    affiliation: Optional[str] = Field(
+        None, description="Author's institution/affiliation"
+    )
 
 
 class CitationCreate(BaseModel):
     """Create a new citation"""
+
     message_id: Optional[UUID] = Field(None, description="Associated message ID")
     document_id: Optional[UUID] = Field(None, description="Associated document ID")
-    external_reference_id: Optional[str] = Field(None, description="External reference identifier")
+    external_reference_id: Optional[str] = Field(
+        None, description="External reference identifier"
+    )
     document_title: Optional[str] = Field(None, description="Document/paper title")
-    document_type: Optional[str] = Field(default="paper", description="Type of document")
+    document_type: Optional[str] = Field(
+        default="paper", description="Type of document"
+    )
 
     # Chunk information
     chunk_index: Optional[int] = None
@@ -75,18 +89,25 @@ class CitationCreate(BaseModel):
     rerank_score: Optional[float] = None
 
     # Scholarly metadata
-    authors: Optional[List[Dict[str, Any]]] = Field(default=None, description="List of authors")
+    authors: Optional[List[Dict[str, Any]]] = Field(
+        default=None, description="List of authors"
+    )
     year: Optional[int] = Field(None, ge=1900, le=2100, description="Publication year")
     venue: Optional[str] = Field(None, description="Journal or conference name")
     doi: Optional[str] = Field(None, description="Digital Object Identifier")
     arxiv_id: Optional[str] = Field(None, description="arXiv identifier")
     abstract: Optional[str] = Field(None, description="Paper abstract")
-    metadata_source: Optional[str] = Field(default="manual", description="Source of metadata")
-    needs_review: bool = Field(default=False, description="Flag for incomplete metadata")
+    metadata_source: Optional[str] = Field(
+        default="manual", description="Source of metadata"
+    )
+    needs_review: bool = Field(
+        default=False, description="Flag for incomplete metadata"
+    )
 
 
 class CitationResponse(BaseModel):
     """Citation response with all metadata"""
+
     id: UUID
     message_id: Optional[UUID] = None
     document_id: Optional[UUID] = None
@@ -105,14 +126,22 @@ class CitationResponse(BaseModel):
     rerankScore: Optional[float] = Field(None, alias="rerank_score")
 
     # Scholarly metadata
-    authors: Optional[List[Dict[str, Any]]] = Field(default=None, description="List of authors")
+    authors: Optional[List[Dict[str, Any]]] = Field(
+        default=None, description="List of authors"
+    )
     year: Optional[int] = Field(None, ge=1900, le=2100, description="Publication year")
     venue: Optional[str] = Field(None, description="Journal or conference name")
     doi: Optional[str] = Field(None, description="Digital Object Identifier")
-    arxivId: Optional[str] = Field(None, alias="arxiv_id", description="arXiv identifier")
+    arxivId: Optional[str] = Field(
+        None, alias="arxiv_id", description="arXiv identifier"
+    )
     abstract: Optional[str] = Field(None, description="Paper abstract")
-    metadataSource: Optional[str] = Field(None, alias="metadata_source", description="Source of metadata")
-    needsReview: bool = Field(False, alias="needs_review", description="Flag for incomplete metadata")
+    metadataSource: Optional[str] = Field(
+        None, alias="metadata_source", description="Source of metadata"
+    )
+    needsReview: bool = Field(
+        False, alias="needs_review", description="Flag for incomplete metadata"
+    )
 
     createdAt: datetime = Field(..., alias="created_at")
     updatedAt: datetime = Field(..., alias="updated_at")
@@ -124,6 +153,7 @@ class CitationResponse(BaseModel):
 
 class CitationListResponse(BaseModel):
     """Paginated list of citations"""
+
     citations: List[CitationResponse]
     total: int
     skip: int
@@ -132,6 +162,7 @@ class CitationListResponse(BaseModel):
 
 class CitationWithMetadata(BaseModel):
     """Enhanced citation with scholarly metadata"""
+
     id: UUID
     message_id: UUID
     document_id: Optional[UUID] = None
@@ -150,14 +181,22 @@ class CitationWithMetadata(BaseModel):
     rerank_score: Optional[float] = None
 
     # Scholarly metadata
-    authors: Optional[List[Dict[str, Any]]] = Field(default=None, description="List of authors")
+    authors: Optional[List[Dict[str, Any]]] = Field(
+        default=None, description="List of authors"
+    )
     year: Optional[int] = Field(None, ge=1900, le=2100, description="Publication year")
     venue: Optional[str] = Field(None, description="Journal or conference name")
     doi: Optional[str] = Field(None, description="Digital Object Identifier")
-    arxiv_id: Optional[str] = Field(None, description="arXiv identifier (e.g., 2512.14313v1)")
+    arxiv_id: Optional[str] = Field(
+        None, description="arXiv identifier (e.g., 2512.14313v1)"
+    )
     abstract: Optional[str] = Field(None, description="Paper abstract")
-    metadata_source: Optional[MetadataSource] = Field(None, description="Source of metadata")
-    needs_review: bool = Field(default=False, description="Flag for incomplete metadata")
+    metadata_source: Optional[MetadataSource] = Field(
+        None, description="Source of metadata"
+    )
+    needs_review: bool = Field(
+        default=False, description="Flag for incomplete metadata"
+    )
 
     created_at: datetime
     updated_at: datetime
@@ -168,13 +207,19 @@ class CitationWithMetadata(BaseModel):
 
 class CitationExtraction(BaseModel):
     """Request to extract citation metadata from external sources"""
+
     citation_id: UUID = Field(..., description="Citation ID to enrich with metadata")
-    source: Optional[MetadataSource] = Field(None, description="Preferred metadata source (auto-detect if None)")
-    identifier: Optional[str] = Field(None, description="DOI, arXiv ID, or other identifier to use for lookup")
+    source: Optional[MetadataSource] = Field(
+        None, description="Preferred metadata source (auto-detect if None)"
+    )
+    identifier: Optional[str] = Field(
+        None, description="DOI, arXiv ID, or other identifier to use for lookup"
+    )
 
 
 class CitationUpdate(BaseModel):
     """Update citation metadata (partial updates allowed)"""
+
     authors: Optional[List[Dict[str, Any]]] = None
     year: Optional[int] = Field(None, ge=1900, le=2100)
     venue: Optional[str] = None
@@ -189,16 +234,22 @@ class CitationUpdate(BaseModel):
 # T020: Citation Graph Schemas (User Story 3)
 # ============================================================================
 
+
 class CitationNode(BaseModel):
     """Node in the citation graph (represents a citation)"""
+
     id: str = Field(..., description="Citation ID (UUID as string)")
     title: str = Field(..., description="Document/paper title")
-    authors: Optional[List[str]] = Field(default=None, description="List of author names")
+    authors: Optional[List[str]] = Field(
+        default=None, description="List of author names"
+    )
     year: Optional[int] = None
     venue: Optional[str] = None
     doi: Optional[str] = None
     arxiv_id: Optional[str] = None
-    citation_count: Optional[int] = Field(default=0, description="Number of citations to this paper")
+    citation_count: Optional[int] = Field(
+        default=0, description="Number of citations to this paper"
+    )
 
     class Config:
         from_attributes = True
@@ -206,12 +257,17 @@ class CitationNode(BaseModel):
 
 class CitationEdge(BaseModel):
     """Edge in the citation graph (represents a relationship between citations)"""
+
     id: str = Field(..., description="Relationship ID (UUID as string)")
     source: str = Field(..., description="Source citation ID")
     target: str = Field(..., description="Target citation ID")
     type: CitationRelationshipType = Field(default=CitationRelationshipType.CITES)
-    context: Optional[str] = Field(None, description="Where the citation appears in text")
-    confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Extraction confidence")
+    context: Optional[str] = Field(
+        None, description="Where the citation appears in text"
+    )
+    confidence: Optional[float] = Field(
+        None, ge=0.0, le=1.0, description="Extraction confidence"
+    )
 
     class Config:
         from_attributes = True
@@ -219,20 +275,32 @@ class CitationEdge(BaseModel):
 
 class CitationGraphRequest(BaseModel):
     """Request to retrieve citation graph for a project"""
+
     project_id: UUID = Field(..., description="Research project ID")
-    max_depth: int = Field(default=2, ge=1, le=5, description="Maximum depth of citation relationships to traverse")
-    min_confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="Minimum confidence score for edges")
+    max_depth: int = Field(
+        default=2,
+        ge=1,
+        le=5,
+        description="Maximum depth of citation relationships to traverse",
+    )
+    min_confidence: float = Field(
+        default=0.5, ge=0.0, le=1.0, description="Minimum confidence score for edges"
+    )
     relationship_types: Optional[List[CitationRelationshipType]] = Field(
-        default=None,
-        description="Filter by relationship types (None = all types)"
+        default=None, description="Filter by relationship types (None = all types)"
     )
 
 
 class CitationGraphResponse(BaseModel):
     """Citation graph response with nodes and edges"""
+
     project_id: UUID
-    nodes: List[CitationNode] = Field(..., description="Citations (papers) in the graph")
-    edges: List[CitationEdge] = Field(..., description="Relationships between citations")
+    nodes: List[CitationNode] = Field(
+        ..., description="Citations (papers) in the graph"
+    )
+    edges: List[CitationEdge] = Field(
+        ..., description="Relationships between citations"
+    )
     total_nodes: int = Field(..., description="Total number of nodes")
     total_edges: int = Field(..., description="Total number of edges")
     depth: int = Field(..., description="Actual depth of the graph")
@@ -243,15 +311,25 @@ class CitationGraphResponse(BaseModel):
 
 class CitationRelationshipCreate(BaseModel):
     """Create a new citation relationship."""
-    source_citation_id: UUID = Field(..., description="Source citation ID (the citing paper)")
-    target_citation_id: UUID = Field(..., description="Target citation ID (the cited paper)")
+
+    source_citation_id: UUID = Field(
+        ..., description="Source citation ID (the citing paper)"
+    )
+    target_citation_id: UUID = Field(
+        ..., description="Target citation ID (the cited paper)"
+    )
     relationship_type: str = Field(default="CITES", description="Type of relationship")
-    citation_context: Optional[str] = Field(None, description="Text context where citation appears")
-    confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Confidence score")
+    citation_context: Optional[str] = Field(
+        None, description="Text context where citation appears"
+    )
+    confidence: float = Field(
+        default=1.0, ge=0.0, le=1.0, description="Confidence score"
+    )
 
 
 class CitationRelationshipResponse(BaseModel):
     """Citation relationship response."""
+
     id: str
     source_citation_id: str
     target_citation_id: str
@@ -263,12 +341,14 @@ class CitationRelationshipResponse(BaseModel):
 
 class GraphNodePosition(BaseModel):
     """Position coordinates for graph node."""
+
     x: float
     y: float
 
 
 class GraphNode(BaseModel):
     """Enhanced graph node with position for Cytoscape.js."""
+
     id: str
     title: Optional[str] = None
     authors: Optional[List[str]] = None
@@ -285,6 +365,7 @@ class GraphNode(BaseModel):
 
 class GraphEdge(BaseModel):
     """Graph edge for Cytoscape.js."""
+
     id: str
     source: str
     target: str
@@ -294,6 +375,7 @@ class GraphEdge(BaseModel):
 
 class GraphMetadata(BaseModel):
     """Metadata about the graph response."""
+
     total_nodes: int
     total_edges: int
     depth: int
@@ -302,6 +384,7 @@ class GraphMetadata(BaseModel):
 
 class CitationGraphData(BaseModel):
     """Full citation graph response for Cytoscape.js visualization."""
+
     nodes: List[GraphNode]
     edges: List[GraphEdge]
     metadata: GraphMetadata
@@ -309,6 +392,7 @@ class CitationGraphData(BaseModel):
 
 class GraphNodeDetails(BaseModel):
     """Detailed information about a single graph node."""
+
     id: str
     document_id: Optional[str] = None
     title: Optional[str] = None
@@ -327,23 +411,32 @@ class GraphNodeDetails(BaseModel):
 # T021: Research Project Schemas (User Story 4)
 # ============================================================================
 
+
 class ProjectCreate(BaseModel):
     """Create a new research project"""
+
     workspace_id: UUID = Field(..., description="Parent workspace ID")
     name: str = Field(..., min_length=1, max_length=255, description="Project name")
     description: Optional[str] = Field(None, description="Project description")
     project_type: ProjectType = Field(default=ProjectType.RESEARCH)
     research_status: ResearchStatus = Field(default=ResearchStatus.ACTIVE)
-    research_goals: Optional[str] = Field(None, description="Project objectives and goals")
+    research_goals: Optional[str] = Field(
+        None, description="Project objectives and goals"
+    )
     deadline: Optional[datetime] = Field(None, description="Project deadline")
     tags: List[str] = Field(default_factory=list, description="Categorization tags")
-    color: Optional[str] = Field(None, pattern="^#[0-9A-Fa-f]{6}$", description="Hex color for UI")
+    color: Optional[str] = Field(
+        None, pattern="^#[0-9A-Fa-f]{6}$", description="Hex color for UI"
+    )
     icon: Optional[str] = Field(None, max_length=50, description="Icon name for UI")
-    is_private: bool = Field(default=True, description="Privacy setting (always TRUE for Phase 3)")
+    is_private: bool = Field(
+        default=True, description="Privacy setting (always TRUE for Phase 3)"
+    )
 
 
 class ProjectUpdate(BaseModel):
     """Update research project (partial updates allowed)"""
+
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     project_type: Optional[ProjectType] = None
@@ -357,6 +450,7 @@ class ProjectUpdate(BaseModel):
 
 class ProjectResponse(BaseModel):
     """Research project response"""
+
     id: UUID
     workspace_id: UUID
     name: str
@@ -381,6 +475,7 @@ class ProjectResponse(BaseModel):
 
 class ProjectNoteCreate(BaseModel):
     """Create a new project note"""
+
     project_id: UUID = Field(..., description="Parent project ID")
     title: str = Field(..., min_length=1, max_length=255)
     content: str = Field(..., description="Markdown content")
@@ -391,6 +486,7 @@ class ProjectNoteCreate(BaseModel):
 
 class ProjectNoteUpdate(BaseModel):
     """Update project note (partial updates allowed)"""
+
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     content: Optional[str] = None
     linked_document_ids: Optional[List[UUID]] = None
@@ -400,6 +496,7 @@ class ProjectNoteUpdate(BaseModel):
 
 class ProjectNoteResponse(BaseModel):
     """Project note response"""
+
     id: UUID
     project_id: UUID
     user_id: UUID
@@ -419,13 +516,21 @@ class ProjectNoteResponse(BaseModel):
 
 class ProjectDetailResponse(ProjectResponse):
     """Detailed project response with additional context."""
-    documents: List[Dict[str, Any]] = Field(default_factory=list, description="Documents in project")
-    recent_notes: List[Dict[str, Any]] = Field(default_factory=list, description="Recent notes")
-    recent_drafts: List[Dict[str, Any]] = Field(default_factory=list, description="Recent drafts")
+
+    documents: List[Dict[str, Any]] = Field(
+        default_factory=list, description="Documents in project"
+    )
+    recent_notes: List[Dict[str, Any]] = Field(
+        default_factory=list, description="Recent notes"
+    )
+    recent_drafts: List[Dict[str, Any]] = Field(
+        default_factory=list, description="Recent drafts"
+    )
 
 
 class ProjectListResponse(BaseModel):
     """Paginated list of projects."""
+
     projects: List[ProjectResponse]
     total: int
     page: int
@@ -436,6 +541,7 @@ class ProjectListResponse(BaseModel):
 
 class NoteListResponse(BaseModel):
     """Paginated list of notes."""
+
     notes: List[ProjectNoteResponse]
     total: int
     page: int
@@ -452,20 +558,27 @@ NoteResponse = ProjectNoteResponse
 # T022: Draft Schemas (User Story 5)
 # ============================================================================
 
+
 class DraftGenerateRequest(BaseModel):
     """Request to generate a new literature review draft"""
+
     project_id: UUID = Field(..., description="Research project ID")
     title: str = Field(..., min_length=1, max_length=255, description="Draft title")
-    themes: List[str] = Field(default_factory=list, description="Themes/topics to focus on")
+    themes: List[str] = Field(
+        default_factory=list, description="Themes/topics to focus on"
+    )
     generation_params: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Generation parameters (model, temperature, max_tokens, etc.)"
+        description="Generation parameters (model, temperature, max_tokens, etc.)",
     )
-    max_citations: int = Field(default=50, ge=1, le=200, description="Maximum number of citations to include")
+    max_citations: int = Field(
+        default=50, ge=1, le=200, description="Maximum number of citations to include"
+    )
 
 
 class DraftCitationData(BaseModel):
     """Citation data within a draft"""
+
     citation_index: int = Field(..., ge=1, description="Order of citation in the draft")
     document_id: Optional[UUID] = None
     citation_id: Optional[UUID] = None
@@ -475,6 +588,7 @@ class DraftCitationData(BaseModel):
 
 class DraftResponse(BaseModel):
     """Generated draft response"""
+
     id: UUID
     project_id: UUID
     version: int
@@ -487,7 +601,9 @@ class DraftResponse(BaseModel):
     generation_params: Optional[Dict[str, Any]] = None
     generation_time_ms: Optional[int] = None
     is_current: bool
-    citations: Optional[List[DraftCitationData]] = Field(default=None, description="Citations in this draft")
+    citations: Optional[List[DraftCitationData]] = Field(
+        default=None, description="Citations in this draft"
+    )
     created_at: datetime
 
     class Config:
@@ -496,6 +612,7 @@ class DraftResponse(BaseModel):
 
 class DraftVersion(BaseModel):
     """Draft version metadata (lightweight, for listing versions)"""
+
     id: UUID
     version: int
     title: str
@@ -511,6 +628,7 @@ class DraftVersion(BaseModel):
 
 class DraftVersionListResponse(BaseModel):
     """List of draft versions for a project"""
+
     project_id: UUID
     versions: List[DraftVersion]
     total_versions: int
@@ -521,19 +639,30 @@ class DraftVersionListResponse(BaseModel):
 # Project-Chat Integration Schemas (Phase 2)
 # ============================================================================
 
+
 class StartChatFromProjectRequest(BaseModel):
     """Request to start a new chat from a project with document context"""
-    initial_message: str = Field(..., min_length=1, description="First message in the chat")
-    conversation_id: Optional[UUID] = Field(None, description="Use existing conversation (optional)")
-    thread_title: Optional[str] = Field(None, max_length=500, description="Custom thread title")
+
+    initial_message: str = Field(
+        ..., min_length=1, description="First message in the chat"
+    )
+    conversation_id: Optional[UUID] = Field(
+        None, description="Use existing conversation (optional)"
+    )
+    thread_title: Optional[str] = Field(
+        None, max_length=500, description="Custom thread title"
+    )
 
 
 class StartChatFromProjectResponse(BaseModel):
     """Response from starting a chat from a project"""
+
     thread_id: UUID
     conversation_id: UUID
     project_thread_id: UUID
-    document_scope: List[UUID] = Field(..., description="Document IDs included in RAG context")
+    document_scope: List[UUID] = Field(
+        ..., description="Document IDs included in RAG context"
+    )
 
     class Config:
         from_attributes = True
@@ -541,12 +670,16 @@ class StartChatFromProjectResponse(BaseModel):
 
 class LinkThreadRequest(BaseModel):
     """Request to link an existing thread to a project"""
+
     thread_id: UUID = Field(..., description="Thread ID to link")
-    context_note: Optional[str] = Field(None, description="Optional note about why this thread is linked")
+    context_note: Optional[str] = Field(
+        None, description="Optional note about why this thread is linked"
+    )
 
 
 class ProjectThreadResponse(BaseModel):
     """Response for a project-thread link"""
+
     id: UUID
     project_id: UUID
     thread_id: UUID
@@ -557,7 +690,9 @@ class ProjectThreadResponse(BaseModel):
     linked_by_id: Optional[UUID] = None
     context_note: Optional[str] = None
     message_count: int = Field(default=0, description="Number of messages in thread")
-    last_message_at: Optional[datetime] = Field(None, description="Last message timestamp")
+    last_message_at: Optional[datetime] = Field(
+        None, description="Last message timestamp"
+    )
 
     class Config:
         from_attributes = True
@@ -565,12 +700,18 @@ class ProjectThreadResponse(BaseModel):
 
 class ProjectThreadListResponse(BaseModel):
     """List of threads linked to a project"""
+
     threads: List[ProjectThreadResponse]
     total: int
 
 
 class SaveThreadToNoteRequest(BaseModel):
     """Request to save thread content to a project note"""
+
     thread_id: UUID = Field(..., description="Thread to save")
-    note_title: str = Field(..., min_length=1, max_length=255, description="Title for the new note")
-    include_citations: bool = Field(default=True, description="Include citations in the note")
+    note_title: str = Field(
+        ..., min_length=1, max_length=255, description="Title for the new note"
+    )
+    include_citations: bool = Field(
+        default=True, description="Include citations in the note"
+    )

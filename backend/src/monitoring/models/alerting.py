@@ -7,15 +7,28 @@ Models for storing alerts, alert rules, and alert history.
 import uuid
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, String, Integer, Float, DateTime, Boolean, Text, JSON, Index, ForeignKey
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from src.models.base import BaseModel
 
 
 class AlertSeverity(str, Enum):
     """Alert severity levels"""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -25,6 +38,7 @@ class AlertSeverity(str, Enum):
 
 class AlertStatus(str, Enum):
     """Alert status"""
+
     OPEN = "open"
     ACKNOWLEDGED = "acknowledged"
     RESOLVED = "resolved"
@@ -34,6 +48,7 @@ class AlertStatus(str, Enum):
 
 class AlertType(str, Enum):
     """Alert types"""
+
     SYSTEM = "system"
     APPLICATION = "application"
     BUSINESS = "business"
@@ -44,6 +59,7 @@ class AlertType(str, Enum):
 
 class ChannelType(str, Enum):
     """Alert channel types"""
+
     EMAIL = "email"
     SLACK = "slack"
     WEBHOOK = "webhook"
@@ -53,11 +69,14 @@ class ChannelType(str, Enum):
 
 class AlertRule(BaseModel):
     """Alert rule definitions"""
+
     __tablename__ = "monitoring_alert_rules"
 
     name = Column(String(255), unique=True, nullable=False, index=True)
     description = Column(Text)
-    rule_type = Column(String(50), nullable=False)  # threshold, anomaly, pattern, composite
+    rule_type = Column(
+        String(50), nullable=False
+    )  # threshold, anomaly, pattern, composite
     severity = Column(String(20), nullable=False, default=AlertSeverity.MEDIUM)
     category = Column(String(100))
 
@@ -95,18 +114,24 @@ class AlertRule(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_alert_rules_active_type', 'is_active', 'rule_type'),
-        Index('idx_alert_rules_severity', 'severity'),
-        Index('idx_alert_rules_metric', 'metric_name'),
+        Index("idx_alert_rules_active_type", "is_active", "rule_type"),
+        Index("idx_alert_rules_severity", "severity"),
+        Index("idx_alert_rules_metric", "metric_name"),
     )
 
 
 class Alert(BaseModel):
     """Alert instances"""
+
     __tablename__ = "monitoring_alerts"
 
     alert_id = Column(String(128), unique=True, nullable=False, index=True)
-    rule_id = Column(UUID(as_uuid=True), ForeignKey("monitoring_alert_rules.id"), nullable=False, index=True)
+    rule_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("monitoring_alert_rules.id"),
+        nullable=False,
+        index=True,
+    )
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=False)
     severity = Column(String(20), nullable=False, index=True)
@@ -137,24 +162,39 @@ class Alert(BaseModel):
 
     # Relationships
     rule = relationship("AlertRule", back_populates="alerts")
-    history = relationship("AlertHistory", back_populates="alert", cascade="all, delete-orphan")
+    history = relationship(
+        "AlertHistory", back_populates="alert", cascade="all, delete-orphan"
+    )
 
     # Indexes
     __table_args__ = (
-        Index('idx_alerts_status_severity', 'status', 'severity'),
-        Index('idx_alerts_triggered_time', 'triggered_at'),
-        Index('idx_alerts_type_time', 'alert_type', 'triggered_at'),
-        Index('idx_alerts_assigned', 'assigned_to'),
+        Index("idx_alerts_status_severity", "status", "severity"),
+        Index("idx_alerts_triggered_time", "triggered_at"),
+        Index("idx_alerts_type_time", "alert_type", "triggered_at"),
+        Index("idx_alerts_assigned", "assigned_to"),
     )
 
 
 class AlertHistory(BaseModel):
     """Alert state changes and history"""
+
     __tablename__ = "monitoring_alert_history"
 
-    alert_id = Column(UUID(as_uuid=True), ForeignKey("monitoring_alerts.id"), nullable=False, index=True)
-    rule_id = Column(UUID(as_uuid=True), ForeignKey("monitoring_alert_rules.id"), nullable=False, index=True)
-    event_type = Column(String(50), nullable=False)  # created, acknowledged, resolved, closed, escalated
+    alert_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("monitoring_alerts.id"),
+        nullable=False,
+        index=True,
+    )
+    rule_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("monitoring_alert_rules.id"),
+        nullable=False,
+        index=True,
+    )
+    event_type = Column(
+        String(50), nullable=False
+    )  # created, acknowledged, resolved, closed, escalated
     old_status = Column(String(50))
     new_status = Column(String(50))
     old_severity = Column(String(50))
@@ -172,14 +212,15 @@ class AlertHistory(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_alert_history_alert_time', 'alert_id', 'created_at'),
-        Index('idx_alert_history_event_type', 'event_type'),
-        Index('idx_alert_history_rule_time', 'rule_id', 'created_at'),
+        Index("idx_alert_history_alert_time", "alert_id", "created_at"),
+        Index("idx_alert_history_event_type", "event_type"),
+        Index("idx_alert_history_rule_time", "rule_id", "created_at"),
     )
 
 
 class AlertChannel(BaseModel):
     """Alert notification channels"""
+
     __tablename__ = "monitoring_alert_channels"
 
     name = Column(String(255), unique=True, nullable=False, index=True)
@@ -210,17 +251,28 @@ class AlertChannel(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_alert_channels_type_active', 'channel_type', 'is_active'),
-        Index('idx_alert_channels_healthy', 'is_healthy'),
+        Index("idx_alert_channels_type_active", "channel_type", "is_active"),
+        Index("idx_alert_channels_healthy", "is_healthy"),
     )
 
 
 class AlertSubscription(BaseModel):
     """Alert subscriptions linking rules to channels"""
+
     __tablename__ = "monitoring_alert_subscriptions"
 
-    rule_id = Column(UUID(as_uuid=True), ForeignKey("monitoring_alert_rules.id"), nullable=False, index=True)
-    channel_id = Column(UUID(as_uuid=True), ForeignKey("monitoring_alert_channels.id"), nullable=False, index=True)
+    rule_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("monitoring_alert_rules.id"),
+        nullable=False,
+        index=True,
+    )
+    channel_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("monitoring_alert_channels.id"),
+        nullable=False,
+        index=True,
+    )
 
     # Subscription configuration
     is_active = Column(Boolean, default=True)
@@ -237,6 +289,6 @@ class AlertSubscription(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_alert_subscriptions_rule_channel', 'rule_id', 'channel_id'),
-        Index('idx_alert_subscriptions_active', 'is_active'),
+        Index("idx_alert_subscriptions_rule_channel", "rule_id", "channel_id"),
+        Index("idx_alert_subscriptions_active", "is_active"),
     )

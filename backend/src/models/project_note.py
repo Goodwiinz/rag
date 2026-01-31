@@ -2,11 +2,11 @@
 ProjectNote model for research project notes (Research Assistant - User Story 4)
 """
 
-from sqlalchemy import Column, String, ForeignKey, Text, Boolean
+from sqlalchemy import Boolean, Column, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
-from .base import BaseModel, GUID
+from .base import GUID, BaseModel
 
 
 class ProjectNote(BaseModel):
@@ -27,13 +27,10 @@ class ProjectNote(BaseModel):
         GUID(),
         ForeignKey("collections.id", ondelete="CASCADE"),
         nullable=False,
-        index=True
+        index=True,
     )
     user_id = Column(
-        GUID(),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+        GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
     # Note content
@@ -41,11 +38,17 @@ class ProjectNote(BaseModel):
     content = Column(Text, nullable=False)  # Markdown content
 
     # Organization and linking
-    linked_document_ids = Column(JSONB, nullable=False, default=list, server_default="[]")  # Array of document UUIDs
-    tags = Column(JSONB, nullable=False, default=list, server_default="[]")  # Array of tag strings
+    linked_document_ids = Column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )  # Array of document UUIDs
+    tags = Column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )  # Array of tag strings
 
     # UI settings
-    is_pinned = Column(Boolean, nullable=False, default=False, server_default="false", index=True)
+    is_pinned = Column(
+        Boolean, nullable=False, default=False, server_default="false", index=True
+    )
 
     # Relationships
     project = relationship("Collection", backref="notes")
@@ -73,15 +76,15 @@ class ProjectNote(BaseModel):
     def to_dict(self) -> dict:
         """Convert to dictionary"""
         data = super().to_dict()
-        data['project_id'] = str(self.project_id)
-        data['user_id'] = str(self.user_id)
-        data['title'] = self.title
-        data['content'] = self.content
-        data['content_preview'] = self.content_preview
-        data['linked_document_ids'] = self.linked_document_ids
-        data['linked_document_count'] = self.linked_document_count
-        data['tags'] = self.tags
-        data['is_pinned'] = self.is_pinned
+        data["project_id"] = str(self.project_id)
+        data["user_id"] = str(self.user_id)
+        data["title"] = self.title
+        data["content"] = self.content
+        data["content_preview"] = self.content_preview
+        data["linked_document_ids"] = self.linked_document_ids
+        data["linked_document_count"] = self.linked_document_count
+        data["tags"] = self.tags
+        data["is_pinned"] = self.is_pinned
         return data
 
     def to_frontend_format(self) -> dict:
@@ -93,10 +96,12 @@ class ProjectNote(BaseModel):
             "title": self.title,
             "content": self.content,
             "content_preview": self.content_preview,
-            "linked_document_ids": [str(doc_id) for doc_id in (self.linked_document_ids or [])],
+            "linked_document_ids": [
+                str(doc_id) for doc_id in (self.linked_document_ids or [])
+            ],
             "linked_document_count": self.linked_document_count,
             "tags": self.tags or [],
             "is_pinned": self.is_pinned,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

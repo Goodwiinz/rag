@@ -5,16 +5,28 @@ Evaluation models for RAG Triad metrics and evaluation workflows
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Dict, Any, Optional, List
-from sqlalchemy import Column, String, Text, Float, Integer, Boolean, DateTime, JSON, ForeignKey
+from typing import Any, Dict, List, Optional
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import relationship
 
-from .base import BaseModel, GUID
+from .base import GUID, BaseModel
 
 
 class EvaluationType(Enum):
     """Types of evaluations"""
+
     ANSWER_RELEVANCY = "answer_relevancy"
     FAITHFULNESS = "faithfulness"
     CONTEXTUAL_RELEVANCY = "contextual_relevancy"
@@ -25,6 +37,7 @@ class EvaluationType(Enum):
 
 class EvaluationStatus(Enum):
     """Evaluation job statuses"""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -34,6 +47,7 @@ class EvaluationStatus(Enum):
 
 class MetricType(Enum):
     """Types of metrics that can be calculated"""
+
     RAG_TRIAD_ANSWER_RELEVANCY = "rag_triad_answer_relevancy"
     RAG_TRIAD_FAITHFULNESS = "rag_triad_faithfulness"
     RAG_TRIAD_CONTEXTUAL_RELEVANCY = "rag_triad_contextual_relevancy"
@@ -50,6 +64,7 @@ class EvaluationJob(BaseModel):
     """
     Main evaluation job model for tracking evaluation workflows
     """
+
     __tablename__ = "evaluation_jobs"
 
     # Basic information
@@ -58,7 +73,9 @@ class EvaluationJob(BaseModel):
     evaluation_type = Column(String(50), nullable=False, index=True)
 
     # Job status and timing
-    status = Column(String(50), nullable=False, default=EvaluationStatus.PENDING.value, index=True)
+    status = Column(
+        String(50), nullable=False, default=EvaluationStatus.PENDING.value, index=True
+    )
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     duration_seconds = Column(Float, nullable=True)
@@ -70,7 +87,9 @@ class EvaluationJob(BaseModel):
 
     # Ownership and organization
     user_id = Column(GUID(), ForeignKey("users.id"), nullable=True, index=True)
-    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=False, index=True)
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id"), nullable=False, index=True
+    )
 
     # Results summary
     overall_score = Column(Float, nullable=True)
@@ -80,8 +99,12 @@ class EvaluationJob(BaseModel):
     # Relationships
     user = relationship("User", back_populates="evaluation_jobs")
     organization = relationship("Organization", back_populates="evaluation_jobs")
-    metrics = relationship("EvaluationMetric", back_populates="job", cascade="all, delete-orphan")
-    datasets = relationship("EvaluationDataset", back_populates="job", cascade="all, delete-orphan")
+    metrics = relationship(
+        "EvaluationMetric", back_populates="job", cascade="all, delete-orphan"
+    )
+    datasets = relationship(
+        "EvaluationDataset", back_populates="job", cascade="all, delete-orphan"
+    )
 
     def start_job(self):
         """Mark job as started"""
@@ -93,7 +116,9 @@ class EvaluationJob(BaseModel):
         self.status = EvaluationStatus.COMPLETED.value
         self.completed_at = datetime.utcnow()
         if self.started_at:
-            self.duration_seconds = (self.completed_at - self.started_at).total_seconds()
+            self.duration_seconds = (
+                self.completed_at - self.started_at
+            ).total_seconds()
         self.overall_score = overall_score
         self.success_rate = success_rate
 
@@ -102,7 +127,9 @@ class EvaluationJob(BaseModel):
         self.status = EvaluationStatus.FAILED.value
         self.completed_at = datetime.utcnow()
         if self.started_at:
-            self.duration_seconds = (self.completed_at - self.started_at).total_seconds()
+            self.duration_seconds = (
+                self.completed_at - self.started_at
+            ).total_seconds()
         self.error_message = error_message
 
     def cancel_job(self):
@@ -110,7 +137,9 @@ class EvaluationJob(BaseModel):
         self.status = EvaluationStatus.CANCELLED.value
         self.completed_at = datetime.utcnow()
         if self.started_at:
-            self.duration_seconds = (self.completed_at - self.started_at).total_seconds()
+            self.duration_seconds = (
+                self.completed_at - self.started_at
+            ).total_seconds()
 
     def update_progress(self, processed_count: int):
         """Update processing progress"""
@@ -119,8 +148,8 @@ class EvaluationJob(BaseModel):
     def to_dict(self):
         """Convert model to dictionary with additional fields"""
         result = super().to_dict()
-        result['evaluation_type'] = self.evaluation_type
-        result['status'] = self.status
+        result["evaluation_type"] = self.evaluation_type
+        result["status"] = self.status
         return result
 
 
@@ -128,10 +157,13 @@ class EvaluationMetric(BaseModel):
     """
     Individual metric results from evaluations
     """
+
     __tablename__ = "evaluation_metrics"
 
     # Job association
-    job_id = Column(GUID(), ForeignKey("evaluation_jobs.id"), nullable=False, index=True)
+    job_id = Column(
+        GUID(), ForeignKey("evaluation_jobs.id"), nullable=False, index=True
+    )
 
     # Metric information
     metric_type = Column(String(100), nullable=False, index=True)
@@ -170,6 +202,7 @@ class EvaluationMetric(BaseModel):
             return
 
         import statistics
+
         self.min_value = min(values)
         self.max_value = max(values)
         self.mean_value = statistics.mean(values)
@@ -192,10 +225,13 @@ class EvaluationDataset(BaseModel):
     """
     Dataset for evaluation - contains test questions and reference answers
     """
+
     __tablename__ = "evaluation_datasets"
 
     # Job association
-    job_id = Column(GUID(), ForeignKey("evaluation_jobs.id"), nullable=False, index=True)
+    job_id = Column(
+        GUID(), ForeignKey("evaluation_jobs.id"), nullable=False, index=True
+    )
 
     # Dataset information
     name = Column(String(255), nullable=False)
@@ -225,6 +261,7 @@ class EvaluationThreshold(BaseModel):
     """
     Thresholds for evaluation metrics with organization-specific configurations
     """
+
     __tablename__ = "evaluation_thresholds"
 
     # Threshold configuration
@@ -233,7 +270,9 @@ class EvaluationThreshold(BaseModel):
     threshold_max = Column(Float, nullable=True)
 
     # Organization and scope
-    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=True, index=True)
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id"), nullable=True, index=True
+    )
     search_type = Column(String(50), nullable=True, index=True)
     document_type = Column(String(50), nullable=True, index=True)
 
@@ -254,6 +293,7 @@ class EvaluationComparison(BaseModel):
     """
     Comparison results between different evaluations or configurations
     """
+
     __tablename__ = "evaluation_comparisons"
 
     # Comparison information
@@ -277,7 +317,9 @@ class EvaluationComparison(BaseModel):
 
     # Ownership
     user_id = Column(GUID(), ForeignKey("users.id"), nullable=True, index=True)
-    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=False, index=True)
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id"), nullable=False, index=True
+    )
 
     # Relationships
     baseline_job = relationship("EvaluationJob", foreign_keys=[baseline_job_id])
@@ -290,6 +332,7 @@ class EvaluationReport(BaseModel):
     """
     Generated reports for evaluation results
     """
+
     __tablename__ = "evaluation_reports"
 
     # Report information
@@ -297,7 +340,9 @@ class EvaluationReport(BaseModel):
     report_type = Column(String(50), nullable=False)  # summary, detailed, comparison
 
     # Associated evaluation
-    job_id = Column(GUID(), ForeignKey("evaluation_jobs.id"), nullable=False, index=True)
+    job_id = Column(
+        GUID(), ForeignKey("evaluation_jobs.id"), nullable=False, index=True
+    )
 
     # Report content
     content = Column(Text, nullable=False)
@@ -316,7 +361,9 @@ class EvaluationReport(BaseModel):
 
     # Ownership
     user_id = Column(GUID(), ForeignKey("users.id"), nullable=True, index=True)
-    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=False, index=True)
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id"), nullable=False, index=True
+    )
 
     # Relationships
     job = relationship("EvaluationJob")
@@ -324,10 +371,13 @@ class EvaluationReport(BaseModel):
     organization = relationship("Organization")
 
 
+from .organization import Organization
+
 # Update User and Organization models to include relationships
 from .user import User
-from .organization import Organization
 
 # Add relationships to existing models if they don't exist
 User.evaluation_jobs = relationship("EvaluationJob", back_populates="user")
-Organization.evaluation_jobs = relationship("EvaluationJob", back_populates="organization")
+Organization.evaluation_jobs = relationship(
+    "EvaluationJob", back_populates="organization"
+)

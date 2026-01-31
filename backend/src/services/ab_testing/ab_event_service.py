@@ -7,10 +7,10 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Callable, Union
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from src.core.config import settings
 from src.services.cache.analytics_cache import analytics_cache
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class EventType(Enum):
     """Event types for A/B testing system"""
+
     EXPERIMENT_CREATED = "experiment_created"
     EXPERIMENT_STARTED = "experiment_started"
     EXPERIMENT_STOPPED = "experiment_stopped"
@@ -49,6 +50,7 @@ class EventType(Enum):
 
 class EventPriority(Enum):
     """Event priorities for processing"""
+
     LOW = 1
     NORMAL = 2
     HIGH = 3
@@ -57,6 +59,7 @@ class EventPriority(Enum):
 
 class EventStatus(Enum):
     """Event processing status"""
+
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -67,6 +70,7 @@ class EventStatus(Enum):
 @dataclass
 class Event:
     """Base event structure"""
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     type: EventType = field(default=EventType.ERROR_OCCURRED)
     data: Dict[str, Any] = field(default_factory=dict)
@@ -94,7 +98,7 @@ class Event:
             "retry_count": self.retry_count,
             "max_retries": self.max_retries,
             "delay_until": self.delay_until.isoformat() if self.delay_until else None,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
     @classmethod
@@ -113,7 +117,8 @@ class Event:
         event.max_retries = data["max_retries"]
         event.delay_until = (
             datetime.fromisoformat(data["delay_until"])
-            if data.get("delay_until") else None
+            if data.get("delay_until")
+            else None
         )
         event.metadata = data.get("metadata", {})
         return event
@@ -122,6 +127,7 @@ class Event:
 @dataclass
 class EventHandler:
     """Event handler configuration"""
+
     event_type: EventType
     handler_func: Callable
     service_name: str
@@ -144,6 +150,7 @@ class EventPublisher:
         """Initialize publisher"""
         try:
             import redis.asyncio as redis
+
             self.redis_client = redis.from_url(settings.REDIS_URL)
             await self.redis_client.ping()
             logger.info(f"Event publisher initialized for {self.service_name}")
@@ -226,13 +233,15 @@ class EventPublisher:
                     await self.redis_client.xadd(
                         stream_key,
                         event.to_dict(),
-                        maxlen=10000  # Keep last 10k events per stream
+                        maxlen=10000,  # Keep last 10k events per stream
                     )
 
                 # Set expiry on stream
                 await self.redis_client.expire(stream_key, 86400)  # 24 hours
 
-            logger.debug(f"Published {len(events)} events across {len(events_by_type)} streams")
+            logger.debug(
+                f"Published {len(events)} events across {len(events_by_type)} streams"
+            )
 
         except Exception as e:
             logger.error(f"Error publishing events to Redis: {e}")
@@ -253,6 +262,7 @@ class EventSubscriber:
         """Initialize subscriber"""
         try:
             import redis.asyncio as redis
+
             self.redis_client = redis.from_url(settings.REDIS_URL)
             await self.redis_client.ping()
 
@@ -270,11 +280,11 @@ class EventSubscriber:
         self.handlers[handler.event_type].append(handler)
 
         # Sort by priority (higher priority first)
-        self.handlers[handler.event_type].sort(
-            key=lambda h: h.priority, reverse=True
-        )
+        self.handlers[handler.event_type].sort(key=lambda h: h.priority, reverse=True)
 
-        logger.info(f"Registered handler for {handler.event_type.value} in {self.service_name}")
+        logger.info(
+            f"Registered handler for {handler.event_type.value} in {self.service_name}"
+        )
 
     async def start_processing(self):
         """Start processing events"""
@@ -299,13 +309,15 @@ class EventSubscriber:
             try:
                 # Try to create consumer group
                 await self.redis_client.xgroup_create(
-                    stream_key, group_name, id='0', mkstream=True
+                    stream_key, group_name, id="0", mkstream=True
                 )
                 self.consumer_groups[event_type.value] = group_name
             except Exception as e:
                 # Group might already exist
                 if "BUSYGROUP" not in str(e):
-                    logger.warning(f"Error creating consumer group for {event_type.value}: {e}")
+                    logger.warning(
+                        f"Error creating consumer group for {event_type.value}: {e}"
+                    )
                 self.consumer_groups[event_type.value] = group_name
 
     async def _event_processor(self):
@@ -326,7 +338,9 @@ class EventSubscriber:
                 logger.error(f"Error in event processing loop: {e}")
                 await asyncio.sleep(1.0)
 
-    async def _process_event_type(self, event_type: EventType, handlers: List[EventHandler]):
+    async def _process_event_type(
+        self, event_type: EventType, handlers: List[EventHandler]
+    ):
         """Process events of a specific type"""
         if not self.redis_client:
             return
@@ -341,10 +355,11 @@ class EventSubscriber:
             # Read events from stream
             consumer_name = f"{self.service_name}_{uuid.uuid4().hex[:8]}"
             messages = await self.redis_client.xreadgroup(
-                group_name, consumer_name,
-                {stream_key: '>'},  # Read new messages
+                group_name,
+                consumer_name,
+                {stream_key: ">"},  # Read new messages
                 count=10,  # Process up to 10 messages at once
-                block=1000  # Block for 1 second
+                block=1000,  # Block for 1 second
             )
 
             if not messages:
@@ -363,7 +378,9 @@ class EventSubscriber:
                     except Exception as e:
                         logger.error(f"Error processing event {event_id}: {e}")
                         # Move to dead-letter queue after retries
-                        await self._handle_failed_event(stream_key, group_name, event_id, e)
+                        await self._handle_failed_event(
+                            stream_key, group_name, event_id, e
+                        )
 
         except Exception as e:
             logger.error(f"Error processing events for {event_type.value}: {e}")
@@ -381,10 +398,14 @@ class EventSubscriber:
 
                 # If successful and this is the first handler, mark as processed
                 if handlers[0] == handler:
-                    logger.debug(f"Successfully processed event {event.id} with {handler.service_name}")
+                    logger.debug(
+                        f"Successfully processed event {event.id} with {handler.service_name}"
+                    )
 
             except Exception as e:
-                logger.error(f"Handler {handler.service_name} failed for event {event.id}: {e}")
+                logger.error(
+                    f"Handler {handler.service_name} failed for event {event.id}: {e}"
+                )
 
                 if not handler.retry_on_failure:
                     continue
@@ -393,16 +414,20 @@ class EventSubscriber:
                 if event.retry_count < event.max_retries:
                     event.retry_count += 1
                     event.delay_until = datetime.utcnow() + timedelta(
-                        seconds=2 ** event.retry_count  # Exponential backoff
+                        seconds=2**event.retry_count  # Exponential backoff
                     )
 
                     # Re-queue event
                     await self._requeue_event(event)
                 else:
-                    logger.error(f"Event {event.id} exceeded max retries, moving to dead-letter")
+                    logger.error(
+                        f"Event {event.id} exceeded max retries, moving to dead-letter"
+                    )
                     await self._move_to_dead_letter(event, e)
 
-    async def _handle_failed_event(self, stream_key: str, group_name: str, event_id: str, error: Exception):
+    async def _handle_failed_event(
+        self, stream_key: str, group_name: str, event_id: str, error: Exception
+    ):
         """Handle failed event processing"""
         try:
             # Move to dead-letter stream
@@ -412,8 +437,8 @@ class EventSubscriber:
                 {
                     "original_id": event_id,
                     "error": str(error),
-                    "timestamp": datetime.utcnow().isoformat()
-                }
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
             )
 
             # Acknowledge to remove from pending queue
@@ -431,10 +456,7 @@ class EventSubscriber:
             stream_key = f"events:{event.type.value}"
             retry_key = f"{stream_key}:retry"
 
-            await self.redis_client.xadd(
-                retry_key,
-                event.to_dict()
-            )
+            await self.redis_client.xadd(retry_key, event.to_dict())
 
             # Set TTL for retry queue
             await self.redis_client.expire(retry_key, 3600)  # 1 hour
@@ -454,8 +476,8 @@ class EventSubscriber:
                 {
                     **event.to_dict(),
                     "error": str(error),
-                    "failed_at": datetime.utcnow().isoformat()
-                }
+                    "failed_at": datetime.utcnow().isoformat(),
+                },
             )
 
         except Exception as e:
@@ -505,16 +527,14 @@ class EventService:
             asyncio.create_task(self.subscribers[service_name].initialize())
         return self.subscribers[service_name]
 
-    async def publish_event(self, event_type: EventType, data: Dict[str, Any], **kwargs):
+    async def publish_event(
+        self, event_type: EventType, data: Dict[str, Any], **kwargs
+    ):
         """Publish an event"""
         if not self.initialized:
             await self.initialize()
 
-        event = Event(
-            type=event_type,
-            data=data,
-            **kwargs
-        )
+        event = Event(type=event_type, data=data, **kwargs)
 
         # Store in memory for debugging
         self.event_store.append(event)
@@ -530,7 +550,7 @@ class EventService:
     async def create_event_chain(
         self,
         events: List[tuple[EventType, Dict[str, Any]]],
-        correlation_id: Optional[str] = None
+        correlation_id: Optional[str] = None,
     ) -> str:
         """Create a chain of related events"""
         if not correlation_id:
@@ -543,7 +563,7 @@ class EventService:
                 event_type=event_type,
                 data=data,
                 correlation_id=correlation_id,
-                causation_id=causation_id
+                causation_id=causation_id,
             )
             causation_id = event_id
 
@@ -554,14 +574,14 @@ class EventService:
         event_type: EventType,
         handler_func: Callable,
         service_name: str = "default",
-        **kwargs
+        **kwargs,
     ):
         """Register an event handler"""
         handler = EventHandler(
             event_type=event_type,
             handler_func=handler_func,
             service_name=service_name,
-            **kwargs
+            **kwargs,
         )
 
         subscriber = self.get_subscriber(service_name)
@@ -586,16 +606,15 @@ class EventService:
             "events_in_memory": len(self.event_store),
             "total_handlers": sum(
                 len(subscriber.handlers) for subscriber in self.subscribers.values()
-            )
+            ),
         }
 
 
 # Event factory functions for common A/B testing events
 
+
 def create_experiment_created_event(
-    experiment_id: str,
-    experiment_data: Dict[str, Any],
-    created_by: str
+    experiment_id: str, experiment_data: Dict[str, Any], created_by: str
 ) -> Event:
     """Create experiment created event"""
     return Event(
@@ -603,16 +622,14 @@ def create_experiment_created_event(
         data={
             "experiment_id": experiment_id,
             "experiment_data": experiment_data,
-            "created_by": created_by
+            "created_by": created_by,
         },
-        priority=EventPriority.NORMAL
+        priority=EventPriority.NORMAL,
     )
 
 
 def create_experiment_started_event(
-    experiment_id: str,
-    started_by: str,
-    start_time: datetime
+    experiment_id: str, started_by: str, start_time: datetime
 ) -> Event:
     """Create experiment started event"""
     return Event(
@@ -620,17 +637,14 @@ def create_experiment_started_event(
         data={
             "experiment_id": experiment_id,
             "started_by": started_by,
-            "start_time": start_time.isoformat()
+            "start_time": start_time.isoformat(),
         },
-        priority=EventPriority.HIGH
+        priority=EventPriority.HIGH,
     )
 
 
 def create_user_assigned_event(
-    experiment_id: str,
-    variant_id: str,
-    user_id: str,
-    assignment_data: Dict[str, Any]
+    experiment_id: str, variant_id: str, user_id: str, assignment_data: Dict[str, Any]
 ) -> Event:
     """Create user assigned event"""
     return Event(
@@ -639,9 +653,9 @@ def create_user_assigned_event(
             "experiment_id": experiment_id,
             "variant_id": variant_id,
             "user_id": user_id,
-            "assignment_data": assignment_data
+            "assignment_data": assignment_data,
         },
-        priority=EventPriority.NORMAL
+        priority=EventPriority.NORMAL,
     )
 
 
@@ -650,7 +664,7 @@ def create_metric_collected_event(
     variant_id: str,
     metric_type: str,
     metric_value: float,
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
 ) -> Event:
     """Create metric collected event"""
     return Event(
@@ -660,16 +674,14 @@ def create_metric_collected_event(
             "variant_id": variant_id,
             "metric_type": metric_type,
             "metric_value": metric_value,
-            "user_id": user_id
+            "user_id": user_id,
         },
-        priority=EventPriority.NORMAL
+        priority=EventPriority.NORMAL,
     )
 
 
 def create_analysis_completed_event(
-    experiment_id: str,
-    analysis_result: Dict[str, Any],
-    confidence_level: float
+    experiment_id: str, analysis_result: Dict[str, Any], confidence_level: float
 ) -> Event:
     """Create analysis completed event"""
     return Event(
@@ -677,9 +689,9 @@ def create_analysis_completed_event(
         data={
             "experiment_id": experiment_id,
             "analysis_result": analysis_result,
-            "confidence_level": confidence_level
+            "confidence_level": confidence_level,
         },
-        priority=EventPriority.HIGH
+        priority=EventPriority.HIGH,
     )
 
 
@@ -689,14 +701,16 @@ event_service = EventService()
 
 # Decorator for event publishing
 
+
 def publish_event_on_success(
     event_type: EventType,
     data_extractor: Callable = None,
-    service_name: str = "default"
+    service_name: str = "default",
 ):
     """
     Decorator to publish event when function succeeds
     """
+
     def decorator(func):
         async def wrapper(*args, **kwargs):
             try:
@@ -710,9 +724,7 @@ def publish_event_on_success(
 
                 # Publish event
                 await event_service.publish_event(
-                    event_type=event_type,
-                    data=event_data,
-                    source_service=service_name
+                    event_type=event_type, data=event_data, source_service=service_name
                 )
 
                 return result
@@ -725,11 +737,12 @@ def publish_event_on_success(
                         "error": str(e),
                         "function": func.__name__,
                         "args": str(args)[:100],  # Truncate for size
-                        "kwargs": str(kwargs)[:100]
+                        "kwargs": str(kwargs)[:100],
                     },
-                    source_service=service_name
+                    source_service=service_name,
                 )
                 raise
 
         return wrapper
+
     return decorator

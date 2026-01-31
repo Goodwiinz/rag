@@ -4,48 +4,59 @@ Optimized for real-time status streaming with sub-100ms latency
 """
 
 import asyncio
+import gzip
 import json
+import logging
 import time
 import uuid
-from datetime import datetime, timezone as dt_timezone, timedelta
-from typing import Dict, List, Optional, Any, Set, Callable, Union
 from collections import defaultdict, deque
-from dataclasses import dataclass, field
-from enum import Enum
-import logging
-import gzip
-import numpy as np
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Set, Union
 
-from src.models.websocket_status import Priority, MessageType
-from .optimization import SmartCache, CacheConfig
+import numpy as np
+
+from src.models.websocket_status import MessageType, Priority
+
+from .optimization import CacheConfig, SmartCache
 
 logger = logging.getLogger(__name__)
 
+
 class BatchingStrategy(Enum):
     """Message batching strategies"""
-    TIME_BASED = "time_based"          # Batch by time interval
-    SIZE_BASED = "size_based"          # Batch by message count
-    ADAPTIVE = "adaptive"              # Adaptive batching based on load
+
+    TIME_BASED = "time_based"  # Batch by time interval
+    SIZE_BASED = "size_based"  # Batch by message count
+    ADAPTIVE = "adaptive"  # Adaptive batching based on load
     PRIORITY_QUEUE = "priority_queue"  # Priority-based batching
+
 
 @dataclass
 class BatchConfig:
     """Configuration for message batching"""
-    max_batch_size: int = 100          # Maximum messages per batch
-    max_batch_time_ms: int = 50        # Maximum batch time in milliseconds
+
+    max_batch_size: int = 100  # Maximum messages per batch
+    max_batch_time_ms: int = 50  # Maximum batch time in milliseconds
     compression_threshold: int = 1024  # Compress batches larger than this
     enable_compression: bool = True
     strategy: BatchingStrategy = BatchingStrategy.ADAPTIVE
-    priority_levels: Dict[Priority, int] = field(default_factory=lambda: {
-        Priority.HIGH: 5,      # Process every 5ms
-        Priority.NORMAL: 50,   # Process every 50ms
-        Priority.LOW: 200      # Process every 200ms
-    })
+    priority_levels: Dict[Priority, int] = field(
+        default_factory=lambda: {
+            Priority.HIGH: 5,  # Process every 5ms
+            Priority.NORMAL: 50,  # Process every 50ms
+            Priority.LOW: 200,  # Process every 200ms
+        }
+    )
+
 
 @dataclass
 class MessageBatch:
     """Batch of WebSocket messages"""
+
     messages: List[Dict[str, Any]]
     target_connections: Set[str]
     created_at: datetime
@@ -70,10 +81,13 @@ class MessageBatch:
         if self.get_size() >= config.max_batch_size:
             return True
 
-        if age_ms >= config.priority_levels.get(self.priority, config.max_batch_time_ms):
+        if age_ms >= config.priority_levels.get(
+            self.priority, config.max_batch_time_ms
+        ):
             return True
 
         return False
+
 
 class AdaptiveBatcher:
     """Adaptive message batching that adjusts to system load"""
@@ -83,10 +97,10 @@ class AdaptiveBatcher:
         self.batches: Dict[Priority, MessageBatch] = {}
         self.executor = ThreadPoolExecutor(max_workers=4)
         self.performance_metrics = {
-            'avg_batch_size': defaultdict(list),
-            'processing_times': defaultdict(list),
-            'compression_ratios': [],
-            'last_adjustment': datetime.utcnow()
+            "avg_batch_size": defaultdict(list),
+            "processing_times": defaultdict(list),
+            "compression_ratios": [],
+            "last_adjustment": datetime.utcnow(),
         }
 
         # Adaptive parameters
@@ -100,7 +114,7 @@ class AdaptiveBatcher:
             messages=[],
             target_connections=set(),
             created_at=datetime.utcnow(),
-            priority=priority
+            priority=priority,
         )
 
     def get_or_create_batch(self, priority: Priority) -> MessageBatch:
@@ -109,8 +123,9 @@ class AdaptiveBatcher:
             self.batches[priority] = self.create_batch(priority)
         return self.batches[priority]
 
-    async def add_message(self, message_data: Dict[str, Any],
-                         connection_id: str, priority: Priority) -> bool:
+    async def add_message(
+        self, message_data: Dict[str, Any], connection_id: str, priority: Priority
+    ) -> bool:
         """Add message to appropriate batch"""
         try:
             batch = self.get_or_create_batch(priority)
@@ -142,8 +157,12 @@ class AdaptiveBatcher:
                 self.batches[priority] = self.create_batch(priority)
 
                 # Record metrics
-                self.performance_metrics['avg_batch_size'][priority.name].append(batch.get_size())
-                self.performance_metrics['processing_times'][priority.name].append(age_ms)
+                self.performance_metrics["avg_batch_size"][priority.name].append(
+                    batch.get_size()
+                )
+                self.performance_metrics["processing_times"][priority.name].append(
+                    age_ms
+                )
 
         # Adapt batching parameters based on performance
         await self._adapt_parameters()
@@ -153,16 +172,16 @@ class AdaptiveBatcher:
     async def _adapt_parameters(self):
         """Adapt batching parameters based on system load and performance"""
         now = datetime.utcnow()
-        if (now - self.performance_metrics['last_adjustment']).seconds < 30:
+        if (now - self.performance_metrics["last_adjustment"]).seconds < 30:
             return
 
         for priority in Priority:
             metric_key = priority.name
-            if metric_key not in self.performance_metrics['avg_batch_size']:
+            if metric_key not in self.performance_metrics["avg_batch_size"]:
                 continue
 
-            batch_sizes = self.performance_metrics['avg_batch_size'][metric_key]
-            processing_times = self.performance_metrics['processing_times'][metric_key]
+            batch_sizes = self.performance_metrics["avg_batch_size"][metric_key]
+            processing_times = self.performance_metrics["processing_times"][metric_key]
 
             if len(batch_sizes) < 10:  # Need sufficient data
                 continue
@@ -187,10 +206,13 @@ class AdaptiveBatcher:
             self.current_batch_times[priority] = new_time
 
             # Clear old metrics
-            self.performance_metrics['avg_batch_size'][metric_key] = batch_sizes[-5:]
-            self.performance_metrics['processing_times'][metric_key] = processing_times[-5:]
+            self.performance_metrics["avg_batch_size"][metric_key] = batch_sizes[-5:]
+            self.performance_metrics["processing_times"][metric_key] = processing_times[
+                -5:
+            ]
 
-        self.performance_metrics['last_adjustment'] = now
+        self.performance_metrics["last_adjustment"] = now
+
 
 class WebSocketThrottler:
     """Advanced connection throttling with intelligent rate limiting"""
@@ -205,8 +227,9 @@ class WebSocketThrottler:
         self.window_size = 60  # seconds
         self.burst_allowance = 10
 
-    async def check_connection_limit(self, connection_id: str,
-                                    user_id: str, organization_id: str) -> bool:
+    async def check_connection_limit(
+        self, connection_id: str, user_id: str, organization_id: str
+    ) -> bool:
         """Check if connection can send message"""
         try:
             current_time = int(time.time())
@@ -256,29 +279,33 @@ class WebSocketThrottler:
         except Exception as e:
             logger.error(f"Error incrementing counter: {e}")
 
+
 class MessageCompressor:
     """Intelligent message compression with adaptive algorithms"""
 
     def __init__(self):
         self.compression_stats = {
-            'total_compressed': 0,
-            'total_bytes_saved': 0,
-            'compression_times': [],
-            'compression_ratios': []
+            "total_compressed": 0,
+            "total_bytes_saved": 0,
+            "compression_times": [],
+            "compression_ratios": [],
         }
 
-    async def compress_batch(self, batch: MessageBatch,
-                           threshold: int = 1024) -> tuple[bytes, bool]:
+    async def compress_batch(
+        self, batch: MessageBatch, threshold: int = 1024
+    ) -> tuple[bytes, bool]:
         """Compress message batch if beneficial"""
         try:
             # Serialize batch
-            serialized = json.dumps({
-                'batch_id': batch.batch_id,
-                'messages': batch.messages,
-                'target_connections': list(batch.target_connections),
-                'priority': batch.priority.value,
-                'created_at': batch.created_at.isoformat()
-            }).encode('utf-8')
+            serialized = json.dumps(
+                {
+                    "batch_id": batch.batch_id,
+                    "messages": batch.messages,
+                    "target_connections": list(batch.target_connections),
+                    "priority": batch.priority.value,
+                    "created_at": batch.created_at.isoformat(),
+                }
+            ).encode("utf-8")
 
             # Check if compression is worthwhile
             if len(serialized) < threshold:
@@ -295,10 +322,12 @@ class MessageCompressor:
             # Only use compression if it's beneficial (saves > 20%)
             if ratio < 0.8:
                 # Update stats
-                self.compression_stats['total_compressed'] += 1
-                self.compression_stats['total_bytes_saved'] += len(serialized) - len(compressed)
-                self.compression_stats['compression_times'].append(compression_time)
-                self.compression_stats['compression_ratios'].append(ratio)
+                self.compression_stats["total_compressed"] += 1
+                self.compression_stats["total_bytes_saved"] += len(serialized) - len(
+                    compressed
+                )
+                self.compression_stats["compression_times"].append(compression_time)
+                self.compression_stats["compression_ratios"].append(ratio)
 
                 return compressed, True
             else:
@@ -307,13 +336,18 @@ class MessageCompressor:
         except Exception as e:
             logger.error(f"Error compressing batch: {e}")
             # Fallback to uncompressed
-            return json.dumps({
-                'batch_id': batch.batch_id,
-                'messages': batch.messages,
-                'target_connections': list(batch.target_connections),
-                'priority': batch.priority.value,
-                'created_at': batch.created_at.isoformat()
-            }).encode('utf-8'), False
+            return (
+                json.dumps(
+                    {
+                        "batch_id": batch.batch_id,
+                        "messages": batch.messages,
+                        "target_connections": list(batch.target_connections),
+                        "priority": batch.priority.value,
+                        "created_at": batch.created_at.isoformat(),
+                    }
+                ).encode("utf-8"),
+                False,
+            )
 
     async def decompress_batch(self, data: bytes, compressed: bool) -> Dict[str, Any]:
         """Decompress message batch"""
@@ -323,11 +357,12 @@ class MessageCompressor:
             else:
                 decompressed = data
 
-            return json.loads(decompressed.decode('utf-8'))
+            return json.loads(decompressed.decode("utf-8"))
 
         except Exception as e:
             logger.error(f"Error decompressing batch: {e}")
             raise
+
 
 class HighPerformanceWebSocketManager:
     """High-performance WebSocket manager with advanced optimization"""
@@ -340,7 +375,7 @@ class HighPerformanceWebSocketManager:
             max_batch_size=100,
             max_batch_time_ms=50,
             enable_compression=True,
-            strategy=BatchingStrategy.ADAPTIVE
+            strategy=BatchingStrategy.ADAPTIVE,
         )
 
         self.batcher = AdaptiveBatcher(batch_config)
@@ -351,12 +386,12 @@ class HighPerformanceWebSocketManager:
 
         # Performance metrics
         self.metrics = {
-            'messages_processed': 0,
-            'batches_sent': 0,
-            'avg_latency_ms': 0,
-            'compression_savings_mb': 0,
-            'connection_count': 0,
-            'start_time': datetime.utcnow()
+            "messages_processed": 0,
+            "batches_sent": 0,
+            "avg_latency_ms": 0,
+            "compression_savings_mb": 0,
+            "connection_count": 0,
+            "start_time": datetime.utcnow(),
         }
 
         # Background tasks
@@ -366,7 +401,9 @@ class HighPerformanceWebSocketManager:
     async def start(self):
         """Start the high-performance WebSocket manager"""
         self.batch_processor_task = asyncio.create_task(self._batch_processor_loop())
-        self.metrics_collector_task = asyncio.create_task(self._metrics_collector_loop())
+        self.metrics_collector_task = asyncio.create_task(
+            self._metrics_collector_loop()
+        )
         logger.info("High-performance WebSocket manager started")
 
     async def stop(self):
@@ -377,9 +414,14 @@ class HighPerformanceWebSocketManager:
             self.metrics_collector_task.cancel()
         logger.info("High-performance WebSocket manager stopped")
 
-    async def send_message(self, message_data: Dict[str, Any],
-                          connection_id: str, user_id: str,
-                          organization_id: str, priority: Priority = Priority.NORMAL) -> bool:
+    async def send_message(
+        self,
+        message_data: Dict[str, Any],
+        connection_id: str,
+        user_id: str,
+        organization_id: str,
+        priority: Priority = Priority.NORMAL,
+    ) -> bool:
         """Send message with batching and throttling"""
         try:
             # Check throttling limits
@@ -395,7 +437,7 @@ class HighPerformanceWebSocketManager:
             )
 
             if success:
-                self.metrics['messages_processed'] += 1
+                self.metrics["messages_processed"] += 1
 
             return success
 
@@ -453,21 +495,20 @@ class HighPerformanceWebSocketManager:
 
             # Update metrics
             processing_time = (time.time() - start_time) * 1000
-            self.metrics['batches_sent'] += 1
+            self.metrics["batches_sent"] += 1
 
             # Update average latency (exponential moving average)
             alpha = 0.1  # Smoothing factor
-            self.metrics['avg_latency_ms'] = (
-                alpha * processing_time +
-                (1 - alpha) * self.metrics['avg_latency_ms']
+            self.metrics["avg_latency_ms"] = (
+                alpha * processing_time + (1 - alpha) * self.metrics["avg_latency_ms"]
             )
 
             # Update compression savings
             if is_compressed:
-                original_size = len(json.dumps(batch.messages).encode('utf-8'))
+                original_size = len(json.dumps(batch.messages).encode("utf-8"))
                 compressed_size = len(compressed_data)
                 savings_mb = (original_size - compressed_size) / (1024 * 1024)
-                self.metrics['compression_savings_mb'] += savings_mb
+                self.metrics["compression_savings_mb"] += savings_mb
 
             logger.debug(
                 f"Processed batch {batch.batch_id}: {successful_sends}/{total_sends} "
@@ -484,18 +525,22 @@ class HighPerformanceWebSocketManager:
                 await asyncio.sleep(60)  # Collect metrics every minute
 
                 # Calculate performance metrics
-                uptime = (datetime.utcnow() - self.metrics['start_time']).total_seconds()
-                messages_per_second = self.metrics['messages_processed'] / uptime if uptime > 0 else 0
+                uptime = (
+                    datetime.utcnow() - self.metrics["start_time"]
+                ).total_seconds()
+                messages_per_second = (
+                    self.metrics["messages_processed"] / uptime if uptime > 0 else 0
+                )
 
                 performance_report = {
-                    'uptime_seconds': uptime,
-                    'messages_processed': self.metrics['messages_processed'],
-                    'batches_sent': self.metrics['batches_sent'],
-                    'messages_per_second': messages_per_second,
-                    'avg_latency_ms': self.metrics['avg_latency_ms'],
-                    'compression_savings_mb': self.metrics['compression_savings_mb'],
-                    'compression_stats': self.compressor.compression_stats,
-                    'batcher_performance': self.batcher.performance_metrics
+                    "uptime_seconds": uptime,
+                    "messages_processed": self.metrics["messages_processed"],
+                    "batches_sent": self.metrics["batches_sent"],
+                    "messages_per_second": messages_per_second,
+                    "avg_latency_ms": self.metrics["avg_latency_ms"],
+                    "compression_savings_mb": self.metrics["compression_savings_mb"],
+                    "compression_stats": self.compressor.compression_stats,
+                    "batcher_performance": self.batcher.performance_metrics,
                 }
 
                 logger.info(f"WebSocket Performance: {performance_report}")
@@ -505,7 +550,7 @@ class HighPerformanceWebSocketManager:
                     await self.redis_client.setex(
                         f"ws:performance_metrics:{int(time.time())}",
                         300,  # 5 minutes TTL
-                        json.dumps(performance_report)
+                        json.dumps(performance_report),
                     )
 
             except asyncio.CancelledError:
@@ -516,29 +561,36 @@ class HighPerformanceWebSocketManager:
 
     def get_performance_metrics(self) -> Dict[str, Any]:
         """Get current performance metrics"""
-        uptime = (datetime.utcnow() - self.metrics['start_time']).total_seconds()
-        messages_per_second = self.metrics['messages_processed'] / uptime if uptime > 0 else 0
+        uptime = (datetime.utcnow() - self.metrics["start_time"]).total_seconds()
+        messages_per_second = (
+            self.metrics["messages_processed"] / uptime if uptime > 0 else 0
+        )
 
         return {
-            'uptime_seconds': uptime,
-            'messages_processed': self.metrics['messages_processed'],
-            'batches_sent': self.metrics['batches_sent'],
-            'messages_per_second': messages_per_second,
-            'avg_latency_ms': self.metrics['avg_latency_ms'],
-            'compression_savings_mb': self.metrics['compression_savings_mb'],
-            'compression_ratio': (
-                self.compressor.compression_stats['total_bytes_saved'] /
-                max(1, sum(self.compressor.compression_stats['compression_ratios']))
+            "uptime_seconds": uptime,
+            "messages_processed": self.metrics["messages_processed"],
+            "batches_sent": self.metrics["batches_sent"],
+            "messages_per_second": messages_per_second,
+            "avg_latency_ms": self.metrics["avg_latency_ms"],
+            "compression_savings_mb": self.metrics["compression_savings_mb"],
+            "compression_ratio": (
+                self.compressor.compression_stats["total_bytes_saved"]
+                / max(1, sum(self.compressor.compression_stats["compression_ratios"]))
             ),
-            'batch_efficiency': (
-                self.metrics['messages_processed'] / max(1, self.metrics['batches_sent'])
-            )
+            "batch_efficiency": (
+                self.metrics["messages_processed"]
+                / max(1, self.metrics["batches_sent"])
+            ),
         }
+
 
 # Global high-performance WebSocket manager
 _high_perf_manager = None
 
-def get_high_performance_websocket_manager(redis_client=None) -> HighPerformanceWebSocketManager:
+
+def get_high_performance_websocket_manager(
+    redis_client=None,
+) -> HighPerformanceWebSocketManager:
     """Get or create the global high-performance WebSocket manager"""
     global _high_perf_manager
     if _high_perf_manager is None:

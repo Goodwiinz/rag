@@ -10,12 +10,14 @@ Supports exporting threads in multiple formats:
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List
+from typing import List, Optional
+
 from pydantic import BaseModel, Field
 
 
 class ExportFormat(str, Enum):
     """Supported export formats."""
+
     MARKDOWN = "markdown"
     PDF = "pdf"
     JSON = "json"
@@ -24,69 +26,59 @@ class ExportFormat(str, Enum):
 
 class ExportOptions(BaseModel):
     """Options for customizing export output."""
+
     include_system_messages: bool = Field(
-        default=False,
-        description="Include system messages in export"
+        default=False, description="Include system messages in export"
     )
     include_citations: bool = Field(
-        default=True,
-        description="Include citation references and snippets"
+        default=True, description="Include citation references and snippets"
     )
     include_attachments: bool = Field(
-        default=True,
-        description="Include attachment metadata"
+        default=True, description="Include attachment metadata"
     )
     include_metadata: bool = Field(
-        default=True,
-        description="Include message metadata (timestamps, model info)"
+        default=True, description="Include message metadata (timestamps, model info)"
     )
     include_feedback: bool = Field(
-        default=False,
-        description="Include user feedback ratings"
+        default=False, description="Include user feedback ratings"
     )
     date_format: str = Field(
-        default="%Y-%m-%d %H:%M:%S",
-        description="Date format string for timestamps"
+        default="%Y-%m-%d %H:%M:%S", description="Date format string for timestamps"
     )
 
 
 class ExportRequest(BaseModel):
     """Request schema for single thread export."""
+
     thread_id: str = Field(..., description="Thread ID to export")
     format: ExportFormat = Field(
-        default=ExportFormat.MARKDOWN,
-        description="Export format"
+        default=ExportFormat.MARKDOWN, description="Export format"
     )
     options: ExportOptions = Field(
-        default_factory=ExportOptions,
-        description="Export customization options"
+        default_factory=ExportOptions, description="Export customization options"
     )
 
 
 class BatchExportRequest(BaseModel):
     """Request schema for batch thread export."""
+
     thread_ids: List[str] = Field(
-        ...,
-        min_length=1,
-        max_length=100,
-        description="List of thread IDs to export"
+        ..., min_length=1, max_length=100, description="List of thread IDs to export"
     )
     format: ExportFormat = Field(
-        default=ExportFormat.MARKDOWN,
-        description="Export format for all threads"
+        default=ExportFormat.MARKDOWN, description="Export format for all threads"
     )
     options: ExportOptions = Field(
-        default_factory=ExportOptions,
-        description="Export customization options"
+        default_factory=ExportOptions, description="Export customization options"
     )
     as_zip: bool = Field(
-        default=True,
-        description="Package multiple exports as ZIP file"
+        default=True, description="Package multiple exports as ZIP file"
     )
 
 
 class CitationExport(BaseModel):
     """Exported citation data."""
+
     id: str
     document_id: Optional[str] = None
     external_reference_id: Optional[str] = None
@@ -99,6 +91,7 @@ class CitationExport(BaseModel):
 
 class MessageExport(BaseModel):
     """Exported message data."""
+
     id: str
     role: str
     content: str
@@ -114,6 +107,7 @@ class MessageExport(BaseModel):
 
 class ThreadExport(BaseModel):
     """Complete exported thread data."""
+
     id: str
     title: Optional[str] = None
     summary: Optional[str] = None
@@ -125,7 +119,7 @@ class ThreadExport(BaseModel):
     token_count: int
     conversation_id: str
     messages: List[MessageExport] = Field(default_factory=list)
-    
+
     # Metadata
     export_format: ExportFormat
     exported_at: datetime = Field(default_factory=datetime.utcnow)
@@ -134,6 +128,7 @@ class ThreadExport(BaseModel):
 
 class ExportResponse(BaseModel):
     """Response schema for export endpoints."""
+
     success: bool
     format: ExportFormat
     filename: str
@@ -146,6 +141,7 @@ class ExportResponse(BaseModel):
 
 class ExportError(BaseModel):
     """Error response for export failures."""
+
     error: str
     thread_id: Optional[str] = None
     detail: Optional[str] = None

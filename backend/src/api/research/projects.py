@@ -6,31 +6,31 @@ notes, and bibliography generation.
 User Story 4: Organize Documents into Research Projects
 """
 
+from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func
 from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.core.database import get_db
+from src.models import Collection, CollectionDocument, Document, ProjectNote, User
+from src.services.research.bibliography_service import BibliographyService
 from src.services.security.user_management import get_current_user
-from src.models import User, Collection, CollectionDocument, Document, ProjectNote
 from src.shared.research_schemas import (
+    NoteCreate,
+    NoteListResponse,
+    NoteResponse,
+    NoteUpdate,
     ProjectCreate,
-    ProjectUpdate,
-    ProjectResponse,
     ProjectDetailResponse,
     ProjectListResponse,
-    NoteCreate,
-    NoteUpdate,
-    NoteResponse,
-    NoteListResponse,
+    ProjectResponse,
+    ProjectUpdate,
 )
-from src.services.research.bibliography_service import BibliographyService
 
 logger = get_logger()
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
@@ -39,6 +39,7 @@ router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
 # =========================================================================
 # Project CRUD (T061)
 # =========================================================================
+
 
 @router.get("", response_model=ProjectListResponse)
 async def list_projects(
@@ -73,7 +74,9 @@ async def list_projects(
         from src.models import Workspace
 
         # Get user's workspace IDs
-        workspace_query = select(Workspace.id).where(Workspace.owner_id == current_user.id)
+        workspace_query = select(Workspace.id).where(
+            Workspace.owner_id == current_user.id
+        )
         workspace_result = await db.execute(workspace_query)
         user_workspace_ids = [row[0] for row in workspace_result.all()]
 
@@ -111,8 +114,7 @@ async def list_projects(
 
         # Apply pagination and ordering
         query = (
-            query
-            .options(selectinload(Collection.documents))
+            query.options(selectinload(Collection.documents))
             .order_by(Collection.updated_at.desc())
             .offset(skip)
             .limit(limit)
@@ -162,6 +164,7 @@ async def create_project(
     try:
         # Verify workspace ownership
         from src.models import Workspace
+
         workspace_query = select(Workspace).where(
             and_(
                 Workspace.id == project_data.workspace_id,
@@ -207,7 +210,9 @@ async def create_project(
         raise
     except Exception as e:
         await db.rollback()
-        logger.error("create_project_failed", error=str(e), user_id=str(current_user.id))
+        logger.error(
+            "create_project_failed", error=str(e), user_id=str(current_user.id)
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create project: {str(e)}",
@@ -370,6 +375,7 @@ async def delete_project(
 # Project Documents (T062)
 # =========================================================================
 
+
 @router.get("/{project_id}/documents")
 async def list_project_documents(
     project_id: UUID,
@@ -506,7 +512,9 @@ async def add_document_to_project(
         )
 
 
-@router.delete("/{project_id}/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{project_id}/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def remove_document_from_project(
     project_id: UUID,
     document_id: UUID,
@@ -564,6 +572,7 @@ async def remove_document_from_project(
 # Project Notes (T063)
 # =========================================================================
 
+
 @router.get("/{project_id}/notes", response_model=NoteListResponse)
 async def list_project_notes(
     project_id: UUID,
@@ -613,8 +622,7 @@ async def list_project_notes(
 
         # Apply pagination and ordering
         query = (
-            query
-            .order_by(ProjectNote.is_pinned.desc(), ProjectNote.updated_at.desc())
+            query.order_by(ProjectNote.is_pinned.desc(), ProjectNote.updated_at.desc())
             .offset(skip)
             .limit(limit)
         )
@@ -642,7 +650,11 @@ async def list_project_notes(
         )
 
 
-@router.post("/{project_id}/notes", response_model=NoteResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{project_id}/notes",
+    response_model=NoteResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_note(
     project_id: UUID,
     note_data: NoteCreate,
@@ -863,6 +875,7 @@ async def toggle_note_pin(
 # Project Bibliography (T064)
 # =========================================================================
 
+
 @router.get("/{project_id}/bibliography")
 async def get_project_bibliography(
     project_id: UUID,
@@ -887,9 +900,8 @@ async def get_project_bibliography(
         await _get_project_with_auth(project_id, current_user, db)
 
         # Get all documents in project
-        doc_query = (
-            select(CollectionDocument.document_id)
-            .where(CollectionDocument.collection_id == project_id)
+        doc_query = select(CollectionDocument.document_id).where(
+            CollectionDocument.collection_id == project_id
         )
         doc_result = await db.execute(doc_query)
         document_ids = [row[0] for row in doc_result.all()]
@@ -903,9 +915,7 @@ async def get_project_bibliography(
             }
 
         # Get citations for these documents
-        citation_query = select(Citation).where(
-            Citation.document_id.in_(document_ids)
-        )
+        citation_query = select(Citation).where(Citation.document_id.in_(document_ids))
         citation_result = await db.execute(citation_query)
         citations = citation_result.scalars().all()
 
@@ -931,6 +941,7 @@ async def get_project_bibliography(
         )
 
         from fastapi.responses import PlainTextResponse
+
         return PlainTextResponse(
             content=bibliography,
             media_type="application/x-bibtex" if format == "bibtex" else "text/plain",
@@ -952,6 +963,7 @@ async def get_project_bibliography(
 # =========================================================================
 # Helper Functions
 # =========================================================================
+
 
 async def _get_project_with_auth(
     project_id: UUID,

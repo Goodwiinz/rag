@@ -2,11 +2,11 @@
 Citation model for Terminal Observatory RAG references
 """
 
-from sqlalchemy import Column, String, ForeignKey, Text, Integer, Float, Boolean
+from sqlalchemy import Boolean, Column, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
-from .base import BaseModel, GUID
+from .base import GUID, BaseModel
 
 
 class Citation(BaseModel):
@@ -16,7 +16,7 @@ class Citation(BaseModel):
     When the RAG system generates a response using retrieved context,
     each source chunk is recorded as a citation for transparency and
     verification.
-    
+
     Citations may reference either:
     - A document in the database (document_id)
     - An external reference like an arXiv paper (external_reference_id)
@@ -26,9 +26,19 @@ class Citation(BaseModel):
 
     # Parent relationships
     # message_id is nullable to support standalone citations (e.g., bibliography entries)
-    message_id = Column(GUID(), ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=True, index=True)
-    document_id = Column(GUID(), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True, index=True)
-    
+    message_id = Column(
+        GUID(),
+        ForeignKey("chat_messages.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    document_id = Column(
+        GUID(),
+        ForeignKey("documents.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # External reference (for sources not in database, e.g., arXiv papers)
     external_reference_id = Column(String(255), nullable=True, index=True)
     document_title = Column(String(500), nullable=True)  # Store title for external refs
@@ -41,8 +51,12 @@ class Citation(BaseModel):
     doi = Column(String(255), nullable=True, unique=True)  # Digital Object Identifier
     arxiv_id = Column(String(100), nullable=True, unique=True)  # arXiv identifier
     abstract = Column(Text, nullable=True)  # Paper abstract
-    metadata_source = Column(String(100), nullable=True)  # Source of metadata (e.g., 'arxiv', 'semantic_scholar', 'crossref')
-    needs_review = Column(Boolean, nullable=False, default=False, server_default='false')  # Flag for incomplete metadata
+    metadata_source = Column(
+        String(100), nullable=True
+    )  # Source of metadata (e.g., 'arxiv', 'semantic_scholar', 'crossref')
+    needs_review = Column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )  # Flag for incomplete metadata
 
     # Chunk information
     chunk_index = Column(Integer, nullable=True)  # Index of the vector chunk
@@ -66,7 +80,9 @@ class Citation(BaseModel):
 
     def __repr__(self):
         ref = self.document_id or self.external_reference_id or "unknown"
-        return f"<Citation(message_id={self.message_id}, ref={ref}, score={self.score})>"
+        return (
+            f"<Citation(message_id={self.message_id}, ref={ref}, score={self.score})>"
+        )
 
     @property
     def snippet_preview(self) -> str:
@@ -80,19 +96,19 @@ class Citation(BaseModel):
     def to_dict(self) -> dict:
         """Convert to dictionary"""
         data = super().to_dict()
-        data['snippet_preview'] = self.snippet_preview
-        data['external_reference_id'] = self.external_reference_id
-        data['document_title'] = self.document_title
-        data['document_type'] = self.document_type
+        data["snippet_preview"] = self.snippet_preview
+        data["external_reference_id"] = self.external_reference_id
+        data["document_title"] = self.document_title
+        data["document_type"] = self.document_type
         # Add scholarly metadata
-        data['authors'] = self.authors
-        data['year'] = self.year
-        data['venue'] = self.venue
-        data['doi'] = self.doi
-        data['arxiv_id'] = self.arxiv_id
-        data['abstract'] = self.abstract
-        data['metadata_source'] = self.metadata_source
-        data['needs_review'] = self.needs_review
+        data["authors"] = self.authors
+        data["year"] = self.year
+        data["venue"] = self.venue
+        data["doi"] = self.doi
+        data["arxiv_id"] = self.arxiv_id
+        data["abstract"] = self.abstract
+        data["metadata_source"] = self.metadata_source
+        data["needs_review"] = self.needs_review
         return data
 
     def to_frontend_format(self) -> dict:
@@ -115,5 +131,5 @@ class Citation(BaseModel):
             "arxiv_id": self.arxiv_id,
             "abstract": self.abstract,
             "metadata_source": self.metadata_source,
-            "needs_review": self.needs_review
+            "needs_review": self.needs_review,
         }

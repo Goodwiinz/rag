@@ -4,23 +4,25 @@ Includes circuit breaker patterns, exponential backoff, and graceful degradation
 """
 
 import asyncio
+import json
 import logging
 import time
-from typing import Dict, List, Optional, Callable, Any, Union, Tuple
+import uuid
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-import json
-import uuid
-from contextlib import asynccontextmanager
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
+
 
 class ErrorSeverity(Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
+
 
 class ErrorCategory(Enum):
     NETWORK = "network"
@@ -34,14 +36,17 @@ class ErrorCategory(Enum):
     TEMPORARY = "temporary"
     PERMANENT = "permanent"
 
+
 class CircuitBreakerState(Enum):
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Failing, reject all requests
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Failing, reject all requests
     HALF_OPEN = "half_open"  # Testing if service has recovered
+
 
 @dataclass
 class ErrorMetrics:
     """Error tracking metrics"""
+
     total_errors: int = 0
     errors_by_category: Dict[str, int] = field(default_factory=dict)
     errors_by_severity: Dict[str, int] = field(default_factory=dict)
@@ -49,28 +54,35 @@ class ErrorMetrics:
     last_error_time: Optional[datetime] = None
     consecutive_errors: int = 0
 
+
 @dataclass
 class RetryConfig:
     """Retry configuration"""
+
     max_attempts: int = 3
     base_delay_ms: float = 1000
     max_delay_ms: float = 30000
     exponential_base: float = 2.0
     jitter_factor: float = 0.1
-    retryable_categories: List[ErrorCategory] = field(default_factory=lambda: [
-        ErrorCategory.NETWORK,
-        ErrorCategory.TIMEOUT,
-        ErrorCategory.TEMPORARY,
-        ErrorCategory.SYSTEM
-    ])
+    retryable_categories: List[ErrorCategory] = field(
+        default_factory=lambda: [
+            ErrorCategory.NETWORK,
+            ErrorCategory.TIMEOUT,
+            ErrorCategory.TEMPORARY,
+            ErrorCategory.SYSTEM,
+        ]
+    )
+
 
 @dataclass
 class CircuitBreakerConfig:
     """Circuit breaker configuration"""
+
     failure_threshold: int = 5  # Open after N failures
-    timeout_seconds: int = 60   # Stay open for N seconds
+    timeout_seconds: int = 60  # Stay open for N seconds
     success_threshold: int = 2  # Close after N successes in half-open state
     monitoring_window_seconds: int = 300  # Consider errors in this window
+
 
 class WebSocketErrorHandler:
     """
@@ -97,7 +109,7 @@ class WebSocketErrorHandler:
         self,
         connection_id: str,
         error: Exception,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[bool, Optional[Dict[str, Any]]]:
         """
         Handle WebSocket error with comprehensive logic
@@ -113,7 +125,7 @@ class WebSocketErrorHandler:
             self._update_metrics(error_info)
 
             # Check circuit breaker
-            service_name = error_info.get('service', 'default')
+            service_name = error_info.get("service", "default")
             if not await self._check_circuit_breaker(service_name):
                 logger.warning(f"Circuit breaker open for service: {service_name}")
                 return False, self._create_circuit_breaker_response(error_info)
@@ -138,18 +150,16 @@ class WebSocketErrorHandler:
         except Exception as e:
             logger.error(f"Error in error handler: {e}")
             return False, {
-                'type': 'error',
-                'error_code': 'INTERNAL_ERROR',
-                'error_message': 'Internal error handling failed',
-                'error_category': ErrorCategory.SYSTEM.value,
-                'severity': ErrorSeverity.HIGH.value,
-                'retry_after': 5.0
+                "type": "error",
+                "error_code": "INTERNAL_ERROR",
+                "error_message": "Internal error handling failed",
+                "error_category": ErrorCategory.SYSTEM.value,
+                "severity": ErrorSeverity.HIGH.value,
+                "retry_after": 5.0,
             }
 
     def register_error_handler(
-        self,
-        category: ErrorCategory,
-        handler: Callable[[Dict[str, Any]], Any]
+        self, category: ErrorCategory, handler: Callable[[Dict[str, Any]], Any]
     ):
         """Register a handler for specific error category"""
         self.error_handlers[category].append(handler)
@@ -159,9 +169,7 @@ class WebSocketErrorHandler:
         self.global_error_handlers.append(handler)
 
     def register_fallback_handler(
-        self,
-        operation: str,
-        handler: Callable[[Dict[str, Any]], Any]
+        self, operation: str, handler: Callable[[Dict[str, Any]], Any]
     ):
         """Register a fallback handler for specific operations"""
         self.fallback_handlers[operation] = handler
@@ -172,7 +180,7 @@ class WebSocketErrorHandler:
         func: Callable,
         *args,
         context: Optional[Dict[str, Any]] = None,
-        **kwargs
+        **kwargs,
     ) -> Any:
         """
         Execute operation with automatic retry logic
@@ -222,13 +230,13 @@ class WebSocketErrorHandler:
         if operation in self.fallback_handlers:
             try:
                 logger.info(f"Executing fallback for operation: {operation}")
-                return await self.fallback_handlers[operation]({
-                    'error': last_error,
-                    'context': context,
-                    'attempts': attempt
-                })
+                return await self.fallback_handlers[operation](
+                    {"error": last_error, "context": context, "attempts": attempt}
+                )
             except Exception as fallback_error:
-                logger.error(f"Fallback handler failed for {operation}: {fallback_error}")
+                logger.error(
+                    f"Fallback handler failed for {operation}: {fallback_error}"
+                )
 
         # Re-raise the last error
         raise last_error
@@ -236,18 +244,28 @@ class WebSocketErrorHandler:
     def get_error_metrics(self) -> Dict[str, Any]:
         """Get current error metrics"""
         return {
-            'total_errors': self.error_metrics.total_errors,
-            'errors_by_category': dict(self.error_metrics.errors_by_category),
-            'errors_by_severity': dict(self.error_metrics.errors_by_severity),
-            'recent_errors_count': len(self.error_metrics.recent_errors),
-            'last_error_time': self.error_metrics.last_error_time.isoformat() if self.error_metrics.last_error_time else None,
-            'consecutive_errors': self.error_metrics.consecutive_errors,
-            'active_circuit_breakers': len([cb for cb in self.circuit_breakers.values() if cb.state == CircuitBreakerState.OPEN])
+            "total_errors": self.error_metrics.total_errors,
+            "errors_by_category": dict(self.error_metrics.errors_by_category),
+            "errors_by_severity": dict(self.error_metrics.errors_by_severity),
+            "recent_errors_count": len(self.error_metrics.recent_errors),
+            "last_error_time": self.error_metrics.last_error_time.isoformat()
+            if self.error_metrics.last_error_time
+            else None,
+            "consecutive_errors": self.error_metrics.consecutive_errors,
+            "active_circuit_breakers": len(
+                [
+                    cb
+                    for cb in self.circuit_breakers.values()
+                    if cb.state == CircuitBreakerState.OPEN
+                ]
+            ),
         }
 
     # Private methods
 
-    def _analyze_error(self, error: Exception, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _analyze_error(
+        self, error: Exception, context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """Analyze and categorize error"""
         error_str = str(error).lower()
         error_type = type(error).__name__
@@ -262,49 +280,67 @@ class WebSocketErrorHandler:
         is_retryable = category in self.retry_config.retryable_categories
 
         return {
-            'error': error,
-            'error_type': error_type,
-            'error_message': str(error),
-            'error_category': category.value,
-            'severity': severity.value,
-            'is_retryable': is_retryable,
-            'timestamp': datetime.utcnow(),
-            'context': context or {},
-            'service': context.get('service', 'default') if context else 'default',
-            'operation': context.get('operation', 'unknown') if context else 'unknown'
+            "error": error,
+            "error_type": error_type,
+            "error_message": str(error),
+            "error_category": category.value,
+            "severity": severity.value,
+            "is_retryable": is_retryable,
+            "timestamp": datetime.utcnow(),
+            "context": context or {},
+            "service": context.get("service", "default") if context else "default",
+            "operation": context.get("operation", "unknown") if context else "unknown",
         }
 
     def _categorize_error(self, error_str: str, error_type: str) -> ErrorCategory:
         """Categorize error based on message content and type"""
-        if any(keyword in error_str for keyword in ['connection', 'network', 'timeout', 'unreachable']):
-            if 'timeout' in error_str or error_type == 'TimeoutError':
+        if any(
+            keyword in error_str
+            for keyword in ["connection", "network", "timeout", "unreachable"]
+        ):
+            if "timeout" in error_str or error_type == "TimeoutError":
                 return ErrorCategory.TIMEOUT
             return ErrorCategory.NETWORK
 
-        elif any(keyword in error_str for keyword in ['auth', 'unauthorized', 'forbidden', 'jwt', 'token']):
-            if 'forbidden' in error_str:
+        elif any(
+            keyword in error_str
+            for keyword in ["auth", "unauthorized", "forbidden", "jwt", "token"]
+        ):
+            if "forbidden" in error_str:
                 return ErrorCategory.AUTHORIZATION
             return ErrorCategory.AUTHENTICATION
 
-        elif 'rate limit' in error_str or error_type == 'RateLimitExceeded':
+        elif "rate limit" in error_str or error_type == "RateLimitExceeded":
             return ErrorCategory.RATE_LIMIT
 
-        elif 'validation' in error_str or 'invalid' in error_str or error_type == 'ValidationError':
+        elif (
+            "validation" in error_str
+            or "invalid" in error_str
+            or error_type == "ValidationError"
+        ):
             return ErrorCategory.VALIDATION
 
-        elif any(keyword in error_str for keyword in ['temporary', 'retry later', 'service unavailable']):
+        elif any(
+            keyword in error_str
+            for keyword in ["temporary", "retry later", "service unavailable"]
+        ):
             return ErrorCategory.TEMPORARY
 
-        elif any(keyword in error_str for keyword in ['permanent', 'not found', 'access denied']):
+        elif any(
+            keyword in error_str
+            for keyword in ["permanent", "not found", "access denied"]
+        ):
             return ErrorCategory.PERMANENT
 
-        elif any(keyword in error_str for keyword in ['database', 'storage', 'file']):
+        elif any(keyword in error_str for keyword in ["database", "storage", "file"]):
             return ErrorCategory.BUSINESS_LOGIC
 
         else:
             return ErrorCategory.SYSTEM
 
-    def _determine_severity(self, error_str: str, category: ErrorCategory) -> ErrorSeverity:
+    def _determine_severity(
+        self, error_str: str, category: ErrorCategory
+    ) -> ErrorSeverity:
         """Determine error severity based on category and content"""
         if category in [ErrorCategory.AUTHENTICATION, ErrorCategory.AUTHORIZATION]:
             return ErrorSeverity.MEDIUM
@@ -312,13 +348,19 @@ class WebSocketErrorHandler:
         elif category == ErrorCategory.RATE_LIMIT:
             return ErrorSeverity.LOW
 
-        elif category in [ErrorCategory.NETWORK, ErrorCategory.TIMEOUT, ErrorCategory.TEMPORARY]:
+        elif category in [
+            ErrorCategory.NETWORK,
+            ErrorCategory.TIMEOUT,
+            ErrorCategory.TEMPORARY,
+        ]:
             return ErrorSeverity.MEDIUM
 
         elif category in [ErrorCategory.SYSTEM, ErrorCategory.PERMANENT]:
             return ErrorSeverity.HIGH
 
-        elif any(keyword in error_str for keyword in ['critical', 'fatal', 'emergency']):
+        elif any(
+            keyword in error_str for keyword in ["critical", "fatal", "emergency"]
+        ):
             return ErrorSeverity.CRITICAL
 
         else:
@@ -327,21 +369,25 @@ class WebSocketErrorHandler:
     def _should_retry_error(self, error_info: Dict[str, Any]) -> bool:
         """Determine if error should be retried"""
         return (
-            error_info.get('is_retryable', False) and
-            error_info.get('consecutive_errors', 0) < self.retry_config.max_attempts
+            error_info.get("is_retryable", False)
+            and error_info.get("consecutive_errors", 0) < self.retry_config.max_attempts
         )
 
     def _calculate_retry_delay(self, attempt: int) -> float:
         """Calculate exponential backoff delay with jitter"""
         # Exponential backoff
         base_delay = self.retry_config.base_delay_ms
-        exponential_delay = base_delay * (self.retry_config.exponential_base ** (attempt - 1))
+        exponential_delay = base_delay * (
+            self.retry_config.exponential_base ** (attempt - 1)
+        )
 
         # Cap at maximum delay
         capped_delay = min(exponential_delay, self.retry_config.max_delay_ms)
 
         # Add jitter
-        jitter = capped_delay * self.retry_config.jitter_factor * (2 * time.time() % 1 - 0.5)
+        jitter = (
+            capped_delay * self.retry_config.jitter_factor * (2 * time.time() % 1 - 0.5)
+        )
 
         return max(0, capped_delay + jitter)
 
@@ -351,28 +397,34 @@ class WebSocketErrorHandler:
         self.error_metrics.last_error_time = datetime.utcnow()
         self.error_metrics.consecutive_errors += 1
 
-        category = error_info['error_category']
-        severity = error_info['severity']
+        category = error_info["error_category"]
+        severity = error_info["severity"]
 
-        self.error_metrics.errors_by_category[category] = self.error_metrics.errors_by_category.get(category, 0) + 1
-        self.error_metrics.errors_by_severity[severity] = self.error_metrics.errors_by_severity.get(severity, 0) + 1
+        self.error_metrics.errors_by_category[category] = (
+            self.error_metrics.errors_by_category.get(category, 0) + 1
+        )
+        self.error_metrics.errors_by_severity[severity] = (
+            self.error_metrics.errors_by_severity.get(severity, 0) + 1
+        )
 
         # Add to recent errors (keep last 100)
-        self.error_metrics.recent_errors.append({
-            'timestamp': error_info['timestamp'].isoformat(),
-            'category': category,
-            'severity': severity,
-            'message': error_info['error_message']
-        })
+        self.error_metrics.recent_errors.append(
+            {
+                "timestamp": error_info["timestamp"].isoformat(),
+                "category": category,
+                "severity": severity,
+                "message": error_info["error_message"],
+            }
+        )
 
         if len(self.error_metrics.recent_errors) > 100:
             self.error_metrics.recent_errors = self.error_metrics.recent_errors[-100:]
 
     def _log_error(self, error_info: Dict[str, Any]):
         """Log error with appropriate level"""
-        severity = error_info['severity']
-        category = error_info['error_category']
-        message = error_info['error_message']
+        severity = error_info["severity"]
+        category = error_info["error_category"]
+        message = error_info["error_message"]
 
         log_message = (
             f"{category.upper()} error: {message} "
@@ -390,7 +442,7 @@ class WebSocketErrorHandler:
 
     async def _execute_error_handlers(self, error_info: Dict[str, Any]):
         """Execute registered error handlers"""
-        category = ErrorCategory(error_info['error_category'])
+        category = ErrorCategory(error_info["error_category"])
 
         # Execute category-specific handlers
         for handler in self.error_handlers[category]:
@@ -409,35 +461,37 @@ class WebSocketErrorHandler:
     def _create_error_response(self, error_info: Dict[str, Any]) -> Dict[str, Any]:
         """Create standardized error response"""
         response = {
-            'type': 'error',
-            'error_code': f"{error_info['error_category'].upper()}_{error_info['error_type'].upper()}",
-            'error_message': error_info['error_message'],
-            'error_category': error_info['error_category'],
-            'severity': error_info['severity'],
-            'timestamp': error_info['timestamp'].isoformat()
+            "type": "error",
+            "error_code": f"{error_info['error_category'].upper()}_{error_info['error_type'].upper()}",
+            "error_message": error_info["error_message"],
+            "error_category": error_info["error_category"],
+            "severity": error_info["severity"],
+            "timestamp": error_info["timestamp"].isoformat(),
         }
 
         # Add retry information
-        if error_info.get('is_retryable', False):
-            response['retry_after'] = self.retry_config.base_delay_ms / 1000
-            response['max_retries'] = self.retry_config.max_attempts
+        if error_info.get("is_retryable", False):
+            response["retry_after"] = self.retry_config.base_delay_ms / 1000
+            response["max_retries"] = self.retry_config.max_attempts
 
         # Add context information
-        if error_info.get('context'):
-            response['context'] = error_info['context']
+        if error_info.get("context"):
+            response["context"] = error_info["context"]
 
         return response
 
-    def _create_circuit_breaker_response(self, error_info: Dict[str, Any]) -> Dict[str, Any]:
+    def _create_circuit_breaker_response(
+        self, error_info: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Create circuit breaker open response"""
         return {
-            'type': 'error',
-            'error_code': 'CIRCUIT_BREAKER_OPEN',
-            'error_message': 'Service temporarily unavailable due to high error rate',
-            'error_category': ErrorCategory.SYSTEM.value,
-            'severity': ErrorSeverity.HIGH.value,
-            'retry_after': 60.0,
-            'timestamp': datetime.utcnow().isoformat()
+            "type": "error",
+            "error_code": "CIRCUIT_BREAKER_OPEN",
+            "error_message": "Service temporarily unavailable due to high error rate",
+            "error_category": ErrorCategory.SYSTEM.value,
+            "severity": ErrorSeverity.HIGH.value,
+            "retry_after": 60.0,
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     async def _check_circuit_breaker(self, service_name: str) -> bool:
@@ -458,16 +512,13 @@ class WebSocketErrorHandler:
         else:
             self.circuit_breakers[service_name].record_failure()
 
+
 class CircuitBreaker:
     """
     Circuit breaker implementation for fault tolerance
     """
 
-    def __init__(
-        self,
-        name: str,
-        config: Optional[CircuitBreakerConfig] = None
-    ):
+    def __init__(self, name: str, config: Optional[CircuitBreakerConfig] = None):
         self.name = name
         self.config = config or CircuitBreakerConfig()
 
@@ -484,7 +535,9 @@ class CircuitBreaker:
 
         elif self.state == CircuitBreakerState.OPEN:
             # Check if timeout has passed
-            if (datetime.utcnow() - self.last_failure_time).seconds >= self.config.timeout_seconds:
+            if (
+                datetime.utcnow() - self.last_failure_time
+            ).seconds >= self.config.timeout_seconds:
                 self.state = CircuitBreakerState.HALF_OPEN
                 self.success_count = 0
                 return True
@@ -521,8 +574,10 @@ class CircuitBreaker:
             self.state = CircuitBreakerState.OPEN
             self.last_state_change = datetime.utcnow()
 
+
 # Global error handler instance
 _websocket_error_handler: Optional[WebSocketErrorHandler] = None
+
 
 def get_websocket_error_handler() -> WebSocketErrorHandler:
     """Get or create the global WebSocket error handler"""
@@ -531,10 +586,14 @@ def get_websocket_error_handler() -> WebSocketErrorHandler:
         _websocket_error_handler = WebSocketErrorHandler()
     return _websocket_error_handler
 
+
 # Error handling decorators and context managers
 
+
 @asynccontextmanager
-async def websocket_error_context(operation: str, context: Optional[Dict[str, Any]] = None):
+async def websocket_error_context(
+    operation: str, context: Optional[Dict[str, Any]] = None
+):
     """
     Context manager for automatic WebSocket error handling
     """
@@ -544,22 +603,25 @@ async def websocket_error_context(operation: str, context: Optional[Dict[str, An
         yield
     except Exception as e:
         should_retry, error_response = await error_handler.handle_websocket_error(
-            connection_id=context.get('connection_id', 'unknown') if context else 'unknown',
+            connection_id=context.get("connection_id", "unknown")
+            if context
+            else "unknown",
             error=e,
-            context=context
+            context=context,
         )
 
         if not should_retry:
             # Re-raise if not retryable
             raise
 
+
 def handle_websocket_errors(
-    category: ErrorCategory = None,
-    fallback_operation: Optional[str] = None
+    category: ErrorCategory = None, fallback_operation: Optional[str] = None
 ):
     """
     Decorator for automatic WebSocket error handling
     """
+
     def decorator(func: Callable) -> Callable:
         async def wrapper(*args, **kwargs):
             error_handler = get_websocket_error_handler()
@@ -567,10 +629,7 @@ def handle_websocket_errors(
 
             try:
                 return await error_handler.execute_with_retry(
-                    operation=operation,
-                    func=func,
-                    *args,
-                    **kwargs
+                    operation=operation, func=func, *args, **kwargs
                 )
             except Exception as e:
                 # Final error handling
@@ -578,4 +637,5 @@ def handle_websocket_errors(
                 raise
 
         return wrapper
+
     return decorator

@@ -8,15 +8,15 @@ Implements hybrid citation extraction pipeline:
 5. Manual entry (last resort)
 """
 
-import aiohttp
 import asyncio
-from typing import List, Optional, Dict, Any, Tuple
-from uuid import UUID
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
+from uuid import UUID
 
+import aiohttp
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import Citation, Document
 from src.services.arxiv.arxiv_service import ArXivIngestionService
@@ -29,44 +29,45 @@ logger = structlog.get_logger()
 # Semantic Scholar Client
 # ============================================================================
 
+
 class SemanticScholarClient:
     """Client for Semantic Scholar Academic Graph API.
-    
+
     Rate limits: 100 requests/second (10,000/day for free tier)
     Docs: https://api.semanticscholar.org/api-docs/
     """
-    
+
     BASE_URL = "https://api.semanticscholar.org/graph/v1"
-    
+
     def __init__(self, api_key: Optional[str] = None):
         """Initialize Semantic Scholar client.
-        
+
         Args:
             api_key: Optional API key for higher rate limits
         """
         self.api_key = api_key
         self.session: Optional[aiohttp.ClientSession] = None
-        
+
     async def __aenter__(self):
         """Async context manager entry."""
         headers = {}
         if self.api_key:
             headers["x-api-key"] = self.api_key
-            
+
         self.session = aiohttp.ClientSession(headers=headers)
         return self
-        
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
         if self.session:
             await self.session.close()
-            
+
     async def lookup_by_arxiv_id(self, arxiv_id: str) -> Optional[Dict[str, Any]]:
         """Lookup paper by ArXiv ID.
-        
+
         Args:
             arxiv_id: ArXiv identifier (e.g., "2101.00001")
-            
+
         Returns:
             Paper metadata or None if not found
         """
@@ -75,7 +76,7 @@ class SemanticScholarClient:
             params = {
                 "fields": "title,authors,year,venue,citationCount,influentialCitationCount,abstract,externalIds"
             }
-            
+
             async with self.session.get(url, params=params) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -95,17 +96,17 @@ class SemanticScholarClient:
                         status=response.status,
                     )
                     return None
-                    
+
         except Exception as e:
             logger.error("semantic_scholar_error", arxiv_id=arxiv_id, error=str(e))
             return None
-            
+
     async def lookup_by_doi(self, doi: str) -> Optional[Dict[str, Any]]:
         """Lookup paper by DOI.
-        
+
         Args:
             doi: Digital Object Identifier
-            
+
         Returns:
             Paper metadata or None if not found
         """
@@ -114,7 +115,7 @@ class SemanticScholarClient:
             params = {
                 "fields": "title,authors,year,venue,citationCount,abstract,externalIds"
             }
-            
+
             async with self.session.get(url, params=params) as response:
                 if response.status == 200:
                     return await response.json()
@@ -122,9 +123,13 @@ class SemanticScholarClient:
                     logger.debug("semantic_scholar_not_found", doi=doi)
                     return None
                 else:
-                    logger.warning("semantic_scholar_lookup_failed", doi=doi, status=response.status)
+                    logger.warning(
+                        "semantic_scholar_lookup_failed",
+                        doi=doi,
+                        status=response.status,
+                    )
                     return None
-                    
+
         except Exception as e:
             logger.error("semantic_scholar_error", doi=doi, error=str(e))
             return None
@@ -134,47 +139,48 @@ class SemanticScholarClient:
 # CrossRef Client
 # ============================================================================
 
+
 class CrossRefClient:
     """Client for CrossRef REST API.
-    
+
     Rate limits: 50 requests/second (with mailto header)
     Docs: https://www.crossref.org/documentation/retrieve-metadata/rest-api/
     """
-    
+
     BASE_URL = "https://api.crossref.org"
-    
+
     def __init__(self, mailto: str = "research-assistant@example.com"):
         """Initialize CrossRef client.
-        
+
         Args:
             mailto: Email for polite pool (higher rate limit)
         """
         self.mailto = mailto
         self.session: Optional[aiohttp.ClientSession] = None
-        
+
     async def __aenter__(self):
         """Async context manager entry."""
         headers = {"User-Agent": f"ResearchAssistant/1.0 (mailto:{self.mailto})"}
         self.session = aiohttp.ClientSession(headers=headers)
         return self
-        
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
         if self.session:
             await self.session.close()
-            
+
     async def lookup_by_doi(self, doi: str) -> Optional[Dict[str, Any]]:
         """Lookup paper by DOI.
-        
+
         Args:
             doi: Digital Object Identifier
-            
+
         Returns:
             Paper metadata or None if not found
         """
         try:
             url = f"{self.BASE_URL}/works/{doi}"
-            
+
             async with self.session.get(url) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -183,9 +189,11 @@ class CrossRefClient:
                     logger.debug("crossref_not_found", doi=doi)
                     return None
                 else:
-                    logger.warning("crossref_lookup_failed", doi=doi, status=response.status)
+                    logger.warning(
+                        "crossref_lookup_failed", doi=doi, status=response.status
+                    )
                     return None
-                    
+
         except Exception as e:
             logger.error("crossref_error", doi=doi, error=str(e))
             return None
@@ -195,9 +203,10 @@ class CrossRefClient:
 # Citation Extraction Service
 # ============================================================================
 
+
 class CitationExtractionService:
     """Hybrid citation extraction service.
-    
+
     Extraction strategies (in order of priority):
     1. ArXiv API - for ArXiv papers (90%+ accuracy)
     2. Semantic Scholar - for citation networks and metadata
@@ -205,21 +214,21 @@ class CitationExtractionService:
     4. PDF parsing - for references section (TODO)
     5. Manual entry - fallback
     """
-    
+
     def __init__(self, db: AsyncSession):
         """Initialize extraction service.
-        
+
         Args:
             db: Database session
         """
         self.db = db
-        
+
     async def extract_from_arxiv(self, arxiv_id: str) -> Optional[CitationCreate]:
         """Extract citation metadata from ArXiv API.
-        
+
         Args:
             arxiv_id: ArXiv identifier (e.g., "2101.00001")
-            
+
         Returns:
             CitationCreate schema or None
         """
@@ -227,16 +236,15 @@ class CitationExtractionService:
             async with ArXivIngestionService(self.db) as arxiv_service:
                 # Search for the specific paper
                 results = await arxiv_service.search_papers(
-                    query=f"id:{arxiv_id}",
-                    max_results=1
+                    query=f"id:{arxiv_id}", max_results=1
                 )
-                
+
                 if not results:
                     logger.warning("arxiv_paper_not_found", arxiv_id=arxiv_id)
                     return None
-                    
+
                 paper = results[0]
-                
+
                 # Parse metadata
                 citation = CitationCreate(
                     documentTitle=paper.get("title", ""),
@@ -248,30 +256,28 @@ class CitationExtractionService:
                     metadataSource="arxiv",
                     needsReview=False,
                 )
-                
+
                 logger.info(
                     "arxiv_extraction_success",
                     arxiv_id=arxiv_id,
                     title=citation.documentTitle[:50],
                 )
-                
+
                 return citation
-                
+
         except Exception as e:
             logger.error("arxiv_extraction_failed", arxiv_id=arxiv_id, error=str(e))
             return None
-            
+
     async def extract_from_semantic_scholar(
-        self,
-        arxiv_id: Optional[str] = None,
-        doi: Optional[str] = None
+        self, arxiv_id: Optional[str] = None, doi: Optional[str] = None
     ) -> Optional[CitationCreate]:
         """Extract citation metadata from Semantic Scholar.
-        
+
         Args:
             arxiv_id: Optional ArXiv ID
             doi: Optional DOI
-            
+
         Returns:
             CitationCreate schema or None
         """
@@ -283,19 +289,16 @@ class CitationExtractionService:
                     data = await client.lookup_by_doi(doi)
                 else:
                     return None
-                    
+
                 if not data:
                     return None
-                    
+
                 # Extract external IDs
                 external_ids = data.get("externalIds", {})
-                
+
                 # Parse author names
-                authors = [
-                    author.get("name", "")
-                    for author in data.get("authors", [])
-                ]
-                
+                authors = [author.get("name", "") for author in data.get("authors", [])]
+
                 citation = CitationCreate(
                     documentTitle=data.get("title", ""),
                     authors=authors,
@@ -307,42 +310,42 @@ class CitationExtractionService:
                     metadataSource="semantic_scholar",
                     needsReview=False,
                 )
-                
+
                 logger.info(
                     "semantic_scholar_extraction_success",
                     title=citation.documentTitle[:50],
                     citation_count=data.get("citationCount"),
                 )
-                
+
                 return citation
-                
+
         except Exception as e:
             logger.error("semantic_scholar_extraction_failed", error=str(e))
             return None
-            
+
     async def extract_from_crossref(self, doi: str) -> Optional[CitationCreate]:
         """Extract citation metadata from CrossRef.
-        
+
         Args:
             doi: Digital Object Identifier
-            
+
         Returns:
             CitationCreate schema or None
         """
         try:
             async with CrossRefClient() as client:
                 data = await client.lookup_by_doi(doi)
-                
+
                 if not data:
                     return None
-                    
+
                 # Parse author names
                 authors = []
                 for author in data.get("author", []):
                     given = author.get("given", "")
                     family = author.get("family", "")
                     authors.append(f"{given} {family}".strip())
-                    
+
                 # Extract year from published date
                 year = None
                 published = data.get("published-print") or data.get("published-online")
@@ -350,10 +353,14 @@ class CitationExtractionService:
                     date_parts = published["date-parts"][0]
                     if date_parts:
                         year = date_parts[0]
-                        
+
                 # Get venue (journal or conference)
-                venue = data.get("container-title", [""])[0] if data.get("container-title") else ""
-                
+                venue = (
+                    data.get("container-title", [""])[0]
+                    if data.get("container-title")
+                    else ""
+                )
+
                 citation = CitationCreate(
                     documentTitle=data.get("title", [""])[0],
                     authors=authors,
@@ -363,15 +370,19 @@ class CitationExtractionService:
                     metadataSource="crossref",
                     needsReview=False,
                 )
-                
-                logger.info("crossref_extraction_success", doi=doi, title=citation.documentTitle[:50])
-                
+
+                logger.info(
+                    "crossref_extraction_success",
+                    doi=doi,
+                    title=citation.documentTitle[:50],
+                )
+
                 return citation
-                
+
         except Exception as e:
             logger.error("crossref_extraction_failed", doi=doi, error=str(e))
             return None
-            
+
     async def extract_hybrid(
         self,
         arxiv_id: Optional[str] = None,
@@ -395,6 +406,7 @@ class CitationExtractionService:
             Tuple of (CitationCreate or None, extraction_source)
         """
         import time
+
         start_time = time.time()
 
         # Strategy 1: ArXiv (highest accuracy for ArXiv papers)
@@ -412,7 +424,9 @@ class CitationExtractionService:
 
         # Strategy 2: Semantic Scholar (good for both ArXiv and DOI)
         if arxiv_id or doi:
-            result = await self.extract_from_semantic_scholar(arxiv_id=arxiv_id, doi=doi)
+            result = await self.extract_from_semantic_scholar(
+                arxiv_id=arxiv_id, doi=doi
+            )
             if result:
                 duration = time.time() - start_time
                 logger.info(

@@ -3,36 +3,39 @@ Enhanced Authentication Security Implementation
 Addresses critical authentication vulnerabilities
 """
 
-import jwt
-import time
+import base64
 import hashlib
-import secrets
 import logging
-from typing import Optional, Dict, List, Tuple, Any
-from datetime import datetime, timedelta
+import re
+import secrets
+import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from enum import Enum
-import redis
+from typing import Any, Dict, List, Optional, Tuple
+
 import bcrypt
+import jwt
+import redis
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-import base64
-import re
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
-from src.models.user import User
 from src.core.database import get_db
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
+from src.models.user import User
 
 logger = logging.getLogger(__name__)
+
 
 class TokenType(Enum):
     ACCESS = "access"
     REFRESH = "refresh"
     RESET = "reset"
     EMAIL_VERIFICATION = "email_verification"
+
 
 @dataclass
 class TokenInfo:
@@ -43,6 +46,7 @@ class TokenInfo:
     device_fingerprint: Optional[str] = None
     is_revoked: bool = False
 
+
 class DeviceFingerprint:
     """Generate and validate device fingerprints"""
 
@@ -50,16 +54,17 @@ class DeviceFingerprint:
     def generate_fingerprint(request_data: Dict[str, str]) -> str:
         """Generate device fingerprint from request data"""
         fingerprint_data = {
-            'user_agent': request_data.get('user_agent', ''),
-            'ip_address': request_data.get('ip_address', ''),
-            'accept_language': request_data.get('accept_language', ''),
-            'platform': request_data.get('platform', ''),
-            'screen_resolution': request_data.get('screen_resolution', ''),
+            "user_agent": request_data.get("user_agent", ""),
+            "ip_address": request_data.get("ip_address", ""),
+            "accept_language": request_data.get("accept_language", ""),
+            "platform": request_data.get("platform", ""),
+            "screen_resolution": request_data.get("screen_resolution", ""),
         }
 
         # Create fingerprint hash
-        fingerprint_str = '|'.join(fingerprint_data.values())
+        fingerprint_str = "|".join(fingerprint_data.values())
         return hashlib.sha256(fingerprint_str.encode()).hexdigest()
+
 
 class EnhancedPasswordPolicy:
     """Enhanced password policy enforcement"""
@@ -72,38 +77,54 @@ class EnhancedPasswordPolicy:
         self.require_digits = True
         self.require_special_chars = True
         self.forbidden_patterns = [
-            r'(.)\1{2,}',  # No 3+ repeated characters
-            r'123456',      # Common sequences
-            r'password',    # Common passwords
-            r'qwerty',      # Keyboard patterns
+            r"(.)\1{2,}",  # No 3+ repeated characters
+            r"123456",  # Common sequences
+            r"password",  # Common passwords
+            r"qwerty",  # Keyboard patterns
         ]
         self.forbidden_common_passwords = {
-            'password', '123456', '123456789', 'qwerty', 'abc123',
-            'password123', 'admin', 'letmein', 'welcome', 'monkey'
+            "password",
+            "123456",
+            "123456789",
+            "qwerty",
+            "abc123",
+            "password123",
+            "admin",
+            "letmein",
+            "welcome",
+            "monkey",
         }
 
-    def validate_password(self, password: str, user_info: Dict[str, str] = None) -> Tuple[bool, List[str]]:
+    def validate_password(
+        self, password: str, user_info: Dict[str, str] = None
+    ) -> Tuple[bool, List[str]]:
         """Validate password against policy"""
         errors = []
 
         # Length requirements
         if len(password) < self.min_length:
-            errors.append(f"Password must be at least {self.min_length} characters long")
+            errors.append(
+                f"Password must be at least {self.min_length} characters long"
+            )
 
         if len(password) > self.max_length:
-            errors.append(f"Password must be no more than {self.max_length} characters long")
+            errors.append(
+                f"Password must be no more than {self.max_length} characters long"
+            )
 
         # Character requirements
-        if self.require_uppercase and not re.search(r'[A-Z]', password):
+        if self.require_uppercase and not re.search(r"[A-Z]", password):
             errors.append("Password must contain at least one uppercase letter")
 
-        if self.require_lowercase and not re.search(r'[a-z]', password):
+        if self.require_lowercase and not re.search(r"[a-z]", password):
             errors.append("Password must contain at least one lowercase letter")
 
-        if self.require_digits and not re.search(r'\d', password):
+        if self.require_digits and not re.search(r"\d", password):
             errors.append("Password must contain at least one digit")
 
-        if self.require_special_chars and not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        if self.require_special_chars and not re.search(
+            r'[!@#$%^&*(),.?":{}|<>]', password
+        ):
             errors.append("Password must contain at least one special character")
 
         # Forbidden patterns
@@ -119,9 +140,9 @@ class EnhancedPasswordPolicy:
         # Personal information (if provided)
         if user_info:
             forbidden_info = [
-                user_info.get('first_name', ''),
-                user_info.get('last_name', ''),
-                user_info.get('email', '').split('@')[0],
+                user_info.get("first_name", ""),
+                user_info.get("last_name", ""),
+                user_info.get("email", "").split("@")[0],
             ]
 
             for info in forbidden_info:
@@ -130,6 +151,7 @@ class EnhancedPasswordPolicy:
                     break
 
         return len(errors) == 0, errors
+
 
 class TokenManager:
     """Enhanced token management with rotation and revocation"""
@@ -140,9 +162,13 @@ class TokenManager:
         self.refresh_token_expiry = timedelta(days=7)
         self.max_concurrent_sessions = 3
 
-    def generate_token(self, user_id: str, token_type: TokenType,
-                      device_fingerprint: Optional[str] = None,
-                      additional_claims: Dict[str, Any] = None) -> TokenInfo:
+    def generate_token(
+        self,
+        user_id: str,
+        token_type: TokenType,
+        device_fingerprint: Optional[str] = None,
+        additional_claims: Dict[str, Any] = None,
+    ) -> TokenInfo:
         """Generate a new token"""
         now = datetime.utcnow()
 
@@ -157,21 +183,23 @@ class TokenManager:
 
         # Create token payload
         payload = {
-            'sub': user_id,
-            'type': token_type.value,
-            'iat': int(now.timestamp()),
-            'exp': int(expires_at.timestamp()),
-            'jti': secrets.token_urlsafe(32),  # Unique token ID
+            "sub": user_id,
+            "type": token_type.value,
+            "iat": int(now.timestamp()),
+            "exp": int(expires_at.timestamp()),
+            "jti": secrets.token_urlsafe(32),  # Unique token ID
         }
 
         if device_fingerprint:
-            payload['fp'] = device_fingerprint
+            payload["fp"] = device_fingerprint
 
         if additional_claims:
             payload.update(additional_claims)
 
         # Generate token
-        token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+        token = jwt.encode(
+            payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
+        )
 
         # Store token metadata in Redis
         token_info = TokenInfo(
@@ -179,50 +207,58 @@ class TokenManager:
             token_type=token_type,
             user_id=user_id,
             expires_at=expires_at,
-            device_fingerprint=device_fingerprint
+            device_fingerprint=device_fingerprint,
         )
 
         self._store_token_info(token_info)
 
         return token_info
 
-    def validate_token(self, token: str, expected_type: TokenType = None,
-                      device_fingerprint: Optional[str] = None) -> Optional[TokenInfo]:
+    def validate_token(
+        self,
+        token: str,
+        expected_type: TokenType = None,
+        device_fingerprint: Optional[str] = None,
+    ) -> Optional[TokenInfo]:
         """Validate token and return token info"""
         try:
             # Decode token
-            payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+            payload = jwt.decode(
+                token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+            )
 
             # Check token type
-            token_type = TokenType(payload.get('type', 'access'))
+            token_type = TokenType(payload.get("type", "access"))
             if expected_type and token_type != expected_type:
                 return None
 
             # Check if token is revoked
-            token_id = payload.get('jti')
+            token_id = payload.get("jti")
             if self._is_token_revoked(token_id):
                 return None
 
             # Check device fingerprint for access tokens
             if token_type == TokenType.ACCESS and device_fingerprint:
-                stored_fingerprint = payload.get('fp')
+                stored_fingerprint = payload.get("fp")
                 if stored_fingerprint and stored_fingerprint != device_fingerprint:
                     logger.warning(f"Device fingerprint mismatch for token {token_id}")
                     return None
 
             # Check session limits
-            user_id = payload.get('sub')
-            if token_type == TokenType.ACCESS and not self._check_session_limit(user_id, device_fingerprint):
+            user_id = payload.get("sub")
+            if token_type == TokenType.ACCESS and not self._check_session_limit(
+                user_id, device_fingerprint
+            ):
                 return None
 
             # Create token info
-            expires_at = datetime.fromtimestamp(payload['exp'])
+            expires_at = datetime.fromtimestamp(payload["exp"])
             return TokenInfo(
                 token=token,
                 token_type=token_type,
                 user_id=user_id,
                 expires_at=expires_at,
-                device_fingerprint=payload.get('fp')
+                device_fingerprint=payload.get("fp"),
             )
 
         except jwt.ExpiredSignatureError:
@@ -231,9 +267,13 @@ class TokenManager:
             logger.warning(f"Invalid token: {e}")
             return None
 
-    def rotate_refresh_token(self, refresh_token: str, device_fingerprint: Optional[str] = None) -> Optional[TokenInfo]:
+    def rotate_refresh_token(
+        self, refresh_token: str, device_fingerprint: Optional[str] = None
+    ) -> Optional[TokenInfo]:
         """Rotate refresh token"""
-        token_info = self.validate_token(refresh_token, TokenType.REFRESH, device_fingerprint)
+        token_info = self.validate_token(
+            refresh_token, TokenType.REFRESH, device_fingerprint
+        )
         if not token_info:
             return None
 
@@ -242,23 +282,23 @@ class TokenManager:
 
         # Generate new refresh token
         return self.generate_token(
-            token_info.user_id,
-            TokenType.REFRESH,
-            device_fingerprint
+            token_info.user_id, TokenType.REFRESH, device_fingerprint
         )
 
     def revoke_token(self, token: str) -> bool:
         """Revoke a token"""
         try:
-            payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
-            token_id = payload.get('jti')
-            expires_at = datetime.fromtimestamp(payload['exp'])
+            payload = jwt.decode(
+                token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+            )
+            token_id = payload.get("jti")
+            expires_at = datetime.fromtimestamp(payload["exp"])
 
             # Store revoked token in Redis until it expires
             self.redis.setex(
                 f"revoked_token:{token_id}",
                 int((expires_at - datetime.utcnow()).total_seconds()),
-                "1"
+                "1",
             )
 
             return True
@@ -273,20 +313,24 @@ class TokenManager:
 
     def _store_token_info(self, token_info: TokenInfo) -> None:
         """Store token metadata in Redis"""
-        token_id = jwt.decode(token_info.token, options={"verify_signature": False}).get('jti')
+        token_id = jwt.decode(
+            token_info.token, options={"verify_signature": False}
+        ).get("jti")
 
         if token_info.token_type == TokenType.REFRESH:
             # Track active refresh tokens for session management
             session_key = f"user_sessions:{token_info.user_id}"
             session_data = {
-                'token_id': token_id,
-                'device_fingerprint': token_info.device_fingerprint,
-                'created_at': datetime.utcnow().isoformat()
+                "token_id": token_id,
+                "device_fingerprint": token_info.device_fingerprint,
+                "created_at": datetime.utcnow().isoformat(),
             }
 
             # Add to user sessions
             self.redis.lpush(session_key, json.dumps(session_data))
-            self.redis.expire(session_key, int(self.refresh_token_expiry.total_seconds()))
+            self.redis.expire(
+                session_key, int(self.refresh_token_expiry.total_seconds())
+            )
 
             # Limit concurrent sessions
             self.redis.ltrim(session_key, 0, self.max_concurrent_sessions - 1)
@@ -308,13 +352,14 @@ class TokenManager:
         for session in sessions:
             try:
                 session_data = json.loads(session)
-                if session_data.get('device_fingerprint') == device_fingerprint:
+                if session_data.get("device_fingerprint") == device_fingerprint:
                     device_sessions += 1
             except json.JSONDecodeError:
                 continue
 
         # Allow max 2 sessions per device
         return device_sessions < 2
+
 
 class AccountLockout:
     """Account lockout mechanism for failed login attempts"""
@@ -346,7 +391,7 @@ class AccountLockout:
             self.redis.setex(
                 f"locked_account:{identifier}",
                 int(self.lockout_duration.total_seconds()),
-                "1"
+                "1",
             )
             logger.warning(f"Account locked due to failed attempts: {identifier}")
 
@@ -366,6 +411,7 @@ class AccountLockout:
         self.redis.delete(f"failed_attempts:{identifier}")
         self.redis.delete(f"locked_account:{identifier}")
 
+
 class EnhancedAuthService:
     """Enhanced authentication service with comprehensive security features"""
 
@@ -380,21 +426,27 @@ class EnhancedAuthService:
         self.encryption_key = self._get_encryption_key()
         self.cipher = Fernet(self.encryption_key)
 
-    async def authenticate_user(self, identifier: str, password: str,
-                              device_fingerprint: Optional[str] = None,
-                              ip_address: Optional[str] = None) -> Dict[str, Any]:
+    async def authenticate_user(
+        self,
+        identifier: str,
+        password: str,
+        device_fingerprint: Optional[str] = None,
+        ip_address: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Enhanced user authentication with security controls"""
 
         # Check account lockout
         if self.account_lockout.is_account_locked(identifier):
             remaining_time = self.account_lockout.get_remaining_lockout_time(identifier)
-            raise ValueError(f"Account is temporarily locked. Try again in {remaining_time} seconds.")
+            raise ValueError(
+                f"Account is temporarily locked. Try again in {remaining_time} seconds."
+            )
 
         # Find user by email or username
         stmt = select(User).where(
             or_(User.email == identifier, User.username == identifier),
             User.is_active == True,
-            User.is_deleted == False
+            User.is_deleted == False,
         )
         result = await self.db.execute(stmt)
         user = result.scalars().first()
@@ -428,25 +480,24 @@ class EnhancedAuthService:
             str(user.id),
             TokenType.ACCESS,
             device_fingerprint,
-            {'role': user.role.value, 'org_id': str(user.organization_id)}
+            {"role": user.role.value, "org_id": str(user.organization_id)},
         )
 
         refresh_token_info = self.token_manager.generate_token(
-            str(user.id),
-            TokenType.REFRESH,
-            device_fingerprint
+            str(user.id), TokenType.REFRESH, device_fingerprint
         )
 
         return {
-            'access_token': access_token_info.token,
-            'refresh_token': refresh_token_info.token,
-            'token_type': 'Bearer',
-            'expires_in': int(self.token_manager.access_token_expiry.total_seconds()),
-            'user': user.to_dict(exclude_sensitive=True)
+            "access_token": access_token_info.token,
+            "refresh_token": refresh_token_info.token,
+            "token_type": "Bearer",
+            "expires_in": int(self.token_manager.access_token_expiry.total_seconds()),
+            "user": user.to_dict(exclude_sensitive=True),
         }
 
-    async def refresh_access_token(self, refresh_token: str,
-                                 device_fingerprint: Optional[str] = None) -> Dict[str, Any]:
+    async def refresh_access_token(
+        self, refresh_token: str, device_fingerprint: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Refresh access token with rotation"""
 
         # Rotate refresh token
@@ -458,11 +509,13 @@ class EnhancedAuthService:
             raise ValueError("Invalid or expired refresh token")
 
         # Get user info
-        old_token_info = self.token_manager.validate_token(refresh_token, TokenType.REFRESH)
+        old_token_info = self.token_manager.validate_token(
+            refresh_token, TokenType.REFRESH
+        )
         stmt = select(User).where(
             User.id == old_token_info.user_id,
             User.is_active == True,
-            User.is_deleted == False
+            User.is_deleted == False,
         )
         result = await self.db.execute(stmt)
         user = result.scalars().first()
@@ -475,14 +528,14 @@ class EnhancedAuthService:
             str(user.id),
             TokenType.ACCESS,
             device_fingerprint,
-            {'role': user.role.value, 'org_id': str(user.organization_id)}
+            {"role": user.role.value, "org_id": str(user.organization_id)},
         )
 
         return {
-            'access_token': access_token_info.token,
-            'refresh_token': new_refresh_token_info.token,
-            'token_type': 'Bearer',
-            'expires_in': int(self.token_manager.access_token_expiry.total_seconds())
+            "access_token": access_token_info.token,
+            "refresh_token": new_refresh_token_info.token,
+            "token_type": "Bearer",
+            "expires_in": int(self.token_manager.access_token_expiry.total_seconds()),
         }
 
     async def create_user(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -490,31 +543,31 @@ class EnhancedAuthService:
 
         # Validate password
         is_valid, errors = self.password_policy.validate_password(
-            user_data['password'],
+            user_data["password"],
             {
-                'first_name': user_data.get('first_name', ''),
-                'last_name': user_data.get('last_name', ''),
-                'email': user_data.get('email', ''),
-            }
+                "first_name": user_data.get("first_name", ""),
+                "last_name": user_data.get("last_name", ""),
+                "email": user_data.get("email", ""),
+            },
         )
 
         if not is_valid:
             raise ValueError(f"Password validation failed: {'; '.join(errors)}")
 
         # Hash password
-        password_hash = self._hash_password(user_data['password'])
+        password_hash = self._hash_password(user_data["password"])
 
         # Create user
         user = User(
-            email=user_data['email'],
-            username=user_data.get('username', user_data['email'].split('@')[0]),
+            email=user_data["email"],
+            username=user_data.get("username", user_data["email"].split("@")[0]),
             password_hash=password_hash,
-            first_name=user_data.get('first_name', ''),
-            last_name=user_data.get('last_name', ''),
-            organization_id=user_data.get('organization_id'),
-            role=user_data.get('role', 'USER'),
+            first_name=user_data.get("first_name", ""),
+            last_name=user_data.get("last_name", ""),
+            organization_id=user_data.get("organization_id"),
+            role=user_data.get("role", "USER"),
             is_active=True,
-            is_deleted=False
+            is_deleted=False,
         )
 
         self.db.add(user)
@@ -522,7 +575,9 @@ class EnhancedAuthService:
 
         return user.to_dict(exclude_sensitive=True)
 
-    async def change_password(self, user: User, current_password: str, new_password: str) -> bool:
+    async def change_password(
+        self, user: User, current_password: str, new_password: str
+    ) -> bool:
         """Change user password with security validation"""
 
         # Verify current password
@@ -533,10 +588,10 @@ class EnhancedAuthService:
         is_valid, errors = self.password_policy.validate_password(
             new_password,
             {
-                'first_name': user.first_name,
-                'last_name': user.last_name,
-                'email': user.email,
-            }
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "email": user.email,
+            },
         )
 
         if not is_valid:
@@ -555,11 +610,11 @@ class EnhancedAuthService:
     def _hash_password(self, password: str) -> str:
         """Hash password using bcrypt"""
         salt = bcrypt.gensalt(rounds=12)
-        return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+        return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
     def _verify_password(self, password: str, hashed: str) -> bool:
         """Verify password against hash"""
-        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+        return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
     def _password_needs_rehash(self, hashed: str) -> bool:
         """Check if password needs rehashing"""
@@ -568,7 +623,7 @@ class EnhancedAuthService:
             return True
 
         # Extract rounds from hash
-        rounds = int(hashed.split('$')[2])
+        rounds = int(hashed.split("$")[2])
         return rounds < 12
 
     def _get_encryption_key(self) -> bytes:
@@ -576,7 +631,7 @@ class EnhancedAuthService:
         key_file = "/etc/rag/encryption.key"
 
         try:
-            with open(key_file, 'rb') as f:
+            with open(key_file, "rb") as f:
                 key_data = f.read()
                 return base64.urlsafe_b64decode(key_data)
         except FileNotFoundError:
@@ -585,7 +640,7 @@ class EnhancedAuthService:
 
             try:
                 os.makedirs(os.path.dirname(key_file), exist_ok=True)
-                with open(key_file, 'wb') as f:
+                with open(key_file, "wb") as f:
                     f.write(base64.urlsafe_b64encode(key))
                 os.chmod(key_file, 0o600)  # Restrict file permissions
             except Exception as e:
@@ -593,8 +648,11 @@ class EnhancedAuthService:
 
             return key
 
+
 # Enhanced authentication dependency for FastAPI
-async def get_enhanced_auth_service(db: AsyncSession = Depends(get_db)) -> EnhancedAuthService:
+async def get_enhanced_auth_service(
+    db: AsyncSession = Depends(get_db),
+) -> EnhancedAuthService:
     """Get enhanced authentication service instance"""
     redis_client = redis.from_url(settings.REDIS_URL)
     return EnhancedAuthService(db, redis_client)

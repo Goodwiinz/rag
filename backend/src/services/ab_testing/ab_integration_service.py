@@ -7,29 +7,35 @@ import asyncio
 import logging
 import time
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.core.config import settings
 from src.core.database import get_db
-from src.models.ab_testing import Experiment, Variant, ExperimentAssignment
+from src.models.ab_testing import Experiment, ExperimentAssignment, Variant
 from src.models.search_schemas import SearchQuery, SearchResponse
 from src.models.user import User
-from src.services.ab_testing.ab_experiment_assignment_service import (
-    experiment_assignment_service, AssignmentContext, AssignmentResult
-)
-from src.services.ab_testing.ab_metrics_collection_service import (
-    metrics_collection_service, MetricEvent
-)
-from src.services.ab_testing.ab_statistical_analysis_service import (
-    statistical_analysis_service
-)
-from src.services.ab_testing.ab_resilience_service import (
-    resilience_service, with_resilience
-)
 from src.services.ab_testing.ab_caching_service import cache_manager
 from src.services.ab_testing.ab_event_service import (
-    event_service, EventType, create_user_assigned_event,
-    create_metric_collected_event
+    EventType,
+    create_metric_collected_event,
+    create_user_assigned_event,
+    event_service,
+)
+from src.services.ab_testing.ab_experiment_assignment_service import (
+    AssignmentContext,
+    AssignmentResult,
+    experiment_assignment_service,
+)
+from src.services.ab_testing.ab_metrics_collection_service import (
+    MetricEvent,
+    metrics_collection_service,
+)
+from src.services.ab_testing.ab_resilience_service import (
+    resilience_service,
+    with_resilience,
+)
+from src.services.ab_testing.ab_statistical_analysis_service import (
+    statistical_analysis_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,7 +83,9 @@ class ABTestingIntegrationService:
         async def on_experiment_started(event):
             """Handle experiment started event"""
             experiment_id = event.data.get("experiment_id")
-            logger.info(f"Experiment {experiment_id} started, invalidating relevant caches")
+            logger.info(
+                f"Experiment {experiment_id} started, invalidating relevant caches"
+            )
 
             # Invalidate any cached assignments for this experiment
             await cache_manager.invalidate_experiment_cache(experiment_id)
@@ -88,14 +96,14 @@ class ABTestingIntegrationService:
             variant_id = event.data.get("variant_id")
             user_id = event.data.get("user_id")
 
-            logger.debug(f"User {user_id} assigned to variant {variant_id} in experiment {experiment_id}")
+            logger.debug(
+                f"User {user_id} assigned to variant {variant_id} in experiment {experiment_id}"
+            )
 
             # Cache the assignment for quick lookup
             assignment_data = event.data.get("assignment_data", {})
             await cache_manager.set_variant_assignment(
-                user_id=user_id,
-                experiment_id=experiment_id,
-                assignment=assignment_data
+                user_id=user_id, experiment_id=experiment_id, assignment=assignment_data
             )
 
         async def on_metric_collected(event):
@@ -103,7 +111,9 @@ class ABTestingIntegrationService:
             experiment_id = event.data.get("experiment_id")
             metric_type = event.data.get("metric_type")
 
-            logger.debug(f"Metric {metric_type} collected for experiment {experiment_id}")
+            logger.debug(
+                f"Metric {metric_type} collected for experiment {experiment_id}"
+            )
 
             # Invalidate cached metrics for this experiment
             await cache_manager.invalidate_experiment_cache(experiment_id)
@@ -112,27 +122,24 @@ class ABTestingIntegrationService:
         event_service.register_handler(
             EventType.EXPERIMENT_STARTED,
             on_experiment_started,
-            service_name="integration_service"
+            service_name="integration_service",
         )
 
         event_service.register_handler(
             EventType.USER_ASSIGNED,
             on_user_assigned,
-            service_name="integration_service"
+            service_name="integration_service",
         )
 
         event_service.register_handler(
             EventType.METRIC_COLLECTED,
             on_metric_collected,
-            service_name="integration_service"
+            service_name="integration_service",
         )
 
     @with_resilience("experiment_assignment")
     async def process_search_query_with_ab_testing(
-        self,
-        search_query: SearchQuery,
-        user: User,
-        search_context: Dict[str, Any]
+        self, search_query: SearchQuery, user: User, search_context: Dict[str, Any]
     ) -> Tuple[SearchQuery, Optional[Dict[str, Any]]]:
         """
         Process search query with A/B testing integration
@@ -153,18 +160,16 @@ class ABTestingIntegrationService:
                 query_features={
                     "search_type": search_query.search_type.value,
                     "limit": search_query.limit,
-                    "filters": search_query.filters or {}
+                    "filters": search_query.filters or {},
                 },
                 user_segments=self._get_user_segments(user),
                 device_info=search_context.get("device_info", {}),
-                timestamp=datetime.utcnow()
+                timestamp=datetime.utcnow(),
             )
 
             # Get experiment assignment
             assignment_result = await experiment_assignment_service.assign_experiment(
-                context=context,
-                search_query=search_query,
-                db=next(get_db())
+                context=context, search_query=search_query, db=next(get_db())
             )
 
             # Modify search query based on assignment
@@ -172,9 +177,11 @@ class ABTestingIntegrationService:
             experiment_config = None
 
             if assignment_result.assigned and assignment_result.variant_config:
-                modified_search_query, experiment_config = self._apply_variant_configuration(
-                    search_query,
-                    assignment_result.variant_config
+                (
+                    modified_search_query,
+                    experiment_config,
+                ) = self._apply_variant_configuration(
+                    search_query, assignment_result.variant_config
                 )
 
                 # Publish assignment event
@@ -187,10 +194,10 @@ class ABTestingIntegrationService:
                         "assignment_data": {
                             "search_query": search_query.query,
                             "variant_config": assignment_result.variant_config,
-                            "assignment_reason": assignment_result.assignment_reason
-                        }
+                            "assignment_reason": assignment_result.assignment_reason,
+                        },
                     },
-                    source_service="integration_service"
+                    source_service="integration_service",
                 )
 
             return modified_search_query, experiment_config
@@ -207,7 +214,7 @@ class ABTestingIntegrationService:
         user: User,
         experiment_config: Optional[Dict[str, Any]],
         start_time: float,
-        search_context: Dict[str, Any]
+        search_context: Dict[str, Any],
     ) -> SearchResponse:
         """
         Process search response with A/B testing metrics collection
@@ -228,7 +235,7 @@ class ABTestingIntegrationService:
                     experiment_config=experiment_config,
                     user=user,
                     processing_time=processing_time,
-                    search_context=search_context
+                    search_context=search_context,
                 )
 
             return search_response
@@ -239,16 +246,14 @@ class ABTestingIntegrationService:
             return search_response
 
     async def _apply_variant_configuration(
-        self,
-        search_query: SearchQuery,
-        variant_config: Dict[str, Any]
+        self, search_query: SearchQuery, variant_config: Dict[str, Any]
     ) -> Tuple[SearchQuery, Dict[str, Any]]:
         """Apply variant configuration to search query"""
         modified_query = search_query
         experiment_config = {
             "variant_id": variant_config.get("variant_id"),
             "experiment_id": variant_config.get("experiment_id"),
-            "modifications": []
+            "modifications": [],
         }
 
         # Apply different configurations based on experiment type
@@ -258,11 +263,13 @@ class ABTestingIntegrationService:
             # Modify search algorithm
             if "algorithm" in search_config:
                 modified_query.search_type = search_config["algorithm"]
-                experiment_config["modifications"].append({
-                    "type": "algorithm",
-                    "old_value": search_query.search_type.value,
-                    "new_value": search_config["algorithm"]
-                })
+                experiment_config["modifications"].append(
+                    {
+                        "type": "algorithm",
+                        "old_value": search_query.search_type.value,
+                        "new_value": search_config["algorithm"],
+                    }
+                )
 
             # Modify search parameters
             if "parameters" in search_config:
@@ -270,38 +277,37 @@ class ABTestingIntegrationService:
 
                 if "limit" in params:
                     modified_query.limit = params["limit"]
-                    experiment_config["modifications"].append({
-                        "type": "limit",
-                        "old_value": search_query.limit,
-                        "new_value": params["limit"]
-                    })
+                    experiment_config["modifications"].append(
+                        {
+                            "type": "limit",
+                            "old_value": search_query.limit,
+                            "new_value": params["limit"],
+                        }
+                    )
 
                 if "filters" in params:
                     if modified_query.filters is None:
                         modified_query.filters = {}
                     modified_query.filters.update(params["filters"])
-                    experiment_config["modifications"].append({
-                        "type": "filters",
-                        "added_filters": params["filters"]
-                    })
+                    experiment_config["modifications"].append(
+                        {"type": "filters", "added_filters": params["filters"]}
+                    )
 
         # Apply ranking modifications
         if "ranking_weights" in variant_config:
             ranking_weights = variant_config["ranking_weights"]
             experiment_config["ranking_weights"] = ranking_weights
-            experiment_config["modifications"].append({
-                "type": "ranking_weights",
-                "weights": ranking_weights
-            })
+            experiment_config["modifications"].append(
+                {"type": "ranking_weights", "weights": ranking_weights}
+            )
 
         # Apply retrieval modifications
         if "retrieval_config" in variant_config:
             retrieval_config = variant_config["retrieval_config"]
             experiment_config["retrieval_config"] = retrieval_config
-            experiment_config["modifications"].append({
-                "type": "retrieval_config",
-                "config": retrieval_config
-            })
+            experiment_config["modifications"].append(
+                {"type": "retrieval_config", "config": retrieval_config}
+            )
 
         return modified_query, experiment_config
 
@@ -311,7 +317,7 @@ class ABTestingIntegrationService:
         experiment_config: Dict[str, Any],
         user: User,
         processing_time: float,
-        search_context: Dict[str, Any]
+        search_context: Dict[str, Any],
     ):
         """Collect metrics for A/B testing analysis"""
         try:
@@ -324,19 +330,23 @@ class ABTestingIntegrationService:
             # Collect search metrics
             await metrics_collection_service.collect_search_metrics(
                 search_response=search_response,
-                assignment_result=type('AssignmentResult', (), {
-                    'assigned': True,
-                    'experiment_id': experiment_id,
-                    'variant_id': variant_id
-                })(),
+                assignment_result=type(
+                    "AssignmentResult",
+                    (),
+                    {
+                        "assigned": True,
+                        "experiment_id": experiment_id,
+                        "variant_id": variant_id,
+                    },
+                )(),
                 context={
                     "user_id": str(user.id),
                     "session_id": search_context.get("session_id"),
                     "query_text": search_context.get("query_text", ""),
-                    "experiment_config": experiment_config
+                    "experiment_config": experiment_config,
                 },
                 start_time=time.time() - (processing_time / 1000),
-                db=next(get_db())
+                db=next(get_db()),
             )
 
             # Publish metric collection event
@@ -351,10 +361,10 @@ class ABTestingIntegrationService:
                     "additional_metrics": {
                         "result_count": len(search_response.results),
                         "search_time_ms": search_response.search_time_ms,
-                        "has_results": len(search_response.results) > 0
-                    }
+                        "has_results": len(search_response.results) > 0,
+                    },
                 },
-                source_service="integration_service"
+                source_service="integration_service",
             )
 
         except Exception as e:
@@ -378,10 +388,7 @@ class ABTestingIntegrationService:
         return segments
 
     async def create_experiment_from_template(
-        self,
-        template_name: str,
-        parameters: Dict[str, Any],
-        creator_user: User
+        self, template_name: str, parameters: Dict[str, Any], creator_user: User
     ) -> str:
         """
         Create experiment from predefined template
@@ -396,19 +403,24 @@ class ABTestingIntegrationService:
                     {
                         "name": "Control (Current)",
                         "is_control": True,
-                        "config": {"search_config": {"algorithm": "hybrid"}}
+                        "config": {"search_config": {"algorithm": "hybrid"}},
                     },
                     {
                         "name": "Vector Only",
                         "is_control": False,
-                        "config": {"search_config": {"algorithm": "vector"}}
+                        "config": {"search_config": {"algorithm": "vector"}},
                     },
                     {
                         "name": "Graph Enhanced",
                         "is_control": False,
-                        "config": {"search_config": {"algorithm": "hybrid", "graph_weight": 0.3}}
-                    }
-                ]
+                        "config": {
+                            "search_config": {
+                                "algorithm": "hybrid",
+                                "graph_weight": 0.3,
+                            }
+                        },
+                    },
+                ],
             },
             "ranking_weights_test": {
                 "experiment_type": "ranking_model",
@@ -417,15 +429,27 @@ class ABTestingIntegrationService:
                     {
                         "name": "Current Ranking",
                         "is_control": True,
-                        "config": {"ranking_weights": {"relevance": 0.7, "recency": 0.2, "popularity": 0.1}}
+                        "config": {
+                            "ranking_weights": {
+                                "relevance": 0.7,
+                                "recency": 0.2,
+                                "popularity": 0.1,
+                            }
+                        },
                     },
                     {
                         "name": "Recency Boosted",
                         "is_control": False,
-                        "config": {"ranking_weights": {"relevance": 0.5, "recency": 0.4, "popularity": 0.1}}
-                    }
-                ]
-            }
+                        "config": {
+                            "ranking_weights": {
+                                "relevance": 0.5,
+                                "recency": 0.4,
+                                "popularity": 0.1,
+                            }
+                        },
+                    },
+                ],
+            },
         }
 
         if template_name not in templates:
@@ -436,14 +460,18 @@ class ABTestingIntegrationService:
         # Create experiment using template
         experiment_data = {
             "name": parameters.get("name", f"{template_name} Experiment"),
-            "description": parameters.get("description", f"Experiment based on {template_name} template"),
-            "hypothesis": parameters.get("hypothesis", f"Testing {template_name} improvements"),
+            "description": parameters.get(
+                "description", f"Experiment based on {template_name} template"
+            ),
+            "hypothesis": parameters.get(
+                "hypothesis", f"Testing {template_name} improvements"
+            ),
             "experiment_type": template["experiment_type"],
             "primary_metric": template["primary_metric"],
             "target_improvement": parameters.get("target_improvement", 10.0),
             "traffic_percentage": parameters.get("traffic_percentage", 20.0),
             "minimum_sample_size": parameters.get("minimum_sample_size", 1000),
-            "confidence_level": parameters.get("confidence_level", 0.95)
+            "confidence_level": parameters.get("confidence_level", 0.95),
         }
 
         # This would create the experiment and variants using the existing API
@@ -456,9 +484,9 @@ class ABTestingIntegrationService:
                 "experiment_id": experiment_id,
                 "template_name": template_name,
                 "parameters": parameters,
-                "created_by": str(creator_user.id)
+                "created_by": str(creator_user.id),
             },
-            source_service="integration_service"
+            source_service="integration_service",
         )
 
         return experiment_id
@@ -468,7 +496,7 @@ class ABTestingIntegrationService:
         health_status = {
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),
-            "components": {}
+            "components": {},
         }
 
         try:
@@ -480,29 +508,30 @@ class ABTestingIntegrationService:
             cache_stats = cache_manager.get_performance_stats()
             health_status["components"]["cache"] = {
                 "status": "healthy",
-                "stats": cache_stats
+                "stats": cache_stats,
             }
 
             # Check event service
             event_stats = event_service.get_event_stats()
             health_status["components"]["events"] = {
                 "status": "healthy",
-                "stats": event_stats
+                "stats": event_stats,
             }
 
             # Check active experiments count
             db = next(get_db())
-            active_experiments = db.query(Experiment).filter(
-                Experiment.status == "running"
-            ).count()
+            active_experiments = (
+                db.query(Experiment).filter(Experiment.status == "running").count()
+            )
             health_status["components"]["experiments"] = {
                 "status": "healthy",
-                "active_count": active_experiments
+                "active_count": active_experiments,
             }
 
             # Determine overall status
             component_statuses = [
-                component["status"] for component in health_status["components"].values()
+                component["status"]
+                for component in health_status["components"].values()
             ]
 
             if "unhealthy" in component_statuses:
@@ -540,6 +569,7 @@ ab_integration_service = ABTestingIntegrationService()
 
 # Decorator for automatic A/B testing integration
 
+
 def with_ab_testing():
     """
     Decorator to automatically add A/B testing to search functions
@@ -550,6 +580,7 @@ def with_ab_testing():
         # Original search logic
         return results
     """
+
     def decorator(search_func):
         async def wrapper(search_query: SearchQuery, user: User, **kwargs):
             if not ab_integration_service.initialized:
@@ -561,10 +592,11 @@ def with_ab_testing():
 
             try:
                 # Process query with A/B testing
-                modified_query, experiment_config = await ab_integration_service.process_search_query_with_ab_testing(
-                    search_query=search_query,
-                    user=user,
-                    search_context=search_context
+                (
+                    modified_query,
+                    experiment_config,
+                ) = await ab_integration_service.process_search_query_with_ab_testing(
+                    search_query=search_query, user=user, search_context=search_context
                 )
 
                 # Execute search with modified query
@@ -577,7 +609,7 @@ def with_ab_testing():
                     user=user,
                     experiment_config=experiment_config,
                     start_time=start_time,
-                    search_context=search_context
+                    search_context=search_context,
                 )
 
                 return processed_response
@@ -588,4 +620,5 @@ def with_ab_testing():
                 return await search_func(search_query, user, **kwargs)
 
         return wrapper
+
     return decorator

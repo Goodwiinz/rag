@@ -7,11 +7,12 @@ Monitors database queries for performance issues:
 - Logs query statistics per request
 """
 
-import time
 import logging
+import time
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Optional
+
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -22,14 +23,14 @@ logger = logging.getLogger("query_monitor")
 
 # Context variable to track queries per request
 request_query_context: ContextVar[Optional["RequestQueryStats"]] = ContextVar(
-    "request_query_context",
-    default=None
+    "request_query_context", default=None
 )
 
 
 @dataclass
 class QueryInfo:
     """Information about a single query."""
+
     statement: str
     duration_ms: float
     parameters: Optional[dict] = None
@@ -38,6 +39,7 @@ class QueryInfo:
 @dataclass
 class RequestQueryStats:
     """Query statistics for a single request."""
+
     request_path: str
     request_method: str
     queries: list[QueryInfo] = field(default_factory=list)
@@ -62,7 +64,7 @@ class RequestQueryStats:
             "query_count": self.query_count,
             "total_query_time_ms": round(self.total_query_time_ms, 2),
             "slow_query_count": len(self.slow_queries),
-            "request_duration_ms": round((time.time() - self.start_time) * 1000, 2)
+            "request_duration_ms": round((time.time() - self.start_time) * 1000, 2),
         }
 
 
@@ -80,7 +82,7 @@ class QueryMonitor:
         self,
         slow_query_threshold_ms: float = 100.0,
         high_query_count_threshold: int = 10,
-        enable_parameter_logging: bool = False
+        enable_parameter_logging: bool = False,
     ):
         self.slow_query_threshold = slow_query_threshold_ms / 1000  # Convert to seconds
         self.high_query_count_threshold = high_query_count_threshold
@@ -116,7 +118,7 @@ class QueryMonitor:
                 query_info = QueryInfo(
                     statement=statement[:500],  # Truncate long statements
                     duration_ms=duration_ms,
-                    parameters=parameters if self.enable_parameter_logging else None
+                    parameters=parameters if self.enable_parameter_logging else None,
                 )
                 ctx.queries.append(query_info)
 
@@ -180,10 +182,7 @@ class QueryMonitorMiddleware(BaseHTTPMiddleware):
         if request.url.path in ["/health", "/metrics", "/docs", "/openapi.json"]:
             return await call_next(request)
 
-        query_monitor.start_request(
-            path=request.url.path,
-            method=request.method
-        )
+        query_monitor.start_request(path=request.url.path, method=request.method)
 
         try:
             response = await call_next(request)

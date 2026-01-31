@@ -4,17 +4,18 @@ Integrates with multi-tenancy middleware to provide role-based access control
 """
 
 import logging
-from typing import Optional, Callable, List, Dict, Any
+import time
 from functools import wraps
-from fastapi import HTTPException, status, Request, Response
+from typing import Any, Callable, Dict, List, Optional
+
+from fastapi import HTTPException, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.routing import Match
-import time
 
-from src.middleware.multi_tenancy import get_current_tenant_id, get_current_user_id
-from src.services.security.rbac_service import RBACService
 from src.exceptions.analytics_exceptions import PermissionDeniedException
+from src.middleware.multi_tenancy import get_current_tenant_id, get_current_user_id
 from src.models.permission import Permission
+from src.services.security.rbac_service import RBACService
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,6 @@ class RBACMiddleware(BaseHTTPMiddleware):
             "POST:/api/documents": ["document_create"],
             "PUT:/api/documents/.*": ["document_update"],
             "DELETE:/api/documents/.*": ["document_delete"],
-
             # User management
             r"/api/users.*": ["user_read"],
             "POST:/api/users": ["user_create"],
@@ -48,30 +48,25 @@ class RBACMiddleware(BaseHTTPMiddleware):
             "DELETE:/api/users/.*": ["user_delete"],
             "POST:/api/users/.*/roles": ["user_manage_roles"],
             "DELETE:/api/users/.*/roles/.*": ["user_manage_roles"],
-
             # Organization management
             r"/api/organizations.*": ["organization_read"],
             "POST:/api/organizations": ["organization_create"],
             "PUT:/api/organizations/.*": ["organization_update"],
             "DELETE:/api/organizations/.*": ["organization_delete"],
-
             # Analytics
             r"/api/analytics.*": ["analytics_read"],
             "POST:/api/analytics/export": ["analytics_export"],
             "PUT:/api/analytics/.*": ["analytics_manage"],
-
             # System administration
             r"/api/system/health": ["system_health"],
             r"/api/system/logs": ["system_logs"],
             r"/api/system/admin": ["system_admin"],
-
             # Billing
             r"/api/billing.*": ["billing_read"],
             "PUT:/api/billing/.*": ["billing_manage"],
-
             # Audit
             r"/api/audit.*": ["audit_read"],
-            "PUT:/api/audit/.*": ["audit_manage"]
+            "PUT:/api/audit/.*": ["audit_manage"],
         }
 
         # Merge with provided requirements
@@ -100,7 +95,7 @@ class RBACMiddleware(BaseHTTPMiddleware):
                 else:
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Authentication required for access control"
+                        detail="Authentication required for access control",
                     )
 
             # Get required permissions for this endpoint
@@ -108,18 +103,21 @@ class RBACMiddleware(BaseHTTPMiddleware):
 
             if required_permissions:
                 # Check user permissions
-                await self._check_permissions(user_id, organization_id, required_permissions, request)
+                await self._check_permissions(
+                    user_id, organization_id, required_permissions, request
+                )
 
                 # Cache permissions for future requests
-                self._cache_user_permissions(user_id, organization_id, required_permissions)
+                self._cache_user_permissions(
+                    user_id, organization_id, required_permissions
+                )
 
             response = await call_next(request)
             return response
 
         except PermissionDeniedException as e:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied: {str(e)}"
+                status_code=status.HTTP_403_FORBIDDEN, detail=f"Access denied: {str(e)}"
             )
         except HTTPException:
             raise
@@ -127,21 +125,21 @@ class RBACMiddleware(BaseHTTPMiddleware):
             logger.error(f"RBAC middleware error: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Internal server error during access control"
+                detail="Internal server error during access control",
             )
 
     def _should_skip_rbac(self, request: Request) -> bool:
         """Check if RBAC should be skipped for this endpoint"""
         skip_paths = [
-            '/health',
-            '/auth/login',
-            '/auth/register',
-            '/auth/refresh',
-            '/docs',
-            '/redoc',
-            '/openapi.json',
-            '/static',
-            '/favicon.ico'
+            "/health",
+            "/auth/login",
+            "/auth/register",
+            "/auth/refresh",
+            "/docs",
+            "/redoc",
+            "/openapi.json",
+            "/static",
+            "/favicon.ico",
         ]
 
         return any(request.url.path.startswith(path) for path in skip_paths)
@@ -149,12 +147,12 @@ class RBACMiddleware(BaseHTTPMiddleware):
     def _is_public_endpoint(self, request: Request) -> bool:
         """Check if endpoint is public (no authentication required)"""
         public_paths = [
-            '/health',
-            '/auth/login',
-            '/auth/register',
-            '/docs',
-            '/redoc',
-            '/openapi.json'
+            "/health",
+            "/auth/login",
+            "/auth/register",
+            "/docs",
+            "/redoc",
+            "/openapi.json",
         ]
 
         return any(request.url.path.startswith(path) for path in public_paths)
@@ -194,8 +192,13 @@ class RBACMiddleware(BaseHTTPMiddleware):
         # Handle exact match
         return path == pattern
 
-    async def _check_permissions(self, user_id: str, organization_id: str,
-                                required_permissions: List[str], request: Request) -> bool:
+    async def _check_permissions(
+        self,
+        user_id: str,
+        organization_id: str,
+        required_permissions: List[str],
+        request: Request,
+    ) -> bool:
         """Check if user has required permissions"""
         try:
             # Check cache first
@@ -208,10 +211,14 @@ class RBACMiddleware(BaseHTTPMiddleware):
                         return True
 
             # Check permissions from database
-            user_permissions = self.rbac_service.get_user_permissions(user_id, organization_id)
+            user_permissions = self.rbac_service.get_user_permissions(
+                user_id, organization_id
+            )
 
             # Verify all required permissions are present
-            missing_permissions = [perm for perm in required_permissions if perm not in user_permissions]
+            missing_permissions = [
+                perm for perm in required_permissions if perm not in user_permissions
+            ]
             if missing_permissions:
                 logger.warning(
                     f"Access denied for user {user_id} on {request.method} {request.url.path}. "
@@ -224,8 +231,8 @@ class RBACMiddleware(BaseHTTPMiddleware):
                         "user_id": user_id,
                         "organization_id": organization_id,
                         "missing_permissions": missing_permissions,
-                        "endpoint": f"{request.method} {request.url.path}"
-                    }
+                        "endpoint": f"{request.method} {request.url.path}",
+                    },
                 )
 
             return True
@@ -235,25 +242,29 @@ class RBACMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             logger.error(f"Error checking permissions: {e}")
             raise PermissionDeniedException(
-                required_permission=required_permissions[0] if required_permissions else "unknown",
+                required_permission=required_permissions[0]
+                if required_permissions
+                else "unknown",
                 user_role="unknown",
-                details={"error": "Permission check failed"}
+                details={"error": "Permission check failed"},
             )
 
-    def _cache_user_permissions(self, user_id: str, organization_id: str,
-                               required_permissions: List[str]):
+    def _cache_user_permissions(
+        self, user_id: str, organization_id: str, required_permissions: List[str]
+    ):
         """Cache user permissions for future requests"""
         try:
             cache_key = f"{user_id}:{organization_id}"
             _permission_cache[cache_key] = {
                 "permissions": required_permissions,
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
 
             # Clean old cache entries
             current_time = time.time()
             expired_keys = [
-                key for key, data in _permission_cache.items()
+                key
+                for key, data in _permission_cache.items()
                 if current_time - data["timestamp"] > _cache_ttl
             ]
             for key in expired_keys:
@@ -265,8 +276,10 @@ class RBACMiddleware(BaseHTTPMiddleware):
 
 # Decorators for permission checking
 
+
 def require_permission(permission_name: str):
     """Decorator to require specific permission for a function"""
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -276,23 +289,28 @@ def require_permission(permission_name: str):
             if not user_id or not organization_id:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
+                    detail="Authentication required",
                 )
 
             with RBACService() as rbac:
-                if not rbac.user_has_permission(user_id, permission_name, organization_id):
+                if not rbac.user_has_permission(
+                    user_id, permission_name, organization_id
+                ):
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"Permission denied: {permission_name} required"
+                        detail=f"Permission denied: {permission_name} required",
                     )
 
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
 def require_any_permission(permission_names: List[str]):
     """Decorator to require any of the specified permissions"""
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -302,23 +320,28 @@ def require_any_permission(permission_names: List[str]):
             if not user_id or not organization_id:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
+                    detail="Authentication required",
                 )
 
             with RBACService() as rbac:
-                if not rbac.user_has_any_permission(user_id, permission_names, organization_id):
+                if not rbac.user_has_any_permission(
+                    user_id, permission_names, organization_id
+                ):
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"Permission denied: one of {permission_names} required"
+                        detail=f"Permission denied: one of {permission_names} required",
                     )
 
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
 def require_all_permissions(permission_names: List[str]):
     """Decorator to require all of the specified permissions"""
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -328,23 +351,28 @@ def require_all_permissions(permission_names: List[str]):
             if not user_id or not organization_id:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
+                    detail="Authentication required",
                 )
 
             with RBACService() as rbac:
-                if not rbac.user_has_all_permissions(user_id, permission_names, organization_id):
+                if not rbac.user_has_all_permissions(
+                    user_id, permission_names, organization_id
+                ):
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"Permission denied: all of {permission_names} required"
+                        detail=f"Permission denied: all of {permission_names} required",
                     )
 
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
 def require_role(role_name: str):
     """Decorator to require specific role"""
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -354,7 +382,7 @@ def require_role(role_name: str):
             if not user_id or not organization_id:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
+                    detail="Authentication required",
                 )
 
             with RBACService() as rbac:
@@ -362,16 +390,19 @@ def require_role(role_name: str):
                 if not any(role.name == role_name for role in user_roles):
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"Access denied: role '{role_name}' required"
+                        detail=f"Access denied: role '{role_name}' required",
                     )
 
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
 def require_any_role(role_names: List[str]):
     """Decorator to require any of the specified roles"""
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -381,7 +412,7 @@ def require_any_role(role_names: List[str]):
             if not user_id or not organization_id:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
+                    detail="Authentication required",
                 )
 
             with RBACService() as rbac:
@@ -392,17 +423,22 @@ def require_any_role(role_names: List[str]):
                 if not user_role_names & required_role_names:  # No intersection
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"Access denied: one of roles {role_names} required"
+                        detail=f"Access denied: one of roles {role_names} required",
                     )
 
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
 # Utility functions for permission checking
 
-def has_permission(permission_name: str, user_id: str = None, organization_id: str = None) -> bool:
+
+def has_permission(
+    permission_name: str, user_id: str = None, organization_id: str = None
+) -> bool:
     """Check if current user (or specified user) has permission"""
     if not user_id:
         user_id = get_current_user_id()
@@ -416,7 +452,9 @@ def has_permission(permission_name: str, user_id: str = None, organization_id: s
         return rbac.user_has_permission(user_id, permission_name, organization_id)
 
 
-def has_any_permission(permission_names: List[str], user_id: str = None, organization_id: str = None) -> bool:
+def has_any_permission(
+    permission_names: List[str], user_id: str = None, organization_id: str = None
+) -> bool:
     """Check if current user (or specified user) has any of the permissions"""
     if not user_id:
         user_id = get_current_user_id()
@@ -474,6 +512,7 @@ def get_current_user_roles(organization_id: str = None) -> List[str]:
 
 # Clear permission cache (useful for testing or when permissions change)
 
+
 def clear_permission_cache():
     """Clear the permission cache"""
     global _permission_cache
@@ -486,4 +525,6 @@ def clear_user_permission_cache(user_id: str, organization_id: str):
     cache_key = f"{user_id}:{organization_id}"
     if cache_key in _permission_cache:
         del _permission_cache[cache_key]
-        logger.info(f"Permission cache cleared for user {user_id} in organization {organization_id}")
+        logger.info(
+            f"Permission cache cleared for user {user_id} in organization {organization_id}"
+        )

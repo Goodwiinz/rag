@@ -121,9 +121,7 @@ def retry(
                     return await func(*args, **kwargs)
                 except config.non_retryable_exceptions as e:
                     # Never retry these
-                    logger.warning(
-                        f"Non-retryable error in {func.__name__}: {e}"
-                    )
+                    logger.warning(f"Non-retryable error in {func.__name__}: {e}")
                     raise
                 except config.retryable_exceptions as e:
                     last_exception = e
@@ -196,9 +194,7 @@ class BulkheadFullError(Exception):
     def __init__(self, name: str, max_concurrent: int):
         self.name = name
         self.max_concurrent = max_concurrent
-        super().__init__(
-            f"Bulkhead '{name}' is full (max {max_concurrent} concurrent)"
-        )
+        super().__init__(f"Bulkhead '{name}' is full (max {max_concurrent} concurrent)")
 
 
 @dataclass
@@ -313,9 +309,7 @@ class Bulkhead:
     def get_stats(self) -> BulkheadStats:
         """Get current bulkhead statistics."""
         avg_wait = (
-            sum(self._wait_times) / len(self._wait_times)
-            if self._wait_times
-            else 0.0
+            sum(self._wait_times) / len(self._wait_times) if self._wait_times else 0.0
         )
         return BulkheadStats(
             name=self.name,
@@ -447,8 +441,8 @@ def resilient(
         async def wrapper(*args, **kwargs) -> T:
             # Import here to avoid circular imports
             from src.core.circuit_breaker import (
-                circuit_breakers,
                 ServiceUnavailableError,
+                circuit_breakers,
             )
 
             # Check circuit breaker first

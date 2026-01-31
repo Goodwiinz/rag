@@ -2,31 +2,39 @@
 Quality metrics and recommendations services
 """
 
-from .quality_metrics_service import QualityMetricsService, MetricCalculation
+from .performance_dashboard_service import (
+    AlertLevel,
+    DashboardMetric,
+    DashboardWidget,
+    DashboardWidgetType,
+    MetricTimeRange,
+    PerformanceDashboardService,
+    QualityMetricsSummary,
+    SearchPerformanceMetrics,
+    SystemHealthMetrics,
+    SystemMonitor,
+    UserEngagementMetrics,
+)
+from .performance_optimizer import PerformanceOptimizer
+from .quality_metrics_service import MetricCalculation, QualityMetricsService
 from .quality_recommendations_service import (
-    QualityRecommendationsService,
-    QualityRecommendation,
     QualityInsight,
+    QualityRecommendation,
+    QualityRecommendationsService,
     RecommendationCategory,
     RecommendationPriority,
     RecommendationStatus,
 )
-from .realtime_quality_metrics import RealTimeQualityMetricsService, RealTimeQualityMetrics
-from .user_behavior_service import UserBehaviorService, UserBehaviorMetrics, SessionAnalysis, BehaviorPattern
-from .performance_dashboard_service import (
-    PerformanceDashboardService,
-    SystemMonitor,
-    DashboardMetric,
-    DashboardWidget,
-    SystemHealthMetrics,
-    SearchPerformanceMetrics,
-    QualityMetricsSummary,
-    UserEngagementMetrics,
-    MetricTimeRange,
-    DashboardWidgetType,
-    AlertLevel,
+from .realtime_quality_metrics import (
+    RealTimeQualityMetrics,
+    RealTimeQualityMetricsService,
 )
-from .performance_optimizer import PerformanceOptimizer
+from .user_behavior_service import (
+    BehaviorPattern,
+    SessionAnalysis,
+    UserBehaviorMetrics,
+    UserBehaviorService,
+)
 
 __all__ = [
     # Quality metrics

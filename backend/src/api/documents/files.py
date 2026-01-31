@@ -2,23 +2,30 @@
 File upload and management API endpoints
 """
 
-from typing import Optional, List
 import os
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.dependencies import get_current_user, get_current_organization, can_upload_documents, has_storage_quota
-from src.models.user import User, UserRole
-from src.models.organization import Organization
+from src.core.dependencies import (
+    can_upload_documents,
+    get_current_organization,
+    get_current_user,
+    has_storage_quota,
+)
 from src.models.document import Document, DocumentType, ProcessingStatus
+from src.models.organization import Organization
+from src.models.user import User, UserRole
 from src.services.documents.file_service import FileService, get_file_service
 
 router = APIRouter(prefix="/files", tags=["files"])
+
 
 # Request/Response Models
 class FileUploadResponse(BaseModel):
@@ -37,15 +44,18 @@ class FileUploadResponse(BaseModel):
     message: str
     upload_progress: int = 100  # v1 API doesn't support progress tracking
 
+
 class FileListResponse(BaseModel):
     files: List[dict]
     total: int
     page: int
     size: int
 
+
 class FileStatsResponse(BaseModel):
     files_by_type: List[dict]
     processing_stats: List[dict]
+
 
 @router.post("/upload", response_model=FileUploadResponse)
 async def upload_file(
@@ -54,22 +64,27 @@ async def upload_file(
     description: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),
     is_public: bool = Form(False),
-    processing_priority: Optional[str] = Form('normal'),
+    processing_priority: Optional[str] = Form("normal"),
     enable_quality_check: bool = Form(True),
     custom_metadata: Optional[str] = Form(None),
-    current_user: User = Depends(get_current_user),  # Temporarily reduced permission check
+    current_user: User = Depends(
+        get_current_user
+    ),  # Temporarily reduced permission check
     db: AsyncSession = Depends(get_db),
-    file_service: FileService = Depends(get_file_service)
+    file_service: FileService = Depends(get_file_service),
 ):
     """Upload a file to the system"""
 
     # Debug logging
     import logging
+
     logger = logging.getLogger(__name__)
     logger.info(f"📤 Upload Request Debug:")
     logger.info(f"  - User ID: {current_user.id}")
     logger.info(f"  - User Email: {current_user.email}")
-    logger.info(f"  - User Role: {current_user.role.value if current_user.role else 'None'}")
+    logger.info(
+        f"  - User Role: {current_user.role.value if current_user.role else 'None'}"
+    )
     logger.info(f"  - User Active: {current_user.is_active}")
     logger.info(f"  - Can Upload: {current_user.can_upload_documents()}")
     logger.info(f"  - Title: {title}")
@@ -81,22 +96,29 @@ async def upload_file(
     try:
         # Get user's organization
         from src.core.dependencies import get_current_organization
+
         organization = get_current_organization(current_user)
-        logger.info(f"  - Organization ID: {organization.id if organization else 'None'}")
-        logger.info(f"  - Organization Name: {organization.name if organization else 'None'}")
+        logger.info(
+            f"  - Organization ID: {organization.id if organization else 'None'}"
+        )
+        logger.info(
+            f"  - Organization Name: {organization.name if organization else 'None'}"
+        )
 
         # Manual permission check for debugging
         if not current_user.can_upload_documents():
-            logger.error(f"❌ Permission check failed! User {current_user.email} cannot upload documents")
+            logger.error(
+                f"❌ Permission check failed! User {current_user.email} cannot upload documents"
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Insufficient permissions. User role: {current_user.role.value if current_user.role else 'None'}, Required: USER or higher"
+                detail=f"Insufficient permissions. User role: {current_user.role.value if current_user.role else 'None'}, Required: USER or higher",
             )
 
         logger.info(f"✅ Permission check passed!")
 
         # Get file size for quota check
-        if hasattr(file, 'size') and file.size:
+        if hasattr(file, "size") and file.size:
             file_size = file.size
         else:
             # Read content to get size if not available
@@ -108,7 +130,7 @@ async def upload_file(
         if not organization.can_upload_file(file_size):
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"Insufficient storage quota. Available: {organization.storage_available_gb:.2f}GB"
+                detail=f"Insufficient storage quota. Available: {organization.storage_available_gb:.2f}GB",
             )
 
         # Parse tags from comma-separated string
@@ -123,17 +145,17 @@ async def upload_file(
             user=current_user,
             organization=organization,
             tags=tag_list,
-            is_public=is_public
+            is_public=is_public,
         )
 
         # Map backend status to frontend expected status
         status_mapping = {
-            'PENDING': 'queued',
-            'PROCESSING': 'processing',
-            'COMPLETED': 'indexed',
-            'FAILED': 'failed'
+            "PENDING": "queued",
+            "PROCESSING": "processing",
+            "COMPLETED": "indexed",
+            "FAILED": "failed",
         }
-        frontend_status = status_mapping.get(document.processing_status.value, 'queued')
+        frontend_status = status_mapping.get(document.processing_status.value, "queued")
 
         return FileUploadResponse(
             document_id=str(document.id),
@@ -149,14 +171,12 @@ async def upload_file(
             upload_timestamp=document.created_at.isoformat(),
             created_at=document.created_at.isoformat(),
             message="File uploaded successfully",
-            upload_progress=100
+            upload_progress=100,
         )
 
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
 
 @router.get("/", response_model=FileListResponse)
 async def list_files(
@@ -167,16 +187,16 @@ async def list_files(
     search: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """List files in the organization"""
     try:
         from sqlalchemy import or_
-        
+
         # Build conditions
         conditions = [
             Document.organization_id == organization.id,
-            Document.is_deleted == False
+            Document.is_deleted == False,
         ]
 
         # Apply filters
@@ -190,7 +210,7 @@ async def list_files(
             conditions.append(
                 or_(
                     Document.title.ilike(f"%{search}%"),
-                    Document.filename.ilike(f"%{search}%")
+                    Document.filename.ilike(f"%{search}%"),
                 )
             )
 
@@ -209,87 +229,78 @@ async def list_files(
             files=[doc.to_dict() for doc in documents],
             total=total,
             page=page,
-            size=size
+            size=size,
         )
 
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
+
 
 @router.get("/{file_id}")
 async def get_file_info(
     file_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get detailed information about a specific file"""
-    stmt = select(Document).where(
-        Document.id == file_id,
-        Document.is_deleted == False
-    )
+    stmt = select(Document).where(Document.id == file_id, Document.is_deleted == False)
     result = await db.execute(stmt)
     document = result.scalars().first()
 
     if not document:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
         )
 
     # Check permissions
-    if (document.organization_id != current_user.organization_id or
-        (not document.is_public and not current_user.has_permission(UserRole.USER))):
+    if document.organization_id != current_user.organization_id or (
+        not document.is_public and not current_user.has_permission(UserRole.USER)
+    ):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this file"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this file"
         )
 
-    return {
-        "file": document.to_dict(include_content=True)
-    }
+    return {"file": document.to_dict(include_content=True)}
+
 
 @router.get("/{file_id}/download")
 async def download_file(
     file_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Download a file"""
-    stmt = select(Document).where(
-        Document.id == file_id,
-        Document.is_deleted == False
-    )
+    stmt = select(Document).where(Document.id == file_id, Document.is_deleted == False)
     result = await db.execute(stmt)
     document = result.scalars().first()
 
     if not document:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
         )
 
     # Check permissions
-    if (document.organization_id != current_user.organization_id or
-        (not document.is_public and not current_user.has_permission(UserRole.USER))):
+    if document.organization_id != current_user.organization_id or (
+        not document.is_public and not current_user.has_permission(UserRole.USER)
+    ):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this file"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this file"
         )
 
     # Check if file exists
     if not os.path.exists(document.file_path):
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found on disk"
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found on disk"
         )
 
     return FileResponse(
         path=document.file_path,
         filename=document.filename,
-        media_type=document.mime_type
+        media_type=document.mime_type,
     )
+
 
 @router.put("/{file_id}")
 async def update_file_metadata(
@@ -298,28 +309,26 @@ async def update_file_metadata(
     tags: Optional[List[str]] = None,
     is_public: Optional[bool] = None,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Update file metadata"""
-    stmt = select(Document).where(
-        Document.id == file_id,
-        Document.is_deleted == False
-    )
+    stmt = select(Document).where(Document.id == file_id, Document.is_deleted == False)
     result = await db.execute(stmt)
     document = result.scalars().first()
 
     if not document:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
         )
 
     # Check permissions (owner or admin)
-    if (document.uploaded_by_user_id != current_user.id and
-        not current_user.has_permission(UserRole.ADMIN)):
+    if (
+        document.uploaded_by_user_id != current_user.id
+        and not current_user.has_permission(UserRole.ADMIN)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Can only update your own files or require admin role"
+            detail="Can only update your own files or require admin role",
         )
 
     try:
@@ -338,36 +347,31 @@ async def update_file_metadata(
 
         return {
             "message": "File metadata updated successfully",
-            "file": document.to_dict()
+            "file": document.to_dict(),
         }
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
 
 @router.delete("/{file_id}")
 async def delete_file(
     file_id: str,
     current_user: User = Depends(get_current_user),
-    file_service: FileService = Depends(get_file_service)
+    file_service: FileService = Depends(get_file_service),
 ):
     """Delete a file"""
     # Get document
     from src.models.document import Document
-    stmt = select(Document).where(
-        Document.id == file_id,
-        Document.is_deleted == False
-    )
+
+    stmt = select(Document).where(Document.id == file_id, Document.is_deleted == False)
     result = await db.execute(stmt)
     document = result.scalars().first()
 
     if not document:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
         )
 
     try:
@@ -378,75 +382,66 @@ async def delete_file(
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to delete file"
+                detail="Failed to delete file",
             )
 
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
 
 @router.get("/{file_id}/content")
 async def get_file_content(
     file_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get extracted text content of a file"""
-    stmt = select(Document).where(
-        Document.id == file_id,
-        Document.is_deleted == False
-    )
+    stmt = select(Document).where(Document.id == file_id, Document.is_deleted == False)
     result = await db.execute(stmt)
     document = result.scalars().first()
 
     if not document:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
         )
 
     # Check permissions
-    if (document.organization_id != current_user.organization_id or
-        (not document.is_public and not current_user.has_permission(UserRole.USER))):
+    if document.organization_id != current_user.organization_id or (
+        not document.is_public and not current_user.has_permission(UserRole.USER)
+    ):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this file"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this file"
         )
 
     return {
         "content": document.content_text,
         "summary": document.content_summary,
-        "content_preview": document.get_content_preview(500)
+        "content_preview": document.get_content_preview(500),
     }
+
 
 @router.get("/{file_id}/metadata")
 async def get_file_metadata(
     file_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get file metadata"""
-    stmt = select(Document).where(
-        Document.id == file_id,
-        Document.is_deleted == False
-    )
+    stmt = select(Document).where(Document.id == file_id, Document.is_deleted == False)
     result = await db.execute(stmt)
     document = result.scalars().first()
 
     if not document:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
         )
 
     # Check permissions
-    if (document.organization_id != current_user.organization_id or
-        (not document.is_public and not current_user.has_permission(UserRole.USER))):
+    if document.organization_id != current_user.organization_id or (
+        not document.is_public and not current_user.has_permission(UserRole.USER)
+    ):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this file"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this file"
         )
 
     return {
@@ -462,34 +457,35 @@ async def get_file_metadata(
             "tags": document.tags,
             "is_public": document.is_public,
             "created_at": document.created_at,
-            "updated_at": document.updated_at
-        }
+            "updated_at": document.updated_at,
+        },
     }
+
 
 @router.delete("/cancel/{upload_id}")
 async def cancel_upload(
     upload_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Cancel an ongoing upload or delete a recently uploaded document"""
     try:
         # Validate upload_id format
         import uuid
+
         try:
             uuid.UUID(upload_id)
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid upload ID format. Must be a valid UUID."
+                detail="Invalid upload ID format. Must be a valid UUID.",
             )
 
         # First, check if upload_id exists in processing jobs
         from src.models.processing import ProcessingJob
 
         job_stmt = select(ProcessingJob).where(
-            ProcessingJob.celery_task_id == upload_id,
-            ProcessingJob.is_deleted == False
+            ProcessingJob.celery_task_id == upload_id, ProcessingJob.is_deleted == False
         )
         job_result = await db.execute(job_stmt)
         processing_job = job_result.scalars().first()
@@ -500,7 +496,7 @@ async def cancel_upload(
             if processing_job.created_by_user_id != current_user.id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You can only cancel your own uploads"
+                    detail="You can only cancel your own uploads",
                 )
 
             # Check if job can be cancelled (only pending or running jobs)
@@ -508,7 +504,7 @@ async def cancel_upload(
                 return {
                     "message": f"Cannot cancel job in {processing_job.status} state",
                     "upload_id": upload_id,
-                    "job_status": processing_job.status
+                    "job_status": processing_job.status,
                 }
 
             # Update job status to cancelled
@@ -520,14 +516,14 @@ async def cancel_upload(
             return {
                 "message": "Upload cancelled successfully",
                 "upload_id": upload_id,
-                "job_id": processing_job.id
+                "job_id": processing_job.id,
             }
 
         # If no processing job found, check if it's a document ID
         doc_stmt = select(Document).where(
             Document.id == upload_id,
             Document.uploaded_by_user_id == current_user.id,
-            Document.is_deleted == False
+            Document.is_deleted == False,
         )
         doc_result = await db.execute(doc_stmt)
         document = doc_result.scalars().first()
@@ -542,19 +538,19 @@ async def cancel_upload(
                 return {
                     "message": "Document upload cancelled successfully",
                     "upload_id": upload_id,
-                    "document_id": document.id
+                    "document_id": document.id,
                 }
             else:
                 return {
                     "message": f"Cannot cancel document in {document.processing_status.value} state",
                     "upload_id": upload_id,
-                    "document_status": document.processing_status.value
+                    "document_status": document.processing_status.value,
                 }
 
         # If neither processing job nor document found
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Upload job or document not found"
+            detail="Upload job or document not found",
         )
 
     except HTTPException:
@@ -563,13 +559,14 @@ async def cancel_upload(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to cancel upload: {str(e)}"
+            detail=f"Failed to cancel upload: {str(e)}",
         )
+
 
 @router.get("/debug-auth")
 async def debug_auth(
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization)
+    organization: Organization = Depends(get_current_organization),
 ):
     """Debug endpoint to check authentication state"""
     return {
@@ -583,16 +580,19 @@ async def debug_auth(
         "user_permissions": {
             "has_user_role": current_user.has_permission(UserRole.USER),
             "has_admin_role": current_user.has_permission(UserRole.ADMIN),
-            "has_content_manager_role": current_user.has_permission(UserRole.CONTENT_MANAGER),
+            "has_content_manager_role": current_user.has_permission(
+                UserRole.CONTENT_MANAGER
+            ),
             "has_analyst_role": current_user.has_permission(UserRole.ANALYST),
-        }
+        },
     }
+
 
 @router.get("/stats", response_model=FileStatsResponse)
 async def get_file_statistics(
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    file_service: FileService = Depends(get_file_service)
+    file_service: FileService = Depends(get_file_service),
 ):
     """Get file statistics for the organization"""
     try:
@@ -600,36 +600,34 @@ async def get_file_statistics(
         return FileStatsResponse(**stats)
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
+
 
 @router.post("/{file_id}/reprocess")
 async def reprocess_file(
     file_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Trigger reprocessing of a file"""
-    stmt = select(Document).where(
-        Document.id == file_id,
-        Document.is_deleted == False
-    )
+    stmt = select(Document).where(Document.id == file_id, Document.is_deleted == False)
     result = await db.execute(stmt)
     document = result.scalars().first()
 
     if not document:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
         )
 
     # Check permissions
-    if (document.uploaded_by_user_id != current_user.id and
-        not current_user.has_permission(UserRole.ADMIN)):
+    if (
+        document.uploaded_by_user_id != current_user.id
+        and not current_user.has_permission(UserRole.ADMIN)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Can only reprocess your own files or require admin role"
+            detail="Can only reprocess your own files or require admin role",
         )
 
     try:
@@ -644,12 +642,9 @@ async def reprocess_file(
 
         return {
             "message": "File queued for reprocessing",
-            "processing_status": document.processing_status.value
+            "processing_status": document.processing_status.value,
         }
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
