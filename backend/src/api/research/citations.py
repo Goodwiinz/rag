@@ -7,26 +7,26 @@ Handles:
 - Bibliography export
 """
 
+from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
 from structlog import get_logger
 
 from src.core.database import get_db
+from src.models import Citation, CollectionDocument, User
+from src.services.research.bibliography_service import BibliographyService
+from src.services.research.citation_extraction_service import CitationExtractionService
 from src.services.security.user_management import get_current_user
-from src.models import User, Citation
 from src.shared.research_schemas import (
     CitationCreate,
-    CitationUpdate,
-    CitationResponse,
     CitationListResponse,
+    CitationResponse,
+    CitationUpdate,
 )
-from src.services.research.citation_extraction_service import CitationExtractionService
-from src.services.research.bibliography_service import BibliographyService
 
 logger = get_logger()
 router = APIRouter(prefix="/api/v1/citations", tags=["citations"])
@@ -85,7 +85,9 @@ async def create_citation(
 
     except Exception as e:
         await db.rollback()
-        logger.error("citation_creation_failed", error=str(e), user_id=str(current_user.id))
+        logger.error(
+            "citation_creation_failed", error=str(e), user_id=str(current_user.id)
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create citation: {str(e)}",
@@ -98,7 +100,9 @@ async def list_citations(
     document_id: Optional[UUID] = Query(None, description="Filter by document ID"),
     arxiv_id: Optional[str] = Query(None, description="Filter by ArXiv ID"),
     doi: Optional[str] = Query(None, description="Filter by DOI"),
-    needs_review: Optional[bool] = Query(None, description="Filter by needs_review flag"),
+    needs_review: Optional[bool] = Query(
+        None, description="Filter by needs_review flag"
+    ),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(50, ge=1, le=100, description="Max records to return"),
     current_user: User = Depends(get_current_user),
@@ -123,7 +127,7 @@ async def list_citations(
     try:
         # Build query with filters
         query = select(Citation)
-        
+
         filters = []
         if message_id:
             filters.append(Citation.message_id == message_id)
@@ -140,7 +144,11 @@ async def list_citations(
             query = query.where(and_(*filters))
 
         # Get total count
-        count_query = select(Citation.id).where(and_(*filters)) if filters else select(Citation.id)
+        count_query = (
+            select(Citation.id).where(and_(*filters))
+            if filters
+            else select(Citation.id)
+        )
         total_result = await db.execute(count_query)
         total = len(total_result.all())
 
@@ -208,7 +216,9 @@ async def get_citation(
         )
 
 
-@router.post("/extract", response_model=CitationResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/extract", response_model=CitationResponse, status_code=status.HTTP_201_CREATED
+)
 async def extract_citation(
     arxiv_id: Optional[str] = None,
     doi: Optional[str] = None,
@@ -218,7 +228,7 @@ async def extract_citation(
     db: AsyncSession = Depends(get_db),
 ):
     """Extract citation metadata using hybrid extraction pipeline.
-    
+
     Args:
         arxiv_id: Optional ArXiv ID
         doi: Optional DOI
@@ -226,32 +236,32 @@ async def extract_citation(
         strategy: Extraction strategy ("auto", "arxiv", "semantic_scholar", "crossref")
         current_user: Authenticated user
         db: Database session
-        
+
     Returns:
         Extracted citation
     """
     if not arxiv_id and not doi and not title:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Must provide at least one of: arxiv_id, doi, or title"
+            detail="Must provide at least one of: arxiv_id, doi, or title",
         )
-    
+
     try:
         extraction_service = CitationExtractionService(db)
-        
+
         # Extract using hybrid strategy
         citation_data, source = await extraction_service.extract_hybrid(
             arxiv_id=arxiv_id,
             doi=doi,
             title=title,
         )
-        
+
         if not citation_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Could not extract citation metadata from any source"
+                detail="Could not extract citation metadata from any source",
             )
-        
+
         # Create citation in database
         citation = Citation(
             document_title=citation_data.documentTitle,
@@ -264,11 +274,11 @@ async def extract_citation(
             metadata_source=source,
             needs_review=False,
         )
-        
+
         db.add(citation)
         await db.commit()
         await db.refresh(citation)
-        
+
         logger.info(
             "citation_extracted",
             citation_id=str(citation.id),
@@ -276,9 +286,9 @@ async def extract_citation(
             arxiv_id=arxiv_id,
             doi=doi,
         )
-        
+
         return CitationResponse.model_validate(citation)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -286,7 +296,7 @@ async def extract_citation(
         logger.error("citation_extraction_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to extract citation: {str(e)}"
+            detail=f"Failed to extract citation: {str(e)}",
         )
 
 
@@ -299,38 +309,37 @@ async def lookup_citation(
     db: AsyncSession = Depends(get_db),
 ):
     """Lookup citation by ArXiv ID, DOI, or title (no database persistence).
-    
+
     Args:
         arxiv_id: Optional ArXiv ID
         doi: Optional DOI
         title: Optional paper title
         current_user: Authenticated user
         db: Database session
-        
+
     Returns:
         Citation metadata (not persisted)
     """
     if not arxiv_id and not doi and not title:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Must provide at least one of: arxiv_id, doi, or title"
+            detail="Must provide at least one of: arxiv_id, doi, or title",
         )
-    
+
     try:
         extraction_service = CitationExtractionService(db)
-        
+
         citation_data, source = await extraction_service.extract_hybrid(
             arxiv_id=arxiv_id,
             doi=doi,
             title=title,
         )
-        
+
         if not citation_data:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Citation not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Citation not found"
             )
-        
+
         # Return citation without persisting
         return CitationResponse(
             id="00000000-0000-0000-0000-000000000000",  # Placeholder ID
@@ -346,14 +355,14 @@ async def lookup_citation(
             createdAt=datetime.now().isoformat(),
             updatedAt=datetime.now().isoformat(),
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error("citation_lookup_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to lookup citation: {str(e)}"
+            detail=f"Failed to lookup citation: {str(e)}",
         )
 
 
@@ -366,85 +375,90 @@ async def export_bibliography(
     db: AsyncSession = Depends(get_db),
 ):
     """Export bibliography in specified format.
-    
+
     Args:
         format: Bibliography format ("bibtex", "ieee", "apa", "mla")
         citation_ids: Optional list of citation IDs to export
         project_id: Optional project ID to export all citations from
         current_user: Authenticated user
         db: Database session
-        
+
     Returns:
         Formatted bibliography as plain text
     """
     if not citation_ids and not project_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Must provide either citation_ids or project_id"
+            detail="Must provide either citation_ids or project_id",
         )
-    
+
     try:
         # Fetch citations
         query = select(Citation)
-        
+
         if citation_ids:
             query = query.where(Citation.id.in_(citation_ids))
         elif project_id:
-            # TODO: Add project-citation relationship when projects are implemented
-            raise HTTPException(
-                status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                detail="Project-based export not yet implemented"
+            # Get all document IDs in this project via CollectionDocument junction table
+            doc_query = select(CollectionDocument.document_id).where(
+                CollectionDocument.collection_id == project_id
             )
-        
+            doc_result = await db.execute(doc_query)
+            document_ids = [row[0] for row in doc_result.all()]
+
+            if not document_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No documents found in project",
+                )
+
+            # Filter citations by documents in the project
+            query = query.where(Citation.document_id.in_(document_ids))
+
         result = await db.execute(query)
         citations = result.scalars().all()
-        
+
         if not citations:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No citations found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="No citations found"
             )
-        
+
         # Format bibliography
         bibliography = BibliographyService.format_bibliography(
-            citations=list(citations),
-            format_type=format
+            citations=list(citations), format_type=format
         )
-        
+
         logger.info(
             "bibliography_exported",
             format=format,
             citation_count=len(citations),
             user_id=str(current_user.id),
         )
-        
+
         # Return as plain text with appropriate content type
         from fastapi.responses import PlainTextResponse
-        
+
         content_type = "text/plain"
         if format == "bibtex":
             content_type = "application/x-bibtex"
-        
+
         return PlainTextResponse(
             content=bibliography,
             media_type=content_type,
             headers={
                 "Content-Disposition": f'attachment; filename="bibliography.{format}"'
-            }
+            },
         )
-        
+
     except HTTPException:
         raise
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error("bibliography_export_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to export bibliography: {str(e)}"
+            detail=f"Failed to export bibliography: {str(e)}",
         )
 
 
@@ -452,31 +466,34 @@ async def export_bibliography(
 # Citation Graph Endpoints (T053-T054)
 # =========================================================================
 
+
 @router.get("/relationships")
 async def list_citation_relationships(
     source_id: Optional[UUID] = Query(None, description="Filter by source citation ID"),
     target_id: Optional[UUID] = Query(None, description="Filter by target citation ID"),
-    relationship_type: Optional[str] = Query(None, description="Filter by relationship type"),
+    relationship_type: Optional[str] = Query(
+        None, description="Filter by relationship type"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List citation relationships.
-    
+
     Args:
         source_id: Optional source citation filter
         target_id: Optional target citation filter
         relationship_type: Optional relationship type filter
         current_user: Authenticated user
         db: Database session
-        
+
     Returns:
         List of citation relationships
     """
     from src.models import CitationRelationship
-    
+
     try:
         query = select(CitationRelationship)
-        
+
         filters = []
         if source_id:
             filters.append(CitationRelationship.source_citation_id == source_id)
@@ -484,13 +501,13 @@ async def list_citation_relationships(
             filters.append(CitationRelationship.target_citation_id == target_id)
         if relationship_type:
             filters.append(CitationRelationship.relationship_type == relationship_type)
-        
+
         if filters:
             query = query.where(and_(*filters))
-        
+
         result = await db.execute(query)
         relationships = result.scalars().all()
-        
+
         return {
             "relationships": [
                 {
@@ -506,12 +523,12 @@ async def list_citation_relationships(
             ],
             "total": len(relationships),
         }
-        
+
     except Exception as e:
         logger.error("list_relationships_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list relationships: {str(e)}"
+            detail=f"Failed to list relationships: {str(e)}",
         )
 
 
@@ -526,7 +543,7 @@ async def create_citation_relationship(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a citation relationship.
-    
+
     Args:
         source_citation_id: The citing paper
         target_citation_id: The cited paper
@@ -535,41 +552,41 @@ async def create_citation_relationship(
         confidence: Confidence score
         current_user: Authenticated user
         db: Database session
-        
+
     Returns:
         Created relationship
     """
     from src.models import CitationRelationship
     from src.services.research.citation_graph_service import get_citation_graph_service
-    
+
     if source_citation_id == target_citation_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Source and target citations cannot be the same"
+            detail="Source and target citations cannot be the same",
         )
-    
+
     try:
         # Verify both citations exist
         source_query = select(Citation).where(Citation.id == source_citation_id)
         target_query = select(Citation).where(Citation.id == target_citation_id)
-        
+
         source_result = await db.execute(source_query)
         target_result = await db.execute(target_query)
-        
+
         source_citation = source_result.scalar_one_or_none()
         target_citation = target_result.scalar_one_or_none()
-        
+
         if not source_citation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Source citation {source_citation_id} not found"
+                detail=f"Source citation {source_citation_id} not found",
             )
         if not target_citation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Target citation {target_citation_id} not found"
+                detail=f"Target citation {target_citation_id} not found",
             )
-        
+
         # Create relationship in PostgreSQL
         relationship = CitationRelationship(
             source_citation_id=source_citation_id,
@@ -578,11 +595,11 @@ async def create_citation_relationship(
             citation_context=citation_context,
             confidence=confidence,
         )
-        
+
         db.add(relationship)
         await db.commit()
         await db.refresh(relationship)
-        
+
         # Sync to Neo4j graph
         try:
             graph_service = await get_citation_graph_service()
@@ -599,7 +616,7 @@ async def create_citation_relationship(
                 error=str(graph_error),
                 relationship_id=str(relationship.id),
             )
-        
+
         logger.info(
             "citation_relationship_created",
             relationship_id=str(relationship.id),
@@ -607,7 +624,7 @@ async def create_citation_relationship(
             target=str(target_citation_id),
             type=relationship_type,
         )
-        
+
         return {
             "id": str(relationship.id),
             "source_citation_id": str(relationship.source_citation_id),
@@ -615,9 +632,11 @@ async def create_citation_relationship(
             "relationship_type": relationship.relationship_type,
             "citation_context": relationship.citation_context,
             "confidence": relationship.confidence,
-            "created_at": relationship.created_at.isoformat() if relationship.created_at else None,
+            "created_at": relationship.created_at.isoformat()
+            if relationship.created_at
+            else None,
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -625,7 +644,7 @@ async def create_citation_relationship(
         logger.error("create_relationship_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create relationship: {str(e)}"
+            detail=f"Failed to create relationship: {str(e)}",
         )
 
 
@@ -638,29 +657,29 @@ async def get_citation_graph(
     current_user: User = Depends(get_current_user),
 ):
     """Get citation graph data for visualization.
-    
+
     Args:
         project_id: Optional project filter
         document_id: Optional document filter
         depth: How many levels of citations to traverse
         include_external: Include non-uploaded papers
         current_user: Authenticated user
-        
+
     Returns:
         Graph data with nodes, edges, and metadata
     """
     from src.services.research.citation_graph_service import get_citation_graph_service
-    
+
     try:
         graph_service = await get_citation_graph_service()
-        
+
         graph_data = await graph_service.get_citation_graph(
             project_id=project_id,
             document_id=document_id,
             depth=depth,
             include_external=include_external,
         )
-        
+
         logger.info(
             "citation_graph_retrieved",
             project_id=str(project_id) if project_id else None,
@@ -668,14 +687,14 @@ async def get_citation_graph(
             node_count=len(graph_data.get("nodes", [])),
             edge_count=len(graph_data.get("edges", [])),
         )
-        
+
         return graph_data
-        
+
     except Exception as e:
         logger.error("get_graph_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get citation graph: {str(e)}"
+            detail=f"Failed to get citation graph: {str(e)}",
         )
 
 
@@ -685,34 +704,36 @@ async def get_graph_node_details(
     current_user: User = Depends(get_current_user),
 ):
     """Get detailed information about a graph node.
-    
+
     Args:
         citation_id: The citation ID
         current_user: Authenticated user
-        
+
     Returns:
         Node details with citation counts and influence score
     """
     from src.services.research.citation_graph_service import get_citation_graph_service
-    
+
     try:
         graph_service = await get_citation_graph_service()
-        
+
         node_details = await graph_service.get_node_details(citation_id)
-        
+
         if not node_details:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Node {citation_id} not found in graph"
+                detail=f"Node {citation_id} not found in graph",
             )
-        
+
         return node_details
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("get_node_details_failed", error=str(e), citation_id=str(citation_id))
+        logger.error(
+            "get_node_details_failed", error=str(e), citation_id=str(citation_id)
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get node details: {str(e)}"
+            detail=f"Failed to get node details: {str(e)}",
         )
