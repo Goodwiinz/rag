@@ -5,23 +5,34 @@ Graph Analytics Service with Neo4j algorithms
 import asyncio
 import logging
 import time
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Union, Tuple
 from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession
+from neo4j import AsyncDriver, AsyncGraphDatabase, AsyncSession
 from neo4j.exceptions import ServiceUnavailable, TransientError
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession as SQLAsyncSession
-from sqlalchemy import select, update, delete, and_, or_, func
 from sqlalchemy.orm import selectinload
 
 from src.core.config import settings
 from src.core.database import get_async_session
 from src.models.analytics.graph_analytics import (
-    GraphAnalyticsResult, NodeMetrics, EdgeMetrics, CommunityMetrics, PathAnalytics,
-    GraphAlgorithmType, NodeType, EdgeType,
-    GraphAnalysisRequest, GraphAnalysisResponse, PathAnalysisRequest, PathAnalysisResponse,
-    GraphStatistics, CentralityRanking, CentralityAnalysis
+    CentralityAnalysis,
+    CentralityRanking,
+    CommunityMetrics,
+    EdgeMetrics,
+    EdgeType,
+    GraphAlgorithmType,
+    GraphAnalysisRequest,
+    GraphAnalysisResponse,
+    GraphAnalyticsResult,
+    GraphStatistics,
+    NodeMetrics,
+    NodeType,
+    PathAnalysisRequest,
+    PathAnalysisResponse,
+    PathAnalytics,
 )
 from src.models.base import GUID
 
@@ -47,7 +58,7 @@ class GraphAnalyticsService:
                 max_connection_lifetime=self.max_connection_lifetime,
                 max_connection_pool_size=self.connection_pool_size,
                 connection_acquisition_timeout=self.max_connection_acquisition_time,
-                max_transaction_retry_time=30
+                max_transaction_retry_time=30,
             )
 
             # Test connection
@@ -90,7 +101,9 @@ class GraphAnalyticsService:
             logger.error(f"Neo4j connectivity verification failed: {e}")
             raise
 
-    async def run_graph_analysis(self, request: GraphAnalysisRequest, user_id: uuid.UUID) -> GraphAnalysisResponse:
+    async def run_graph_analysis(
+        self, request: GraphAnalysisRequest, user_id: uuid.UUID
+    ) -> GraphAnalysisResponse:
         """Run graph analysis with specified algorithm"""
         if not self.initialized:
             raise RuntimeError("Graph analytics service not initialized")
@@ -109,9 +122,9 @@ class GraphAnalyticsService:
                         "algorithm": request.algorithm,
                         "node_filters": request.node_filters,
                         "edge_filters": request.edge_filters,
-                        "parameters": request.parameters
+                        "parameters": request.parameters,
                     },
-                    status="running"
+                    status="running",
                 )
                 db.add(db_result)
                 await db.commit()
@@ -121,17 +134,27 @@ class GraphAnalyticsService:
             if request.algorithm == GraphAlgorithmType.PAGERANK:
                 analysis_result = await self._run_pagerank(db_result.id, request)
             elif request.algorithm == GraphAlgorithmType.BETWEENNESS_CENTRALITY:
-                analysis_result = await self._run_betweenness_centrality(db_result.id, request)
+                analysis_result = await self._run_betweenness_centrality(
+                    db_result.id, request
+                )
             elif request.algorithm == GraphAlgorithmType.COMMUNITY_DETECTION:
-                analysis_result = await self._run_community_detection(db_result.id, request)
+                analysis_result = await self._run_community_detection(
+                    db_result.id, request
+                )
             elif request.algorithm == GraphAlgorithmType.CONNECTED_COMPONENTS:
-                analysis_result = await self._run_connected_components(db_result.id, request)
+                analysis_result = await self._run_connected_components(
+                    db_result.id, request
+                )
             elif request.algorithm == GraphAlgorithmType.SHORTEST_PATH:
-                analysis_result = await self._run_shortest_path_analysis(db_result.id, request)
+                analysis_result = await self._run_shortest_path_analysis(
+                    db_result.id, request
+                )
             elif request.algorithm == GraphAlgorithmType.TRIANGLE_COUNT:
                 analysis_result = await self._run_triangle_count(db_result.id, request)
             elif request.algorithm == GraphAlgorithmType.CLUSTERING_COEFFICIENT:
-                analysis_result = await self._run_clustering_coefficient(db_result.id, request)
+                analysis_result = await self._run_clustering_coefficient(
+                    db_result.id, request
+                )
             else:
                 raise ValueError(f"Unsupported algorithm: {request.algorithm}")
 
@@ -149,7 +172,7 @@ class GraphAnalyticsService:
                         edge_count=analysis_result.get("edge_count", 0),
                         component_count=analysis_result.get("component_count"),
                         density=analysis_result.get("density"),
-                        results=analysis_result.get("results", {})
+                        results=analysis_result.get("results", {}),
                     )
                 )
                 await db.commit()
@@ -171,17 +194,25 @@ class GraphAnalyticsService:
                         .values(
                             status="failed",
                             execution_time_ms=execution_time,
-                            error_message=str(e)
+                            error_message=str(e),
                         )
                     )
                     await db.commit()
 
             raise
 
-    async def _run_pagerank(self, analysis_id: uuid.UUID, request: GraphAnalysisRequest) -> Dict[str, Any]:
+    async def _run_pagerank(
+        self, analysis_id: uuid.UUID, request: GraphAnalysisRequest
+    ) -> Dict[str, Any]:
         """Run PageRank algorithm"""
-        damping_factor = request.parameters.get("damping_factor", 0.85) if request.parameters else 0.85
-        max_iterations = request.parameters.get("max_iterations", 20) if request.parameters else 20
+        damping_factor = (
+            request.parameters.get("damping_factor", 0.85)
+            if request.parameters
+            else 0.85
+        )
+        max_iterations = (
+            request.parameters.get("max_iterations", 20) if request.parameters else 20
+        )
 
         # Build Cypher query with filters
         node_filter = self._build_node_filter(request.node_filters)
@@ -198,10 +229,10 @@ class GraphAnalyticsService:
         """
 
         async with self.get_session() as session:
-            result = await session.run(query, {
-                "damping_factor": damping_factor,
-                "max_iterations": max_iterations
-            })
+            result = await session.run(
+                query,
+                {"damping_factor": damping_factor, "max_iterations": max_iterations},
+            )
             record = await result.single()
 
             node_count = record["node_count"]
@@ -212,18 +243,26 @@ class GraphAnalyticsService:
             await self._store_node_metrics(analysis_id, rankings, "pagerank_score")
 
             # Calculate graph density
-            density = (2 * edge_count) / (node_count * (node_count - 1)) if node_count > 1 else 0
+            density = (
+                (2 * edge_count) / (node_count * (node_count - 1))
+                if node_count > 1
+                else 0
+            )
 
             return {
                 "node_count": node_count,
                 "edge_count": edge_count,
                 "density": density,
                 "results": {
-                    "rankings": rankings[:request.max_results] if request.max_results else rankings
-                }
+                    "rankings": rankings[: request.max_results]
+                    if request.max_results
+                    else rankings
+                },
             }
 
-    async def _run_betweenness_centrality(self, analysis_id: uuid.UUID, request: GraphAnalysisRequest) -> Dict[str, Any]:
+    async def _run_betweenness_centrality(
+        self, analysis_id: uuid.UUID, request: GraphAnalysisRequest
+    ) -> Dict[str, Any]:
         """Run betweenness centrality algorithm"""
         # Build Cypher query
         node_filter = self._build_node_filter(request.node_filters)
@@ -245,19 +284,27 @@ class GraphAnalyticsService:
             rankings = record["rankings"]
 
             # Store node metrics
-            await self._store_node_metrics(analysis_id, rankings, "betweenness_centrality")
+            await self._store_node_metrics(
+                analysis_id, rankings, "betweenness_centrality"
+            )
 
             return {
                 "node_count": node_count,
                 "edge_count": 0,  # Not calculated in this implementation
                 "results": {
-                    "rankings": rankings[:request.max_results] if request.max_results else rankings
-                }
+                    "rankings": rankings[: request.max_results]
+                    if request.max_results
+                    else rankings
+                },
             }
 
-    async def _run_community_detection(self, analysis_id: uuid.UUID, request: GraphAnalysisRequest) -> Dict[str, Any]:
+    async def _run_community_detection(
+        self, analysis_id: uuid.UUID, request: GraphAnalysisRequest
+    ) -> Dict[str, Any]:
         """Run community detection algorithm (Louvain)"""
-        resolution = request.parameters.get("resolution", 1.0) if request.parameters else 1.0
+        resolution = (
+            request.parameters.get("resolution", 1.0) if request.parameters else 1.0
+        )
 
         node_filter = self._build_node_filter(request.node_filters)
         edge_filter = self._build_edge_filter(request.edge_filters)
@@ -290,11 +337,13 @@ class GraphAnalyticsService:
                 "component_count": community_count,
                 "results": {
                     "community_count": community_count,
-                    "assignments": assignments
-                }
+                    "assignments": assignments,
+                },
             }
 
-    async def _run_connected_components(self, analysis_id: uuid.UUID, request: GraphAnalysisRequest) -> Dict[str, Any]:
+    async def _run_connected_components(
+        self, analysis_id: uuid.UUID, request: GraphAnalysisRequest
+    ) -> Dict[str, Any]:
         """Run connected components algorithm"""
         node_filter = self._build_node_filter(request.node_filters)
         edge_filter = self._build_edge_filter(request.edge_filters)
@@ -321,17 +370,25 @@ class GraphAnalyticsService:
                 "component_count": component_count,
                 "results": {
                     "component_count": component_count,
-                    "assignments": assignments
-                }
+                    "assignments": assignments,
+                },
             }
 
-    async def _run_shortest_path_analysis(self, analysis_id: uuid.UUID, request: GraphAnalysisRequest) -> Dict[str, Any]:
+    async def _run_shortest_path_analysis(
+        self, analysis_id: uuid.UUID, request: GraphAnalysisRequest
+    ) -> Dict[str, Any]:
         """Run shortest path analysis"""
-        source_id = request.parameters.get("source_node_id") if request.parameters else None
-        target_id = request.parameters.get("target_node_id") if request.parameters else None
+        source_id = (
+            request.parameters.get("source_node_id") if request.parameters else None
+        )
+        target_id = (
+            request.parameters.get("target_node_id") if request.parameters else None
+        )
 
         if not source_id or not target_id:
-            raise ValueError("source_node_id and target_id are required for shortest path analysis")
+            raise ValueError(
+                "source_node_id and target_id are required for shortest path analysis"
+            )
 
         query = """
         MATCH (start), (end)
@@ -344,10 +401,9 @@ class GraphAnalyticsService:
         """
 
         async with self.get_session() as session:
-            result = await session.run(query, {
-                "source_id": int(source_id),
-                "target_id": int(target_id)
-            })
+            result = await session.run(
+                query, {"source_id": int(source_id), "target_id": int(target_id)}
+            )
             record = await result.single()
 
             if record:
@@ -358,17 +414,19 @@ class GraphAnalyticsService:
                         "path_length": record["path_length"],
                         "path_nodes": record["path_nodes"],
                         "path_edges": record["path_edges"],
-                        "total_weight": record["total_weight"]
-                    }
+                        "total_weight": record["total_weight"],
+                    },
                 }
             else:
                 return {
                     "node_count": 0,
                     "edge_count": 0,
-                    "results": {"error": "No path found"}
+                    "results": {"error": "No path found"},
                 }
 
-    async def _run_triangle_count(self, analysis_id: uuid.UUID, request: GraphAnalysisRequest) -> Dict[str, Any]:
+    async def _run_triangle_count(
+        self, analysis_id: uuid.UUID, request: GraphAnalysisRequest
+    ) -> Dict[str, Any]:
         """Run triangle counting algorithm"""
         node_filter = self._build_node_filter(request.node_filters)
         edge_filter = self._build_edge_filter(request.edge_filters)
@@ -397,11 +455,15 @@ class GraphAnalyticsService:
                 "edge_count": triangle_count * 3,  # Approximate
                 "results": {
                     "triangle_count": triangle_count,
-                    "triangles": triangles[:request.max_results] if request.max_results else triangles
-                }
+                    "triangles": triangles[: request.max_results]
+                    if request.max_results
+                    else triangles,
+                },
             }
 
-    async def _run_clustering_coefficient(self, analysis_id: uuid.UUID, request: GraphAnalysisRequest) -> Dict[str, Any]:
+    async def _run_clustering_coefficient(
+        self, analysis_id: uuid.UUID, request: GraphAnalysisRequest
+    ) -> Dict[str, Any]:
         """Run clustering coefficient calculation"""
         node_filter = self._build_node_filter(request.node_filters)
         edge_filter = self._build_edge_filter(request.edge_filters)
@@ -436,18 +498,24 @@ class GraphAnalyticsService:
                 {"node_id": coeff["node_id"], "score": coeff["coefficient"]}
                 for coeff in coefficients
             ]
-            await self._store_node_metrics(analysis_id, node_metrics, "clustering_coefficient")
+            await self._store_node_metrics(
+                analysis_id, node_metrics, "clustering_coefficient"
+            )
 
             return {
                 "node_count": node_count,
                 "edge_count": 0,
                 "results": {
                     "average_clustering_coefficient": avg_clustering,
-                    "coefficients": coefficients[:request.max_results] if request.max_results else coefficients
-                }
+                    "coefficients": coefficients[: request.max_results]
+                    if request.max_results
+                    else coefficients,
+                },
             }
 
-    async def run_path_analysis(self, request: PathAnalysisRequest, user_id: uuid.UUID) -> PathAnalysisResponse:
+    async def run_path_analysis(
+        self, request: PathAnalysisRequest, user_id: uuid.UUID
+    ) -> PathAnalysisResponse:
         """Run path analysis between nodes"""
         if not self.initialized:
             raise RuntimeError("Graph analytics service not initialized")
@@ -464,7 +532,7 @@ class GraphAnalyticsService:
                     max_depth=request.max_depth,
                     path_count_limit=request.path_count_limit,
                     weight_property=request.weight_property,
-                    status="running"
+                    status="running",
                 )
                 db.add(db_result)
                 await db.commit()
@@ -478,14 +546,18 @@ class GraphAnalyticsService:
             elif request.analysis_type == "k_shortest":
                 paths = await self._find_k_shortest_paths(request)
             else:
-                raise ValueError(f"Unsupported path analysis type: {request.analysis_type}")
+                raise ValueError(
+                    f"Unsupported path analysis type: {request.analysis_type}"
+                )
 
             execution_time = int((time.time() - start_time) * 1000)
 
             # Calculate metrics
             total_paths = len(paths)
             path_lengths = [len(path["nodes"]) - 1 for path in paths if path["nodes"]]
-            avg_path_length = sum(path_lengths) / len(path_lengths) if path_lengths else 0
+            avg_path_length = (
+                sum(path_lengths) / len(path_lengths) if path_lengths else 0
+            )
             shortest_length = min(path_lengths) if path_lengths else None
             longest_length = max(path_lengths) if path_lengths else None
 
@@ -501,7 +573,7 @@ class GraphAnalyticsService:
                         average_path_length=avg_path_length,
                         shortest_path_length=shortest_length,
                         longest_path_length=longest_length,
-                        paths=paths
+                        paths=paths,
                     )
                 )
                 await db.commit()
@@ -521,13 +593,13 @@ class GraphAnalyticsService:
                         "nodes": path["nodes"],
                         "edges": path["edges"],
                         "length": len(path["nodes"]) - 1,
-                        "weight": path.get("weight")
+                        "weight": path.get("weight"),
                     }
                     for i, path in enumerate(paths)
                 ],
                 execution_time_ms=execution_time,
                 status="completed",
-                created_at=db_result.created_at
+                created_at=db_result.created_at,
             )
 
         except Exception as e:
@@ -543,16 +615,22 @@ class GraphAnalyticsService:
                         .values(
                             status="failed",
                             execution_time_ms=execution_time,
-                            error_message=str(e)
+                            error_message=str(e),
                         )
                     )
                     await db.commit()
 
             raise
 
-    async def _find_shortest_paths(self, request: PathAnalysisRequest) -> List[Dict[str, Any]]:
+    async def _find_shortest_paths(
+        self, request: PathAnalysisRequest
+    ) -> List[Dict[str, Any]]:
         """Find shortest paths between nodes"""
-        weight_clause = f"weight: r.{request.weight_property}" if request.weight_property else "weight: 1"
+        weight_clause = (
+            f"weight: r.{request.weight_property}"
+            if request.weight_property
+            else "weight: 1"
+        )
 
         query = f"""
         MATCH (start), (end)
@@ -565,24 +643,31 @@ class GraphAnalyticsService:
         """
 
         async with self.get_session() as session:
-            result = await session.run(query, {
-                "source_id": int(request.source_node_id),
-                "target_id": int(request.target_node_id),
-                "weight_property": request.weight_property,
-                "limit": request.path_count_limit or 10
-            })
+            result = await session.run(
+                query,
+                {
+                    "source_id": int(request.source_node_id),
+                    "target_id": int(request.target_node_id),
+                    "weight_property": request.weight_property,
+                    "limit": request.path_count_limit or 10,
+                },
+            )
 
             paths = []
             async for record in result:
-                paths.append({
-                    "nodes": record["nodes"],
-                    "edges": record["edges"],
-                    "weight": record["weight"]
-                })
+                paths.append(
+                    {
+                        "nodes": record["nodes"],
+                        "edges": record["edges"],
+                        "weight": record["weight"],
+                    }
+                )
 
             return paths
 
-    async def _find_all_paths(self, request: PathAnalysisRequest) -> List[Dict[str, Any]]:
+    async def _find_all_paths(
+        self, request: PathAnalysisRequest
+    ) -> List[Dict[str, Any]]:
         """Find all paths between nodes"""
         max_depth = request.max_depth or 5
 
@@ -596,23 +681,25 @@ class GraphAnalyticsService:
         """
 
         async with self.get_session() as session:
-            result = await session.run(query, {
-                "source_id": int(request.source_node_id),
-                "target_id": int(request.target_node_id),
-                "max_depth": max_depth,
-                "limit": request.path_count_limit or 100
-            })
+            result = await session.run(
+                query,
+                {
+                    "source_id": int(request.source_node_id),
+                    "target_id": int(request.target_node_id),
+                    "max_depth": max_depth,
+                    "limit": request.path_count_limit or 100,
+                },
+            )
 
             paths = []
             async for record in result:
-                paths.append({
-                    "nodes": record["nodes"],
-                    "edges": record["edges"]
-                })
+                paths.append({"nodes": record["nodes"], "edges": record["edges"]})
 
             return paths
 
-    async def _find_k_shortest_paths(self, request: PathAnalysisRequest) -> List[Dict[str, Any]]:
+    async def _find_k_shortest_paths(
+        self, request: PathAnalysisRequest
+    ) -> List[Dict[str, Any]]:
         """Find k shortest paths between nodes"""
         k = request.path_count_limit or 5
 
@@ -626,20 +713,25 @@ class GraphAnalyticsService:
         """
 
         async with self.get_session() as session:
-            result = await session.run(query, {
-                "source_id": int(request.source_node_id),
-                "target_id": int(request.target_node_id),
-                "k": k,
-                "weight_property": request.weight_property
-            })
+            result = await session.run(
+                query,
+                {
+                    "source_id": int(request.source_node_id),
+                    "target_id": int(request.target_node_id),
+                    "k": k,
+                    "weight_property": request.weight_property,
+                },
+            )
 
             paths = []
             async for record in result:
-                paths.append({
-                    "nodes": record["nodes"],
-                    "edges": record["edges"],
-                    "weight": record["weight"]
-                })
+                paths.append(
+                    {
+                        "nodes": record["nodes"],
+                        "edges": record["edges"],
+                        "weight": record["weight"],
+                    }
+                )
 
             return paths
 
@@ -685,7 +777,11 @@ class GraphAnalyticsService:
                     edge_types[edge_type] = record["count"]
 
                 # Calculate density
-                density = (2 * total_edges) / (total_nodes * (total_nodes - 1)) if total_nodes > 1 else 0
+                density = (
+                    (2 * total_edges) / (total_nodes * (total_nodes - 1))
+                    if total_nodes > 1
+                    else 0
+                )
 
                 # Get connected components (simplified)
                 components_query = """
@@ -694,7 +790,11 @@ class GraphAnalyticsService:
                 """
                 components_result = await session.run(components_query)
                 components_record = await components_result.single()
-                connected_components = components_record["connected_components"] if components_record else 0
+                connected_components = (
+                    components_record["connected_components"]
+                    if components_record
+                    else 0
+                )
 
                 # Calculate average degree
                 avg_degree = (2 * total_edges) / total_nodes if total_nodes > 0 else 0
@@ -708,14 +808,16 @@ class GraphAnalyticsService:
                     connected_components=connected_components,
                     largest_component_size=None,  # Would require additional query
                     average_degree=avg_degree,
-                    last_updated=datetime.utcnow()
+                    last_updated=datetime.utcnow(),
                 )
 
         except Exception as e:
             logger.error(f"Error getting graph statistics: {e}")
             raise
 
-    async def get_centrality_analysis(self, algorithm: str, top_k: int = 100) -> CentralityAnalysis:
+    async def get_centrality_analysis(
+        self, algorithm: str, top_k: int = 100
+    ) -> CentralityAnalysis:
         """Get centrality analysis for the graph"""
         if not self.initialized:
             raise RuntimeError("Graph analytics service not initialized")
@@ -750,9 +852,9 @@ class GraphAnalyticsService:
                     "average_score": avg_score,
                     "max_score": max_score,
                     "min_score": min_score,
-                    "total_nodes": len(rankings)
+                    "total_nodes": len(rankings),
                 },
-                distribution=distribution
+                distribution=distribution,
             )
 
         except Exception as e:
@@ -786,16 +888,22 @@ class GraphAnalyticsService:
                 result = await session.run(query, {"limit": top_k})
 
                 async for record in result:
-                    percentile = (record["score"] - min_score) / (max_score - min_score) if max_score > min_score else 0
+                    percentile = (
+                        (record["score"] - min_score) / (max_score - min_score)
+                        if max_score > min_score
+                        else 0
+                    )
 
-                    rankings.append(CentralityRanking(
-                        node_id=record["node_id"],
-                        node_label=record["node_label"],
-                        node_type=NodeType.ENTITY,  # Default, would need proper mapping
-                        score=record["score"],
-                        rank=rank,
-                        percentile=percentile
-                    ))
+                    rankings.append(
+                        CentralityRanking(
+                            node_id=record["node_id"],
+                            node_label=record["node_label"],
+                            node_type=NodeType.ENTITY,  # Default, would need proper mapping
+                            score=record["score"],
+                            rank=rank,
+                            percentile=percentile,
+                        )
+                    )
                     rank += 1
 
             return rankings
@@ -828,16 +936,22 @@ class GraphAnalyticsService:
                 result = await session.run(query, {"limit": top_k})
 
                 async for record in result:
-                    percentile = (record["score"] - min_score) / (max_score - min_score) if max_score > min_score else 0
+                    percentile = (
+                        (record["score"] - min_score) / (max_score - min_score)
+                        if max_score > min_score
+                        else 0
+                    )
 
-                    rankings.append(CentralityRanking(
-                        node_id=record["node_id"],
-                        node_label=record["node_label"],
-                        node_type=NodeType.ENTITY,
-                        score=record["score"],
-                        rank=rank,
-                        percentile=percentile
-                    ))
+                    rankings.append(
+                        CentralityRanking(
+                            node_id=record["node_id"],
+                            node_label=record["node_label"],
+                            node_type=NodeType.ENTITY,
+                            score=record["score"],
+                            rank=rank,
+                            percentile=percentile,
+                        )
+                    )
                     rank += 1
 
             return rankings
@@ -872,16 +986,22 @@ class GraphAnalyticsService:
                 result = await session.run(query, {"limit": top_k})
 
                 async for record in result:
-                    percentile = (record["score"] - min_score) / (max_score - min_score) if max_score > min_score else 0
+                    percentile = (
+                        (record["score"] - min_score) / (max_score - min_score)
+                        if max_score > min_score
+                        else 0
+                    )
 
-                    rankings.append(CentralityRanking(
-                        node_id=record["node_id"],
-                        node_label=record["node_label"],
-                        node_type=NodeType.ENTITY,
-                        score=record["score"],
-                        rank=rank,
-                        percentile=percentile
-                    ))
+                    rankings.append(
+                        CentralityRanking(
+                            node_id=record["node_id"],
+                            node_label=record["node_label"],
+                            node_type=NodeType.ENTITY,
+                            score=record["score"],
+                            rank=rank,
+                            percentile=percentile,
+                        )
+                    )
                     rank += 1
 
             return rankings
@@ -894,7 +1014,9 @@ class GraphAnalyticsService:
         min_score = min(scores)
         max_score = max(scores)
         bucket_count = 10
-        bucket_size = (max_score - min_score) / bucket_count if max_score > min_score else 1
+        bucket_size = (
+            (max_score - min_score) / bucket_count if max_score > min_score else 1
+        )
 
         distribution = {}
         for i in range(bucket_count):
@@ -918,7 +1040,9 @@ class GraphAnalyticsService:
         conditions = []
         for key, value in node_filters.items():
             if key == "labels":
-                labels_str = " AND ".join([f"'{label}' in labels(n)" for label in value])
+                labels_str = " AND ".join(
+                    [f"'{label}' in labels(n)" for label in value]
+                )
                 conditions.append(labels_str)
             elif key == "properties":
                 for prop_key, prop_value in value.items():
@@ -937,7 +1061,9 @@ class GraphAnalyticsService:
         conditions = []
         for key, value in edge_filters.items():
             if key == "types":
-                types_str = " OR ".join([f"type(r) = '{edge_type}'" for edge_type in value])
+                types_str = " OR ".join(
+                    [f"type(r) = '{edge_type}'" for edge_type in value]
+                )
                 conditions.append(f"({types_str})")
             elif key == "properties":
                 for prop_key, prop_value in value.items():
@@ -948,7 +1074,9 @@ class GraphAnalyticsService:
 
         return f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
-    async def _store_node_metrics(self, analysis_id: uuid.UUID, rankings: List[Dict[str, Any]], metric_field: str):
+    async def _store_node_metrics(
+        self, analysis_id: uuid.UUID, rankings: List[Dict[str, Any]], metric_field: str
+    ):
         """Store node metrics in database"""
         try:
             async with get_async_session() as db:
@@ -958,7 +1086,7 @@ class GraphAnalyticsService:
                         node_id=ranking["node_id"],
                         node_type=NodeType.ENTITY,  # Would need proper mapping
                         node_label=None,  # Would need to fetch from Neo4j
-                        **{metric_field: ranking["score"]}
+                        **{metric_field: ranking["score"]},
                     )
                     db.add(node_metric)
 
@@ -967,7 +1095,9 @@ class GraphAnalyticsService:
         except Exception as e:
             logger.error(f"Error storing node metrics: {e}")
 
-    async def _store_community_metrics(self, analysis_id: uuid.UUID, assignments: List[Dict[str, Any]]):
+    async def _store_community_metrics(
+        self, analysis_id: uuid.UUID, assignments: List[Dict[str, Any]]
+    ):
         """Store community metrics in database"""
         try:
             # Group by community
@@ -988,7 +1118,7 @@ class GraphAnalyticsService:
                         density=0.0,  # Would need to calculate
                         modularity=0.0,  # Would need to calculate
                         internal_edges=0,  # Would need to calculate
-                        external_edges=0  # Would need to calculate
+                        external_edges=0,  # Would need to calculate
                     )
                     db.add(community_metric)
 
@@ -997,17 +1127,21 @@ class GraphAnalyticsService:
         except Exception as e:
             logger.error(f"Error storing community metrics: {e}")
 
-    async def _get_analysis_response(self, analysis_id: uuid.UUID) -> GraphAnalysisResponse:
+    async def _get_analysis_response(
+        self, analysis_id: uuid.UUID
+    ) -> GraphAnalysisResponse:
         """Get complete analysis response with metrics"""
         try:
             async with get_async_session() as db:
                 # Get main analysis result
-                query = select(GraphAnalyticsResult).where(
-                    GraphAnalyticsResult.id == analysis_id
-                ).options(
-                    selectinload(GraphAnalyticsResult.node_metrics),
-                    selectinload(GraphAnalyticsResult.edge_metrics),
-                    selectinload(GraphAnalyticsResult.community_metrics)
+                query = (
+                    select(GraphAnalyticsResult)
+                    .where(GraphAnalyticsResult.id == analysis_id)
+                    .options(
+                        selectinload(GraphAnalyticsResult.node_metrics),
+                        selectinload(GraphAnalyticsResult.edge_metrics),
+                        selectinload(GraphAnalyticsResult.community_metrics),
+                    )
                 )
                 result = await db.execute(query)
                 analysis = result.scalar_one_or_none()
@@ -1030,8 +1164,10 @@ class GraphAnalyticsService:
                         density=analysis.density,
                         connected_components=analysis.component_count,
                         largest_component_size=None,
-                        average_degree=(2 * analysis.edge_count) / analysis.node_count if analysis.node_count > 0 else 0,
-                        last_updated=analysis.updated_at
+                        average_degree=(2 * analysis.edge_count) / analysis.node_count
+                        if analysis.node_count > 0
+                        else 0,
+                        last_updated=analysis.updated_at,
                     ),
                     node_metrics=[
                         NodeMetricData(
@@ -1050,9 +1186,12 @@ class GraphAnalyticsService:
                             community_id=m.community_id,
                             community_size=m.community_size,
                             modularity=m.modularity,
-                            custom_metrics=m.custom_metrics
-                        ) for m in analysis.node_metrics
-                    ] if analysis.include_node_metrics else None,
+                            custom_metrics=m.custom_metrics,
+                        )
+                        for m in analysis.node_metrics
+                    ]
+                    if analysis.include_node_metrics
+                    else None,
                     edge_metrics=[
                         EdgeMetricData(
                             edge_id=m.edge_id,
@@ -1066,9 +1205,12 @@ class GraphAnalyticsService:
                             adamic_adar=m.adamic_adar,
                             shortest_path_length=m.shortest_path_length,
                             bridges_count=m.bridges_count,
-                            custom_metrics=m.custom_metrics
-                        ) for m in analysis.edge_metrics
-                    ] if analysis.include_edge_metrics else None,
+                            custom_metrics=m.custom_metrics,
+                        )
+                        for m in analysis.edge_metrics
+                    ]
+                    if analysis.include_edge_metrics
+                    else None,
                     community_metrics=[
                         CommunityMetricData(
                             community_id=m.community_id,
@@ -1086,14 +1228,17 @@ class GraphAnalyticsService:
                             node_type_distribution=m.node_type_distribution,
                             edge_type_distribution=m.edge_type_distribution,
                             central_nodes=m.central_nodes,
-                            bridge_nodes=m.bridge_nodes
-                        ) for m in analysis.community_metrics
-                    ] if analysis.include_community_metrics else None,
+                            bridge_nodes=m.bridge_nodes,
+                        )
+                        for m in analysis.community_metrics
+                    ]
+                    if analysis.include_community_metrics
+                    else None,
                     execution_time_ms=analysis.execution_time_ms,
                     memory_usage_mb=analysis.memory_usage_mb,
                     status=analysis.status,
                     created_at=analysis.created_at,
-                    updated_at=analysis.updated_at
+                    updated_at=analysis.updated_at,
                 )
 
         except Exception as e:

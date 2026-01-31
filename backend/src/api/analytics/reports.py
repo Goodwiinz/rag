@@ -4,15 +4,15 @@ Reports API routes
 
 import logging
 import uuid
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
-from src.services.analytics.report_service import report_service
-from src.models.analytics.analytics_models import AnalyticsReport
 from src.auth.dependencies import get_current_user
+from src.models.analytics.analytics_models import AnalyticsReport
 from src.models.user import User
+from src.services.analytics.report_service import report_service
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ async def create_report(
     schedule_config: Optional[Dict[str, Any]] = None,
     output_format: str = Query("pdf", regex="^(pdf|csv|xlsx|json)$"),
     delivery_config: Optional[Dict[str, Any]] = None,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new analytics report"""
     try:
@@ -41,7 +41,7 @@ async def create_report(
             report_config=report_config,
             schedule_config=schedule_config,
             output_format=output_format,
-            delivery_config=delivery_config
+            delivery_config=delivery_config,
         )
         return report
 
@@ -49,7 +49,7 @@ async def create_report(
         logger.error(f"Error creating report: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create report"
+            detail="Failed to create report",
         )
 
 
@@ -57,7 +57,7 @@ async def create_report(
 async def list_reports(
     limit: int = Query(50, ge=1, le=100, description="Number of reports to return"),
     offset: int = Query(0, ge=0, description="Number of reports to skip"),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """List analytics reports"""
     try:
@@ -65,7 +65,7 @@ async def list_reports(
             user_id=current_user.id,
             organization_id=current_user.organization_id,
             limit=limit,
-            offset=offset
+            offset=offset,
         )
         return reports
 
@@ -73,40 +73,34 @@ async def list_reports(
         logger.error(f"Error listing reports: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list reports"
+            detail="Failed to list reports",
         )
 
 
 @router.get("/{report_id}", response_model=AnalyticsReport)
 async def get_report(
-    report_id: uuid.UUID,
-    current_user: User = Depends(get_current_user)
+    report_id: uuid.UUID, current_user: User = Depends(get_current_user)
 ):
     """Get report by ID"""
     try:
         report = await report_service.get_report(
-            report_id=report_id,
-            user_id=current_user.id
+            report_id=report_id, user_id=current_user.id
         )
         if not report:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
             )
         return report
 
     except PermissionError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error getting report {report_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get report"
+            detail="Failed to get report",
         )
 
 
@@ -114,78 +108,65 @@ async def get_report(
 async def generate_report(
     report_id: uuid.UUID,
     background_tasks: BackgroundTasks,
-    force: bool = Query(False, description="Force regeneration even if recently generated"),
-    current_user: User = Depends(get_current_user)
+    force: bool = Query(
+        False, description="Force regeneration even if recently generated"
+    ),
+    current_user: User = Depends(get_current_user),
 ):
     """Generate a report"""
     try:
         # Check if report exists and user has permission
         report = await report_service.get_report(
-            report_id=report_id,
-            user_id=current_user.id
+            report_id=report_id, user_id=current_user.id
         )
         if not report:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
             )
 
         # Run generation in background
         background_tasks.add_task(
-            report_service.generate_report,
-            report_id=report_id,
-            force=force
+            report_service.generate_report, report_id=report_id, force=force
         )
 
         return {"message": "Report generation started", "report_id": str(report_id)}
 
     except PermissionError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
         logger.error(f"Error starting report generation: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to start report generation"
+            detail="Failed to start report generation",
         )
 
 
 @router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_report(
-    report_id: uuid.UUID,
-    current_user: User = Depends(get_current_user)
+    report_id: uuid.UUID, current_user: User = Depends(get_current_user)
 ):
     """Delete report"""
     try:
         success = await report_service.delete_report(
-            report_id=report_id,
-            user_id=current_user.id
+            report_id=report_id, user_id=current_user.id
         )
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
             )
 
     except PermissionError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting report {report_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete report"
+            detail="Failed to delete report",
         )
 
 
 @router.get("/templates", response_model=Dict[str, Any])
-async def get_report_templates(
-    current_user: User = Depends(get_current_user)
-):
+async def get_report_templates(current_user: User = Depends(get_current_user)):
     """Get available report templates"""
     try:
         templates = {
@@ -196,7 +177,7 @@ async def get_report_templates(
                     {
                         "type": "summary",
                         "title": "Executive Summary",
-                        "dashboard_id": None
+                        "dashboard_id": None,
                     },
                     {
                         "type": "metrics",
@@ -205,14 +186,14 @@ async def get_report_templates(
                             {
                                 "name": "Total Users",
                                 "type": "counter",
-                                "time_range": "30d"
+                                "time_range": "30d",
                             },
                             {
                                 "name": "Active Users",
                                 "type": "gauge",
-                                "time_range": "7d"
-                            }
-                        ]
+                                "time_range": "7d",
+                            },
+                        ],
                     },
                     {
                         "type": "charts",
@@ -221,11 +202,11 @@ async def get_report_templates(
                             {
                                 "type": "line",
                                 "title": "User Growth",
-                                "data_source": "users_over_time"
+                                "data_source": "users_over_time",
                             }
-                        ]
-                    }
-                ]
+                        ],
+                    },
+                ],
             },
             "analytics_deep_dive": {
                 "name": "Analytics Deep Dive",
@@ -234,7 +215,7 @@ async def get_report_templates(
                     {
                         "type": "dashboard",
                         "title": "Analytics Dashboard",
-                        "dashboard_id": None
+                        "dashboard_id": None,
                     },
                     {
                         "type": "tables",
@@ -242,20 +223,17 @@ async def get_report_templates(
                         "tables": [
                             {
                                 "title": "Most Viewed Documents",
-                                "data_source": "document_views"
+                                "data_source": "document_views",
                             }
-                        ]
-                    }
-                ]
+                        ],
+                    },
+                ],
             },
             "graph_analysis": {
                 "name": "Graph Analysis Report",
                 "description": "Knowledge graph insights",
                 "sections": [
-                    {
-                        "type": "summary",
-                        "title": "Graph Overview"
-                    },
+                    {"type": "summary", "title": "Graph Overview"},
                     {
                         "type": "charts",
                         "title": "Graph Metrics",
@@ -263,26 +241,26 @@ async def get_report_templates(
                             {
                                 "type": "bar",
                                 "title": "Node Type Distribution",
-                                "data_source": "node_types"
+                                "data_source": "node_types",
                             }
-                        ]
-                    }
-                ]
-            }
+                        ],
+                    },
+                ],
+            },
         }
 
         return {
             "templates": templates,
             "output_formats": ["pdf", "csv", "xlsx", "json"],
             "delivery_methods": ["email", "webhook", "s3"],
-            "schedule_types": ["once", "daily", "weekly", "monthly"]
+            "schedule_types": ["once", "daily", "weekly", "monthly"],
         }
 
     except Exception as e:
         logger.error(f"Error getting report templates: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get report templates"
+            detail="Failed to get report templates",
         )
 
 
@@ -290,19 +268,17 @@ async def get_report_templates(
 async def schedule_report(
     report_id: uuid.UUID,
     schedule_config: Dict[str, Any],
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Schedule automatic report generation"""
     try:
         # Check if report exists and user has permission
         report = await report_service.get_report(
-            report_id=report_id,
-            user_id=current_user.id
+            report_id=report_id, user_id=current_user.id
         )
         if not report:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
             )
 
         # Update schedule configuration
@@ -317,35 +293,32 @@ async def schedule_report(
         return {"message": "Report schedule updated successfully"}
 
     except PermissionError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
         logger.error(f"Error scheduling report: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to schedule report"
+            detail="Failed to schedule report",
         )
 
 
 @router.get("/{report_id}/history", response_model=List[Dict[str, Any]])
 async def get_report_history(
     report_id: uuid.UUID,
-    limit: int = Query(10, ge=1, le=50, description="Number of history entries to return"),
-    current_user: User = Depends(get_current_user)
+    limit: int = Query(
+        10, ge=1, le=50, description="Number of history entries to return"
+    ),
+    current_user: User = Depends(get_current_user),
 ):
     """Get report generation history"""
     try:
         # Check if report exists and user has permission
         report = await report_service.get_report(
-            report_id=report_id,
-            user_id=current_user.id
+            report_id=report_id, user_id=current_user.id
         )
         if not report:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
             )
 
         # This is a simplified implementation
@@ -357,22 +330,19 @@ async def get_report_history(
                 "generated_at": report.last_run_at or datetime.utcnow(),
                 "status": report.last_run_status or "pending",
                 "file_size": 1024,  # Would be actual file size
-                "download_url": f"/api/v1/analytics/reports/{report_id}/download/latest"
+                "download_url": f"/api/v1/analytics/reports/{report_id}/download/latest",
             }
         ]
 
         return history
 
     except PermissionError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
         logger.error(f"Error getting report history: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get report history"
+            detail="Failed to get report history",
         )
 
 
@@ -380,19 +350,17 @@ async def get_report_history(
 async def download_report(
     report_id: uuid.UUID,
     history_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Download a generated report"""
     try:
         # Check if report exists and user has permission
         report = await report_service.get_report(
-            report_id=report_id,
-            user_id=current_user.id
+            report_id=report_id, user_id=current_user.id
         )
         if not report:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
             )
 
         # This is a simplified implementation
@@ -406,7 +374,7 @@ async def download_report(
             file_path = temp_dir / f"report_{report_id}.{report.output_format}"
 
             # Create a simple file
-            with open(file_path, 'w') as f:
+            with open(file_path, "w") as f:
                 f.write(f"Report: {report.title}\n")
                 f.write(f"Generated: {datetime.utcnow()}\n")
                 f.write("This is a placeholder report file.\n")
@@ -414,22 +382,18 @@ async def download_report(
             return FileResponse(
                 path=file_path,
                 filename=f"{report.name}.{report.output_format}",
-                media_type="application/octet-stream"
+                media_type="application/octet-stream",
             )
         else:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report file not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Report file not found"
             )
 
     except PermissionError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
         logger.error(f"Error downloading report: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to download report"
+            detail="Failed to download report",
         )

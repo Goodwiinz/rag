@@ -2,10 +2,11 @@
 Redis caching utilities for microservices
 """
 
+import hashlib
 import json
 import logging
-import hashlib
-from typing import Any, Optional, Dict, List
+from typing import Any, Dict, List, Optional
+
 import redis.asyncio as redis
 
 from ..config.knowledge_graph_config import config
@@ -45,9 +46,7 @@ def safe_deserialize(value: str) -> Any:
 
 
 async def cache_get(
-    client: redis.Redis,
-    key: str,
-    deserialize: bool = True
+    client: redis.Redis, key: str, deserialize: bool = True
 ) -> Optional[Any]:
     """Get value from cache"""
     try:
@@ -69,7 +68,7 @@ async def cache_set(
     key: str,
     value: Any,
     ttl: Optional[int] = None,
-    serialize: bool = True
+    serialize: bool = True,
 ) -> bool:
     """Set value in cache"""
     try:
@@ -110,10 +109,7 @@ async def cache_exists(client: redis.Redis, key: str) -> bool:
 
 
 async def cache_increment(
-    client: redis.Redis,
-    key: str,
-    amount: int = 1,
-    ttl: Optional[int] = None
+    client: redis.Redis, key: str, amount: int = 1, ttl: Optional[int] = None
 ) -> Optional[int]:
     """Increment counter in cache"""
     try:
@@ -140,15 +136,12 @@ async def cache_get_multiple(client: redis.Redis, keys: List[str]) -> Dict[str, 
 
 
 async def cache_set_multiple(
-    client: redis.Redis,
-    mapping: Dict[str, Any],
-    ttl: Optional[int] = None
+    client: redis.Redis, mapping: Dict[str, Any], ttl: Optional[int] = None
 ) -> bool:
     """Set multiple values in cache"""
     try:
         serialized_mapping = {
-            key: safe_serialize(value)
-            for key, value in mapping.items()
+            key: safe_serialize(value) for key, value in mapping.items()
         }
 
         # Use pipeline for atomic operation
@@ -181,11 +174,7 @@ class CacheManager:
         return await cache_get(client, self._make_key(key))
 
     async def set(
-        self,
-        client: redis.Redis,
-        key: str,
-        value: Any,
-        ttl: Optional[int] = None
+        self, client: redis.Redis, key: str, value: Any, ttl: Optional[int] = None
     ) -> bool:
         """Set value in cache"""
         return await cache_set(client, self._make_key(key), value, ttl)
@@ -198,27 +187,24 @@ class CacheManager:
         """Check if key exists"""
         return await cache_exists(client, self._make_key(key))
 
-    async def get_multiple(self, client: redis.Redis, keys: List[str]) -> Dict[str, Any]:
+    async def get_multiple(
+        self, client: redis.Redis, keys: List[str]
+    ) -> Dict[str, Any]:
         """Get multiple values from cache"""
         namespaced_keys = [self._make_key(key) for key in keys]
         results = await cache_get_multiple(client, namespaced_keys)
 
         # Remove namespace from keys in result
         return {
-            key.replace(f"{self.prefix}:", ""): value
-            for key, value in results.items()
+            key.replace(f"{self.prefix}:", ""): value for key, value in results.items()
         }
 
     async def set_multiple(
-        self,
-        client: redis.Redis,
-        mapping: Dict[str, Any],
-        ttl: Optional[int] = None
+        self, client: redis.Redis, mapping: Dict[str, Any], ttl: Optional[int] = None
     ) -> bool:
         """Set multiple values in cache"""
         namespaced_mapping = {
-            self._make_key(key): value
-            for key, value in mapping.items()
+            self._make_key(key): value for key, value in mapping.items()
         }
         return await cache_set_multiple(client, namespaced_mapping, ttl)
 
@@ -312,7 +298,7 @@ async def clear_tenant_cache(client: redis.Redis, tenant_id: str) -> int:
         f"search:*:tenant:{tenant_id}",
         f"analytics:*:tenant:{tenant_id}",
         f"metrics:*:tenant:{tenant_id}",
-        f"websocket:*:tenant:{tenant_id}"
+        f"websocket:*:tenant:{tenant_id}",
     ]
 
     total_deleted = 0
@@ -346,14 +332,11 @@ async def cache_health_check(client: redis.Redis) -> dict:
             "connected_clients": info.get("connected_clients", 0),
             "used_memory": info.get("used_memory_human", "unknown"),
             "uptime_in_seconds": info.get("uptime_in_seconds", 0),
-            "total_commands_processed": info.get("total_commands_processed", 0)
+            "total_commands_processed": info.get("total_commands_processed", 0),
         }
 
     except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e)
-        }
+        return {"status": "unhealthy", "error": str(e)}
 
 
 # Cache statistics and monitoring
@@ -368,14 +351,14 @@ async def get_cache_stats(client: redis.Redis) -> dict:
             "keyspace_hits": info.get("keyspace_hits", 0),
             "keyspace_misses": info.get("keyspace_misses", 0),
             "hit_rate": (
-                info.get("keyspace_hits", 0) /
-                max(info.get("keyspace_hits", 0) + info.get("keyspace_misses", 0), 1)
+                info.get("keyspace_hits", 0)
+                / max(info.get("keyspace_hits", 0) + info.get("keyspace_misses", 0), 1)
             ),
             "used_memory": info.get("used_memory", 0),
             "used_memory_human": info.get("used_memory_human", "0B"),
             "connected_clients": info.get("connected_clients", 0),
             "uptime_in_seconds": info.get("uptime_in_seconds", 0),
-            "instantaneous_ops_per_sec": info.get("instantaneous_ops_per_sec", 0)
+            "instantaneous_ops_per_sec": info.get("instantaneous_ops_per_sec", 0),
         }
 
     except Exception as e:
@@ -385,10 +368,7 @@ async def get_cache_stats(client: redis.Redis) -> dict:
 
 # Cache warming utilities
 async def warm_entity_cache(
-    client: redis.Redis,
-    entities: List[Dict[str, Any]],
-    tenant_id: str,
-    ttl: int = 3600
+    client: redis.Redis, entities: List[Dict[str, Any]], tenant_id: str, ttl: int = 3600
 ) -> int:
     """Warm cache with frequently accessed entities"""
     try:

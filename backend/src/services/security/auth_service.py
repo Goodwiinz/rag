@@ -3,35 +3,47 @@ Authentication service for user management and security
 """
 
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from sqlalchemy import and_, or_
+from typing import Any, Dict, List, Optional
+
 from fastapi import Depends
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
-from src.core.security import (
-    verify_password, get_password_hash, create_access_token,
-    create_refresh_token, verify_token, verify_refresh_token,
-    generate_password_reset_token, check_password_strength,
-    auth_rate_limiter
-)
 from src.core.database import get_db
-from src.models.user import User, UserRole
+from src.core.security import (
+    auth_rate_limiter,
+    check_password_strength,
+    create_access_token,
+    create_refresh_token,
+    generate_password_reset_token,
+    get_password_hash,
+    verify_password,
+    verify_refresh_token,
+    verify_token,
+)
 from src.models.organization import Organization, StorageTier
 from src.models.search import SearchQuery
+from src.models.user import User, UserRole
+
 
 class AuthenticationError(Exception):
     """Authentication related errors"""
+
     pass
+
 
 class AuthorizationError(Exception):
     """Authorization related errors"""
+
     pass
+
 
 class RegistrationError(Exception):
     """Registration related errors"""
+
     pass
+
 
 class AuthService:
     """Authentication service for user management"""
@@ -49,16 +61,19 @@ class AuthService:
 
         # Eager load organization relationship
         from sqlalchemy.orm import selectinload
-        stmt = select(User).options(
-            selectinload(User.organization)
-        ).where(
-            and_(
-                User.email == email.lower(),
-                User.is_active == True,
-                User.is_deleted == False
+
+        stmt = (
+            select(User)
+            .options(selectinload(User.organization))
+            .where(
+                and_(
+                    User.email == email.lower(),
+                    User.is_active == True,
+                    User.is_deleted == False,
+                )
             )
         )
-        
+
         result = await self.db.execute(stmt)
         user = result.scalar_one_or_none()
 
@@ -71,7 +86,9 @@ class AuthService:
 
         return user
 
-    async def login_user(self, email: str, password: str, remember_me: bool = False) -> Dict[str, Any]:
+    async def login_user(
+        self, email: str, password: str, remember_me: bool = False
+    ) -> Dict[str, Any]:
         """Login user and return tokens
 
         Args:
@@ -88,28 +105,26 @@ class AuthService:
             organization_data = None
 
         # Create access token
-        access_token_expires = timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        )
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
             data={
                 "sub": str(user.id),
                 "email": user.email,
                 "organization_id": str(user.organization_id),
-                "role": user.role.value
+                "role": user.role.value,
             },
-            expires_delta=access_token_expires
+            expires_delta=access_token_expires,
         )
 
         # Create refresh token (30 days if remember_me, 7 days otherwise)
         refresh_token = create_refresh_token(
-            data={"sub": str(user.id)},
-            remember_me=remember_me
+            data={"sub": str(user.id)}, remember_me=remember_me
         )
 
         # Calculate refresh token expiration for frontend
         refresh_token_days = (
-            settings.REMEMBER_ME_REFRESH_TOKEN_DAYS if remember_me
+            settings.REMEMBER_ME_REFRESH_TOKEN_DAYS
+            if remember_me
             else settings.REFRESH_TOKEN_EXPIRE_DAYS
         )
 
@@ -121,10 +136,12 @@ class AuthService:
             "refresh_expires_in": refresh_token_days * 24 * 60 * 60,  # In seconds
             "remember_me": remember_me,
             "user": user.to_dict(exclude_sensitive=True),
-            "organization": organization_data
+            "organization": organization_data,
         }
 
-    async def refresh_access_token(self, refresh_token: str, rotate_refresh: bool = True) -> Dict[str, Any]:
+    async def refresh_access_token(
+        self, refresh_token: str, rotate_refresh: bool = True
+    ) -> Dict[str, Any]:
         """Refresh access token using refresh token
 
         Args:
@@ -140,10 +157,10 @@ class AuthService:
             and_(
                 User.id == token_data.user_id,
                 User.is_active == True,
-                User.is_deleted == False
+                User.is_deleted == False,
             )
         )
-        
+
         result = await self.db.execute(stmt)
         user = result.scalar_one_or_none()
 
@@ -151,17 +168,15 @@ class AuthService:
             raise AuthenticationError("User not found or inactive")
 
         # Create new access token
-        access_token_expires = timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        )
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
             data={
                 "sub": str(user.id),
                 "email": user.email,
                 "organization_id": str(user.organization_id),
-                "role": user.role.value
+                "role": user.role.value,
             },
-            expires_delta=access_token_expires
+            expires_delta=access_token_expires,
         )
 
         # Preserve the remember_me setting from the original refresh token
@@ -171,17 +186,17 @@ class AuthService:
             "access_token": access_token,
             "token_type": "bearer",
             "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "remember_me": remember_me
+            "remember_me": remember_me,
         }
 
         # Optionally rotate refresh token (recommended for security)
         if rotate_refresh:
             new_refresh_token = create_refresh_token(
-                data={"sub": str(user.id)},
-                remember_me=remember_me
+                data={"sub": str(user.id)}, remember_me=remember_me
             )
             refresh_token_days = (
-                settings.REMEMBER_ME_REFRESH_TOKEN_DAYS if remember_me
+                settings.REMEMBER_ME_REFRESH_TOKEN_DAYS
+                if remember_me
                 else settings.REFRESH_TOKEN_EXPIRE_DAYS
             )
             result["refresh_token"] = new_refresh_token
@@ -197,7 +212,7 @@ class AuthService:
         last_name: str,
         organization_name: str = None,
         organization_id: str = None,
-        role: UserRole = UserRole.USER
+        role: UserRole = UserRole.USER,
     ) -> User:
         """Register a new user"""
         # Check if user already exists
@@ -222,7 +237,7 @@ class AuthService:
                 and_(
                     Organization.id == organization_id,
                     Organization.is_active == True,
-                    Organization.is_deleted == False
+                    Organization.is_deleted == False,
                 )
             )
             result = await self.db.execute(stmt)
@@ -237,7 +252,7 @@ class AuthService:
                 and_(
                     Organization.name == organization_name,
                     Organization.is_active == True,
-                    Organization.is_deleted == False
+                    Organization.is_deleted == False,
                 )
             )
             result = await self.db.execute(stmt)
@@ -248,8 +263,10 @@ class AuthService:
                 organization = Organization(
                     name=organization_name,
                     storage_tier=StorageTier.FREE,
-                    storage_limit_bytes=Organization.get_default_storage_limit(StorageTier.FREE),
-                    is_active=True
+                    storage_limit_bytes=Organization.get_default_storage_limit(
+                        StorageTier.FREE
+                    ),
+                    is_active=True,
                 )
                 self.db.add(organization)
                 await self.db.flush()  # Get the organization ID
@@ -259,7 +276,9 @@ class AuthService:
             # If organization exists, use default USER role (don't make them admin)
 
         else:
-            raise RegistrationError("Either organization_name or organization_id must be provided")
+            raise RegistrationError(
+                "Either organization_name or organization_id must be provided"
+            )
 
         # Create user
         user = User(
@@ -268,7 +287,7 @@ class AuthService:
             last_name=last_name,
             role=role,
             organization_id=organization.id,
-            is_active=True
+            is_active=True,
         )
         user.set_password(password)
 
@@ -279,10 +298,7 @@ class AuthService:
         return user
 
     async def change_password(
-        self,
-        user: User,
-        current_password: str,
-        new_password: str
+        self, user: User, current_password: str, new_password: str
     ) -> bool:
         """Change user password"""
         # Verify current password
@@ -308,7 +324,7 @@ class AuthService:
             and_(
                 User.email == email.lower(),
                 User.is_active == True,
-                User.is_deleted == False
+                User.is_deleted == False,
             )
         )
         result = await self.db.execute(stmt)
@@ -328,14 +344,16 @@ class AuthService:
         """Reset password using reset token"""
         # In a real implementation, you'd verify the reset token
         # For now, this is a placeholder
-        raise NotImplementedError("Password reset implementation requires database changes")
+        raise NotImplementedError(
+            "Password reset implementation requires database changes"
+        )
 
     async def update_user_profile(
         self,
         user: User,
         first_name: str = None,
         last_name: str = None,
-        email: str = None
+        email: str = None,
     ) -> User:
         """Update user profile information"""
         if first_name:
@@ -345,10 +363,7 @@ class AuthService:
         if email and email.lower() != user.email:
             # Check if new email is already taken
             stmt = select(User).where(
-                and_(
-                    User.email == email.lower(),
-                    User.id != user.id
-                )
+                and_(User.email == email.lower(), User.id != user.id)
             )
             result = await self.db.execute(stmt)
             existing_user = result.scalar_one_or_none()
@@ -364,25 +379,21 @@ class AuthService:
         return user
 
     async def update_user_role(
-        self,
-        admin_user: User,
-        target_user: User,
-        new_role: UserRole
+        self, admin_user: User, target_user: User, new_role: UserRole
     ) -> User:
         """Update user role (admin only)"""
         if not admin_user.has_permission(UserRole.ADMIN):
             raise AuthorizationError("Only admins can update user roles")
 
         # Prevent admins from demoting themselves unless they're the last admin
-        if (target_user.id == admin_user.id and
-            new_role != UserRole.ADMIN):
+        if target_user.id == admin_user.id and new_role != UserRole.ADMIN:
             # Check if there are other admins in the organization
             stmt = select(func.count(User.id)).where(
                 and_(
                     User.organization_id == admin_user.organization_id,
                     User.role == UserRole.ADMIN,
                     User.is_active == True,
-                    User.is_deleted == False
+                    User.is_deleted == False,
                 )
             )
             result = await self.db.execute(stmt)
@@ -416,14 +427,11 @@ class AuthService:
         skip: int = 0,
         limit: int = 100,
         role: UserRole = None,
-        is_active: bool = None
+        is_active: bool = None,
     ) -> List[User]:
         """Get users in an organization"""
         stmt = select(User).where(
-            and_(
-                User.organization_id == organization_id,
-                User.is_deleted == False
-            )
+            and_(User.organization_id == organization_id, User.is_deleted == False)
         )
 
         if role:
@@ -439,10 +447,7 @@ class AuthService:
     async def get_user_statistics(self, organization_id: str) -> Dict[str, Any]:
         """Get user statistics for an organization"""
         stmt = select(func.count(User.id)).where(
-            and_(
-                User.organization_id == organization_id,
-                User.is_deleted == False
-            )
+            and_(User.organization_id == organization_id, User.is_deleted == False)
         )
         result = await self.db.execute(stmt)
         total_users = result.scalar()
@@ -451,7 +456,7 @@ class AuthService:
             and_(
                 User.organization_id == organization_id,
                 User.is_active == True,
-                User.is_deleted == False
+                User.is_deleted == False,
             )
         )
         result = await self.db.execute(stmt)
@@ -464,7 +469,7 @@ class AuthService:
                 and_(
                     User.organization_id == organization_id,
                     User.role == role,
-                    User.is_deleted == False
+                    User.is_deleted == False,
                 )
             )
             result = await self.db.execute(stmt)
@@ -477,7 +482,7 @@ class AuthService:
             and_(
                 User.organization_id == organization_id,
                 User.last_login >= thirty_days_ago,
-                User.is_deleted == False
+                User.is_deleted == False,
             )
         )
         result = await self.db.execute(stmt)
@@ -488,13 +493,11 @@ class AuthService:
             "active_users": active_users,
             "inactive_users": total_users - active_users,
             "recent_active_users": recent_active,
-            "users_by_role": role_stats
+            "users_by_role": role_stats,
         }
 
     async def cleanup_inactive_users(
-        self,
-        organization_id: str,
-        days_inactive: int = 90
+        self, organization_id: str, days_inactive: int = 90
     ) -> int:
         """Soft delete users inactive for specified days"""
         cutoff_date = datetime.utcnow() - timedelta(days=days_inactive)
@@ -503,7 +506,7 @@ class AuthService:
             and_(
                 User.organization_id == organization_id,
                 User.last_login < cutoff_date,
-                User.is_deleted == False
+                User.is_deleted == False,
             )
         )
         result = await self.db.execute(stmt)
@@ -514,6 +517,7 @@ class AuthService:
 
         await self.db.commit()
         return len(inactive_users)
+
 
 def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
     """Get authentication service instance"""

@@ -9,13 +9,13 @@ import logging
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union, Callable
 from functools import wraps
-import redis.asyncio as redis
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import httpx
+import redis.asyncio as redis
 from fastapi import Request, Response
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ def get_correlation_id(request: Request) -> str:
 def hash_string(text: str, algorithm: str = "sha256") -> str:
     """Hash a string using specified algorithm"""
     hash_obj = hashlib.new(algorithm)
-    hash_obj.update(text.encode('utf-8'))
+    hash_obj.update(text.encode("utf-8"))
     return hash_obj.hexdigest()
 
 
@@ -64,7 +64,11 @@ def generate_cache_key(prefix: str, *args, **kwargs) -> str:
 
     # Add keyword arguments (sorted for consistency)
     for k, v in sorted(kwargs.items()):
-        key_parts.append(f"{k}:{v}" if isinstance(v, (str, int, float, bool)) else f"{k}:{hash_string(json.dumps(v, sort_keys=True))}")
+        key_parts.append(
+            f"{k}:{v}"
+            if isinstance(v, (str, int, float, bool))
+            else f"{k}:{hash_string(json.dumps(v, sort_keys=True))}"
+        )
 
     return ":".join(key_parts)
 
@@ -74,7 +78,7 @@ def retry_async(
     base_delay: float = 1.0,
     max_delay: float = 60.0,
     backoff_factor: float = 2.0,
-    exceptions: tuple = (Exception,)
+    exceptions: tuple = (Exception,),
 ):
     """Async retry decorator with exponential backoff"""
 
@@ -90,76 +94,86 @@ def retry_async(
                     last_exception = e
 
                     if attempt == max_attempts - 1:
-                        logger.error(f"Function {func.__name__} failed after {max_attempts} attempts: {e}")
+                        logger.error(
+                            f"Function {func.__name__} failed after {max_attempts} attempts: {e}"
+                        )
                         raise
 
                     # Calculate delay with exponential backoff and jitter
-                    delay = min(base_delay * (backoff_factor ** attempt), max_delay)
+                    delay = min(base_delay * (backoff_factor**attempt), max_delay)
                     jitter = delay * 0.1 * (hash(str(time.time())) % 10) / 10
                     total_delay = delay + jitter
 
-                    logger.warning(f"Function {func.__name__} failed (attempt {attempt + 1}/{max_attempts}), retrying in {total_delay:.2f}s: {e}")
+                    logger.warning(
+                        f"Function {func.__name__} failed (attempt {attempt + 1}/{max_attempts}), retrying in {total_delay:.2f}s: {e}"
+                    )
                     await asyncio.sleep(total_delay)
 
             # This should never be reached
             raise last_exception
 
         return wrapper
+
     return decorator
 
 
 def circuit_breaker(
     failure_threshold: int = 5,
     recovery_timeout: float = 60.0,
-    expected_exception: tuple = (Exception,)
+    expected_exception: tuple = (Exception,),
 ):
     """Circuit breaker decorator"""
 
     def decorator(func: Callable) -> Callable:
         # Circuit breaker state
-        state = {
-            'failure_count': 0,
-            'last_failure_time': None,
-            'is_open': False
-        }
+        state = {"failure_count": 0, "last_failure_time": None, "is_open": False}
 
         @wraps(func)
         async def wrapper(*args, **kwargs):
             now = time.time()
 
             # Check if circuit should be half-open
-            if (state['is_open'] and
-                state['last_failure_time'] and
-                now - state['last_failure_time'] >= recovery_timeout):
-                state['is_open'] = False
-                state['failure_count'] = 0
-                logger.info(f"Circuit breaker for {func.__name__} entering half-open state")
+            if (
+                state["is_open"]
+                and state["last_failure_time"]
+                and now - state["last_failure_time"] >= recovery_timeout
+            ):
+                state["is_open"] = False
+                state["failure_count"] = 0
+                logger.info(
+                    f"Circuit breaker for {func.__name__} entering half-open state"
+                )
 
             # Fail fast if circuit is open
-            if state['is_open']:
+            if state["is_open"]:
                 raise Exception(f"Circuit breaker for {func.__name__} is open")
 
             try:
                 result = await func(*args, **kwargs)
 
                 # Reset failure count on success
-                if state['failure_count'] > 0:
-                    state['failure_count'] = 0
-                    logger.info(f"Circuit breaker for {func.__name__} reset after success")
+                if state["failure_count"] > 0:
+                    state["failure_count"] = 0
+                    logger.info(
+                        f"Circuit breaker for {func.__name__} reset after success"
+                    )
 
                 return result
 
             except expected_exception as e:
-                state['failure_count'] += 1
-                state['last_failure_time'] = now
+                state["failure_count"] += 1
+                state["last_failure_time"] = now
 
-                if state['failure_count'] >= failure_threshold:
-                    state['is_open'] = True
-                    logger.warning(f"Circuit breaker for {func.__name__} opened after {state['failure_count']} failures")
+                if state["failure_count"] >= failure_threshold:
+                    state["is_open"] = True
+                    logger.warning(
+                        f"Circuit breaker for {func.__name__} opened after {state['failure_count']} failures"
+                    )
 
                 raise
 
         return wrapper
+
     return decorator
 
 
@@ -252,11 +266,7 @@ class RateLimiter:
         return self._redis
 
     async def is_allowed(
-        self,
-        key: str,
-        limit: int,
-        window: int,
-        identifier: Optional[str] = None
+        self, key: str, limit: int, window: int, identifier: Optional[str] = None
     ) -> tuple[bool, Dict[str, Any]]:
         """
         Check if request is allowed
@@ -275,7 +285,9 @@ class RateLimiter:
             current_time = int(time.time())
 
             # Create full key
-            full_key = f"rate_limit:{key}:{identifier or 'anonymous'}:{current_time // window}"
+            full_key = (
+                f"rate_limit:{key}:{identifier or 'anonymous'}:{current_time // window}"
+            )
 
             # Get current count
             count = await redis_client.incr(full_key)
@@ -291,7 +303,7 @@ class RateLimiter:
                 "limit": limit,
                 "remaining": remaining,
                 "reset_time": reset_time,
-                "retry_after": reset_time - current_time if remaining == 0 else 0
+                "retry_after": reset_time - current_time if remaining == 0 else 0,
             }
 
             return count <= limit, info
@@ -299,7 +311,11 @@ class RateLimiter:
         except Exception as e:
             logger.error(f"Rate limiter error: {e}")
             # Allow request if rate limiter fails
-            return True, {"limit": limit, "remaining": limit, "reset_time": int(time.time()) + window}
+            return True, {
+                "limit": limit,
+                "remaining": limit,
+                "reset_time": int(time.time()) + window,
+            }
 
     async def close(self):
         """Close Redis connection"""
@@ -321,7 +337,7 @@ class EventLogger:
         user_id: Optional[str] = None,
         organization_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """Log structured event"""
         event = {
@@ -332,7 +348,7 @@ class EventLogger:
             "user_id": user_id,
             "organization_id": organization_id,
             "correlation_id": correlation_id,
-            "metadata": metadata or {}
+            "metadata": metadata or {},
         }
 
         # Log as JSON for structured logging
@@ -347,13 +363,13 @@ class EventLogger:
         context: Optional[Dict[str, Any]] = None,
         user_id: Optional[str] = None,
         organization_id: Optional[str] = None,
-        correlation_id: Optional[str] = None
+        correlation_id: Optional[str] = None,
     ):
         """Log error event"""
         event_data = {
             "error_type": type(error).__name__,
             "error_message": str(error),
-            "context": context or {}
+            "context": context or {},
         }
 
         await self.log_event(
@@ -361,7 +377,7 @@ class EventLogger:
             event_data=event_data,
             user_id=user_id,
             organization_id=organization_id,
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
         )
 
 
@@ -384,13 +400,17 @@ class HealthChecker:
         for name, check_func in self.checks.items():
             try:
                 start_time = time.time()
-                is_healthy = await check_func() if asyncio.iscoroutinefunction(check_func) else check_func()
+                is_healthy = (
+                    await check_func()
+                    if asyncio.iscoroutinefunction(check_func)
+                    else check_func()
+                )
                 duration = time.time() - start_time
 
                 results[name] = {
                     "status": "healthy" if is_healthy else "unhealthy",
                     "duration_ms": duration * 1000,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
                 if not is_healthy:
@@ -400,7 +420,7 @@ class HealthChecker:
                 results[name] = {
                     "status": "unhealthy",
                     "error": str(e),
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
                 overall_healthy = False
 
@@ -408,7 +428,7 @@ class HealthChecker:
             "service": self.service_name,
             "status": "healthy" if overall_healthy else "unhealthy",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "checks": results
+            "checks": results,
         }
 
 
@@ -421,17 +441,23 @@ class MetricsCollector:
         self.gauges: Dict[str, float] = {}
         self.histograms: Dict[str, List[float]] = {}
 
-    def increment_counter(self, name: str, value: int = 1, labels: Optional[Dict[str, str]] = None):
+    def increment_counter(
+        self, name: str, value: int = 1, labels: Optional[Dict[str, str]] = None
+    ):
         """Increment counter metric"""
         key = self._make_key(name, labels)
         self.counters[key] = self.counters.get(key, 0) + value
 
-    def set_gauge(self, name: str, value: float, labels: Optional[Dict[str, str]] = None):
+    def set_gauge(
+        self, name: str, value: float, labels: Optional[Dict[str, str]] = None
+    ):
         """Set gauge metric"""
         key = self._make_key(name, labels)
         self.gauges[key] = value
 
-    def record_histogram(self, name: str, value: float, labels: Optional[Dict[str, str]] = None):
+    def record_histogram(
+        self, name: str, value: float, labels: Optional[Dict[str, str]] = None
+    ):
         """Record histogram metric"""
         key = self._make_key(name, labels)
         if key not in self.histograms:
@@ -459,10 +485,10 @@ class MetricsCollector:
                     "sum": sum(values),
                     "min": min(values) if values else 0,
                     "max": max(values) if values else 0,
-                    "avg": sum(values) / len(values) if values else 0
+                    "avg": sum(values) / len(values) if values else 0,
                 }
                 for key, values in self.histograms.items()
-            }
+            },
         }
 
 
@@ -473,7 +499,7 @@ async def make_http_request(
     json_data: Optional[Dict[str, Any]] = None,
     params: Optional[Dict[str, Any]] = None,
     timeout: float = 30.0,
-    retries: int = 3
+    retries: int = 3,
 ) -> Dict[str, Any]:
     """Make HTTP request with retries"""
 
@@ -481,11 +507,7 @@ async def make_http_request(
     async def _request():
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.request(
-                method=method,
-                url=url,
-                headers=headers,
-                json=json_data,
-                params=params
+                method=method, url=url, headers=headers, json=json_data, params=params
             )
             response.raise_for_status()
             return response.json()
@@ -496,14 +518,15 @@ async def make_http_request(
 def sanitize_filename(filename: str) -> str:
     """Sanitize filename for storage"""
     import re
+
     # Remove or replace dangerous characters
-    filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
+    filename = re.sub(r'[<>:"/\\|?*]', "_", filename)
     # Remove control characters
-    filename = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', filename)
+    filename = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", filename)
     # Limit length
     if len(filename) > 255:
-        name, ext = filename.rsplit('.', 1) if '.' in filename else (filename, '')
-        filename = name[:255-len(ext)-1] + '.' + ext if ext else name[:255]
+        name, ext = filename.rsplit(".", 1) if "." in filename else (filename, "")
+        filename = name[: 255 - len(ext) - 1] + "." + ext if ext else name[:255]
     return filename
 
 
@@ -527,17 +550,16 @@ def validate_mime_type(file_content: bytes, expected_mime: str) -> bool:
 
     try:
         detected_mime = magic.from_buffer(file_content, mime=True)
-        return detected_mime == expected_mime or detected_mime.startswith(expected_mime.split('/')[0] + '/')
+        return detected_mime == expected_mime or detected_mime.startswith(
+            expected_mime.split("/")[0] + "/"
+        )
     except Exception:
         # Fallback to basic validation if magic library not available
         return True
 
 
 async def paginate_query(
-    query: Any,
-    page: int,
-    limit: int,
-    db: AsyncSession
+    query: Any, page: int, limit: int, db: AsyncSession
 ) -> tuple[List[Any], Dict[str, int]]:
     """Paginate database query"""
     offset = (page - 1) * limit
@@ -558,7 +580,7 @@ async def paginate_query(
         "total": total,
         "total_pages": (total + limit - 1) // limit,
         "has_next": page * limit < total,
-        "has_prev": page > 1
+        "has_prev": page > 1,
     }
 
     return list(items), pagination_info

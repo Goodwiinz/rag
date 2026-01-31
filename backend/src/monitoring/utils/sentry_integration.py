@@ -6,16 +6,16 @@ Error tracking and performance monitoring integration with Sentry.
 
 import logging
 import os
-from typing import Dict, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, Optional
 
 import sentry_sdk
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
-from sentry_sdk.integrations.redis import RedisIntegration
-from sentry_sdk.integrations.celery import CeleryIntegration
-from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
+from sentry_sdk.integrations.celery import CeleryIntegration
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.integrations.redis import RedisIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from sentry_sdk.tracing import Transaction
 
 from ..config.monitoring_config import get_monitoring_config
@@ -47,7 +47,9 @@ class SentryManager:
         try:
             sentry_dsn = dsn or os.getenv("SENTRY_DSN")
             if not sentry_dsn:
-                logger.info("⚠️ Sentry DSN not provided, skipping Sentry initialization")
+                logger.info(
+                    "⚠️ Sentry DSN not provided, skipping Sentry initialization"
+                )
                 return
 
             # Configure integrations
@@ -57,10 +59,7 @@ class SentryManager:
                 RedisIntegration(),
                 CeleryIntegration(),
                 AsyncioIntegration(),
-                LoggingIntegration(
-                    level=logging.INFO,
-                    event_level=logging.ERROR
-                )
+                LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
             ]
 
             # Configure Sentry
@@ -77,20 +76,22 @@ class SentryManager:
                 "before_send": self._before_send,
                 "before_breadcrumb": self._before_breadcrumb,
                 "transport": self._create_transport(),
-                **kwargs
+                **kwargs,
             }
 
             # Add custom tags
             sentry_config["tags"] = {
                 "service": self._config.service_name,
                 "environment": self._config.environment,
-                "version": os.getenv("APP_VERSION", "1.0.0")
+                "version": os.getenv("APP_VERSION", "1.0.0"),
             }
 
             sentry_sdk.init(**sentry_config)
             self._initialized = True
 
-            logger.info(f"✅ Sentry initialized for {self._config.service_name} in {self._config.environment}")
+            logger.info(
+                f"✅ Sentry initialized for {self._config.service_name} in {self._config.environment}"
+            )
 
         except Exception as e:
             logger.error(f"❌ Failed to initialize Sentry: {e}")
@@ -125,11 +126,7 @@ class SentryManager:
             return
 
         def configure_user(scope):
-            scope.set_user({
-                "id": user_id,
-                "email": email,
-                **kwargs
-            })
+            scope.set_user({"id": user_id, "email": email, **kwargs})
 
         self.configure_scope(configure_user)
 
@@ -159,11 +156,13 @@ class SentryManager:
 
         sentry_sdk.set_extra(key, value)
 
-    def add_breadcrumb(self,
-                      message: str,
-                      category: Optional[str] = None,
-                      level: Optional[str] = None,
-                      **kwargs) -> None:
+    def add_breadcrumb(
+        self,
+        message: str,
+        category: Optional[str] = None,
+        level: Optional[str] = None,
+        **kwargs,
+    ) -> None:
         """
         Add a breadcrumb to Sentry
 
@@ -179,7 +178,7 @@ class SentryManager:
         breadcrumb = {
             "message": message,
             "timestamp": datetime.utcnow().isoformat(),
-            **kwargs
+            **kwargs,
         }
 
         if category:
@@ -209,7 +208,9 @@ class SentryManager:
             logger.error(f"Error capturing exception in Sentry: {e}")
             return None
 
-    def capture_message(self, message: str, level: str = "info", **kwargs) -> Optional[str]:
+    def capture_message(
+        self, message: str, level: str = "info", **kwargs
+    ) -> Optional[str]:
         """
         Capture a message in Sentry
 
@@ -230,7 +231,9 @@ class SentryManager:
             logger.error(f"Error capturing message in Sentry: {e}")
             return None
 
-    def start_transaction(self, name: str, op: Optional[str] = None, **kwargs) -> Optional[Transaction]:
+    def start_transaction(
+        self, name: str, op: Optional[str] = None, **kwargs
+    ) -> Optional[Transaction]:
         """
         Start a Sentry transaction
 
@@ -246,11 +249,7 @@ class SentryManager:
             return None
 
         try:
-            return sentry_sdk.start_transaction(
-                name=name,
-                op=op,
-                **kwargs
-            )
+            return sentry_sdk.start_transaction(name=name, op=op, **kwargs)
         except Exception as e:
             logger.error(f"Error starting Sentry transaction: {e}")
             return None
@@ -270,7 +269,9 @@ class SentryManager:
         except Exception as e:
             logger.error(f"Error flushing Sentry: {e}")
 
-    def _before_send(self, event: Dict[str, Any], hint: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _before_send(
+        self, event: Dict[str, Any], hint: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """
         Process event before sending to Sentry
 
@@ -301,7 +302,9 @@ class SentryManager:
             logger.error(f"Error in before_send: {e}")
             return event
 
-    def _before_breadcrumb(self, breadcrumb: Dict[str, Any], hint: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _before_breadcrumb(
+        self, breadcrumb: Dict[str, Any], hint: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """
         Process breadcrumb before adding to Sentry
 
@@ -366,7 +369,7 @@ class SentryManager:
             "KeyboardInterrupt",
             "SystemExit",
             "ConnectionError",
-            "TimeoutError"
+            "TimeoutError",
         ]
 
         exception_type = exception.get("type", "")
@@ -374,6 +377,7 @@ class SentryManager:
 
     def _create_transport(self):
         """Create custom transport for Sentry"""
+
         class CustomTransport(sentry_sdk.transport.HttpTransport):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
@@ -417,6 +421,7 @@ def sentry_trace(operation_name: Optional[str] = None):
     Args:
         operation_name: Name for the operation
     """
+
     def decorator(func):
         def wrapper(*args, **kwargs):
             manager = get_sentry_manager()
@@ -441,6 +446,7 @@ def sentry_trace(operation_name: Optional[str] = None):
                     transaction.finish()
 
         return wrapper
+
     return decorator
 
 
@@ -451,6 +457,7 @@ def capture_sentry_exception(message: Optional[str] = None):
     Args:
         message: Optional custom message
     """
+
     def decorator(func):
         def wrapper(*args, **kwargs):
             try:
@@ -465,4 +472,5 @@ def capture_sentry_exception(message: Optional[str] = None):
                 raise
 
         return wrapper
+
     return decorator

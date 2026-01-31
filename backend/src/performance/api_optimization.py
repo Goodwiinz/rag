@@ -3,33 +3,42 @@ Backend API performance optimization utilities for the RAG system
 """
 
 import asyncio
-import time
 import functools
-import json
 import gzip
-from typing import Dict, List, Optional, Any, Callable, Union
-from collections import defaultdict
-from dataclasses import dataclass, asdict
-from contextlib import asynccontextmanager
-from fastapi import Request, Response, HTTPException
-from fastapi.responses import JSONResponse
-import redis.asyncio as redis
+import json
 import logging
+import time
+from collections import defaultdict
+from contextlib import asynccontextmanager
+from dataclasses import asdict, dataclass
+from typing import Any, Callable, Dict, List, Optional, Union
+
 import aioredis
-from prometheus_client import Counter, Histogram, Gauge
 import orjson  # Faster JSON parsing
+import redis.asyncio as redis
+from fastapi import HTTPException, Request, Response
+from fastapi.responses import JSONResponse
+from prometheus_client import Counter, Gauge, Histogram
 
 logger = logging.getLogger(__name__)
 
 # Performance metrics
-API_REQUEST_COUNT = Counter('api_requests_total', 'Total API requests', ['endpoint', 'method', 'status'])
-API_REQUEST_DURATION = Histogram('api_request_duration_seconds', 'API request duration', ['endpoint', 'method'])
-API_ACTIVE_REQUESTS = Gauge('api_active_requests', 'Number of active API requests')
-API_RESPONSE_SIZE = Histogram('api_response_size_bytes', 'API response size', ['endpoint'])
+API_REQUEST_COUNT = Counter(
+    "api_requests_total", "Total API requests", ["endpoint", "method", "status"]
+)
+API_REQUEST_DURATION = Histogram(
+    "api_request_duration_seconds", "API request duration", ["endpoint", "method"]
+)
+API_ACTIVE_REQUESTS = Gauge("api_active_requests", "Number of active API requests")
+API_RESPONSE_SIZE = Histogram(
+    "api_response_size_bytes", "API response size", ["endpoint"]
+)
+
 
 @dataclass
 class APIPerformanceConfig:
     """API performance configuration"""
+
     # Response caching
     enable_response_cache: bool = True
     cache_ttl_default: int = 300  # 5 minutes
@@ -61,13 +70,14 @@ class APIPerformanceConfig:
     max_concurrent_requests: int = 50
     request_timeout: int = 120
 
+
 class ResponseCache:
     """Intelligent response caching system"""
 
     def __init__(self, redis_client: redis.Redis, config: APIPerformanceConfig):
         self.redis_client = redis_client
         self.config = config
-        self.cache_stats = defaultdict(lambda: {'hits': 0, 'misses': 0, 'sets': 0})
+        self.cache_stats = defaultdict(lambda: {"hits": 0, "misses": 0, "sets": 0})
 
     def _generate_cache_key(self, request: Request) -> str:
         """Generate cache key from request"""
@@ -77,17 +87,17 @@ class ResponseCache:
             request.url.path,
             str(dict(request.query_params)),
             # Include user context if available
-            getattr(request.state, 'user_id', 'anonymous'),
-            getattr(request.state, 'tenant_id', 'default')
+            getattr(request.state, "user_id", "anonymous"),
+            getattr(request.state, "tenant_id", "default"),
         ]
 
-        key_string = '|'.join(str(part) for part in key_parts)
+        key_string = "|".join(str(part) for part in key_parts)
         return f"api_cache:{hash(key_string)}"
 
     def _should_cache_response(self, request: Request, response: Response) -> bool:
         """Determine if response should be cached"""
         # Only cache GET requests
-        if request.method != 'GET':
+        if request.method != "GET":
             return False
 
         # Don't cache error responses
@@ -95,13 +105,15 @@ class ResponseCache:
             return False
 
         # Don't cache large responses
-        content_length = len(response.body) if hasattr(response, 'body') else 0
+        content_length = len(response.body) if hasattr(response, "body") else 0
         if content_length > self.config.max_response_size_mb * 1024 * 1024:
             return False
 
         # Check endpoint-specific cache rules
         path = request.url.path
-        cache_ttl = self.config.cache_ttl_by_endpoint.get(path, self.config.cache_ttl_default)
+        cache_ttl = self.config.cache_ttl_by_endpoint.get(
+            path, self.config.cache_ttl_default
+        )
 
         # Don't cache if TTL is 0 or negative
         if cache_ttl <= 0:
@@ -112,7 +124,9 @@ class ResponseCache:
     def _get_cache_ttl(self, request: Request) -> int:
         """Get cache TTL for request"""
         path = request.url.path
-        return self.config.cache_ttl_by_endpoint.get(path, self.config.cache_ttl_default)
+        return self.config.cache_ttl_by_endpoint.get(
+            path, self.config.cache_ttl_default
+        )
 
     async def get_cached_response(self, request: Request) -> Optional[Response]:
         """Get cached response if available"""
@@ -125,17 +139,17 @@ class ResponseCache:
             cached_data = await self.redis_client.get(cache_key)
             if cached_data:
                 response_data = json.loads(cached_data)
-                self.cache_stats[cache_key]['hits'] += 1
+                self.cache_stats[cache_key]["hits"] += 1
                 return Response(
-                    content=response_data['content'],
-                    status_code=response_data['status_code'],
-                    headers=response_data['headers'],
-                    media_type=response_data['media_type']
+                    content=response_data["content"],
+                    status_code=response_data["status_code"],
+                    headers=response_data["headers"],
+                    media_type=response_data["media_type"],
                 )
         except Exception as e:
             logger.error(f"Cache get error: {e}")
 
-        self.cache_stats[cache_key]['misses'] += 1
+        self.cache_stats[cache_key]["misses"] += 1
         return None
 
     async def cache_response(self, request: Request, response: Response) -> None:
@@ -148,18 +162,14 @@ class ResponseCache:
 
         try:
             response_data = {
-                'content': response.body.decode() if hasattr(response, 'body') else '',
-                'status_code': response.status_code,
-                'headers': dict(response.headers),
-                'media_type': response.media_type
+                "content": response.body.decode() if hasattr(response, "body") else "",
+                "status_code": response.status_code,
+                "headers": dict(response.headers),
+                "media_type": response.media_type,
             }
 
-            await self.redis_client.setex(
-                cache_key,
-                ttl,
-                json.dumps(response_data)
-            )
-            self.cache_stats[cache_key]['sets'] += 1
+            await self.redis_client.setex(cache_key, ttl, json.dumps(response_data))
+            self.cache_stats[cache_key]["sets"] += 1
 
         except Exception as e:
             logger.error(f"Cache set error: {e}")
@@ -179,6 +189,7 @@ class ResponseCache:
         """Get cache statistics"""
         return dict(self.cache_stats)
 
+
 class RateLimiter:
     """Advanced rate limiting system"""
 
@@ -188,14 +199,15 @@ class RateLimiter:
         self.limit_stats = defaultdict(int)
 
     async def is_allowed(
-        self,
-        key: str,
-        limit: Optional[int] = None,
-        window: int = 60
+        self, key: str, limit: Optional[int] = None, window: int = 60
     ) -> tuple[bool, Dict]:
         """Check if request is allowed and return rate limit info"""
         if not self.config.enable_rate_limiting:
-            return True, {'limit': float('inf'), 'remaining': float('inf'), 'reset_time': 0}
+            return True, {
+                "limit": float("inf"),
+                "remaining": float("inf"),
+                "reset_time": 0,
+            }
 
         limit = limit or self.config.default_rate_limit
         current_time = int(time.time())
@@ -212,38 +224,45 @@ class RateLimiter:
 
             if current_count >= limit:
                 # Get oldest request time for reset time
-                oldest = await self.redis_client.zrange(redis_key, 0, 0, withscores=True)
-                reset_time = int(oldest[0][1]) + window if oldest else current_time + window
+                oldest = await self.redis_client.zrange(
+                    redis_key, 0, 0, withscores=True
+                )
+                reset_time = (
+                    int(oldest[0][1]) + window if oldest else current_time + window
+                )
 
-                return False, {
-                    'limit': limit,
-                    'remaining': 0,
-                    'reset_time': reset_time
-                }
+                return False, {"limit": limit, "remaining": 0, "reset_time": reset_time}
 
             # Add current request
             await self.redis_client.zadd(redis_key, {str(current_time): current_time})
             self.limit_stats[key] += 1
 
             return True, {
-                'limit': limit,
-                'remaining': limit - current_count - 1,
-                'reset_time': current_time + window
+                "limit": limit,
+                "remaining": limit - current_count - 1,
+                "reset_time": current_time + window,
             }
 
         except Exception as e:
             logger.error(f"Rate limiting error: {e}")
             # Allow request if rate limiting fails
-            return True, {'limit': float('inf'), 'remaining': float('inf'), 'reset_time': 0}
+            return True, {
+                "limit": float("inf"),
+                "remaining": float("inf"),
+                "reset_time": 0,
+            }
 
     def get_rate_limit_stats(self) -> Dict[str, int]:
         """Get rate limiting statistics"""
         return dict(self.limit_stats)
 
+
 class APIPerformanceMiddleware:
     """Comprehensive API performance middleware"""
 
-    def __init__(self, app, redis_client: redis.Redis, config: APIPerformanceConfig = None):
+    def __init__(
+        self, app, redis_client: redis.Redis, config: APIPerformanceConfig = None
+    ):
         self.app = app
         self.config = config or APIPerformanceConfig()
         self.response_cache = ResponseCache(redis_client, self.config)
@@ -271,23 +290,25 @@ class APIPerformanceMiddleware:
             if not is_allowed:
                 response = JSONResponse(
                     status_code=429,
-                    content={"error": "Rate limit exceeded", **rate_limit_info}
+                    content={"error": "Rate limit exceeded", **rate_limit_info},
                 )
                 await self._send_response(response, send, scope, start_time, request)
                 return
 
             # Check cache for GET requests
-            if request.method == 'GET':
+            if request.method == "GET":
                 cached_response = await self.response_cache.get_cached_response(request)
                 if cached_response:
-                    await self._send_response(cached_response, send, scope, start_time, request)
+                    await self._send_response(
+                        cached_response, send, scope, start_time, request
+                    )
                     return
 
             # Process request
             response = await self._call_asgi(request, receive, send)
 
             # Cache successful GET responses
-            if request.method == 'GET' and response.status_code == 200:
+            if request.method == "GET" and response.status_code == 200:
                 await self.response_cache.cache_response(request, response)
 
             await self._send_response(response, send, scope, start_time, request)
@@ -295,8 +316,7 @@ class APIPerformanceMiddleware:
         except Exception as e:
             logger.error(f"API middleware error: {e}")
             response = JSONResponse(
-                status_code=500,
-                content={"error": "Internal server error"}
+                status_code=500, content={"error": "Internal server error"}
             )
             await self._send_response(response, send, scope, start_time, request)
 
@@ -325,73 +345,86 @@ class APIPerformanceMiddleware:
         API_REQUEST_COUNT.labels(
             endpoint=request.url.path,
             method=request.method,
-            status=response.status_code
+            status=response.status_code,
         ).inc()
 
         API_REQUEST_DURATION.labels(
-            endpoint=request.url.path,
-            method=request.method
+            endpoint=request.url.path, method=request.method
         ).observe(duration)
 
         # Add performance headers
-        headers = dict(response.headers) if hasattr(response, 'headers') else {}
+        headers = dict(response.headers) if hasattr(response, "headers") else {}
         headers["X-Response-Time"] = f"{duration:.3f}s"
 
         # Compress response if enabled and applicable
-        if (self.config.enable_compression and
-            "gzip" in request.headers.get("accept-encoding", "")):
-
+        if self.config.enable_compression and "gzip" in request.headers.get(
+            "accept-encoding", ""
+        ):
             # This is simplified - in practice, you'd need to implement
             # proper response compression
             pass
 
         # Send response
-        await send({
-            "type": "http.response.start",
-            "status": response.status_code,
-            "headers": [
-                (k.encode(), v.encode()) for k, v in headers.items()
-            ]
-        })
+        await send(
+            {
+                "type": "http.response.start",
+                "status": response.status_code,
+                "headers": [(k.encode(), v.encode()) for k, v in headers.items()],
+            }
+        )
 
-        body = response.body if hasattr(response, 'body') else b""
-        await send({
-            "type": "http.response.body",
-            "body": body,
-        })
+        body = response.body if hasattr(response, "body") else b""
+        await send(
+            {
+                "type": "http.response.body",
+                "body": body,
+            }
+        )
+
 
 class ResponseWrapper:
     """Wrapper to capture ASGI response"""
+
     def __init__(self):
         self.status_code = 200
         self.headers = []
         self.body = b""
 
+
 # Decorators for API optimization
 def cache_api_response(ttl: int = 300):
     """Decorator for caching API responses"""
+
     def decorator(func: Callable):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             # This is a simplified implementation
             # In practice, you'd integrate with the response cache
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
+
 
 def rate_api_endpoint(limit: int, window: int = 60):
     """Decorator for rate limiting API endpoints"""
+
     def decorator(func: Callable):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             # This is a simplified implementation
             # In practice, you'd integrate with the rate limiter
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
+
 
 def measure_api_performance(func: Callable):
     """Decorator for measuring API performance"""
+
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         start_time = time.time()
@@ -404,7 +437,9 @@ def measure_api_performance(func: Callable):
             duration = time.time() - start_time
             logger.error(f"{func.__name__} failed after {duration:.3f}s: {e}")
             raise
+
     return wrapper
+
 
 class AsyncBatchProcessor:
     """Batch processing for API operations"""
@@ -435,16 +470,18 @@ class AsyncBatchProcessor:
         while self.pending_requests:
             # Wait for more requests or timeout
             start_time = time.time()
-            while (len(self.pending_requests) < self.max_batch_size and
-                   time.time() - start_time < self.max_wait_time):
+            while (
+                len(self.pending_requests) < self.max_batch_size
+                and time.time() - start_time < self.max_wait_time
+            ):
                 await asyncio.sleep(0.01)
 
             if not self.pending_requests:
                 break
 
             # Process current batch
-            batch = self.pending_requests[:self.max_batch_size]
-            self.pending_requests = self.pending_requests[self.max_batch_size:]
+            batch = self.pending_requests[: self.max_batch_size]
+            self.pending_requests = self.pending_requests[self.max_batch_size :]
 
             try:
                 results = await self._execute_batch([req for req, _ in batch])
@@ -462,6 +499,7 @@ class AsyncBatchProcessor:
         # This would be implemented based on the specific batch operation
         return [None] * len(requests)
 
+
 # Utility functions for API optimization
 async def validate_request_size(request: Request, max_size_mb: int = 50) -> bool:
     """Validate request size"""
@@ -469,32 +507,38 @@ async def validate_request_size(request: Request, max_size_mb: int = 50) -> bool
     if content_length and int(content_length) > max_size_mb * 1024 * 1024:
         raise HTTPException(
             status_code=413,
-            detail=f"Request too large. Maximum size is {max_size_mb}MB"
+            detail=f"Request too large. Maximum size is {max_size_mb}MB",
         )
     return True
 
-def paginate_response(data: List[Any], page: int, page_size: int, max_page_size: int = 100) -> Dict:
+
+def paginate_response(
+    data: List[Any], page: int, page_size: int, max_page_size: int = 100
+) -> Dict:
     """Paginate response data"""
     page_size = min(page_size, max_page_size)
     start_idx = (page - 1) * page_size
     end_idx = start_idx + page_size
 
     return {
-        'data': data[start_idx:end_idx],
-        'pagination': {
-            'page': page,
-            'page_size': page_size,
-            'total': len(data),
-            'total_pages': (len(data) + page_size - 1) // page_size,
-            'has_next': end_idx < len(data),
-            'has_prev': page > 1
-        }
+        "data": data[start_idx:end_idx],
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total": len(data),
+            "total_pages": (len(data) + page_size - 1) // page_size,
+            "has_next": end_idx < len(data),
+            "has_prev": page > 1,
+        },
     }
 
-async def compress_response(data: Union[str, bytes], threshold_bytes: int = 1024) -> bytes:
+
+async def compress_response(
+    data: Union[str, bytes], threshold_bytes: int = 1024
+) -> bytes:
     """Compress response data if beneficial"""
     if isinstance(data, str):
-        data = data.encode('utf-8')
+        data = data.encode("utf-8")
 
     if len(data) < threshold_bytes:
         return data

@@ -4,18 +4,31 @@ Real-time Analytics API routes
 
 import logging
 import uuid
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.responses import JSONResponse
 
-from src.services.analytics.realtime_service import realtime_service
-from src.models.analytics.realtime_models import (
-    SubscriptionCreate, SubscriptionResponse, LiveMetricData, EventStreamData,
-    ConnectionStats, RealtimeAnalyticsSummary, ChannelMetrics
-)
 from src.auth.dependencies import get_current_user
+from src.models.analytics.realtime_models import (
+    ChannelMetrics,
+    ConnectionStats,
+    EventStreamData,
+    LiveMetricData,
+    RealtimeAnalyticsSummary,
+    SubscriptionCreate,
+    SubscriptionResponse,
+)
 from src.models.user import User
+from src.services.analytics.realtime_service import realtime_service
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +37,7 @@ router = APIRouter(prefix="/realtime", tags=["analytics-realtime"])
 
 @router.websocket("/ws")
 async def websocket_endpoint(
-    websocket: WebSocket,
-    token: str = Query(..., description="Authentication token")
+    websocket: WebSocket, token: str = Query(..., description="Authentication token")
 ):
     """WebSocket endpoint for real-time analytics"""
     try:
@@ -45,10 +57,13 @@ async def websocket_endpoint(
         await websocket.close(code=1000, reason="Internal server error")
 
 
-@router.post("/subscriptions", response_model=SubscriptionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/subscriptions",
+    response_model=SubscriptionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_subscription(
-    request: SubscriptionCreate,
-    current_user: User = Depends(get_current_user)
+    request: SubscriptionCreate, current_user: User = Depends(get_current_user)
 ):
     """Create a real-time subscription"""
     try:
@@ -74,24 +89,28 @@ async def create_subscription(
             expires_at=request.config.expires_at,
             auto_renew=request.config.auto_renew,
             created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            updated_at=datetime.utcnow(),
         )
 
     except Exception as e:
         logger.error(f"Error creating subscription: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create subscription"
+            detail="Failed to create subscription",
         )
 
 
 @router.get("/subscriptions", response_model=List[SubscriptionResponse])
 async def list_subscriptions(
-    subscription_type: Optional[str] = Query(None, description="Filter by subscription type"),
+    subscription_type: Optional[str] = Query(
+        None, description="Filter by subscription type"
+    ),
     channel: Optional[str] = Query(None, description="Filter by channel"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
-    limit: int = Query(50, ge=1, le=100, description="Number of subscriptions to return"),
-    current_user: User = Depends(get_current_user)
+    limit: int = Query(
+        50, ge=1, le=100, description="Number of subscriptions to return"
+    ),
+    current_user: User = Depends(get_current_user),
 ):
     """List real-time subscriptions"""
     try:
@@ -105,14 +124,13 @@ async def list_subscriptions(
         logger.error(f"Error listing subscriptions: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list subscriptions"
+            detail="Failed to list subscriptions",
         )
 
 
 @router.post("/metrics/publish", status_code=status.HTTP_200_OK)
 async def publish_metric(
-    metric_data: LiveMetricData,
-    current_user: User = Depends(get_current_user)
+    metric_data: LiveMetricData, current_user: User = Depends(get_current_user)
 ):
     """Publish a live metric value"""
     try:
@@ -123,14 +141,13 @@ async def publish_metric(
         logger.error(f"Error publishing metric: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to publish metric"
+            detail="Failed to publish metric",
         )
 
 
 @router.post("/events/publish", status_code=status.HTTP_200_OK)
 async def publish_event(
-    event_data: EventStreamData,
-    current_user: User = Depends(get_current_user)
+    event_data: EventStreamData, current_user: User = Depends(get_current_user)
 ):
     """Publish an event stream"""
     try:
@@ -141,22 +158,20 @@ async def publish_event(
         logger.error(f"Error publishing event: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to publish event"
+            detail="Failed to publish event",
         )
 
 
 @router.get("/connections/{connection_id}", response_model=ConnectionStats)
 async def get_connection_stats(
-    connection_id: str,
-    current_user: User = Depends(get_current_user)
+    connection_id: str, current_user: User = Depends(get_current_user)
 ):
     """Get WebSocket connection statistics"""
     try:
         stats = await realtime_service.get_connection_stats(connection_id)
         if not stats:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Connection not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Connection not found"
             )
         return stats
 
@@ -166,14 +181,12 @@ async def get_connection_stats(
         logger.error(f"Error getting connection stats: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get connection stats"
+            detail="Failed to get connection stats",
         )
 
 
 @router.get("/summary", response_model=RealtimeAnalyticsSummary)
-async def get_realtime_summary(
-    current_user: User = Depends(get_current_user)
-):
+async def get_realtime_summary(current_user: User = Depends(get_current_user)):
     """Get real-time analytics summary"""
     try:
         summary = await realtime_service.get_realtime_summary()
@@ -183,14 +196,13 @@ async def get_realtime_summary(
         logger.error(f"Error getting realtime summary: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get realtime summary"
+            detail="Failed to get realtime summary",
         )
 
 
 @router.get("/channels/{channel}/metrics", response_model=ChannelMetrics)
 async def get_channel_metrics(
-    channel: str,
-    current_user: User = Depends(get_current_user)
+    channel: str, current_user: User = Depends(get_current_user)
 ):
     """Get channel-specific metrics"""
     try:
@@ -201,14 +213,12 @@ async def get_channel_metrics(
         logger.error(f"Error getting channel metrics: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get channel metrics"
+            detail="Failed to get channel metrics",
         )
 
 
 @router.get("/channels", response_model=List[str])
-async def get_active_channels(
-    current_user: User = Depends(get_current_user)
-):
+async def get_active_channels(current_user: User = Depends(get_current_user)):
     """Get list of active channels"""
     try:
         # This is a simplified implementation
@@ -217,7 +227,7 @@ async def get_active_channels(
             "metrics:performance",
             "events:user_activity",
             "alerts:system_health",
-            "dashboards:updates"
+            "dashboards:updates",
         ]
 
         return active_channels
@@ -226,27 +236,27 @@ async def get_active_channels(
         logger.error(f"Error getting active channels: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get active channels"
+            detail="Failed to get active channels",
         )
 
 
 @router.get("/health", response_model=Dict[str, Any])
-async def check_realtime_health(
-    current_user: User = Depends(get_current_user)
-):
+async def check_realtime_health(current_user: User = Depends(get_current_user)):
     """Check real-time analytics service health"""
     try:
         summary = await realtime_service.get_realtime_summary()
 
         return {
-            "status": "healthy" if summary.system_health in ["healthy", "degraded"] else "unhealthy",
+            "status": "healthy"
+            if summary.system_health in ["healthy", "degraded"]
+            else "unhealthy",
             "total_connections": summary.total_connections,
             "active_subscriptions": summary.active_subscriptions,
             "messages_per_second": summary.messages_per_second,
             "events_per_second": summary.events_per_second,
             "system_health": summary.system_health,
             "last_updated": summary.last_updated.isoformat(),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     except Exception as e:
@@ -254,7 +264,7 @@ async def check_realtime_health(
         return {
             "status": "unhealthy",
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
 
@@ -262,7 +272,7 @@ async def check_realtime_health(
 async def test_subscription(
     channel: str = Query(..., description="Channel to test subscription"),
     message_count: int = Query(10, ge=1, le=100, description="Number of test messages"),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Test real-time subscription with sample data"""
     try:
@@ -284,7 +294,7 @@ async def test_subscription(
                 tags=["test"],
                 is_anomaly=False,
                 source="test",
-                confidence=1.0
+                confidence=1.0,
             )
 
             await realtime_service.publish_metric(test_metric)
@@ -292,12 +302,12 @@ async def test_subscription(
         return {
             "message": f"Published {message_count} test messages to channel: {channel}",
             "channel": channel,
-            "message_count": message_count
+            "message_count": message_count,
         }
 
     except Exception as e:
         logger.error(f"Error testing subscription: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to test subscription"
+            detail="Failed to test subscription",
         )

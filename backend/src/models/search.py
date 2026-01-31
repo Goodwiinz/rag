@@ -3,22 +3,37 @@ Search query and result models for RAG system
 """
 
 import uuid
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Enum, ForeignKey, Text, JSON
-from sqlalchemy.orm import relationship
-from enum import Enum as PyEnum
 from datetime import datetime
+from enum import Enum as PyEnum
 from typing import Optional
 
-from .base import BaseModel, GUID
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.orm import relationship
+
+from .base import GUID, BaseModel
 from .utils import StringArray
+
 
 class SearchType(PyEnum):
     """Search types for different query approaches"""
+
     SEMANTIC = "semantic"
     KEYWORD = "keyword"
     HYBRID = "hybrid"
     GRAPH = "graph"
     MULTIMODAL = "multimodal"
+
 
 class SearchQuery(BaseModel):
     """Search query model for tracking user queries"""
@@ -55,7 +70,9 @@ class SearchQuery(BaseModel):
     # Relationships
     user = relationship("User", back_populates="search_queries")
     organization = relationship("Organization")
-    results = relationship("SearchResult", back_populates="search_query", cascade="all, delete-orphan")
+    results = relationship(
+        "SearchResult", back_populates="search_query", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<SearchQuery(query={self.query_text[:50]}..., type={self.search_type.value}, results={self.total_results})>"
@@ -65,7 +82,9 @@ class SearchQuery(BaseModel):
         """Get average relevance score of results"""
         if not self.results:
             return 0.0
-        scores = [result.relevance_score for result in self.results if result.relevance_score]
+        scores = [
+            result.relevance_score for result in self.results if result.relevance_score
+        ]
         return sum(scores) / len(scores) if scores else 0.0
 
     @property
@@ -97,10 +116,13 @@ class SearchQuery(BaseModel):
             self.query_parameters = {}
         self.query_parameters[key] = value
 
-    def update_performance_metrics(self, total_duration_ms: int = None,
-                                 vector_duration_ms: int = None,
-                                 graph_duration_ms: int = None,
-                                 reranking_duration_ms: int = None):
+    def update_performance_metrics(
+        self,
+        total_duration_ms: int = None,
+        vector_duration_ms: int = None,
+        graph_duration_ms: int = None,
+        reranking_duration_ms: int = None,
+    ):
         """Update performance metrics"""
         if total_duration_ms is not None:
             self.search_duration_ms = total_duration_ms
@@ -127,38 +149,37 @@ class SearchQuery(BaseModel):
         data = super().to_dict()
 
         # Convert enum values
-        data['search_type'] = self.search_type.value if self.search_type else None
+        data["search_type"] = self.search_type.value if self.search_type else None
 
         # Add computed fields
-        data['average_result_score'] = self.average_result_score
-        data['search_duration_seconds'] = self.search_duration_seconds
-        data['has_feedback'] = self.has_feedback
+        data["average_result_score"] = self.average_result_score
+        data["search_duration_seconds"] = self.search_duration_seconds
+        data["has_feedback"] = self.has_feedback
 
         # Include results if requested
         if include_results:
-            data['results'] = [result.to_dict() for result in self.results]
+            data["results"] = [result.to_dict() for result in self.results]
 
         # Remove sensitive fields
-        data.pop('ip_address', None)
-        data.pop('user_agent', None)
+        data.pop("ip_address", None)
+        data.pop("user_agent", None)
 
         return data
 
     @classmethod
-    def get_popular_queries(cls, organization_id: Optional[uuid.UUID] = None, limit: int = 10) -> list:
+    def get_popular_queries(
+        cls, organization_id: Optional[uuid.UUID] = None, limit: int = 10
+    ) -> list:
         """Get most frequent search queries"""
         from sqlalchemy import func
 
-        query = cls.session.query(
-            cls.query_text,
-            func.count(cls.id).label('search_count')
-        ).filter(
-            cls.is_deleted == False
-        ).group_by(
-            cls.query_text
-        ).order_by(
-            func.count(cls.id).desc()
-        ).limit(limit)
+        query = (
+            cls.session.query(cls.query_text, func.count(cls.id).label("search_count"))
+            .filter(cls.is_deleted == False)
+            .group_by(cls.query_text)
+            .order_by(func.count(cls.id).desc())
+            .limit(limit)
+        )
 
         if organization_id:
             query = query.filter(cls.organization_id == organization_id)
@@ -166,17 +187,21 @@ class SearchQuery(BaseModel):
         return query.all()
 
     @classmethod
-    def get_queries_with_low_satisfaction(cls, organization_id: Optional[uuid.UUID] = None, limit: int = 10) -> list:
+    def get_queries_with_low_satisfaction(
+        cls, organization_id: Optional[uuid.UUID] = None, limit: int = 10
+    ) -> list:
         """Get queries with low user satisfaction"""
-        query = cls.query.filter(
-            cls.user_satisfaction <= 2,
-            cls.is_deleted == False
-        ).order_by(cls.user_satisfaction.asc()).limit(limit)
+        query = (
+            cls.query.filter(cls.user_satisfaction <= 2, cls.is_deleted == False)
+            .order_by(cls.user_satisfaction.asc())
+            .limit(limit)
+        )
 
         if organization_id:
             query = query.filter(cls.organization_id == organization_id)
 
         return query.all()
+
 
 class SearchResult(BaseModel):
     """Search result model for individual document matches"""
@@ -255,11 +280,7 @@ class SearchResult(BaseModel):
         """Add a highlight span"""
         if not self.highlight_spans:
             self.highlight_spans = []
-        self.highlight_spans.append({
-            'start': start,
-            'end': end,
-            'text': text
-        })
+        self.highlight_spans.append({"start": start, "end": end, "text": text})
 
     def set_modality_score(self, modality: str, score: float):
         """Set score for a specific modality"""
@@ -278,22 +299,26 @@ class SearchResult(BaseModel):
         data = super().to_dict()
 
         # Add computed fields
-        data['click_through_rate'] = self.click_through_rate
-        data['dwell_time_seconds'] = self.dwell_time_seconds
+        data["click_through_rate"] = self.click_through_rate
+        data["dwell_time_seconds"] = self.dwell_time_seconds
 
         # Include document information
         if self.document:
-            data['document'] = {
-                'id': str(self.document.id),
-                'title': self.document.title,
-                'document_type': self.document.document_type.value,
-                'content_preview': self.document.get_content_preview(150)
+            data["document"] = {
+                "id": str(self.document.id),
+                "title": self.document.title,
+                "document_type": self.document.document_type.value,
+                "content_preview": self.document.get_content_preview(150),
             }
 
         return data
 
     @classmethod
-    def get_clicked_results(cls, search_query_id: Optional[uuid.UUID] = None, organization_id: Optional[uuid.UUID] = None) -> list:
+    def get_clicked_results(
+        cls,
+        search_query_id: Optional[uuid.UUID] = None,
+        organization_id: Optional[uuid.UUID] = None,
+    ) -> list:
         """Get clicked search results"""
         query = cls.query.filter(cls.was_clicked == True, cls.is_deleted == False)
 
@@ -301,19 +326,24 @@ class SearchResult(BaseModel):
             query = query.filter(cls.search_query_id == search_query_id)
 
         if organization_id:
-            query = query.join(SearchQuery).filter(SearchQuery.organization_id == organization_id)
+            query = query.join(SearchQuery).filter(
+                SearchQuery.organization_id == organization_id
+            )
 
         return query.all()
 
     @classmethod
-    def get_high_scoring_results(cls, min_score: float = 0.8, organization_id: Optional[uuid.UUID] = None) -> list:
+    def get_high_scoring_results(
+        cls, min_score: float = 0.8, organization_id: Optional[uuid.UUID] = None
+    ) -> list:
         """Get high scoring search results"""
         query = cls.query.filter(
-            cls.relevance_score >= min_score,
-            cls.is_deleted == False
+            cls.relevance_score >= min_score, cls.is_deleted == False
         )
 
         if organization_id:
-            query = query.join(SearchQuery).filter(SearchQuery.organization_id == organization_id)
+            query = query.join(SearchQuery).filter(
+                SearchQuery.organization_id == organization_id
+            )
 
         return query.all()

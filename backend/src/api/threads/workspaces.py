@@ -3,40 +3,56 @@ Thread-centric Workspace API endpoints for Terminal Observatory
 Provides CRUD operations for Workspaces, Conversations, Threads, Messages, and Collections
 """
 
-from typing import Optional, List
-from datetime import datetime
-from uuid import UUID
 import logging
+from datetime import datetime
+from typing import List, Optional
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy import and_, or_, func, select
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
-from src.models.user import User
-from src.models.workspace import Workspace, WorkspaceMember, WorkspaceRole
-from src.models.conversation import Conversation
-from src.models.thread import Thread, ThreadStatus
 from src.models.chat_message import ChatMessage, MessageRole
 from src.models.citation import Citation
 from src.models.collection import Collection, CollectionDocument
+from src.models.conversation import Conversation
 from src.models.document import Document
-from src.schemas.chat import (
-    # Workspace schemas
-    WorkspaceCreate, WorkspaceUpdate, WorkspaceResponse, WorkspaceDetailResponse,
-    WorkspaceMemberCreate, WorkspaceMemberUpdate, WorkspaceMemberResponse,
-    # Conversation schemas
-    ConversationCreate, ConversationUpdate, ConversationResponse, ConversationListResponse,
-    # Thread schemas
-    ThreadCreate, ThreadUpdate, ThreadResponse, ThreadDetailResponse, ThreadListResponse,
-    # Message schemas
-    ChatMessageCreate, ChatMessageUpdate, ChatMessageResponse, ChatMessageListResponse,
-    CitationResponse, MessageAttachmentResponse,
-    # Collection schemas
-    CollectionCreate, CollectionUpdate, CollectionResponse, CollectionDetailResponse,
-    CollectionListResponse, CollectionDocumentAdd, CollectionDocumentRemove,
+from src.models.thread import Thread, ThreadStatus
+from src.models.user import User
+from src.models.workspace import Workspace, WorkspaceMember, WorkspaceRole
+from src.schemas.chat import (  # Workspace schemas; Conversation schemas; Thread schemas; Message schemas; Collection schemas
+    ChatMessageCreate,
+    ChatMessageListResponse,
+    ChatMessageResponse,
+    ChatMessageUpdate,
+    CitationResponse,
+    CollectionCreate,
+    CollectionDetailResponse,
+    CollectionDocumentAdd,
+    CollectionDocumentRemove,
+    CollectionListResponse,
+    CollectionResponse,
+    CollectionUpdate,
+    ConversationCreate,
+    ConversationListResponse,
+    ConversationResponse,
+    ConversationUpdate,
+    MessageAttachmentResponse,
+    ThreadCreate,
+    ThreadDetailResponse,
+    ThreadListResponse,
+    ThreadResponse,
+    ThreadUpdate,
+    WorkspaceCreate,
+    WorkspaceDetailResponse,
+    WorkspaceMemberCreate,
+    WorkspaceMemberResponse,
+    WorkspaceMemberUpdate,
+    WorkspaceResponse,
+    WorkspaceUpdate,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,11 +66,12 @@ standalone_router = APIRouter(prefix="/api/v2", tags=["workspaces-flat"])
 # Workspace Endpoints
 # ============================================================================
 
+
 @router.post("", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
 async def create_workspace(
     request: WorkspaceCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new workspace"""
     workspace = Workspace(
@@ -62,26 +79,28 @@ async def create_workspace(
         description=request.description,
         is_public=request.is_public,
         owner_id=current_user.id,
-        organization_id=request.organization_id
+        organization_id=request.organization_id,
     )
     db.add(workspace)
 
     # Add owner as member with OWNER role
     member = WorkspaceMember(
-        workspace=workspace,
-        user_id=current_user.id,
-        role=WorkspaceRole.OWNER
+        workspace=workspace, user_id=current_user.id, role=WorkspaceRole.OWNER
     )
     db.add(member)
 
     await db.commit()
 
     # Re-fetch workspace with eager-loaded relationships to avoid greenlet errors
-    stmt = select(Workspace).options(
-        selectinload(Workspace.members),
-        selectinload(Workspace.conversations),
-        selectinload(Workspace.collections)
-    ).where(Workspace.id == workspace.id)
+    stmt = (
+        select(Workspace)
+        .options(
+            selectinload(Workspace.members),
+            selectinload(Workspace.conversations),
+            selectinload(Workspace.collections),
+        )
+        .where(Workspace.id == workspace.id)
+    )
     result = await db.execute(stmt)
     workspace = result.scalars().first()
 
@@ -96,16 +115,20 @@ async def list_workspaces(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """List workspaces accessible by the current user"""
-    stmt = select(Workspace).options(
-        selectinload(Workspace.members),
-        selectinload(Workspace.conversations),
-        selectinload(Workspace.collections)
-    ).join(WorkspaceMember).where(
-        WorkspaceMember.user_id == current_user.id,
-        Workspace.is_deleted == False
+    stmt = (
+        select(Workspace)
+        .options(
+            selectinload(Workspace.members),
+            selectinload(Workspace.conversations),
+            selectinload(Workspace.collections),
+        )
+        .join(WorkspaceMember)
+        .where(
+            WorkspaceMember.user_id == current_user.id, Workspace.is_deleted == False
+        )
     )
 
     if not include_archived:
@@ -122,7 +145,7 @@ async def list_workspaces(
 async def get_workspace(
     workspace_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Get workspace details with members"""
     workspace = await _get_workspace_or_404(db, workspace_id, current_user)
@@ -135,7 +158,7 @@ async def update_workspace(
     workspace_id: UUID,
     request: WorkspaceUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Update workspace details"""
     workspace = await _get_workspace_or_404(db, workspace_id, current_user)
@@ -165,14 +188,16 @@ async def update_workspace(
 async def delete_workspace(
     workspace_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a workspace"""
     workspace = await _get_workspace_or_404(db, workspace_id, current_user)
 
     # Only owner can delete
     if str(workspace.owner_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="Only the owner can delete a workspace")
+        raise HTTPException(
+            status_code=403, detail="Only the owner can delete a workspace"
+        )
 
     workspace.is_deleted = True
     workspace.deleted_at = datetime.utcnow()
@@ -185,24 +210,31 @@ async def delete_workspace(
 # Workspace Member Endpoints
 # ============================================================================
 
-@router.post("/{workspace_id}/members", response_model=WorkspaceMemberResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/{workspace_id}/members",
+    response_model=WorkspaceMemberResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_workspace_member(
     workspace_id: UUID,
     request: WorkspaceMemberCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Add a member to a workspace"""
     workspace = await _get_workspace_or_404(db, workspace_id, current_user)
 
     if not workspace.can_user_admin(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions to add members")
+        raise HTTPException(
+            status_code=403, detail="Insufficient permissions to add members"
+        )
 
     # Check if user already a member
     stmt = select(WorkspaceMember).where(
         WorkspaceMember.workspace_id == workspace_id,
         WorkspaceMember.user_id == request.user_id,
-        WorkspaceMember.is_deleted == False
+        WorkspaceMember.is_deleted == False,
     )
     result = await db.execute(stmt)
     existing = result.scalars().first()
@@ -214,7 +246,7 @@ async def add_workspace_member(
         workspace_id=workspace_id,
         user_id=request.user_id,
         role=request.role,
-        invited_by_id=current_user.id
+        invited_by_id=current_user.id,
     )
     db.add(member)
     await db.commit()
@@ -223,13 +255,15 @@ async def add_workspace_member(
     return _member_to_response(member)
 
 
-@router.patch("/{workspace_id}/members/{user_id}", response_model=WorkspaceMemberResponse)
+@router.patch(
+    "/{workspace_id}/members/{user_id}", response_model=WorkspaceMemberResponse
+)
 async def update_member_role(
     workspace_id: UUID,
     user_id: UUID,
     request: WorkspaceMemberUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Update a member's role"""
     workspace = await _get_workspace_or_404(db, workspace_id, current_user)
@@ -240,7 +274,7 @@ async def update_member_role(
     stmt = select(WorkspaceMember).where(
         WorkspaceMember.workspace_id == workspace_id,
         WorkspaceMember.user_id == user_id,
-        WorkspaceMember.is_deleted == False
+        WorkspaceMember.is_deleted == False,
     )
     result = await db.execute(stmt)
     member = result.scalars().first()
@@ -260,24 +294,28 @@ async def update_member_role(
     return _member_to_response(member)
 
 
-@router.delete("/{workspace_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{workspace_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def remove_workspace_member(
     workspace_id: UUID,
     user_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Remove a member from a workspace"""
     workspace = await _get_workspace_or_404(db, workspace_id, current_user)
 
     # Users can remove themselves, admins can remove others
-    if str(user_id) != str(current_user.id) and not workspace.can_user_admin(str(current_user.id)):
+    if str(user_id) != str(current_user.id) and not workspace.can_user_admin(
+        str(current_user.id)
+    ):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     stmt = select(WorkspaceMember).where(
         WorkspaceMember.workspace_id == workspace_id,
         WorkspaceMember.user_id == user_id,
-        WorkspaceMember.is_deleted == False
+        WorkspaceMember.is_deleted == False,
     )
     result = await db.execute(stmt)
     member = result.scalars().first()
@@ -298,12 +336,17 @@ async def remove_workspace_member(
 # Conversation Endpoints
 # ============================================================================
 
-@router.post("/{workspace_id}/conversations", response_model=ConversationResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/{workspace_id}/conversations",
+    response_model=ConversationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_conversation(
     workspace_id: UUID,
     request: ConversationCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new conversation in a workspace"""
     workspace = await _get_workspace_or_404(db, workspace_id, current_user)
@@ -315,19 +358,23 @@ async def create_conversation(
         workspace_id=workspace_id,
         title=request.title,
         description=request.description,
-        created_by_id=current_user.id
+        created_by_id=current_user.id,
     )
     db.add(conversation)
     await db.commit()
 
     # Re-fetch with eager-loaded relationships to avoid greenlet errors
-    stmt = select(Conversation).options(
-        selectinload(Conversation.threads)
-    ).where(Conversation.id == conversation.id)
+    stmt = (
+        select(Conversation)
+        .options(selectinload(Conversation.threads))
+        .where(Conversation.id == conversation.id)
+    )
     result = await db.execute(stmt)
     conversation = result.scalars().first()
 
-    logger.info(f"Conversation '{conversation.title}' created in workspace {workspace_id}")
+    logger.info(
+        f"Conversation '{conversation.title}' created in workspace {workspace_id}"
+    )
 
     return _conversation_to_response(conversation)
 
@@ -339,14 +386,14 @@ async def list_conversations(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """List conversations in a workspace"""
     workspace = await _get_workspace_or_404(db, workspace_id, current_user)
 
     base_conditions = [
         Conversation.workspace_id == workspace_id,
-        Conversation.is_deleted == False
+        Conversation.is_deleted == False,
     ]
 
     if not include_archived:
@@ -359,9 +406,14 @@ async def list_conversations(
 
     # Fetch conversations with eager-loaded threads
     offset = (page - 1) * limit
-    stmt = select(Conversation).options(
-        selectinload(Conversation.threads)
-    ).where(*base_conditions).order_by(Conversation.last_activity_at.desc()).offset(offset).limit(limit)
+    stmt = (
+        select(Conversation)
+        .options(selectinload(Conversation.threads))
+        .where(*base_conditions)
+        .order_by(Conversation.last_activity_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
     result = await db.execute(stmt)
     conversations = result.scalars().all()
 
@@ -370,32 +422,42 @@ async def list_conversations(
         total=total,
         page=page,
         limit=limit,
-        has_more=(offset + len(conversations)) < total
+        has_more=(offset + len(conversations)) < total,
     )
 
 
-@router.get("/{workspace_id}/conversations/{conversation_id}", response_model=ConversationResponse)
+@router.get(
+    "/{workspace_id}/conversations/{conversation_id}",
+    response_model=ConversationResponse,
+)
 async def get_conversation(
     workspace_id: UUID,
     conversation_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Get conversation details"""
-    conversation = await _get_conversation_or_404(db, workspace_id, conversation_id, current_user)
+    conversation = await _get_conversation_or_404(
+        db, workspace_id, conversation_id, current_user
+    )
     return _conversation_to_response(conversation)
 
 
-@router.patch("/{workspace_id}/conversations/{conversation_id}", response_model=ConversationResponse)
+@router.patch(
+    "/{workspace_id}/conversations/{conversation_id}",
+    response_model=ConversationResponse,
+)
 async def update_conversation(
     workspace_id: UUID,
     conversation_id: UUID,
     request: ConversationUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Update conversation details"""
-    conversation = await _get_conversation_or_404(db, workspace_id, conversation_id, current_user)
+    conversation = await _get_conversation_or_404(
+        db, workspace_id, conversation_id, current_user
+    )
     workspace = conversation.workspace
 
     if not workspace.can_user_edit(str(current_user.id)):
@@ -417,15 +479,20 @@ async def update_conversation(
     return _conversation_to_response(conversation)
 
 
-@router.delete("/{workspace_id}/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{workspace_id}/conversations/{conversation_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def delete_conversation(
     workspace_id: UUID,
     conversation_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a conversation"""
-    conversation = await _get_conversation_or_404(db, workspace_id, conversation_id, current_user)
+    conversation = await _get_conversation_or_404(
+        db, workspace_id, conversation_id, current_user
+    )
     workspace = conversation.workspace
 
     if not workspace.can_user_edit(str(current_user.id)):
@@ -440,16 +507,23 @@ async def delete_conversation(
 # Thread Endpoints
 # ============================================================================
 
-@router.post("/{workspace_id}/conversations/{conversation_id}/threads", response_model=ThreadResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/{workspace_id}/conversations/{conversation_id}/threads",
+    response_model=ThreadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_thread(
     workspace_id: UUID,
     conversation_id: UUID,
     request: ThreadCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new thread in a conversation"""
-    conversation = await _get_conversation_or_404(db, workspace_id, conversation_id, current_user)
+    conversation = await _get_conversation_or_404(
+        db, workspace_id, conversation_id, current_user
+    )
 
     if not conversation.workspace.can_user_edit(str(current_user.id)):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -457,7 +531,7 @@ async def create_thread(
     thread = Thread(
         conversation_id=conversation_id,
         title=request.title,
-        created_by_id=current_user.id
+        created_by_id=current_user.id,
     )
     db.add(thread)
 
@@ -467,7 +541,7 @@ async def create_thread(
             thread=thread,
             user_id=current_user.id,
             role=MessageRole.USER,
-            content=request.initial_message
+            content=request.initial_message,
         )
         db.add(message)
         thread.message_count = 1
@@ -481,22 +555,29 @@ async def create_thread(
     return _thread_to_response(thread)
 
 
-@router.get("/{workspace_id}/conversations/{conversation_id}/threads", response_model=ThreadListResponse)
+@router.get(
+    "/{workspace_id}/conversations/{conversation_id}/threads",
+    response_model=ThreadListResponse,
+)
 async def list_threads(
     workspace_id: UUID,
     conversation_id: UUID,
-    status_filter: Optional[str] = Query(None, description="Filter by status: active, resolved, archived"),
+    status_filter: Optional[str] = Query(
+        None, description="Filter by status: active, resolved, archived"
+    ),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """List threads in a conversation"""
-    conversation = await _get_conversation_or_404(db, workspace_id, conversation_id, current_user)
+    conversation = await _get_conversation_or_404(
+        db, workspace_id, conversation_id, current_user
+    )
 
     base_conditions = [
         Thread.conversation_id == conversation_id,
-        Thread.is_deleted == False
+        Thread.is_deleted == False,
     ]
 
     if status_filter:
@@ -504,7 +585,9 @@ async def list_threads(
             status_enum = ThreadStatus(status_filter)
             base_conditions.append(Thread.status == status_enum)
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid status: {status_filter}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid status: {status_filter}"
+            )
 
     # Count total
     count_stmt = select(func.count(Thread.id)).where(*base_conditions)
@@ -513,7 +596,13 @@ async def list_threads(
 
     # Fetch threads
     offset = (page - 1) * limit
-    stmt = select(Thread).where(*base_conditions).order_by(Thread.last_message_at.desc()).offset(offset).limit(limit)
+    stmt = (
+        select(Thread)
+        .where(*base_conditions)
+        .order_by(Thread.last_message_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
     result = await db.execute(stmt)
     threads = result.scalars().all()
 
@@ -522,36 +611,46 @@ async def list_threads(
         total=total,
         page=page,
         limit=limit,
-        has_more=(offset + len(threads)) < total
+        has_more=(offset + len(threads)) < total,
     )
 
 
-@router.get("/{workspace_id}/conversations/{conversation_id}/threads/{thread_id}", response_model=ThreadDetailResponse)
+@router.get(
+    "/{workspace_id}/conversations/{conversation_id}/threads/{thread_id}",
+    response_model=ThreadDetailResponse,
+)
 async def get_thread(
     workspace_id: UUID,
     conversation_id: UUID,
     thread_id: UUID,
     include_messages: bool = Query(True),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Get thread details with messages"""
-    thread = await _get_thread_or_404(db, workspace_id, conversation_id, thread_id, current_user)
+    thread = await _get_thread_or_404(
+        db, workspace_id, conversation_id, thread_id, current_user
+    )
 
     return _thread_to_detail_response(thread, include_messages)
 
 
-@router.patch("/{workspace_id}/conversations/{conversation_id}/threads/{thread_id}", response_model=ThreadResponse)
+@router.patch(
+    "/{workspace_id}/conversations/{conversation_id}/threads/{thread_id}",
+    response_model=ThreadResponse,
+)
 async def update_thread(
     workspace_id: UUID,
     conversation_id: UUID,
     thread_id: UUID,
     request: ThreadUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Update thread details"""
-    thread = await _get_thread_or_404(db, workspace_id, conversation_id, thread_id, current_user)
+    thread = await _get_thread_or_404(
+        db, workspace_id, conversation_id, thread_id, current_user
+    )
 
     if not thread.conversation.workspace.can_user_edit(str(current_user.id)):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -570,16 +669,21 @@ async def update_thread(
     return _thread_to_response(thread)
 
 
-@router.delete("/{workspace_id}/conversations/{conversation_id}/threads/{thread_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{workspace_id}/conversations/{conversation_id}/threads/{thread_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def delete_thread(
     workspace_id: UUID,
     conversation_id: UUID,
     thread_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a thread"""
-    thread = await _get_thread_or_404(db, workspace_id, conversation_id, thread_id, current_user)
+    thread = await _get_thread_or_404(
+        db, workspace_id, conversation_id, thread_id, current_user
+    )
 
     if not thread.conversation.workspace.can_user_edit(str(current_user.id)):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -593,17 +697,24 @@ async def delete_thread(
 # Message Endpoints
 # ============================================================================
 
-@router.post("/{workspace_id}/conversations/{conversation_id}/threads/{thread_id}/messages", response_model=ChatMessageResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/{workspace_id}/conversations/{conversation_id}/threads/{thread_id}/messages",
+    response_model=ChatMessageResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_message(
     workspace_id: UUID,
     conversation_id: UUID,
     thread_id: UUID,
     request: ChatMessageCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new message in a thread"""
-    thread = await _get_thread_or_404(db, workspace_id, conversation_id, thread_id, current_user)
+    thread = await _get_thread_or_404(
+        db, workspace_id, conversation_id, thread_id, current_user
+    )
 
     if not thread.conversation.workspace.can_user_edit(str(current_user.id)):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -612,7 +723,7 @@ async def create_message(
         thread_id=thread_id,
         user_id=current_user.id if request.role.value == "user" else None,
         role=MessageRole(request.role.value),
-        content=request.content
+        content=request.content,
     )
     db.add(message)
     await db.flush()  # Flush to get message.id for citations
@@ -631,7 +742,7 @@ async def create_message(
                 snippet=cit.snippet,
                 page_number=cit.page_number,
                 score=cit.score,
-                rerank_score=cit.rerank_score
+                rerank_score=cit.rerank_score,
             )
             db.add(citation)
 
@@ -643,19 +754,26 @@ async def create_message(
     thread.conversation.last_activity_at = datetime.utcnow()
 
     await db.commit()
-    
+
     # Re-query with eager loading to get citations with document info
-    stmt = select(ChatMessage).options(
-        selectinload(ChatMessage.citations).selectinload(Citation.document),
-        selectinload(ChatMessage.attachments)
-    ).where(ChatMessage.id == message.id)
+    stmt = (
+        select(ChatMessage)
+        .options(
+            selectinload(ChatMessage.citations).selectinload(Citation.document),
+            selectinload(ChatMessage.attachments),
+        )
+        .where(ChatMessage.id == message.id)
+    )
     result = await db.execute(stmt)
     message = result.scalars().first()
 
     return _message_to_response(message)
 
 
-@router.get("/{workspace_id}/conversations/{conversation_id}/threads/{thread_id}/messages", response_model=ChatMessageListResponse)
+@router.get(
+    "/{workspace_id}/conversations/{conversation_id}/threads/{thread_id}/messages",
+    response_model=ChatMessageListResponse,
+)
 async def list_messages(
     workspace_id: UUID,
     conversation_id: UUID,
@@ -663,28 +781,33 @@ async def list_messages(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """List messages in a thread"""
-    thread = await _get_thread_or_404(db, workspace_id, conversation_id, thread_id, current_user)
+    thread = await _get_thread_or_404(
+        db, workspace_id, conversation_id, thread_id, current_user
+    )
 
     # Count total messages first (without selectinload for efficiency)
     count_stmt = select(func.count(ChatMessage.id)).where(
-        ChatMessage.thread_id == thread_id,
-        ChatMessage.is_deleted == False
+        ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False
     )
     count_result = await db.execute(count_stmt)
     total = count_result.scalar() or 0
 
     # Query with eager loading of citations and their documents
     offset = (page - 1) * limit
-    stmt = select(ChatMessage).options(
-        selectinload(ChatMessage.citations).selectinload(Citation.document),
-        selectinload(ChatMessage.attachments)
-    ).where(
-        ChatMessage.thread_id == thread_id,
-        ChatMessage.is_deleted == False
-    ).order_by(ChatMessage.created_at.asc()).offset(offset).limit(limit)
+    stmt = (
+        select(ChatMessage)
+        .options(
+            selectinload(ChatMessage.citations).selectinload(Citation.document),
+            selectinload(ChatMessage.attachments),
+        )
+        .where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
+        .order_by(ChatMessage.created_at.asc())
+        .offset(offset)
+        .limit(limit)
+    )
     result = await db.execute(stmt)
     messages = result.scalars().all()
 
@@ -693,11 +816,14 @@ async def list_messages(
         total=total,
         page=page,
         limit=limit,
-        has_more=(offset + len(messages)) < total
+        has_more=(offset + len(messages)) < total,
     )
 
 
-@router.patch("/{workspace_id}/conversations/{conversation_id}/threads/{thread_id}/messages/{message_id}", response_model=ChatMessageResponse)
+@router.patch(
+    "/{workspace_id}/conversations/{conversation_id}/threads/{thread_id}/messages/{message_id}",
+    response_model=ChatMessageResponse,
+)
 async def update_message_feedback(
     workspace_id: UUID,
     conversation_id: UUID,
@@ -705,15 +831,17 @@ async def update_message_feedback(
     message_id: UUID,
     request: ChatMessageUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Update message feedback"""
-    thread = await _get_thread_or_404(db, workspace_id, conversation_id, thread_id, current_user)
+    thread = await _get_thread_or_404(
+        db, workspace_id, conversation_id, thread_id, current_user
+    )
 
     stmt = select(ChatMessage).where(
         ChatMessage.id == message_id,
         ChatMessage.thread_id == thread_id,
-        ChatMessage.is_deleted == False
+        ChatMessage.is_deleted == False,
     )
     result = await db.execute(stmt)
     message = result.scalars().first()
@@ -737,12 +865,17 @@ async def update_message_feedback(
 # Collection Endpoints
 # ============================================================================
 
-@router.post("/{workspace_id}/collections", response_model=CollectionResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/{workspace_id}/collections",
+    response_model=CollectionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_collection(
     workspace_id: UUID,
     request: CollectionCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new collection in a workspace"""
     workspace = await _get_workspace_or_404(db, workspace_id, current_user)
@@ -755,7 +888,7 @@ async def create_collection(
         name=request.name,
         description=request.description,
         color=request.color,
-        icon=request.icon
+        icon=request.icon,
     )
     db.add(collection)
 
@@ -767,9 +900,7 @@ async def create_collection(
             doc = doc_result.scalars().first()
             if doc:
                 collection_doc = CollectionDocument(
-                    collection=collection,
-                    document_id=doc_id,
-                    sort_order=i
+                    collection=collection, document_id=doc_id, sort_order=i
                 )
                 db.add(collection_doc)
 
@@ -785,14 +916,14 @@ async def list_collections(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """List collections in a workspace"""
     workspace = await _get_workspace_or_404(db, workspace_id, current_user)
 
     base_conditions = [
         Collection.workspace_id == workspace_id,
-        Collection.is_deleted == False
+        Collection.is_deleted == False,
     ]
 
     # Count total
@@ -818,33 +949,42 @@ async def list_collections(
         total=total,
         page=page,
         limit=limit,
-        has_more=(offset + len(collections)) < total
+        has_more=(offset + len(collections)) < total,
     )
 
 
-@router.get("/{workspace_id}/collections/{collection_id}", response_model=CollectionDetailResponse)
+@router.get(
+    "/{workspace_id}/collections/{collection_id}",
+    response_model=CollectionDetailResponse,
+)
 async def get_collection(
     workspace_id: UUID,
     collection_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Get collection details with documents"""
-    collection = await _get_collection_or_404(db, workspace_id, collection_id, current_user)
+    collection = await _get_collection_or_404(
+        db, workspace_id, collection_id, current_user
+    )
 
     return _collection_to_detail_response(collection)
 
 
-@router.patch("/{workspace_id}/collections/{collection_id}", response_model=CollectionResponse)
+@router.patch(
+    "/{workspace_id}/collections/{collection_id}", response_model=CollectionResponse
+)
 async def update_collection(
     workspace_id: UUID,
     collection_id: UUID,
     request: CollectionUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Update collection details"""
-    collection = await _get_collection_or_404(db, workspace_id, collection_id, current_user)
+    collection = await _get_collection_or_404(
+        db, workspace_id, collection_id, current_user
+    )
     workspace = collection.workspace
 
     if not workspace.can_user_edit(str(current_user.id)):
@@ -866,15 +1006,20 @@ async def update_collection(
     return _collection_to_response(collection)
 
 
-@router.delete("/{workspace_id}/collections/{collection_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{workspace_id}/collections/{collection_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def delete_collection(
     workspace_id: UUID,
     collection_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a collection"""
-    collection = await _get_collection_or_404(db, workspace_id, collection_id, current_user)
+    collection = await _get_collection_or_404(
+        db, workspace_id, collection_id, current_user
+    )
 
     if not collection.workspace.can_user_edit(str(current_user.id)):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -884,16 +1029,21 @@ async def delete_collection(
     await db.commit()
 
 
-@router.post("/{workspace_id}/collections/{collection_id}/documents", response_model=CollectionDetailResponse)
+@router.post(
+    "/{workspace_id}/collections/{collection_id}/documents",
+    response_model=CollectionDetailResponse,
+)
 async def add_documents_to_collection(
     workspace_id: UUID,
     collection_id: UUID,
     request: CollectionDocumentAdd,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Add documents to a collection"""
-    collection = await _get_collection_or_404(db, workspace_id, collection_id, current_user)
+    collection = await _get_collection_or_404(
+        db, workspace_id, collection_id, current_user
+    )
 
     if not collection.workspace.can_user_edit(str(current_user.id)):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -917,7 +1067,7 @@ async def add_documents_to_collection(
         existing_stmt = select(CollectionDocument).where(
             CollectionDocument.collection_id == collection_id,
             CollectionDocument.document_id == doc_id,
-            CollectionDocument.is_deleted == False
+            CollectionDocument.is_deleted == False,
         )
         existing_result = await db.execute(existing_stmt)
         existing = existing_result.scalars().first()
@@ -926,7 +1076,7 @@ async def add_documents_to_collection(
             collection_doc = CollectionDocument(
                 collection_id=collection_id,
                 document_id=doc_id,
-                sort_order=max_order + i + 1
+                sort_order=max_order + i + 1,
             )
             db.add(collection_doc)
 
@@ -936,16 +1086,21 @@ async def add_documents_to_collection(
     return _collection_to_detail_response(collection)
 
 
-@router.delete("/{workspace_id}/collections/{collection_id}/documents", response_model=CollectionDetailResponse)
+@router.delete(
+    "/{workspace_id}/collections/{collection_id}/documents",
+    response_model=CollectionDetailResponse,
+)
 async def remove_documents_from_collection(
     workspace_id: UUID,
     collection_id: UUID,
     request: CollectionDocumentRemove,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Remove documents from a collection"""
-    collection = await _get_collection_or_404(db, workspace_id, collection_id, current_user)
+    collection = await _get_collection_or_404(
+        db, workspace_id, collection_id, current_user
+    )
 
     if not collection.workspace.can_user_edit(str(current_user.id)):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -954,7 +1109,7 @@ async def remove_documents_from_collection(
         collection_doc_stmt = select(CollectionDocument).where(
             CollectionDocument.collection_id == collection_id,
             CollectionDocument.document_id == doc_id,
-            CollectionDocument.is_deleted == False
+            CollectionDocument.is_deleted == False,
         )
         collection_doc_result = await db.execute(collection_doc_stmt)
         collection_doc = collection_doc_result.scalars().first()
@@ -973,15 +1128,19 @@ async def remove_documents_from_collection(
 # Helper Functions
 # ============================================================================
 
-async def _get_workspace_or_404(db: AsyncSession, workspace_id: UUID, current_user: User) -> Workspace:
+
+async def _get_workspace_or_404(
+    db: AsyncSession, workspace_id: UUID, current_user: User
+) -> Workspace:
     """Get workspace or raise 404, checking access"""
-    stmt = select(Workspace).options(
-        selectinload(Workspace.members),
-        selectinload(Workspace.conversations),
-        selectinload(Workspace.collections)
-    ).where(
-        Workspace.id == workspace_id,
-        Workspace.is_deleted == False
+    stmt = (
+        select(Workspace)
+        .options(
+            selectinload(Workspace.members),
+            selectinload(Workspace.conversations),
+            selectinload(Workspace.collections),
+        )
+        .where(Workspace.id == workspace_id, Workspace.is_deleted == False)
     )
     result = await db.execute(stmt)
     workspace = result.scalars().first()
@@ -997,16 +1156,20 @@ async def _get_workspace_or_404(db: AsyncSession, workspace_id: UUID, current_us
     return workspace
 
 
-async def _get_conversation_or_404(db: AsyncSession, workspace_id: UUID, conversation_id: UUID, current_user: User) -> Conversation:
+async def _get_conversation_or_404(
+    db: AsyncSession, workspace_id: UUID, conversation_id: UUID, current_user: User
+) -> Conversation:
     """Get conversation or raise 404"""
     workspace = await _get_workspace_or_404(db, workspace_id, current_user)
 
-    stmt = select(Conversation).options(
-        selectinload(Conversation.threads)
-    ).where(
-        Conversation.id == conversation_id,
-        Conversation.workspace_id == workspace_id,
-        Conversation.is_deleted == False
+    stmt = (
+        select(Conversation)
+        .options(selectinload(Conversation.threads))
+        .where(
+            Conversation.id == conversation_id,
+            Conversation.workspace_id == workspace_id,
+            Conversation.is_deleted == False,
+        )
     )
     result = await db.execute(stmt)
     conversation = result.scalars().first()
@@ -1017,16 +1180,26 @@ async def _get_conversation_or_404(db: AsyncSession, workspace_id: UUID, convers
     return conversation
 
 
-async def _get_thread_or_404(db: AsyncSession, workspace_id: UUID, conversation_id: UUID, thread_id: UUID, current_user: User) -> Thread:
+async def _get_thread_or_404(
+    db: AsyncSession,
+    workspace_id: UUID,
+    conversation_id: UUID,
+    thread_id: UUID,
+    current_user: User,
+) -> Thread:
     """Get thread or raise 404"""
-    conversation = await _get_conversation_or_404(db, workspace_id, conversation_id, current_user)
+    conversation = await _get_conversation_or_404(
+        db, workspace_id, conversation_id, current_user
+    )
 
-    stmt = select(Thread).options(
-        selectinload(Thread.messages)
-    ).where(
-        Thread.id == thread_id,
-        Thread.conversation_id == conversation_id,
-        Thread.is_deleted == False
+    stmt = (
+        select(Thread)
+        .options(selectinload(Thread.messages))
+        .where(
+            Thread.id == thread_id,
+            Thread.conversation_id == conversation_id,
+            Thread.is_deleted == False,
+        )
     )
     result = await db.execute(stmt)
     thread = result.scalars().first()
@@ -1037,16 +1210,20 @@ async def _get_thread_or_404(db: AsyncSession, workspace_id: UUID, conversation_
     return thread
 
 
-async def _get_collection_or_404(db: AsyncSession, workspace_id: UUID, collection_id: UUID, current_user: User) -> Collection:
+async def _get_collection_or_404(
+    db: AsyncSession, workspace_id: UUID, collection_id: UUID, current_user: User
+) -> Collection:
     """Get collection or raise 404"""
     workspace = await _get_workspace_or_404(db, workspace_id, current_user)
 
-    stmt = select(Collection).options(
-        selectinload(Collection.documents)
-    ).where(
-        Collection.id == collection_id,
-        Collection.workspace_id == workspace_id,
-        Collection.is_deleted == False
+    stmt = (
+        select(Collection)
+        .options(selectinload(Collection.documents))
+        .where(
+            Collection.id == collection_id,
+            Collection.workspace_id == workspace_id,
+            Collection.is_deleted == False,
+        )
     )
     result = await db.execute(stmt)
     collection = result.scalars().first()
@@ -1068,10 +1245,12 @@ def _workspace_to_response(workspace: Workspace) -> WorkspaceResponse:
         owner_id=workspace.owner_id,
         organization_id=workspace.organization_id,
         member_count=len(workspace.members) if workspace.members else 0,
-        conversation_count=len(workspace.conversations) if workspace.conversations else 0,
+        conversation_count=len(workspace.conversations)
+        if workspace.conversations
+        else 0,
         collection_count=len(workspace.collections) if workspace.collections else 0,
         created_at=workspace.created_at,
-        updated_at=workspace.updated_at
+        updated_at=workspace.updated_at,
     )
 
 
@@ -1086,11 +1265,13 @@ def _workspace_to_detail_response(workspace: Workspace) -> WorkspaceDetailRespon
         owner_id=workspace.owner_id,
         organization_id=workspace.organization_id,
         member_count=len(workspace.members) if workspace.members else 0,
-        conversation_count=len(workspace.conversations) if workspace.conversations else 0,
+        conversation_count=len(workspace.conversations)
+        if workspace.conversations
+        else 0,
         collection_count=len(workspace.collections) if workspace.collections else 0,
         created_at=workspace.created_at,
         updated_at=workspace.updated_at,
-        members=[_member_to_response(m) for m in workspace.members if not m.is_deleted]
+        members=[_member_to_response(m) for m in workspace.members if not m.is_deleted],
     )
 
 
@@ -1106,7 +1287,7 @@ def _member_to_response(member: WorkspaceMember) -> WorkspaceMemberResponse:
         created_at=member.created_at,
         updated_at=member.updated_at,
         user_email=member.user.email if member.user else None,
-        user_name=member.user.full_name if member.user else None
+        user_name=member.user.full_name if member.user else None,
     )
 
 
@@ -1122,9 +1303,11 @@ def _conversation_to_response(conversation: Conversation) -> ConversationRespons
         last_activity_at=conversation.last_activity_at,
         created_by_id=conversation.created_by_id,
         thread_count=conversation.thread_count,
-        message_count=sum(t.message_count or 0 for t in conversation.threads) if conversation.threads else 0,
+        message_count=sum(t.message_count or 0 for t in conversation.threads)
+        if conversation.threads
+        else 0,
         created_at=conversation.created_at,
-        updated_at=conversation.updated_at
+        updated_at=conversation.updated_at,
     )
 
 
@@ -1141,15 +1324,19 @@ def _thread_to_response(thread: Thread) -> ThreadResponse:
         token_count=thread.token_count or 0,
         created_by_id=thread.created_by_id,
         created_at=thread.created_at,
-        updated_at=thread.updated_at
+        updated_at=thread.updated_at,
     )
 
 
-def _thread_to_detail_response(thread: Thread, include_messages: bool = True) -> ThreadDetailResponse:
+def _thread_to_detail_response(
+    thread: Thread, include_messages: bool = True
+) -> ThreadDetailResponse:
     """Convert Thread model to detail response schema"""
     messages = []
     if include_messages and thread.messages:
-        messages = [_message_to_response(m) for m in thread.messages if not m.is_deleted]
+        messages = [
+            _message_to_response(m) for m in thread.messages if not m.is_deleted
+        ]
 
     return ThreadDetailResponse(
         id=thread.id,
@@ -1163,7 +1350,7 @@ def _thread_to_detail_response(thread: Thread, include_messages: bool = True) ->
         created_by_id=thread.created_by_id,
         created_at=thread.created_at,
         updated_at=thread.updated_at,
-        messages=messages
+        messages=messages,
     )
 
 
@@ -1183,10 +1370,14 @@ def _message_to_response(message: ChatMessage) -> ChatMessageResponse:
         tool_call_id=message.tool_call_id,
         feedback_rating=message.feedback_rating,
         feedback_text=message.feedback_text,
-        citations=[_citation_to_response(c) for c in message.citations] if message.citations else [],
-        attachments=[_attachment_to_response(a) for a in message.attachments] if message.attachments else [],
+        citations=[_citation_to_response(c) for c in message.citations]
+        if message.citations
+        else [],
+        attachments=[_attachment_to_response(a) for a in message.attachments]
+        if message.attachments
+        else [],
         created_at=message.created_at,
-        updated_at=message.updated_at
+        updated_at=message.updated_at,
     )
 
 
@@ -1199,13 +1390,21 @@ def _citation_to_response(citation: Citation) -> CitationResponse:
         chunk_index=citation.chunk_index,
         chunk_id=citation.chunk_id,
         snippet=citation.snippet,
-        snippet_preview=citation.snippet[:200] + "..." if citation.snippet and len(citation.snippet) > 200 else citation.snippet,
+        snippet_preview=citation.snippet[:200] + "..."
+        if citation.snippet and len(citation.snippet) > 200
+        else citation.snippet,
         page_number=citation.page_number,
         score=citation.score,
         rerank_score=citation.rerank_score,
         # Use stored title/type for external refs, or get from document relationship
-        document_title=citation.document_title or (citation.document.title if citation.document else None),
-        document_type=citation.document_type or (citation.document.document_type.value if citation.document and citation.document.document_type else None)
+        document_title=citation.document_title
+        or (citation.document.title if citation.document else None),
+        document_type=citation.document_type
+        or (
+            citation.document.document_type.value
+            if citation.document and citation.document.document_type
+            else None
+        ),
     )
 
 
@@ -1217,8 +1416,10 @@ def _attachment_to_response(attachment) -> MessageAttachmentResponse:
         display_name=attachment.display_name,
         thumbnail_url=attachment.thumbnail_url,
         document_title=attachment.document.title if attachment.document else None,
-        document_type=attachment.document.document_type.value if attachment.document and attachment.document.document_type else None,
-        mime_type=attachment.document.mime_type if attachment.document else None
+        document_type=attachment.document.document_type.value
+        if attachment.document and attachment.document.document_type
+        else None,
+        mime_type=attachment.document.mime_type if attachment.document else None,
     )
 
 
@@ -1233,7 +1434,7 @@ def _collection_to_response(collection: Collection) -> CollectionResponse:
         icon=collection.icon,
         document_count=collection.document_count,
         created_at=collection.created_at,
-        updated_at=collection.updated_at
+        updated_at=collection.updated_at,
     )
 
 
@@ -1243,12 +1444,16 @@ def _collection_to_detail_response(collection: Collection) -> CollectionDetailRe
     if collection.documents:
         for cd in collection.documents:
             if not cd.is_deleted and cd.document:
-                documents.append({
-                    "id": str(cd.document.id),
-                    "title": cd.document.title,
-                    "document_type": cd.document.document_type.value if cd.document.document_type else None,
-                    "sort_order": cd.sort_order
-                })
+                documents.append(
+                    {
+                        "id": str(cd.document.id),
+                        "title": cd.document.title,
+                        "document_type": cd.document.document_type.value
+                        if cd.document.document_type
+                        else None,
+                        "sort_order": cd.sort_order,
+                    }
+                )
 
     return CollectionDetailResponse(
         id=collection.id,
@@ -1260,7 +1465,7 @@ def _collection_to_detail_response(collection: Collection) -> CollectionDetailRe
         document_count=collection.document_count,
         created_at=collection.created_at,
         updated_at=collection.updated_at,
-        documents=documents
+        documents=documents,
     )
 
 
@@ -1269,18 +1474,20 @@ def _collection_to_detail_response(collection: Collection) -> CollectionDetailRe
 # These routes allow direct access without full path hierarchy
 # ============================================================================
 
-@standalone_router.get("/conversations/{conversation_id}", response_model=ConversationResponse)
+
+@standalone_router.get(
+    "/conversations/{conversation_id}", response_model=ConversationResponse
+)
 async def get_conversation_standalone(
     conversation_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Get conversation details (standalone route)"""
-    conv_stmt = select(Conversation).options(
-        selectinload(Conversation.threads)
-    ).where(
-        Conversation.id == conversation_id,
-        Conversation.is_deleted == False
+    conv_stmt = (
+        select(Conversation)
+        .options(selectinload(Conversation.threads))
+        .where(Conversation.id == conversation_id, Conversation.is_deleted == False)
     )
     conv_result = await db.execute(conv_stmt)
     conversation = conv_result.scalars().first()
@@ -1294,19 +1501,20 @@ async def get_conversation_standalone(
     return _conversation_to_response(conversation)
 
 
-@standalone_router.patch("/conversations/{conversation_id}", response_model=ConversationResponse)
+@standalone_router.patch(
+    "/conversations/{conversation_id}", response_model=ConversationResponse
+)
 async def update_conversation_standalone(
     conversation_id: UUID,
     request: ConversationUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Update conversation details (standalone route)"""
-    conv_stmt = select(Conversation).options(
-        selectinload(Conversation.threads)
-    ).where(
-        Conversation.id == conversation_id,
-        Conversation.is_deleted == False
+    conv_stmt = (
+        select(Conversation)
+        .options(selectinload(Conversation.threads))
+        .where(Conversation.id == conversation_id, Conversation.is_deleted == False)
     )
     conv_result = await db.execute(conv_stmt)
     conversation = conv_result.scalars().first()
@@ -1335,16 +1543,17 @@ async def update_conversation_standalone(
     return _conversation_to_response(conversation)
 
 
-@standalone_router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
+@standalone_router.delete(
+    "/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def delete_conversation_standalone(
     conversation_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a conversation (standalone route)"""
     conv_stmt = select(Conversation).where(
-        Conversation.id == conversation_id,
-        Conversation.is_deleted == False
+        Conversation.id == conversation_id, Conversation.is_deleted == False
     )
     conv_result = await db.execute(conv_stmt)
     conversation = conv_result.scalars().first()
@@ -1362,16 +1571,17 @@ async def delete_conversation_standalone(
     await db.commit()
 
 
-@standalone_router.post("/threads", response_model=ThreadResponse, status_code=status.HTTP_201_CREATED)
+@standalone_router.post(
+    "/threads", response_model=ThreadResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_thread_standalone(
     request: ThreadCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new thread (standalone route - uses conversation_id from request body)"""
     conv_stmt = select(Conversation).where(
-        Conversation.id == request.conversation_id,
-        Conversation.is_deleted == False
+        Conversation.id == request.conversation_id, Conversation.is_deleted == False
     )
     conv_result = await db.execute(conv_stmt)
     conversation = conv_result.scalars().first()
@@ -1387,7 +1597,7 @@ async def create_thread_standalone(
     thread = Thread(
         conversation_id=request.conversation_id,
         title=request.title,
-        created_by_id=current_user.id
+        created_by_id=current_user.id,
     )
     db.add(thread)
 
@@ -1397,7 +1607,7 @@ async def create_thread_standalone(
             thread=thread,
             user_id=current_user.id,
             role=MessageRole.USER,
-            content=request.initial_message
+            content=request.initial_message,
         )
         db.add(message)
         thread.message_count = 1
@@ -1418,14 +1628,13 @@ async def get_thread_standalone(
     thread_id: UUID,
     include_messages: bool = Query(True),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Get thread details with messages (standalone route)"""
-    thread_stmt = select(Thread).options(
-        selectinload(Thread.messages)
-    ).where(
-        Thread.id == thread_id,
-        Thread.is_deleted == False
+    thread_stmt = (
+        select(Thread)
+        .options(selectinload(Thread.messages))
+        .where(Thread.id == thread_id, Thread.is_deleted == False)
     )
     thread_result = await db.execute(thread_stmt)
     thread = thread_result.scalars().first()
@@ -1435,8 +1644,7 @@ async def get_thread_standalone(
 
     # Verify access via conversation -> workspace
     conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id,
-        Conversation.is_deleted == False
+        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
     )
     conv_result = await db.execute(conv_stmt)
     conversation = conv_result.scalars().first()
@@ -1454,12 +1662,11 @@ async def update_thread_standalone(
     thread_id: UUID,
     request: ThreadUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Update thread details (standalone route)"""
     thread_stmt = select(Thread).where(
-        Thread.id == thread_id,
-        Thread.is_deleted == False
+        Thread.id == thread_id, Thread.is_deleted == False
     )
     thread_result = await db.execute(thread_stmt)
     thread = thread_result.scalars().first()
@@ -1468,8 +1675,7 @@ async def update_thread_standalone(
         raise HTTPException(status_code=404, detail="Thread not found")
 
     conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id,
-        Conversation.is_deleted == False
+        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
     )
     conv_result = await db.execute(conv_stmt)
     conversation = conv_result.scalars().first()
@@ -1496,16 +1702,17 @@ async def update_thread_standalone(
     return _thread_to_response(thread)
 
 
-@standalone_router.delete("/threads/{thread_id}", status_code=status.HTTP_204_NO_CONTENT)
+@standalone_router.delete(
+    "/threads/{thread_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def delete_thread_standalone(
     thread_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a thread (standalone route)"""
     thread_stmt = select(Thread).where(
-        Thread.id == thread_id,
-        Thread.is_deleted == False
+        Thread.id == thread_id, Thread.is_deleted == False
     )
     thread_result = await db.execute(thread_stmt)
     thread = thread_result.scalars().first()
@@ -1514,8 +1721,7 @@ async def delete_thread_standalone(
         raise HTTPException(status_code=404, detail="Thread not found")
 
     conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id,
-        Conversation.is_deleted == False
+        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
     )
     conv_result = await db.execute(conv_stmt)
     conversation = conv_result.scalars().first()
@@ -1533,18 +1739,19 @@ async def delete_thread_standalone(
     await db.commit()
 
 
-@standalone_router.get("/threads/{thread_id}/messages", response_model=ChatMessageListResponse)
+@standalone_router.get(
+    "/threads/{thread_id}/messages", response_model=ChatMessageListResponse
+)
 async def list_messages_standalone(
     thread_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """List messages in a thread (standalone route)"""
     thread_stmt = select(Thread).where(
-        Thread.id == thread_id,
-        Thread.is_deleted == False
+        Thread.id == thread_id, Thread.is_deleted == False
     )
     thread_result = await db.execute(thread_stmt)
     thread = thread_result.scalars().first()
@@ -1553,8 +1760,7 @@ async def list_messages_standalone(
         raise HTTPException(status_code=404, detail="Thread not found")
 
     conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id,
-        Conversation.is_deleted == False
+        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
     )
     conv_result = await db.execute(conv_stmt)
     conversation = conv_result.scalars().first()
@@ -1566,21 +1772,24 @@ async def list_messages_standalone(
 
     # Count total messages first
     count_stmt = select(func.count(ChatMessage.id)).where(
-        ChatMessage.thread_id == thread_id,
-        ChatMessage.is_deleted == False
+        ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False
     )
     count_result = await db.execute(count_stmt)
     total = count_result.scalar() or 0
 
     # Query with eager loading of citations and their documents
     offset = (page - 1) * limit
-    msg_stmt = select(ChatMessage).options(
-        selectinload(ChatMessage.citations).selectinload(Citation.document),
-        selectinload(ChatMessage.attachments)
-    ).where(
-        ChatMessage.thread_id == thread_id,
-        ChatMessage.is_deleted == False
-    ).order_by(ChatMessage.created_at.asc()).offset(offset).limit(limit)
+    msg_stmt = (
+        select(ChatMessage)
+        .options(
+            selectinload(ChatMessage.citations).selectinload(Citation.document),
+            selectinload(ChatMessage.attachments),
+        )
+        .where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
+        .order_by(ChatMessage.created_at.asc())
+        .offset(offset)
+        .limit(limit)
+    )
     msg_result = await db.execute(msg_stmt)
     messages = msg_result.scalars().all()
 
@@ -1589,20 +1798,21 @@ async def list_messages_standalone(
         total=total,
         page=page,
         limit=limit,
-        has_more=(offset + len(messages)) < total
+        has_more=(offset + len(messages)) < total,
     )
 
 
-@standalone_router.post("/messages", response_model=ChatMessageResponse, status_code=status.HTTP_201_CREATED)
+@standalone_router.post(
+    "/messages", response_model=ChatMessageResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_message_standalone(
     request: ChatMessageCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new message (standalone route - uses thread_id from request body)"""
     thread_stmt = select(Thread).where(
-        Thread.id == request.thread_id,
-        Thread.is_deleted == False
+        Thread.id == request.thread_id, Thread.is_deleted == False
     )
     thread_result = await db.execute(thread_stmt)
     thread = thread_result.scalars().first()
@@ -1611,8 +1821,7 @@ async def create_message_standalone(
         raise HTTPException(status_code=404, detail="Thread not found")
 
     conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id,
-        Conversation.is_deleted == False
+        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
     )
     conv_result = await db.execute(conv_stmt)
     conversation = conv_result.scalars().first()
@@ -1629,7 +1838,7 @@ async def create_message_standalone(
         thread_id=request.thread_id,
         user_id=current_user.id if request.role.value == "user" else None,
         role=MessageRole(request.role.value),
-        content=request.content
+        content=request.content,
     )
     db.add(message)
     await db.flush()  # Flush to get message.id for citations
@@ -1648,7 +1857,7 @@ async def create_message_standalone(
                 snippet=cit.snippet,
                 page_number=cit.page_number,
                 score=cit.score,
-                rerank_score=cit.rerank_score
+                rerank_score=cit.rerank_score,
             )
             db.add(citation)
 
@@ -1660,12 +1869,16 @@ async def create_message_standalone(
     conversation.last_activity_at = datetime.utcnow()
 
     await db.commit()
-    
+
     # Re-query with eager loading to get citations with document info
-    stmt = select(ChatMessage).options(
-        selectinload(ChatMessage.citations).selectinload(Citation.document),
-        selectinload(ChatMessage.attachments)
-    ).where(ChatMessage.id == message.id)
+    stmt = (
+        select(ChatMessage)
+        .options(
+            selectinload(ChatMessage.citations).selectinload(Citation.document),
+            selectinload(ChatMessage.attachments),
+        )
+        .where(ChatMessage.id == message.id)
+    )
     result = await db.execute(stmt)
     message = result.scalars().first()
 
@@ -1676,12 +1889,11 @@ async def create_message_standalone(
 async def get_message_standalone(
     message_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Get message details (standalone route)"""
     msg_stmt = select(ChatMessage).where(
-        ChatMessage.id == message_id,
-        ChatMessage.is_deleted == False
+        ChatMessage.id == message_id, ChatMessage.is_deleted == False
     )
     msg_result = await db.execute(msg_stmt)
     message = msg_result.scalars().first()
@@ -1691,8 +1903,7 @@ async def get_message_standalone(
 
     # Verify access via thread -> conversation -> workspace
     thread_stmt = select(Thread).where(
-        Thread.id == message.thread_id,
-        Thread.is_deleted == False
+        Thread.id == message.thread_id, Thread.is_deleted == False
     )
     thread_result = await db.execute(thread_stmt)
     thread = thread_result.scalars().first()
@@ -1701,8 +1912,7 @@ async def get_message_standalone(
         raise HTTPException(status_code=404, detail="Thread not found")
 
     conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id,
-        Conversation.is_deleted == False
+        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
     )
     conv_result = await db.execute(conv_stmt)
     conversation = conv_result.scalars().first()
@@ -1720,12 +1930,11 @@ async def update_message_standalone(
     message_id: UUID,
     request: ChatMessageUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Update message feedback (standalone route)"""
     msg_stmt = select(ChatMessage).where(
-        ChatMessage.id == message_id,
-        ChatMessage.is_deleted == False
+        ChatMessage.id == message_id, ChatMessage.is_deleted == False
     )
     msg_result = await db.execute(msg_stmt)
     message = msg_result.scalars().first()
@@ -1735,8 +1944,7 @@ async def update_message_standalone(
 
     # Verify access via thread -> conversation -> workspace
     thread_stmt = select(Thread).where(
-        Thread.id == message.thread_id,
-        Thread.is_deleted == False
+        Thread.id == message.thread_id, Thread.is_deleted == False
     )
     thread_result = await db.execute(thread_stmt)
     thread = thread_result.scalars().first()
@@ -1745,8 +1953,7 @@ async def update_message_standalone(
         raise HTTPException(status_code=404, detail="Thread not found")
 
     conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id,
-        Conversation.is_deleted == False
+        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
     )
     conv_result = await db.execute(conv_stmt)
     conversation = conv_result.scalars().first()
@@ -1768,16 +1975,17 @@ async def update_message_standalone(
     return _message_to_response(message)
 
 
-@standalone_router.delete("/messages/{message_id}", status_code=status.HTTP_204_NO_CONTENT)
+@standalone_router.delete(
+    "/messages/{message_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def delete_message_standalone(
     message_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a message (standalone route)"""
     msg_stmt = select(ChatMessage).where(
-        ChatMessage.id == message_id,
-        ChatMessage.is_deleted == False
+        ChatMessage.id == message_id, ChatMessage.is_deleted == False
     )
     msg_result = await db.execute(msg_stmt)
     message = msg_result.scalars().first()
@@ -1787,8 +1995,7 @@ async def delete_message_standalone(
 
     # Verify access via thread -> conversation -> workspace
     thread_stmt = select(Thread).where(
-        Thread.id == message.thread_id,
-        Thread.is_deleted == False
+        Thread.id == message.thread_id, Thread.is_deleted == False
     )
     thread_result = await db.execute(thread_stmt)
     thread = thread_result.scalars().first()
@@ -1797,8 +2004,7 @@ async def delete_message_standalone(
         raise HTTPException(status_code=404, detail="Thread not found")
 
     conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id,
-        Conversation.is_deleted == False
+        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
     )
     conv_result = await db.execute(conv_stmt)
     conversation = conv_result.scalars().first()
@@ -1820,19 +2026,20 @@ async def delete_message_standalone(
     await db.commit()
 
 
-@standalone_router.get("/conversations/{conversation_id}/threads", response_model=ThreadListResponse)
+@standalone_router.get(
+    "/conversations/{conversation_id}/threads", response_model=ThreadListResponse
+)
 async def list_threads_standalone(
     conversation_id: UUID,
     status_filter: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """List threads in a conversation (standalone route)"""
     conv_stmt = select(Conversation).where(
-        Conversation.id == conversation_id,
-        Conversation.is_deleted == False
+        Conversation.id == conversation_id, Conversation.is_deleted == False
     )
     conv_result = await db.execute(conv_stmt)
     conversation = conv_result.scalars().first()
@@ -1844,7 +2051,7 @@ async def list_threads_standalone(
 
     base_conditions = [
         Thread.conversation_id == conversation_id,
-        Thread.is_deleted == False
+        Thread.is_deleted == False,
     ]
 
     if status_filter:
@@ -1852,7 +2059,9 @@ async def list_threads_standalone(
             status_enum = ThreadStatus(status_filter)
             base_conditions.append(Thread.status == status_enum)
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid status: {status_filter}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid status: {status_filter}"
+            )
 
     # Count total
     count_stmt = select(func.count(Thread.id)).where(*base_conditions)
@@ -1861,7 +2070,13 @@ async def list_threads_standalone(
 
     # Fetch threads
     offset = (page - 1) * limit
-    stmt = select(Thread).where(*base_conditions).order_by(Thread.last_message_at.desc()).offset(offset).limit(limit)
+    stmt = (
+        select(Thread)
+        .where(*base_conditions)
+        .order_by(Thread.last_message_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
     result = await db.execute(stmt)
     threads = result.scalars().all()
 
@@ -1870,15 +2085,19 @@ async def list_threads_standalone(
         total=total,
         page=page,
         limit=limit,
-        has_more=(offset + len(threads)) < total
+        has_more=(offset + len(threads)) < total,
     )
 
 
-@standalone_router.post("/collections", response_model=CollectionResponse, status_code=status.HTTP_201_CREATED)
+@standalone_router.post(
+    "/collections",
+    response_model=CollectionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_collection_standalone(
     request: CollectionCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new collection (standalone route - uses workspace_id from request body)"""
     workspace = await _get_workspace_or_404(db, request.workspace_id, current_user)
@@ -1891,7 +2110,7 @@ async def create_collection_standalone(
         name=request.name,
         description=request.description,
         color=request.color,
-        icon=request.icon
+        icon=request.icon,
     )
     db.add(collection)
 
@@ -1903,9 +2122,7 @@ async def create_collection_standalone(
             doc = doc_result.scalars().first()
             if doc:
                 collection_doc = CollectionDocument(
-                    collection=collection,
-                    document_id=doc_id,
-                    sort_order=i
+                    collection=collection, document_id=doc_id, sort_order=i
                 )
                 db.add(collection_doc)
 
@@ -1915,18 +2132,19 @@ async def create_collection_standalone(
     return _collection_to_response(collection)
 
 
-@standalone_router.get("/collections/{collection_id}", response_model=CollectionDetailResponse)
+@standalone_router.get(
+    "/collections/{collection_id}", response_model=CollectionDetailResponse
+)
 async def get_collection_standalone(
     collection_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Get collection details with documents (standalone route)"""
-    coll_stmt = select(Collection).options(
-        selectinload(Collection.documents)
-    ).where(
-        Collection.id == collection_id,
-        Collection.is_deleted == False
+    coll_stmt = (
+        select(Collection)
+        .options(selectinload(Collection.documents))
+        .where(Collection.id == collection_id, Collection.is_deleted == False)
     )
     coll_result = await db.execute(coll_stmt)
     collection = coll_result.scalars().first()
@@ -1939,17 +2157,18 @@ async def get_collection_standalone(
     return _collection_to_detail_response(collection)
 
 
-@standalone_router.patch("/collections/{collection_id}", response_model=CollectionResponse)
+@standalone_router.patch(
+    "/collections/{collection_id}", response_model=CollectionResponse
+)
 async def update_collection_standalone(
     collection_id: UUID,
     request: CollectionUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Update collection details (standalone route)"""
     coll_stmt = select(Collection).where(
-        Collection.id == collection_id,
-        Collection.is_deleted == False
+        Collection.id == collection_id, Collection.is_deleted == False
     )
     coll_result = await db.execute(coll_stmt)
     collection = coll_result.scalars().first()
@@ -1978,16 +2197,17 @@ async def update_collection_standalone(
     return _collection_to_response(collection)
 
 
-@standalone_router.delete("/collections/{collection_id}", status_code=status.HTTP_204_NO_CONTENT)
+@standalone_router.delete(
+    "/collections/{collection_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def delete_collection_standalone(
     collection_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a collection (standalone route)"""
     coll_stmt = select(Collection).where(
-        Collection.id == collection_id,
-        Collection.is_deleted == False
+        Collection.id == collection_id, Collection.is_deleted == False
     )
     coll_result = await db.execute(coll_stmt)
     collection = coll_result.scalars().first()
@@ -2005,19 +2225,20 @@ async def delete_collection_standalone(
     await db.commit()
 
 
-@standalone_router.post("/collections/{collection_id}/documents", response_model=CollectionDetailResponse)
+@standalone_router.post(
+    "/collections/{collection_id}/documents", response_model=CollectionDetailResponse
+)
 async def add_documents_to_collection_standalone(
     collection_id: UUID,
     request: CollectionDocumentAdd,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Add documents to a collection (standalone route)"""
-    coll_stmt = select(Collection).options(
-        selectinload(Collection.documents)
-    ).where(
-        Collection.id == collection_id,
-        Collection.is_deleted == False
+    coll_stmt = (
+        select(Collection)
+        .options(selectinload(Collection.documents))
+        .where(Collection.id == collection_id, Collection.is_deleted == False)
     )
     coll_result = await db.execute(coll_stmt)
     collection = coll_result.scalars().first()
@@ -2047,7 +2268,7 @@ async def add_documents_to_collection_standalone(
         existing_stmt = select(CollectionDocument).where(
             CollectionDocument.collection_id == collection_id,
             CollectionDocument.document_id == doc_id,
-            CollectionDocument.is_deleted == False
+            CollectionDocument.is_deleted == False,
         )
         existing_result = await db.execute(existing_stmt)
         existing = existing_result.scalars().first()
@@ -2056,7 +2277,7 @@ async def add_documents_to_collection_standalone(
             collection_doc = CollectionDocument(
                 collection_id=collection_id,
                 document_id=doc_id,
-                sort_order=max_order + i + 1
+                sort_order=max_order + i + 1,
             )
             db.add(collection_doc)
 
@@ -2066,19 +2287,20 @@ async def add_documents_to_collection_standalone(
     return _collection_to_detail_response(collection)
 
 
-@standalone_router.delete("/collections/{collection_id}/documents", response_model=CollectionDetailResponse)
+@standalone_router.delete(
+    "/collections/{collection_id}/documents", response_model=CollectionDetailResponse
+)
 async def remove_documents_from_collection_standalone(
     collection_id: UUID,
     request: CollectionDocumentRemove,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Remove documents from a collection (standalone route)"""
-    coll_stmt = select(Collection).options(
-        selectinload(Collection.documents)
-    ).where(
-        Collection.id == collection_id,
-        Collection.is_deleted == False
+    coll_stmt = (
+        select(Collection)
+        .options(selectinload(Collection.documents))
+        .where(Collection.id == collection_id, Collection.is_deleted == False)
     )
     coll_result = await db.execute(coll_stmt)
     collection = coll_result.scalars().first()
@@ -2095,7 +2317,7 @@ async def remove_documents_from_collection_standalone(
         collection_doc_stmt = select(CollectionDocument).where(
             CollectionDocument.collection_id == collection_id,
             CollectionDocument.document_id == doc_id,
-            CollectionDocument.is_deleted == False
+            CollectionDocument.is_deleted == False,
         )
         collection_doc_result = await db.execute(collection_doc_stmt)
         collection_doc = collection_doc_result.scalars().first()

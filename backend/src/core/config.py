@@ -7,7 +7,8 @@ variables. Default values are only used for local development.
 
 import os
 import secrets
-from typing import Optional, List, Dict
+from typing import Dict, List, Optional
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
@@ -48,7 +49,9 @@ class Settings(BaseSettings):
         """Parse CORS_ORIGINS string into a list."""
         if not self.CORS_ORIGINS:
             return ["http://localhost:3000"]
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        return [
+            origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()
+        ]
 
     @property
     def cors_headers_list(self) -> List[str]:
@@ -66,7 +69,9 @@ class Settings(BaseSettings):
         return [h.strip() for h in self.CORS_EXPOSE_HEADERS.split(",") if h.strip()]
 
     # Database
-    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev"
+    DATABASE_URL: str = (
+        "postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev"
+    )
     REDIS_URL: str = "redis://localhost:6379"
 
     # Neo4j Configuration
@@ -90,9 +95,17 @@ class Settings(BaseSettings):
     @classmethod
     def validate_secret_key(cls, v, info):
         """Validate SECRET_KEY - require in production, generate for dev."""
-        weak_patterns = ["change-in-production", "your-secret", "changeme", "secret-key", "dev-secret"]
-        is_weak = not v or any(pattern in (v or "").lower() for pattern in weak_patterns)
-        
+        weak_patterns = [
+            "change-in-production",
+            "your-secret",
+            "changeme",
+            "secret-key",
+            "dev-secret",
+        ]
+        is_weak = not v or any(
+            pattern in (v or "").lower() for pattern in weak_patterns
+        )
+
         if is_weak:
             env = os.getenv("ENVIRONMENT", "development")
             if env in ("production", "staging"):
@@ -112,8 +125,15 @@ class Settings(BaseSettings):
         if v == "dev-jwt-persistent-secret-key-32chars!":
             return v
 
-        weak_patterns = ["change-in-production", "your-secret", "changeme", "jwt-secret"]
-        is_weak = not v or any(pattern in (v or "").lower() for pattern in weak_patterns)
+        weak_patterns = [
+            "change-in-production",
+            "your-secret",
+            "changeme",
+            "jwt-secret",
+        ]
+        is_weak = not v or any(
+            pattern in (v or "").lower() for pattern in weak_patterns
+        )
 
         if is_weak:
             env = os.getenv("ENVIRONMENT", "development")
@@ -144,7 +164,7 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./uploads"
     MAX_FILE_SIZE_MB: int = 10
     FREE_TIER_STORAGE_GB: int = 10
-    
+
     # Security directories
     SECURITY_DIR: str = "./security"  # Directory for encryption keys and security files
 
@@ -193,7 +213,9 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
 
     # Embedding Provider Configuration
-    EMBEDDING_PROVIDER: str = "sentence_transformers"  # sentence_transformers, azure_openai, auto
+    EMBEDDING_PROVIDER: str = (
+        "sentence_transformers"  # sentence_transformers, azure_openai, auto
+    )
 
     # LLM Response Cache Configuration
     LLM_CACHE_ENABLED: bool = True
@@ -206,7 +228,9 @@ class Settings(BaseSettings):
     # Model-aware defaults for context windows
     THREAD_DEFAULT_MAX_MESSAGES: int = 20  # Default messages to include in context
     THREAD_DEFAULT_MAX_TOKENS: int = 4000  # Default token limit for context
-    THREAD_CONTEXT_WARN_THRESHOLD: float = 0.9  # Warn when context usage exceeds this ratio
+    THREAD_CONTEXT_WARN_THRESHOLD: float = (
+        0.9  # Warn when context usage exceeds this ratio
+    )
 
     # Model-specific token limits (used for model-aware defaults)
     MODEL_CONTEXT_LIMITS: Dict[str, int] = {
@@ -229,7 +253,9 @@ class Settings(BaseSettings):
     @classmethod
     def validate_neo4j_uri(cls, v):
         if not v.startswith(("bolt://", "neo4j://", "bolt+s://", "neo4j+s://")):
-            raise ValueError("Neo4j URI must start with bolt://, neo4j://, bolt+s://, or neo4j+s://")
+            raise ValueError(
+                "Neo4j URI must start with bolt://, neo4j://, bolt+s://, or neo4j+s://"
+            )
         return v
 
     @field_validator("QDRANT_API_KEY")
@@ -272,7 +298,9 @@ class Settings(BaseSettings):
     @classmethod
     def validate_cache_similarity_threshold(cls, v):
         if v < 0.0 or v > 1.0:
-            raise ValueError("LLM_CACHE_SIMILARITY_THRESHOLD must be between 0.0 and 1.0")
+            raise ValueError(
+                "LLM_CACHE_SIMILARITY_THRESHOLD must be between 0.0 and 1.0"
+            )
         return v
 
     @field_validator("THREAD_DEFAULT_MAX_MESSAGES")
@@ -293,7 +321,9 @@ class Settings(BaseSettings):
     @classmethod
     def validate_thread_warn_threshold(cls, v):
         if v < 0.0 or v > 1.0:
-            raise ValueError("THREAD_CONTEXT_WARN_THRESHOLD must be between 0.0 and 1.0")
+            raise ValueError(
+                "THREAD_CONTEXT_WARN_THRESHOLD must be between 0.0 and 1.0"
+            )
         return v
 
     @field_validator("FREE_TIER_STORAGE_GB")
@@ -308,8 +338,10 @@ class Settings(BaseSettings):
         case_sensitive = True
         extra = "ignore"
 
+
 # Create settings instance
 settings = Settings()
+
 
 def get_settings() -> Settings:
     """Get application settings"""

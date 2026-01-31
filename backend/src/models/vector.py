@@ -3,15 +3,17 @@ Vector database models and schemas
 """
 
 from datetime import datetime
-from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field
 from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
 
 from .base import Base
 
 
 class VectorCollectionType(str, Enum):
     """Vector collection types"""
+
     DOCUMENT_CHUNKS = "document_chunks"
     ENTITIES = "entities"
     IMAGES = "images"
@@ -21,6 +23,7 @@ class VectorCollectionType(str, Enum):
 
 class VectorMetadata(BaseModel):
     """Metadata for vector entries"""
+
     document_id: Optional[str] = None
     organization_id: Optional[str] = None
     content_type: str
@@ -34,6 +37,7 @@ class VectorMetadata(BaseModel):
 
 class VectorEntry(BaseModel):
     """Vector entry for database storage"""
+
     id: str
     vector: List[float]
     text: Optional[str] = None
@@ -43,6 +47,7 @@ class VectorEntry(BaseModel):
 
 class VectorSearchRequest(BaseModel):
     """Vector search request"""
+
     query: str
     collection: VectorCollectionType
     organization_id: Optional[str] = None
@@ -53,6 +58,7 @@ class VectorSearchRequest(BaseModel):
 
 class VectorSearchResult(BaseModel):
     """Vector search result"""
+
     id: str
     text: Optional[str] = None
     score: float
@@ -62,6 +68,7 @@ class VectorSearchResult(BaseModel):
 
 class VectorSearchResponse(BaseModel):
     """Vector search response"""
+
     results: List[VectorSearchResult]
     total_found: int
     search_time: float
@@ -71,6 +78,7 @@ class VectorSearchResponse(BaseModel):
 
 class EmbeddingRequest(BaseModel):
     """Text embedding request"""
+
     text: str
     model: Optional[str] = None
     provider: Optional[str] = None  # "azure_openai" or "sentence_transformers"
@@ -78,6 +86,7 @@ class EmbeddingRequest(BaseModel):
 
 class EmbeddingResponse(BaseModel):
     """Text embedding response"""
+
     embedding: List[float]
     model: str
     dimension: int
@@ -87,6 +96,7 @@ class EmbeddingResponse(BaseModel):
 
 class BatchEmbeddingRequest(BaseModel):
     """Batch text embedding request"""
+
     texts: List[str]
     model: Optional[str] = None
     provider: Optional[str] = None  # "azure_openai" or "sentence_transformers"
@@ -94,6 +104,7 @@ class BatchEmbeddingRequest(BaseModel):
 
 class BatchEmbeddingResponse(BaseModel):
     """Batch text embedding response"""
+
     embeddings: List[List[float]]
     model: str
     dimension: int
@@ -105,6 +116,7 @@ class BatchEmbeddingResponse(BaseModel):
 
 class CollectionConfig(BaseModel):
     """Vector collection configuration"""
+
     name: str
     vector_size: int
     distance: str = "Cosine"  # Cosine, Euclidean, Dot
@@ -115,6 +127,7 @@ class CollectionConfig(BaseModel):
 
 class CollectionStats(BaseModel):
     """Vector collection statistics"""
+
     name: str
     vectors_count: int
     indexed_vectors_count: int
@@ -127,6 +140,7 @@ class CollectionStats(BaseModel):
 
 class VectorOperationResult(BaseModel):
     """Result of vector operation"""
+
     success: bool
     operation_id: Optional[str] = None
     message: str
@@ -136,6 +150,7 @@ class VectorOperationResult(BaseModel):
 
 class VectorHealthStatus(BaseModel):
     """Vector database health status"""
+
     status: str  # healthy, degraded, unhealthy
     collections_count: int
     total_vectors: int

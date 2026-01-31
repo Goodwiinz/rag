@@ -2,34 +2,41 @@
 Performance monitoring and profiling middleware for the RAG system
 """
 
-import time
-import psutil
 import asyncio
-from typing import Dict, List, Optional, Callable
-from collections import defaultdict, deque
-from dataclasses import dataclass, asdict
 import json
 import logging
+import threading
+import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
+from dataclasses import asdict, dataclass
+from typing import Callable, Dict, List, Optional
+
+import psutil
+import redis.asyncio as redis
 from fastapi import Request, Response
+from prometheus_client import Counter, Gauge, Histogram, generate_latest
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
-import threading
-from prometheus_client import Counter, Histogram, Gauge, generate_latest
-import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
 
 # Prometheus metrics
-REQUEST_COUNT = Counter('http_requests_total', 'Total HTTP requests', ['method', 'endpoint', 'status'])
-REQUEST_DURATION = Histogram('http_request_duration_seconds', 'HTTP request duration', ['method', 'endpoint'])
-MEMORY_USAGE = Gauge('memory_usage_bytes', 'Memory usage in bytes')
-CPU_USAGE = Gauge('cpu_usage_percent', 'CPU usage percentage')
-CONCURRENT_REQUESTS = Gauge('concurrent_requests', 'Number of concurrent requests')
+REQUEST_COUNT = Counter(
+    "http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"]
+)
+REQUEST_DURATION = Histogram(
+    "http_request_duration_seconds", "HTTP request duration", ["method", "endpoint"]
+)
+MEMORY_USAGE = Gauge("memory_usage_bytes", "Memory usage in bytes")
+CPU_USAGE = Gauge("cpu_usage_percent", "CPU usage percentage")
+CONCURRENT_REQUESTS = Gauge("concurrent_requests", "Number of concurrent requests")
+
 
 @dataclass
 class PerformanceMetrics:
     """Performance metrics data structure"""
+
     endpoint: str
     method: str
     status_code: int
@@ -40,9 +47,11 @@ class PerformanceMetrics:
     user_id: Optional[str] = None
     query_params: Optional[Dict] = None
 
+
 @dataclass
 class DatabaseMetrics:
     """Database performance metrics"""
+
     query_type: str
     table: str
     duration: float
@@ -50,15 +59,18 @@ class DatabaseMetrics:
     timestamp: float
     query_hash: str
 
+
 @dataclass
 class CacheMetrics:
     """Cache performance metrics"""
+
     cache_type: str
     operation: str  # 'hit', 'miss', 'set', 'delete'
     key_pattern: str
     duration: float
     size_bytes: int
     timestamp: float
+
 
 class PerformanceProfiler:
     """Advanced performance profiler for the application"""
@@ -68,16 +80,18 @@ class PerformanceProfiler:
         self.metrics_buffer: deque = deque(maxlen=max_samples)
         self.database_metrics: deque = deque(maxlen=5000)
         self.cache_metrics: deque = deque(maxlen=5000)
-        self.endpoint_stats: Dict[str, Dict] = defaultdict(lambda: {
-            'count': 0,
-            'total_duration': 0,
-            'min_duration': float('inf'),
-            'max_duration': 0,
-            'avg_duration': 0,
-            'p95_duration': 0,
-            'error_count': 0,
-            'last_reset': time.time()
-        })
+        self.endpoint_stats: Dict[str, Dict] = defaultdict(
+            lambda: {
+                "count": 0,
+                "total_duration": 0,
+                "min_duration": float("inf"),
+                "max_duration": 0,
+                "avg_duration": 0,
+                "p95_duration": 0,
+                "error_count": 0,
+                "last_reset": time.time(),
+            }
+        )
         self._lock = threading.Lock()
         self._running = False
         self._monitoring_task: Optional[asyncio.Task] = None
@@ -118,14 +132,14 @@ class PerformanceProfiler:
             # Update endpoint statistics
             key = f"{metrics.method} {metrics.endpoint}"
             stats = self.endpoint_stats[key]
-            stats['count'] += 1
-            stats['total_duration'] += metrics.duration
-            stats['min_duration'] = min(stats['min_duration'], metrics.duration)
-            stats['max_duration'] = max(stats['max_duration'], metrics.duration)
-            stats['avg_duration'] = stats['total_duration'] / stats['count']
+            stats["count"] += 1
+            stats["total_duration"] += metrics.duration
+            stats["min_duration"] = min(stats["min_duration"], metrics.duration)
+            stats["max_duration"] = max(stats["max_duration"], metrics.duration)
+            stats["avg_duration"] = stats["total_duration"] / stats["count"]
 
             if metrics.status_code >= 400:
-                stats['error_count'] += 1
+                stats["error_count"] += 1
 
     def record_database_query(self, metrics: DatabaseMetrics):
         """Record database query metrics"""
@@ -159,11 +173,11 @@ class PerformanceProfiler:
         n = len(sorted_durations)
 
         return {
-            'p50': sorted_durations[n // 2],
-            'p75': sorted_durations[int(n * 0.75)],
-            'p90': sorted_durations[int(n * 0.90)],
-            'p95': sorted_durations[int(n * 0.95)],
-            'p99': sorted_durations[int(n * 0.99)],
+            "p50": sorted_durations[n // 2],
+            "p75": sorted_durations[int(n * 0.75)],
+            "p90": sorted_durations[int(n * 0.90)],
+            "p95": sorted_durations[int(n * 0.95)],
+            "p99": sorted_durations[int(n * 0.99)],
         }
 
     def get_performance_summary(self, time_window: int = 300) -> Dict:
@@ -174,8 +188,7 @@ class PerformanceProfiler:
         with self._lock:
             # Filter recent metrics
             recent_metrics = [
-                m for m in self.metrics_buffer
-                if m.timestamp >= cutoff_time
+                m for m in self.metrics_buffer if m.timestamp >= cutoff_time
             ]
 
             if not recent_metrics:
@@ -200,18 +213,20 @@ class PerformanceProfiler:
                     "min": min(durations),
                     "max": max(durations),
                     "avg": sum(durations) / len(durations),
-                    **percentiles
+                    **percentiles,
                 },
                 "requests_per_second": len(recent_metrics) / time_window,
                 "status_distribution": dict(status_counts),
-                "top_endpoints": dict(sorted(
-                    endpoint_counts.items(),
-                    key=lambda x: x[1],
-                    reverse=True
-                )[:10]),
-                "error_rate": sum(1 for m in recent_metrics if m.status_code >= 400) / len(recent_metrics),
-                "generated_at": current_time
+                "top_endpoints": dict(
+                    sorted(endpoint_counts.items(), key=lambda x: x[1], reverse=True)[
+                        :10
+                    ]
+                ),
+                "error_rate": sum(1 for m in recent_metrics if m.status_code >= 400)
+                / len(recent_metrics),
+                "generated_at": current_time,
             }
+
 
 class PerformanceMiddleware(BaseHTTPMiddleware):
     """Middleware for performance monitoring"""
@@ -255,7 +270,9 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
                 memory_usage_mb=memory_after - memory_before,
                 cpu_usage_percent=cpu_after - cpu_before,
                 timestamp=time.time(),
-                query_params=dict(request.query_params) if request.query_params else None
+                query_params=dict(request.query_params)
+                if request.query_params
+                else None,
             )
 
             # Record metrics
@@ -263,15 +280,10 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
 
             # Update Prometheus metrics
             REQUEST_COUNT.labels(
-                method=method,
-                endpoint=endpoint,
-                status=response.status_code
+                method=method, endpoint=endpoint, status=response.status_code
             ).inc()
 
-            REQUEST_DURATION.labels(
-                method=method,
-                endpoint=endpoint
-            ).observe(duration)
+            REQUEST_DURATION.labels(method=method, endpoint=endpoint).observe(duration)
 
             # Add performance headers
             response.headers["X-Process-Time"] = f"{duration:.4f}"
@@ -291,17 +303,15 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
                 memory_usage_mb=0,
                 cpu_usage_percent=0,
                 timestamp=time.time(),
-                query_params=dict(request.query_params) if request.query_params else None
+                query_params=dict(request.query_params)
+                if request.query_params
+                else None,
             )
 
             self.profiler.record_request(metrics)
 
             # Update error counters
-            REQUEST_COUNT.labels(
-                method=method,
-                endpoint=endpoint,
-                status=500
-            ).inc()
+            REQUEST_COUNT.labels(method=method, endpoint=endpoint, status=500).inc()
 
             raise
 
@@ -309,6 +319,7 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
             # Decrement concurrent requests
             CONCURRENT_REQUESTS.dec()
             self.concurrent_requests -= 1
+
 
 class DatabaseProfiler:
     """Database query profiler"""
@@ -335,10 +346,11 @@ class DatabaseProfiler:
                 duration=duration,
                 affected_rows=0,  # Would be set by the actual query execution
                 timestamp=time.time(),
-                query_hash=str(query_hash)
+                query_hash=str(query_hash),
             )
 
             self.profiler.record_database_query(metrics)
+
 
 class CacheProfiler:
     """Cache operation profiler"""
@@ -357,7 +369,7 @@ class CacheProfiler:
             duration = time.time() - start_time
 
             # Get cache key pattern (strip user-specific parts)
-            key_pattern = key.split(':')[0] if ':' in key else key
+            key_pattern = key.split(":")[0] if ":" in key else key
 
             metrics = CacheMetrics(
                 cache_type=cache_type,
@@ -365,10 +377,11 @@ class CacheProfiler:
                 key_pattern=key_pattern,
                 duration=duration,
                 size_bytes=0,  # Would be set by actual cache operation
-                timestamp=time.time()
+                timestamp=time.time(),
             )
 
             self.profiler.record_cache_operation(metrics)
+
 
 # Global profiler instance
 profiler = PerformanceProfiler()

@@ -10,21 +10,22 @@ This module provides REST API endpoints for:
 """
 
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, Field, validator
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
 
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel, Field, validator
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
+
+from src.auth.rbac_decorator import require_permission
 from src.core.database import get_db
 from src.core.dependencies import get_current_user, is_active_user
-from src.auth.rbac_decorator import require_permission
-from src.services.security.encryption_service import EncryptionService
-from src.core.encryption import EncryptionKeyType, EncryptionError
-from src.models.user import User
+from src.core.encryption import EncryptionError, EncryptionKeyType
 from src.models.organization import Organization
+from src.models.user import User
+from src.services.security.encryption_service import EncryptionService
 
 router = APIRouter(prefix="/encryption", tags=["encryption"])
 security = HTTPBearer()
@@ -33,19 +34,33 @@ security = HTTPBearer()
 # Request/Response Models
 class UserProfileEncryptionRequest(BaseModel):
     """Request model for encrypting user profile data"""
+
     user_id: UUID = Field(..., description="User ID to encrypt profile for")
     profile_data: Dict[str, Any] = Field(..., description="Profile data to encrypt")
 
-    @validator('profile_data')
+    @validator("profile_data")
     def validate_profile_data(cls, v):
         # Basic validation for common profile fields
         allowed_fields = [
-            'first_name', 'last_name', 'middle_name', 'email_personal',
-            'phone_mobile', 'phone_work', 'address_home', 'address_work',
-            'ssn', 'passport_number', 'driver_license',
-            'emergency_contact_name', 'emergency_contact_phone',
-            'emergency_contact_relationship', 'personal_notes',
-            'preferences', 'job_title', 'department', 'employee_id'
+            "first_name",
+            "last_name",
+            "middle_name",
+            "email_personal",
+            "phone_mobile",
+            "phone_work",
+            "address_home",
+            "address_work",
+            "ssn",
+            "passport_number",
+            "driver_license",
+            "emergency_contact_name",
+            "emergency_contact_phone",
+            "emergency_contact_relationship",
+            "personal_notes",
+            "preferences",
+            "job_title",
+            "department",
+            "employee_id",
         ]
 
         for field in v.keys():
@@ -57,17 +72,31 @@ class UserProfileEncryptionRequest(BaseModel):
 
 class OrganizationProfileEncryptionRequest(BaseModel):
     """Request model for encrypting organization profile data"""
-    organization_id: UUID = Field(..., description="Organization ID to encrypt profile for")
+
+    organization_id: UUID = Field(
+        ..., description="Organization ID to encrypt profile for"
+    )
     profile_data: Dict[str, Any] = Field(..., description="Profile data to encrypt")
 
-    @validator('profile_data')
+    @validator("profile_data")
     def validate_profile_data(cls, v):
         allowed_fields = [
-            'legal_business_name', 'dba_name', 'tax_id', 'duns_number',
-            'billing_address', 'shipping_address', 'billing_phone',
-            'billing_email', 'bank_account_number', 'bank_routing_number',
-            'payment_method', 'legal_contact_name', 'legal_contact_email',
-            'legal_contact_phone', 'business_notes', 'custom_attributes'
+            "legal_business_name",
+            "dba_name",
+            "tax_id",
+            "duns_number",
+            "billing_address",
+            "shipping_address",
+            "billing_phone",
+            "billing_email",
+            "bank_account_number",
+            "bank_routing_number",
+            "payment_method",
+            "legal_contact_name",
+            "legal_contact_email",
+            "legal_contact_phone",
+            "business_notes",
+            "custom_attributes",
         ]
 
         for field in v.keys():
@@ -79,26 +108,35 @@ class OrganizationProfileEncryptionRequest(BaseModel):
 
 class KeyRotationRequest(BaseModel):
     """Request model for key rotation"""
+
     key_type: str = Field(..., description="Type of key to rotate")
-    organization_id: Optional[UUID] = Field(None, description="Organization scope (admin only)")
+    organization_id: Optional[UUID] = Field(
+        None, description="Organization scope (admin only)"
+    )
     dry_run: bool = Field(False, description="Preview rotation without executing")
 
-    @validator('key_type')
+    @validator("key_type")
     def validate_key_type(cls, v):
         if v not in [EncryptionKeyType.DATA, EncryptionKeyType.FILE]:
-            raise ValueError(f"Invalid key type. Must be one of: {EncryptionKeyType.DATA}, {EncryptionKeyType.FILE}")
+            raise ValueError(
+                f"Invalid key type. Must be one of: {EncryptionKeyType.DATA}, {EncryptionKeyType.FILE}"
+            )
         return v
 
 
 class DecryptionRequest(BaseModel):
     """Request model for decrypting data"""
+
     resource_type: str = Field(..., description="Type of resource to decrypt")
     resource_id: UUID = Field(..., description="ID of resource to decrypt")
-    fields: Optional[List[str]] = Field(None, description="Specific fields to decrypt (all if None)")
+    fields: Optional[List[str]] = Field(
+        None, description="Specific fields to decrypt (all if None)"
+    )
 
 
 class EncryptionStatusResponse(BaseModel):
     """Response model for encryption status"""
+
     key_management: Dict[str, Any]
     encrypted_resources: Dict[str, Any]
     recent_operations: List[Dict[str, Any]]
@@ -106,6 +144,7 @@ class EncryptionStatusResponse(BaseModel):
 
 class KeyRotationResponse(BaseModel):
     """Response model for key rotation"""
+
     key_type: str
     old_key_id: str
     new_key_id: str
@@ -117,6 +156,7 @@ class KeyRotationResponse(BaseModel):
 
 class EncryptionValidationResponse(BaseModel):
     """Response model for encryption validation"""
+
     user_profiles_tested: int
     user_profiles_passed: int
     organization_profiles_tested: int
@@ -129,12 +169,13 @@ class EncryptionValidationResponse(BaseModel):
 
 # API Endpoints
 
+
 @router.post("/profiles/user", response_model=Dict[str, Any])
-#@require_permission(["encryption:manage"])
+# @require_permission(["encryption:manage"])
 async def encrypt_user_profile(
     request: UserProfileEncryptionRequest,
     current_user: User = Depends(is_active_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Encrypt user profile data
@@ -146,25 +187,26 @@ async def encrypt_user_profile(
         encryption_service = EncryptionService(db)
 
         # Check if user has permission to encrypt the target user's profile
-        if (request.user_id != current_user.id and
-            current_user.role.value not in ['admin', 'content_manager']):
+        if request.user_id != current_user.id and current_user.role.value not in [
+            "admin",
+            "content_manager",
+        ]:
             raise HTTPException(
-                status_code=403,
-                detail="Not authorized to encrypt this user's profile"
+                status_code=403, detail="Not authorized to encrypt this user's profile"
             )
 
         # Encrypt the profile
         encrypted_profile = encryption_service.encrypt_user_profile(
             user_id=request.user_id,
             profile_data=request.profile_data,
-            performed_by=current_user.id
+            performed_by=current_user.id,
         )
 
         return {
             "message": "User profile encrypted successfully",
             "profile_id": encrypted_profile.id,
             "user_id": encrypted_profile.user_id,
-            "encrypted_fields": list(request.profile_data.keys())
+            "encrypted_fields": list(request.profile_data.keys()),
         }
 
     except EncryptionError as e:
@@ -174,11 +216,11 @@ async def encrypt_user_profile(
 
 
 @router.post("/profiles/organization", response_model=Dict[str, Any])
-#@require_permission(["encryption:manage", "organization:manage"])
+# @require_permission(["encryption:manage", "organization:manage"])
 async def encrypt_organization_profile(
     request: OrganizationProfileEncryptionRequest,
     current_user: User = Depends(is_active_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Encrypt organization profile data
@@ -190,25 +232,27 @@ async def encrypt_organization_profile(
         encryption_service = EncryptionService(db)
 
         # Check if user has permission to encrypt the target organization's profile
-        if (current_user.organization_id != request.organization_id and
-            current_user.role.value not in ['admin']):
+        if (
+            current_user.organization_id != request.organization_id
+            and current_user.role.value not in ["admin"]
+        ):
             raise HTTPException(
                 status_code=403,
-                detail="Not authorized to encrypt this organization's profile"
+                detail="Not authorized to encrypt this organization's profile",
             )
 
         # Encrypt the profile
         encrypted_profile = encryption_service.encrypt_organization_profile(
             organization_id=request.organization_id,
             profile_data=request.profile_data,
-            performed_by=current_user.id
+            performed_by=current_user.id,
         )
 
         return {
             "message": "Organization profile encrypted successfully",
             "profile_id": encrypted_profile.id,
             "organization_id": encrypted_profile.organization_id,
-            "encrypted_fields": list(request.profile_data.keys())
+            "encrypted_fields": list(request.profile_data.keys()),
         }
 
     except EncryptionError as e:
@@ -218,11 +262,11 @@ async def encrypt_organization_profile(
 
 
 @router.post("/decrypt", response_model=Dict[str, Any])
-#@require_permission(["encryption:decrypt"])
+# @require_permission(["encryption:decrypt"])
 async def decrypt_data(
     request: DecryptionRequest,
     current_user: User = Depends(is_active_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Decrypt sensitive data
@@ -236,39 +280,49 @@ async def decrypt_data(
         # Validate access permissions
         if request.resource_type == "user_profile":
             # Check if user can access this profile
-            if (request.resource_id != current_user.id and
-                current_user.role.value not in ['admin', 'content_manager']):
+            if (
+                request.resource_id != current_user.id
+                and current_user.role.value not in ["admin", "content_manager"]
+            ):
                 raise HTTPException(
-                    status_code=403,
-                    detail="Not authorized to decrypt this user's data"
+                    status_code=403, detail="Not authorized to decrypt this user's data"
                 )
 
             decrypted_data = encryption_service.decrypt_user_profile(
                 user_id=request.resource_id,
                 fields=request.fields,
-                requested_by=current_user.id
+                requested_by=current_user.id,
             )
 
         elif request.resource_type == "organization_profile":
             # Check if user can access this organization's data
-            if (current_user.organization_id != request.resource_id and
-                current_user.role.value != 'admin'):
+            if (
+                current_user.organization_id != request.resource_id
+                and current_user.role.value != "admin"
+            ):
                 raise HTTPException(
                     status_code=403,
-                    detail="Not authorized to decrypt this organization's data"
+                    detail="Not authorized to decrypt this organization's data",
                 )
 
             # Implementation for organization profile decryption would go here
-            decrypted_data = {"message": "Organization profile decryption not yet implemented"}
+            decrypted_data = {
+                "message": "Organization profile decryption not yet implemented"
+            }
 
         else:
-            raise HTTPException(status_code=400, detail=f"Unsupported resource type: {request.resource_type}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported resource type: {request.resource_type}",
+            )
 
         return {
             "resource_type": request.resource_type,
             "resource_id": str(request.resource_id),
             "decrypted_data": decrypted_data,
-            "fields_decrypted": list(decrypted_data.keys()) if isinstance(decrypted_data, dict) else []
+            "fields_decrypted": list(decrypted_data.keys())
+            if isinstance(decrypted_data, dict)
+            else [],
         }
 
     except EncryptionError as e:
@@ -278,12 +332,12 @@ async def decrypt_data(
 
 
 @router.post("/keys/rotate", response_model=KeyRotationResponse)
-#@require_permission(["encryption:key_rotate"])
+# @require_permission(["encryption:key_rotate"])
 async def rotate_encryption_key(
     request: KeyRotationRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(is_active_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Rotate encryption keys
@@ -295,10 +349,10 @@ async def rotate_encryption_key(
         encryption_service = EncryptionService(db)
 
         # Admin only for organization-scoped rotation
-        if request.organization_id and current_user.role.value != 'admin':
+        if request.organization_id and current_user.role.value != "admin":
             raise HTTPException(
                 status_code=403,
-                detail="Only administrators can perform organization-scoped key rotation"
+                detail="Only administrators can perform organization-scoped key rotation",
             )
 
         # Perform key rotation
@@ -306,7 +360,7 @@ async def rotate_encryption_key(
             key_type=request.key_type,
             performed_by=current_user.id,
             organization_id=request.organization_id,
-            dry_run=request.dry_run
+            dry_run=request.dry_run,
         )
 
         return KeyRotationResponse(**rotation_results)
@@ -318,11 +372,13 @@ async def rotate_encryption_key(
 
 
 @router.get("/status", response_model=EncryptionStatusResponse)
-#@require_permission(["encryption:view"])
+# @require_permission(["encryption:view"])
 async def get_encryption_status(
-    organization_id: Optional[UUID] = Query(None, description="Organization scope (admin only)"),
+    organization_id: Optional[UUID] = Query(
+        None, description="Organization scope (admin only)"
+    ),
     current_user: User = Depends(is_active_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get encryption status and statistics
@@ -334,14 +390,14 @@ async def get_encryption_status(
         encryption_service = EncryptionService(db)
 
         # Admin only for organization-scoped status
-        if organization_id and current_user.role.value != 'admin':
+        if organization_id and current_user.role.value != "admin":
             raise HTTPException(
                 status_code=403,
-                detail="Only administrators can view organization-scoped encryption status"
+                detail="Only administrators can view organization-scoped encryption status",
             )
 
         # If not admin, limit to user's own organization
-        if current_user.role.value != 'admin':
+        if current_user.role.value != "admin":
             organization_id = current_user.organization_id
 
         status = encryption_service.get_encryption_status(organization_id)
@@ -353,11 +409,11 @@ async def get_encryption_status(
 
 
 @router.post("/validate", response_model=EncryptionValidationResponse)
-#@require_permission(["encryption:validate"])
+# @require_permission(["encryption:validate"])
 async def validate_encryption_integrity(
     sample_size: int = Query(10, ge=1, le=100, description="Number of records to test"),
     current_user: User = Depends(is_active_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Validate encryption integrity
@@ -369,13 +425,15 @@ async def validate_encryption_integrity(
         encryption_service = EncryptionService(db)
 
         # Admin only for system-wide validation
-        if current_user.role.value not in ['admin']:
+        if current_user.role.value not in ["admin"]:
             raise HTTPException(
                 status_code=403,
-                detail="Only administrators can validate encryption integrity"
+                detail="Only administrators can validate encryption integrity",
             )
 
-        validation_results = encryption_service.validate_encryption_integrity(sample_size)
+        validation_results = encryption_service.validate_encryption_integrity(
+            sample_size
+        )
 
         return EncryptionValidationResponse(**validation_results)
 
@@ -384,14 +442,14 @@ async def validate_encryption_integrity(
 
 
 @router.get("/audit/logs", response_model=List[Dict[str, Any]])
-#@require_permission(["encryption:audit"])
+# @require_permission(["encryption:audit"])
 async def get_encryption_audit_logs(
     limit: int = Query(50, ge=1, le=500, description="Number of logs to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     operation_type: Optional[str] = Query(None, description="Filter by operation type"),
     resource_type: Optional[str] = Query(None, description="Filter by resource type"),
     current_user: User = Depends(is_active_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get encryption audit logs
@@ -411,16 +469,21 @@ async def get_encryption_audit_logs(
             query = query.filter(EncryptionAuditLog.resource_type == resource_type)
 
         # Non-admin users can only see logs for their own organization
-        if current_user.role.value != 'admin':
+        if current_user.role.value != "admin":
             query = query.filter(
                 or_(
                     EncryptionAuditLog.performed_by == current_user.id,
-                    EncryptionAuditLog.organization_id == current_user.organization_id
+                    EncryptionAuditLog.organization_id == current_user.organization_id,
                 )
             )
 
         # Apply pagination and ordering
-        logs = query.order_by(EncryptionAuditLog.created_at.desc()).offset(offset).limit(limit).all()
+        logs = (
+            query.order_by(EncryptionAuditLog.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
 
         return [
             {
@@ -430,12 +493,14 @@ async def get_encryption_audit_logs(
                 "resource_id": str(log.resource_id),
                 "key_id": log.key_id,
                 "performed_by": str(log.performed_by) if log.performed_by else None,
-                "organization_id": str(log.organization_id) if log.organization_id else None,
+                "organization_id": str(log.organization_id)
+                if log.organization_id
+                else None,
                 "ip_address": log.ip_address,
                 "user_agent": log.user_agent,
                 "success": log.success,
                 "error_message": log.error_message,
-                "created_at": log.created_at.isoformat()
+                "created_at": log.created_at.isoformat(),
             }
             for log in logs
         ]
@@ -445,10 +510,8 @@ async def get_encryption_audit_logs(
 
 
 @router.get("/config/sensitive-fields", response_model=List[str])
-#@require_permission(["encryption:view"])
-async def get_sensitive_fields_config(
-    current_user: User = Depends(is_active_user)
-):
+# @require_permission(["encryption:view"])
+async def get_sensitive_fields_config(current_user: User = Depends(is_active_user)):
     """
     Get list of configured sensitive field patterns
 
@@ -459,7 +522,9 @@ async def get_sensitive_fields_config(
         from src.middleware.encryption_middleware import EncryptionMiddleware
 
         # Return the default sensitive fields
-        middleware = EncryptionMiddleware(None)  # Create instance to access default fields
+        middleware = EncryptionMiddleware(
+            None
+        )  # Create instance to access default fields
         return middleware.sensitive_fields + middleware.sensitive_patterns
 
     except Exception as e:

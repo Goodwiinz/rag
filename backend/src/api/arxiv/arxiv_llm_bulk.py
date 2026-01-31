@@ -10,10 +10,14 @@ WARNING: LLM extraction is expensive! 500k papers = ~$10,000-30,000 in API costs
 import asyncio
 import logging
 from typing import List, Optional
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 
-from src.services.ingestion.kaggle_llm_bulk_ingestion import KaggleLLMBulkIngestionService, LLMIngestionProgress
+from src.services.ingestion.kaggle_llm_bulk_ingestion import (
+    KaggleLLMBulkIngestionService,
+    LLMIngestionProgress,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/arxiv/llm-bulk", tags=["ArXiv LLM Bulk Ingestion"])
@@ -25,42 +29,40 @@ _ingestion_task: Optional[asyncio.Task] = None
 
 class LLMBulkIngestionRequest(BaseModel):
     """Request model for LLM bulk ingestion"""
+
     max_papers: int = Field(
         default=1000,
         ge=10,
         le=500000,
-        description="Maximum papers to ingest. WARNING: 500k papers costs ~$10,000-30,000"
+        description="Maximum papers to ingest. WARNING: 500k papers costs ~$10,000-30,000",
     )
     batch_size: int = Field(
         default=50,
         ge=10,
         le=500,
-        description="Batch size for processing (smaller = more control, larger = faster)"
+        description="Batch size for processing (smaller = more control, larger = faster)",
     )
     categories: Optional[List[str]] = Field(
         default=None,
-        description="Filter by ArXiv categories (e.g., ['cs.AI', 'cs.LG'])"
+        description="Filter by ArXiv categories (e.g., ['cs.AI', 'cs.LG'])",
     )
     resume: bool = Field(
-        default=True,
-        description="Resume from previous ingestion state"
+        default=True, description="Resume from previous ingestion state"
     )
     enable_embeddings: bool = Field(
-        default=True,
-        description="Generate and store vector embeddings in Qdrant"
+        default=True, description="Generate and store vector embeddings in Qdrant"
     )
     enable_entity_extraction: bool = Field(
-        default=True,
-        description="Extract entities via Azure OpenAI LLM"
+        default=True, description="Extract entities via Azure OpenAI LLM"
     )
     enable_relationship_extraction: bool = Field(
-        default=True,
-        description="Extract relationships via Azure OpenAI LLM"
+        default=True, description="Extract relationships via Azure OpenAI LLM"
     )
 
 
 class LLMBulkIngestionStatus(BaseModel):
     """Response model for LLM ingestion status"""
+
     is_running: bool
     progress: Optional[dict] = None
     message: str
@@ -69,6 +71,7 @@ class LLMBulkIngestionStatus(BaseModel):
 
 class LLMBulkIngestionResult(BaseModel):
     """Response model for LLM ingestion result"""
+
     status: str
     total_processed: int
     total_ingested: int
@@ -90,7 +93,7 @@ async def _run_llm_ingestion_task(
     resume: bool,
     enable_embeddings: bool,
     enable_entity_extraction: bool,
-    enable_relationship_extraction: bool
+    enable_relationship_extraction: bool,
 ):
     """Background task for running LLM ingestion"""
     global _current_ingestion
@@ -100,7 +103,7 @@ async def _run_llm_ingestion_task(
         max_papers=max_papers,
         enable_embeddings=enable_embeddings,
         enable_entity_extraction=enable_entity_extraction,
-        enable_relationship_extraction=enable_relationship_extraction
+        enable_relationship_extraction=enable_relationship_extraction,
     )
 
     def progress_callback(progress: LLMIngestionProgress):
@@ -109,9 +112,7 @@ async def _run_llm_ingestion_task(
 
     try:
         result = await service.run_ingestion(
-            categories=categories,
-            resume=resume,
-            progress_callback=progress_callback
+            categories=categories, resume=resume, progress_callback=progress_callback
         )
         logger.info(f"LLM bulk ingestion completed: {result}")
     except Exception as e:
@@ -121,8 +122,7 @@ async def _run_llm_ingestion_task(
 
 @router.post("/start", response_model=LLMBulkIngestionStatus)
 async def start_llm_bulk_ingestion(
-    request: LLMBulkIngestionRequest,
-    background_tasks: BackgroundTasks
+    request: LLMBulkIngestionRequest, background_tasks: BackgroundTasks
 ):
     """
     Start LLM-powered bulk ingestion from Kaggle ArXiv dataset.
@@ -157,7 +157,7 @@ async def start_llm_bulk_ingestion(
             is_running=True,
             progress=_current_ingestion,
             message="LLM ingestion already in progress",
-            estimated_cost_usd=estimated_cost
+            estimated_cost_usd=estimated_cost,
         )
 
     # Reset progress
@@ -172,7 +172,7 @@ async def start_llm_bulk_ingestion(
             resume=request.resume,
             enable_embeddings=request.enable_embeddings,
             enable_entity_extraction=request.enable_entity_extraction,
-            enable_relationship_extraction=request.enable_relationship_extraction
+            enable_relationship_extraction=request.enable_relationship_extraction,
         )
     )
 
@@ -188,7 +188,7 @@ async def start_llm_bulk_ingestion(
         is_running=True,
         progress=None,
         message=f"Started LLM bulk ingestion for {request.max_papers:,} papers with {', '.join(features)}",
-        estimated_cost_usd=estimated_cost
+        estimated_cost_usd=estimated_cost,
     )
 
 
@@ -212,16 +212,20 @@ async def get_llm_ingestion_status():
         return LLMBulkIngestionStatus(
             is_running=False,
             progress=None,
-            message="No LLM ingestion running or completed"
+            message="No LLM ingestion running or completed",
         )
 
-    estimated_cost = _current_ingestion.get("llm_cost_estimate", 0.0) if _current_ingestion else 0.0
+    estimated_cost = (
+        _current_ingestion.get("llm_cost_estimate", 0.0) if _current_ingestion else 0.0
+    )
 
     return LLMBulkIngestionStatus(
         is_running=is_running,
         progress=_current_ingestion,
-        message="LLM ingestion in progress" if is_running else "LLM ingestion completed",
-        estimated_cost_usd=estimated_cost
+        message="LLM ingestion in progress"
+        if is_running
+        else "LLM ingestion completed",
+        estimated_cost_usd=estimated_cost,
     )
 
 
@@ -236,7 +240,10 @@ async def stop_llm_ingestion():
 
     if _ingestion_task and not _ingestion_task.done():
         _ingestion_task.cancel()
-        return {"status": "stopped", "message": "LLM ingestion cancelled. Use resume=True to continue later."}
+        return {
+            "status": "stopped",
+            "message": "LLM ingestion cancelled. Use resume=True to continue later.",
+        }
 
     return {"status": "not_running", "message": "No LLM ingestion to stop"}
 
@@ -246,7 +253,7 @@ async def estimate_ingestion_cost(
     max_papers: int = 1000,
     enable_entity_extraction: bool = True,
     enable_relationship_extraction: bool = True,
-    enable_embeddings: bool = True
+    enable_embeddings: bool = True,
 ):
     """
     Estimate the cost for LLM bulk ingestion.
@@ -256,7 +263,7 @@ async def estimate_ingestion_cost(
     costs = {
         "entity_extraction_per_paper": 0.02,
         "relationship_extraction_per_paper": 0.02,
-        "embedding_per_paper": 0.0001
+        "embedding_per_paper": 0.0001,
     }
 
     total_cost = 0.0
@@ -289,9 +296,9 @@ async def estimate_ingestion_cost(
         "features_enabled": {
             "entity_extraction": enable_entity_extraction,
             "relationship_extraction": enable_relationship_extraction,
-            "embeddings": enable_embeddings
+            "embeddings": enable_embeddings,
         },
-        "warning": "These are estimates. Actual costs may vary based on paper length and API pricing."
+        "warning": "These are estimates. Actual costs may vary based on paper length and API pricing.",
     }
 
 
@@ -313,18 +320,17 @@ async def test_llm_small_batch():
         max_papers=50,
         enable_embeddings=True,
         enable_entity_extraction=True,
-        enable_relationship_extraction=True
+        enable_relationship_extraction=True,
     )
 
     try:
         result = await service.run_ingestion(
-            categories=["cs.AI", "cs.LG"],  # Focus on AI/ML papers
-            resume=False
+            categories=["cs.AI", "cs.LG"], resume=False  # Focus on AI/ML papers
         )
         return {
             "status": "success",
             "result": result,
-            "message": "LLM test batch completed successfully"
+            "message": "LLM test batch completed successfully",
         }
     except Exception as e:
         logger.error(f"LLM test batch failed: {e}")
@@ -342,18 +348,16 @@ async def get_llm_ingestion_stats():
     - Relationship counts by type
     - Top categories
     """
-    from neo4j import AsyncGraphDatabase
     import os
+
+    from neo4j import AsyncGraphDatabase
 
     neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
     neo4j_user = os.getenv("NEO4J_USER", "neo4j")
     neo4j_password = os.getenv("NEO4J_PASSWORD", "password")
 
     try:
-        driver = AsyncGraphDatabase.driver(
-            neo4j_uri,
-            auth=(neo4j_user, neo4j_password)
-        )
+        driver = AsyncGraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
 
         async with driver.session() as session:
             # Get LLM-processed document count
@@ -364,46 +368,47 @@ async def get_llm_ingestion_stats():
             llm_doc_count = record["count"] if record else 0
 
             # Get total document count
-            result = await session.run(
-                "MATCH (d:DOCUMENT) RETURN count(d) as count"
-            )
+            result = await session.run("MATCH (d:DOCUMENT) RETURN count(d) as count")
             record = await result.single()
             total_doc_count = record["count"] if record else 0
 
             # Get entity counts by type
-            result = await session.run("""
+            result = await session.run(
+                """
                 MATCH (e:Entity)
                 RETURN labels(e) as types, count(*) as count
                 ORDER BY count DESC
-            """)
+            """
+            )
             entity_types = [
-                {"types": r["types"], "count": r["count"]}
-                async for r in result
+                {"types": r["types"], "count": r["count"]} async for r in result
             ]
 
             # Get relationship counts by type
-            result = await session.run("""
+            result = await session.run(
+                """
                 MATCH ()-[r]->()
                 WHERE type(r) IN ['USES', 'EVALUATED_ON', 'ACHIEVED', 'COMPARED_WITH', 'EXTENDS', 'MENTIONS']
                 RETURN type(r) as rel_type, count(*) as count
                 ORDER BY count DESC
-            """)
+            """
+            )
             relationship_types = [
-                {"type": r["rel_type"], "count": r["count"]}
-                async for r in result
+                {"type": r["rel_type"], "count": r["count"]} async for r in result
             ]
 
             # Get category distribution for LLM-processed papers
-            result = await session.run("""
+            result = await session.run(
+                """
                 MATCH (d:DOCUMENT)
                 WHERE d.extraction_type = 'llm'
                 RETURN d.arxiv_category as category, count(*) as count
                 ORDER BY count DESC
                 LIMIT 20
-            """)
+            """
+            )
             categories = [
-                {"category": r["category"], "count": r["count"]}
-                async for r in result
+                {"category": r["category"], "count": r["count"]} async for r in result
             ]
 
         await driver.close()
@@ -414,7 +419,7 @@ async def get_llm_ingestion_stats():
             "metadata_only_documents": total_doc_count - llm_doc_count,
             "entity_types": entity_types,
             "relationship_types": relationship_types,
-            "top_categories": categories
+            "top_categories": categories,
         }
 
     except Exception as e:

@@ -5,15 +5,18 @@ Implements proper authentication and authorization for WebSocket connections
 to prevent unauthorized access to real-time monitoring data.
 """
 
-import jwt
 import logging
-from typing import Optional, Dict, Any
 from datetime import datetime
-from fastapi import WebSocket, HTTPException, Query
-from src.core.config import settings
+from typing import Any, Dict, Optional
+
+import jwt
+from fastapi import HTTPException, Query, WebSocket
+
 from src.auth.rbac_decorator import AnalyticsPermissionsChecker
+from src.core.config import settings
 
 logger = logging.getLogger(__name__)
+
 
 class WebSocketAuthenticator:
     """Secure WebSocket authentication and authorization"""
@@ -22,7 +25,9 @@ class WebSocketAuthenticator:
         self.redis_client = None
         self.session_cache = {}
 
-    async def authenticate_websocket(self, websocket: WebSocket, token: str) -> Optional[Dict[str, Any]]:
+    async def authenticate_websocket(
+        self, websocket: WebSocket, token: str
+    ) -> Optional[Dict[str, Any]]:
         """
         Authenticate WebSocket connection with proper token validation
 
@@ -42,9 +47,7 @@ class WebSocketAuthenticator:
             # Decode and validate JWT token with signature verification
             try:
                 payload = jwt.decode(
-                    token,
-                    settings.JWT_SECRET_KEY,
-                    algorithms=[settings.JWT_ALGORITHM]
+                    token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
                 )
             except jwt.ExpiredSignatureError:
                 await self._close_connection(websocket, 4001, "Token expired")
@@ -55,39 +58,41 @@ class WebSocketAuthenticator:
                 return None
 
             # Check token type (must be access token)
-            token_type = payload.get('type')
-            if token_type != 'access':
+            token_type = payload.get("type")
+            if token_type != "access":
                 await self._close_connection(websocket, 4001, "Invalid token type")
                 return None
 
             # Extract user information
-            user_id = payload.get('sub')
-            user_role = payload.get('role')
-            org_id = payload.get('org_id')
+            user_id = payload.get("sub")
+            user_role = payload.get("role")
+            org_id = payload.get("org_id")
 
             if not user_id or not user_role:
                 await self._close_connection(websocket, 4001, "Invalid token payload")
                 return None
 
             # Check if token is revoked (if Redis is available)
-            if await self._is_token_revoked(payload.get('jti')):
+            if await self._is_token_revoked(payload.get("jti")):
                 await self._close_connection(websocket, 4001, "Token revoked")
                 return None
 
             # Validate user permissions for WebSocket access
             if not await self._has_websocket_permission(user_role):
-                await self._close_connection(websocket, 4003, "Insufficient permissions")
+                await self._close_connection(
+                    websocket, 4003, "Insufficient permissions"
+                )
                 return None
 
             # Log successful authentication
             logger.info(f"WebSocket authenticated: user_id={user_id}, role={user_role}")
 
             return {
-                'user_id': user_id,
-                'role': user_role,
-                'org_id': org_id,
-                'token_id': payload.get('jti'),
-                'expires_at': datetime.fromtimestamp(payload.get('exp'))
+                "user_id": user_id,
+                "role": user_role,
+                "org_id": org_id,
+                "token_id": payload.get("jti"),
+                "expires_at": datetime.fromtimestamp(payload.get("exp")),
             }
 
         except Exception as e:
@@ -95,7 +100,9 @@ class WebSocketAuthenticator:
             await self._close_connection(websocket, 4001, "Authentication failed")
             return None
 
-    async def authorize_websocket_access(self, user_info: Dict[str, Any], endpoint: str) -> bool:
+    async def authorize_websocket_access(
+        self, user_info: Dict[str, Any], endpoint: str
+    ) -> bool:
         """
         Authorize WebSocket access to specific endpoints
 
@@ -106,22 +113,30 @@ class WebSocketAuthenticator:
         Returns:
             True if authorized, False otherwise
         """
-        user_role = user_info.get('role')
+        user_role = user_info.get("role")
 
         # Define WebSocket access permissions by role
         websocket_permissions = {
-            'admin': ['metrics', 'traces', 'logs', 'alerts', 'health', 'dashboard'],
-            'monitoring': ['metrics', 'traces', 'logs', 'alerts', 'health', 'dashboard'],
-            'analyst': ['metrics', 'traces', 'logs', 'dashboard'],
-            'user': ['dashboard'],
-            'guest': ['health']
+            "admin": ["metrics", "traces", "logs", "alerts", "health", "dashboard"],
+            "monitoring": [
+                "metrics",
+                "traces",
+                "logs",
+                "alerts",
+                "health",
+                "dashboard",
+            ],
+            "analyst": ["metrics", "traces", "logs", "dashboard"],
+            "user": ["dashboard"],
+            "guest": ["health"],
         }
 
         allowed_endpoints = websocket_permissions.get(user_role, [])
         return endpoint in allowed_endpoints
 
-    async def validate_websocket_subscription(self, user_info: Dict[str, Any],
-                                            subscription_data: Dict[str, Any]) -> bool:
+    async def validate_websocket_subscription(
+        self, user_info: Dict[str, Any], subscription_data: Dict[str, Any]
+    ) -> bool:
         """
         Validate WebSocket subscription request for data access
 
@@ -132,27 +147,29 @@ class WebSocketAuthenticator:
         Returns:
             True if subscription is allowed, False otherwise
         """
-        user_role = user_info.get('role')
-        org_id = user_info.get('org_id')
+        user_role = user_info.get("role")
+        org_id = user_info.get("org_id")
 
         # Check organization-based access
-        if subscription_data.get('org_id') and org_id:
-            if str(subscription_data['org_id']) != str(org_id):
-                logger.warning(f"Cross-org WebSocket access attempt: user_org={org_id}, target_org={subscription_data['org_id']}")
+        if subscription_data.get("org_id") and org_id:
+            if str(subscription_data["org_id"]) != str(org_id):
+                logger.warning(
+                    f"Cross-org WebSocket access attempt: user_org={org_id}, target_org={subscription_data['org_id']}"
+                )
                 return False
 
         # Validate subscription type based on user role
-        subscription_type = subscription_data.get('type')
+        subscription_type = subscription_data.get("type")
         allowed_subscriptions = {
-            'admin': ['all', 'metrics', 'traces', 'logs', 'alerts', 'system'],
-            'monitoring': ['all', 'metrics', 'traces', 'logs', 'alerts'],
-            'analyst': ['metrics', 'traces', 'logs'],
-            'user': ['user-metrics', 'dashboard'],
-            'guest': ['health-status']
+            "admin": ["all", "metrics", "traces", "logs", "alerts", "system"],
+            "monitoring": ["all", "metrics", "traces", "logs", "alerts"],
+            "analyst": ["metrics", "traces", "logs"],
+            "user": ["user-metrics", "dashboard"],
+            "guest": ["health-status"],
         }
 
         user_allowed = allowed_subscriptions.get(user_role, [])
-        return subscription_type in user_allowed or 'all' in user_allowed
+        return subscription_type in user_allowed or "all" in user_allowed
 
     async def _is_token_revoked(self, token_id: str) -> bool:
         """Check if token has been revoked"""
@@ -168,7 +185,7 @@ class WebSocketAuthenticator:
 
     async def _has_websocket_permission(self, user_role: str) -> bool:
         """Check if user role allows WebSocket access"""
-        websocket_allowed_roles = ['admin', 'monitoring', 'analyst', 'user', 'guest']
+        websocket_allowed_roles = ["admin", "monitoring", "analyst", "user", "guest"]
         return user_role in websocket_allowed_roles
 
     async def _close_connection(self, websocket: WebSocket, code: int, reason: str):
@@ -178,10 +195,14 @@ class WebSocketAuthenticator:
         except Exception as e:
             logger.warning(f"Failed to close WebSocket connection: {e}")
 
+
 # Global WebSocket authenticator instance
 websocket_authenticator = WebSocketAuthenticator()
 
-async def require_websocket_auth(websocket: WebSocket, token: str = Query(...)) -> Optional[Dict[str, Any]]:
+
+async def require_websocket_auth(
+    websocket: WebSocket, token: str = Query(...)
+) -> Optional[Dict[str, Any]]:
     """
     FastAPI dependency for WebSocket authentication
 
@@ -200,6 +221,7 @@ async def require_websocket_auth(websocket: WebSocket, token: str = Query(...)) 
         raise HTTPException(status_code=401, detail="WebSocket authentication failed")
     return user_info
 
+
 class WebSocketConnectionManager:
     """Enhanced WebSocket connection manager with security controls"""
 
@@ -207,18 +229,23 @@ class WebSocketConnectionManager:
         self._connections: Dict[str, Dict[str, Any]] = {}
         self._user_connections: Dict[str, set] = {}
         self._connection_limits = {
-            'admin': 10,
-            'monitoring': 5,
-            'analyst': 3,
-            'user': 2,
-            'guest': 1
+            "admin": 10,
+            "monitoring": 5,
+            "analyst": 3,
+            "user": 2,
+            "guest": 1,
         }
 
-    async def add_connection(self, websocket: WebSocket, connection_id: str,
-                           user_info: Dict[str, Any], endpoint: str):
+    async def add_connection(
+        self,
+        websocket: WebSocket,
+        connection_id: str,
+        user_info: Dict[str, Any],
+        endpoint: str,
+    ):
         """Add WebSocket connection with security validation"""
-        user_id = user_info['user_id']
-        user_role = user_info['role']
+        user_id = user_info["user_id"]
+        user_role = user_info["role"]
 
         # Check connection limits per user
         if not await self._check_connection_limit(user_id, user_role):
@@ -227,12 +254,12 @@ class WebSocketConnectionManager:
 
         # Store connection with security metadata
         self._connections[connection_id] = {
-            'websocket': websocket,
-            'user_info': user_info,
-            'endpoint': endpoint,
-            'connected_at': datetime.utcnow(),
-            'last_activity': datetime.utcnow(),
-            'subscriptions': set()
+            "websocket": websocket,
+            "user_info": user_info,
+            "endpoint": endpoint,
+            "connected_at": datetime.utcnow(),
+            "last_activity": datetime.utcnow(),
+            "subscriptions": set(),
         }
 
         # Track user connections
@@ -247,7 +274,7 @@ class WebSocketConnectionManager:
         """Remove WebSocket connection"""
         if connection_id in self._connections:
             connection_data = self._connections[connection_id]
-            user_id = connection_data['user_info']['user_id']
+            user_id = connection_data["user_info"]["user_id"]
 
             # Remove from user connections
             if user_id in self._user_connections:
@@ -272,6 +299,7 @@ class WebSocketConnectionManager:
     def get_connection_info(self, connection_id: str) -> Optional[Dict[str, Any]]:
         """Get connection information"""
         return self._connections.get(connection_id)
+
 
 # Secure WebSocket connection manager
 secure_websocket_manager = WebSocketConnectionManager()

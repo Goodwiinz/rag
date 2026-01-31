@@ -2,11 +2,11 @@
 Collection model for Terminal Observatory document organization
 """
 
-from sqlalchemy import Column, String, ForeignKey, Text, Integer, Boolean, DateTime
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
-from .base import BaseModel, GUID
+from .base import GUID, BaseModel
 
 
 class Collection(BaseModel):
@@ -24,7 +24,12 @@ class Collection(BaseModel):
     __tablename__ = "collections"
 
     # Parent relationship
-    workspace_id = Column(GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    workspace_id = Column(
+        GUID(),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     # Basic information
     name = Column(String(255), nullable=False, index=True)
@@ -36,26 +41,29 @@ class Collection(BaseModel):
 
     # Research project fields (for Research Assistant feature - User Story 4)
     project_type = Column(
-        String(50),
-        nullable=False,
-        default="research",
-        server_default="research"
+        String(50), nullable=False, default="research", server_default="research"
     )  # research, literature_review, thesis, paper
     research_status = Column(
         String(50),
         nullable=False,
         default="active",
         server_default="active",
-        index=True
+        index=True,
     )  # active, paused, completed, archived
     research_goals = Column(Text, nullable=True)  # Project objectives and goals
     deadline = Column(DateTime(timezone=True), nullable=True)  # Project deadline
-    tags = Column(JSONB, nullable=False, default=list, server_default="[]")  # Project categorization tags
-    is_private = Column(Boolean, nullable=False, default=True, server_default="true")  # Privacy setting (always TRUE for Phase 3)
+    tags = Column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )  # Project categorization tags
+    is_private = Column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )  # Privacy setting (always TRUE for Phase 3)
 
     # Relationships
     workspace = relationship("Workspace", back_populates="collections")
-    documents = relationship("CollectionDocument", back_populates="collection", cascade="all, delete-orphan")
+    documents = relationship(
+        "CollectionDocument", back_populates="collection", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<Collection(name={self.name}, workspace_id={self.workspace_id})>"
@@ -68,14 +76,14 @@ class Collection(BaseModel):
     def to_dict(self) -> dict:
         """Convert to dictionary"""
         data = super().to_dict()
-        data['document_count'] = self.document_count
+        data["document_count"] = self.document_count
         # Add research project fields
-        data['project_type'] = self.project_type
-        data['research_status'] = self.research_status
-        data['research_goals'] = self.research_goals
-        data['deadline'] = self.deadline.isoformat() if self.deadline else None
-        data['tags'] = self.tags
-        data['is_private'] = self.is_private
+        data["project_type"] = self.project_type
+        data["research_status"] = self.research_status
+        data["research_goals"] = self.research_goals
+        data["deadline"] = self.deadline.isoformat() if self.deadline else None
+        data["tags"] = self.tags
+        data["is_private"] = self.is_private
         return data
 
 
@@ -89,8 +97,18 @@ class CollectionDocument(BaseModel):
 
     __tablename__ = "collection_documents"
 
-    collection_id = Column(GUID(), ForeignKey("collections.id", ondelete="CASCADE"), nullable=False, index=True)
-    document_id = Column(GUID(), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    collection_id = Column(
+        GUID(),
+        ForeignKey("collections.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    document_id = Column(
+        GUID(),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     # Optional ordering within collection
     sort_order = Column(Integer, default=0, nullable=False)
@@ -103,4 +121,4 @@ class CollectionDocument(BaseModel):
         return f"<CollectionDocument(collection_id={self.collection_id}, document_id={self.document_id})>"
 
     class Meta:
-        unique_together = [('collection_id', 'document_id')]
+        unique_together = [("collection_id", "document_id")]

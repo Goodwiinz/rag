@@ -2,19 +2,21 @@
 Pydantic schemas for Terminal Observatory thread-centric chat system
 """
 
-from pydantic import BaseModel, Field, validator
-from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from pydantic import BaseModel, Field, validator
 
 # ============================================================================
 # Enums
 # ============================================================================
 
+
 class WorkspaceRole(str, Enum):
     """Workspace member roles"""
+
     OWNER = "owner"
     ADMIN = "admin"
     EDITOR = "editor"
@@ -23,6 +25,7 @@ class WorkspaceRole(str, Enum):
 
 class ThreadStatus(str, Enum):
     """Thread status"""
+
     ACTIVE = "active"
     RESOLVED = "resolved"
     ARCHIVED = "archived"
@@ -30,6 +33,7 @@ class ThreadStatus(str, Enum):
 
 class MessageRole(str, Enum):
     """Message sender role"""
+
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
@@ -40,8 +44,10 @@ class MessageRole(str, Enum):
 # Base Schemas
 # ============================================================================
 
+
 class TimestampMixin(BaseModel):
     """Mixin for timestamp fields"""
+
     created_at: datetime
     updated_at: datetime
 
@@ -53,8 +59,10 @@ class TimestampMixin(BaseModel):
 # Workspace Schemas
 # ============================================================================
 
+
 class WorkspaceBase(BaseModel):
     """Base workspace schema"""
+
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     is_public: bool = False
@@ -62,11 +70,13 @@ class WorkspaceBase(BaseModel):
 
 class WorkspaceCreate(WorkspaceBase):
     """Create workspace request"""
+
     organization_id: Optional[UUID] = None
 
 
 class WorkspaceUpdate(BaseModel):
     """Update workspace request"""
+
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     is_public: Optional[bool] = None
@@ -75,22 +85,26 @@ class WorkspaceUpdate(BaseModel):
 
 class WorkspaceMemberBase(BaseModel):
     """Base workspace member schema"""
+
     user_id: UUID
     role: WorkspaceRole = WorkspaceRole.VIEWER
 
 
 class WorkspaceMemberCreate(WorkspaceMemberBase):
     """Add member to workspace"""
+
     pass
 
 
 class WorkspaceMemberUpdate(BaseModel):
     """Update member role"""
+
     role: WorkspaceRole
 
 
 class WorkspaceMemberResponse(WorkspaceMemberBase, TimestampMixin):
     """Workspace member response"""
+
     id: UUID
     workspace_id: UUID
     joined_at: datetime
@@ -103,6 +117,7 @@ class WorkspaceMemberResponse(WorkspaceMemberBase, TimestampMixin):
 
 class WorkspaceResponse(WorkspaceBase, TimestampMixin):
     """Workspace response"""
+
     id: UUID
     owner_id: UUID
     organization_id: Optional[UUID] = None
@@ -116,6 +131,7 @@ class WorkspaceResponse(WorkspaceBase, TimestampMixin):
 
 class WorkspaceDetailResponse(WorkspaceResponse):
     """Detailed workspace response with members"""
+
     members: List[WorkspaceMemberResponse] = []
 
 
@@ -123,19 +139,23 @@ class WorkspaceDetailResponse(WorkspaceResponse):
 # Conversation Schemas
 # ============================================================================
 
+
 class ConversationBase(BaseModel):
     """Base conversation schema"""
+
     title: str = Field(..., min_length=1, max_length=500)
     description: Optional[str] = None
 
 
 class ConversationCreate(ConversationBase):
     """Create conversation request"""
+
     workspace_id: UUID
 
 
 class ConversationUpdate(BaseModel):
     """Update conversation request"""
+
     title: Optional[str] = Field(None, min_length=1, max_length=500)
     description: Optional[str] = None
     is_archived: Optional[bool] = None
@@ -144,6 +164,7 @@ class ConversationUpdate(BaseModel):
 
 class ConversationResponse(ConversationBase, TimestampMixin):
     """Conversation response"""
+
     id: UUID
     workspace_id: UUID
     created_by_id: UUID
@@ -158,6 +179,7 @@ class ConversationResponse(ConversationBase, TimestampMixin):
 
 class ConversationListResponse(BaseModel):
     """Paginated conversation list"""
+
     conversations: List[ConversationResponse]
     total: int
     page: int
@@ -169,23 +191,27 @@ class ConversationListResponse(BaseModel):
 # Thread Schemas
 # ============================================================================
 
+
 class ThreadBase(BaseModel):
     """Base thread schema"""
+
     title: Optional[str] = Field(None, max_length=500)
 
 
 class ThreadCreate(ThreadBase):
     """Create thread request"""
+
     conversation_id: UUID
     initial_message: Optional[str] = None  # Optional first message
     project_id: Optional[UUID] = Field(
         None,
-        description="Optional project ID to auto-link this thread to a research project"
+        description="Optional project ID to auto-link this thread to a research project",
     )
 
 
 class ThreadUpdate(BaseModel):
     """Update thread request"""
+
     title: Optional[str] = Field(None, max_length=500)
     summary: Optional[str] = None
     status: Optional[ThreadStatus] = None
@@ -193,6 +219,7 @@ class ThreadUpdate(BaseModel):
 
 class ThreadResponse(ThreadBase, TimestampMixin):
     """Thread response"""
+
     id: UUID
     conversation_id: UUID
     summary: Optional[str] = None
@@ -205,11 +232,13 @@ class ThreadResponse(ThreadBase, TimestampMixin):
 
 class ThreadDetailResponse(ThreadResponse):
     """Thread with messages"""
+
     messages: List["ChatMessageResponse"] = []
 
 
 class ThreadListResponse(BaseModel):
     """Paginated thread list"""
+
     threads: List[ThreadResponse]
     total: int
     page: int
@@ -224,11 +253,13 @@ class ThreadListResponse(BaseModel):
 
 class BulkThreadRequest(BaseModel):
     """Bulk thread operation request"""
+
     thread_ids: List[UUID] = Field(..., min_length=1, max_length=100)
 
 
 class BulkThreadResult(BaseModel):
     """Result for a single thread in bulk operation"""
+
     thread_id: UUID
     success: bool
     error: Optional[str] = None
@@ -237,6 +268,7 @@ class BulkThreadResult(BaseModel):
 
 class BulkThreadResponse(BaseModel):
     """Bulk thread operation response"""
+
     total: int
     succeeded: int
     failed: int
@@ -247,16 +279,21 @@ class BulkThreadResponse(BaseModel):
 # Chat Message Schemas
 # ============================================================================
 
+
 class ChatMessageBase(BaseModel):
     """Base chat message schema"""
+
     content: str = Field(..., min_length=1)
     role: MessageRole = MessageRole.USER
 
 
 class CitationCreate(BaseModel):
     """Citation input for creating messages with sources"""
+
     document_id: Optional[UUID] = None  # Optional: may not have a database UUID
-    external_reference_id: Optional[str] = None  # For non-UUID references (e.g., arXiv IDs)
+    external_reference_id: Optional[
+        str
+    ] = None  # For non-UUID references (e.g., arXiv IDs)
     chunk_index: Optional[int] = None
     chunk_id: Optional[str] = None
     snippet: Optional[str] = None
@@ -270,6 +307,7 @@ class CitationCreate(BaseModel):
 
 class ChatMessageCreate(ChatMessageBase):
     """Create chat message request"""
+
     thread_id: UUID
     attachment_ids: Optional[List[UUID]] = None  # Document IDs to attach
     citations: Optional[List[CitationCreate]] = None  # Citations from RAG retrieval
@@ -277,15 +315,19 @@ class ChatMessageCreate(ChatMessageBase):
 
 class ChatMessageUpdate(BaseModel):
     """Update chat message (limited - mainly for feedback)"""
+
     feedback_rating: Optional[int] = Field(None, ge=1, le=5)
     feedback_text: Optional[str] = None
 
 
 class CitationResponse(BaseModel):
     """Citation in a message"""
+
     id: UUID
     document_id: Optional[UUID] = None  # Optional: may not have a database reference
-    external_reference_id: Optional[str] = None  # For non-database references (e.g., arXiv IDs)
+    external_reference_id: Optional[
+        str
+    ] = None  # For non-database references (e.g., arXiv IDs)
     chunk_index: Optional[int] = None
     chunk_id: Optional[str] = None
     snippet: Optional[str] = None
@@ -304,6 +346,7 @@ class CitationResponse(BaseModel):
 
 class MessageAttachmentResponse(BaseModel):
     """Attachment in a message"""
+
     id: UUID
     document_id: UUID
     display_name: Optional[str] = None
@@ -320,6 +363,7 @@ class MessageAttachmentResponse(BaseModel):
 
 class ChatMessageResponse(ChatMessageBase, TimestampMixin):
     """Chat message response"""
+
     id: UUID
     thread_id: UUID
     user_id: Optional[UUID] = None
@@ -339,6 +383,7 @@ class ChatMessageResponse(ChatMessageBase, TimestampMixin):
 
 class ChatMessageListResponse(BaseModel):
     """Paginated message list"""
+
     messages: List[ChatMessageResponse]
     total: int
     page: int
@@ -350,46 +395,54 @@ class ChatMessageListResponse(BaseModel):
 # Collection Schemas
 # ============================================================================
 
+
 class CollectionBase(BaseModel):
     """Base collection schema"""
+
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
-    color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
+    color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
     icon: Optional[str] = Field(None, max_length=50)
 
 
 class CollectionCreate(CollectionBase):
     """Create collection request"""
+
     workspace_id: UUID
     document_ids: Optional[List[UUID]] = None  # Initial documents
 
 
 class CollectionUpdate(BaseModel):
     """Update collection request"""
+
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
-    color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
+    color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
     icon: Optional[str] = Field(None, max_length=50)
 
 
 class CollectionDocumentAdd(BaseModel):
     """Add documents to collection"""
+
     document_ids: List[UUID]
 
 
 class CollectionDocumentRemove(BaseModel):
     """Remove documents from collection"""
+
     document_ids: List[UUID]
 
 
 class CollectionDocumentReorder(BaseModel):
     """Reorder documents in collection"""
+
     document_id: UUID
     new_position: int = Field(..., ge=0)
 
 
 class CollectionResponse(CollectionBase, TimestampMixin):
     """Collection response"""
+
     id: UUID
     workspace_id: UUID
     document_count: int = 0
@@ -397,11 +450,13 @@ class CollectionResponse(CollectionBase, TimestampMixin):
 
 class CollectionDetailResponse(CollectionResponse):
     """Collection with documents"""
+
     documents: List[Dict[str, Any]] = []  # Document summaries
 
 
 class CollectionListResponse(BaseModel):
     """Paginated collection list"""
+
     collections: List[CollectionResponse]
     total: int
     page: int
@@ -413,8 +468,10 @@ class CollectionListResponse(BaseModel):
 # Chat Completion Schemas (for AI interactions)
 # ============================================================================
 
+
 class ChatCompletionRequest(BaseModel):
     """Request for AI chat completion"""
+
     thread_id: UUID
     message: str = Field(..., min_length=1)
 
@@ -435,6 +492,7 @@ class ChatCompletionRequest(BaseModel):
 
 class ChatCompletionResponse(BaseModel):
     """Response from AI chat completion"""
+
     message: ChatMessageResponse
     usage: Dict[str, int] = {}  # Token usage stats
 
@@ -446,6 +504,7 @@ class ChatCompletionResponse(BaseModel):
 
 class StreamingChatChunk(BaseModel):
     """Streaming chat response chunk"""
+
     chunk_type: str  # "content", "citation", "done", "error"
     content: Optional[str] = None
     citation: Optional[CitationResponse] = None
@@ -457,8 +516,10 @@ class StreamingChatChunk(BaseModel):
 # Search Within Workspace Schemas
 # ============================================================================
 
+
 class WorkspaceSearchRequest(BaseModel):
     """Search within a workspace"""
+
     query: str = Field(..., min_length=1)
     workspace_id: UUID
 
@@ -477,6 +538,7 @@ class WorkspaceSearchRequest(BaseModel):
 
 class WorkspaceSearchResult(BaseModel):
     """Search result item"""
+
     result_type: str  # "message", "document", "thread"
     id: UUID
     score: float
@@ -495,6 +557,7 @@ class WorkspaceSearchResult(BaseModel):
 
 class WorkspaceSearchResponse(BaseModel):
     """Search response"""
+
     results: List[WorkspaceSearchResult]
     total: int
     query: str

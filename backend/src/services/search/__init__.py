@@ -9,12 +9,7 @@ This module provides a modular, testable search architecture that supports:
 - Caching
 """
 
-from .base import (
-    SearchExecutor,
-    SearchQuery,
-    SearchResult,
-    SearchSource,
-)
+from .base import SearchExecutor, SearchQuery, SearchResult, SearchSource
 from .cache import SearchCache
 from .fusion import ResultFusion
 from .metrics import SearchMetrics

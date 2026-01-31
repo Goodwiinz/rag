@@ -2,24 +2,21 @@
 Tests for Observability Manager
 """
 
-import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, Mock, patch
 
-from src.monitoring.services.observability_manager import ObservabilityManager
+import pytest
+
 from src.monitoring.config.monitoring_config import MonitoringConfig
+from src.monitoring.services.observability_manager import ObservabilityManager
 from src.monitoring.utils.exceptions import ObservabilityError
 
 
 @pytest.fixture
 def mock_config():
     """Create a mock monitoring configuration"""
-    return MonitoringConfig(
-        service_name="test-service",
-        environment="test",
-        debug=True
-    )
+    return MonitoringConfig(service_name="test-service", environment="test", debug=True)
 
 
 @pytest.fixture
@@ -69,9 +66,7 @@ class TestObservabilityManager:
         observability_manager.metrics_collector = AsyncMock()
 
         await observability_manager.record_metric(
-            name="test_metric",
-            value=42.5,
-            labels={"test": "value"}
+            name="test_metric", value=42.5, labels={"test": "value"}
         )
 
         observability_manager.metrics_collector.record_metric.assert_called_once()
@@ -88,7 +83,7 @@ class TestObservabilityManager:
         rule_id = await observability_manager.create_alert_rule(
             name="Test Rule",
             conditions={"metric": "test_metric", "operator": ">", "value": 10},
-            severity="high"
+            severity="high",
         )
 
         assert rule_id == "rule-123"
@@ -102,11 +97,12 @@ class TestObservabilityManager:
         # Mock the tracing collector
         observability_manager.tracing_collector = AsyncMock()
         mock_span_context = Mock()
-        observability_manager.tracing_collector.start_span.return_value = mock_span_context
+        observability_manager.tracing_collector.start_span.return_value = (
+            mock_span_context
+        )
 
         async with observability_manager.trace_operation(
-            operation_name="test_operation",
-            service="test-service"
+            operation_name="test_operation", service="test-service"
         ) as span_context:
             assert span_context == mock_span_context
 
@@ -124,12 +120,13 @@ class TestObservabilityManager:
         # Mock the tracing collector
         observability_manager.tracing_collector = AsyncMock()
         mock_span_context = Mock()
-        observability_manager.tracing_collector.start_span.return_value = mock_span_context
+        observability_manager.tracing_collector.start_span.return_value = (
+            mock_span_context
+        )
 
         with pytest.raises(ValueError):
             async with observability_manager.trace_operation(
-                operation_name="test_operation",
-                service="test-service"
+                operation_name="test_operation", service="test-service"
             ):
                 raise ValueError("Test error")
 
@@ -146,7 +143,9 @@ class TestObservabilityManager:
         # Mock the metrics collector
         expected_metrics = {"metrics": {"test_metric": []}}
         observability_manager.metrics_collector = AsyncMock()
-        observability_manager.metrics_collector.get_metrics.return_value = expected_metrics
+        observability_manager.metrics_collector.get_metrics.return_value = (
+            expected_metrics
+        )
 
         metrics = await observability_manager.get_metrics()
 
@@ -161,7 +160,9 @@ class TestObservabilityManager:
         # Mock the tracing collector
         expected_traces = {"traces": {"trace-123": {"spans": []}}}
         observability_manager.tracing_collector = AsyncMock()
-        observability_manager.tracing_collector.get_traces.return_value = expected_traces
+        observability_manager.tracing_collector.get_traces.return_value = (
+            expected_traces
+        )
 
         traces = await observability_manager.get_traces()
 
@@ -208,16 +209,12 @@ class TestObservabilityManager:
         observability_manager.alert_handler.acknowledge_alert.return_value = True
 
         success = await observability_manager.acknowledge_alert(
-            alert_id="alert-123",
-            user="test-user",
-            message="Acknowledged"
+            alert_id="alert-123", user="test-user", message="Acknowledged"
         )
 
         assert success
         observability_manager.alert_handler.acknowledge_alert.assert_called_once_with(
-            alert_id="alert-123",
-            user="test-user",
-            message="Acknowledged"
+            alert_id="alert-123", user="test-user", message="Acknowledged"
         )
 
     @pytest.mark.asyncio
@@ -230,16 +227,12 @@ class TestObservabilityManager:
         observability_manager.alert_handler.resolve_alert.return_value = True
 
         success = await observability_manager.resolve_alert(
-            alert_id="alert-123",
-            user="test-user",
-            message="Resolved"
+            alert_id="alert-123", user="test-user", message="Resolved"
         )
 
         assert success
         observability_manager.alert_handler.resolve_alert.assert_called_once_with(
-            alert_id="alert-123",
-            user="test-user",
-            message="Resolved"
+            alert_id="alert-123", user="test-user", message="Resolved"
         )
 
     def test_create_correlation_id(self, observability_manager):
@@ -253,7 +246,9 @@ class TestObservabilityManager:
     async def test_initialization_failure(self, mock_config):
         """Test initialization failure handling"""
         # Mock a service to fail initialization
-        with patch('src.monitoring.services.metrics_collector.MetricsCollector') as mock_metrics:
+        with patch(
+            "src.monitoring.services.metrics_collector.MetricsCollector"
+        ) as mock_metrics:
             mock_metrics.side_effect = Exception("Initialization failed")
 
             manager = ObservabilityManager(mock_config)
@@ -298,7 +293,9 @@ class TestObservabilityManager:
         # Mock the health check hub
         expected_health = {"overall_status": "healthy"}
         observability_manager.health_check_hub = AsyncMock()
-        observability_manager.health_check_hub.get_overall_health.return_value = expected_health
+        observability_manager.health_check_hub.get_overall_health.return_value = (
+            expected_health
+        )
 
         health = await observability_manager.get_service_health()
 

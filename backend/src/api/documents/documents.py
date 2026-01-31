@@ -6,11 +6,19 @@ import uuid as uuid_module
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, Query, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Path,
+    Query,
+    status,
+)
 from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy import select, func
 
 from src.core.database import get_db
 
@@ -227,7 +235,7 @@ async def list_documents(
     """
     try:
         from sqlalchemy import or_
-        
+
         # Build base conditions
         conditions = [
             Document.organization_id == organization.id,
@@ -247,7 +255,7 @@ async def list_documents(
                 or_(
                     Document.title.ilike(search_pattern),
                     Document.filename.ilike(search_pattern),
-                    Document.content_text.ilike(search_pattern)
+                    Document.content_text.ilike(search_pattern),
                 )
             )
 
@@ -267,7 +275,9 @@ async def list_documents(
 
         # Apply sorting - sort_by is now a validated enum, preventing SQL injection
         sort_column = getattr(Document, sort_by.value, Document.created_at)
-        order_clause = sort_column.desc() if sort_order == SortOrder.DESC else sort_column.asc()
+        order_clause = (
+            sort_column.desc() if sort_order == SortOrder.DESC else sort_column.asc()
+        )
 
         # Count total results
         count_stmt = select(func.count(Document.id)).where(*conditions)
@@ -439,7 +449,7 @@ async def delete_document(
     try:
         # Start transaction
         from sqlalchemy import update
-        
+
         if cascade:
             # Delete related entities
             entity_update_stmt = (
@@ -452,7 +462,10 @@ async def delete_document(
             # Delete related processing jobs
             job_update_stmt = (
                 update(ProcessingJob)
-                .where(ProcessingJob.document_id == document_id, ProcessingJob.is_deleted == False)
+                .where(
+                    ProcessingJob.document_id == document_id,
+                    ProcessingJob.is_deleted == False,
+                )
                 .values(is_deleted=True, deleted_at=datetime.utcnow())
             )
             await db.execute(job_update_stmt)
@@ -528,10 +541,7 @@ async def get_document_entities(
 
     try:
         # Build entities conditions
-        conditions = [
-            Entity.document_id == document_id,
-            Entity.is_deleted == False
-        ]
+        conditions = [Entity.document_id == document_id, Entity.is_deleted == False]
 
         if entity_type:
             conditions.append(Entity.entity_type == entity_type)
@@ -721,7 +731,7 @@ async def search_documents(
     """
     try:
         from sqlalchemy import or_
-        
+
         # Build base conditions
         conditions = [
             Document.organization_id == organization.id,
@@ -735,7 +745,7 @@ async def search_documents(
                 Document.title.ilike(search_pattern),
                 Document.filename.ilike(search_pattern),
                 Document.content_text.ilike(search_pattern),
-                Document.content_summary.ilike(search_pattern)
+                Document.content_summary.ilike(search_pattern),
             )
         )
 
@@ -775,7 +785,9 @@ async def search_documents(
                 selectinload(Document.organization),
             )
             .where(*conditions)
-            .order_by(Document.title.ilike(search_pattern).desc(), Document.created_at.desc())
+            .order_by(
+                Document.title.ilike(search_pattern).desc(), Document.created_at.desc()
+            )
             .offset(offset)
             .limit(size)
         )
@@ -859,9 +871,10 @@ async def bulk_delete_documents(
     successful = []
     failed = []
 
-    from sqlalchemy import update
     import os
-    
+
+    from sqlalchemy import update
+
     for document_id in request.document_ids:
         try:
             doc_stmt = select(Document).where(
@@ -883,7 +896,9 @@ async def bulk_delete_documents(
                 # Delete related entities
                 entity_update_stmt = (
                     update(Entity)
-                    .where(Entity.document_id == document_id, Entity.is_deleted == False)
+                    .where(
+                        Entity.document_id == document_id, Entity.is_deleted == False
+                    )
                     .values(is_deleted=True, deleted_at=datetime.utcnow())
                 )
                 await db.execute(entity_update_stmt)
@@ -891,7 +906,10 @@ async def bulk_delete_documents(
                 # Delete related processing jobs
                 job_update_stmt = (
                     update(ProcessingJob)
-                    .where(ProcessingJob.document_id == document_id, ProcessingJob.is_deleted == False)
+                    .where(
+                        ProcessingJob.document_id == document_id,
+                        ProcessingJob.is_deleted == False,
+                    )
                     .values(is_deleted=True, deleted_at=datetime.utcnow())
                 )
                 await db.execute(job_update_stmt)

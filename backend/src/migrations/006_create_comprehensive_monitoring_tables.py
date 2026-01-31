@@ -12,7 +12,9 @@ This migration extends the existing monitoring schema with advanced observabilit
 
 import uuid
 from datetime import datetime
+
 from sqlalchemy import text
+
 from ..core.database import engine, get_db
 
 
@@ -673,41 +675,33 @@ def upgrade():
         "CREATE INDEX IF NOT EXISTS idx_metrics_definition_timestamp ON monitoring_metrics(definition_id, timestamp DESC);",
         "CREATE INDEX IF NOT EXISTS idx_metrics_source_timestamp ON monitoring_metrics(source, timestamp DESC);",
         "CREATE INDEX IF NOT EXISTS idx_metrics_labels ON monitoring_metrics USING gin(labels);",
-
         # Metric aggregations indexes
         "CREATE INDEX IF NOT EXISTS idx_aggregations_definition_bucket ON monitoring_metric_aggregations(definition_id, time_bucket, aggregation_type);",
         "CREATE INDEX IF NOT EXISTS idx_aggregations_bucket_type ON monitoring_metric_aggregations(time_bucket, aggregation_type);",
-
         # Time series indexes
         "CREATE INDEX IF NOT EXISTS idx_timeseries_metric_timestamp ON monitoring_time_series(metric_name, timestamp DESC);",
         "CREATE INDEX IF NOT EXISTS idx_timeseries_source_timestamp ON monitoring_time_series(source, timestamp DESC);",
         "CREATE INDEX IF NOT EXISTS idx_timeseries_labels ON monitoring_time_series USING gin(labels);",
-
         # Traces indexes
         "CREATE INDEX IF NOT EXISTS idx_traces_service_time ON monitoring_traces(service_name, start_time DESC);",
         "CREATE INDEX IF NOT EXISTS idx_traces_operation_time ON monitoring_traces(operation_name, start_time DESC);",
         "CREATE INDEX IF NOT EXISTS idx_traces_status_time ON monitoring_traces(status, start_time DESC);",
         "CREATE INDEX IF NOT EXISTS idx_traces_duration ON monitoring_traces(duration_ms DESC);",
-
         # Spans indexes
         "CREATE INDEX IF NOT EXISTS idx_spans_trace_operation ON monitoring_spans(trace_id, operation_name);",
         "CREATE INDEX IF NOT EXISTS idx_spans_service_time ON monitoring_spans(service_name, start_time DESC);",
         "CREATE INDEX IF NOT EXISTS idx_spans_parent ON monitoring_spans(parent_span_id);",
         "CREATE INDEX IF NOT EXISTS idx_spans_attributes ON monitoring_spans USING gin(attributes);",
-
         # Span events indexes
         "CREATE INDEX IF NOT EXISTS idx_span_events_span_time ON monitoring_span_events(span_id, timestamp DESC);",
         "CREATE INDEX IF NOT EXISTS idx_span_events_name_time ON monitoring_span_events(name, timestamp DESC);",
-
         # Span links indexes
         "CREATE INDEX IF NOT EXISTS idx_span_links_span_linked ON monitoring_span_links(span_id, linked_span_id);",
         "CREATE INDEX IF NOT EXISTS idx_span_links_trace ON monitoring_span_links(linked_trace_id);",
-
         # Trace errors indexes
         "CREATE INDEX IF NOT EXISTS idx_trace_errors_type_time ON monitoring_trace_errors(error_type, timestamp DESC);",
         "CREATE INDEX IF NOT EXISTS idx_trace_errors_severity_time ON monitoring_trace_errors(severity, timestamp DESC);",
         "CREATE INDEX IF NOT EXISTS idx_trace_errors_span ON monitoring_trace_errors(span_id);",
-
         # Log entries indexes
         "CREATE INDEX IF NOT EXISTS idx_logs_timestamp_level ON monitoring_logs(timestamp DESC, level);",
         "CREATE INDEX IF NOT EXISTS idx_logs_service_timestamp ON monitoring_logs(service_name, timestamp DESC);",
@@ -717,65 +711,52 @@ def upgrade():
         "CREATE INDEX IF NOT EXISTS idx_logs_exception ON monitoring_logs(exception_class);",
         "CREATE INDEX IF NOT EXISTS idx_logs_fields ON monitoring_logs USING gin(fields);",
         "CREATE INDEX IF NOT EXISTS idx_logs_tags ON monitoring_logs USING gin(tags);",
-
         # Log patterns indexes
         "CREATE INDEX IF NOT EXISTS idx_log_patterns_type_active ON monitoring_log_patterns(pattern_type, is_active);",
         "CREATE INDEX IF NOT EXISTS idx_log_patterns_frequency ON monitoring_log_patterns(frequency_per_hour DESC);",
-
         # Log pattern matches indexes
         "CREATE INDEX IF NOT EXISTS idx_log_pattern_matches_log ON monitoring_log_pattern_matches(log_id);",
         "CREATE INDEX IF NOT EXISTS idx_log_pattern_matches_pattern ON monitoring_log_pattern_matches(pattern_id);",
         "CREATE INDEX IF NOT EXISTS idx_log_pattern_matches_timestamp ON monitoring_log_pattern_matches(match_timestamp DESC);",
-
         # Log aggregations indexes
         "CREATE INDEX IF NOT EXISTS idx_log_aggregations_time_service ON monitoring_log_aggregations(time_bucket DESC, service_name);",
         "CREATE INDEX IF NOT EXISTS idx_log_aggregations_time_level ON monitoring_log_aggregations(time_bucket DESC, level);",
         "CREATE INDEX IF NOT EXISTS idx_log_aggregations_pattern_time ON monitoring_log_aggregations(pattern_id, time_bucket DESC);",
-
         # Alert rules indexes
         "CREATE INDEX IF NOT EXISTS idx_alert_rules_active_type ON monitoring_alert_rules(is_active, rule_type);",
         "CREATE INDEX IF NOT EXISTS idx_alert_rules_severity ON monitoring_alert_rules(severity);",
         "CREATE INDEX IF NOT EXISTS idx_alert_rules_metric ON monitoring_alert_rules(metric_name);",
-
         # Alerts indexes
         "CREATE INDEX IF NOT EXISTS idx_alerts_status_severity ON monitoring_alerts(status, severity);",
         "CREATE INDEX IF NOT EXISTS idx_alerts_triggered_time ON monitoring_alerts(triggered_at DESC);",
         "CREATE INDEX IF NOT EXISTS idx_alerts_type_time ON monitoring_alerts(alert_type, triggered_at DESC);",
         "CREATE INDEX IF NOT EXISTS idx_alerts_assigned ON monitoring_alerts(assigned_to);",
-
         # Alert history indexes
         "CREATE INDEX IF NOT EXISTS idx_alert_history_alert_time ON monitoring_alert_history(alert_id, created_at DESC);",
         "CREATE INDEX IF NOT EXISTS idx_alert_history_event_type ON monitoring_alert_history(event_type);",
         "CREATE INDEX IF NOT EXISTS idx_alert_history_rule_time ON monitoring_alert_history(rule_id, created_at DESC);",
-
         # Alert channels indexes
         "CREATE INDEX IF NOT EXISTS idx_alert_channels_type_active ON monitoring_alert_channels(channel_type, is_active);",
         "CREATE INDEX IF NOT EXISTS idx_alert_channels_healthy ON monitoring_alert_channels(is_healthy);",
-
         # Alert subscriptions indexes
         "CREATE INDEX IF NOT EXISTS idx_alert_subscriptions_rule_channel ON monitoring_alert_subscriptions(rule_id, channel_id);",
         "CREATE INDEX IF NOT EXISTS idx_alert_subscriptions_active ON monitoring_alert_subscriptions(is_active);",
-
         # Health check indexes
         "CREATE INDEX IF NOT EXISTS idx_health_checks_type_active ON monitoring_health_checks(check_type, is_active);",
         "CREATE INDEX IF NOT EXISTS idx_health_checks_component ON monitoring_health_checks(component_name);",
         "CREATE INDEX IF NOT EXISTS idx_health_checks_critical ON monitoring_health_checks(is_critical);",
-
         # Health check results indexes
         "CREATE INDEX IF NOT EXISTS idx_health_results_check_time ON monitoring_health_check_results(check_id, check_timestamp DESC);",
         "CREATE INDEX IF NOT EXISTS idx_health_results_status_time ON monitoring_health_check_results(status, check_timestamp DESC);",
         "CREATE INDEX IF NOT EXISTS idx_health_results_success_time ON monitoring_health_check_results(success, check_timestamp DESC);",
-
         # Health check history indexes
         "CREATE INDEX IF NOT EXISTS idx_health_history_check_time ON monitoring_health_check_history(check_id, time_bucket DESC);",
         "CREATE INDEX IF NOT EXISTS idx_health_history_success_rate ON monitoring_health_check_history(success_rate_percent DESC);",
         "CREATE INDEX IF NOT EXISTS idx_health_history_availability ON monitoring_health_check_history(availability_percent DESC);",
-
         # Component health indexes
         "CREATE INDEX IF NOT EXISTS idx_component_health_name_type ON monitoring_component_health(component_name, component_type);",
         "CREATE INDEX IF NOT EXISTS idx_component_health_status_time ON monitoring_component_health(status, last_check_timestamp DESC);",
         "CREATE INDEX IF NOT EXISTS idx_component_health_slo ON monitoring_component_health(slo_compliance_percent DESC);",
-
         # Monitoring sessions indexes
         "CREATE INDEX IF NOT EXISTS idx_sessions_user_time ON monitoring_sessions(user_id, start_time DESC);",
         "CREATE INDEX IF NOT EXISTS idx_sessions_operation_time ON monitoring_sessions(operation_name, start_time DESC);",
@@ -783,12 +764,10 @@ def upgrade():
         "CREATE INDEX IF NOT EXISTS idx_sessions_status_time ON monitoring_sessions(status, start_time DESC);",
         "CREATE INDEX IF NOT EXISTS idx_sessions_correlation ON monitoring_sessions(correlation_id);",
         "CREATE INDEX IF NOT EXISTS idx_sessions_parent ON monitoring_sessions(parent_session_id);",
-
         # Session metrics indexes
         "CREATE INDEX IF NOT EXISTS idx_session_metrics_session_time ON monitoring_session_metrics(session_id, timestamp DESC);",
         "CREATE INDEX IF NOT EXISTS idx_session_metrics_name_time ON monitoring_session_metrics(metric_name, timestamp DESC);",
         "CREATE INDEX IF NOT EXISTS idx_session_metrics_labels ON monitoring_session_metrics USING gin(labels);",
-
         # Session traces indexes
         "CREATE INDEX IF NOT EXISTS idx_session_traces_session_time ON monitoring_session_traces(session_id, start_time DESC);",
         "CREATE INDEX IF NOT EXISTS idx_session_traces_trace_span ON monitoring_session_traces(trace_id, span_id);",

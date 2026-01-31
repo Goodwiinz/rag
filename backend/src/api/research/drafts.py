@@ -9,15 +9,18 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from structlog import get_logger
 
 from src.core.database import get_db
-from src.services.security.user_management import get_current_user
-from src.models.user import User
 from src.models import Collection, Workspace
-from src.services.research.draft_generation_service import DraftGenerationService, DraftGenerationStatus
-from structlog import get_logger
+from src.models.user import User
+from src.services.research.draft_generation_service import (
+    DraftGenerationService,
+    DraftGenerationStatus,
+)
+from src.services.security.user_management import get_current_user
 
 logger = get_logger()
 router = APIRouter(prefix="/api/v1/projects/{project_id}/drafts", tags=["drafts"])
@@ -83,8 +86,12 @@ async def _validate_project_ownership(
 async def generate_draft(
     project_id: UUID,
     themes: List[str] = Query(..., description="Themes to focus on"),
-    document_ids: Optional[List[UUID]] = Query(None, description="Specific documents to include"),
-    style: str = Query("academic", description="Writing style: academic, technical, summary"),
+    document_ids: Optional[List[UUID]] = Query(
+        None, description="Specific documents to include"
+    ),
+    style: str = Query(
+        "academic", description="Writing style: academic, technical, summary"
+    ),
     max_sections: int = Query(5, ge=2, le=10, description="Maximum number of sections"),
     include_abstract: bool = Query(True, description="Include an abstract"),
     current_user: User = Depends(get_current_user),

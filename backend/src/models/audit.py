@@ -5,10 +5,20 @@ Comprehensive audit trail for all system activities and compliance reporting
 
 import uuid
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
 from enum import Enum
+from typing import Any, Dict, Optional
 
-from sqlalchemy import Column, String, DateTime, Boolean, Text, Integer, ForeignKey, JSON, Index
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -18,6 +28,7 @@ from .base import Base
 
 class AuditEventType(str, Enum):
     """Types of audit events"""
+
     # Authentication events
     USER_LOGIN = "user_login"
     USER_LOGOUT = "user_logout"
@@ -59,6 +70,7 @@ class AuditEventType(str, Enum):
 
 class AuditSeverity(str, Enum):
     """Severity levels for audit events"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -67,17 +79,24 @@ class AuditSeverity(str, Enum):
 
 class AuditEvent(Base):
     """Main audit event record"""
+
     __tablename__ = "audit_events"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     # Event identification
     event_type = Column(String(50), nullable=False, index=True)
-    severity = Column(String(20), nullable=False, index=True, default=AuditSeverity.MEDIUM.value)
+    severity = Column(
+        String(20), nullable=False, index=True, default=AuditSeverity.MEDIUM.value
+    )
 
     # User and organization context
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True)
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
+    )
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True
+    )
     session_id = Column(String(255), nullable=True, index=True)
 
     # Event details
@@ -133,12 +152,13 @@ class AuditEvent(Base):
             "success": self.success,
             "error_message": self.error_message,
             "error_code": self.error_code,
-            "created_at": self.created_at.isoformat() if self.created_at else None
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 
 class ComplianceReport(Base):
     """Compliance report generation and tracking"""
+
     __tablename__ = "compliance_reports"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -149,7 +169,9 @@ class ComplianceReport(Base):
     description = Column(Text, nullable=True)
 
     # Organization context
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True
+    )
     generated_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
     # Report period
@@ -191,7 +213,9 @@ class ComplianceReport(Base):
             "description": self.description,
             "organization_id": str(self.organization_id),
             "generated_by": str(self.generated_by),
-            "period_start": self.period_start.isoformat() if self.period_start else None,
+            "period_start": self.period_start.isoformat()
+            if self.period_start
+            else None,
             "period_end": self.period_end.isoformat() if self.period_end else None,
             "data": self.data,
             "metrics": self.metrics,
@@ -202,13 +226,16 @@ class ComplianceReport(Base):
             "status": self.status,
             "error_message": self.error_message,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "generated_at": self.generated_at.isoformat() if self.generated_at else None,
-            "expires_at": self.expires_at.isoformat() if self.expires_at else None
+            "generated_at": self.generated_at.isoformat()
+            if self.generated_at
+            else None,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
         }
 
 
 class DataRetentionPolicy(Base):
     """Data retention policies for compliance"""
+
     __tablename__ = "data_retention_policies"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -216,7 +243,9 @@ class DataRetentionPolicy(Base):
     # Policy identification
     name = Column(String(255), nullable=False, unique=True)
     description = Column(Text, nullable=True)
-    policy_type = Column(String(100), nullable=False, index=True)  # audit, documents, user_data, etc.
+    policy_type = Column(
+        String(100), nullable=False, index=True
+    )  # audit, documents, user_data, etc.
 
     # Retention rules
     retention_days = Column(Integer, nullable=False)
@@ -226,13 +255,17 @@ class DataRetentionPolicy(Base):
     conditions = Column(JSON, nullable=True)  # Conditions for applying retention
 
     # Action
-    action = Column(String(50), nullable=False, default="delete")  # delete, archive, anonymize
+    action = Column(
+        String(50), nullable=False, default="delete"
+    )  # delete, archive, anonymize
 
     # Status
     is_active = Column(Boolean, nullable=False, default=True, index=True)
 
     # Organization context (null for global policies)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True
+    )
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -257,15 +290,18 @@ class DataRetentionPolicy(Base):
             "conditions": self.conditions,
             "action": self.action,
             "is_active": self.is_active,
-            "organization_id": str(self.organization_id) if self.organization_id else None,
+            "organization_id": str(self.organization_id)
+            if self.organization_id
+            else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "last_run_at": self.last_run_at.isoformat() if self.last_run_at else None
+            "last_run_at": self.last_run_at.isoformat() if self.last_run_at else None,
         }
 
 
 class SecurityIncident(Base):
     """Security incident tracking and response"""
+
     __tablename__ = "security_incidents"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -281,7 +317,9 @@ class SecurityIncident(Base):
     status = Column(String(20), nullable=False, default="open", index=True)
 
     # Organization context
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True
+    )
 
     # Incident details
     detected_at = Column(DateTime(timezone=True), nullable=False, index=True)
@@ -338,13 +376,26 @@ class SecurityIncident(Base):
             "damage_assessment": self.damage_assessment,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None
+            "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None,
         }
 
 
 # Indexes for performance
-Index('idx_audit_events_org_user_date', AuditEvent.organization_id, AuditEvent.user_id, AuditEvent.created_at)
-Index('idx_audit_events_type_success', AuditEvent.event_type, AuditEvent.success)
-Index('idx_audit_events_resource', AuditEvent.resource_type, AuditEvent.resource_id)
-Index('idx_compliance_reports_org_type', ComplianceReport.organization_id, ComplianceReport.report_type)
-Index('idx_security_incidents_org_status', SecurityIncident.organization_id, SecurityIncident.status)
+Index(
+    "idx_audit_events_org_user_date",
+    AuditEvent.organization_id,
+    AuditEvent.user_id,
+    AuditEvent.created_at,
+)
+Index("idx_audit_events_type_success", AuditEvent.event_type, AuditEvent.success)
+Index("idx_audit_events_resource", AuditEvent.resource_type, AuditEvent.resource_id)
+Index(
+    "idx_compliance_reports_org_type",
+    ComplianceReport.organization_id,
+    ComplianceReport.report_type,
+)
+Index(
+    "idx_security_incidents_org_status",
+    SecurityIncident.organization_id,
+    SecurityIncident.status,
+)

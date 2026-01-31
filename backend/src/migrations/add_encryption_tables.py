@@ -13,9 +13,9 @@ from uuid import uuid4
 
 from src.core.database import get_db
 from src.models.encrypted_user import (
-    EncryptedUserProfile,
     EncryptedOrganizationProfile,
-    EncryptionAuditLog
+    EncryptedUserProfile,
+    EncryptionAuditLog,
 )
 
 logger = logging.getLogger(__name__)
@@ -382,7 +382,9 @@ def add_encryption_constraints(db):
         """,
     ]
 
-    all_constraints = user_profile_constraints + org_profile_constraints + audit_log_constraints
+    all_constraints = (
+        user_profile_constraints + org_profile_constraints + audit_log_constraints
+    )
 
     for constraint_sql in all_constraints:
         try:

@@ -2,26 +2,31 @@
 SLI/SLO monitoring and alerting system for the Multimodal RAG System.
 """
 
-import time
 import logging
-from typing import Dict, Any, Optional, List, Tuple
+import statistics
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-import statistics
+from typing import Any, Dict, List, Optional, Tuple
 
 from .config import config
-from .metrics import (
-    SLI_RESPONSE_TIME, SLI_ERROR_RATE, SLI_AVAILABILITY,
-    record_histogram, increment_counter, increment_updown_counter
-)
 from .logging import get_logger
+from .metrics import (
+    SLI_AVAILABILITY,
+    SLI_ERROR_RATE,
+    SLI_RESPONSE_TIME,
+    increment_counter,
+    increment_updown_counter,
+    record_histogram,
+)
 
 logger = get_logger(__name__)
 
 
 class AlertSeverity(Enum):
     """Alert severity levels."""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -31,6 +36,7 @@ class AlertSeverity(Enum):
 
 class SLOStatus(Enum):
     """SLO compliance status."""
+
     COMPLIANT = "compliant"
     WARNING = "warning"
     VIOLATION = "violation"
@@ -40,6 +46,7 @@ class SLOStatus(Enum):
 @dataclass
 class SLITarget:
     """Service Level Indicator target configuration."""
+
     name: str
     description: str
     unit: str
@@ -51,6 +58,7 @@ class SLITarget:
 @dataclass
 class SLODefinition:
     """Service Level Objective definition."""
+
     name: str
     description: str
     sli_targets: List[SLITarget]
@@ -85,7 +93,7 @@ class SLAMonitor:
                     unit="ms",
                     target_value=config.slo_response_time_p95_target,
                     warning_threshold=config.slo_response_time_p95_target * 0.8,
-                    critical_threshold=config.slo_response_time_p95_target * 1.2
+                    critical_threshold=config.slo_response_time_p95_target * 1.2,
                 ),
                 SLITarget(
                     name="p99_response_time",
@@ -93,11 +101,11 @@ class SLAMonitor:
                     unit="ms",
                     target_value=config.slo_response_time_p99_target,
                     warning_threshold=config.slo_response_time_p99_target * 0.8,
-                    critical_threshold=config.slo_response_time_p99_target * 1.2
-                )
+                    critical_threshold=config.slo_response_time_p99_target * 1.2,
+                ),
             ],
             time_window_minutes=60,
-            evaluation_interval_minutes=5
+            evaluation_interval_minutes=5,
         )
         self.slos["response_time"] = response_time_slo
 
@@ -112,11 +120,11 @@ class SLAMonitor:
                     unit="percent",
                     target_value=config.slo_error_rate_target * 100,
                     warning_threshold=config.slo_error_rate_target * 100 * 0.5,
-                    critical_threshold=config.slo_error_rate_target * 100 * 2
+                    critical_threshold=config.slo_error_rate_target * 100 * 2,
                 )
             ],
             time_window_minutes=60,
-            evaluation_interval_minutes=5
+            evaluation_interval_minutes=5,
         )
         self.slos["error_rate"] = error_rate_slo
 
@@ -131,11 +139,11 @@ class SLAMonitor:
                     unit="percent",
                     target_value=config.slo_availability_target * 100,
                     warning_threshold=config.slo_availability_target * 100 * 0.99,
-                    critical_threshold=config.slo_availability_target * 100 * 0.95
+                    critical_threshold=config.slo_availability_target * 100 * 0.95,
                 )
             ],
             time_window_minutes=60,
-            evaluation_interval_minutes=5
+            evaluation_interval_minutes=5,
         )
         self.slos["availability"] = availability_slo
 
@@ -150,7 +158,7 @@ class SLAMonitor:
                     unit="score",
                     target_value=0.7,
                     warning_threshold=0.6,
-                    critical_threshold=0.5
+                    critical_threshold=0.5,
                 ),
                 SLITarget(
                     name="faithfulness_score",
@@ -158,7 +166,7 @@ class SLAMonitor:
                     unit="score",
                     target_value=0.9,
                     warning_threshold=0.8,
-                    critical_threshold=0.7
+                    critical_threshold=0.7,
                 ),
                 SLITarget(
                     name="contextual_relevancy_score",
@@ -166,11 +174,11 @@ class SLAMonitor:
                     unit="score",
                     target_value=0.7,
                     warning_threshold=0.6,
-                    critical_threshold=0.5
-                )
+                    critical_threshold=0.5,
+                ),
             ],
             time_window_minutes=60,
-            evaluation_interval_minutes=5
+            evaluation_interval_minutes=5,
         )
         self.slos["rag_quality"] = rag_quality_slo
 
@@ -185,11 +193,11 @@ class SLAMonitor:
                     unit="seconds",
                     target_value=300,  # 5 minutes
                     warning_threshold=240,  # 4 minutes
-                    critical_threshold=600  # 10 minutes
+                    critical_threshold=600,  # 10 minutes
                 )
             ],
             time_window_minutes=60,
-            evaluation_interval_minutes=5
+            evaluation_interval_minutes=5,
         )
         self.slos["document_processing"] = doc_processing_slo
 
@@ -198,7 +206,7 @@ class SLAMonitor:
         slo_name: str,
         sli_name: str,
         value: float,
-        timestamp: Optional[datetime] = None
+        timestamp: Optional[datetime] = None,
     ):
         """Record an SLI measurement."""
         if timestamp is None:
@@ -212,10 +220,7 @@ class SLAMonitor:
 
         # Clean old data beyond retention period
         cutoff_time = timestamp - timedelta(minutes=1440)  # Keep 24 hours
-        self.sli_data[key] = [
-            (t, v) for t, v in self.sli_data[key]
-            if t > cutoff_time
-        ]
+        self.sli_data[key] = [(t, v) for t, v in self.sli_data[key] if t > cutoff_time]
 
         # Record to metrics system
         record_histogram(f"sli_{sli_name}", value, {"slo": slo_name})
@@ -243,7 +248,8 @@ class SLAMonitor:
 
             # Filter data within evaluation window
             recent_data = [
-                value for timestamp, value in self.sli_data[key]
+                value
+                for timestamp, value in self.sli_data[key]
                 if current_time - timestamp <= evaluation_window
             ]
 
@@ -255,9 +261,13 @@ class SLAMonitor:
 
             # Calculate percentile-based metrics
             if "response_time" in target.name:
-                current_value = statistics.quantiles(recent_data, n=20)[18]  # 95th percentile
+                current_value = statistics.quantiles(recent_data, n=20)[
+                    18
+                ]  # 95th percentile
             elif "processing_time" in target.name:
-                current_value = statistics.quantiles(recent_data, n=20)[18]  # 95th percentile
+                current_value = statistics.quantiles(recent_data, n=20)[
+                    18
+                ]  # 95th percentile
             else:
                 current_value = statistics.mean(recent_data)
 
@@ -280,7 +290,9 @@ class SLAMonitor:
 
         return overall_status
 
-    def _evaluate_sli_status(self, current_value: float, target: SLITarget) -> SLOStatus:
+    def _evaluate_sli_status(
+        self, current_value: float, target: SLITarget
+    ) -> SLOStatus:
         """Evaluate individual SLI status against targets."""
         if target.critical_threshold and current_value > target.critical_threshold:
             return SLOStatus.CRITICAL
@@ -296,7 +308,7 @@ class SLAMonitor:
         slo_name: str,
         slo: SLODefinition,
         old_status: SLOStatus,
-        new_status: SLOStatus
+        new_status: SLOStatus,
     ):
         """Trigger SLO alert."""
         alert_data = {
@@ -306,12 +318,12 @@ class SLAMonitor:
             "new_status": new_status.value,
             "current_values": slo.current_values,
             "timestamp": datetime.utcnow().isoformat(),
-            "severity": self._map_status_to_severity(new_status).value
+            "severity": self._map_status_to_severity(new_status).value,
         }
 
         logger.warning(
             f"SLO Status Change: {slo_name} from {old_status.value} to {new_status.value}",
-            **alert_data
+            **alert_data,
         )
 
         # Call alert callbacks
@@ -327,7 +339,7 @@ class SLAMonitor:
             SLOStatus.COMPLIANT: AlertSeverity.INFO,
             SLOStatus.WARNING: AlertSeverity.MEDIUM,
             SLOStatus.VIOLATION: AlertSeverity.HIGH,
-            SLOStatus.CRITICAL: AlertSeverity.CRITICAL
+            SLOStatus.CRITICAL: AlertSeverity.CRITICAL,
         }
         return mapping.get(status, AlertSeverity.LOW)
 
@@ -348,7 +360,7 @@ class SLAMonitor:
         operation: str,
         duration: float,
         success: bool,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """Record request metrics for SLO monitoring."""
         # Record response time
@@ -361,21 +373,17 @@ class SLAMonitor:
         self.record_sli("availability", "availability", 1.0 if success else 0.0)
 
     def record_rag_quality_metrics(
-        self,
-        answer_relevancy: float,
-        faithfulness: float,
-        contextual_relevancy: float
+        self, answer_relevancy: float, faithfulness: float, contextual_relevancy: float
     ):
         """Record RAG quality metrics."""
         self.record_sli("rag_quality", "answer_relevancy_score", answer_relevancy)
         self.record_sli("rag_quality", "faithfulness_score", faithfulness)
-        self.record_sli("rag_quality", "contextual_relevancy_score", contextual_relevancy)
+        self.record_sli(
+            "rag_quality", "contextual_relevancy_score", contextual_relevancy
+        )
 
     def record_document_processing_metrics(
-        self,
-        processing_time: float,
-        file_type: str,
-        success: bool
+        self, processing_time: float, file_type: str, success: bool
     ):
         """Record document processing metrics."""
         self.record_sli("document_processing", "processing_time_p95", processing_time)
@@ -388,10 +396,7 @@ class SLAMonitor:
         return results
 
     def get_sli_summary(
-        self,
-        slo_name: str,
-        sli_name: str,
-        time_window_minutes: int = 60
+        self, slo_name: str, sli_name: str, time_window_minutes: int = 60
     ) -> Dict[str, Any]:
         """Get summary statistics for an SLI."""
         key = f"{slo_name}.{sli_name}"
@@ -401,8 +406,7 @@ class SLAMonitor:
         current_time = datetime.utcnow()
         cutoff_time = current_time - timedelta(minutes=time_window_minutes)
         recent_data = [
-            value for timestamp, value in self.sli_data[key]
-            if timestamp > cutoff_time
+            value for timestamp, value in self.sli_data[key] if timestamp > cutoff_time
         ]
 
         if not recent_data:
@@ -414,9 +418,13 @@ class SLAMonitor:
             "median": statistics.median(recent_data),
             "min": min(recent_data),
             "max": max(recent_data),
-            "p95": statistics.quantiles(recent_data, n=20)[18] if len(recent_data) >= 20 else max(recent_data),
-            "p99": statistics.quantiles(recent_data, n=100)[98] if len(recent_data) >= 100 else max(recent_data),
-            "std_dev": statistics.stdev(recent_data) if len(recent_data) > 1 else 0.0
+            "p95": statistics.quantiles(recent_data, n=20)[18]
+            if len(recent_data) >= 20
+            else max(recent_data),
+            "p99": statistics.quantiles(recent_data, n=100)[98]
+            if len(recent_data) >= 100
+            else max(recent_data),
+            "std_dev": statistics.stdev(recent_data) if len(recent_data) > 1 else 0.0,
         }
 
 
@@ -436,7 +444,7 @@ def record_slo_metrics(
     operation: str,
     duration: float,
     success: bool = True,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
 ):
     """Record SLO metrics for an operation."""
     monitor = get_slo_monitor()

@@ -5,33 +5,56 @@ This module provides advanced analytics models for statistical significance test
 real-time metrics aggregation, and comprehensive reporting capabilities.
 """
 
-import uuid
 import json
 import math
 import statistics
+import uuid
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Tuple
 from enum import Enum as PyEnum
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import (
-    Column, String, Text, Integer, Float, Boolean, DateTime,
-    ForeignKey, Index, Enum, JSON, CheckConstraint, UniqueConstraint,
-    desc, asc, and_, or_, func, case, extract
+    JSON,
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    and_,
+    asc,
+    case,
+    desc,
+    extract,
+    func,
+    or_,
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
-from sqlalchemy.orm import relationship, validates
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import relationship, validates
 
-from .base import BaseModel, GUID
-from .utils import StringArray
 from .ab_testing import (
-    Experiment, Variant, ExperimentStatus, ExperimentType, MetricType,
-    StatisticalTest, SuccessCriterion
+    Experiment,
+    ExperimentStatus,
+    ExperimentType,
+    MetricType,
+    StatisticalTest,
+    SuccessCriterion,
+    Variant,
 )
+from .base import GUID, BaseModel
+from .utils import StringArray
 
 
 class AggregationType(PyEnum):
     """Types of metric aggregation"""
+
     SUM = "sum"
     AVERAGE = "average"
     MEDIAN = "median"
@@ -50,6 +73,7 @@ class AggregationType(PyEnum):
 
 class TimeBucket(PyEnum):
     """Time bucket sizes for aggregation"""
+
     MINUTE = "minute"
     HOUR = "hour"
     DAY = "day"
@@ -61,11 +85,16 @@ class StatisticalSignificance(BaseModel):
     """
     Statistical significance analysis results for experiments
     """
+
     __tablename__ = "ab_statistical_significance"
 
     # Analysis information
-    experiment_id = Column(GUID(), ForeignKey("ab_experiments.id"), nullable=False, index=True)
-    analysis_timestamp = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True)
+    experiment_id = Column(
+        GUID(), ForeignKey("ab_experiments.id"), nullable=False, index=True
+    )
+    analysis_timestamp = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True
+    )
     sample_size = Column(Integer, nullable=False, index=True)
 
     # Test configuration
@@ -74,8 +103,12 @@ class StatisticalSignificance(BaseModel):
     test_type = Column(String(50), nullable=False)  # one_sided, two_sided
 
     # Results for primary comparison (usually vs control)
-    control_variant_id = Column(GUID(), ForeignKey("ab_variants.id"), nullable=True, index=True)
-    treatment_variant_id = Column(GUID(), ForeignKey("ab_variants.id"), nullable=True, index=True)
+    control_variant_id = Column(
+        GUID(), ForeignKey("ab_variants.id"), nullable=True, index=True
+    )
+    treatment_variant_id = Column(
+        GUID(), ForeignKey("ab_variants.id"), nullable=True, index=True
+    )
 
     # Statistical results
     test_statistic = Column(Float, nullable=False)  # t-statistic, z-score, etc.
@@ -84,8 +117,12 @@ class StatisticalSignificance(BaseModel):
     is_statistically_significant = Column(Boolean, nullable=False, index=True)
 
     # Effect size metrics
-    effect_size = Column(Float, nullable=False, index=True)  # Cohen's d, odds ratio, etc.
-    effect_size_type = Column(String(50), nullable=False)  # cohens_d, odds_ratio, risk_ratio
+    effect_size = Column(
+        Float, nullable=False, index=True
+    )  # Cohen's d, odds ratio, etc.
+    effect_size_type = Column(
+        String(50), nullable=False
+    )  # cohens_d, odds_ratio, risk_ratio
     confidence_interval_lower = Column(Float, nullable=False)
     confidence_interval_upper = Column(Float, nullable=False)
 
@@ -127,37 +164,62 @@ class StatisticalSignificance(BaseModel):
     variant_comparisons = relationship(
         "VariantComparison",
         back_populates="significance_analysis",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
     )
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('confidence_level > 0 AND confidence_level < 1', name='valid_confidence_level'),
-        CheckConstraint('p_value >= 0 AND p_value <= 1', name='valid_p_value'),
-        CheckConstraint('statistical_power >= 0 AND statistical_power <= 1', name='valid_statistical_power'),
-        CheckConstraint('control_n > 0 AND treatment_n > 0', name='valid_sample_sizes'),
-        Index('idx_significance_experiment_timestamp', 'experiment_id', 'analysis_timestamp'),
-        Index('idx_significance_p_value', 'p_value'),
-        Index('idx_significance_effect_size', 'effect_size'),
+        CheckConstraint(
+            "confidence_level > 0 AND confidence_level < 1",
+            name="valid_confidence_level",
+        ),
+        CheckConstraint("p_value >= 0 AND p_value <= 1", name="valid_p_value"),
+        CheckConstraint(
+            "statistical_power >= 0 AND statistical_power <= 1",
+            name="valid_statistical_power",
+        ),
+        CheckConstraint("control_n > 0 AND treatment_n > 0", name="valid_sample_sizes"),
+        Index(
+            "idx_significance_experiment_timestamp",
+            "experiment_id",
+            "analysis_timestamp",
+        ),
+        Index("idx_significance_p_value", "p_value"),
+        Index("idx_significance_effect_size", "effect_size"),
     )
 
     def __repr__(self):
         return f"<StatisticalSignificance(experiment={self.experiment_id}, p_value={self.p_value:.4f}, significant={self.is_statistically_significant})>"
 
-    def calculate_cohens_d(self, control_mean: float, treatment_mean: float,
-                          control_std: float, treatment_std: float) -> float:
+    def calculate_cohens_d(
+        self,
+        control_mean: float,
+        treatment_mean: float,
+        control_std: float,
+        treatment_std: float,
+    ) -> float:
         """Calculate Cohen's d effect size"""
-        pooled_std = math.sqrt(((control_n - 1) * control_std**2 + (treatment_n - 1) * treatment_std**2) /
-                              (control_n + treatment_n - 2))
+        pooled_std = math.sqrt(
+            (
+                (control_n - 1) * control_std**2
+                + (treatment_n - 1) * treatment_std**2
+            )
+            / (control_n + treatment_n - 2)
+        )
         if pooled_std == 0:
             return 0.0
         return (treatment_mean - control_mean) / pooled_std
 
-    def calculate_odds_ratio(self, control_successes: int, control_failures: int,
-                            treatment_successes: int, treatment_failures: int) -> float:
+    def calculate_odds_ratio(
+        self,
+        control_successes: int,
+        control_failures: int,
+        treatment_successes: int,
+        treatment_failures: int,
+    ) -> float:
         """Calculate odds ratio"""
         if control_failures == 0 or treatment_failures == 0:
-            return float('inf')
+            return float("inf")
 
         control_odds = control_successes / control_failures
         treatment_odds = treatment_successes / treatment_failures
@@ -194,23 +256,23 @@ class StatisticalSignificance(BaseModel):
         data = super().to_dict()
 
         # Convert enums
-        if hasattr(self, 'statistical_test') and self.statistical_test:
-            data['statistical_test'] = self.statistical_test.value
+        if hasattr(self, "statistical_test") and self.statistical_test:
+            data["statistical_test"] = self.statistical_test.value
 
         # Add interpretations
-        data['effect_size_interpretation'] = self.interpret_effect_size(
+        data["effect_size_interpretation"] = self.interpret_effect_size(
             self.effect_size, self.effect_size_type
         )
 
         # Add confidence interval
-        data['confidence_interval'] = {
-            'lower': self.confidence_interval_lower,
-            'upper': self.confidence_interval_upper,
-            'width': self.confidence_interval_upper - self.confidence_interval_lower
+        data["confidence_interval"] = {
+            "lower": self.confidence_interval_lower,
+            "upper": self.confidence_interval_upper,
+            "width": self.confidence_interval_upper - self.confidence_interval_lower,
         }
 
         # Add variant comparisons
-        data['variant_comparisons'] = [
+        data["variant_comparisons"] = [
             comp.to_dict() for comp in self.variant_comparisons
         ]
 
@@ -221,12 +283,19 @@ class VariantComparison(BaseModel):
     """
     Detailed variant-to-variant statistical comparisons
     """
+
     __tablename__ = "ab_variant_comparisons"
 
     # Comparison information
-    significance_analysis_id = Column(GUID(), ForeignKey("ab_statistical_significance.id"), nullable=False, index=True)
-    variant_a_id = Column(GUID(), ForeignKey("ab_variants.id"), nullable=False, index=True)
-    variant_b_id = Column(GUID(), ForeignKey("ab_variants.id"), nullable=False, index=True)
+    significance_analysis_id = Column(
+        GUID(), ForeignKey("ab_statistical_significance.id"), nullable=False, index=True
+    )
+    variant_a_id = Column(
+        GUID(), ForeignKey("ab_variants.id"), nullable=False, index=True
+    )
+    variant_b_id = Column(
+        GUID(), ForeignKey("ab_variants.id"), nullable=False, index=True
+    )
     metric_type = Column(Enum(MetricType), nullable=False, index=True)
 
     # Comparison results
@@ -257,17 +326,33 @@ class VariantComparison(BaseModel):
     business_impact = Column(Text, nullable=True)
 
     # Relationships
-    significance_analysis = relationship("StatisticalSignificance", back_populates="variant_comparisons")
+    significance_analysis = relationship(
+        "StatisticalSignificance", back_populates="variant_comparisons"
+    )
     variant_a = relationship("Variant", foreign_keys=[variant_a_id])
     variant_b = relationship("Variant", foreign_keys=[variant_b_id])
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('variant_a_n > 0 AND variant_b_n > 0', name='valid_comparison_sample_sizes'),
-        CheckConstraint('p_value >= 0 AND p_value <= 1', name='valid_comparison_p_value'),
-        UniqueConstraint('significance_analysis_id', 'variant_a_id', 'variant_b_id', 'metric_type',
-                        name='unique_variant_comparison'),
-        Index('idx_variant_comparison_analysis_variants', 'significance_analysis_id', 'variant_a_id', 'variant_b_id'),
+        CheckConstraint(
+            "variant_a_n > 0 AND variant_b_n > 0", name="valid_comparison_sample_sizes"
+        ),
+        CheckConstraint(
+            "p_value >= 0 AND p_value <= 1", name="valid_comparison_p_value"
+        ),
+        UniqueConstraint(
+            "significance_analysis_id",
+            "variant_a_id",
+            "variant_b_id",
+            "metric_type",
+            name="unique_variant_comparison",
+        ),
+        Index(
+            "idx_variant_comparison_analysis_variants",
+            "significance_analysis_id",
+            "variant_a_id",
+            "variant_b_id",
+        ),
     )
 
     def __repr__(self):
@@ -278,11 +363,16 @@ class AggregatedMetric(BaseModel):
     """
     Pre-aggregated metrics for real-time dashboard performance
     """
+
     __tablename__ = "ab_aggregated_metrics"
 
     # Aggregation dimensions
-    experiment_id = Column(GUID(), ForeignKey("ab_experiments.id"), nullable=False, index=True)
-    variant_id = Column(GUID(), ForeignKey("ab_variants.id"), nullable=False, index=True)
+    experiment_id = Column(
+        GUID(), ForeignKey("ab_experiments.id"), nullable=False, index=True
+    )
+    variant_id = Column(
+        GUID(), ForeignKey("ab_variants.id"), nullable=False, index=True
+    )
     metric_type = Column(Enum(MetricType), nullable=False, index=True)
     aggregation_type = Column(Enum(AggregationType), nullable=False, index=True)
 
@@ -311,7 +401,9 @@ class AggregatedMetric(BaseModel):
     coefficient_of_variation = Column(Float, nullable=True)
 
     # Metadata
-    computed_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True)
+    computed_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True
+    )
     computation_version = Column(String(50), nullable=False, default="1.0")
 
     # Relationships
@@ -320,21 +412,33 @@ class AggregatedMetric(BaseModel):
 
     # Constraints
     __table_args__ = (
-        UniqueConstraint('experiment_id', 'variant_id', 'metric_type', 'aggregation_type',
-                        'time_bucket', 'time_bucket_start',
-                        name='unique_aggregated_metric'),
-        CheckConstraint('sample_size >= 0', name='valid_aggregated_sample_size'),
-        Index('idx_aggregated_metrics_experiment_time', 'experiment_id', 'time_bucket_start'),
-        Index('idx_aggregated_metrics_variant_time', 'variant_id', 'time_bucket_start'),
-        Index('idx_aggregated_metrics_metric_time', 'metric_type', 'time_bucket_start'),
-        Index('idx_aggregated_metrics_computed', 'computed_at'),
+        UniqueConstraint(
+            "experiment_id",
+            "variant_id",
+            "metric_type",
+            "aggregation_type",
+            "time_bucket",
+            "time_bucket_start",
+            name="unique_aggregated_metric",
+        ),
+        CheckConstraint("sample_size >= 0", name="valid_aggregated_sample_size"),
+        Index(
+            "idx_aggregated_metrics_experiment_time",
+            "experiment_id",
+            "time_bucket_start",
+        ),
+        Index("idx_aggregated_metrics_variant_time", "variant_id", "time_bucket_start"),
+        Index("idx_aggregated_metrics_metric_time", "metric_type", "time_bucket_start"),
+        Index("idx_aggregated_metrics_computed", "computed_at"),
     )
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Calculate coefficient of variation if variance and mean are available
         if self.variance is not None and self.metric_value != 0:
-            self.coefficient_of_variation = math.sqrt(self.variance) / abs(self.metric_value)
+            self.coefficient_of_variation = math.sqrt(self.variance) / abs(
+                self.metric_value
+            )
 
     def __repr__(self):
         return f"<AggregatedMetric(experiment={self.experiment_id}, variant={self.variant_id}, metric={self.metric_type.value}, time={self.time_bucket_start})>"
@@ -356,15 +460,19 @@ class AggregatedMetric(BaseModel):
         data = super().to_dict()
 
         # Convert enums
-        for field in ['metric_type', 'aggregation_type', 'time_bucket']:
+        for field in ["metric_type", "aggregation_type", "time_bucket"]:
             if hasattr(self, field) and getattr(self, field):
                 data[field] = getattr(self, field).value
 
         # Add computed statistics
-        data['confidence_interval_95'] = {
-            'lower': self.metric_value - 1.96 * (self.standard_error or 0),
-            'upper': self.metric_value + 1.96 * (self.standard_error or 0)
-        } if self.standard_error else None
+        data["confidence_interval_95"] = (
+            {
+                "lower": self.metric_value - 1.96 * (self.standard_error or 0),
+                "upper": self.metric_value + 1.96 * (self.standard_error or 0),
+            }
+            if self.standard_error
+            else None
+        )
 
         return data
 
@@ -373,11 +481,16 @@ class FunnelAnalysis(BaseModel):
     """
     Conversion funnel analysis for experiments
     """
+
     __tablename__ = "ab_funnel_analysis"
 
     # Funnel information
-    experiment_id = Column(GUID(), ForeignKey("ab_experiments.id"), nullable=False, index=True)
-    variant_id = Column(GUID(), ForeignKey("ab_variants.id"), nullable=False, index=True)
+    experiment_id = Column(
+        GUID(), ForeignKey("ab_experiments.id"), nullable=False, index=True
+    )
+    variant_id = Column(
+        GUID(), ForeignKey("ab_variants.id"), nullable=False, index=True
+    )
     funnel_name = Column(String(255), nullable=False, index=True)
 
     # Funnel stage
@@ -402,7 +515,9 @@ class FunnelAnalysis(BaseModel):
     analysis_period_end = Column(DateTime(timezone=True), nullable=False)
 
     # Metadata
-    computed_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    computed_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
 
     # Relationships
     experiment = relationship("Experiment")
@@ -410,14 +525,25 @@ class FunnelAnalysis(BaseModel):
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('users_entered >= 0', name='valid_funnel_entered'),
-        CheckConstraint('users_completed >= 0', name='valid_funnel_completed'),
-        CheckConstraint('conversion_rate >= 0 AND conversion_rate <= 1', name='valid_conversion_rate'),
-        UniqueConstraint('experiment_id', 'variant_id', 'funnel_name', 'stage_name', 'analysis_period_start',
-                        name='unique_funnel_stage'),
-        Index('idx_funnel_experiment_variant', 'experiment_id', 'variant_id'),
-        Index('idx_funnel_conversion_rate', 'conversion_rate'),
-        Index('idx_funnel_analysis_period', 'analysis_period_start', 'analysis_period_end'),
+        CheckConstraint("users_entered >= 0", name="valid_funnel_entered"),
+        CheckConstraint("users_completed >= 0", name="valid_funnel_completed"),
+        CheckConstraint(
+            "conversion_rate >= 0 AND conversion_rate <= 1",
+            name="valid_conversion_rate",
+        ),
+        UniqueConstraint(
+            "experiment_id",
+            "variant_id",
+            "funnel_name",
+            "stage_name",
+            "analysis_period_start",
+            name="unique_funnel_stage",
+        ),
+        Index("idx_funnel_experiment_variant", "experiment_id", "variant_id"),
+        Index("idx_funnel_conversion_rate", "conversion_rate"),
+        Index(
+            "idx_funnel_analysis_period", "analysis_period_start", "analysis_period_end"
+        ),
     )
 
     def __init__(self, **kwargs):
@@ -444,11 +570,16 @@ class CohortAnalysis(BaseModel):
     """
     Cohort-based analysis for long-term experiment effects
     """
+
     __tablename__ = "ab_cohort_analysis"
 
     # Cohort information
-    experiment_id = Column(GUID(), ForeignKey("ab_experiments.id"), nullable=False, index=True)
-    variant_id = Column(GUID(), ForeignKey("ab_variants.id"), nullable=False, index=True)
+    experiment_id = Column(
+        GUID(), ForeignKey("ab_experiments.id"), nullable=False, index=True
+    )
+    variant_id = Column(
+        GUID(), ForeignKey("ab_variants.id"), nullable=False, index=True
+    )
     cohort_name = Column(String(255), nullable=False, index=True)
 
     # Cohort definition
@@ -473,7 +604,9 @@ class CohortAnalysis(BaseModel):
     cumulative_value = Column(Float, nullable=True)
 
     # Metadata
-    computed_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    computed_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
 
     # Relationships
     experiment = relationship("Experiment")
@@ -481,13 +614,21 @@ class CohortAnalysis(BaseModel):
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('cohort_size > 0', name='valid_cohort_size'),
-        CheckConstraint('retention_rate >= 0 AND retention_rate <= 1', name='valid_retention_rate'),
-        UniqueConstraint('experiment_id', 'variant_id', 'cohort_name', 'period_number', 'period_start',
-                        name='unique_cohort_period'),
-        Index('idx_cohort_experiment_variant', 'experiment_id', 'variant_id'),
-        Index('idx_cohort_retention', 'retention_rate'),
-        Index('idx_cohort_period', 'period_number', 'period_start'),
+        CheckConstraint("cohort_size > 0", name="valid_cohort_size"),
+        CheckConstraint(
+            "retention_rate >= 0 AND retention_rate <= 1", name="valid_retention_rate"
+        ),
+        UniqueConstraint(
+            "experiment_id",
+            "variant_id",
+            "cohort_name",
+            "period_number",
+            "period_start",
+            name="unique_cohort_period",
+        ),
+        Index("idx_cohort_experiment_variant", "experiment_id", "variant_id"),
+        Index("idx_cohort_retention", "retention_rate"),
+        Index("idx_cohort_period", "period_number", "period_start"),
     )
 
     def calculate_lifetime_value(self) -> float:
@@ -505,16 +646,23 @@ class ExperimentDashboard(BaseModel):
     """
     Pre-computed dashboard data for experiment visualization
     """
+
     __tablename__ = "ab_experiment_dashboards"
 
     # Dashboard information
-    experiment_id = Column(GUID(), ForeignKey("ab_experiments.id"), nullable=False, index=True, unique=True)
-    dashboard_type = Column(String(100), nullable=False, index=True)  # overview, detailed, summary
+    experiment_id = Column(
+        GUID(), ForeignKey("ab_experiments.id"), nullable=False, index=True, unique=True
+    )
+    dashboard_type = Column(
+        String(100), nullable=False, index=True
+    )  # overview, detailed, summary
 
     # Key metrics snapshot
     total_participants = Column(Integer, nullable=False)
     total_queries = Column(Integer, nullable=False)
-    current_leader = Column(GUID(), ForeignKey("ab_variants.id"), nullable=True, index=True)
+    current_leader = Column(
+        GUID(), ForeignKey("ab_variants.id"), nullable=True, index=True
+    )
     confidence_level = Column(Float, nullable=False)
     statistical_power = Column(Float, nullable=False)
 
@@ -527,7 +675,9 @@ class ExperimentDashboard(BaseModel):
     response_time_improvement = Column(Float, nullable=True)
 
     # Risk metrics
-    probability_of_harm = Column(Float, nullable=False)  # Probability variant is worse than control
+    probability_of_harm = Column(
+        Float, nullable=False
+    )  # Probability variant is worse than control
     expected_loss = Column(Float, nullable=False)
     potential_upside = Column(Float, nullable=False)
 
@@ -541,7 +691,9 @@ class ExperimentDashboard(BaseModel):
     summary_insights = Column(JSONB, nullable=True)  # Key insights and recommendations
 
     # Metadata
-    last_updated = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True)
+    last_updated = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True
+    )
     update_frequency_minutes = Column(Integer, default=15, nullable=False)
 
     # Relationships
@@ -550,12 +702,24 @@ class ExperimentDashboard(BaseModel):
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('confidence_level > 0 AND confidence_level < 1', name='valid_dashboard_confidence'),
-        CheckConstraint('statistical_power >= 0 AND statistical_power <= 1', name='valid_dashboard_power'),
-        CheckConstraint('probability_of_harm >= 0 AND probability_of_harm <= 1', name='valid_harm_probability'),
-        CheckConstraint('business_confidence_score >= 0 AND business_confidence_score <= 100', name='valid_business_confidence'),
-        Index('idx_dashboard_last_updated', 'last_updated'),
-        Index('idx_dashboard_business_confidence', 'business_confidence_score'),
+        CheckConstraint(
+            "confidence_level > 0 AND confidence_level < 1",
+            name="valid_dashboard_confidence",
+        ),
+        CheckConstraint(
+            "statistical_power >= 0 AND statistical_power <= 1",
+            name="valid_dashboard_power",
+        ),
+        CheckConstraint(
+            "probability_of_harm >= 0 AND probability_of_harm <= 1",
+            name="valid_harm_probability",
+        ),
+        CheckConstraint(
+            "business_confidence_score >= 0 AND business_confidence_score <= 100",
+            name="valid_business_confidence",
+        ),
+        Index("idx_dashboard_last_updated", "last_updated"),
+        Index("idx_dashboard_business_confidence", "business_confidence_score"),
     )
 
     def should_update(self) -> bool:
@@ -597,15 +761,15 @@ class ExperimentDashboard(BaseModel):
         data = super().to_dict()
 
         # Add computed fields
-        data['risk_assessment'] = self.get_risk_assessment()
-        data['business_recommendation'] = self.get_business_recommendation()
-        data['needs_update'] = self.should_update()
+        data["risk_assessment"] = self.get_risk_assessment()
+        data["business_recommendation"] = self.get_business_recommendation()
+        data["needs_update"] = self.should_update()
 
         # Add performance improvements
-        data['performance_improvements'] = {
-            'conversion_rate': self.conversion_rate_improvement,
-            'response_time': self.response_time_improvement,
-            'overall_business_score': self.business_confidence_score
+        data["performance_improvements"] = {
+            "conversion_rate": self.conversion_rate_improvement,
+            "response_time": self.response_time_improvement,
+            "overall_business_score": self.business_confidence_score,
         }
 
         return data

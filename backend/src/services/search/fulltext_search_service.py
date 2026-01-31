@@ -6,16 +6,23 @@ import logging
 import re
 import time
 import uuid
-from typing import List, Dict, Any, Optional, Tuple
-from sqlalchemy import text, func, and_, or_, not_
+from typing import Any, Dict, List, Optional, Tuple
+
+from sqlalchemy import and_, func, not_, or_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import select
 
 from src.core.database import get_db
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.search_schemas import (
-    SearchQuery, SearchResponse, SearchResult, TextSnippet, SearchFilter,
-    SearchSortOrder, SearchType, SearchSuggestion
+    SearchFilter,
+    SearchQuery,
+    SearchResponse,
+    SearchResult,
+    SearchSortOrder,
+    SearchSuggestion,
+    SearchType,
+    TextSnippet,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,7 +40,13 @@ class FullTextSearchService:
         self.snippet_length = 200
         self.snippet_surround = 50
 
-    def search(self, search_request: SearchQuery, user_id: str = None, organization_id: str = None, db: Session = None) -> SearchResponse:
+    def search(
+        self,
+        search_request: SearchQuery,
+        user_id: str = None,
+        organization_id: str = None,
+        db: Session = None,
+    ) -> SearchResponse:
         """
         Perform full-text search on documents
 
@@ -61,7 +74,7 @@ class FullTextSearchService:
                 limit=search_request.limit,
                 offset=search_request.offset,
                 has_more=False,
-                suggestions=self._get_spelling_suggestions(search_request.query)
+                suggestions=self._get_spelling_suggestions(search_request.query),
             )
 
         # Use provided db session or create a new one
@@ -72,14 +85,18 @@ class FullTextSearchService:
 
         try:
             # Build the search query
-            search_sql, params = self._build_search_query(search_request, user_id, organization_id)
+            search_sql, params = self._build_search_query(
+                search_request, user_id, organization_id
+            )
 
             # Execute search
             result = db.execute(text(search_sql), params)
             rows = result.fetchall()
 
             # Get total count for pagination
-            count_sql, count_params = self._build_count_query(search_request, user_id, organization_id)
+            count_sql, count_params = self._build_count_query(
+                search_request, user_id, organization_id
+            )
             count_result = db.execute(text(count_sql), count_params)
             total_count = count_result.scalar()
 
@@ -109,7 +126,7 @@ class FullTextSearchService:
                 offset=search_request.offset,
                 has_more=(search_request.offset + len(search_results)) < total_count,
                 suggestions=suggestions,
-                filters_applied=self._serialize_filters(search_request.filters)
+                filters_applied=self._serialize_filters(search_request.filters),
             )
 
         except Exception as e:
@@ -119,7 +136,12 @@ class FullTextSearchService:
             if should_close_db:
                 db.close()
 
-    def _build_search_query(self, search_request: SearchQuery, user_id: str = None, organization_id: str = None) -> Tuple[str, Dict[str, Any]]:
+    def _build_search_query(
+        self,
+        search_request: SearchQuery,
+        user_id: str = None,
+        organization_id: str = None,
+    ) -> Tuple[str, Dict[str, Any]]:
         """Build PostgreSQL full-text search SQL query"""
 
         # Prepare search terms
@@ -140,22 +162,24 @@ class FullTextSearchService:
             "WHERE",
             "    d.is_deleted = false",
             "    AND d.processing_status = :completed_status",
-            "    AND search_vector @@ plainto_tsquery(:query)"
+            "    AND search_vector @@ plainto_tsquery(:query)",
         ]
 
         params = {
-            'query': search_terms,
-            'completed_status': ProcessingStatus.COMPLETED.name
+            "query": search_terms,
+            "completed_status": ProcessingStatus.COMPLETED.name,
         }
 
         # Add access control filters
         if organization_id:
             query_parts.append("    AND d.organization_id = :organization_id")
-            params['organization_id'] = organization_id
+            params["organization_id"] = organization_id
 
         # Add additional filters
         if search_request.filters:
-            filter_clauses, filter_params = self._build_filter_clauses(search_request.filters)
+            filter_clauses, filter_params = self._build_filter_clauses(
+                search_request.filters
+            )
             if filter_clauses:
                 query_parts.extend(filter_clauses)
                 params.update(filter_params)
@@ -165,17 +189,17 @@ class FullTextSearchService:
         query_parts.append(f"ORDER BY {order_clause}")
 
         # Add pagination
-        query_parts.extend([
-            "LIMIT :limit OFFSET :offset"
-        ])
-        params.update({
-            'limit': search_request.limit,
-            'offset': search_request.offset
-        })
+        query_parts.extend(["LIMIT :limit OFFSET :offset"])
+        params.update({"limit": search_request.limit, "offset": search_request.offset})
 
-        return '\n'.join(query_parts), params
+        return "\n".join(query_parts), params
 
-    def _build_count_query(self, search_request: SearchQuery, user_id: str = None, organization_id: str = None) -> Tuple[str, Dict[str, Any]]:
+    def _build_count_query(
+        self,
+        search_request: SearchQuery,
+        user_id: str = None,
+        organization_id: str = None,
+    ) -> Tuple[str, Dict[str, Any]]:
         """Build count query for pagination"""
 
         search_terms = self._prepare_search_terms(search_request.query)
@@ -186,82 +210,90 @@ class FullTextSearchService:
             "WHERE",
             "    d.is_deleted = false",
             "    AND d.processing_status = :completed_status",
-            "    AND search_vector @@ plainto_tsquery(:query)"
+            "    AND search_vector @@ plainto_tsquery(:query)",
         ]
 
         params = {
-            'query': search_terms,
-            'completed_status': ProcessingStatus.COMPLETED.name
+            "query": search_terms,
+            "completed_status": ProcessingStatus.COMPLETED.name,
         }
 
         # Add the same filters as the main query
         if organization_id:
             query_parts.append("    AND d.organization_id = :organization_id")
-            params['organization_id'] = organization_id
+            params["organization_id"] = organization_id
 
         if search_request.filters:
-            filter_clauses, filter_params = self._build_filter_clauses(search_request.filters)
+            filter_clauses, filter_params = self._build_filter_clauses(
+                search_request.filters
+            )
             if filter_clauses:
                 query_parts.extend(filter_clauses)
                 params.update(filter_params)
 
-        return '\n'.join(query_parts), params
+        return "\n".join(query_parts), params
 
     def _prepare_search_terms(self, query: str) -> str:
         """Prepare search terms for PostgreSQL full-text search"""
         # Remove special characters and normalize
-        cleaned = re.sub(r'[^\w\s]', ' ', query.lower())
+        cleaned = re.sub(r"[^\w\s]", " ", query.lower())
         # Split into words and remove stop words (PostgreSQL will handle this)
-        words = [word.strip() for word in cleaned.split() if len(word.strip()) >= self.min_query_length]
+        words = [
+            word.strip()
+            for word in cleaned.split()
+            if len(word.strip()) >= self.min_query_length
+        ]
 
         if not words:
             return query.lower()
 
         # Join with & for AND semantics in PostgreSQL
-        return ' & '.join(words)
+        return " & ".join(words)
 
-    def _build_filter_clauses(self, filters: SearchFilter) -> Tuple[List[str], Dict[str, Any]]:
+    def _build_filter_clauses(
+        self, filters: SearchFilter
+    ) -> Tuple[List[str], Dict[str, Any]]:
         """Build SQL filter clauses from SearchFilter"""
         clauses = []
         params = {}
 
         if filters.document_types:
             doc_types = [dt.value for dt in filters.document_types]
-            placeholders = ','.join([f':doc_type_{i}' for i in range(len(doc_types))])
+            placeholders = ",".join([f":doc_type_{i}" for i in range(len(doc_types))])
             clauses.append(f"    AND d.document_type IN ({placeholders})")
             for i, doc_type in enumerate(doc_types):
-                params[f'doc_type_{i}'] = doc_type
+                params[f"doc_type_{i}"] = doc_type
 
         if filters.tags:
             # Using PostgreSQL array operators
-            placeholders = ','.join([f':tag_{i}' for i in range(len(filters.tags))])
+            placeholders = ",".join([f":tag_{i}" for i in range(len(filters.tags))])
             clauses.append(f"    AND d.tags && ARRAY[{placeholders}]")
             for i, tag in enumerate(filters.tags):
-                params[f'tag_{i}'] = tag
+                params[f"tag_{i}"] = tag
 
         if filters.date_from:
             clauses.append("    AND d.created_at >= :date_from")
-            params['date_from'] = filters.date_from
+            params["date_from"] = filters.date_from
 
         if filters.date_to:
             clauses.append("    AND d.created_at <= :date_to")
-            params['date_to'] = filters.date_to
+            params["date_to"] = filters.date_to
 
         if filters.file_size_min:
             clauses.append("    AND d.file_size_bytes >= :file_size_min")
-            params['file_size_min'] = filters.file_size_min
+            params["file_size_min"] = filters.file_size_min
 
         if filters.file_size_max:
             clauses.append("    AND d.file_size_bytes <= :file_size_max")
-            params['file_size_max'] = filters.file_size_max
+            params["file_size_max"] = filters.file_size_max
 
         if filters.is_public is not None:
             clauses.append("    AND d.is_public = :is_public")
-            params['is_public'] = filters.is_public
+            params["is_public"] = filters.is_public
 
         if filters.uploaded_by_user_id:
             clauses.append("    AND d.uploaded_by_user_id = :uploaded_by_user_id")
-            params['uploaded_by_user_id'] = filters.uploaded_by_user_id
+            params["uploaded_by_user_id"] = filters.uploaded_by_user_id
 
         return clauses, params
 
@@ -280,7 +312,9 @@ class FullTextSearchService:
         else:
             return "relevance_score DESC, d.created_at DESC"
 
-    def _row_to_search_result(self, row, search_request: SearchQuery) -> Optional[SearchResult]:
+    def _row_to_search_result(
+        self, row, search_request: SearchQuery
+    ) -> Optional[SearchResult]:
         """Convert database row to SearchResult"""
         try:
             # Extract content preview
@@ -294,7 +328,7 @@ class FullTextSearchService:
                 snippets = self._extract_snippets(
                     row.highlighted_content or "",
                     row.highlighted_title or "",
-                    search_request
+                    search_request,
                 )
 
             # Convert document type string to enum
@@ -314,7 +348,9 @@ class FullTextSearchService:
                 document_type=document_type,
                 content_preview=content_preview,
                 snippets=snippets,
-                relevance_score=float(row.relevance_score) if row.relevance_score else 0.0,
+                relevance_score=float(row.relevance_score)
+                if row.relevance_score
+                else 0.0,
                 file_size_bytes=row.file_size_bytes,
                 created_at=row.created_at,
                 updated_at=row.updated_at,
@@ -323,29 +359,36 @@ class FullTextSearchService:
                 is_public=row.is_public,
                 uploaded_by_user_id=str(row.uploaded_by_user_id),
                 organization_id=str(row.organization_id),
-                metadata=row.document_metadata or {}
+                metadata=row.document_metadata or {},
             )
         except Exception as e:
             logger.error(f"Error converting row to search result: {e}")
             return None
 
-    def _extract_snippets(self, highlighted_content: str, highlighted_title: str, search_request: SearchQuery) -> List[TextSnippet]:
+    def _extract_snippets(
+        self,
+        highlighted_content: str,
+        highlighted_title: str,
+        search_request: SearchQuery,
+    ) -> List[TextSnippet]:
         """Extract text snippets from highlighted content"""
         snippets = []
 
         # Extract title snippet if highlighted
         if highlighted_title and self.highlight_pre_tag in highlighted_title:
-            snippets.append(TextSnippet(
-                text=highlighted_title,
-                start_position=0,
-                end_position=len(highlighted_title),
-                relevance_score=1.0
-            ))
+            snippets.append(
+                TextSnippet(
+                    text=highlighted_title,
+                    start_position=0,
+                    end_position=len(highlighted_title),
+                    relevance_score=1.0,
+                )
+            )
 
         # Extract content snippets
         if highlighted_content and self.highlight_pre_tag in highlighted_content:
             # Split content into sentences around highlighted terms
-            sentences = re.split(r'[.!?]+', highlighted_content)
+            sentences = re.split(r"[.!?]+", highlighted_content)
 
             for sentence in sentences:
                 sentence = sentence.strip()
@@ -353,12 +396,14 @@ class FullTextSearchService:
                     # Find position of first highlight
                     highlight_start = sentence.find(self.highlight_pre_tag)
                     if highlight_start != -1:
-                        snippets.append(TextSnippet(
-                            text=sentence,
-                            start_position=0,
-                            end_position=len(sentence),
-                            relevance_score=0.8
-                        ))
+                        snippets.append(
+                            TextSnippet(
+                                text=sentence,
+                                start_position=0,
+                                end_position=len(sentence),
+                                relevance_score=0.8,
+                            )
+                        )
 
             # Limit number of snippets
             snippets = snippets[:3]
@@ -369,7 +414,8 @@ class FullTextSearchService:
         """Get search suggestions based on existing documents"""
         try:
             # Simple suggestion based on document titles and content
-            suggestion_query = text("""
+            suggestion_query = text(
+                """
                 SELECT DISTINCT
                     regexp_replace(regexp_replace(lower(title), '[^a-zA-Z0-9\s]', ' ', 'g'), '\s+', ' ', 'g') as suggestion
                 FROM documents
@@ -377,12 +423,16 @@ class FullTextSearchService:
                     AND processing_status = :completed_status
                     AND lower(title) LIKE lower(:query_pattern)
                 LIMIT 5
-            """)
+            """
+            )
 
-            result = db.execute(suggestion_query, {
-                'completed_status': ProcessingStatus.COMPLETED.name,
-                'query_pattern': f'%{query}%'
-            })
+            result = db.execute(
+                suggestion_query,
+                {
+                    "completed_status": ProcessingStatus.COMPLETED.name,
+                    "query_pattern": f"%{query}%",
+                },
+            )
 
             suggestions = [row.suggestion for row in result if row.suggestion]
             return suggestions
@@ -399,12 +449,12 @@ class FullTextSearchService:
 
         # Simple common typo corrections
         common_corrections = {
-            'teh': 'the',
-            'adn': 'and',
-            'wit': 'with',
-            'for': 'from',
-            'whihc': 'which',
-            'becuase': 'because',
+            "teh": "the",
+            "adn": "and",
+            "wit": "with",
+            "for": "from",
+            "whihc": "which",
+            "becuase": "because",
         }
 
         words = query.lower().split()
@@ -414,20 +464,24 @@ class FullTextSearchService:
 
         return suggestions[:3]
 
-    def _serialize_filters(self, filters: Optional[SearchFilter]) -> Optional[Dict[str, Any]]:
+    def _serialize_filters(
+        self, filters: Optional[SearchFilter]
+    ) -> Optional[Dict[str, Any]]:
         """Serialize filters for response"""
         if not filters:
             return None
 
         return {
-            'document_types': [dt.value for dt in filters.document_types] if filters.document_types else None,
-            'tags': filters.tags,
-            'date_from': filters.date_from.isoformat() if filters.date_from else None,
-            'date_to': filters.date_to.isoformat() if filters.date_to else None,
-            'file_size_min': filters.file_size_min,
-            'file_size_max': filters.file_size_max,
-            'is_public': filters.is_public,
-            'uploaded_by_user_id': filters.uploaded_by_user_id
+            "document_types": [dt.value for dt in filters.document_types]
+            if filters.document_types
+            else None,
+            "tags": filters.tags,
+            "date_from": filters.date_from.isoformat() if filters.date_from else None,
+            "date_to": filters.date_to.isoformat() if filters.date_to else None,
+            "file_size_min": filters.file_size_min,
+            "file_size_max": filters.file_size_max,
+            "is_public": filters.is_public,
+            "uploaded_by_user_id": filters.uploaded_by_user_id,
         }
 
     def create_search_indexes(self, db: Session = None):
@@ -457,7 +511,7 @@ class FullTextSearchService:
                 """
                 CREATE INDEX IF NOT EXISTS idx_documents_type_status
                 ON documents (document_type, processing_status)
-                """
+                """,
             ]
 
             for query in index_queries:
@@ -477,7 +531,8 @@ class FullTextSearchService:
             db = next(get_db())
 
         try:
-            update_query = text("""
+            update_query = text(
+                """
                 UPDATE documents
                 SET search_vector =
                     setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
@@ -485,24 +540,30 @@ class FullTextSearchService:
                     setweight(to_tsvector('english', coalesce(content_summary, '')), 'C') ||
                     setweight(to_tsvector('english', coalesce(array_to_string(tags, ' '), '')), 'D')
                 WHERE id = :document_id
-            """)
+            """
+            )
 
-            db.execute(update_query, {'document_id': document_id})
+            db.execute(update_query, {"document_id": document_id})
             db.commit()
             logger.debug(f"Updated search vector for document {document_id}")
 
         except Exception as e:
-            logger.error(f"Error updating search vector for document {document_id}: {e}")
+            logger.error(
+                f"Error updating search vector for document {document_id}: {e}"
+            )
             db.rollback()
             raise
 
-    def get_search_analytics(self, organization_id: str = None, days: int = 30) -> Dict[str, Any]:
+    def get_search_analytics(
+        self, organization_id: str = None, days: int = 30
+    ) -> Dict[str, Any]:
         """Get search analytics data"""
         try:
             with next(get_db()) as db:
                 # This is a placeholder - would need search query tracking table
                 # For now, return document statistics
-                stats_query = text("""
+                stats_query = text(
+                    """
                     SELECT
                         COUNT(*) as total_documents,
                         AVG(file_size_bytes) as avg_file_size,
@@ -512,25 +573,34 @@ class FullTextSearchService:
                     WHERE is_deleted = false
                         AND processing_status = :completed_status
                         AND created_at >= NOW() - INTERVAL ':days days'
-                """)
+                """
+                )
 
                 if organization_id:
-                    stats_query = text(stats_query.compile().string + " AND organization_id = :organization_id")
+                    stats_query = text(
+                        stats_query.compile().string
+                        + " AND organization_id = :organization_id"
+                    )
 
-                result = db.execute(text(stats_query.compile().string), {
-                    'completed_status': ProcessingStatus.COMPLETED.name,
-                    'days': days,
-                    'organization_id': organization_id
-                })
+                result = db.execute(
+                    text(stats_query.compile().string),
+                    {
+                        "completed_status": ProcessingStatus.COMPLETED.name,
+                        "days": days,
+                        "organization_id": organization_id,
+                    },
+                )
 
                 row = result.first()
 
                 return {
-                    'total_documents': row.total_documents if row else 0,
-                    'avg_file_size_bytes': float(row.avg_file_size) if row and row.avg_file_size else 0,
-                    'unique_types': row.unique_types if row else 0,
-                    'unique_uploaders': row.unique_uploaders if row else 0,
-                    'searchable_documents': row.total_documents if row else 0
+                    "total_documents": row.total_documents if row else 0,
+                    "avg_file_size_bytes": float(row.avg_file_size)
+                    if row and row.avg_file_size
+                    else 0,
+                    "unique_types": row.unique_types if row else 0,
+                    "unique_uploaders": row.unique_uploaders if row else 0,
+                    "searchable_documents": row.total_documents if row else 0,
                 }
 
         except Exception as e:

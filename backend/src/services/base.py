@@ -3,9 +3,9 @@ Base service class for enterprise services
 """
 
 import logging
-from typing import Optional, Dict, Any
-from datetime import datetime
 from abc import ABC, abstractmethod
+from datetime import datetime
+from typing import Any, Dict, Optional
 
 
 class BaseService(ABC):
@@ -33,7 +33,10 @@ class BaseService(ABC):
         extra_info = " | ".join([f"{k}={v}" for k, v in kwargs.items()])
         full_message = f"{message} | {extra_info}" if extra_info else message
         if error:
-            self.logger.error(f"[{self.service_name}] {full_message} | Error: {str(error)}", exc_info=True)
+            self.logger.error(
+                f"[{self.service_name}] {full_message} | Error: {str(error)}",
+                exc_info=True,
+            )
         else:
             self.logger.error(f"[{self.service_name}] {full_message}")
 
@@ -54,7 +57,7 @@ class BaseService(ABC):
         return {
             "service_name": self.service_name,
             "created_at": self._created_at.isoformat(),
-            "logger_name": self.logger_name
+            "logger_name": self.logger_name,
         }
 
     async def initialize(self):
@@ -74,5 +77,5 @@ class BaseService(ABC):
         return {
             "service": self.service_name,
             "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
