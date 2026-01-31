@@ -70,6 +70,35 @@ A production-ready, enterprise-grade Retrieval-Augmented Generation system built
 - Python 3.11+
 - Docker 24.0+ and Docker Compose
 - 16GB RAM minimum
+- API keys for OpenAI and/or Anthropic Claude
+
+### Environment Setup
+
+1. **Copy environment file**:
+```bash
+cp .env .env.local
+```
+
+2. **Add your AI API keys** to `.env.local`:
+```bash
+# Required: Add at least one AI provider
+OPENAI_API_KEY=sk-your-openai-key-here
+ANTHROPIC_API_KEY=sk-ant-your-anthropic-key-here
+```
+
+3. **Optional: Customize other environment variables**:
+```bash
+# Database URLs (defaults work for Docker setup)
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev
+REDIS_URL=redis://localhost:6379/0
+NEO4J_URI=bolt://localhost:7687
+QDRANT_URL=http://localhost:6333
+
+# Application settings
+MAX_CONCURRENT_JOBS=5
+LOG_LEVEL=DEBUG
+ENVIRONMENT=development
+```
 
 ### Installation
 
@@ -81,7 +110,8 @@ cd multimodal-rag-system
 # Start all services with Docker
 docker-compose -f docker-compose.development.yml up -d
 
-# Frontend development
+# Wait for services to be ready (check with docker-compose ps)
+# Then setup frontend
 cd frontend
 npm install
 npm run dev
@@ -90,6 +120,15 @@ npm run dev
 # Frontend: http://localhost:3000
 # Backend API: http://localhost:8000
 # API Docs: http://localhost:8000/docs
+```
+
+### Quick Health Check
+```bash
+# Check if all services are running
+curl http://localhost:8000/health
+
+# Check database connectivity
+curl http://localhost:8000/api/v1/infrastructure/worker-status
 ```
 
 ### Default Development Users
@@ -151,14 +190,110 @@ The system tracks RAG quality using the RAG Triad:
 | Latency | <2000ms | Response time target |
 | Hallucination Rate | <10% | Unsupported claims threshold |
 
+## Environment Variables
+
+### Required Variables
+
+| Variable | Description | Example Value |
+|----------|-------------|---------------|
+| `OPENAI_API_KEY` | OpenAI API key for GPT models | `sk-proj-...` |
+| `ANTHROPIC_API_KEY` | Anthropic API key for Claude models | `sk-ant-...` |
+
+### Database Configuration
+
+| Variable | Description | Default (Development) |
+|----------|-------------|----------------------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev` |
+| `REDIS_URL` | Redis connection string | `redis://localhost:6379/0` |
+| `NEO4J_URI` | Neo4j connection URI | `bolt://localhost:7687` |
+| `NEO4J_USER` | Neo4j username | `neo4j` |
+| `NEO4J_PASSWORD` | Neo4j password | `password` |
+| `QDRANT_URL` | Qdrant vector database URL | `http://localhost:6333` |
+
+### Application Settings
+
+| Variable | Description | Default | Options |
+|----------|-------------|---------|---------|
+| `ENVIRONMENT` | Application environment | `development` | `development`, `staging`, `production` |
+| `DEBUG` | Enable debug mode | `true` | `true`, `false` |
+| `SECRET_KEY` | Application secret key | Auto-generated | 32+ character string |
+| `JWT_SECRET_KEY` | JWT signing secret | Auto-generated | 32+ character string |
+| `CORS_ORIGINS` | Allowed CORS origins | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated URLs |
+| `LOG_LEVEL` | Logging level | `DEBUG` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| `MAX_CONCURRENT_JOBS` | Max background jobs | `5` | Integer |
+
+### AI Model Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `EMBEDDING_PROVIDER` | Embedding model provider | `sentence_transformers` |
+| `EMBEDDING_MODEL` | Specific embedding model | `sentence-transformers/all-MiniLM-L6-v2` |
+
+## API Endpoints Overview
+
+### Authentication (`/api/v1/auth/`)
+- `POST /login` - User login with JWT token
+- `POST /register` - User registration
+- `POST /logout` - User logout
+- `GET /me` - Current user profile
+- `GET /users` - List users (admin only)
+
+### Document Management (`/api/v1/documents/`)
+- `POST /upload` - Upload documents (PDF, TXT, images, audio, video)
+- `GET /` - List user documents with metadata
+- `GET /{document_id}` - Get document details
+- `DELETE /{document_id}` - Delete document
+- `GET /{document_id}/status` - Processing status
+- `GET /{document_id}/chunks` - Document text chunks
+
+### Search (`/api/v1/search/`)
+- `POST /` - Primary search endpoint (hybrid: vector + keyword + graph)
+- `POST /vector` - Vector-only search
+- `POST /keyword` - Keyword-only search
+- `POST /graph` - Graph-based entity search
+- `POST /multimodal` - Cross-modal search (find text via image, etc.)
+- `GET /suggestions` - Search query suggestions
+
+### Quality & Evaluation (`/api/v1/quality/`)
+- `GET /metrics` - RAG quality metrics (relevancy, faithfulness, etc.)
+- `POST /evaluate` - Run quality evaluation on search results
+- `GET /reports` - Quality evaluation reports
+- `POST /feedback` - Submit search result feedback
+
+### Real-time Features (`/api/v1/realtime/`)
+- `GET /document-processing-status` - WebSocket for live processing updates
+- `GET /search-stream` - WebSocket for streaming search results
+- `GET /system-metrics` - WebSocket for live system monitoring
+
+### ArXiv Integration (`/api/v1/arxiv/`)
+- `POST /search` - Search ArXiv papers
+- `POST /import` - Import ArXiv papers into knowledge base
+- `GET /papers` - List imported papers
+
+### Infrastructure & Monitoring (`/api/v1/infrastructure/`)
+- `GET /health` - System health check
+- `GET /worker-status` - Background job worker status
+- `GET /metrics` - Prometheus metrics endpoint
+- `GET /stats` - System statistics
+
+### Security (`/api/v1/security/`)
+- `GET /audit-logs` - Security audit logs
+- `POST /encrypt` - Encrypt sensitive data
+- `GET /permissions` - User permissions matrix
+
+### WebSocket Endpoints
+- `/ws/document-processing` - Real-time document processing status
+- `/ws/search-results` - Streaming search results
+- `/ws/system-monitoring` - Live system metrics and health
+
 ## Database Connections
 
-| Service | URL | Port |
-|---------|-----|------|
-| PostgreSQL | localhost | 5432 |
-| Neo4j | bolt://localhost | 7687 |
-| Qdrant | http://localhost | 6333 |
-| Redis | redis://localhost | 6379 |
+| Service | URL | Port | UI Access |
+|---------|-----|------|-----------|
+| PostgreSQL | localhost | 5432 | - |
+| Neo4j | bolt://localhost | 7687 | http://localhost:7474 |
+| Qdrant | http://localhost | 6333 | http://localhost:6333/dashboard |
+| Redis | redis://localhost | 6379 | - |
 
 ## Project Structure
 

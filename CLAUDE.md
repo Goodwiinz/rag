@@ -1,534 +1,340 @@
-# GoodFlows - Claude Agent Suite
+# Multimodal Enterprise RAG System - Claude Integration Guide
 
 ## Project Overview
 
-GoodFlows is a multi-agent AI system for automated code review, issue tracking, and fix application. It integrates CodeRabbit reviews with Linear issue management and uses Claude models for intelligent automation.
+This is a **production-ready, enterprise-grade Multimodal Retrieval-Augmented Generation (RAG) System** built with Next.js 15 and FastAPI. The system processes and analyzes multimodal content (text, images, audio, video) with advanced knowledge graph capabilities, hybrid search, and comprehensive evaluation frameworks.
 
-## Architecture
+## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    review-orchestrator                       │
-│                    (Sonnet - Coordinator)                    │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │   Phase 1   │→ │   Phase 2   │→ │      Phase 3        │  │
-│  │   Review    │  │  Categorize │  │   Create Issues     │  │
-│  └─────────────┘  └─────────────┘  └──────────┬──────────┘  │
-│                                                │             │
-├────────────────────────────────────────────────┼─────────────┤
-│                  Agent Registry                │             │
-│    (Schemas, Session Context, Invocations)     │             │
-├────────────────────────────────────────────────┼─────────────┤
-│                    ┌───────────────────────────┼─────────┐  │
-│                    ↓                           ↓         │  │
-│            ┌──────────────┐           ┌──────────────┐   │  │
-│            │ issue-creator│           │  auto-fixer  │   │  │
-│            │   (Haiku)    │           │   (Opus)     │   │  │
-│            └──────────────┘           └──────────────┘   │  │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Agent Files
-
-| Agent | Model | Purpose |
-|-------|-------|---------|
-| `review-orchestrator.md` | Sonnet | Coordinates the complete review lifecycle |
-| `issue-creator.md` | Haiku | Creates structured Linear issues from findings |
-| `coderabbit-auto-fixer.md` | Opus | Applies fixes safely with verification |
-
-## Shared Configuration
-
-### Linear Labels
-
-| Finding Type | Labels | Priority |
-|--------------|--------|----------|
-| `critical_security` | `security`, `critical` | 1 (Urgent) |
-| `potential_issue` | `bug` | 2 (High) |
-| `refactor_suggestion` | `improvement` | 3 (Normal) |
-| `performance` | `performance` | 3 (Normal) |
-| `documentation` | `docs` | 4 (Low) |
-
-### Issue Title Conventions
-
-| Type | Prefix | Example |
-|------|--------|---------|
-| Security | `[SECURITY]` | `[SECURITY] Exposed API key in config` |
-| Bug | `fix:` | `fix: Null pointer in user handler` |
-| Refactor | `refactor:` | `refactor: Extract validation logic` |
-| Performance | `perf:` | `perf: Optimize database query` |
-| Documentation | `docs:` | `docs: Update API documentation` |
-
-### Memory & Context Storage
-
-GoodFlows uses a **hybrid storage strategy** for maximum compatibility:
-
-#### Serena Memory (Legacy - `.serena/memories/`)
-
-| File | Purpose |
-|------|---------|
-| `coderabbit_findings.md` | History of all review findings |
-| `auto_fix_patterns.md` | Reusable fix templates and patterns |
-| `agent_runs.md` | Execution history and metrics |
-
-#### GoodFlows Context Store (Enhanced - `.goodflows/context/`)
-
-| Path | Purpose | Format |
-|------|---------|--------|
-| `index.json` | Fast hash-based lookups | JSON |
-| `findings/*.jsonl` | Partitioned findings by month | JSONL |
-| `patterns/patterns.json` | Fix patterns with confidence scores | JSON |
-| `patterns/history.jsonl` | Pattern usage history | JSONL |
-| `sessions/*.json` | Agent run sessions | JSON |
-
-#### Key Features
-
-- **Content-hash deduplication** - SHA-256 based exact duplicate detection
-- **Trigram similarity search** - Fuzzy matching for near-duplicates
-- **Bloom filter** - Fast probabilistic duplicate check
-- **Pattern confidence scoring** - Bayesian-updated success rates
-- **Monthly partitioning** - Efficient storage for large histories
-
-#### CLI Commands
-
-```bash
-# Initialize context store
-goodflows init
-
-# View statistics
-goodflows stats
-
-# Migrate from Serena memory
-goodflows migrate
-
-# Query findings
-goodflows context --query "security"
-
-# Export to markdown
-goodflows context --export
+```mermaid
+graph TB
+    subgraph "Frontend - Next.js 15"
+        UI[React Components]
+        Store[Zustand State]
+        Query[TanStack Query v5]
+        WS[WebSocket Client]
+    end
+    
+    subgraph "Backend - FastAPI"
+        API[REST Endpoints]
+        WSS[WebSocket Server]
+        Auth[JWT Auth + RBAC]
+        Tasks[Celery Background Jobs]
+    end
+    
+    subgraph "AI & Processing"
+        CrewAI[Multi-Agent System]
+        OpenAI[GPT Models]
+        Anthropic[Claude Models]
+        Whisper[Audio Processing]
+        CV[Computer Vision]
+    end
+    
+    subgraph "Data Layer"
+        PG[(PostgreSQL)]
+        Neo4j[(Knowledge Graph)]
+        Qdrant[(Vector Store)]
+        Redis[(Cache & Jobs)]
+    end
+    
+    UI --> API
+    WS --> WSS
+    API --> Tasks
+    Tasks --> CrewAI
+    CrewAI --> Anthropic
+    CrewAI --> OpenAI
+    Tasks --> Whisper
+    Tasks --> CV
+    API --> PG
+    API --> Neo4j
+    API --> Qdrant
+    API --> Redis
 ```
 
-## Agent Registry (Inter-Agent Communication)
+## Key Features for AI Integration
 
-The Agent Registry provides programmatic invocation between agents with validated contracts.
+### Multi-Agent RAG System
+- **CrewAI Integration**: Specialized agents for different RAG tasks
+- **Agent Types**: Orchestrator, retrieval, graph navigation, vector search, QA synthesis
+- **Workflow Routing**: Automatic query classification and agent selection
+- **Claude Integration**: Uses Anthropic Claude for reasoning-heavy tasks
 
-### Key Features
+### Multimodal Content Processing
+- **Text**: PDF and TXT ingestion with OCR capabilities
+- **Images**: Object detection, scene recognition, text extraction  
+- **Audio**: Speech-to-text with speaker diarization (Whisper)
+- **Video**: Frame extraction and audio transcription
 
-- **Input/Output Schemas** - Validated contracts for each agent
-- **Session Context** - Propagate context through multi-agent workflows
-- **Priority Sorting** - Process critical findings first
-- **Invocation Tracking** - History of all agent calls
-- **Checkpoints** - Rollback support for recovery
+### Hybrid Search Capabilities
+- **Vector Search**: Semantic similarity using sentence-transformers
+- **Graph Search**: Knowledge graph traversal via Neo4j
+- **Keyword Search**: Traditional full-text search
+- **Cross-Modal**: Find related content across different file types
+- **Reranking**: AI-powered result reranking for relevance
 
-### Usage
+### Real-time Processing
+- **WebSocket Infrastructure**: 10,000+ concurrent connections
+- **Live Status Updates**: Real-time document processing visualization
+- **Streaming Results**: Progressive search result delivery
 
-```javascript
-import { createAgentRegistry } from 'goodflows/lib';
+## Technology Stack
 
-const registry = createAgentRegistry();
+### AI & ML Stack
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **LLM Integration** | OpenAI GPT-4, Anthropic Claude | Question answering, reasoning, synthesis |
+| **Multi-Agent System** | CrewAI | Orchestrated AI workflows |
+| **Embeddings** | sentence-transformers | Semantic vector generation |
+| **Audio Processing** | OpenAI Whisper | Speech-to-text with diarization |
+| **Computer Vision** | Custom CV models | Image analysis and text extraction |
+| **NLP Processing** | spaCy | Entity extraction and text processing |
 
-// Start session with metadata
-const sessionId = registry.startSession({ trigger: 'code-review', branch: 'feature-x' });
+### Backend Technology
+| Component | Technology | Version |
+|-----------|------------|---------|
+| **Framework** | FastAPI | 0.104.1 |
+| **Runtime** | Python | 3.11+ |
+| **Web Server** | Uvicorn/Gunicorn | Latest |
+| **Background Jobs** | Celery + Redis | Latest |
+| **Database ORM** | SQLAlchemy | Latest |
 
-// Write to shared context
-registry.setContext('findings.all', findings);
+### Frontend Technology
+| Component | Technology | Version |
+|-----------|------------|---------|
+| **Framework** | Next.js | 15.1.3 |
+| **UI Components** | shadcn/ui + Radix | Latest |
+| **State Management** | Zustand | 5.0.8 |
+| **Data Fetching** | TanStack Query | v5 |
+| **Visualizations** | Cytoscape, Recharts | Latest |
 
-// Create checkpoint before risky operations
-const checkpoint = registry.checkpoint('before_issues');
+### Database Architecture
+| Database | Purpose | Technology |
+|----------|---------|------------|
+| **Primary DB** | User data, documents, metadata | PostgreSQL |
+| **Vector Store** | Semantic embeddings | Qdrant |
+| **Graph DB** | Knowledge graph, relationships | Neo4j 5.15 |
+| **Cache/Sessions** | Caching, job queue | Redis |
 
-// Create validated invocation
-const invocation = registry.createInvocation('issue-creator', {
-  findings: registry.sortByPriority(findings),
-  team: 'GOO',
-  sessionId,
-});
+## Claude-Specific Integration
 
-// Read from shared context (written by other agents)
-const createdIssues = registry.getContext('issues.created', []);
+### Model Selection Strategy
+| Task Type | Preferred Model | Reasoning |
+|-----------|----------------|-----------|
+| **Complex Reasoning** | Claude-3 Opus | Superior analytical capabilities |
+| **Quick Responses** | Claude-3 Haiku | Fast, efficient for simple tasks |
+| **Balanced Performance** | Claude-3 Sonnet | Good performance/cost ratio |
+| **Document Analysis** | Claude-3 Opus | Strong multimodal understanding |
 
-// Rollback if needed
-if (error) registry.rollback(checkpoint);
+### Claude Integration Points
 
-// End session
-registry.endSession({ totalIssues: createdIssues.length });
-```
-
-## Session Context Manager
-
-The Session Context Manager enables shared state across agent invocations.
-
-### How It Works
-
-```
-Without Session Context:
-  Orchestrator → issue-creator → auto-fixer
-       ↓              ↓              ↓
-  (has context)  (no context)   (no context)
-
-With Session Context:
-  Orchestrator → issue-creator → auto-fixer
-       ↓              ↓              ↓
-  (creates)      (reads/writes)  (reads/writes)
-       └──────── shared context ────────┘
-```
-
-### Key Concepts
-
-| Concept | Description |
-|---------|-------------|
-| **Session** | Workflow execution with unique ID, persists to disk |
-| **Context** | Shared state organized by namespace (findings, issues, fixes) |
-| **Checkpoints** | Snapshots for rollback if operations fail |
-| **Events** | Timeline of what happened for debugging |
-
-### Context Namespaces
-
-| Path | Written By | Read By |
-|------|------------|---------|
-| `findings.all` | orchestrator | issue-creator, auto-fixer |
-| `findings.critical` | orchestrator | issue-creator |
-| `issues.created` | issue-creator | orchestrator, auto-fixer |
-| `issues.details` | issue-creator | auto-fixer |
-| `fixes.applied` | auto-fixer | orchestrator |
-| `fixes.failed` | auto-fixer | orchestrator |
-
-### Session Lifecycle
-
-```javascript
-import { SessionContextManager } from 'goodflows/lib';
-
-// 1. Create session (orchestrator)
-const session = new SessionContextManager();
-const sessionId = session.start({ trigger: 'code-review' });
-
-// 2. Resume session (other agents)
-const session = SessionContextManager.resume(sessionId);
-
-// 3. Read/Write context
-session.set('findings.critical', criticalFindings);
-const findings = session.get('findings.all', []);
-
-// 4. Checkpoints & rollback
-const chk = session.checkpoint('before_fixes');
-// ... if something fails ...
-session.rollback(chk);
-
-// 5. Track events
-session.addEvent('issues_created', { count: 5 });
-
-// 6. Complete session
-session.complete({ totalIssues: 5, fixesApplied: 3 });
-```
-
-### Available Schemas
-
-| Agent | Input | Output |
-|-------|-------|--------|
-| `review-orchestrator` | reviewType, autoFix, priorityThreshold | summary, issues, errors |
-| `issue-creator` | findings[], team, options | created[], duplicatesSkipped |
-| `coderabbit-auto-fixer` | issues[], options | fixed[], failed[] |
-
-### Shared Constants
-
-```javascript
-PRIORITY_LEVELS = { critical_security: 1, potential_issue: 2, ... }
-LABEL_MAPPING = { critical_security: ['security', 'critical'], ... }
-TITLE_PREFIXES = { critical_security: '[SECURITY]', potential_issue: 'fix:', ... }
-```
-
-## Priority Queue
-
-Ensures critical security issues are always processed before lower-priority items.
-
-### How It Works
-
-```
-Without Priority Queue:
-  [doc, bug, SECURITY, perf, bug] → processed in discovery order
-                  ↓
-  SECURITY issue processed 3rd (too late!)
-
-With Priority Queue:
-  [doc, bug, SECURITY, perf, bug]
-                  ↓ auto-sorted
-  [SECURITY, bug, bug, perf, doc] → critical first!
-```
-
-### Usage
-
-```javascript
-import { createAgentRegistry, PRIORITY } from 'goodflows/lib';
-
-const registry = createAgentRegistry();
-
-// Create queue (auto-sorts by priority)
-registry.createQueue(findings, {
-  throttleMs: 100,                    // Rate limiting
-  priorityThreshold: PRIORITY.HIGH,  // Only P1 and P2
-});
-
-// Process in priority order
-while (!registry.getQueue().isEmpty()) {
-  const finding = registry.nextFinding();
-  try {
-    await createIssue(finding);
-    registry.completeFinding({ issueId: 'GOO-31' });
-  } catch (error) {
-    registry.failFinding(error);  // Auto-retry up to 3x
-  }
+#### 1. Multi-Agent Orchestration
+```python
+# CrewAI agents using Claude for different RAG tasks
+agents = {
+    'orchestrator': Claude3Agent(model='opus'),
+    'retrieval': Claude3Agent(model='sonnet'), 
+    'synthesis': Claude3Agent(model='opus'),
+    'qa': Claude3Agent(model='haiku')
 }
-
-// Or process all at once with handler
-await registry.processQueue(async (finding) => {
-  return await createIssue(finding);
-});
 ```
 
-### Priority Mapping
+#### 2. Document Processing Pipeline
+- **Initial Analysis**: Claude analyzes document type and content structure
+- **Chunk Strategy**: AI-determined optimal chunking based on document type
+- **Entity Extraction**: Claude identifies key entities and relationships
+- **Quality Assessment**: Evaluates processing quality and suggests improvements
 
-| Finding Type | Priority | Level |
-|--------------|----------|-------|
-| `critical_security` | P1 | Urgent |
-| `potential_issue` | P2 | High |
-| `refactor_suggestion` | P3 | Normal |
-| `performance` | P3 | Normal |
-| `documentation` | P4 | Low |
+#### 3. Query Understanding & Routing
+- **Intent Classification**: Claude determines query type (factual, analytical, creative)
+- **Agent Selection**: Routes queries to appropriate specialized agents
+- **Context Enhancement**: Enriches queries with background context
 
-### Queue Features
+#### 4. Response Synthesis
+- **Multi-Source Integration**: Combines results from vector, graph, and keyword search
+- **Answer Generation**: Claude synthesizes coherent responses from retrieved context
+- **Fact Checking**: Validates responses against source material
+- **Citation Generation**: Provides proper source attribution
 
-| Feature | Description |
-|---------|-------------|
-| **Auto-sorting** | Items sorted by priority on enqueue |
-| **Throttling** | Rate limiting between API calls |
-| **Retry** | Failed items auto-retry up to 3x |
-| **Filtering** | Skip items below priority threshold |
-| **Stats** | Track pending, completed, failed counts |
+## Development Setup for Claude Integration
 
-## Claude Agent SDK Integration
+### Prerequisites
+- Python 3.11+
+- Node.js 18.17+
+- Docker & Docker Compose
+- Anthropic API key
 
-GoodFlows can be used with the [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview) for production deployments.
+### Environment Configuration
+```bash
+# Required for Claude integration
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+
+# Optional: Model preferences
+CLAUDE_DEFAULT_MODEL=claude-3-sonnet-20240229
+CLAUDE_REASONING_MODEL=claude-3-opus-20240229
+CLAUDE_FAST_MODEL=claude-3-haiku-20240307
+
+# RAG-specific settings
+MAX_TOKENS_PER_CHUNK=2000
+ENABLE_MULTIMODAL_CLAUDE=true
+CLAUDE_TEMPERATURE=0.1
+```
 
 ### Quick Start
+```bash
+# Clone and setup
+git clone <repository-url>
+cd multimodal-rag-system
 
-```javascript
-import { query } from "@anthropic-ai/claude-agent-sdk";
-import { createGoodFlowsConfig } from "goodflows/lib";
+# Configure environment
+cp .env .env.local
+# Add your ANTHROPIC_API_KEY to .env.local
 
-const config = createGoodFlowsConfig();
+# Start all services
+docker-compose -f docker-compose.development.yml up -d
 
-for await (const message of query({
-  prompt: "Run full code review and create Linear issues",
-  options: {
-    allowedTools: ["Read", "Glob", "Grep", "Bash", "Edit", "Task"],
-    agents: config.agents,
-    hooks: config.hooks,
-    mcpServers: config.mcpServers,
-  }
-})) {
-  console.log(message);
-}
+# Frontend development
+cd frontend && npm install && npm run dev
+
+# Backend development (optional - already running in Docker)
+cd backend && uvicorn src.main:app --reload --port 8001
 ```
 
-### Even Simpler
+## RAG Quality Metrics
 
-```javascript
-import { runGoodFlows } from "goodflows/lib";
+The system tracks comprehensive RAG quality using industry-standard metrics:
 
-const result = await runGoodFlows("Run full code review");
-console.log(result.summary);
+| Metric | Target | Description |
+|--------|--------|-------------|
+| **Answer Relevancy** | >70% | How relevant the response is to the user's query |
+| **Faithfulness** | >90% | How well the response is grounded in retrieved context |
+| **Context Relevancy** | >70% | How relevant the retrieved context is to the query |
+| **Response Latency** | <2000ms | Time from query to complete response |
+| **Hallucination Rate** | <10% | Percentage of unsupported claims in responses |
+
+### Quality Monitoring
+- **Real-time Metrics**: Live dashboards for RAG performance
+- **A/B Testing**: Compare different Claude models and prompts
+- **User Feedback**: Collect and analyze user satisfaction ratings
+- **Automated Evaluation**: Continuous quality assessment using Claude itself
+
+## API Usage Examples
+
+### Basic Search
+```bash
+curl -X POST http://localhost:8000/api/v1/search/ \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <jwt-token>" \
+  -d '{
+    "query": "What are the key findings about climate change?",
+    "search_type": "hybrid",
+    "max_results": 10
+  }'
 ```
 
-### SDK Integration Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                   Claude Agent SDK                          │
-│  ┌────────────────────────────────────────────────────────┐│
-│  │                    query()                              ││
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐   ││
-│  │  │  orchestrator │ │ issue-creator│ │  auto-fixer  │   ││
-│  │  │   (Sonnet)    │ │   (Haiku)    │ │   (Opus)     │   ││
-│  │  └──────────────┘ └──────────────┘ └──────────────┘   ││
-│  └────────────────────────────────────────────────────────┘│
-│                            ↓                                │
-│  ┌────────────────────────────────────────────────────────┐│
-│  │                     SDK Hooks                           ││
-│  │  PreToolUse → Priority sorting, Deduplication          ││
-│  │  PostToolUse → Pattern tracking, Context sync          ││
-│  └────────────────────────────────────────────────────────┘│
-│                            ↓                                │
-│  ┌────────────────────────────────────────────────────────┐│
-│  │                   MCP Servers                           ││
-│  │  linear-mcp-server    serena-mcp-server                ││
-│  └────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│                  GoodFlows Extensions                        │
-│  PriorityQueue │ ContextStore │ PatternTracker │ Deduplication │
-└─────────────────────────────────────────────────────────────┘
+### Multimodal Query
+```bash
+curl -X POST http://localhost:8000/api/v1/search/multimodal \
+  -H "Authorization: Bearer <jwt-token>" \
+  -F "query=Explain what's shown in this image" \
+  -F "image=@path/to/image.jpg"
 ```
 
-### What SDK Provides vs GoodFlows Adds
-
-| Feature | SDK Built-in | GoodFlows Adds |
-|---------|-------------|----------------|
-| Agent execution | ✓ query(), tool loop | - |
-| Subagents | ✓ AgentDefinition | Model selection per agent |
-| Sessions | ✓ resume, fork | Checkpoints, rollback |
-| Hooks | ✓ Pre/Post tool use | Priority queue, dedup |
-| MCP | ✓ Native support | Linear/Serena config |
-| Priority ordering | - | ✓ Critical first |
-| Deduplication | - | ✓ Trigram similarity |
-| Pattern tracking | - | ✓ Fix confidence |
-
-### Available Exports
-
-```javascript
-import {
-  GOODFLOWS_AGENTS,       // Agent definitions for SDK
-  createGoodFlowsHooks,   // Hooks with GoodFlows features
-  createGoodFlowsConfig,  // Complete SDK configuration
-  runGoodFlows,           // One-liner execution
-} from "goodflows/lib";
+### Document Upload
+```bash
+curl -X POST http://localhost:8000/api/v1/documents/upload \
+  -H "Authorization: Bearer <jwt-token>" \
+  -F "file=@research_paper.pdf" \
+  -F "metadata={\"title\": \"Research Paper\", \"tags\": [\"AI\", \"ML\"]}"
 ```
 
-## MCP Tool Reference
+## Monitoring & Observability
 
-### Serena Tools (Primary)
+### Available Metrics
+- **Application Metrics**: Request latency, error rates, throughput
+- **RAG Metrics**: Search quality, retrieval accuracy, response relevance
+- **AI Model Metrics**: Token usage, model latency, cost tracking
+- **Infrastructure Metrics**: Database performance, queue lengths, resource usage
 
-```
-mcp__plugin_serena_serena__find_symbol
-mcp__plugin_serena_serena__find_referencing_symbols
-mcp__plugin_serena_serena__get_symbols_overview
-mcp__plugin_serena_serena__replace_symbol_body
-mcp__plugin_serena_serena__replace_content
-mcp__plugin_serena_serena__read_file
-mcp__plugin_serena_serena__read_memory
-mcp__plugin_serena_serena__write_memory
-mcp__plugin_serena_serena__search_for_pattern
-mcp__plugin_serena_serena__list_dir
-```
+### Monitoring Endpoints
+- `/api/v1/infrastructure/health` - Overall system health
+- `/api/v1/infrastructure/metrics` - Prometheus metrics
+- `/api/v1/quality/reports` - RAG quality reports
 
-### Linear Tools
+## Deployment
 
-```
-mcp__plugin_linear_linear__list_teams
-mcp__plugin_linear_linear__create_issue
-mcp__plugin_linear_linear__update_issue
-mcp__plugin_linear_linear__create_comment
-mcp__plugin_linear_linear__list_issue_labels
+### Development
+```bash
+docker-compose -f docker-compose.development.yml up -d
 ```
 
-## Development Guidelines
+### Production
+- **Kubernetes**: Helm charts available in `/infrastructure/helm/`
+- **Terraform**: AWS infrastructure as code in `/infrastructure/terraform/`
+- **CI/CD**: GitHub Actions workflows for automated deployment
 
-### Agent Definition Structure
+### Environment-Specific Configuration
+| Environment | Database | AI Models | Logging | Monitoring |
+|-------------|----------|-----------|---------|------------|
+| **Development** | Local Docker | Claude Haiku | DEBUG | Basic |
+| **Staging** | Managed PostgreSQL | Claude Sonnet | INFO | Full |
+| **Production** | HA PostgreSQL | Claude Opus | WARNING | Full + Alerts |
 
-```markdown
----
-name: agent-name
-description: When to use this agent...
-model: opus|sonnet|haiku
-color: orange|cyan|blue|green|purple
-tools:
-  - mcp__plugin_serena_serena__*
-  - mcp__plugin_linear_linear__*
-triggers:
-  - "trigger phrase one"
-  - "trigger phrase two"
----
+## Security Considerations
 
-[Agent instructions...]
-```
+### Authentication & Authorization
+- **JWT-based Authentication**: Secure token-based auth
+- **Role-Based Access Control (RBAC)**: Fine-grained permissions
+- **API Rate Limiting**: Prevent abuse and manage costs
+
+### Data Protection
+- **Encryption at Rest**: All data encrypted in databases
+- **Encryption in Transit**: TLS for all communications
+- **Data Privacy**: GDPR/CCPA compliant data handling
+- **Audit Logging**: Comprehensive security event logging
+
+### AI Safety
+- **Prompt Injection Prevention**: Input sanitization and validation
+- **Content Filtering**: Automatic detection of harmful content
+- **Usage Monitoring**: Track and limit AI model usage
+- **Cost Controls**: Automatic spending limits and alerts
+
+## Contributing
 
 ### Code Style
+- **Backend**: Black formatting, mypy type checking, pytest
+- **Frontend**: ESLint, Prettier, TypeScript strict mode
+- **Documentation**: Markdown with Mermaid diagrams
 
-- Use consistent Markdown formatting
-- Tables for structured data
-- Code blocks with language hints
-- Mermaid diagrams for workflows
+### Testing Strategy
+- **Unit Tests**: Comprehensive coverage for all components
+- **Integration Tests**: End-to-end RAG workflow testing
+- **Performance Tests**: Load testing for search and processing
+- **Quality Tests**: RAG evaluation metric validation
 
-### Error Handling Pattern
+### Development Workflow
+1. Create feature branch from `develop`
+2. Write tests for new functionality
+3. Ensure all tests pass: `npm run validate` and `pytest`
+4. Submit pull request with clear description
 
-All agents should include:
-1. **Prerequisites check** - Validate tools/APIs available
-2. **Graceful degradation** - Fallback options when primary fails
-3. **Failure documentation** - Log failures for debugging
-4. **Recovery guidance** - Suggest manual steps if automation fails
+## Resources
 
-### Inter-Agent Communication
+### Documentation
+- [Architecture Guide](docs/architecture/) - Detailed system design
+- [API Documentation](docs/api/) - Complete API reference
+- [Deployment Guide](docs/deployment/) - Production deployment strategies
+- [Security Guide](docs/security/) - Security best practices
 
-Agents communicate via:
-1. **Memory files** - Shared state in `.serena/memories/`
-2. **Linear issues** - Issue IDs as references
-3. **Return values** - Structured output format
+### External Links
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [Next.js 15 Guide](https://nextjs.org/docs)
+- [CrewAI Framework](https://docs.crewai.com/)
+- [Anthropic Claude API](https://docs.anthropic.com/)
 
-Standard output format:
-```json
-{
-  "status": "success|partial|failed",
-  "issues_created": ["GOO-XX", ...],
-  "issues_fixed": ["GOO-YY", ...],
-  "errors": [...],
-  "next_steps": [...]
-}
-```
+## License
 
-## Running the Agents
+MIT License - see [LICENSE](LICENSE) for details.
 
-### Full Review Workflow
-```
-"run full code review and create issues"
-"review and track all changes"
-```
+---
 
-### Create Issues Only
-```
-"create Linear issues from these findings: ..."
-```
-
-### Fix Specific Issue
-```
-"/fix-linear GOO-31"
-"fix the issue in GOO-31"
-```
-
-## Prerequisites
-
-### Required Tools
-- CodeRabbit CLI (`coderabbit`)
-- Linters: `ruff`, `mypy`, `eslint`, `tsc`
-- Git
-
-### Required API Access
-- Anthropic API (Claude models)
-- Linear API (issue management)
-- Serena MCP Server
-
-## Troubleshooting
-
-### Common Issues
-
-**CodeRabbit not found**
-```bash
-# Install CodeRabbit CLI
-pip install coderabbit-cli
-# or
-npm install -g @coderabbit/cli
-```
-
-**Linear API errors**
-- Verify API token is set
-- Check team permissions
-- Ensure labels exist
-
-**Serena memory not found**
-- Initialize with `mcp__plugin_serena_serena__write_memory`
-- Check `.serena/memories/` directory exists
-
-## Package Information
-
-- **Name**: goodflows
-- **Version**: 1.1.5
-- **Author**: [@goodwiins](https://github.com/goodwiins)
-- **License**: MIT
-- **Repository**: https://github.com/goodwiins/goodflows
+**Contact**: For questions about Claude integration or RAG system architecture, please create an issue or refer to the documentation in the `docs/` directory.
