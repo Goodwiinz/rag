@@ -5,15 +5,19 @@ WebSocket service initializer for integrating all WebSocket components
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
-from src.services.websocket.websocket_manager import connection_manager
-from src.services.infrastructure.status_update_service import status_update_service
-from src.services.processing.processing_integration import processing_integration_service
-from .websocket_error_handler import websocket_error_handler
 from src.services.documents.document_realtime_service import document_realtime_service
+from src.services.infrastructure.status_update_service import status_update_service
+from src.services.processing.processing_integration import (
+    processing_integration_service,
+)
+from src.services.websocket.websocket_manager import connection_manager
+
+from .websocket_error_handler import websocket_error_handler
 
 logger = logging.getLogger(__name__)
+
 
 class WebSocketServiceInitializer:
     """Service initializer for WebSocket infrastructure"""
@@ -25,7 +29,7 @@ class WebSocketServiceInitializer:
             "status_update_service": status_update_service,
             "processing_integration": processing_integration_service,
             "error_handler": websocket_error_handler,
-            "document_realtime": document_realtime_service
+            "document_realtime": document_realtime_service,
         }
 
     async def initialize(self):
@@ -66,7 +70,7 @@ class WebSocketServiceInitializer:
         shutdown_tasks = []
 
         for service_name, service in reversed(list(self._services.items())):
-            if hasattr(service, 'shutdown'):
+            if hasattr(service, "shutdown"):
                 shutdown_tasks.append(self._shutdown_service(service_name, service))
 
         # Run shutdowns concurrently with error handling
@@ -87,11 +91,17 @@ class WebSocketServiceInitializer:
         """Set up integrations between services"""
         try:
             # Register error handlers for connection manager if available
-            if hasattr(connection_manager, 'register_error_handler'):
-                connection_manager.register_error_handler("ConnectionError", self._handle_connection_error)
-                connection_manager.register_error_handler("AuthenticationError", self._handle_auth_error)
+            if hasattr(connection_manager, "register_error_handler"):
+                connection_manager.register_error_handler(
+                    "ConnectionError", self._handle_connection_error
+                )
+                connection_manager.register_error_handler(
+                    "AuthenticationError", self._handle_auth_error
+                )
             else:
-                logger.info("Connection manager does not support error handler registration")
+                logger.info(
+                    "Connection manager does not support error handler registration"
+                )
 
             # Connect processing integration to status updates
             # This would be done through event systems or direct calls
@@ -108,7 +118,7 @@ class WebSocketServiceInitializer:
             error=Exception(error_context.get("message", "Connection error")),
             connection_id=error_context.get("connection_id"),
             user_id=error_context.get("user_id"),
-            organization_id=error_context.get("organization_id")
+            organization_id=error_context.get("organization_id"),
         )
 
     async def _handle_auth_error(self, error_context, websocket):
@@ -118,21 +128,18 @@ class WebSocketServiceInitializer:
             error=Exception(error_context.get("message", "Authentication error")),
             connection_id=error_context.get("connection_id"),
             user_id=error_context.get("user_id"),
-            organization_id=error_context.get("organization_id")
+            organization_id=error_context.get("organization_id"),
         )
 
     def get_service_status(self) -> Dict[str, Any]:
         """Get status of all WebSocket services"""
-        status = {
-            "initialized": self._initialized,
-            "services": {}
-        }
+        status = {"initialized": self._initialized, "services": {}}
 
         for name, service in self._services.items():
             try:
-                if hasattr(service, 'get_connection_stats'):
+                if hasattr(service, "get_connection_stats"):
                     status["services"][name] = service.get_connection_stats()
-                elif hasattr(service, 'get_error_statistics'):
+                elif hasattr(service, "get_error_statistics"):
                     status["services"][name] = service.get_error_statistics()
                 else:
                     status["services"][name] = {"status": "running"}
@@ -149,10 +156,10 @@ class WebSocketServiceInitializer:
         # Check each service health
         for name, service in self._services.items():
             try:
-                if hasattr(service, 'redis_client') and service.redis_client:
+                if hasattr(service, "redis_client") and service.redis_client:
                     # Check Redis connection
                     pass  # Would implement health check
-                elif hasattr(service, 'active_connections'):
+                elif hasattr(service, "active_connections"):
                     # Check connection manager
                     pass  # Would implement health check
             except Exception:
@@ -160,6 +167,7 @@ class WebSocketServiceInitializer:
                 return False
 
         return True
+
 
 # Global service initializer instance
 websocket_service_initializer = WebSocketServiceInitializer()

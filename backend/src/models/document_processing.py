@@ -2,18 +2,32 @@
 Enhanced document processing models for multimodal RAG system
 """
 
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Enum, ForeignKey, Text, JSON, CheckConstraint
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
-from sqlalchemy.orm import relationship
-from enum import Enum as PyEnum
-from datetime import datetime
 import uuid
+from datetime import datetime
+from enum import Enum as PyEnum
 
-from .base import BaseModel, GUID
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
+from sqlalchemy.orm import relationship
+
+from .base import GUID, BaseModel
 
 
 class ProcessingStage(PyEnum):
     """Processing stages for documents"""
+
     UPLOADED = "uploaded"
     VALIDATED = "validated"
     EXTRACTED = "extracted"
@@ -25,6 +39,7 @@ class ProcessingStage(PyEnum):
 
 class ContentType(PyEnum):
     """Content types for multimodal processing"""
+
     TEXT = "text"
     IMAGE = "image"
     AUDIO = "audio"
@@ -34,6 +49,7 @@ class ContentType(PyEnum):
 
 class QualityMetricType(PyEnum):
     """Quality metric types"""
+
     TEXT_CLARITY = "text_clarity"
     IMAGE_RESOLUTION = "image_resolution"
     AUDIO_CLARITY = "audio_clarity"
@@ -46,6 +62,7 @@ class ProcessingHistory(BaseModel):
     """
     History tracking for document processing pipeline
     """
+
     __tablename__ = "processing_history"
 
     # Document reference
@@ -53,7 +70,9 @@ class ProcessingHistory(BaseModel):
 
     # Processing stage information
     stage = Column(Enum(ProcessingStage), nullable=False, index=True)
-    status = Column(String(20), nullable=False, default="pending")  # pending, running, completed, failed
+    status = Column(
+        String(20), nullable=False, default="pending"
+    )  # pending, running, completed, failed
 
     # Timing information
     started_at = Column(DateTime(timezone=True), nullable=True)
@@ -87,10 +106,12 @@ class ProcessingHistory(BaseModel):
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('progress_percentage >= 0 AND progress_percentage <= 100',
-                       name='check_progress_range'),
-        CheckConstraint('duration_seconds >= 0', name='check_duration_positive'),
-        CheckConstraint('retry_count >= 0', name='check_retry_non_negative'),
+        CheckConstraint(
+            "progress_percentage >= 0 AND progress_percentage <= 100",
+            name="check_progress_range",
+        ),
+        CheckConstraint("duration_seconds >= 0", name="check_duration_positive"),
+        CheckConstraint("retry_count >= 0", name="check_retry_non_negative"),
     )
 
     def __repr__(self):
@@ -101,6 +122,7 @@ class DocumentVersion(BaseModel):
     """
     Version control for documents
     """
+
     __tablename__ = "document_versions"
 
     # Document reference
@@ -108,7 +130,9 @@ class DocumentVersion(BaseModel):
     version_number = Column(Integer, nullable=False)
 
     # Version information
-    version_label = Column(String(100), nullable=True)  # e.g., "v1.0.0", "draft", "final"
+    version_label = Column(
+        String(100), nullable=True
+    )  # e.g., "v1.0.0", "draft", "final"
     change_description = Column(Text, nullable=True)
     is_major_version = Column(Boolean, default=False, nullable=False)
     is_current_version = Column(Boolean, default=False, nullable=False)
@@ -128,7 +152,9 @@ class DocumentVersion(BaseModel):
 
     # Creation tracking
     created_by_user_id = Column(GUID(), ForeignKey("users.id"), nullable=False)
-    parent_version_id = Column(GUID(), ForeignKey("document_versions.id"), nullable=True)
+    parent_version_id = Column(
+        GUID(), ForeignKey("document_versions.id"), nullable=True
+    )
 
     # Organization
     organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=False)
@@ -136,14 +162,18 @@ class DocumentVersion(BaseModel):
     # Relationships
     document = relationship("Document", back_populates="versions")
     created_by_user = relationship("User")
-    parent_version = relationship("DocumentVersion", remote_side="DocumentVersion.id", back_populates="child_versions")
+    parent_version = relationship(
+        "DocumentVersion",
+        remote_side="DocumentVersion.id",
+        back_populates="child_versions",
+    )
     child_versions = relationship("DocumentVersion", back_populates="parent_version")
     organization = relationship("Organization")
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('version_number > 0', name='check_version_positive'),
-        CheckConstraint('file_size_bytes >= 0', name='check_file_size_positive'),
+        CheckConstraint("version_number > 0", name="check_version_positive"),
+        CheckConstraint("file_size_bytes >= 0", name="check_file_size_positive"),
         # Unique constraint on document_id and version_number
     )
 
@@ -155,15 +185,20 @@ class MultimodalContent(BaseModel):
     """
     Extracted content from different modalities
     """
+
     __tablename__ = "multimodal_content"
 
     # Document reference
     document_id = Column(GUID(), ForeignKey("documents.id"), nullable=False, index=True)
-    document_version_id = Column(GUID(), ForeignKey("document_versions.id"), nullable=True)
+    document_version_id = Column(
+        GUID(), ForeignKey("document_versions.id"), nullable=True
+    )
 
     # Content identification
     content_type = Column(Enum(ContentType), nullable=False, index=True)
-    content_id = Column(String(255), nullable=False, index=True)  # Unique ID within document
+    content_id = Column(
+        String(255), nullable=False, index=True
+    )  # Unique ID within document
     sequence_order = Column(Integer, default=0, nullable=False)
 
     # Content data
@@ -178,7 +213,9 @@ class MultimodalContent(BaseModel):
 
     # Media-specific fields
     media_duration_seconds = Column(Float, nullable=True)  # For audio/video
-    media_dimensions = Column(JSONB, nullable=True)  # For images/video {"width": 1920, "height": 1080}
+    media_dimensions = Column(
+        JSONB, nullable=True
+    )  # For images/video {"width": 1920, "height": 1080}
     media_format = Column(String(50), nullable=True)  # e.g., "jpg", "mp3", "mp4"
 
     # Text-specific fields
@@ -201,12 +238,20 @@ class MultimodalContent(BaseModel):
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('quality_score >= 0 AND quality_score <= 1', name='check_quality_score_range'),
-        CheckConstraint('extraction_confidence >= 0 AND extraction_confidence <= 1', name='check_extraction_confidence_range'),
-        CheckConstraint('sequence_order >= 0', name='check_sequence_order_positive'),
-        CheckConstraint('word_count >= 0', name='check_word_count_positive'),
-        CheckConstraint('character_count >= 0', name='check_character_count_positive'),
-        CheckConstraint('media_duration_seconds >= 0', name='check_media_duration_positive'),
+        CheckConstraint(
+            "quality_score >= 0 AND quality_score <= 1",
+            name="check_quality_score_range",
+        ),
+        CheckConstraint(
+            "extraction_confidence >= 0 AND extraction_confidence <= 1",
+            name="check_extraction_confidence_range",
+        ),
+        CheckConstraint("sequence_order >= 0", name="check_sequence_order_positive"),
+        CheckConstraint("word_count >= 0", name="check_word_count_positive"),
+        CheckConstraint("character_count >= 0", name="check_character_count_positive"),
+        CheckConstraint(
+            "media_duration_seconds >= 0", name="check_media_duration_positive"
+        ),
     )
 
     def __repr__(self):
@@ -217,20 +262,29 @@ class DocumentQualityMetrics(BaseModel):
     """
     Quality metrics for documents and content
     """
+
     __tablename__ = "document_quality_metrics"
 
     # Document reference
     document_id = Column(GUID(), ForeignKey("documents.id"), nullable=False, index=True)
-    content_id = Column(String(255), nullable=True, index=True)  # Reference to specific content
+    content_id = Column(
+        String(255), nullable=True, index=True
+    )  # Reference to specific content
 
     # Metric information
     metric_type = Column(Enum(QualityMetricType), nullable=False, index=True)
     metric_value = Column(Float, nullable=False)
-    metric_unit = Column(String(50), nullable=True)  # e.g., "score", "percentage", "pixels"
+    metric_unit = Column(
+        String(50), nullable=True
+    )  # e.g., "score", "percentage", "pixels"
 
     # Assessment information
-    assessment_method = Column(String(100), nullable=True)  # e.g., "automated", "manual", "hybrid"
-    assessment_version = Column(String(50), nullable=True)  # Version of assessment algorithm
+    assessment_method = Column(
+        String(100), nullable=True
+    )  # e.g., "automated", "manual", "hybrid"
+    assessment_version = Column(
+        String(50), nullable=True
+    )  # Version of assessment algorithm
     confidence_score = Column(Float, nullable=True)  # Confidence in metric assessment
 
     # Thresholds and status
@@ -245,7 +299,9 @@ class DocumentQualityMetrics(BaseModel):
 
     # Assessment metadata
     assessed_by_user_id = Column(GUID(), ForeignKey("users.id"), nullable=True)
-    assessment_config = Column(JSONB, nullable=True)  # Configuration used for assessment
+    assessment_config = Column(
+        JSONB, nullable=True
+    )  # Configuration used for assessment
 
     # Organization
     organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=False)
@@ -257,8 +313,11 @@ class DocumentQualityMetrics(BaseModel):
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('metric_value >= 0', name='check_metric_value_positive'),
-        CheckConstraint('confidence_score >= 0 AND confidence_score <= 1', name='check_confidence_score_range'),
+        CheckConstraint("metric_value >= 0", name="check_metric_value_positive"),
+        CheckConstraint(
+            "confidence_score >= 0 AND confidence_score <= 1",
+            name="check_confidence_score_range",
+        ),
     )
 
     def __repr__(self):
@@ -269,15 +328,22 @@ class DocumentAccessLog(BaseModel):
     """
     Access logging for documents for security audit
     """
+
     __tablename__ = "document_access_log"
 
     # Document reference
     document_id = Column(GUID(), ForeignKey("documents.id"), nullable=False, index=True)
-    document_version_id = Column(GUID(), ForeignKey("document_versions.id"), nullable=True)
+    document_version_id = Column(
+        GUID(), ForeignKey("document_versions.id"), nullable=True
+    )
 
     # Access information
-    access_type = Column(String(50), nullable=False, index=True)  # view, download, edit, delete, share
-    access_result = Column(String(20), nullable=False, default="success")  # success, denied, failed
+    access_type = Column(
+        String(50), nullable=False, index=True
+    )  # view, download, edit, delete, share
+    access_result = Column(
+        String(20), nullable=False, default="success"
+    )  # success, denied, failed
 
     # User information
     user_id = Column(GUID(), ForeignKey("users.id"), nullable=True)
@@ -319,9 +385,13 @@ class DocumentAccessLog(BaseModel):
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('response_size_bytes >= 0', name='check_response_size_positive'),
-        CheckConstraint('response_time_ms >= 0', name='check_response_time_positive'),
-        CheckConstraint('threat_score >= 0 AND threat_score <= 1', name='check_threat_score_range'),
+        CheckConstraint(
+            "response_size_bytes >= 0", name="check_response_size_positive"
+        ),
+        CheckConstraint("response_time_ms >= 0", name="check_response_time_positive"),
+        CheckConstraint(
+            "threat_score >= 0 AND threat_score <= 1", name="check_threat_score_range"
+        ),
     )
 
     def __repr__(self):

@@ -4,9 +4,9 @@ Uses LLM to generate concise, meaningful titles for chat threads
 based on the initial conversation content.
 """
 
+import asyncio
 import logging
 from typing import Optional
-import asyncio
 
 from src.core.config import settings
 
@@ -28,7 +28,9 @@ User message:
 Respond with ONLY the title, nothing else."""
 
 
-async def generate_ai_title(message_content: str, timeout: float = 5.0) -> Optional[str]:
+async def generate_ai_title(
+    message_content: str, timeout: float = 5.0
+) -> Optional[str]:
     """
     Generate an AI-powered title for a thread based on message content.
 
@@ -78,13 +80,13 @@ async def _generate_with_openai(content: str, timeout: float) -> Optional[str]:
                 messages=[
                     {
                         "role": "user",
-                        "content": TITLE_GENERATION_PROMPT.format(message=content)
+                        "content": TITLE_GENERATION_PROMPT.format(message=content),
                     }
                 ],
                 max_tokens=50,
                 temperature=0.3,
             ),
-            timeout=timeout
+            timeout=timeout,
         )
 
         if not response.choices or not response.choices[0].message.content:
@@ -92,7 +94,7 @@ async def _generate_with_openai(content: str, timeout: float) -> Optional[str]:
             return None
         title = response.choices[0].message.content.strip()
         # Clean up the title
-        title = title.strip('"\'')
+        title = title.strip("\"'")
         # Ensure max length
         if len(title) > 50:
             title = title[:47] + "..."
@@ -117,11 +119,11 @@ async def _generate_with_anthropic(content: str, timeout: float) -> Optional[str
                 messages=[
                     {
                         "role": "user",
-                        "content": TITLE_GENERATION_PROMPT.format(message=content)
+                        "content": TITLE_GENERATION_PROMPT.format(message=content),
                     }
                 ],
             ),
-            timeout=timeout
+            timeout=timeout,
         )
 
         if not response.content or not response.content[0].text:
@@ -129,7 +131,7 @@ async def _generate_with_anthropic(content: str, timeout: float) -> Optional[str
             return None
         title = response.content[0].text.strip()
         # Clean up the title
-        title = title.strip('"\'')
+        title = title.strip("\"'")
         # Ensure max length
         if len(title) > 50:
             title = title[:47] + "..."
@@ -155,16 +157,21 @@ def _generate_smart_fallback(content: str) -> str:
     text = content.strip()
 
     # Remove common greeting patterns
-    text = re.sub(r'^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))[,!.\s]*', '', text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))[,!.\s]*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
     text = text.strip()
 
     # If it's a question, try to extract the core question
     question_patterns = [
-        (r'^(can you|could you|would you|will you)\s+(.+?)(\?|$)', r'\2'),
-        (r'^(how (do|can|should) I|how to)\s+(.+?)(\?|$)', r'How to \3'),
-        (r'^(what is|what are|what\'s)\s+(.+?)(\?|$)', r'\2'),
-        (r'^(why (is|are|does|do))\s+(.+?)(\?|$)', r'Why \3'),
-        (r'^(explain|describe|tell me about)\s+(.+?)(\?|$)', r'\2'),
+        (r"^(can you|could you|would you|will you)\s+(.+?)(\?|$)", r"\2"),
+        (r"^(how (do|can|should) I|how to)\s+(.+?)(\?|$)", r"How to \3"),
+        (r"^(what is|what are|what\'s)\s+(.+?)(\?|$)", r"\2"),
+        (r"^(why (is|are|does|do))\s+(.+?)(\?|$)", r"Why \3"),
+        (r"^(explain|describe|tell me about)\s+(.+?)(\?|$)", r"\2"),
     ]
 
     for pattern, replacement in question_patterns:
@@ -174,7 +181,7 @@ def _generate_smart_fallback(content: str) -> str:
             break
 
     # Remove trailing punctuation except for meaningful ones
-    text = text.rstrip('?.!,;:')
+    text = text.rstrip("?.!,;:")
 
     # Title case
     text = text.strip().title()
@@ -183,7 +190,7 @@ def _generate_smart_fallback(content: str) -> str:
     if len(text) > 50:
         # Try to cut at word boundary
         truncated = text[:47]
-        last_space = truncated.rfind(' ')
+        last_space = truncated.rfind(" ")
         if last_space > 30:
             truncated = truncated[:last_space]
         text = truncated + "..."

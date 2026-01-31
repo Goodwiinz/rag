@@ -4,42 +4,63 @@ Handles hybrid search orchestration combining vector, graph, and keyword search 
 """
 
 import asyncio
-import uuid
-import time
-from datetime import datetime, timezone
-from typing import List, Optional, Dict, Any, Tuple
 import json
+import time
+import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import FastAPI, HTTPException, status, Depends, BackgroundTasks, Query
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func, desc, text
-import redis.asyncio as redis
-from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchValue, Vector
-from neo4j import GraphDatabase
 import httpx
+import redis.asyncio as redis
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, status
+from fastapi.middleware.cors import CORSMiddleware
+from neo4j import GraphDatabase
+from qdrant_client import QdrantClient
+from qdrant_client.models import FieldCondition, Filter, MatchValue, Vector
+from sqlalchemy import and_, desc, func, or_, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.shared.schemas import (
-    BaseResponse, ErrorResponse, SearchRequest, SearchResponse, SearchResult,
-    SearchFilters, SearchSuggestion, QueryClassification, MatchedContent,
-    SearchType, QueryIntent, HealthCheckResponse
-)
+from src.core.config import settings
+from src.core.database import get_db
+from src.models.document import Document
+from src.models.document import DocumentType as DocType
+from src.models.document import ProcessingStatus as ProcStatus
+from src.models.search_schemas import SearchQuery
+from src.models.search_schemas import SearchResult as SearchResultModel
 from src.shared.exceptions import (
-    BaseCustomException, ValidationError, SearchError, VectorStoreError,
-    KnowledgeGraphError, handle_exceptions
+    BaseCustomException,
+    KnowledgeGraphError,
+    SearchError,
+    ValidationError,
+    VectorStoreError,
+    handle_exceptions,
+)
+from src.shared.schemas import (
+    BaseResponse,
+    ErrorResponse,
+    HealthCheckResponse,
+    MatchedContent,
+    QueryClassification,
+    QueryIntent,
+    SearchFilters,
+    SearchRequest,
+    SearchResponse,
+    SearchResult,
+    SearchSuggestion,
+    SearchType,
 )
 from src.shared.utils import (
-    CorrelationIdMiddleware, EventLogger, HealthChecker, MetricsCollector,
-    retry_async, circuit_breaker, AsyncCache
+    AsyncCache,
+    CorrelationIdMiddleware,
+    EventLogger,
+    HealthChecker,
+    MetricsCollector,
+    circuit_breaker,
+    retry_async,
 )
-from src.core.database import get_db
-from src.core.config import settings
-from src.models.document import Document, DocumentType as DocType, ProcessingStatus as ProcStatus
-from src.models.search_schemas import SearchQuery, SearchResult as SearchResultModel
-from .cohere_rerank_service import cohere_rerank_service
 
+from .cohere_rerank_service import cohere_rerank_service
 
 # Configuration
 SEARCH_SERVICE_CONFIG = {
@@ -83,14 +104,14 @@ cache = AsyncCache(settings.REDIS_URL, SEARCH_SERVICE_CONFIG["cache_ttl_seconds"
 # Initialize external service clients
 qdrant_client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
 neo4j_driver = GraphDatabase.driver(
-    settings.NEO4J_URI,
-    auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD)
+    settings.NEO4J_URI, auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD)
 )
 
 
 @dataclass
 class SearchComponentResult:
     """Result from a single search component"""
+
     results: List[SearchResult]
     component_name: str
     search_time_ms: float
@@ -101,8 +122,12 @@ class HybridSearchEngine:
     """Hybrid search engine combining multiple search strategies"""
 
     def __init__(self):
-        self.embedding_service_url = "http://localhost:8006"  # Analytics service for embeddings
-        self.reranker_service_url = "http://localhost:8004"    # Evaluation service for reranking
+        self.embedding_service_url = (
+            "http://localhost:8006"  # Analytics service for embeddings
+        )
+        self.reranker_service_url = (
+            "http://localhost:8004"  # Evaluation service for reranking
+        )
 
     async def classify_query(self, query: str) -> QueryClassification:
         """Classify query intent and extract entities"""
@@ -129,24 +154,22 @@ class HybridSearchEngine:
             entities = []
             for i, word in enumerate(words):
                 if len(word) > 3 and word.isalpha():  # Simple entity extraction
-                    entities.append({
-                        "text": word,
-                        "type": "unknown",
-                        "confidence": 0.5
-                    })
+                    entities.append(
+                        {"text": word, "type": "unknown", "confidence": 0.5}
+                    )
 
             return QueryClassification(
                 intent=intent,
                 confidence=0.7,  # Simplified confidence
-                entities=entities[:5]  # Limit entities
+                entities=entities[:5],  # Limit entities
             )
 
         except Exception as e:
-            await event_logger.log_error(e, {"query": query, "operation": "classify_query"})
+            await event_logger.log_error(
+                e, {"query": query, "operation": "classify_query"}
+            )
             return QueryClassification(
-                intent=QueryIntent.LOOKUP,
-                confidence=0.5,
-                entities=[]
+                intent=QueryIntent.LOOKUP, confidence=0.5, entities=[]
             )
 
     @retry_async(max_attempts=3)
@@ -155,14 +178,15 @@ class HybridSearchEngine:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
-                    f"{self.embedding_service_url}/embeddings",
-                    json={"text": query}
+                    f"{self.embedding_service_url}/embeddings", json={"text": query}
                 )
                 response.raise_for_status()
                 data = response.json()
                 return data["embedding"]
         except Exception as e:
-            await event_logger.log_error(e, {"query": query, "operation": "get_query_embedding"})
+            await event_logger.log_error(
+                e, {"query": query, "operation": "get_query_embedding"}
+            )
             raise VectorStoreError("Failed to generate query embedding")
 
     @circuit_breaker(failure_threshold=5, recovery_timeout=30.0)
@@ -171,7 +195,7 @@ class HybridSearchEngine:
         query_embedding: List[float],
         filters: Optional[SearchFilters] = None,
         limit: int = 20,
-        organization_id: Optional[uuid.UUID] = None
+        organization_id: Optional[uuid.UUID] = None,
     ) -> SearchComponentResult:
         """Perform vector similarity search"""
         start_time = time.time()
@@ -186,7 +210,7 @@ class HybridSearchEngine:
                     filter_conditions.append(
                         FieldCondition(
                             key="organization_id",
-                            match=MatchValue(value=str(organization_id))
+                            match=MatchValue(value=str(organization_id)),
                         )
                     )
 
@@ -194,7 +218,7 @@ class HybridSearchEngine:
                     filter_conditions.append(
                         FieldCondition(
                             key="document_type",
-                            match=MatchValue(value=filters.document_types[0].value)
+                            match=MatchValue(value=filters.document_types[0].value),
                         )
                     )
 
@@ -208,29 +232,33 @@ class HybridSearchEngine:
                 query_filter=qdrant_filter,
                 limit=limit,
                 with_payload=True,
-                with_vectors=False
+                with_vectors=False,
             )
 
             # Convert to search results
             results = []
             for hit in search_result:
                 payload = hit.payload
-                results.append(SearchResult(
-                    document_id=uuid.UUID(payload["document_id"]),
-                    title=payload.get("title", ""),
-                    content_snippet=payload.get("content_snippet", ""),
-                    relevance_score=hit.score,
-                    document_type=DocumentType(payload.get("document_type", "text")),
-                    matched_content=[
-                        MatchedContent(
-                            content=payload.get("content_snippet", ""),
-                            content_type="text",
-                            relevance_score=hit.score,
-                            source_reference=payload.get("document_id")
-                        )
-                    ],
-                    metadata=payload.get("metadata", {})
-                ))
+                results.append(
+                    SearchResult(
+                        document_id=uuid.UUID(payload["document_id"]),
+                        title=payload.get("title", ""),
+                        content_snippet=payload.get("content_snippet", ""),
+                        relevance_score=hit.score,
+                        document_type=DocumentType(
+                            payload.get("document_type", "text")
+                        ),
+                        matched_content=[
+                            MatchedContent(
+                                content=payload.get("content_snippet", ""),
+                                content_type="text",
+                                relevance_score=hit.score,
+                                source_reference=payload.get("document_id"),
+                            )
+                        ],
+                        metadata=payload.get("metadata", {}),
+                    )
+                )
 
             search_time = (time.time() - start_time) * 1000
 
@@ -238,7 +266,7 @@ class HybridSearchEngine:
                 results=results,
                 component_name="vector_search",
                 search_time_ms=search_time,
-                total_results=len(results)
+                total_results=len(results),
             )
 
         except Exception as e:
@@ -252,7 +280,7 @@ class HybridSearchEngine:
         filters: Optional[SearchFilters] = None,
         limit: int = 20,
         organization_id: Optional[uuid.UUID] = None,
-        db: AsyncSession = None
+        db: AsyncSession = None,
     ) -> SearchComponentResult:
         """Perform keyword search using database full-text search"""
         start_time = time.time()
@@ -263,7 +291,7 @@ class HybridSearchEngine:
                 and_(
                     Document.is_deleted == False,
                     Document.processing_status == ProcStatus.COMPLETED,
-                    Document.content_text.isnot(None)
+                    Document.content_text.isnot(None),
                 )
             )
 
@@ -276,7 +304,9 @@ class HybridSearchEngine:
             search_conditions = []
             for term in search_terms:
                 search_condition = Document.title.ilike(f"%{term}%")
-                search_condition = or_(search_condition, Document.content_text.ilike(f"%{term}%"))
+                search_condition = or_(
+                    search_condition, Document.content_text.ilike(f"%{term}%")
+                )
                 search_conditions.append(search_condition)
 
             if search_conditions:
@@ -285,13 +315,14 @@ class HybridSearchEngine:
             # Add additional filters
             if filters and filters.document_types:
                 db_query = db_query.where(
-                    Document.document_type.in_([DocType(dt.value) for dt in filters.document_types])
+                    Document.document_type.in_(
+                        [DocType(dt.value) for dt in filters.document_types]
+                    )
                 )
 
             # Order by relevance (simplified - would use proper ranking in production)
             db_query = db_query.order_by(
-                desc(func.similarity(Document.title, query)),
-                desc(Document.created_at)
+                desc(func.similarity(Document.title, query)), desc(Document.created_at)
             ).limit(limit)
 
             # Execute query
@@ -309,22 +340,24 @@ class HybridSearchEngine:
                     if doc.content_text and term.lower() in doc.content_text.lower():
                         relevance_score += 0.1
 
-                results.append(SearchResult(
-                    document_id=doc.id,
-                    title=doc.title,
-                    content_snippet=doc.get_content_preview(200),
-                    relevance_score=min(relevance_score, 1.0),
-                    document_type=DocumentType(doc.document_type.value),
-                    matched_content=[
-                        MatchedContent(
-                            content=doc.get_content_preview(150),
-                            content_type="text",
-                            relevance_score=relevance_score,
-                            source_reference=str(doc.id)
-                        )
-                    ],
-                    metadata=doc.get_metadata()
-                ))
+                results.append(
+                    SearchResult(
+                        document_id=doc.id,
+                        title=doc.title,
+                        content_snippet=doc.get_content_preview(200),
+                        relevance_score=min(relevance_score, 1.0),
+                        document_type=DocumentType(doc.document_type.value),
+                        matched_content=[
+                            MatchedContent(
+                                content=doc.get_content_preview(150),
+                                content_type="text",
+                                relevance_score=relevance_score,
+                                source_reference=str(doc.id),
+                            )
+                        ],
+                        metadata=doc.get_metadata(),
+                    )
+                )
 
             search_time = (time.time() - start_time) * 1000
 
@@ -332,7 +365,7 @@ class HybridSearchEngine:
                 results=results,
                 component_name="keyword_search",
                 search_time_ms=search_time,
-                total_results=len(results)
+                total_results=len(results),
             )
 
         except Exception as e:
@@ -345,7 +378,7 @@ class HybridSearchEngine:
         query: str,
         filters: Optional[SearchFilters] = None,
         limit: int = 20,
-        organization_id: Optional[uuid.UUID] = None
+        organization_id: Optional[uuid.UUID] = None,
     ) -> SearchComponentResult:
         """Perform knowledge graph search"""
         start_time = time.time()
@@ -380,7 +413,7 @@ class HybridSearchEngine:
                 result = session.run(
                     cypher_query,
                     org_id=str(organization_id) if organization_id else "",
-                    limit=limit
+                    limit=limit,
                 )
 
                 # Convert to search results
@@ -392,25 +425,31 @@ class HybridSearchEngine:
                     # Calculate relevance based on entity connections
                     entity_score = min(len(entities) / 10.0, 1.0)
 
-                    search_results.append(SearchResult(
-                        document_id=uuid.UUID(doc_node["id"]),
-                        title=doc_node.get("title", ""),
-                        content_snippet=doc_node.get("content_preview", ""),
-                        relevance_score=entity_score,
-                        document_type=DocumentType(doc_node.get("document_type", "text")),
-                        matched_content=[
-                            MatchedContent(
-                                content=doc_node.get("content_preview", ""),
-                                content_type="text",
-                                relevance_score=entity_score,
-                                source_reference=doc_node["id"]
-                            )
-                        ],
-                        metadata={
-                            "entity_count": len(entities),
-                            "entities": [entity.get("name", "") for entity in entities[:5]]
-                        }
-                    ))
+                    search_results.append(
+                        SearchResult(
+                            document_id=uuid.UUID(doc_node["id"]),
+                            title=doc_node.get("title", ""),
+                            content_snippet=doc_node.get("content_preview", ""),
+                            relevance_score=entity_score,
+                            document_type=DocumentType(
+                                doc_node.get("document_type", "text")
+                            ),
+                            matched_content=[
+                                MatchedContent(
+                                    content=doc_node.get("content_preview", ""),
+                                    content_type="text",
+                                    relevance_score=entity_score,
+                                    source_reference=doc_node["id"],
+                                )
+                            ],
+                            metadata={
+                                "entity_count": len(entities),
+                                "entities": [
+                                    entity.get("name", "") for entity in entities[:5]
+                                ],
+                            },
+                        )
+                    )
 
                 search_time = (time.time() - start_time) * 1000
 
@@ -418,7 +457,7 @@ class HybridSearchEngine:
                     results=search_results,
                     component_name="graph_search",
                     search_time_ms=search_time,
-                    total_results=len(search_results)
+                    total_results=len(search_results),
                 )
 
         except Exception as e:
@@ -426,10 +465,7 @@ class HybridSearchEngine:
             raise KnowledgeGraphError("Graph search failed")
 
     async def rerank_results(
-        self,
-        query: str,
-        results: List[SearchResult],
-        limit: int = 10
+        self, query: str, results: List[SearchResult], limit: int = 10
     ) -> List[SearchResult]:
         """Rerank search results using Cohere reranking API for improved precision"""
         if not results:
@@ -440,23 +476,23 @@ class HybridSearchEngine:
             if cohere_rerank_service.is_enabled:
                 await event_logger.log_event(
                     event_type="rerank_start",
-                    event_data={"query": query, "num_docs": len(results)}
+                    event_data={"query": query, "num_docs": len(results)},
                 )
-                
+
                 reranked = await cohere_rerank_service.rerank_search_results(
                     query=query,
                     results=results,
                     top_n=limit,
-                    content_field='content_snippet'
+                    content_field="content_snippet",
                 )
-                
+
                 await event_logger.log_event(
                     event_type="rerank_complete",
-                    event_data={"query": query, "num_results": len(reranked)}
+                    event_data={"query": query, "num_results": len(reranked)},
                 )
-                
+
                 return reranked
-            
+
             # Fallback: simple heuristic-based reranking
             for result in results:
                 base_score = result.relevance_score
@@ -465,27 +501,31 @@ class HybridSearchEngine:
                 type_boost = {
                     DocumentType.PDF: 0.1,
                     DocumentType.TEXT: 0.05,
-                    DocumentType.SPREADSHEET: 0.03
+                    DocumentType.SPREADSHEET: 0.03,
                 }.get(result.document_type, 0.0)
 
                 # Boost based on content length
                 content_length = len(result.content_snippet)
                 length_boost = min(content_length / 1000.0, 0.1)
 
-                result.relevance_score = min(base_score + type_boost + length_boost, 1.0)
+                result.relevance_score = min(
+                    base_score + type_boost + length_boost, 1.0
+                )
 
             results.sort(key=lambda x: x.relevance_score, reverse=True)
             return results[:limit]
 
         except Exception as e:
-            await event_logger.log_error(e, {"operation": "rerank_results", "error": str(e)})
+            await event_logger.log_error(
+                e, {"operation": "rerank_results", "error": str(e)}
+            )
             return results[:limit]
 
     async def hybrid_search(
         self,
         request: SearchRequest,
         organization_id: Optional[uuid.UUID] = None,
-        db: AsyncSession = None
+        db: AsyncSession = None,
     ) -> SearchResponse:
         """Perform hybrid search combining multiple strategies"""
         search_id = uuid.uuid4()
@@ -510,7 +550,7 @@ class HybridSearchEngine:
                         query_embedding=query_embedding,
                         filters=request.filters,
                         limit=request.limit * 2,  # Get more for reranking
-                        organization_id=organization_id
+                        organization_id=organization_id,
                     )
                     all_results.extend(vector_result.results)
                     component_results["vector_search"] = vector_result
@@ -527,7 +567,7 @@ class HybridSearchEngine:
                         filters=request.filters,
                         limit=request.limit * 2,
                         organization_id=organization_id,
-                        db=db
+                        db=db,
                     )
                     all_results.extend(keyword_result.results)
                     component_results["keyword_search"] = keyword_result
@@ -542,7 +582,7 @@ class HybridSearchEngine:
                         query=request.query,
                         filters=request.filters,
                         limit=request.limit * 2,
-                        organization_id=organization_id
+                        organization_id=organization_id,
                     )
                     all_results.extend(graph_result.results)
                     component_results["graph_search"] = graph_result
@@ -560,9 +600,7 @@ class HybridSearchEngine:
 
             # Rerank results
             final_results = await self.rerank_results(
-                query=request.query,
-                results=unique_results,
-                limit=request.limit
+                query=request.query, results=unique_results, limit=request.limit
             )
 
             # Calculate total search time
@@ -585,8 +623,8 @@ class HybridSearchEngine:
                     "search_type": request.search_type.value,
                     "total_results": len(final_results),
                     "search_time_ms": total_time,
-                    "components": list(component_results.keys())
-                }
+                    "components": list(component_results.keys()),
+                },
             )
 
             # Record metrics
@@ -594,13 +632,13 @@ class HybridSearchEngine:
                 "searches_performed",
                 labels={
                     "search_type": request.search_type.value,
-                    "intent": classification.intent.value
-                }
+                    "intent": classification.intent.value,
+                },
             )
             metrics.record_histogram(
                 "search_duration_ms",
                 total_time,
-                labels={"search_type": request.search_type.value}
+                labels={"search_type": request.search_type.value},
             )
 
             return SearchResponse(
@@ -610,11 +648,13 @@ class HybridSearchEngine:
                 search_time_ms=total_time,
                 results=final_results,
                 facets=facets,
-                query_classification=classification
+                query_classification=classification,
             )
 
         except Exception as e:
-            await event_logger.log_error(e, {"search_id": str(search_id), "query": request.query})
+            await event_logger.log_error(
+                e, {"search_id": str(search_id), "query": request.query}
+            )
             raise SearchError(f"Search failed: {str(e)}")
 
 
@@ -627,13 +667,13 @@ async def startup_event():
     """Initialize service on startup"""
     await event_logger.log_event(
         event_type="service_startup",
-        event_data={"version": SEARCH_SERVICE_CONFIG["version"]}
+        event_data={"version": SEARCH_SERVICE_CONFIG["version"]},
     )
 
     # Add health checks
     health_checker.add_check("qdrant", lambda: True)  # Would check actual connection
-    health_checker.add_check("neo4j", lambda: True)    # Would check actual connection
-    health_checker.add_check("redis", lambda: True)    # Would check actual connection
+    health_checker.add_check("neo4j", lambda: True)  # Would check actual connection
+    health_checker.add_check("redis", lambda: True)  # Would check actual connection
 
 
 @app.post("/search", response_model=SearchResponse)
@@ -643,7 +683,7 @@ async def search(
     background_tasks: BackgroundTasks,
     organization_id: uuid.UUID = Query(...),
     user_id: Optional[uuid.UUID] = Query(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Perform hybrid search"""
     # Validate request
@@ -651,15 +691,17 @@ async def search(
         raise ValidationError("Search query cannot be empty")
 
     if request.limit < 1 or request.limit > SEARCH_SERVICE_CONFIG["max_search_limit"]:
-        raise ValidationError(f"Search limit must be between 1 and {SEARCH_SERVICE_CONFIG['max_search_limit']}")
+        raise ValidationError(
+            f"Search limit must be between 1 and {SEARCH_SERVICE_CONFIG['max_search_limit']}"
+        )
 
     # Check cache for identical searches
     cache_data = {
-        'query': request.query,
-        'search_type': request.search_type.value,
-        'filters': request.filters.dict() if request.filters else None,
-        'limit': request.limit,
-        'organization_id': str(organization_id)
+        "query": request.query,
+        "search_type": request.search_type.value,
+        "filters": request.filters.dict() if request.filters else None,
+        "limit": request.limit,
+        "organization_id": str(organization_id),
     }
     cache_key = f"search:{hash(json.dumps(cache_data, sort_keys=True))}"
 
@@ -669,15 +711,13 @@ async def search(
         cached_result["search_id"] = uuid.uuid4()
         await event_logger.log_event(
             event_type="search_cache_hit",
-            event_data={"query": request.query, "cache_key": cache_key}
+            event_data={"query": request.query, "cache_key": cache_key},
         )
         return SearchResponse(**cached_result)
 
     # Perform search
     search_result = await search_engine.hybrid_search(
-        request=request,
-        organization_id=organization_id,
-        db=db
+        request=request, organization_id=organization_id, db=db
     )
 
     # Cache the result
@@ -691,7 +731,7 @@ async def search(
         organization_id,
         user_id,
         search_result.total_results,
-        search_result.search_time_ms
+        search_result.search_time_ms,
     )
 
     return search_result
@@ -703,7 +743,7 @@ async def store_search_analytics(
     organization_id: uuid.UUID,
     user_id: Optional[uuid.UUID],
     result_count: int,
-    search_time_ms: float
+    search_time_ms: float,
 ):
     """Store search analytics in background"""
     try:
@@ -714,10 +754,10 @@ async def store_search_analytics(
                 "search_id": search_id,
                 "query": query,
                 "result_count": result_count,
-                "search_time_ms": search_time_ms
+                "search_time_ms": search_time_ms,
             },
             user_id=str(user_id) if user_id else None,
-            organization_id=str(organization_id)
+            organization_id=str(organization_id),
         )
     except Exception as e:
         await event_logger.log_error(e, {"search_id": search_id})
@@ -729,7 +769,7 @@ async def get_search_suggestions(
     q: str = Query(..., min_length=1),
     limit: int = Query(5, ge=1, le=20),
     organization_id: uuid.UUID = Query(...),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get search suggestions"""
     try:
@@ -753,7 +793,7 @@ async def get_search_suggestions(
                     Document.organization_id == organization_id,
                     Document.is_deleted == False,
                     Document.processing_status == ProcStatus.COMPLETED,
-                    Document.title.ilike(f"%{query_lower}%")
+                    Document.title.ilike(f"%{query_lower}%"),
                 )
             )
             .limit(limit)
@@ -764,26 +804,22 @@ async def get_search_suggestions(
         # Generate suggestions
         for title in titles:
             if title.lower().startswith(query_lower):
-                suggestions.append(SearchSuggestion(
-                    text=title,
-                    type="autocomplete",
-                    score=0.9
-                ))
+                suggestions.append(
+                    SearchSuggestion(text=title, type="autocomplete", score=0.9)
+                )
             elif query_lower in title.lower():
-                suggestions.append(SearchSuggestion(
-                    text=title,
-                    type="completion",
-                    score=0.7
-                ))
+                suggestions.append(
+                    SearchSuggestion(text=title, type="completion", score=0.7)
+                )
 
         # Add spelling correction suggestions (simplified)
         if not suggestions and len(q) > 3:
             # Would use proper spell checking in production
-            suggestions.append(SearchSuggestion(
-                text=q,  # Return original as fallback
-                type="correction",
-                score=0.5
-            ))
+            suggestions.append(
+                SearchSuggestion(
+                    text=q, type="correction", score=0.5  # Return original as fallback
+                )
+            )
 
         # Cache suggestions
         await cache.set(cache_key, [s.dict() for s in suggestions])
@@ -801,7 +837,7 @@ async def get_search_history(
     limit: int = Query(20, ge=1, le=100),
     organization_id: uuid.UUID = Query(...),
     user_id: Optional[uuid.UUID] = Query(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get search history for user or organization"""
     try:
@@ -826,7 +862,7 @@ async def get_search_history(
                     "search_type": search.search_type,
                     "result_count": search.result_count,
                     "search_time_ms": search.search_time_ms,
-                    "created_at": search.created_at
+                    "created_at": search.created_at,
                 }
                 for search in search_queries
             ]
@@ -843,7 +879,7 @@ async def get_popular_searches(
     limit: int = Query(10, ge=1, le=50),
     organization_id: uuid.UUID = Query(...),
     days: int = Query(7, ge=1, le=30),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get popular searches in organization"""
     try:
@@ -852,7 +888,7 @@ async def get_popular_searches(
         return {
             "popular_searches": [],
             "time_period_days": days,
-            "organization_id": str(organization_id)
+            "organization_id": str(organization_id),
         }
 
     except Exception as e:
@@ -871,7 +907,7 @@ async def health_check():
         environment=settings.ENVIRONMENT,
         timestamp=datetime.now(timezone.utc),
         services=health_data["checks"],
-        uptime_seconds=0  # Would track actual uptime
+        uptime_seconds=0,  # Would track actual uptime
     )
 
 
@@ -886,10 +922,7 @@ async def shutdown_event():
     """Cleanup on shutdown"""
     await cache.close()
     neo4j_driver.close()
-    await event_logger.log_event(
-        event_type="service_shutdown",
-        event_data={}
-    )
+    await event_logger.log_event(event_type="service_shutdown", event_data={})
 
 
 if __name__ == "__main__":
@@ -899,5 +932,5 @@ if __name__ == "__main__":
         "src.services.search_service:app",
         host=SEARCH_SERVICE_CONFIG["host"],
         port=SEARCH_SERVICE_CONFIG["port"],
-        log_level=settings.LOG_LEVEL.lower()
+        log_level=settings.LOG_LEVEL.lower(),
     )

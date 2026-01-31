@@ -5,24 +5,35 @@ Metrics Aggregation Service for analytics metrics
 import asyncio
 import logging
 import time
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Union, Tuple
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import redis.asyncio as redis
+from sqlalchemy import and_, delete, desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, and_, or_, func, desc
 from sqlalchemy.orm import selectinload
 
 from src.core.config import settings
 from src.core.database import get_async_session
 from src.models.analytics.analytics_models import (
-    AnalyticsMetric, AnalyticsKPI, MetricAggregation, AnalyticsEvent,
-    MetricCreate, MetricUpdate, MetricResponse, KPICreate, KPIResponse,
-    MetricQuery, MetricQueryResult, TimeSeriesData,
-    MetricType, AggregationType, EventType
+    AggregationType,
+    AnalyticsEvent,
+    AnalyticsKPI,
+    AnalyticsMetric,
+    EventType,
+    KPICreate,
+    KPIResponse,
+    MetricAggregation,
+    MetricCreate,
+    MetricQuery,
+    MetricQueryResult,
+    MetricResponse,
+    MetricType,
+    MetricUpdate,
+    TimeSeriesData,
 )
 from src.models.base import GUID
 
@@ -31,6 +42,7 @@ logger = logging.getLogger(__name__)
 
 class MetricResolution(Enum):
     """Time resolution for metrics"""
+
     MINUTE = "1m"
     FIVE_MINUTES = "5m"
     FIFTEEN_MINUTES = "15m"
@@ -44,6 +56,7 @@ class MetricResolution(Enum):
 @dataclass
 class MetricValue:
     """Single metric value with metadata"""
+
     value: float
     timestamp: datetime
     count: int = 1
@@ -54,6 +67,7 @@ class MetricValue:
 @dataclass
 class AggregatedMetric:
     """Aggregated metric result"""
+
     metric_id: str
     metric_name: str
     aggregation_type: AggregationType
@@ -87,7 +101,7 @@ class MetricsService:
             MetricResolution.SIX_HOURS: 21600,
             MetricResolution.DAY: 86400,
             MetricResolution.WEEK: 604800,
-            MetricResolution.MONTH: 2592000
+            MetricResolution.MONTH: 2592000,
         }
 
         # Cache TTL in seconds
@@ -99,7 +113,7 @@ class MetricsService:
             MetricResolution.SIX_HOURS: 21600,
             MetricResolution.DAY: 86400,
             MetricResolution.WEEK: 604800,
-            MetricResolution.MONTH: 2592000
+            MetricResolution.MONTH: 2592000,
         }
 
     async def initialize(self):
@@ -110,7 +124,7 @@ class MetricsService:
                 settings.REDIS_URL,
                 encoding="utf-8",
                 decode_responses=True,
-                retry_on_timeout=True
+                retry_on_timeout=True,
             )
 
             # Test Redis connection
@@ -133,7 +147,9 @@ class MetricsService:
             await self.redis_client.close()
         logger.info("Metrics service shut down")
 
-    async def create_metric(self, request: MetricCreate, owner_id: uuid.UUID) -> MetricResponse:
+    async def create_metric(
+        self, request: MetricCreate, owner_id: uuid.UUID
+    ) -> MetricResponse:
         """Create a new analytics metric"""
         try:
             async with get_async_session() as db:
@@ -141,12 +157,14 @@ class MetricsService:
                 existing_query = select(AnalyticsMetric).where(
                     and_(
                         AnalyticsMetric.name == request.name,
-                        AnalyticsMetric.is_deleted == False
+                        AnalyticsMetric.is_deleted == False,
                     )
                 )
                 result = await db.execute(existing_query)
                 if result.scalar_one_or_none():
-                    raise ValueError(f"Metric with name '{request.name}' already exists")
+                    raise ValueError(
+                        f"Metric with name '{request.name}' already exists"
+                    )
 
                 # Create metric
                 metric = AnalyticsMetric(
@@ -163,7 +181,7 @@ class MetricsService:
                     default_filters=request.default_filters,
                     visualization_type=request.visualization_type,
                     color_scheme=request.color_scheme,
-                    is_public=request.is_public
+                    is_public=request.is_public,
                 )
                 db.add(metric)
                 await db.commit()
@@ -175,14 +193,16 @@ class MetricsService:
             logger.error(f"Error creating metric: {e}")
             raise
 
-    async def get_metric(self, metric_id: uuid.UUID, user_id: uuid.UUID) -> Optional[MetricResponse]:
+    async def get_metric(
+        self, metric_id: uuid.UUID, user_id: uuid.UUID
+    ) -> Optional[MetricResponse]:
         """Get metric by ID"""
         try:
             async with get_async_session() as db:
                 query = select(AnalyticsMetric).where(
                     and_(
                         AnalyticsMetric.id == metric_id,
-                        AnalyticsMetric.is_deleted == False
+                        AnalyticsMetric.is_deleted == False,
                     )
                 )
                 result = await db.execute(query)
@@ -202,14 +222,16 @@ class MetricsService:
             logger.error(f"Error getting metric {metric_id}: {e}")
             return None
 
-    async def update_metric(self, metric_id: uuid.UUID, request: MetricUpdate, user_id: uuid.UUID) -> Optional[MetricResponse]:
+    async def update_metric(
+        self, metric_id: uuid.UUID, request: MetricUpdate, user_id: uuid.UUID
+    ) -> Optional[MetricResponse]:
         """Update metric"""
         try:
             async with get_async_session() as db:
                 query = select(AnalyticsMetric).where(
                     and_(
                         AnalyticsMetric.id == metric_id,
-                        AnalyticsMetric.is_deleted == False
+                        AnalyticsMetric.is_deleted == False,
                     )
                 )
                 result = await db.execute(query)
@@ -242,7 +264,7 @@ class MetricsService:
                 query = select(AnalyticsMetric).where(
                     and_(
                         AnalyticsMetric.id == metric_id,
-                        AnalyticsMetric.is_deleted == False
+                        AnalyticsMetric.is_deleted == False,
                     )
                 )
                 result = await db.execute(query)
@@ -269,7 +291,9 @@ class MetricsService:
         try:
             async with get_async_session() as db:
                 # Check if metric exists
-                metric_query = select(AnalyticsMetric).where(AnalyticsMetric.id == request.metric_id)
+                metric_query = select(AnalyticsMetric).where(
+                    AnalyticsMetric.id == request.metric_id
+                )
                 result = await db.execute(metric_query)
                 metric = result.scalar_one_or_none()
 
@@ -289,7 +313,7 @@ class MetricsService:
                     time_window=request.time_window,
                     filters=request.filters,
                     dimensions=request.dimensions,
-                    is_critical=request.is_critical
+                    is_critical=request.is_critical,
                 )
                 db.add(kpi)
                 await db.commit()
@@ -317,14 +341,16 @@ class MetricsService:
                     created_at=kpi.created_at,
                     updated_at=kpi.updated_at,
                     current_value=current_value,
-                    status=kpi_status
+                    status=kpi_status,
                 )
 
         except Exception as e:
             logger.error(f"Error creating KPI: {e}")
             raise
 
-    async def query_metrics(self, query: MetricQuery, user_id: uuid.UUID) -> List[MetricQueryResult]:
+    async def query_metrics(
+        self, query: MetricQuery, user_id: uuid.UUID
+    ) -> List[MetricQueryResult]:
         """Query metrics with specified parameters"""
         try:
             results = []
@@ -335,7 +361,7 @@ class MetricsService:
                     metric_query = select(AnalyticsMetric).where(
                         and_(
                             AnalyticsMetric.id == metric_id,
-                            AnalyticsMetric.is_deleted == False
+                            AnalyticsMetric.is_deleted == False,
                         )
                     )
                     result = await db.execute(metric_query)
@@ -346,8 +372,12 @@ class MetricsService:
 
                 # Get metric data
                 time_series_data = await self._get_metric_data(
-                    metric, query.aggregation, query.time_range,
-                    query.filters, query.dimensions, query.group_by
+                    metric,
+                    query.aggregation,
+                    query.time_range,
+                    query.filters,
+                    query.dimensions,
+                    query.group_by,
                 )
 
                 # Convert to result format
@@ -358,7 +388,7 @@ class MetricsService:
                     time_range=query.time_range,
                     data=time_series_data,
                     total_count=len(time_series_data),
-                    has_more=len(time_series_data) >= (query.limit or 10000)
+                    has_more=len(time_series_data) >= (query.limit or 10000),
                 )
                 results.append(query_result)
 
@@ -375,7 +405,7 @@ class MetricsService:
         timestamp: Optional[datetime] = None,
         dimensions: Optional[Dict[str, Any]] = None,
         quality_score: Optional[float] = None,
-        user_id: Optional[uuid.UUID] = None
+        user_id: Optional[uuid.UUID] = None,
     ) -> bool:
         """Ingest a single metric value"""
         try:
@@ -387,7 +417,7 @@ class MetricsService:
                 metric_query = select(AnalyticsMetric).where(
                     and_(
                         AnalyticsMetric.name == metric_name,
-                        AnalyticsMetric.is_deleted == False
+                        AnalyticsMetric.is_deleted == False,
                     )
                 )
                 result = await db.execute(metric_query)
@@ -400,22 +430,20 @@ class MetricsService:
             # Store raw value in Redis for immediate access
             if self.redis_client:
                 redis_key = f"metric:{metric_name}:raw:{timestamp.timestamp()}"
-                await self.redis_client.setex(
-                    redis_key,
-                    3600,  # 1 hour TTL
-                    str(value)
-                )
+                await self.redis_client.setex(redis_key, 3600, str(value))  # 1 hour TTL
 
                 # Store in aggregation queue
-                await self.aggregation_queue.put({
-                    "metric_id": str(metric.id),
-                    "metric_name": metric_name,
-                    "value": value,
-                    "timestamp": timestamp,
-                    "dimensions": dimensions or {},
-                    "quality_score": quality_score or 1.0,
-                    "user_id": str(user_id) if user_id else None
-                })
+                await self.aggregation_queue.put(
+                    {
+                        "metric_id": str(metric.id),
+                        "metric_name": metric_name,
+                        "value": value,
+                        "timestamp": timestamp,
+                        "dimensions": dimensions or {},
+                        "quality_score": quality_score or 1.0,
+                        "user_id": str(user_id) if user_id else None,
+                    }
+                )
 
             return True
 
@@ -435,7 +463,7 @@ class MetricsService:
                     timestamp=value_data.get("timestamp"),
                     dimensions=value_data.get("dimensions"),
                     quality_score=value_data.get("quality_score"),
-                    user_id=value_data.get("user_id")
+                    user_id=value_data.get("user_id"),
                 )
                 if success:
                     success_count += 1
@@ -460,7 +488,7 @@ class MetricsService:
                     tags=event_data.get("tags"),
                     country=event_data.get("country"),
                     city=event_data.get("city"),
-                    timezone=event_data.get("timezone")
+                    timezone=event_data.get("timezone"),
                 )
                 db.add(event)
                 await db.commit()
@@ -478,13 +506,15 @@ class MetricsService:
         self,
         metric_id: uuid.UUID,
         time_range: str = "1d",
-        aggregation: AggregationType = AggregationType.AVERAGE
+        aggregation: AggregationType = AggregationType.AVERAGE,
     ) -> Dict[str, Any]:
         """Get statistical summary for a metric"""
         try:
             # Get time series data
             async with get_async_session() as db:
-                metric_query = select(AnalyticsMetric).where(AnalyticsMetric.id == metric_id)
+                metric_query = select(AnalyticsMetric).where(
+                    AnalyticsMetric.id == metric_id
+                )
                 result = await db.execute(metric_query)
                 metric = result.scalar_one_or_none()
 
@@ -502,19 +532,20 @@ class MetricsService:
                     "min": 0,
                     "max": 0,
                     "stddev": 0,
-                    "sum": 0
+                    "sum": 0,
                 }
 
             values = [d.value for d in time_series_data]
 
             # Calculate statistics
             import statistics
+
             stats = {
                 "count": len(values),
                 "mean": statistics.mean(values),
                 "min": min(values),
                 "max": max(values),
-                "sum": sum(values)
+                "sum": sum(values),
             }
 
             if len(values) > 1:
@@ -542,7 +573,7 @@ class MetricsService:
         time_range: str,
         filters: Optional[List[Dict[str, Any]]] = None,
         dimensions: Optional[List[str]] = None,
-        group_by: Optional[List[str]] = None
+        group_by: Optional[List[str]] = None,
     ) -> List[TimeSeriesData]:
         """Get time series data for a metric"""
         try:
@@ -559,28 +590,33 @@ class MetricsService:
                 cached_data = await self.redis_client.get(cache_key)
                 if cached_data:
                     import json
+
                     cached_values = json.loads(cached_data)
                     return [
                         TimeSeriesData(
                             timestamp=datetime.fromisoformat(v["timestamp"]),
                             value=v["value"],
                             count=v.get("count"),
-                            metadata=v.get("metadata")
+                            metadata=v.get("metadata"),
                         )
                         for v in cached_values
                     ]
 
             # Get data from database
             async with get_async_session() as db:
-                query = select(MetricAggregation).where(
-                    and_(
-                        MetricAggregation.metric_id == metric.id,
-                        MetricAggregation.aggregation_type == aggregation,
-                        MetricAggregation.time_window == resolution.value,
-                        MetricAggregation.timestamp >= start_time,
-                        MetricAggregation.timestamp <= end_time
+                query = (
+                    select(MetricAggregation)
+                    .where(
+                        and_(
+                            MetricAggregation.metric_id == metric.id,
+                            MetricAggregation.aggregation_type == aggregation,
+                            MetricAggregation.time_window == resolution.value,
+                            MetricAggregation.timestamp >= start_time,
+                            MetricAggregation.timestamp <= end_time,
+                        )
                     )
-                ).order_by(MetricAggregation.timestamp)
+                    .order_by(MetricAggregation.timestamp)
+                )
 
                 result = await db.execute(query)
                 aggregations = result.scalars().all()
@@ -588,18 +624,20 @@ class MetricsService:
             # Convert to time series data
             time_series_data = []
             for agg in aggregations:
-                time_series_data.append(TimeSeriesData(
-                    timestamp=agg.timestamp,
-                    value=agg.value,
-                    count=agg.count,
-                    metadata={
-                        "min_value": agg.min_value,
-                        "max_value": agg.max_value,
-                        "sum_value": agg.sum_value,
-                        "sample_rate": agg.sample_rate,
-                        "dimensions": agg.dimensions
-                    }
-                ))
+                time_series_data.append(
+                    TimeSeriesData(
+                        timestamp=agg.timestamp,
+                        value=agg.value,
+                        count=agg.count,
+                        metadata={
+                            "min_value": agg.min_value,
+                            "max_value": agg.max_value,
+                            "sum_value": agg.sum_value,
+                            "sample_rate": agg.sample_rate,
+                            "dimensions": agg.dimensions,
+                        },
+                    )
+                )
 
             # Cache the result
             if self.redis_client and time_series_data:
@@ -608,14 +646,12 @@ class MetricsService:
                         "timestamp": ts.timestamp.isoformat(),
                         "value": ts.value,
                         "count": ts.count,
-                        "metadata": ts.metadata
+                        "metadata": ts.metadata,
                     }
                     for ts in time_series_data
                 ]
                 await self.redis_client.setex(
-                    cache_key,
-                    self.cache_ttl[resolution],
-                    json.dumps(cache_data)
+                    cache_key, self.cache_ttl[resolution], json.dumps(cache_data)
                 )
 
             return time_series_data
@@ -629,7 +665,9 @@ class MetricsService:
         try:
             # Get metric
             async with get_async_session() as db:
-                metric_query = select(AnalyticsMetric).where(AnalyticsMetric.id == kpi.metric_id)
+                metric_query = select(AnalyticsMetric).where(
+                    AnalyticsMetric.id == kpi.metric_id
+                )
                 result = await db.execute(metric_query)
                 metric = result.scalar_one_or_none()
 
@@ -651,7 +689,9 @@ class MetricsService:
             logger.error(f"Error calculating KPI value: {e}")
             return None
 
-    def _determine_kpi_status(self, current_value: Optional[float], kpi: AnalyticsKPI) -> str:
+    def _determine_kpi_status(
+        self, current_value: Optional[float], kpi: AnalyticsKPI
+    ) -> str:
         """Determine KPI status based on thresholds"""
         if current_value is None:
             return "unknown"
@@ -724,7 +764,9 @@ class MetricsService:
                 batch = []
                 for _ in range(self.batch_size):
                     try:
-                        value = await asyncio.wait_for(self.aggregation_queue.get(), timeout=1.0)
+                        value = await asyncio.wait_for(
+                            self.aggregation_queue.get(), timeout=1.0
+                        )
                         batch.append(value)
                     except asyncio.TimeoutError:
                         break
@@ -750,7 +792,11 @@ class MetricsService:
                 dimensions = value.get("dimensions", {})
 
                 # Group by different time windows
-                for resolution in [MetricResolution.MINUTE, MetricResolution.HOUR, MetricResolution.DAY]:
+                for resolution in [
+                    MetricResolution.MINUTE,
+                    MetricResolution.HOUR,
+                    MetricResolution.DAY,
+                ]:
                     bucket_time = self._bucket_timestamp(timestamp, resolution)
                     key = f"{metric_id}:{resolution.value}:{bucket_time.isoformat()}:{hash(str(dimensions)) % 10000}"
                     grouped[key].append(value)
@@ -763,7 +809,9 @@ class MetricsService:
         except Exception as e:
             logger.error(f"Error processing aggregation batch: {e}")
 
-    async def _aggregate_and_store(self, key: str, values: List[Dict[str, Any]], db: AsyncSession) -> None:
+    async def _aggregate_and_store(
+        self, key: str, values: List[Dict[str, Any]], db: AsyncSession
+    ) -> None:
         """Aggregate values for a specific key and store in database"""
         try:
             if not values:
@@ -776,7 +824,9 @@ class MetricsService:
             bucket_time = datetime.fromisoformat(parts[2])
 
             # Get metric
-            metric_query = select(AnalyticsMetric).where(AnalyticsMetric.id == metric_id)
+            metric_query = select(AnalyticsMetric).where(
+                AnalyticsMetric.id == metric_id
+            )
             result = await db.execute(metric_query)
             metric = result.scalar_one_or_none()
 
@@ -784,7 +834,9 @@ class MetricsService:
                 return
 
             # Calculate aggregations
-            numeric_values = [v["value"] for v in values if isinstance(v["value"], (int, float))]
+            numeric_values = [
+                v["value"] for v in values if isinstance(v["value"], (int, float))
+            ]
             if not numeric_values:
                 return
 
@@ -794,7 +846,7 @@ class MetricsService:
                 (AggregationType.AVERAGE, sum(numeric_values) / len(numeric_values)),
                 (AggregationType.MIN, min(numeric_values)),
                 (AggregationType.MAX, max(numeric_values)),
-                (AggregationType.COUNT, len(numeric_values))
+                (AggregationType.COUNT, len(numeric_values)),
             ]
 
             for agg_type, agg_value in aggregations:
@@ -805,7 +857,8 @@ class MetricsService:
                         MetricAggregation.aggregation_type == agg_type,
                         MetricAggregation.time_window == resolution,
                         MetricAggregation.timestamp == bucket_time,
-                        MetricAggregation.dimensions_hash == str(hash(str(values[0].get("dimensions", {}))) % 10000)
+                        MetricAggregation.dimensions_hash
+                        == str(hash(str(values[0].get("dimensions", {}))) % 10000),
                     )
                 )
                 existing_result = await db.execute(existing_query)
@@ -834,7 +887,10 @@ class MetricsService:
                         max_value=max(numeric_values),
                         sum_value=sum(numeric_values),
                         sample_rate=1.0,
-                        data_quality_score=sum(v.get("quality_score", 1.0) for v in values) / len(values)
+                        data_quality_score=sum(
+                            v.get("quality_score", 1.0) for v in values
+                        )
+                        / len(values),
                     )
                     db.add(new_agg)
 
@@ -843,7 +899,9 @@ class MetricsService:
         except Exception as e:
             logger.error(f"Error aggregating and storing values: {e}")
 
-    def _bucket_timestamp(self, timestamp: datetime, resolution: MetricResolution) -> datetime:
+    def _bucket_timestamp(
+        self, timestamp: datetime, resolution: MetricResolution
+    ) -> datetime:
         """Bucket timestamp to specified resolution"""
         if resolution == MetricResolution.MINUTE:
             return timestamp.replace(second=0, microsecond=0)
@@ -884,8 +942,8 @@ class MetricsService:
                     timestamp=event_data.get("timestamp", datetime.utcnow()),
                     dimensions={
                         "event_name": event_data.get("event_name"),
-                        "event_category": event_data.get("event_category")
-                    }
+                        "event_category": event_data.get("event_category"),
+                    },
                 )
 
             # Example: count events by type
@@ -895,8 +953,8 @@ class MetricsService:
                 timestamp=event_data.get("timestamp", datetime.utcnow()),
                 dimensions={
                     "event_name": event_data.get("event_name"),
-                    "event_category": event_data.get("event_category")
-                }
+                    "event_category": event_data.get("event_category"),
+                },
             )
 
         except Exception as e:
@@ -922,7 +980,7 @@ class MetricsService:
             is_active=metric.is_active,
             is_public=metric.is_public,
             created_at=metric.created_at,
-            updated_at=metric.updated_at
+            updated_at=metric.updated_at,
         )
 
 

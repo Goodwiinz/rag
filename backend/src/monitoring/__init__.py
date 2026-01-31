@@ -17,12 +17,12 @@ Components:
 __version__ = "1.0.0"
 __author__ = "RAG System Team"
 
-from .services.observability_manager import ObservabilityManager
-from .services.metrics_collector import MetricsCollector
-from .services.tracing_collector import TracingCollector
-from .services.log_aggregator import LogAggregator
 from .services.alert_handler import AlertHandler
 from .services.health_check_hub import HealthCheckHub
+from .services.log_aggregator import LogAggregator
+from .services.metrics_collector import MetricsCollector
+from .services.observability_manager import ObservabilityManager
+from .services.tracing_collector import TracingCollector
 
 __all__ = [
     "ObservabilityManager",
@@ -30,5 +30,5 @@ __all__ = [
     "TracingCollector",
     "LogAggregator",
     "AlertHandler",
-    "HealthCheckHub"
+    "HealthCheckHub",
 ]

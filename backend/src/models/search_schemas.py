@@ -2,16 +2,18 @@
 Search API schemas and models for full-text search functionality
 """
 
-from typing import List, Dict, Any, Optional, Union
-from pydantic import BaseModel, Field
-from enum import Enum
 from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional, Union
+
+from pydantic import BaseModel, Field
 
 from .document import DocumentType
 
 
 class SearchType(str, Enum):
     """Search types"""
+
     FULLTEXT = "fulltext"
     SEMANTIC = "semantic"
     HYBRID = "hybrid"
@@ -20,6 +22,7 @@ class SearchType(str, Enum):
 
 class SearchSortOrder(str, Enum):
     """Search result sort orders"""
+
     RELEVANCE = "relevance"
     DATE_DESC = "date_desc"
     DATE_ASC = "date_asc"
@@ -29,45 +32,71 @@ class SearchSortOrder(str, Enum):
 
 class SearchFilter(BaseModel):
     """Search filters"""
-    document_types: Optional[List[DocumentType]] = Field(None, description="Filter by document types")
+
+    document_types: Optional[List[DocumentType]] = Field(
+        None, description="Filter by document types"
+    )
     tags: Optional[List[str]] = Field(None, description="Filter by tags")
-    date_from: Optional[datetime] = Field(None, description="Filter documents from this date")
-    date_to: Optional[datetime] = Field(None, description="Filter documents to this date")
+    date_from: Optional[datetime] = Field(
+        None, description="Filter documents from this date"
+    )
+    date_to: Optional[datetime] = Field(
+        None, description="Filter documents to this date"
+    )
     file_size_min: Optional[int] = Field(None, description="Minimum file size in bytes")
     file_size_max: Optional[int] = Field(None, description="Maximum file size in bytes")
     organization_id: Optional[str] = Field(None, description="Filter by organization")
-    uploaded_by_user_id: Optional[str] = Field(None, description="Filter by uploading user")
+    uploaded_by_user_id: Optional[str] = Field(
+        None, description="Filter by uploading user"
+    )
     is_public: Optional[bool] = Field(None, description="Filter by public status")
 
 
 class SearchQuery(BaseModel):
     """Search query request"""
+
     query: str = Field(..., min_length=1, max_length=1000, description="Search query")
     search_type: SearchType = Field(SearchType.FULLTEXT, description="Type of search")
-    limit: int = Field(default=20, ge=1, le=100, description="Maximum number of results")
+    limit: int = Field(
+        default=20, ge=1, le=100, description="Maximum number of results"
+    )
     offset: int = Field(default=0, ge=0, description="Results offset for pagination")
-    sort_order: SearchSortOrder = Field(SearchSortOrder.RELEVANCE, description="Sort order")
+    sort_order: SearchSortOrder = Field(
+        SearchSortOrder.RELEVANCE, description="Sort order"
+    )
     filters: Optional[SearchFilter] = Field(None, description="Search filters")
-    include_snippets: bool = Field(default=True, description="Include text snippets with highlights")
-    snippet_length: int = Field(default=200, ge=50, le=500, description="Length of text snippets")
-    highlight_tags: tuple = Field(default=("mark", "/mark"), description="HTML tags for highlighting")
+    include_snippets: bool = Field(
+        default=True, description="Include text snippets with highlights"
+    )
+    snippet_length: int = Field(
+        default=200, ge=50, le=500, description="Length of text snippets"
+    )
+    highlight_tags: tuple = Field(
+        default=("mark", "/mark"), description="HTML tags for highlighting"
+    )
 
 
 class TextSnippet(BaseModel):
     """Text snippet with highlighting"""
+
     text: str = Field(..., description="Snippet text with highlights")
     start_position: int = Field(..., description="Start position in original text")
     end_position: int = Field(..., description="End position in original text")
-    relevance_score: float = Field(..., ge=0.0, le=1.0, description="Relevance score for this snippet")
+    relevance_score: float = Field(
+        ..., ge=0.0, le=1.0, description="Relevance score for this snippet"
+    )
 
 
 class SearchResult(BaseModel):
     """Individual search result"""
+
     document_id: str = Field(..., description="Document ID")
     title: str = Field(..., description="Document title")
     document_type: DocumentType = Field(..., description="Document type")
     content_preview: str = Field(..., description="Content preview")
-    snippets: List[TextSnippet] = Field(default_factory=list, description="Relevant text snippets")
+    snippets: List[TextSnippet] = Field(
+        default_factory=list, description="Relevant text snippets"
+    )
     relevance_score: float = Field(..., ge=0.0, description="Overall relevance score")
     file_size_bytes: int = Field(..., description="File size in bytes")
     created_at: datetime = Field(..., description="Creation date")
@@ -77,11 +106,14 @@ class SearchResult(BaseModel):
     is_public: bool = Field(..., description="Whether document is public")
     uploaded_by_user_id: str = Field(..., description="ID of user who uploaded")
     organization_id: str = Field(..., description="Organization ID")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Document metadata")
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict, description="Document metadata"
+    )
 
 
 class SearchResponse(BaseModel):
     """Search response with results and metadata"""
+
     query: str = Field(..., description="Original search query")
     search_id: str = Field(..., description="Unique identifier for this search")
     search_type: SearchType = Field(..., description="Type of search performed")
@@ -93,29 +125,44 @@ class SearchResponse(BaseModel):
     offset: int = Field(..., description="Results offset used")
     has_more: bool = Field(..., description="Whether more results are available")
     suggestions: Optional[List[str]] = Field(None, description="Search suggestions")
-    filters_applied: Optional[Dict[str, Any]] = Field(None, description="Applied filters")
+    filters_applied: Optional[Dict[str, Any]] = Field(
+        None, description="Applied filters"
+    )
 
 
 class SearchSuggestion(BaseModel):
     """Search suggestion"""
+
     text: str = Field(..., description="Suggestion text")
-    type: str = Field(..., description="Suggestion type (completion, correction, expansion)")
+    type: str = Field(
+        ..., description="Suggestion type (completion, correction, expansion)"
+    )
     score: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
 class SearchAnalytics(BaseModel):
     """Search analytics data"""
+
     total_searches: int = Field(..., description="Total number of searches")
     average_search_time_ms: float = Field(..., description="Average search time")
-    most_common_queries: List[Dict[str, Any]] = Field(..., description="Most common search queries")
-    search_types_distribution: Dict[str, int] = Field(..., description="Distribution of search types")
-    zero_result_queries: List[str] = Field(..., description="Queries that returned no results")
-    average_results_per_search: float = Field(..., description="Average number of results per search")
+    most_common_queries: List[Dict[str, Any]] = Field(
+        ..., description="Most common search queries"
+    )
+    search_types_distribution: Dict[str, int] = Field(
+        ..., description="Distribution of search types"
+    )
+    zero_result_queries: List[str] = Field(
+        ..., description="Queries that returned no results"
+    )
+    average_results_per_search: float = Field(
+        ..., description="Average number of results per search"
+    )
 
 
 class SearchIndex(BaseModel):
     """Search index information"""
+
     name: str = Field(..., description="Index name")
     type: str = Field(..., description="Index type")
     document_count: int = Field(..., description="Number of indexed documents")
@@ -127,6 +174,7 @@ class SearchIndex(BaseModel):
 
 class SearchConfig(BaseModel):
     """Search configuration"""
+
     min_query_length: int = Field(default=2, description="Minimum query length")
     max_query_length: int = Field(default=1000, description="Maximum query length")
     default_limit: int = Field(default=20, description="Default result limit")
@@ -134,8 +182,12 @@ class SearchConfig(BaseModel):
     cache_ttl_seconds: int = Field(default=300, description="Cache TTL in seconds")
     enable_fuzzy_search: bool = Field(default=True, description="Enable fuzzy search")
     enable_stemming: bool = Field(default=True, description="Enable stemming")
-    enable_phonetic_search: bool = Field(default=False, description="Enable phonetic search")
+    enable_phonetic_search: bool = Field(
+        default=False, description="Enable phonetic search"
+    )
     highlight_pre_tag: str = Field(default="<mark>", description="Highlight start tag")
     highlight_post_tag: str = Field(default="</mark>", description="Highlight end tag")
     snippet_max_words: int = Field(default=40, description="Maximum words in snippet")
-    snippet_surround: int = Field(default=50, description="Words around match in snippet")
+    snippet_surround: int = Field(
+        default=50, description="Words around match in snippet"
+    )

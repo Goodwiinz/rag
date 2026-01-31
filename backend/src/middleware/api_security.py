@@ -11,24 +11,26 @@ Implements multiple layers of security protection:
 - Content-Type enforcement
 """
 
-import re
-import json
 import hashlib
-import time
+import ipaddress
+import json
 import logging
-from typing import Dict, Any, List, Optional, Set
+import re
+import time
+from html import escape
+from typing import Any, Dict, List, Optional, Set
 from urllib.parse import unquote
-from fastapi import Request, HTTPException, status
+
+import orjson
+from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
-import ipaddress
-import orjson
-from html import escape
 
 from src.core.config import settings
 from src.models.user import User
 
 logger = logging.getLogger(__name__)
+
 
 class APISecurityMiddleware(BaseHTTPMiddleware):
     """
@@ -62,7 +64,7 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
             r"(PG_SLEEP\s*\()",
             r"(SYSTEM\s*\()",
             r"(EXEC\s*\()",
-            r"(XP_CMDSHELL)"
+            r"(XP_CMDSHELL)",
         ]
 
         # XSS patterns
@@ -93,7 +95,7 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
             r"(window\.location)",
             r"(window\.open)",
             r"(\@import)",
-            r"(expression\s*\()"
+            r"(expression\s*\()",
         ]
 
         # Path traversal patterns
@@ -107,7 +109,7 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
             r"(%2e%2e/)",
             r"(%2e%2e\\)",
             r"(\.\.%c0%af)",
-            r"(\.\.%c1%9c)"
+            r"(\.\.%c1%9c)",
         ]
 
         # Command injection patterns
@@ -132,7 +134,7 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
             r"(cat\s+/etc/shadow)",
             r"(ls\s+-la)",
             r"(find\s+/)",
-            r"(grep\s+-r)"
+            r"(grep\s+-r)",
         ]
 
         # Blocked IPs (example - would load from database/config)
@@ -141,12 +143,12 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
 
         # Allowed content types for POST/PUT/PATCH
         self.allowed_content_types = {
-            'application/json',
-            'application/x-www-form-urlencoded',
-            'multipart/form-data',
-            'text/plain',
-            'application/xml',
-            'text/xml'
+            "application/json",
+            "application/x-www-form-urlencoded",
+            "multipart/form-data",
+            "text/plain",
+            "application/xml",
+            "text/xml",
         }
 
     async def dispatch(self, request: Request, call_next):
@@ -160,10 +162,9 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
 
         # Check if IP is blocked
         if self._is_ip_blocked(client_ip):
-            self._log_security_event('BLOCKED_IP_ATTEMPT', request, client_ip)
+            self._log_security_event("BLOCKED_IP_ATTEMPT", request, client_ip)
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
             )
 
         # Validate request basics
@@ -176,7 +177,7 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
         self._validate_url(request)
 
         # For POST/PUT/PATCH requests, validate body
-        if request.method in ['POST', 'PUT', 'PATCH']:
+        if request.method in ["POST", "PUT", "PATCH"]:
             await self._validate_request_body(request)
 
         # Check request rate for suspicious IPs
@@ -197,17 +198,17 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
     def _get_client_ip(self, request: Request) -> str:
         """Get client IP from request, handling proxies"""
         # Check for forwarded headers
-        forwarded_for = request.headers.get('X-Forwarded-For')
+        forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
             # Get the original IP (first in the list)
-            return forwarded_for.split(',')[0].strip()
+            return forwarded_for.split(",")[0].strip()
 
-        real_ip = request.headers.get('X-Real-IP')
+        real_ip = request.headers.get("X-Real-IP")
         if real_ip:
             return real_ip.strip()
 
         # Fallback to direct connection IP
-        return request.client.host if request.client else 'unknown'
+        return request.client.host if request.client else "unknown"
 
     def _is_ip_blocked(self, ip: str) -> bool:
         """Check if IP is in blocked list"""
@@ -222,8 +223,8 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
             # Check for subnets (would load from config)
             # Example blocked networks
             blocked_networks = [
-                ipaddress.ip_network('192.168.100.0/24'),
-                ipaddress.ip_network('10.0.0.0/8')
+                ipaddress.ip_network("192.168.100.0/24"),
+                ipaddress.ip_network("10.0.0.0/8"),
             ]
 
             for network in blocked_networks:
@@ -241,16 +242,15 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
         # Check URL length
         if len(str(request.url)) > self.max_url_length:
             raise HTTPException(
-                status_code=status.HTTP_414_REQUEST_URI_TOO_LONG,
-                detail="URL too long"
+                status_code=status.HTTP_414_REQUEST_URI_TOO_LONG, detail="URL too long"
             )
 
         # Check HTTP method
-        allowed_methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
+        allowed_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
         if request.method not in allowed_methods:
             raise HTTPException(
                 status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-                detail="Method not allowed"
+                detail="Method not allowed",
             )
 
     def _validate_headers(self, request: Request):
@@ -265,7 +265,7 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
             if header_size > self.max_header_size:
                 raise HTTPException(
                     status_code=status.HTTP_431_REQUEST_HEADER_FIELDS_TOO_LARGE,
-                    detail=f"Header '{name}' too large"
+                    detail=f"Header '{name}' too large",
                 )
 
             # Check for suspicious headers
@@ -275,16 +275,16 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
         if total_size > self.max_header_size * 10:  # 10 headers max
             raise HTTPException(
                 status_code=status.HTTP_431_REQUEST_HEADER_FIELDS_TOO_LARGE,
-                detail="Headers too large"
+                detail="Headers too large",
             )
 
     def _check_header_security(self, name: str, value: str):
         """Check individual header for security issues"""
         # Check for injection patterns
         all_patterns = (
-            self.sql_injection_patterns +
-            self.xss_patterns +
-            self.command_injection_patterns
+            self.sql_injection_patterns
+            + self.xss_patterns
+            + self.command_injection_patterns
         )
 
         for pattern in all_patterns:
@@ -292,14 +292,14 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
                 logger.warning(
                     f"Suspicious pattern in header '{name}': {value[:50]}...",
                     extra={
-                        'header_name': name,
-                        'pattern_detected': True,
-                        'severity': 'high'
-                    }
+                        "header_name": name,
+                        "pattern_detected": True,
+                        "severity": "high",
+                    },
                 )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid header content"
+                    detail="Invalid header content",
                 )
 
     def _validate_url(self, request: Request):
@@ -313,14 +313,13 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
                 logger.warning(
                     f"Path traversal attempt: {url_path}",
                     extra={
-                        'path': url_path,
-                        'client_ip': request.client.host,
-                        'severity': 'critical'
-                    }
+                        "path": url_path,
+                        "client_ip": request.client.host,
+                        "severity": "critical",
+                    },
                 )
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid path"
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid path"
                 )
 
         # Check for SQL injection in URL
@@ -329,15 +328,14 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
                 logger.warning(
                     f"SQL injection attempt in URL: {url_path}",
                     extra={
-                        'path': url_path,
-                        'query': query_string,
-                        'client_ip': request.client.host,
-                        'severity': 'critical'
-                    }
+                        "path": url_path,
+                        "query": query_string,
+                        "client_ip": request.client.host,
+                        "severity": "critical",
+                    },
                 )
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid request"
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid request"
                 )
 
         # Check for XSS in URL
@@ -346,15 +344,14 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
                 logger.warning(
                     f"XSS attempt in URL: {url_path}",
                     extra={
-                        'path': url_path,
-                        'query': query_string,
-                        'client_ip': request.client.host,
-                        'severity': 'high'
-                    }
+                        "path": url_path,
+                        "query": query_string,
+                        "client_ip": request.client.host,
+                        "severity": "high",
+                    },
                 )
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid request"
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid request"
                 )
 
         # Validate query parameters
@@ -364,19 +361,19 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
     def _validate_query_params(self, query_string: str, request: Request):
         """Validate query parameters"""
         # Parse and validate each parameter
-        params = query_string.split('&')
+        params = query_string.split("&")
 
         if len(params) > 50:  # Too many parameters
             raise HTTPException(
                 status_code=status.HTTP_414_REQUEST_URI_TOO_LONG,
-                detail="Too many parameters"
+                detail="Too many parameters",
             )
 
         for param in params:
-            if '=' not in param:
+            if "=" not in param:
                 continue
 
-            key, value = param.split('=', 1)
+            key, value = param.split("=", 1)
 
             # Decode and check
             try:
@@ -392,33 +389,46 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
         """Check individual parameter for security issues"""
         # Check for dangerous parameter names
         dangerous_params = [
-            'redirect', 'return', 'url', 'goto', 'next', 'forward',
-            'callback', 'jsonp', 'j', 'jsonpCallback', 'function',
-            'exec', 'cmd', 'command', 'run', 'eval', 'code'
+            "redirect",
+            "return",
+            "url",
+            "goto",
+            "next",
+            "forward",
+            "callback",
+            "jsonp",
+            "j",
+            "jsonpCallback",
+            "function",
+            "exec",
+            "cmd",
+            "command",
+            "run",
+            "eval",
+            "code",
         ]
 
         if key.lower() in dangerous_params:
             # Check for URL in value
-            if value.startswith(('http://', 'https://', 'ftp://', 'data:')):
+            if value.startswith(("http://", "https://", "ftp://", "data:")):
                 logger.warning(
                     f"Potential redirect injection: {key}={value}",
                     extra={
-                        'param_name': key,
-                        'param_value': value[:100],
-                        'client_ip': request.client.host,
-                        'severity': 'high'
-                    }
+                        "param_name": key,
+                        "param_value": value[:100],
+                        "client_ip": request.client.host,
+                        "severity": "high",
+                    },
                 )
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid parameter"
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid parameter"
                 )
 
         # Check for injection patterns in value
         all_patterns = (
-            self.sql_injection_patterns +
-            self.xss_patterns +
-            self.command_injection_patterns
+            self.sql_injection_patterns
+            + self.xss_patterns
+            + self.command_injection_patterns
         )
 
         for pattern in all_patterns:
@@ -426,34 +436,34 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
                 logger.warning(
                     f"Injection attempt in parameter {key}: {value[:50]}...",
                     extra={
-                        'param_name': key,
-                        'pattern_detected': True,
-                        'client_ip': request.client.host,
-                        'severity': 'high'
-                    }
+                        "param_name": key,
+                        "pattern_detected": True,
+                        "client_ip": request.client.host,
+                        "severity": "high",
+                    },
                 )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid parameter content"
+                    detail="Invalid parameter content",
                 )
 
     async def _validate_request_body(self, request: Request):
         """Validate request body content"""
         # Check content type
-        content_type = request.headers.get('content-type', '').split(';')[0]
+        content_type = request.headers.get("content-type", "").split(";")[0]
 
         if content_type not in self.allowed_content_types:
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-                detail="Unsupported media type"
+                detail="Unsupported media type",
             )
 
         # Check content length
-        content_length = request.headers.get('content-length')
+        content_length = request.headers.get("content-length")
         if content_length and int(content_length) > self.max_request_size:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="Request entity too large"
+                detail="Request entity too large",
             )
 
         # Read and validate body
@@ -462,15 +472,15 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
         if len(body) > self.max_request_size:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="Request entity too large"
+                detail="Request entity too large",
             )
 
         # Validate based on content type
-        if content_type == 'application/json':
+        if content_type == "application/json":
             self._validate_json_body(body, request)
-        elif content_type == 'application/x-www-form-urlencoded':
+        elif content_type == "application/x-www-form-urlencoded":
             self._validate_form_body(body, request)
-        elif content_type.startswith('multipart/form-data'):
+        elif content_type.startswith("multipart/form-data"):
             # Multipart validation would happen in specific endpoints
             pass
 
@@ -485,8 +495,7 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
 
         except orjson.JSONDecodeError as e:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid JSON format"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON format"
             )
 
     def _validate_json_structure(self, data: Any, request: Request, path: str = ""):
@@ -495,7 +504,7 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
             if len(data) > self.max_form_fields:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Too many fields in request"
+                    detail="Too many fields in request",
                 )
 
             for key, value in data.items():
@@ -505,7 +514,7 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
                 if len(key) > 256:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Field name too long"
+                        detail="Field name too long",
                     )
 
                 # Recursively validate value
@@ -514,8 +523,7 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
         elif isinstance(data, list):
             if len(data) > 1000:  # Too many array elements
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Array too large"
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="Array too large"
                 )
 
             for i, item in enumerate(data):
@@ -532,15 +540,14 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
         # Check string length
         if len(value) > 100000:  # 100KB per string field
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="String value too long"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="String value too long"
             )
 
         # Check for injection patterns
         all_patterns = (
-            self.sql_injection_patterns +
-            self.xss_patterns +
-            self.command_injection_patterns
+            self.sql_injection_patterns
+            + self.xss_patterns
+            + self.command_injection_patterns
         )
 
         for pattern in all_patterns:
@@ -548,35 +555,35 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
                 logger.warning(
                     f"Injection attempt in field '{path}': {value[:50]}...",
                     extra={
-                        'field_path': path,
-                        'pattern_detected': True,
-                        'client_ip': request.client.host,
-                        'severity': 'high'
-                    }
+                        "field_path": path,
+                        "pattern_detected": True,
+                        "client_ip": request.client.host,
+                        "severity": "high",
+                    },
                 )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid field content"
+                    detail="Invalid field content",
                 )
 
     def _validate_form_body(self, body: bytes, request: Request):
         """Validate form-encoded body"""
         try:
             # Decode and parse
-            form_data = body.decode('utf-8')
-            params = form_data.split('&')
+            form_data = body.decode("utf-8")
+            params = form_data.split("&")
 
             if len(params) > self.max_form_fields:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Too many form fields"
+                    detail="Too many form fields",
                 )
 
             for param in params:
-                if '=' not in param:
+                if "=" not in param:
                     continue
 
-                key, value = param.split('=', 1)
+                key, value = param.split("=", 1)
 
                 # Decode
                 try:
@@ -590,8 +597,7 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
 
         except UnicodeDecodeError:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid form encoding"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid form encoding"
             )
 
     def _check_suspicious_activity(self, ip: str, request: Request):
@@ -601,76 +607,75 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
         # Initialize tracking for this IP
         if ip not in self.suspicious_ips:
             self.suspicious_ips[ip] = {
-                'requests': [],
-                'violations': 0,
-                'last_seen': now
+                "requests": [],
+                "violations": 0,
+                "last_seen": now,
             }
 
         ip_data = self.suspicious_ips[ip]
 
         # Clean old requests (older than 1 hour)
-        ip_data['requests'] = [
-            req_time for req_time in ip_data['requests']
-            if now - req_time < 3600
+        ip_data["requests"] = [
+            req_time for req_time in ip_data["requests"] if now - req_time < 3600
         ]
 
         # Add current request
-        ip_data['requests'].append(now)
-        ip_data['last_seen'] = now
+        ip_data["requests"].append(now)
+        ip_data["last_seen"] = now
 
         # Check for patterns
-        request_count = len(ip_data['requests'])
+        request_count = len(ip_data["requests"])
 
         # Too many requests
         if request_count > 1000:  # 1000 requests per hour
-            ip_data['violations'] += 1
+            ip_data["violations"] += 1
             logger.warning(
                 f"High request rate from IP {ip}: {request_count}/hour",
                 extra={
-                    'client_ip': ip,
-                    'request_count': request_count,
-                    'severity': 'medium'
-                }
+                    "client_ip": ip,
+                    "request_count": request_count,
+                    "severity": "medium",
+                },
             )
 
         # Check for automated behavior
         if request_count > 10:
             # Check if requests are too regular (bot-like)
             intervals = [
-                ip_data['requests'][i] - ip_data['requests'][i-1]
-                for i in range(1, min(10, len(ip_data['requests'])))
+                ip_data["requests"][i] - ip_data["requests"][i - 1]
+                for i in range(1, min(10, len(ip_data["requests"])))
             ]
 
             if intervals and all(0.9 < interval < 1.1 for interval in intervals):
-                ip_data['violations'] += 1
+                ip_data["violations"] += 1
                 logger.warning(
                     f"Automated request pattern detected from IP {ip}",
                     extra={
-                        'client_ip': ip,
-                        'pattern': 'regular_intervals',
-                        'severity': 'medium'
-                    }
+                        "client_ip": ip,
+                        "pattern": "regular_intervals",
+                        "severity": "medium",
+                    },
                 )
 
         # Block if too many violations
-        if ip_data['violations'] > 5:
+        if ip_data["violations"] > 5:
             self.blocked_ips.add(ip)
             logger.error(
                 f"IP {ip} blocked due to repeated violations",
                 extra={
-                    'client_ip': ip,
-                    'violations': ip_data['violations'],
-                    'severity': 'high'
-                }
+                    "client_ip": ip,
+                    "violations": ip_data["violations"],
+                    "severity": "high",
+                },
             )
 
     def _add_security_headers(self, response: Response) -> Response:
         """Add security headers to response"""
         # Basic security headers
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['X-Frame-Options'] = 'DENY'
-        response.headers['X-XSS-Protection'] = '1; mode=block'
-        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
         # Content Security Policy
         csp = (
@@ -684,11 +689,13 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
             "base-uri 'self'; "
             "form-action 'self'"
         )
-        response.headers['Content-Security-Policy'] = csp
+        response.headers["Content-Security-Policy"] = csp
 
         # HSTS (only in production with HTTPS)
-        if settings.ENVIRONMENT == 'production':
-            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        if settings.ENVIRONMENT == "production":
+            response.headers[
+                "Strict-Transport-Security"
+            ] = "max-age=31536000; includeSubDomains"
 
         # Permissions Policy
         permissions_policy = (
@@ -701,7 +708,7 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
             "gyroscope=(), "
             "accelerometer=()"
         )
-        response.headers['Permissions-Policy'] = permissions_policy
+        response.headers["Permissions-Policy"] = permissions_policy
 
         return response
 
@@ -710,29 +717,31 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
         logger.error(
             f"Security event: {event_type}",
             extra={
-                'event_type': event_type,
-                'client_ip': client_ip,
-                'path': str(request.url.path),
-                'method': request.method,
-                'user_agent': request.headers.get('user-agent', ''),
-                'severity': 'critical'
-            }
+                "event_type": event_type,
+                "client_ip": client_ip,
+                "path": str(request.url.path),
+                "method": request.method,
+                "user_agent": request.headers.get("user-agent", ""),
+                "severity": "critical",
+            },
         )
 
-    def _log_request_completion(self, request: Request, response: Response, duration: float, client_ip: str):
+    def _log_request_completion(
+        self, request: Request, response: Response, duration: float, client_ip: str
+    ):
         """Log completed request for monitoring"""
         # Log slow requests
         if duration > 5.0:
             logger.warning(
                 f"Slow request: {request.method} {request.url.path} took {duration:.2f}s",
                 extra={
-                    'client_ip': client_ip,
-                    'method': request.method,
-                    'path': str(request.url.path),
-                    'duration': duration,
-                    'status_code': response.status_code,
-                    'severity': 'low'
-                }
+                    "client_ip": client_ip,
+                    "method": request.method,
+                    "path": str(request.url.path),
+                    "duration": duration,
+                    "status_code": response.status_code,
+                    "severity": "low",
+                },
             )
 
         # Log errors
@@ -741,10 +750,10 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
             log_level(
                 f"HTTP {response.status_code}: {request.method} {request.url.path}",
                 extra={
-                    'client_ip': client_ip,
-                    'method': request.method,
-                    'path': str(request.url.path),
-                    'status_code': response.status_code,
-                    'severity': 'medium' if response.status_code < 500 else 'high'
-                }
+                    "client_ip": client_ip,
+                    "method": request.method,
+                    "path": str(request.url.path),
+                    "status_code": response.status_code,
+                    "severity": "medium" if response.status_code < 500 else "high",
+                },
             )

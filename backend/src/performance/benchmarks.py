@@ -4,34 +4,40 @@ Automated load testing, performance regression detection, and SLA validation
 """
 
 import asyncio
-import time
 import json
-import statistics
-import psutil
-import aiohttp
-import websockets
-from datetime import datetime, timezone as dt_timezone, timedelta
-from typing import Dict, List, Optional, Any, Callable, Tuple
-from dataclasses import dataclass, field, asdict
-from enum import Enum
-from collections import defaultdict
-import numpy as np
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import statistics
+import time
 import uuid
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+import aiohttp
+import numpy as np
+import psutil
+import websockets
 
 logger = logging.getLogger(__name__)
 
+
 class BenchmarkStatus(Enum):
     """Benchmark execution status"""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
 
+
 class TestType(Enum):
     """Types of performance tests"""
+
     LOAD_TEST = "load_test"
     STRESS_TEST = "stress_test"
     SPIKE_TEST = "spike_test"
@@ -39,9 +45,11 @@ class TestType(Enum):
     LATENCY_TEST = "latency_test"
     THROUGHPUT_TEST = "throughput_test"
 
+
 @dataclass
 class BenchmarkConfig:
     """Configuration for performance benchmarks"""
+
     name: str
     test_type: TestType
     target_endpoint: str
@@ -57,9 +65,11 @@ class BenchmarkConfig:
     websocket_test: bool = False
     enable_monitoring: bool = True
 
+
 @dataclass
 class BenchmarkResult:
     """Results of a performance benchmark"""
+
     config: BenchmarkConfig
     status: BenchmarkStatus
     start_time: datetime
@@ -122,25 +132,26 @@ class BenchmarkResult:
         criteria = self.config.success_criteria
 
         # Check response time criteria
-        if 'max_avg_response_time_ms' in criteria:
-            if self.avg_response_time_ms > criteria['max_avg_response_time_ms']:
+        if "max_avg_response_time_ms" in criteria:
+            if self.avg_response_time_ms > criteria["max_avg_response_time_ms"]:
                 return False
 
-        if 'max_p95_response_time_ms' in criteria:
-            if self.p95_response_time_ms > criteria['max_p95_response_time_ms']:
+        if "max_p95_response_time_ms" in criteria:
+            if self.p95_response_time_ms > criteria["max_p95_response_time_ms"]:
                 return False
 
         # Check success rate criteria
-        if 'min_success_rate_percent' in criteria:
-            if self.success_rate_percent < criteria['min_success_rate_percent']:
+        if "min_success_rate_percent" in criteria:
+            if self.success_rate_percent < criteria["min_success_rate_percent"]:
                 return False
 
         # Check throughput criteria
-        if 'min_requests_per_second' in criteria:
-            if self.requests_per_second < criteria['min_requests_per_second']:
+        if "min_requests_per_second" in criteria:
+            if self.requests_per_second < criteria["min_requests_per_second"]:
                 return False
 
         return True
+
 
 class PerformanceBenchmark:
     """Executes performance benchmarks and validates results"""
@@ -166,10 +177,10 @@ class PerformanceBenchmark:
             timeout=timeout,
             connector=connector,
             headers={
-                'User-Agent': 'RAG-Performance-Benchmark/1.0',
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-            }
+                "User-Agent": "RAG-Performance-Benchmark/1.0",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
         )
 
         logger.info("Performance benchmark initialized")
@@ -182,9 +193,7 @@ class PerformanceBenchmark:
     async def run_benchmark(self, config: BenchmarkConfig) -> BenchmarkResult:
         """Run a single benchmark with the given configuration"""
         result = BenchmarkResult(
-            config=config,
-            status=BenchmarkStatus.RUNNING,
-            start_time=datetime.utcnow()
+            config=config, status=BenchmarkStatus.RUNNING, start_time=datetime.utcnow()
         )
 
         try:
@@ -198,7 +207,9 @@ class PerformanceBenchmark:
             result.status = BenchmarkStatus.COMPLETED
             result.success = result.meets_success_criteria()
 
-            logger.info(f"Benchmark completed: {config.name} - Success: {result.success}")
+            logger.info(
+                f"Benchmark completed: {config.name} - Success: {result.success}"
+            )
 
         except Exception as e:
             result.status = BenchmarkStatus.FAILED
@@ -218,23 +229,19 @@ class PerformanceBenchmark:
         # Create tasks for concurrent users
         tasks = []
         for user_id in range(config.concurrent_users):
-            task = asyncio.create_task(
-                self._simulate_user(result, user_id)
-            )
+            task = asyncio.create_task(self._simulate_user(result, user_id))
             tasks.append(task)
 
         # Add monitoring task if enabled
         if config.enable_monitoring:
-            monitor_task = asyncio.create_task(
-                self._monitor_system_resources(result)
-            )
+            monitor_task = asyncio.create_task(self._monitor_system_resources(result))
             tasks.append(monitor_task)
 
         try:
             # Wait for all tasks to complete or timeout
             await asyncio.wait_for(
                 asyncio.gather(*tasks, return_exceptions=True),
-                timeout=config.duration_seconds + config.ramp_up_seconds + 30
+                timeout=config.duration_seconds + config.ramp_up_seconds + 30,
             )
         except asyncio.TimeoutError:
             logger.warning(f"Benchmark {config.name} timed out")
@@ -257,12 +264,11 @@ class PerformanceBenchmark:
 
                 # Make HTTP request
                 async with self.session.request(
-                    'GET' if not config.payload else 'POST',
+                    "GET" if not config.payload else "POST",
                     config.target_endpoint,
                     headers=config.headers,
-                    json=config.payload if config.payload else None
+                    json=config.payload if config.payload else None,
                 ) as response:
-
                     content = await response.read()
                     request_time = (time.time() - request_start) * 1000
 
@@ -274,7 +280,9 @@ class PerformanceBenchmark:
                         result.successful_requests += 1
                     else:
                         result.failed_requests += 1
-                        result.errors.append(f"HTTP {response.status}: {response.reason}")
+                        result.errors.append(
+                            f"HTTP {response.status}: {response.reason}"
+                        )
 
                 # Think time between requests
                 await asyncio.sleep(config.think_time_ms / 1000)
@@ -290,7 +298,9 @@ class PerformanceBenchmark:
     async def _run_websocket_benchmark(self, result: BenchmarkResult):
         """Run WebSocket-based benchmark"""
         config = result.config
-        ws_url = config.target_endpoint.replace('http://', 'ws://').replace('https://', 'wss://')
+        ws_url = config.target_endpoint.replace("http://", "ws://").replace(
+            "https://", "wss://"
+        )
 
         tasks = []
         for user_id in range(config.concurrent_users):
@@ -302,14 +312,16 @@ class PerformanceBenchmark:
         try:
             await asyncio.wait_for(
                 asyncio.gather(*tasks, return_exceptions=True),
-                timeout=config.duration_seconds + config.ramp_up_seconds + 30
+                timeout=config.duration_seconds + config.ramp_up_seconds + 30,
             )
         except asyncio.TimeoutError:
             logger.warning(f"WebSocket benchmark {config.name} timed out")
             for task in tasks:
                 task.cancel()
 
-    async def _simulate_websocket_user(self, result: BenchmarkResult, user_id: int, ws_url: str):
+    async def _simulate_websocket_user(
+        self, result: BenchmarkResult, user_id: int, ws_url: str
+    ):
         """Simulate a WebSocket user"""
         config = result.config
         start_time = time.time()
@@ -322,11 +334,15 @@ class PerformanceBenchmark:
         try:
             async with websockets.connect(ws_url) as websocket:
                 # Send initial message
-                await websocket.send(json.dumps({
-                    'type': 'subscribe',
-                    'channel': 'performance_test',
-                    'user_id': user_id
-                }))
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "subscribe",
+                            "channel": "performance_test",
+                            "user_id": user_id,
+                        }
+                    )
+                )
 
                 message_count = 0
                 while time.time() < end_time:
@@ -334,8 +350,7 @@ class PerformanceBenchmark:
                         # Receive message
                         receive_start = time.time()
                         message = await asyncio.wait_for(
-                            websocket.recv(),
-                            timeout=config.timeout_seconds
+                            websocket.recv(), timeout=config.timeout_seconds
                         )
                         receive_time = (time.time() - receive_start) * 1000
 
@@ -347,11 +362,15 @@ class PerformanceBenchmark:
                         # Send acknowledgment every 10 messages
                         if message_count % 10 == 0:
                             send_start = time.time()
-                            await websocket.send(json.dumps({
-                                'type': 'ack',
-                                'message_id': str(uuid.uuid4()),
-                                'user_id': user_id
-                            }))
+                            await websocket.send(
+                                json.dumps(
+                                    {
+                                        "type": "ack",
+                                        "message_id": str(uuid.uuid4()),
+                                        "user_id": user_id,
+                                    }
+                                )
+                            )
                             send_time = (time.time() - send_start) * 1000
 
                         await asyncio.sleep(config.think_time_ms / 1000)
@@ -377,11 +396,11 @@ class PerformanceBenchmark:
 
         monitoring_interval = 1.0  # seconds
         resource_metrics = {
-            'cpu_percent': [],
-            'memory_percent': [],
-            'memory_usage_mb': [],
-            'network_io': [],
-            'timestamps': []
+            "cpu_percent": [],
+            "memory_percent": [],
+            "memory_usage_mb": [],
+            "network_io": [],
+            "timestamps": [],
         }
 
         initial_network = psutil.net_io_counters()
@@ -393,16 +412,20 @@ class PerformanceBenchmark:
                 memory = psutil.virtual_memory()
                 network = psutil.net_io_counters()
 
-                resource_metrics['cpu_percent'].append(cpu)
-                resource_metrics['memory_percent'].append(memory.percent)
-                resource_metrics['memory_usage_mb'].append(memory.used / (1024 * 1024))
-                resource_metrics['network_io'].append({
-                    'bytes_sent': network.bytes_sent - initial_network.bytes_sent,
-                    'bytes_recv': network.bytes_recv - initial_network.bytes_recv,
-                    'packets_sent': network.packets_sent - initial_network.packets_sent,
-                    'packets_recv': network.packets_recv - initial_network.packets_recv,
-                })
-                resource_metrics['timestamps'].append(timestamp)
+                resource_metrics["cpu_percent"].append(cpu)
+                resource_metrics["memory_percent"].append(memory.percent)
+                resource_metrics["memory_usage_mb"].append(memory.used / (1024 * 1024))
+                resource_metrics["network_io"].append(
+                    {
+                        "bytes_sent": network.bytes_sent - initial_network.bytes_sent,
+                        "bytes_recv": network.bytes_recv - initial_network.bytes_recv,
+                        "packets_sent": network.packets_sent
+                        - initial_network.packets_sent,
+                        "packets_recv": network.packets_recv
+                        - initial_network.packets_recv,
+                    }
+                )
+                resource_metrics["timestamps"].append(timestamp)
 
                 await asyncio.sleep(monitoring_interval)
 
@@ -411,45 +434,62 @@ class PerformanceBenchmark:
                 await asyncio.sleep(monitoring_interval)
 
         result.system_metrics = {
-            'max_cpu_percent': max(resource_metrics['cpu_percent']) if resource_metrics['cpu_percent'] else 0,
-            'avg_cpu_percent': statistics.mean(resource_metrics['cpu_percent']) if resource_metrics['cpu_percent'] else 0,
-            'max_memory_percent': max(resource_metrics['memory_percent']) if resource_metrics['memory_percent'] else 0,
-            'avg_memory_percent': statistics.mean(resource_metrics['memory_percent']) if resource_metrics['memory_percent'] else 0,
-            'max_memory_mb': max(resource_metrics['memory_usage_mb']) if resource_metrics['memory_usage_mb'] else 0,
-            'avg_memory_mb': statistics.mean(resource_metrics['memory_usage_mb']) if resource_metrics['memory_usage_mb'] else 0,
-            'total_samples': len(resource_metrics['timestamps']),
+            "max_cpu_percent": max(resource_metrics["cpu_percent"])
+            if resource_metrics["cpu_percent"]
+            else 0,
+            "avg_cpu_percent": statistics.mean(resource_metrics["cpu_percent"])
+            if resource_metrics["cpu_percent"]
+            else 0,
+            "max_memory_percent": max(resource_metrics["memory_percent"])
+            if resource_metrics["memory_percent"]
+            else 0,
+            "avg_memory_percent": statistics.mean(resource_metrics["memory_percent"])
+            if resource_metrics["memory_percent"]
+            else 0,
+            "max_memory_mb": max(resource_metrics["memory_usage_mb"])
+            if resource_metrics["memory_usage_mb"]
+            else 0,
+            "avg_memory_mb": statistics.mean(resource_metrics["memory_usage_mb"])
+            if resource_metrics["memory_usage_mb"]
+            else 0,
+            "total_samples": len(resource_metrics["timestamps"]),
         }
 
     def get_results_summary(self) -> Dict[str, Any]:
         """Get summary of all benchmark results"""
         if not self.results:
-            return {'message': 'No benchmarks run yet'}
+            return {"message": "No benchmarks run yet"}
 
         summary = {
-            'total_benchmarks': len(self.results),
-            'successful_benchmarks': sum(1 for r in self.results if r.success),
-            'failed_benchmarks': sum(1 for r in self.results if r.status == BenchmarkStatus.FAILED),
-            'benchmarks': []
+            "total_benchmarks": len(self.results),
+            "successful_benchmarks": sum(1 for r in self.results if r.success),
+            "failed_benchmarks": sum(
+                1 for r in self.results if r.status == BenchmarkStatus.FAILED
+            ),
+            "benchmarks": [],
         }
 
         for result in self.results:
-            summary['benchmarks'].append({
-                'name': result.config.name,
-                'type': result.config.test_type.value,
-                'status': result.status.value,
-                'success': result.success,
-                'duration_seconds': result.duration_seconds,
-                'total_requests': result.total_requests,
-                'requests_per_second': result.requests_per_second,
-                'success_rate_percent': result.success_rate_percent,
-                'avg_response_time_ms': result.avg_response_time_ms,
-                'p95_response_time_ms': result.p95_response_time_ms,
-                'p99_response_time_ms': result.p99_response_time_ms,
-                'errors_count': len(result.errors),
-                'system_metrics': result.system_metrics
-            })
+            summary["benchmarks"].append(
+                {
+                    "name": result.config.name,
+                    "type": result.config.test_type.value,
+                    "status": result.status.value,
+                    "success": result.success,
+                    "duration_seconds": result.duration_seconds,
+                    "total_requests": result.total_requests,
+                    "requests_per_second": result.requests_per_second,
+                    "success_rate_percent": result.success_rate_percent,
+                    "avg_response_time_ms": result.avg_response_time_ms,
+                    "p95_response_time_ms": result.p95_response_time_ms,
+                    "p99_response_time_ms": result.p99_response_time_ms,
+                    "errors_count": len(result.errors),
+                    "system_metrics": result.system_metrics,
+                }
+            )
 
         return summary
+
 
 class PerformanceRegressionDetector:
     """Detects performance regressions by comparing benchmark results"""
@@ -463,12 +503,14 @@ class PerformanceRegressionDetector:
         self.baseline_results[test_name] = result
         logger.info(f"Baseline set for test: {test_name}")
 
-    def detect_regression(self, test_name: str, current_result: BenchmarkResult) -> Dict[str, Any]:
+    def detect_regression(
+        self, test_name: str, current_result: BenchmarkResult
+    ) -> Dict[str, Any]:
         """Detect performance regression compared to baseline"""
         if test_name not in self.baseline_results:
             return {
-                'regression_detected': False,
-                'message': 'No baseline available for comparison'
+                "regression_detected": False,
+                "message": "No baseline available for comparison",
             }
 
         baseline = self.baseline_results[test_name]
@@ -481,12 +523,14 @@ class PerformanceRegressionDetector:
         if baseline_avg > 0:
             avg_change = ((current_avg - baseline_avg) / baseline_avg) * 100
             if avg_change > self.regression_threshold_percent:
-                regressions.append({
-                    'metric': 'avg_response_time_ms',
-                    'baseline': baseline_avg,
-                    'current': current_avg,
-                    'change_percent': avg_change
-                })
+                regressions.append(
+                    {
+                        "metric": "avg_response_time_ms",
+                        "baseline": baseline_avg,
+                        "current": current_avg,
+                        "change_percent": avg_change,
+                    }
+                )
 
         # Check success rate regression
         baseline_success = baseline.success_rate_percent
@@ -494,12 +538,14 @@ class PerformanceRegressionDetector:
 
         success_change = baseline_success - current_success
         if success_change > self.regression_threshold_percent:
-            regressions.append({
-                'metric': 'success_rate_percent',
-                'baseline': baseline_success,
-                'current': current_success,
-                'change_percent': -success_change  # Positive for regression
-            })
+            regressions.append(
+                {
+                    "metric": "success_rate_percent",
+                    "baseline": baseline_success,
+                    "current": current_success,
+                    "change_percent": -success_change,  # Positive for regression
+                }
+            )
 
         # Check throughput regression
         baseline_rps = baseline.requests_per_second
@@ -508,18 +554,21 @@ class PerformanceRegressionDetector:
         if baseline_rps > 0:
             rps_change = ((baseline_rps - current_rps) / baseline_rps) * 100
             if rps_change > self.regression_threshold_percent:
-                regressions.append({
-                    'metric': 'requests_per_second',
-                    'baseline': baseline_rps,
-                    'current': current_rps,
-                    'change_percent': rps_change
-                })
+                regressions.append(
+                    {
+                        "metric": "requests_per_second",
+                        "baseline": baseline_rps,
+                        "current": current_rps,
+                        "change_percent": rps_change,
+                    }
+                )
 
         return {
-            'regression_detected': len(regressions) > 0,
-            'regressions': regressions,
-            'summary': f"{'Performance regression detected' if regressions else 'No performance regression detected'} for {test_name}"
+            "regression_detected": len(regressions) > 0,
+            "regressions": regressions,
+            "summary": f"{'Performance regression detected' if regressions else 'No performance regression detected'} for {test_name}",
         }
+
 
 class AutomatedTestSuite:
     """Automated test suite with predefined benchmarks"""
@@ -543,12 +592,11 @@ class AutomatedTestSuite:
                 duration_seconds=10,
                 requests_per_second=10,
                 success_criteria={
-                    'max_avg_response_time_ms': 50,
-                    'max_p95_response_time_ms': 100,
-                    'min_success_rate_percent': 100
-                }
+                    "max_avg_response_time_ms": 50,
+                    "max_p95_response_time_ms": 100,
+                    "min_success_rate_percent": 100,
+                },
             ),
-
             BenchmarkConfig(
                 name="api_documents_list",
                 test_type=TestType.LOAD_TEST,
@@ -557,13 +605,12 @@ class AutomatedTestSuite:
                 duration_seconds=60,
                 requests_per_second=100,
                 success_criteria={
-                    'max_avg_response_time_ms': 200,
-                    'max_p95_response_time_ms': 500,
-                    'min_success_rate_percent': 95,
-                    'min_requests_per_second': 90
-                }
+                    "max_avg_response_time_ms": 200,
+                    "max_p95_response_time_ms": 500,
+                    "min_success_rate_percent": 95,
+                    "min_requests_per_second": 90,
+                },
             ),
-
             # WebSocket Performance Tests
             BenchmarkConfig(
                 name="websocket_connections",
@@ -573,11 +620,10 @@ class AutomatedTestSuite:
                 duration_seconds=60,
                 websocket_test=True,
                 success_criteria={
-                    'max_avg_response_time_ms': 100,
-                    'min_success_rate_percent': 95
-                }
+                    "max_avg_response_time_ms": 100,
+                    "min_success_rate_percent": 95,
+                },
             ),
-
             # Stress Tests
             BenchmarkConfig(
                 name="high_load_stress",
@@ -586,12 +632,12 @@ class AutomatedTestSuite:
                 concurrent_users=200,
                 duration_seconds=120,
                 requests_per_second=500,
-                payload={'query': 'test', 'limit': 10},
+                payload={"query": "test", "limit": 10},
                 success_criteria={
-                    'max_avg_response_time_ms': 1000,
-                    'min_success_rate_percent': 90,
-                    'min_requests_per_second': 400
-                }
+                    "max_avg_response_time_ms": 1000,
+                    "min_success_rate_percent": 90,
+                    "min_requests_per_second": 400,
+                },
             ),
         ]
 
@@ -603,20 +649,26 @@ class AutomatedTestSuite:
                 results.append(result)
 
                 # Check for regressions
-                regression_check = self.regression_detector.detect_regression(config.name, result)
-                if regression_check['regression_detected']:
-                    logger.warning(f"Performance regression detected: {regression_check['summary']}")
+                regression_check = self.regression_detector.detect_regression(
+                    config.name, result
+                )
+                if regression_check["regression_detected"]:
+                    logger.warning(
+                        f"Performance regression detected: {regression_check['summary']}"
+                    )
 
         finally:
             await self.benchmark.cleanup()
 
         return {
-            'timestamp': datetime.utcnow().isoformat(),
-            'total_tests': len(test_configs),
-            'successful_tests': sum(1 for r in results if r.success),
-            'failed_tests': sum(1 for r in results if r.status == BenchmarkStatus.FAILED),
-            'results': [asdict(r) for r in results],
-            'summary': self.benchmark.get_results_summary()
+            "timestamp": datetime.utcnow().isoformat(),
+            "total_tests": len(test_configs),
+            "successful_tests": sum(1 for r in results if r.success),
+            "failed_tests": sum(
+                1 for r in results if r.status == BenchmarkStatus.FAILED
+            ),
+            "results": [asdict(r) for r in results],
+            "summary": self.benchmark.get_results_summary(),
         }
 
     async def run_quick_validation(self) -> Dict[str, Any]:
@@ -631,40 +683,47 @@ class AutomatedTestSuite:
             duration_seconds=30,
             requests_per_second=10,
             success_criteria={
-                'max_avg_response_time_ms': 100,
-                'min_success_rate_percent': 100
-            }
+                "max_avg_response_time_ms": 100,
+                "min_success_rate_percent": 100,
+            },
         )
 
         try:
             result = await self.benchmark.run_benchmark(quick_config)
             return {
-                'validation_passed': result.success,
-                'avg_response_time_ms': result.avg_response_time_ms,
-                'success_rate_percent': result.success_rate_percent,
-                'requests_per_second': result.requests_per_second
+                "validation_passed": result.success,
+                "avg_response_time_ms": result.avg_response_time_ms,
+                "success_rate_percent": result.success_rate_percent,
+                "requests_per_second": result.requests_per_second,
             }
         finally:
             await self.benchmark.cleanup()
 
+
 # Usage examples and utility functions
-async def run_performance_benchmarks(base_url: str = "http://localhost:8000") -> Dict[str, Any]:
+async def run_performance_benchmarks(
+    base_url: str = "http://localhost:8000",
+) -> Dict[str, Any]:
     """Run comprehensive performance benchmarks"""
     test_suite = AutomatedTestSuite(base_url)
     return await test_suite.run_full_suite()
+
 
 async def validate_performance_sla(base_url: str = "http://localhost:8000") -> bool:
     """Validate that performance meets SLA requirements"""
     test_suite = AutomatedTestSuite(base_url)
     validation_result = await test_suite.run_quick_validation()
-    return validation_result['validation_passed']
+    return validation_result["validation_passed"]
+
 
 if __name__ == "__main__":
     # Example usage
     async def main():
         print("Running performance benchmarks...")
         results = await run_performance_benchmarks()
-        print(f"Benchmarks completed. Success rate: {results['successful_tests']}/{results['total_tests']}")
+        print(
+            f"Benchmarks completed. Success rate: {results['successful_tests']}/{results['total_tests']}"
+        )
 
         print("Validating SLA...")
         sla_passed = await validate_performance_sla()

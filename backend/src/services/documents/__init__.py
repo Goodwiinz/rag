@@ -2,26 +2,34 @@
 Document management and processing services
 """
 
-from .file_service import FileService, FileValidationError
-from .file_service import FileStorageError as FileStorageErrorBase
-from .enhanced_file_service import (
-    EnhancedFileService,
-    EnhancedFileValidationError,
-    SecurityScanError,
-    FileIntegrityError,
-    SecurityThreat,
+from .document_management import (
+    DocumentListRequest,
+    DocumentUpdateRequest,
+    DocumentUploadRequest,
 )
-from .enhanced_file_service import FileStorageError as EnhancedFileStorageError
-from .document_management import DocumentUploadRequest, DocumentUpdateRequest, DocumentListRequest
 from .document_quality_service import DocumentQualityService, QualityIssue
-from .document_realtime_service import DocumentRealtimeService, ProcessingEventType, ProcessingEvent
+from .document_realtime_service import (
+    DocumentRealtimeService,
+    ProcessingEvent,
+    ProcessingEventType,
+)
 from .document_upload_service import DocumentUploadService
 from .enhanced_document_processing_service import (
     EnhancedDocumentProcessingService,
-    ProcessingResult,
-    MultimodalProcessor,
     EntityExtractor,
+    MultimodalProcessor,
+    ProcessingResult,
 )
+from .enhanced_file_service import (
+    EnhancedFileService,
+    EnhancedFileValidationError,
+    FileIntegrityError,
+)
+from .enhanced_file_service import FileStorageError as EnhancedFileStorageError
+from .enhanced_file_service import SecurityScanError, SecurityThreat
+from .file_service import FileService
+from .file_service import FileStorageError as FileStorageErrorBase
+from .file_service import FileValidationError
 
 __all__ = [
     # File service

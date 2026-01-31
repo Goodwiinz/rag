@@ -5,28 +5,40 @@ Provides CRUD operations for workspaces, conversations, threads, and messages.
 """
 
 import logging
-from typing import Optional, List, Tuple
-from uuid import UUID
 from datetime import datetime
+from typing import List, Optional, Tuple
+from uuid import UUID
 
+from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy import func, and_, or_, desc, select
 
 from src.models import (
-    Workspace, WorkspaceMember, WorkspaceRole,
-    Conversation, Thread, ThreadStatus,
-    ChatMessage, MessageRole,
-    Citation, MessageAttachment,
-    Collection, CollectionDocument,
-    User
+    ChatMessage,
+    Citation,
+    Collection,
+    CollectionDocument,
+    Conversation,
+    MessageAttachment,
+    MessageRole,
+    Thread,
+    ThreadStatus,
+    User,
+    Workspace,
+    WorkspaceMember,
+    WorkspaceRole,
 )
 from src.schemas.chat import (
-    WorkspaceCreate, WorkspaceUpdate,
-    ConversationCreate, ConversationUpdate,
-    ThreadCreate, ThreadUpdate,
-    ChatMessageCreate, ChatMessageUpdate,
-    CollectionCreate, CollectionUpdate
+    ChatMessageCreate,
+    ChatMessageUpdate,
+    CollectionCreate,
+    CollectionUpdate,
+    ConversationCreate,
+    ConversationUpdate,
+    ThreadCreate,
+    ThreadUpdate,
+    WorkspaceCreate,
+    WorkspaceUpdate,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,9 +64,7 @@ class ChatService:
     # =========================================================================
 
     async def create_workspace(
-        self,
-        data: WorkspaceCreate,
-        owner_id: UUID
+        self, data: WorkspaceCreate, owner_id: UUID
     ) -> Workspace:
         """Create a new workspace"""
         workspace = Workspace(
@@ -62,7 +72,7 @@ class ChatService:
             description=data.description,
             is_public=data.is_public,
             owner_id=owner_id,
-            organization_id=data.organization_id
+            organization_id=data.organization_id,
         )
         self.db.add(workspace)
 
@@ -71,7 +81,7 @@ class ChatService:
             workspace_id=workspace.id,
             user_id=owner_id,
             role=WorkspaceRole.OWNER,
-            joined_at=datetime.utcnow()
+            joined_at=datetime.utcnow(),
         )
         self.db.add(member)
 
@@ -82,17 +92,15 @@ class ChatService:
         return workspace
 
     async def get_workspace(
-        self,
-        workspace_id: UUID,
-        user_id: UUID
+        self, workspace_id: UUID, user_id: UUID
     ) -> Optional[Workspace]:
         """Get workspace by ID if user has access"""
-        stmt = select(Workspace).options(
-            selectinload(Workspace.members),
-            selectinload(Workspace.conversations)
-        ).where(
-            Workspace.id == workspace_id,
-            Workspace.is_deleted == False
+        stmt = (
+            select(Workspace)
+            .options(
+                selectinload(Workspace.members), selectinload(Workspace.conversations)
+            )
+            .where(Workspace.id == workspace_id, Workspace.is_deleted == False)
         )
         result = await self.db.execute(stmt)
         workspace = result.scalars().first()
@@ -111,40 +119,42 @@ class ChatService:
         user_id: UUID,
         include_archived: bool = False,
         limit: int = 50,
-        offset: int = 0
+        offset: int = 0,
     ) -> Tuple[List[Workspace], int]:
         """List workspaces accessible to user"""
         base_conditions = [
             WorkspaceMember.user_id == user_id,
-            Workspace.is_deleted == False
+            Workspace.is_deleted == False,
         ]
 
         if not include_archived:
             base_conditions.append(Workspace.is_archived == False)
 
         # Count total
-        count_stmt = select(func.count(Workspace.id)).join(
-            WorkspaceMember
-        ).where(*base_conditions)
+        count_stmt = (
+            select(func.count(Workspace.id))
+            .join(WorkspaceMember)
+            .where(*base_conditions)
+        )
         count_result = await self.db.execute(count_stmt)
         total = count_result.scalar() or 0
 
         # Fetch workspaces
-        stmt = select(Workspace).join(
-            WorkspaceMember
-        ).where(*base_conditions).order_by(
-            desc(Workspace.updated_at)
-        ).offset(offset).limit(limit)
+        stmt = (
+            select(Workspace)
+            .join(WorkspaceMember)
+            .where(*base_conditions)
+            .order_by(desc(Workspace.updated_at))
+            .offset(offset)
+            .limit(limit)
+        )
         result = await self.db.execute(stmt)
         workspaces = result.scalars().all()
 
         return workspaces, total
 
     async def update_workspace(
-        self,
-        workspace_id: UUID,
-        data: WorkspaceUpdate,
-        user_id: UUID
+        self, workspace_id: UUID, data: WorkspaceUpdate, user_id: UUID
     ) -> Optional[Workspace]:
         """Update workspace"""
         workspace = await self.get_workspace(workspace_id, user_id)
@@ -170,11 +180,7 @@ class ChatService:
 
         return workspace
 
-    async def delete_workspace(
-        self,
-        workspace_id: UUID,
-        user_id: UUID
-    ) -> bool:
+    async def delete_workspace(self, workspace_id: UUID, user_id: UUID) -> bool:
         """Soft delete workspace"""
         workspace = await self.get_workspace(workspace_id, user_id)
         if not workspace:
@@ -191,11 +197,7 @@ class ChatService:
         logger.info(f"Deleted workspace: {workspace_id}")
         return True
 
-    def _user_can_access_workspace(
-        self,
-        workspace: Workspace,
-        user_id: UUID
-    ) -> bool:
+    def _user_can_access_workspace(self, workspace: Workspace, user_id: UUID) -> bool:
         """Check if user can access workspace"""
         if workspace.is_public:
             return True
@@ -208,9 +210,7 @@ class ChatService:
     # =========================================================================
 
     async def create_conversation(
-        self,
-        data: ConversationCreate,
-        user_id: UUID
+        self, data: ConversationCreate, user_id: UUID
     ) -> Optional[Conversation]:
         """Create a new conversation in a workspace"""
         # Verify workspace access
@@ -227,7 +227,7 @@ class ChatService:
             title=data.title,
             description=data.description,
             created_by_id=user_id,
-            last_activity_at=datetime.utcnow()
+            last_activity_at=datetime.utcnow(),
         )
         self.db.add(conversation)
         await self.db.commit()
@@ -237,17 +237,16 @@ class ChatService:
         return conversation
 
     async def get_conversation(
-        self,
-        conversation_id: UUID,
-        user_id: UUID
+        self, conversation_id: UUID, user_id: UUID
     ) -> Optional[Conversation]:
         """Get conversation by ID"""
-        stmt = select(Conversation).options(
-            selectinload(Conversation.threads),
-            selectinload(Conversation.workspace).selectinload(Workspace.members)
-        ).where(
-            Conversation.id == conversation_id,
-            Conversation.is_deleted == False
+        stmt = (
+            select(Conversation)
+            .options(
+                selectinload(Conversation.threads),
+                selectinload(Conversation.workspace).selectinload(Workspace.members),
+            )
+            .where(Conversation.id == conversation_id, Conversation.is_deleted == False)
         )
         result = await self.db.execute(stmt)
         conversation = result.scalars().first()
@@ -268,7 +267,7 @@ class ChatService:
         include_archived: bool = False,
         search_query: Optional[str] = None,
         limit: int = 50,
-        offset: int = 0
+        offset: int = 0,
     ) -> Tuple[List[Conversation], int]:
         """List conversations in a workspace"""
         # Verify workspace access
@@ -278,7 +277,7 @@ class ChatService:
 
         base_conditions = [
             Conversation.workspace_id == workspace_id,
-            Conversation.is_deleted == False
+            Conversation.is_deleted == False,
         ]
 
         if not include_archived:
@@ -289,7 +288,7 @@ class ChatService:
             base_conditions.append(
                 or_(
                     Conversation.title.ilike(search_pattern),
-                    Conversation.description.ilike(search_pattern)
+                    Conversation.description.ilike(search_pattern),
                 )
             )
 
@@ -299,20 +298,20 @@ class ChatService:
         total = count_result.scalar() or 0
 
         # Fetch conversations
-        stmt = select(Conversation).where(*base_conditions).order_by(
-            desc(Conversation.is_pinned),
-            desc(Conversation.last_activity_at)
-        ).offset(offset).limit(limit)
+        stmt = (
+            select(Conversation)
+            .where(*base_conditions)
+            .order_by(desc(Conversation.is_pinned), desc(Conversation.last_activity_at))
+            .offset(offset)
+            .limit(limit)
+        )
         result = await self.db.execute(stmt)
         conversations = result.scalars().all()
 
         return conversations, total
 
     async def update_conversation(
-        self,
-        conversation_id: UUID,
-        data: ConversationUpdate,
-        user_id: UUID
+        self, conversation_id: UUID, data: ConversationUpdate, user_id: UUID
     ) -> Optional[Conversation]:
         """Update conversation"""
         conversation = await self.get_conversation(conversation_id, user_id)
@@ -338,11 +337,7 @@ class ChatService:
 
         return conversation
 
-    async def delete_conversation(
-        self,
-        conversation_id: UUID,
-        user_id: UUID
-    ) -> bool:
+    async def delete_conversation(self, conversation_id: UUID, user_id: UUID) -> bool:
         """Soft delete conversation"""
         conversation = await self.get_conversation(conversation_id, user_id)
         if not conversation:
@@ -364,9 +359,7 @@ class ChatService:
     # =========================================================================
 
     async def create_thread(
-        self,
-        data: ThreadCreate,
-        user_id: UUID
+        self, data: ThreadCreate, user_id: UUID
     ) -> Optional[Thread]:
         """Create a new thread in a conversation"""
         # Verify conversation access
@@ -385,16 +378,14 @@ class ChatService:
             created_by_id=user_id,
             last_message_at=datetime.utcnow(),
             message_count=0,
-            token_count=0
+            token_count=0,
         )
         self.db.add(thread)
 
         # Create initial message if provided
         if data.initial_message:
             initial_msg = ChatMessage.create_user_message(
-                thread_id=thread.id,
-                user_id=str(user_id),
-                content=data.initial_message
+                thread_id=thread.id, user_id=str(user_id), content=data.initial_message
             )
             self.db.add(initial_msg)
             thread.message_count = 1
@@ -409,25 +400,29 @@ class ChatService:
         return thread
 
     async def get_thread(
-        self,
-        thread_id: UUID,
-        user_id: UUID,
-        include_messages: bool = False
+        self, thread_id: UUID, user_id: UUID, include_messages: bool = False
     ) -> Optional[Thread]:
         """Get thread by ID"""
         options = [
-            selectinload(Thread.conversation).selectinload(Conversation.workspace).selectinload(Workspace.members)
+            selectinload(Thread.conversation)
+            .selectinload(Conversation.workspace)
+            .selectinload(Workspace.members)
         ]
 
         if include_messages:
-            options.extend([
-                selectinload(Thread.messages).selectinload(ChatMessage.citations).selectinload(Citation.document),
-                selectinload(Thread.messages).selectinload(ChatMessage.attachments)
-            ])
+            options.extend(
+                [
+                    selectinload(Thread.messages)
+                    .selectinload(ChatMessage.citations)
+                    .selectinload(Citation.document),
+                    selectinload(Thread.messages).selectinload(ChatMessage.attachments),
+                ]
+            )
 
-        stmt = select(Thread).options(*options).where(
-            Thread.id == thread_id,
-            Thread.is_deleted == False
+        stmt = (
+            select(Thread)
+            .options(*options)
+            .where(Thread.id == thread_id, Thread.is_deleted == False)
         )
         result = await self.db.execute(stmt)
         thread = result.scalars().first()
@@ -447,7 +442,7 @@ class ChatService:
         user_id: UUID,
         status_filter: Optional[ThreadStatus] = None,
         limit: int = 50,
-        offset: int = 0
+        offset: int = 0,
     ) -> Tuple[List[Thread], int]:
         """List threads in a conversation"""
         # Verify conversation access
@@ -457,7 +452,7 @@ class ChatService:
 
         base_conditions = [
             Thread.conversation_id == conversation_id,
-            Thread.is_deleted == False
+            Thread.is_deleted == False,
         ]
 
         if status_filter:
@@ -469,19 +464,20 @@ class ChatService:
         total = count_result.scalar() or 0
 
         # Fetch threads
-        stmt = select(Thread).where(*base_conditions).order_by(
-            desc(Thread.last_message_at)
-        ).offset(offset).limit(limit)
+        stmt = (
+            select(Thread)
+            .where(*base_conditions)
+            .order_by(desc(Thread.last_message_at))
+            .offset(offset)
+            .limit(limit)
+        )
         result = await self.db.execute(stmt)
         threads = result.scalars().all()
 
         return threads, total
 
     async def update_thread(
-        self,
-        thread_id: UUID,
-        data: ThreadUpdate,
-        user_id: UUID
+        self, thread_id: UUID, data: ThreadUpdate, user_id: UUID
     ) -> Optional[Thread]:
         """Update thread"""
         thread = await self.get_thread(thread_id, user_id)
@@ -499,9 +495,9 @@ class ChatService:
 
         # Track if status is changing to resolved
         status_changing_to_resolved = (
-            data.status is not None and
-            data.status == ThreadStatus.RESOLVED and
-            thread.status != ThreadStatus.RESOLVED
+            data.status is not None
+            and data.status == ThreadStatus.RESOLVED
+            and thread.status != ThreadStatus.RESOLVED
         )
 
         if data.status is not None:
@@ -514,18 +510,19 @@ class ChatService:
         # Trigger final summary on resolution
         if status_changing_to_resolved:
             try:
-                from src.tasks.summarize_thread_task import summarize_thread_on_resolve_task
+                from src.tasks.summarize_thread_task import (
+                    summarize_thread_on_resolve_task,
+                )
+
                 summarize_thread_on_resolve_task.delay(str(thread_id))
             except Exception as e:
-                logger.warning(f"Failed to queue resolution summary for thread {thread_id}: {e}")
+                logger.warning(
+                    f"Failed to queue resolution summary for thread {thread_id}: {e}"
+                )
 
         return thread
 
-    async def delete_thread(
-        self,
-        thread_id: UUID,
-        user_id: UUID
-    ) -> bool:
+    async def delete_thread(self, thread_id: UUID, user_id: UUID) -> bool:
         """Soft delete thread"""
         thread = await self.get_thread(thread_id, user_id)
         if not thread:
@@ -551,76 +548,89 @@ class ChatService:
         thread_ids: List[UUID],
         data: "ThreadUpdate",
         user_id: UUID,
-        atomic: bool = False
+        atomic: bool = False,
     ) -> List[Tuple[UUID, bool, Optional[str], Optional["Thread"]]]:
         """Bulk update multiple threads with same data.
-        
+
         Args:
             thread_ids: List of thread UUIDs to update
             data: ThreadUpdate data to apply
             user_id: User performing the operation
             atomic: If True, all succeed or all fail. If False, best-effort.
-        
+
         Returns:
             List of (thread_id, success, error_msg, thread) tuples.
         """
         results = []
-        
+
         if atomic:
             # Atomic mode: all succeed or all fail
             try:
                 # Start a savepoint for atomic operation
                 async with self.db.begin_nested():
                     updated_threads = []
-                    
+
                     for thread_id in thread_ids:
                         thread = await self.get_thread(thread_id, user_id)
                         if not thread:
                             raise ValueError(f"Thread {thread_id} not found")
-                        
-                        if not thread.conversation.workspace.can_user_edit(str(user_id)):
-                            raise PermissionError(f"No permission to edit thread {thread_id}")
-                        
+
+                        if not thread.conversation.workspace.can_user_edit(
+                            str(user_id)
+                        ):
+                            raise PermissionError(
+                                f"No permission to edit thread {thread_id}"
+                            )
+
                         # Apply updates without committing
                         if data.title is not None:
                             thread.title = data.title
                         if data.summary is not None:
                             thread.summary = data.summary
-                        
+
                         status_changing_to_resolved = (
-                            data.status is not None and
-                            data.status == ThreadStatus.RESOLVED and
-                            thread.status != ThreadStatus.RESOLVED
+                            data.status is not None
+                            and data.status == ThreadStatus.RESOLVED
+                            and thread.status != ThreadStatus.RESOLVED
                         )
-                        
+
                         if data.status is not None:
                             thread.status = data.status
-                        
+
                         thread.updated_at = datetime.utcnow()
-                        updated_threads.append((thread_id, thread, status_changing_to_resolved))
-                
+                        updated_threads.append(
+                            (thread_id, thread, status_changing_to_resolved)
+                        )
+
                 # Commit after savepoint context exits
                 await self.db.commit()
-                
+
                 # Build results and trigger any post-update tasks
                 for thread_id, thread, status_changing_to_resolved in updated_threads:
                     await self.db.refresh(thread)
                     results.append((thread_id, True, None, thread))
-                    
+
                     if status_changing_to_resolved:
                         try:
-                            from src.tasks.summarize_thread_task import summarize_thread_on_resolve_task
+                            from src.tasks.summarize_thread_task import (
+                                summarize_thread_on_resolve_task,
+                            )
+
                             summarize_thread_on_resolve_task.delay(str(thread_id))
                         except Exception as e:
-                            logger.warning(f"Failed to queue resolution summary for thread {thread_id}: {e}")
-                
+                            logger.warning(
+                                f"Failed to queue resolution summary for thread {thread_id}: {e}"
+                            )
+
             except Exception as e:
                 # Rollback on any error
                 await self.db.rollback()
                 logger.error(f"Atomic bulk update failed: {e}")
                 # Return all as failed
                 for thread_id in thread_ids:
-                    results.append((thread_id, False, f"Atomic operation failed: {str(e)}", None))
+                    results.append(
+                        (thread_id, False, f"Atomic operation failed: {str(e)}", None)
+                    )
         else:
             # Best-effort mode: continue on errors
             for thread_id in thread_ids:
@@ -629,66 +639,76 @@ class ChatService:
                     if thread:
                         results.append((thread_id, True, None, thread))
                     else:
-                        results.append((thread_id, False, "Thread not found or insufficient permissions", None))
+                        results.append(
+                            (
+                                thread_id,
+                                False,
+                                "Thread not found or insufficient permissions",
+                                None,
+                            )
+                        )
                 except Exception as e:
                     logger.error(f"Error updating thread {thread_id}: {e}")
                     results.append((thread_id, False, str(e), None))
-        
+
         return results
 
     async def bulk_delete_threads(
-        self,
-        thread_ids: List[UUID],
-        user_id: UUID,
-        atomic: bool = False
+        self, thread_ids: List[UUID], user_id: UUID, atomic: bool = False
     ) -> List[Tuple[UUID, bool, Optional[str]]]:
         """Bulk soft delete multiple threads.
-        
+
         Args:
             thread_ids: List of thread UUIDs to delete
             user_id: User performing the operation
             atomic: If True, all succeed or all fail. If False, best-effort.
-        
+
         Returns:
             List of (thread_id, success, error_msg) tuples.
         """
         results = []
-        
+
         if atomic:
             # Atomic mode: all succeed or all fail
             try:
                 # Start a savepoint for atomic operation
                 async with self.db.begin_nested():
                     deleted_ids = []
-                    
+
                     for thread_id in thread_ids:
                         thread = await self.get_thread(thread_id, user_id)
                         if not thread:
                             raise ValueError(f"Thread {thread_id} not found")
-                        
-                        if not thread.conversation.workspace.can_user_edit(str(user_id)):
-                            raise PermissionError(f"No permission to delete thread {thread_id}")
-                        
+
+                        if not thread.conversation.workspace.can_user_edit(
+                            str(user_id)
+                        ):
+                            raise PermissionError(
+                                f"No permission to delete thread {thread_id}"
+                            )
+
                         # Apply soft delete without committing
                         thread.is_deleted = True
                         thread.updated_at = datetime.utcnow()
                         deleted_ids.append(thread_id)
-                
+
                 # Commit after savepoint context exits
                 await self.db.commit()
-                
+
                 # Build results
                 for thread_id in deleted_ids:
                     results.append((thread_id, True, None))
                     logger.info(f"Deleted thread: {thread_id}")
-                
+
             except Exception as e:
                 # Rollback on any error
                 await self.db.rollback()
                 logger.error(f"Atomic bulk delete failed: {e}")
                 # Return all as failed
                 for thread_id in thread_ids:
-                    results.append((thread_id, False, f"Atomic operation failed: {str(e)}"))
+                    results.append(
+                        (thread_id, False, f"Atomic operation failed: {str(e)}")
+                    )
         else:
             # Best-effort mode: continue on errors
             for thread_id in thread_ids:
@@ -697,50 +717,66 @@ class ChatService:
                     if success:
                         results.append((thread_id, True, None))
                     else:
-                        results.append((thread_id, False, "Thread not found or insufficient permissions"))
+                        results.append(
+                            (
+                                thread_id,
+                                False,
+                                "Thread not found or insufficient permissions",
+                            )
+                        )
                 except Exception as e:
                     logger.error(f"Error deleting thread {thread_id}: {e}")
                     results.append((thread_id, False, str(e)))
-        
+
         return results
 
     async def bulk_summarize_threads(
-        self,
-        thread_ids: List[UUID],
-        user_id: UUID
+        self, thread_ids: List[UUID], user_id: UUID
     ) -> List[Tuple[UUID, bool, Optional[str], Optional["Thread"]]]:
         """Bulk trigger AI summarization for multiple threads.
-        
+
         Args:
             thread_ids: List of thread UUIDs to summarize
             user_id: User performing the operation
-            
+
         Returns:
             List of (thread_id, success, error_msg, thread) tuples.
         """
         results = []
-        
+
         for thread_id in thread_ids:
             try:
                 thread = await self.get_thread(thread_id, user_id)
                 if not thread:
-                    results.append((thread_id, False, "Thread not found or insufficient permissions", None))
+                    results.append(
+                        (
+                            thread_id,
+                            False,
+                            "Thread not found or insufficient permissions",
+                            None,
+                        )
+                    )
                     continue
-                
+
                 # Trigger async summarization task
                 # We use force=True to ensure a fresh summary is generated for manual bulk requests
                 try:
                     from src.tasks.summarize_thread_task import summarize_thread_task
+
                     summarize_thread_task.delay(str(thread_id), force=True)
                     results.append((thread_id, True, None, thread))
                 except Exception as e:
-                    logger.error(f"Failed to queue summarization for thread {thread_id}: {e}")
-                    results.append((thread_id, False, f"Failed to queue task: {str(e)}", thread))
-                    
+                    logger.error(
+                        f"Failed to queue summarization for thread {thread_id}: {e}"
+                    )
+                    results.append(
+                        (thread_id, False, f"Failed to queue task: {str(e)}", thread)
+                    )
+
             except Exception as e:
                 logger.error(f"Error in bulk summarize for thread {thread_id}: {e}")
                 results.append((thread_id, False, str(e), None))
-                
+
         return results
 
     # =========================================================================
@@ -748,9 +784,7 @@ class ChatService:
     # =========================================================================
 
     async def create_message(
-        self,
-        data: ChatMessageCreate,
-        user_id: UUID
+        self, data: ChatMessageCreate, user_id: UUID
     ) -> Optional[ChatMessage]:
         """Create a new message in a thread"""
         # Verify thread access
@@ -765,6 +799,7 @@ class ChatService:
         # Count tokens for the message using fast estimation to avoid blocking
         # on large messages (tiktoken encoding can be slow for long content)
         from src.utils.token_counter import count_message_tokens
+
         message_token_count = count_message_tokens(
             data.content, data.role.value, estimate_only=True
         )
@@ -774,7 +809,7 @@ class ChatService:
             user_id=user_id if data.role == MessageRole.USER else None,
             role=data.role,
             content=data.content,
-            token_count=message_token_count
+            token_count=message_token_count,
         )
         self.db.add(message)
         await self.db.flush()  # Flush to get message.id for citations/attachments
@@ -783,8 +818,7 @@ class ChatService:
         if data.attachment_ids:
             for doc_id in data.attachment_ids:
                 attachment = MessageAttachment(
-                    message_id=message.id,
-                    document_id=doc_id
+                    message_id=message.id, document_id=doc_id
                 )
                 self.db.add(attachment)
 
@@ -802,7 +836,7 @@ class ChatService:
                     score=cit.score,
                     rerank_score=cit.rerank_score,
                     document_title=cit.document_title,
-                    document_type=cit.document_type
+                    document_type=cit.document_type,
                 )
                 self.db.add(citation)
 
@@ -826,7 +860,7 @@ class ChatService:
         model_name: Optional[str] = None,
         token_count: int = 0,
         latency_ms: Optional[int] = None,
-        citations: Optional[List[dict]] = None
+        citations: Optional[List[dict]] = None,
     ) -> Optional[ChatMessage]:
         """Create an assistant message with optional citations"""
         message = ChatMessage.create_assistant_message(
@@ -834,7 +868,7 @@ class ChatService:
             content=content,
             model_name=model_name,
             token_count=token_count,
-            latency_ms=latency_ms
+            latency_ms=latency_ms,
         )
         self.db.add(message)
         await self.db.flush()  # Flush to get message.id for citations
@@ -844,17 +878,17 @@ class ChatService:
             for cit in citations:
                 citation = Citation(
                     message_id=message.id,
-                    document_id=cit.get('document_id'),
-                    external_reference_id=cit.get('external_reference_id'),
-                    chunk_index=cit.get('chunk_index'),
-                    chunk_id=cit.get('chunk_id'),
-                    snippet=cit.get('snippet'),
-                    snippet_preview=cit.get('snippet_preview'),
-                    page_number=cit.get('page_number'),
-                    score=cit.get('score'),
-                    rerank_score=cit.get('rerank_score'),
-                    document_title=cit.get('document_title'),
-                    document_type=cit.get('document_type')
+                    document_id=cit.get("document_id"),
+                    external_reference_id=cit.get("external_reference_id"),
+                    chunk_index=cit.get("chunk_index"),
+                    chunk_id=cit.get("chunk_id"),
+                    snippet=cit.get("snippet"),
+                    snippet_preview=cit.get("snippet_preview"),
+                    page_number=cit.get("page_number"),
+                    score=cit.get("score"),
+                    rerank_score=cit.get("rerank_score"),
+                    document_title=cit.get("document_title"),
+                    document_type=cit.get("document_type"),
                 )
                 self.db.add(citation)
 
@@ -875,26 +909,31 @@ class ChatService:
         if thread and thread.message_count >= 3:
             try:
                 from src.tasks.summarize_thread_task import summarize_thread_task
+
                 summarize_thread_task.delay(str(thread_id))
             except Exception as e:
                 # Don't fail message creation if summarization queue fails
-                logger.warning(f"Failed to queue summarization for thread {thread_id}: {e}")
+                logger.warning(
+                    f"Failed to queue summarization for thread {thread_id}: {e}"
+                )
 
         return message
 
     async def get_message(
-        self,
-        message_id: UUID,
-        user_id: UUID
+        self, message_id: UUID, user_id: UUID
     ) -> Optional[ChatMessage]:
         """Get message by ID"""
-        stmt = select(ChatMessage).options(
-            selectinload(ChatMessage.citations).selectinload(Citation.document),
-            selectinload(ChatMessage.attachments),
-            selectinload(ChatMessage.thread).selectinload(Thread.conversation).selectinload(Conversation.workspace).selectinload(Workspace.members)
-        ).where(
-            ChatMessage.id == message_id,
-            ChatMessage.is_deleted == False
+        stmt = (
+            select(ChatMessage)
+            .options(
+                selectinload(ChatMessage.citations).selectinload(Citation.document),
+                selectinload(ChatMessage.attachments),
+                selectinload(ChatMessage.thread)
+                .selectinload(Thread.conversation)
+                .selectinload(Conversation.workspace)
+                .selectinload(Workspace.members),
+            )
+            .where(ChatMessage.id == message_id, ChatMessage.is_deleted == False)
         )
         result = await self.db.execute(stmt)
         message = result.scalars().first()
@@ -903,7 +942,9 @@ class ChatService:
             return None
 
         # Check workspace access
-        if not self._user_can_access_workspace(message.thread.conversation.workspace, user_id):
+        if not self._user_can_access_workspace(
+            message.thread.conversation.workspace, user_id
+        ):
             return None
 
         return message
@@ -914,7 +955,7 @@ class ChatService:
         user_id: UUID,
         limit: int = 100,
         offset: int = 0,
-        before_id: Optional[UUID] = None
+        before_id: Optional[UUID] = None,
     ) -> Tuple[List[ChatMessage], int]:
         """List messages in a thread"""
         # Verify thread access
@@ -924,7 +965,7 @@ class ChatService:
 
         base_conditions = [
             ChatMessage.thread_id == thread_id,
-            ChatMessage.is_deleted == False
+            ChatMessage.is_deleted == False,
         ]
 
         if before_id:
@@ -941,22 +982,24 @@ class ChatService:
         total = count_result.scalar() or 0
 
         # Fetch messages
-        stmt = select(ChatMessage).options(
-            selectinload(ChatMessage.citations).selectinload(Citation.document),
-            selectinload(ChatMessage.attachments)
-        ).where(*base_conditions).order_by(
-            ChatMessage.created_at.asc()
-        ).offset(offset).limit(limit)
+        stmt = (
+            select(ChatMessage)
+            .options(
+                selectinload(ChatMessage.citations).selectinload(Citation.document),
+                selectinload(ChatMessage.attachments),
+            )
+            .where(*base_conditions)
+            .order_by(ChatMessage.created_at.asc())
+            .offset(offset)
+            .limit(limit)
+        )
         result = await self.db.execute(stmt)
         messages = result.scalars().all()
 
         return messages, total
 
     async def update_message_feedback(
-        self,
-        message_id: UUID,
-        data: ChatMessageUpdate,
-        user_id: UUID
+        self, message_id: UUID, data: ChatMessageUpdate, user_id: UUID
     ) -> Optional[ChatMessage]:
         """Update message feedback"""
         message = await self.get_message(message_id, user_id)
@@ -974,11 +1017,7 @@ class ChatService:
 
         return message
 
-    async def delete_message(
-        self,
-        message_id: UUID,
-        user_id: UUID
-    ) -> bool:
+    async def delete_message(self, message_id: UUID, user_id: UUID) -> bool:
         """Soft delete message"""
         message = await self.get_message(message_id, user_id)
         if not message:
@@ -1005,9 +1044,7 @@ class ChatService:
     # =========================================================================
 
     async def create_collection(
-        self,
-        data: CollectionCreate,
-        user_id: UUID
+        self, data: CollectionCreate, user_id: UUID
     ) -> Optional[Collection]:
         """Create a new collection in a workspace"""
         # Verify workspace access
@@ -1024,7 +1061,7 @@ class ChatService:
             name=data.name,
             description=data.description,
             color=data.color,
-            icon=data.icon
+            icon=data.icon,
         )
         self.db.add(collection)
 
@@ -1032,9 +1069,7 @@ class ChatService:
         if data.document_ids:
             for idx, doc_id in enumerate(data.document_ids):
                 coll_doc = CollectionDocument(
-                    collection_id=collection.id,
-                    document_id=doc_id,
-                    sort_order=idx
+                    collection_id=collection.id, document_id=doc_id, sort_order=idx
                 )
                 self.db.add(coll_doc)
             # Note: document_count is computed automatically from documents relationship
@@ -1046,17 +1081,16 @@ class ChatService:
         return collection
 
     async def get_collection(
-        self,
-        collection_id: UUID,
-        user_id: UUID
+        self, collection_id: UUID, user_id: UUID
     ) -> Optional[Collection]:
         """Get collection by ID"""
-        stmt = select(Collection).options(
-            selectinload(Collection.workspace).selectinload(Workspace.members),
-            selectinload(Collection.documents)
-        ).where(
-            Collection.id == collection_id,
-            Collection.is_deleted == False
+        stmt = (
+            select(Collection)
+            .options(
+                selectinload(Collection.workspace).selectinload(Workspace.members),
+                selectinload(Collection.documents),
+            )
+            .where(Collection.id == collection_id, Collection.is_deleted == False)
         )
         result = await self.db.execute(stmt)
         collection = result.scalars().first()
@@ -1071,11 +1105,7 @@ class ChatService:
         return collection
 
     async def list_collections(
-        self,
-        workspace_id: UUID,
-        user_id: UUID,
-        limit: int = 50,
-        offset: int = 0
+        self, workspace_id: UUID, user_id: UUID, limit: int = 50, offset: int = 0
     ) -> Tuple[List[Collection], int]:
         """List collections in a workspace"""
         # Verify workspace access
@@ -1085,7 +1115,7 @@ class ChatService:
 
         base_conditions = [
             Collection.workspace_id == workspace_id,
-            Collection.is_deleted == False
+            Collection.is_deleted == False,
         ]
 
         # Count total
@@ -1094,19 +1124,20 @@ class ChatService:
         total = count_result.scalar() or 0
 
         # Fetch collections
-        stmt = select(Collection).where(*base_conditions).order_by(
-            Collection.name
-        ).offset(offset).limit(limit)
+        stmt = (
+            select(Collection)
+            .where(*base_conditions)
+            .order_by(Collection.name)
+            .offset(offset)
+            .limit(limit)
+        )
         result = await self.db.execute(stmt)
         collections = result.scalars().all()
 
         return collections, total
 
     async def add_documents_to_collection(
-        self,
-        collection_id: UUID,
-        document_ids: List[UUID],
-        user_id: UUID
+        self, collection_id: UUID, document_ids: List[UUID], user_id: UUID
     ) -> Optional[Collection]:
         """Add documents to a collection"""
         collection = await self.get_collection(collection_id, user_id)
@@ -1128,7 +1159,7 @@ class ChatService:
             # Check if already in collection
             existing_stmt = select(CollectionDocument).where(
                 CollectionDocument.collection_id == collection_id,
-                CollectionDocument.document_id == doc_id
+                CollectionDocument.document_id == doc_id,
             )
             existing_result = await self.db.execute(existing_stmt)
             existing = existing_result.scalars().first()
@@ -1136,9 +1167,7 @@ class ChatService:
             if not existing:
                 max_pos += 1
                 coll_doc = CollectionDocument(
-                    collection_id=collection_id,
-                    document_id=doc_id,
-                    sort_order=max_pos
+                    collection_id=collection_id, document_id=doc_id, sort_order=max_pos
                 )
                 self.db.add(coll_doc)
                 # Note: document_count is computed automatically from documents relationship
@@ -1150,10 +1179,7 @@ class ChatService:
         return collection
 
     async def remove_documents_from_collection(
-        self,
-        collection_id: UUID,
-        document_ids: List[UUID],
-        user_id: UUID
+        self, collection_id: UUID, document_ids: List[UUID], user_id: UUID
     ) -> Optional[Collection]:
         """Remove documents from a collection"""
         collection = await self.get_collection(collection_id, user_id)
@@ -1165,11 +1191,12 @@ class ChatService:
             return None
 
         from sqlalchemy import delete
+
         removed = 0
         for doc_id in document_ids:
             delete_stmt = delete(CollectionDocument).where(
                 CollectionDocument.collection_id == collection_id,
-                CollectionDocument.document_id == doc_id
+                CollectionDocument.document_id == doc_id,
             )
             result = await self.db.execute(delete_stmt)
             removed += result.rowcount
@@ -1191,7 +1218,7 @@ class ChatService:
         user_id: UUID,
         max_messages: Optional[int] = None,
         max_tokens: Optional[int] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
     ) -> dict:
         """
         Get thread messages formatted for LLM context.
@@ -1238,7 +1265,7 @@ class ChatService:
                     "total_messages": 0,
                     "usage_ratio": 0.0,
                     "approaching_limit": False,
-                }
+                },
             }
 
         messages = []
@@ -1266,7 +1293,9 @@ class ChatService:
                 break
 
         # Calculate context usage ratio for warning
-        usage_ratio = total_tokens / effective_max_tokens if effective_max_tokens > 0 else 0
+        usage_ratio = (
+            total_tokens / effective_max_tokens if effective_max_tokens > 0 else 0
+        )
         approaching_limit = usage_ratio >= settings.THREAD_CONTEXT_WARN_THRESHOLD
 
         return {
@@ -1279,15 +1308,11 @@ class ChatService:
                 "total_messages": all_message_count,
                 "usage_ratio": round(usage_ratio, 2),
                 "approaching_limit": approaching_limit,
-            }
+            },
         }
 
     async def search_conversations(
-        self,
-        workspace_id: UUID,
-        user_id: UUID,
-        query: str,
-        limit: int = 20
+        self, workspace_id: UUID, user_id: UUID, query: str, limit: int = 20
     ) -> List[Conversation]:
         """Search conversations by title/description"""
         workspace = await self.get_workspace(workspace_id, user_id)
@@ -1296,25 +1321,26 @@ class ChatService:
 
         search_pattern = f"%{query}%"
 
-        stmt = select(Conversation).where(
-            Conversation.workspace_id == workspace_id,
-            Conversation.is_deleted == False,
-            or_(
-                Conversation.title.ilike(search_pattern),
-                Conversation.description.ilike(search_pattern)
+        stmt = (
+            select(Conversation)
+            .where(
+                Conversation.workspace_id == workspace_id,
+                Conversation.is_deleted == False,
+                or_(
+                    Conversation.title.ilike(search_pattern),
+                    Conversation.description.ilike(search_pattern),
+                ),
             )
-        ).order_by(
-            desc(Conversation.last_activity_at)
-        ).limit(limit)
+            .order_by(desc(Conversation.last_activity_at))
+            .limit(limit)
+        )
         result = await self.db.execute(stmt)
         conversations = result.scalars().all()
 
         return conversations
 
     async def get_workspace_stats(
-        self,
-        workspace_id: UUID,
-        user_id: UUID
+        self, workspace_id: UUID, user_id: UUID
     ) -> Optional[dict]:
         """Get workspace statistics"""
         workspace = await self.get_workspace(workspace_id, user_id)
@@ -1323,49 +1349,49 @@ class ChatService:
 
         # Count conversations
         conv_count_stmt = select(func.count(Conversation.id)).where(
-            Conversation.workspace_id == workspace_id,
-            Conversation.is_deleted == False
+            Conversation.workspace_id == workspace_id, Conversation.is_deleted == False
         )
         conv_count_result = await self.db.execute(conv_count_stmt)
         conv_count = conv_count_result.scalar()
 
         # Count threads
-        thread_count_stmt = select(func.count(Thread.id)).join(
-            Conversation
-        ).where(
-            Conversation.workspace_id == workspace_id,
-            Thread.is_deleted == False
+        thread_count_stmt = (
+            select(func.count(Thread.id))
+            .join(Conversation)
+            .where(
+                Conversation.workspace_id == workspace_id, Thread.is_deleted == False
+            )
         )
         thread_count_result = await self.db.execute(thread_count_stmt)
         thread_count = thread_count_result.scalar()
 
         # Count messages
-        msg_count_stmt = select(func.count(ChatMessage.id)).join(
-            Thread
-        ).join(
-            Conversation
-        ).where(
-            Conversation.workspace_id == workspace_id,
-            ChatMessage.is_deleted == False
+        msg_count_stmt = (
+            select(func.count(ChatMessage.id))
+            .join(Thread)
+            .join(Conversation)
+            .where(
+                Conversation.workspace_id == workspace_id,
+                ChatMessage.is_deleted == False,
+            )
         )
         msg_count_result = await self.db.execute(msg_count_stmt)
         msg_count = msg_count_result.scalar()
 
         # Count collections
         coll_count_stmt = select(func.count(Collection.id)).where(
-            Collection.workspace_id == workspace_id,
-            Collection.is_deleted == False
+            Collection.workspace_id == workspace_id, Collection.is_deleted == False
         )
         coll_count_result = await self.db.execute(coll_count_stmt)
         coll_count = coll_count_result.scalar()
 
         return {
-            'workspace_id': str(workspace_id),
-            'conversation_count': conv_count,
-            'thread_count': thread_count,
-            'message_count': msg_count,
-            'collection_count': coll_count,
-            'member_count': len(workspace.members)
+            "workspace_id": str(workspace_id),
+            "conversation_count": conv_count,
+            "thread_count": thread_count,
+            "message_count": msg_count,
+            "collection_count": coll_count,
+            "member_count": len(workspace.members),
         }
 
 

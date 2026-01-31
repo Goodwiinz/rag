@@ -3,30 +3,35 @@ WebSocket Authentication and Authorization Service
 Handles JWT validation, permission checking, and connection security
 """
 
-import jwt
 import logging
 import time
-from typing import Optional, Dict, List, Set, Tuple
-from datetime import datetime, timezone, timedelta
-from fastapi import WebSocket, HTTPException, status
-from jose import JWTError, jwt as jose_jwt
-from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional, Set, Tuple
+
+import jwt
+from fastapi import HTTPException, WebSocket, status
+from jose import JWTError
+from jose import jwt as jose_jwt
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
-from src.models.user import User
+from src.core.database import get_async_session
 from src.models.organization import Organization
 from src.models.rbac import Permission, Role, UserRole
-from src.core.database import get_async_session
+from src.models.user import User
 
 logger = logging.getLogger(__name__)
 
+
 class WebSocketAuthError(Exception):
     """WebSocket authentication error"""
+
     def __init__(self, message: str, error_code: str = "AUTH_ERROR"):
         self.message = message
         self.error_code = error_code
         super().__init__(message)
+
 
 class WebSocketAuthenticator:
     """Handles WebSocket connection authentication and authorization"""
@@ -51,7 +56,7 @@ class WebSocketAuthenticator:
         token: Optional[str] = None,
         organization_id: Optional[str] = None,
         connection_type: str = "document_updates",
-        **kwargs
+        **kwargs,
     ) -> Tuple[User, Organization]:
         """
         Authenticate and authorize WebSocket connection
@@ -62,7 +67,9 @@ class WebSocketAuthenticator:
         try:
             # Validate input parameters
             if not token:
-                raise WebSocketAuthError("Missing authentication token", "MISSING_TOKEN")
+                raise WebSocketAuthError(
+                    "Missing authentication token", "MISSING_TOKEN"
+                )
 
             if not organization_id:
                 raise WebSocketAuthError("Missing organization ID", "MISSING_ORG_ID")
@@ -118,7 +125,7 @@ class WebSocketAuthenticator:
         client_ip = websocket.client.host if websocket.client else "unknown"
 
         # Check for proxy headers
-        if hasattr(websocket, 'headers'):
+        if hasattr(websocket, "headers"):
             forwarded_for = websocket.headers.get("X-Forwarded-For")
             if forwarded_for:
                 client_ip = forwarded_for.split(",")[0].strip()
@@ -139,7 +146,7 @@ class WebSocketAuthenticator:
             if now < block_expiry:
                 raise WebSocketAuthError(
                     "Too many connection attempts. Please try again later.",
-                    "RATE_LIMITED"
+                    "RATE_LIMITED",
                 )
             else:
                 del self.blocked_ips[client_ip]
@@ -153,8 +160,7 @@ class WebSocketAuthenticator:
             # Block the IP
             self.blocked_ips[client_ip] = now + (self.block_duration_minutes * 60)
             raise WebSocketAuthError(
-                "Too many connection attempts. Please try again later.",
-                "RATE_LIMITED"
+                "Too many connection attempts. Please try again later.", "RATE_LIMITED"
             )
 
     def _record_failed_attempt(self, client_ip: str):
@@ -177,9 +183,7 @@ class WebSocketAuthenticator:
                 token = token[7:]
 
             payload = jose_jwt.decode(
-                token,
-                self.jwt_secret,
-                algorithms=[self.jwt_algorithm]
+                token, self.jwt_secret, algorithms=[self.jwt_algorithm]
             )
 
             user_id = payload.get("sub")
@@ -209,9 +213,7 @@ class WebSocketAuthenticator:
         try:
             result = await session.execute(
                 select(User).where(
-                    User.id == user_id,
-                    User.is_active == True,
-                    User.is_deleted == False
+                    User.id == user_id, User.is_active == True, User.is_deleted == False
                 )
             )
             user = result.scalar_one_or_none()
@@ -236,10 +238,7 @@ class WebSocketAuthenticator:
             raise WebSocketAuthError("User validation failed", "USER_VALIDATION_ERROR")
 
     async def _validate_organization_access(
-        self,
-        session: AsyncSession,
-        user: User,
-        organization_id: str
+        self, session: AsyncSession, user: User, organization_id: str
     ) -> Organization:
         """Validate user has access to the specified organization"""
         try:
@@ -248,7 +247,7 @@ class WebSocketAuthenticator:
                 select(Organization).where(
                     Organization.id == organization_id,
                     Organization.is_active == True,
-                    Organization.is_deleted == False
+                    Organization.is_deleted == False,
                 )
             )
             organization = result.scalar_one_or_none()
@@ -261,7 +260,7 @@ class WebSocketAuthenticator:
                 select(UserRole).where(
                     UserRole.user_id == user.id,
                     UserRole.organization_id == organization_id,
-                    UserRole.is_active == True
+                    UserRole.is_active == True,
                 )
             )
             user_role = result.scalar_one_or_none()
@@ -290,7 +289,7 @@ class WebSocketAuthenticator:
         session: AsyncSession,
         user: User,
         organization: Organization,
-        connection_type: str
+        connection_type: str,
     ):
         """Check user has WebSocket-specific permissions"""
         try:
@@ -299,12 +298,11 @@ class WebSocketAuthenticator:
                 "document_updates": ["websocket:document_updates"],
                 "system_status": ["websocket:system_status"],
                 "search_results": ["websocket:search_results"],
-                "all": ["websocket:*"]
+                "all": ["websocket:*"],
             }
 
             required_permissions = permission_mapping.get(
-                connection_type,
-                permission_mapping["document_updates"]
+                connection_type, permission_mapping["document_updates"]
             )
 
             # Get user's permissions
@@ -314,8 +312,7 @@ class WebSocketAuthenticator:
 
             # Check if user has required permissions
             has_permission = any(
-                perm in user_permissions
-                for perm in required_permissions
+                perm in user_permissions for perm in required_permissions
             )
 
             if not has_permission:
@@ -327,12 +324,12 @@ class WebSocketAuthenticator:
                     if not is_admin:
                         raise WebSocketAuthError(
                             "Insufficient permissions for WebSocket connection",
-                            "INSUFFICIENT_PERMISSIONS"
+                            "INSUFFICIENT_PERMISSIONS",
                         )
                 else:
                     raise WebSocketAuthError(
                         "Insufficient permissions for WebSocket connection",
-                        "INSUFFICIENT_PERMISSIONS"
+                        "INSUFFICIENT_PERMISSIONS",
                     )
 
         except WebSocketAuthError:
@@ -344,23 +341,21 @@ class WebSocketAuthenticator:
             )
 
     async def _get_user_permissions(
-        self,
-        session: AsyncSession,
-        user_id: str,
-        organization_id: str
+        self, session: AsyncSession, user_id: str, organization_id: str
     ) -> Set[str]:
         """Get all permissions for a user in an organization"""
         try:
             # Query user permissions through roles
-            query = select(Permission.name).join(
-                Role.permissions
-            ).join(
-                UserRole, UserRole.role_id == Role.id
-            ).where(
-                UserRole.user_id == user_id,
-                UserRole.organization_id == organization_id,
-                UserRole.is_active == True,
-                Permission.is_active == True
+            query = (
+                select(Permission.name)
+                .join(Role.permissions)
+                .join(UserRole, UserRole.role_id == Role.id)
+                .where(
+                    UserRole.user_id == user_id,
+                    UserRole.organization_id == organization_id,
+                    UserRole.is_active == True,
+                    Permission.is_active == True,
+                )
             )
 
             result = await session.execute(query)
@@ -373,19 +368,18 @@ class WebSocketAuthenticator:
             return set()
 
     async def _is_organization_admin(
-        self,
-        session: AsyncSession,
-        user_id: str,
-        organization_id: str
+        self, session: AsyncSession, user_id: str, organization_id: str
     ) -> bool:
         """Check if user is an administrator of the organization"""
         try:
             result = await session.execute(
-                select(UserRole).join(Role).where(
+                select(UserRole)
+                .join(Role)
+                .where(
                     UserRole.user_id == user_id,
                     UserRole.organization_id == organization_id,
                     UserRole.is_active == True,
-                    Role.name.in_(["admin", "administrator", "owner"])
+                    Role.name.in_(["admin", "administrator", "owner"]),
                 )
             )
             return result.scalar_one_or_none() is not None
@@ -398,7 +392,7 @@ class WebSocketAuthenticator:
         self,
         user_id: str,
         organization_id: str,
-        connection_type: str = "document_updates"
+        connection_type: str = "document_updates",
     ) -> str:
         """Generate short-lived WebSocket connection token"""
         try:
@@ -411,13 +405,11 @@ class WebSocketAuthenticator:
                 "connection_type": connection_type,
                 "token_type": "websocket",
                 "iat": now,
-                "exp": exp
+                "exp": exp,
             }
 
             token = jose_jwt.encode(
-                payload,
-                self.jwt_secret,
-                algorithm=self.jwt_algorithm
+                payload, self.jwt_secret, algorithm=self.jwt_algorithm
             )
 
             return token
@@ -429,16 +421,12 @@ class WebSocketAuthenticator:
             )
 
     def validate_connection_token(
-        self,
-        token: str,
-        expected_connection_type: Optional[str] = None
+        self, token: str, expected_connection_type: Optional[str] = None
     ) -> Dict[str, str]:
         """Validate WebSocket connection token"""
         try:
             payload = jose_jwt.decode(
-                token,
-                self.jwt_secret,
-                algorithms=[self.jwt_algorithm]
+                token, self.jwt_secret, algorithms=[self.jwt_algorithm]
             )
 
             # Validate token type
@@ -456,12 +444,13 @@ class WebSocketAuthenticator:
             return {
                 "user_id": payload.get("sub"),
                 "organization_id": payload.get("org"),
-                "connection_type": payload.get("connection_type")
+                "connection_type": payload.get("connection_type"),
             }
 
         except JWTError as e:
             logger.warning(f"Connection token validation failed: {e}")
             raise WebSocketAuthError("Invalid connection token", "INVALID_TOKEN")
+
 
 class WebSocketAuthorizer:
     """Handles authorization checks for WebSocket operations"""
@@ -470,10 +459,7 @@ class WebSocketAuthorizer:
         self.authenticator = WebSocketAuthenticator()
 
     async def can_access_document(
-        self,
-        user: User,
-        organization: Organization,
-        document_id: str
+        self, user: User, organization: Organization, document_id: str
     ) -> bool:
         """Check if user can access a specific document"""
         try:
@@ -494,7 +480,7 @@ class WebSocketAuthorizer:
                         select(Document).where(
                             Document.id == document_id,
                             Document.organization_id == organization.id,
-                            Document.is_deleted == False
+                            Document.is_deleted == False,
                         )
                     )
                     document = result.scalar_one_or_none()
@@ -523,18 +509,13 @@ class WebSocketAuthorizer:
             return False
 
     async def can_subscribe_to_document_updates(
-        self,
-        user: User,
-        organization: Organization,
-        document_id: str
+        self, user: User, organization: Organization, document_id: str
     ) -> bool:
         """Check if user can subscribe to document updates"""
         return await self.can_access_document(user, organization, document_id)
 
     async def can_receive_system_notifications(
-        self,
-        user: User,
-        organization: Organization
+        self, user: User, organization: Organization
     ) -> bool:
         """Check if user can receive system notifications"""
         try:
@@ -550,7 +531,7 @@ class WebSocketAuthorizer:
                         for perm in [
                             "websocket:system_notifications",
                             "websocket:*",
-                            "system:*"
+                            "system:*",
                         ]
                     )
 
@@ -562,9 +543,7 @@ class WebSocketAuthorizer:
             return False
 
     async def get_accessible_documents(
-        self,
-        user: User,
-        organization: Organization
+        self, user: User, organization: Organization
     ) -> List[str]:
         """Get list of document IDs user can access"""
         try:
@@ -574,14 +553,19 @@ class WebSocketAuthorizer:
 
                     query = select(Document.id).where(
                         Document.organization_id == organization.id,
-                        Document.is_deleted == False
+                        Document.is_deleted == False,
                     )
 
                     # Non-admin users only see their own or public documents
-                    if not user.is_super_admin and not await self._is_organization_admin(user.id, organization.id):
+                    if (
+                        not user.is_super_admin
+                        and not await self._is_organization_admin(
+                            user.id, organization.id
+                        )
+                    ):
                         query = query.where(
-                            (Document.uploaded_by_user_id == user.id) |
-                            (Document.is_public == True)
+                            (Document.uploaded_by_user_id == user.id)
+                            | (Document.is_public == True)
                         )
 
                     result = await session.execute(query)
@@ -593,6 +577,7 @@ class WebSocketAuthorizer:
         except Exception as e:
             logger.error(f"Error getting accessible documents: {e}")
             return []
+
 
 # Global instances
 websocket_authenticator = WebSocketAuthenticator()

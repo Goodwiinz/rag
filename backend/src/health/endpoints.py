@@ -1,16 +1,17 @@
 """
 Health check API endpoints.
 """
-from fastapi import APIRouter, HTTPException, Depends, Request
-from fastapi.responses import JSONResponse
-from typing import Dict, Any, Optional
-import time
 import asyncio
+import time
 from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
 
-from .checker import HealthChecker, HealthStatus
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
+
 from ..core.config import get_settings
 from ..core.metrics import record_request_count, record_request_duration
+from .checker import HealthChecker, HealthStatus
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -26,14 +27,14 @@ def get_health_checker() -> HealthChecker:
     if _health_checker is None:
         settings = get_settings()
         config = {
-            'database_url': settings.database_url,
-            'redis_url': settings.redis_url,
-            'neo4j_uri': settings.neo4j_uri,
-            'neo4j_user': settings.neo4j_user,
-            'neo4j_password': settings.neo4j_password,
-            'qdrant_url': settings.qdrant_url,
-            'openai_api_key': settings.openai_api_key,
-            'anthropic_api_key': settings.anthropic_api_key,
+            "database_url": settings.database_url,
+            "redis_url": settings.redis_url,
+            "neo4j_uri": settings.neo4j_uri,
+            "neo4j_user": settings.neo4j_user,
+            "neo4j_password": settings.neo4j_password,
+            "qdrant_url": settings.qdrant_url,
+            "openai_api_key": settings.openai_api_key,
+            "anthropic_api_key": settings.anthropic_api_key,
         }
         _health_checker = HealthChecker(config)
     return _health_checker
@@ -66,39 +67,39 @@ async def health_check(request: Request):
 
         # Record metrics
         duration = time.time() - start_time
-        record_request_count('health_check', '200')
-        record_request_duration('health_check', duration)
+        record_request_count("health_check", "200")
+        record_request_duration("health_check", duration)
 
         # Return appropriate HTTP status based on health
         status_code = 200
-        if health_summary['status'] == HealthStatus.UNHEALTHY.value:
+        if health_summary["status"] == HealthStatus.UNHEALTHY.value:
             status_code = 503
-        elif health_summary['status'] == HealthStatus.DEGRADED.value:
+        elif health_summary["status"] == HealthStatus.DEGRADED.value:
             status_code = 200  # Still return 200 for degraded but indicate in response
 
         return JSONResponse(
             status_code=status_code,
             content={
-                "status": health_summary['status'],
-                "timestamp": health_summary['timestamp'],
+                "status": health_summary["status"],
+                "timestamp": health_summary["timestamp"],
                 "version": "1.0.0",  # This should come from app version
                 "uptime": get_uptime(),
-                "checks": {k: v["status"] for k, v in health_summary["checks"].items()}
-            }
+                "checks": {k: v["status"] for k, v in health_summary["checks"].items()},
+            },
         )
 
     except Exception as e:
         duration = time.time() - start_time
-        record_request_count('health_check', '500')
-        record_request_duration('health_check', duration)
+        record_request_count("health_check", "500")
+        record_request_duration("health_check", duration)
 
         return JSONResponse(
             status_code=503,
             content={
                 "status": "unhealthy",
                 "timestamp": time.time(),
-                "error": f"Health check failed: {str(e)}"
-            }
+                "error": f"Health check failed: {str(e)}",
+            },
         )
 
 
@@ -115,31 +116,28 @@ async def detailed_health_check(request: Request):
 
         # Record metrics
         duration = time.time() - start_time
-        record_request_count('health_check_detailed', '200')
-        record_request_duration('health_check_detailed', duration)
+        record_request_count("health_check_detailed", "200")
+        record_request_duration("health_check_detailed", duration)
 
         # Return appropriate HTTP status based on health
         status_code = 200
-        if health_summary['status'] == HealthStatus.UNHEALTHY.value:
+        if health_summary["status"] == HealthStatus.UNHEALTHY.value:
             status_code = 503
 
-        return JSONResponse(
-            status_code=status_code,
-            content=health_summary
-        )
+        return JSONResponse(status_code=status_code, content=health_summary)
 
     except Exception as e:
         duration = time.time() - start_time
-        record_request_count('health_check_detailed', '500')
-        record_request_duration('health_check_detailed', duration)
+        record_request_count("health_check_detailed", "500")
+        record_request_duration("health_check_detailed", duration)
 
         return JSONResponse(
             status_code=503,
             content={
                 "status": "unhealthy",
                 "timestamp": time.time(),
-                "error": f"Detailed health check failed: {str(e)}"
-            }
+                "error": f"Detailed health check failed: {str(e)}",
+            },
         )
 
 
@@ -154,19 +152,18 @@ async def check_component(component: str, request: Request):
         health_checker = get_health_checker()
 
         # Run specific component check
-        check_method = getattr(health_checker, f'check_{component}', None)
+        check_method = getattr(health_checker, f"check_{component}", None)
         if not check_method:
             raise HTTPException(
-                status_code=404,
-                detail=f"Component '{component}' not found"
+                status_code=404, detail=f"Component '{component}' not found"
             )
 
         result = await check_method()
 
         # Record metrics
         duration = time.time() - start_time
-        record_request_count(f'health_check_{component}', '200')
-        record_request_duration(f'health_check_{component}', duration)
+        record_request_count(f"health_check_{component}", "200")
+        record_request_duration(f"health_check_{component}", duration)
 
         status_code = 200
         if result.status == HealthStatus.UNHEALTHY:
@@ -180,16 +177,16 @@ async def check_component(component: str, request: Request):
                 "message": result.message,
                 "response_time": result.response_time,
                 "timestamp": result.timestamp,
-                "details": result.details
-            }
+                "details": result.details,
+            },
         )
 
     except HTTPException:
         raise
     except Exception as e:
         duration = time.time() - start_time
-        record_request_count(f'health_check_{component}', '500')
-        record_request_duration(f'health_check_{component}', duration)
+        record_request_count(f"health_check_{component}", "500")
+        record_request_duration(f"health_check_{component}", duration)
 
         return JSONResponse(
             status_code=503,
@@ -197,8 +194,8 @@ async def check_component(component: str, request: Request):
                 "component": component,
                 "status": "unhealthy",
                 "message": f"Component check failed: {str(e)}",
-                "timestamp": time.time()
-            }
+                "timestamp": time.time(),
+            },
         )
 
 
@@ -215,12 +212,9 @@ async def health_metrics():
             "last_check_time": _last_check_time,
             "cache_ttl": _check_cache_ttl,
             "components_checked": len(health_checker.results),
-            "overall_status": health_checker.get_overall_status().value
+            "overall_status": health_checker.get_overall_status().value,
         },
-        "system": {
-            "uptime": get_uptime(),
-            "timestamp": time.time()
-        }
+        "system": {"uptime": get_uptime(), "timestamp": time.time()},
     }
 
 
@@ -233,10 +227,7 @@ async def invalidate_health_cache():
     global _last_check_time
     _last_check_time = 0
 
-    return {
-        "message": "Health check cache invalidated",
-        "timestamp": time.time()
-    }
+    return {"message": "Health check cache invalidated", "timestamp": time.time()}
 
 
 @router.get("/readiness")
@@ -249,28 +240,22 @@ async def readiness_probe():
         health_checker = get_health_checker()
 
         # Check critical components for readiness
-        critical_checks = ['database', 'redis']
+        critical_checks = ["database", "redis"]
 
         for component in critical_checks:
-            check_method = getattr(health_checker, f'check_{component}', None)
+            check_method = getattr(health_checker, f"check_{component}", None)
             if check_method:
                 result = await check_method()
                 if result.status != HealthStatus.HEALTHY:
                     raise HTTPException(
                         status_code=503,
-                        detail=f"Critical component {component} is not healthy"
+                        detail=f"Critical component {component} is not healthy",
                     )
 
-        return {
-            "status": "ready",
-            "timestamp": time.time()
-        }
+        return {"status": "ready", "timestamp": time.time()}
 
     except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Readiness check failed: {str(e)}"
-        )
+        raise HTTPException(status_code=503, detail=f"Readiness check failed: {str(e)}")
 
 
 @router.get("/liveness")
@@ -279,11 +264,7 @@ async def liveness_probe():
     Kubernetes liveness probe.
     Checks if the application is still alive.
     """
-    return {
-        "status": "alive",
-        "timestamp": time.time(),
-        "uptime": get_uptime()
-    }
+    return {"status": "alive", "timestamp": time.time(), "uptime": get_uptime()}
 
 
 @router.get("/startup")
@@ -303,34 +284,29 @@ async def startup_probe():
             return {
                 "status": "started",
                 "timestamp": time.time(),
-                "uptime": get_uptime()
+                "uptime": get_uptime(),
             }
         else:
             raise HTTPException(
                 status_code=503,
-                detail="Application not fully started - database not ready"
+                detail="Application not fully started - database not ready",
             )
 
     except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Startup check failed: {str(e)}"
-        )
+        raise HTTPException(status_code=503, detail=f"Startup check failed: {str(e)}")
 
 
 def get_uptime() -> Dict[str, Any]:
     """Get application uptime information."""
     try:
         import psutil
+
         process = psutil.Process()
         uptime_seconds = time.time() - process.create_time()
 
         return {
             "seconds": int(uptime_seconds),
-            "human_readable": str(timedelta(seconds=int(uptime_seconds)))
+            "human_readable": str(timedelta(seconds=int(uptime_seconds))),
         }
     except Exception:
-        return {
-            "seconds": 0,
-            "human_readable": "unknown"
-        }
+        return {"seconds": 0, "human_readable": "unknown"}

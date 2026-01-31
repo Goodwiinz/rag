@@ -6,30 +6,30 @@ across all databases with production-ready features for high-load scenarios.
 """
 
 import asyncio
-import logging
-import time
-import threading
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple, Union, Callable
-from dataclasses import dataclass, field
-from enum import Enum
 import json
+import logging
+import os
 import queue
+import threading
+import time
 import weakref
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-import os
-
-from .postgresql_optimizer import DatabaseConfig, OptimizationLevel
-from .neo4j_optimizer import Neo4jConfig, Neo4jOptimizationLevel
-from .redis_optimizer import RedisConfig, RedisOptimizationLevel
 from ..qdrant_optimization import QdrantOptimizationConfig
+from .neo4j_optimizer import Neo4jConfig, Neo4jOptimizationLevel
+from .postgresql_optimizer import DatabaseConfig, OptimizationLevel
+from .redis_optimizer import RedisConfig, RedisOptimizationLevel
 
 logger = logging.getLogger(__name__)
 
 
 class PoolScalingStrategy(str, Enum):
     """Connection pool scaling strategies"""
+
     FIXED = "fixed"
     DYNAMIC = "dynamic"
     AUTO_SCALING = "auto_scaling"
@@ -38,6 +38,7 @@ class PoolScalingStrategy(str, Enum):
 
 class ConnectionState(str, Enum):
     """Connection state tracking"""
+
     IDLE = "idle"
     ACTIVE = "active"
     CHECKED_OUT = "checked_out"
@@ -49,6 +50,7 @@ class ConnectionState(str, Enum):
 @dataclass
 class PoolConfiguration:
     """Base configuration for connection pools"""
+
     min_connections: int = 5
     max_connections: int = 50
     connection_timeout: float = 30.0
@@ -65,6 +67,7 @@ class PoolConfiguration:
 @dataclass
 class PoolMetrics:
     """Connection pool performance metrics"""
+
     total_connections: int = 0
     active_connections: int = 0
     idle_connections: int = 0
@@ -81,11 +84,19 @@ class PoolMetrics:
 
     @property
     def success_rate(self) -> float:
-        return (self.successful_requests / self.total_requests * 100) if self.total_requests > 0 else 0
+        return (
+            (self.successful_requests / self.total_requests * 100)
+            if self.total_requests > 0
+            else 0
+        )
 
     @property
     def error_rate(self) -> float:
-        return (self.failed_requests / self.total_requests * 100) if self.total_requests > 0 else 0
+        return (
+            (self.failed_requests / self.total_requests * 100)
+            if self.total_requests > 0
+            else 0
+        )
 
 
 class ManagedConnection:
@@ -151,16 +162,23 @@ class BaseConnectionPool:
         await self._create_initial_connections()
         self.health_check_task = asyncio.create_task(self._health_check_loop())
         self.cleanup_task = asyncio.create_task(self._cleanup_loop())
-        if self.config.scaling_strategy in [PoolScalingStrategy.DYNAMIC, PoolScalingStrategy.AUTO_SCALING]:
+        if self.config.scaling_strategy in [
+            PoolScalingStrategy.DYNAMIC,
+            PoolScalingStrategy.AUTO_SCALING,
+        ]:
             self.scaling_task = asyncio.create_task(self._scaling_loop())
-        logger.info(f"Connection pool {self.pool_id} initialized with {len(self.connections)} connections")
+        logger.info(
+            f"Connection pool {self.pool_id} initialized with {len(self.connections)} connections"
+        )
 
     async def _create_initial_connections(self):
         """Create initial set of connections"""
         for _ in range(self.config.min_connections):
             await self._add_connection()
 
-    async def get_connection(self, timeout: Optional[float] = None) -> ManagedConnection:
+    async def get_connection(
+        self, timeout: Optional[float] = None
+    ) -> ManagedConnection:
         """Get a connection from the pool"""
         if self.is_shutdown:
             raise RuntimeError(f"Pool {self.pool_id} is shutdown")
@@ -174,7 +192,10 @@ class BaseConnectionPool:
             connection = await self._get_available_connection(timeout)
 
             # Validate connection if enabled
-            if self.config.enable_connection_validation and not await self._validate_connection(connection):
+            if (
+                self.config.enable_connection_validation
+                and not await self._validate_connection(connection)
+            ):
                 await self._remove_connection(connection.connection_id)
                 # Try again with a new connection
                 connection = await self._get_available_connection(timeout)
@@ -185,10 +206,12 @@ class BaseConnectionPool:
 
             wait_time = (time.time() - start_time) * 1000
             self.metrics.avg_wait_time_ms = (
-                (self.metrics.avg_wait_time_ms * (self.metrics.total_requests - 1) + wait_time) /
-                self.metrics.total_requests
+                self.metrics.avg_wait_time_ms * (self.metrics.total_requests - 1)
+                + wait_time
+            ) / self.metrics.total_requests
+            self.metrics.max_wait_time_ms = max(
+                self.metrics.max_wait_time_ms, wait_time
             )
-            self.metrics.max_wait_time_ms = max(self.metrics.max_wait_time_ms, wait_time)
 
             return connection
 
@@ -204,7 +227,7 @@ class BaseConnectionPool:
             # Try to get from available queue
             connection_id = await asyncio.wait_for(
                 self.available_connections.get(),
-                timeout=0.1  # Short timeout for first attempt
+                timeout=0.1,  # Short timeout for first attempt
             )
             return self.connections[connection_id]
         except asyncio.TimeoutError:
@@ -215,8 +238,7 @@ class BaseConnectionPool:
                 else:
                     # Pool at max capacity, wait for available connection
                     connection_id = await asyncio.wait_for(
-                        self.available_connections.get(),
-                        timeout=timeout - 0.1
+                        self.available_connections.get(), timeout=timeout - 0.1
                     )
                     return self.connections[connection_id]
 
@@ -231,9 +253,7 @@ class BaseConnectionPool:
         """Add a new connection to the pool"""
         connection = await self._create_connection()
         managed_conn = ManagedConnection(
-            connection=connection,
-            pool_id=self.pool_id,
-            created_at=datetime.utcnow()
+            connection=connection, pool_id=self.pool_id, created_at=datetime.utcnow()
         )
 
         self.connections[managed_conn.connection_id] = managed_conn
@@ -244,7 +264,7 @@ class BaseConnectionPool:
         # Notify callbacks
         for callback in self._connection_callbacks:
             try:
-                await callback('connection_created', managed_conn)
+                await callback("connection_created", managed_conn)
             except Exception as e:
                 logger.warning(f"Connection callback error: {e}")
 
@@ -270,7 +290,9 @@ class BaseConnectionPool:
             connection.is_healthy = is_valid
             return is_valid
         except Exception as e:
-            logger.warning(f"Connection validation failed for {connection.connection_id}: {e}")
+            logger.warning(
+                f"Connection validation failed for {connection.connection_id}: {e}"
+            )
             connection.mark_error()
             return False
 
@@ -292,7 +314,9 @@ class BaseConnectionPool:
         for connection in list(self.connections.values()):
             if not connection.is_healthy or connection.error_count > 3:
                 unhealthy_connections.append(connection)
-            elif (datetime.utcnow() - connection.last_health_check).total_seconds() > self.config.health_check_interval:
+            elif (
+                datetime.utcnow() - connection.last_health_check
+            ).total_seconds() > self.config.health_check_interval:
                 if not await self._validate_connection(connection):
                     unhealthy_connections.append(connection)
 
@@ -327,8 +351,10 @@ class BaseConnectionPool:
             if connection.get_age_seconds() > self.config.max_lifetime:
                 connections_to_remove.append(connection)
             # Remove idle connections that exceed idle timeout (but keep minimum)
-            elif (connection.get_idle_seconds() > self.config.idle_timeout and
-                  len(self.connections) > self.config.min_connections):
+            elif (
+                connection.get_idle_seconds() > self.config.idle_timeout
+                and len(self.connections) > self.config.min_connections
+            ):
                 connections_to_remove.append(connection)
 
         for connection in connections_to_remove:
@@ -358,32 +384,62 @@ class BaseConnectionPool:
 
         if utilization > 0.8 and len(self.connections) < self.config.max_connections:
             # High utilization, add connections
-            connections_to_add = min(2, self.config.max_connections - len(self.connections))
+            connections_to_add = min(
+                2, self.config.max_connections - len(self.connections)
+            )
             for _ in range(connections_to_add):
                 await self._add_connection()
         elif utilization < 0.2 and len(self.connections) > self.config.min_connections:
             # Low utilization, remove connections
-            connections_to_remove = min(2, len(self.connections) - self.config.min_connections)
-            idle_connections = [conn for conn in self.connections.values() if conn.state == ConnectionState.IDLE]
+            connections_to_remove = min(
+                2, len(self.connections) - self.config.min_connections
+            )
+            idle_connections = [
+                conn
+                for conn in self.connections.values()
+                if conn.state == ConnectionState.IDLE
+            ]
             for connection in idle_connections[:connections_to_remove]:
                 await self._remove_connection(connection.connection_id)
 
     async def _auto_scaling(self):
         """Auto-scaling based on request patterns and response times"""
-        if self.metrics.avg_wait_time_ms > 100 and len(self.connections) < self.config.max_connections:
+        if (
+            self.metrics.avg_wait_time_ms > 100
+            and len(self.connections) < self.config.max_connections
+        ):
             # High wait times, add connections
             await self._add_connection()
-        elif self.metrics.avg_wait_time_ms < 10 and len(self.connections) > self.config.min_connections:
+        elif (
+            self.metrics.avg_wait_time_ms < 10
+            and len(self.connections) > self.config.min_connections
+        ):
             # Low wait times, can remove connections
-            idle_connections = [conn for conn in self.connections.values() if conn.state == ConnectionState.IDLE]
+            idle_connections = [
+                conn
+                for conn in self.connections.values()
+                if conn.state == ConnectionState.IDLE
+            ]
             if idle_connections:
                 await self._remove_connection(idle_connections[0].connection_id)
 
     def update_metrics(self):
         """Update pool metrics"""
-        self.metrics.active_connections = sum(1 for conn in self.connections.values() if conn.state == ConnectionState.CHECKED_OUT)
-        self.metrics.idle_connections = sum(1 for conn in self.connections.values() if conn.state == ConnectionState.IDLE)
-        self.metrics.pool_utilization = self.metrics.active_connections / self.config.max_connections if self.config.max_connections > 0 else 0
+        self.metrics.active_connections = sum(
+            1
+            for conn in self.connections.values()
+            if conn.state == ConnectionState.CHECKED_OUT
+        )
+        self.metrics.idle_connections = sum(
+            1
+            for conn in self.connections.values()
+            if conn.state == ConnectionState.IDLE
+        )
+        self.metrics.pool_utilization = (
+            self.metrics.active_connections / self.config.max_connections
+            if self.config.max_connections > 0
+            else 0
+        )
 
     async def shutdown(self):
         """Shutdown the connection pool"""
@@ -439,7 +495,7 @@ class PostgreSQLConnectionPool(BaseConnectionPool):
             user=self.db_config.user,
             password=self.db_config.password,
             database=self.db_config.database,
-            command_timeout=self.config.connection_timeout
+            command_timeout=self.config.connection_timeout,
         )
 
     async def _close_connection(self, connection: Any):
@@ -467,9 +523,10 @@ class Neo4jConnectionPool(BaseConnectionPool):
         """Create Neo4j session"""
         if not self.driver:
             from neo4j import AsyncGraphDatabase
+
             self.driver = AsyncGraphDatabase.driver(
                 self.neo4j_config.uri,
-                auth=(self.neo4j_config.user, self.neo4j_config.password)
+                auth=(self.neo4j_config.user, self.neo4j_config.password),
             )
         return self.driver.session(database=self.neo4j_config.database)
 
@@ -499,14 +556,16 @@ class RedisConnectionPool(BaseConnectionPool):
         """Create Redis connection"""
         if not self.pool:
             import redis.asyncio as redis
+
             self.pool = redis.ConnectionPool(
                 host=self.redis_config.host,
                 port=self.redis_config.port,
                 password=self.redis_config.password,
                 db=self.redis_config.database,
-                max_connections=self.config.max_connections
+                max_connections=self.config.max_connections,
             )
         import redis.asyncio as redis
+
         return redis.Redis(connection_pool=self.pool)
 
     async def _close_connection(self, connection: Any):
@@ -558,55 +617,57 @@ class AdvancedConnectionPoolManager:
     async def initialize(self, configs: Dict[str, Any]):
         """Initialize all connection pools"""
         # PostgreSQL pool
-        if 'postgresql' in configs:
-            pg_config = configs['postgresql']
+        if "postgresql" in configs:
+            pg_config = configs["postgresql"]
             pool_config = PoolConfiguration(
                 min_connections=10,
                 max_connections=100,
-                scaling_strategy=PoolScalingStrategy.AUTO_SCALING
+                scaling_strategy=PoolScalingStrategy.AUTO_SCALING,
             )
             pg_pool = PostgreSQLConnectionPool(pg_config, pool_config)
             await pg_pool.initialize()
-            self.pools['postgresql'] = pg_pool
+            self.pools["postgresql"] = pg_pool
 
         # Neo4j pool
-        if 'neo4j' in configs:
-            neo4j_config = configs['neo4j']
+        if "neo4j" in configs:
+            neo4j_config = configs["neo4j"]
             pool_config = PoolConfiguration(
                 min_connections=5,
                 max_connections=50,
-                scaling_strategy=PoolScalingStrategy.DYNAMIC
+                scaling_strategy=PoolScalingStrategy.DYNAMIC,
             )
             neo4j_pool = Neo4jConnectionPool(neo4j_config, pool_config)
             await neo4j_pool.initialize()
-            self.pools['neo4j'] = neo4j_pool
+            self.pools["neo4j"] = neo4j_pool
 
         # Redis pool
-        if 'redis' in configs:
-            redis_config = configs['redis']
+        if "redis" in configs:
+            redis_config = configs["redis"]
             pool_config = PoolConfiguration(
                 min_connections=20,
                 max_connections=200,
-                scaling_strategy=PoolScalingStrategy.AUTO_SCALING
+                scaling_strategy=PoolScalingStrategy.AUTO_SCALING,
             )
             redis_pool = RedisConnectionPool(redis_config, pool_config)
             await redis_pool.initialize()
-            self.pools['redis'] = redis_pool
+            self.pools["redis"] = redis_pool
 
         # Qdrant pool (shared client)
-        if 'qdrant' in configs:
-            qdrant_client = configs['qdrant']
+        if "qdrant" in configs:
+            qdrant_client = configs["qdrant"]
             pool_config = PoolConfiguration(
                 min_connections=5,
                 max_connections=20,
-                scaling_strategy=PoolScalingStrategy.FIXED
+                scaling_strategy=PoolScalingStrategy.FIXED,
             )
             qdrant_pool = QdrantConnectionPool(qdrant_client, pool_config)
             await qdrant_pool.initialize()
-            self.pools['qdrant'] = qdrant_pool
+            self.pools["qdrant"] = qdrant_pool
 
         self.is_initialized = True
-        logger.info(f"Advanced connection pool manager initialized with {len(self.pools)} pools")
+        logger.info(
+            f"Advanced connection pool manager initialized with {len(self.pools)} pools"
+        )
 
     async def get_connection(self, database_type: str) -> ManagedConnection:
         """Get connection from specified pool"""
@@ -614,17 +675,16 @@ class AdvancedConnectionPoolManager:
             raise ValueError(f"No pool configured for database type: {database_type}")
         return await self.pools[database_type].get_connection()
 
-    async def return_connection(self, database_type: str, connection: ManagedConnection):
+    async def return_connection(
+        self, database_type: str, connection: ManagedConnection
+    ):
         """Return connection to specified pool"""
         if database_type in self.pools:
             await self.pools[database_type].return_connection(connection)
 
     async def get_all_metrics(self) -> Dict[str, Any]:
         """Get metrics from all pools"""
-        metrics = {
-            'timestamp': datetime.utcnow().isoformat(),
-            'pools': {}
-        }
+        metrics = {"timestamp": datetime.utcnow().isoformat(), "pools": {}}
 
         total_connections = 0
         total_active = 0
@@ -634,21 +694,25 @@ class AdvancedConnectionPoolManager:
         for pool_id, pool in self.pools.items():
             pool.update_metrics()
             pool_metrics = asdict(pool.metrics)
-            metrics['pools'][pool_id] = pool_metrics
+            metrics["pools"][pool_id] = pool_metrics
 
-            total_connections += pool_metrics['total_connections']
-            total_active += pool_metrics['active_connections']
-            total_requests += pool_metrics['total_requests']
-            total_failed += pool_metrics['failed_requests']
+            total_connections += pool_metrics["total_connections"]
+            total_active += pool_metrics["active_connections"]
+            total_requests += pool_metrics["total_requests"]
+            total_failed += pool_metrics["failed_requests"]
 
         # Calculate overall metrics
-        metrics['overall'] = {
-            'total_connections': total_connections,
-            'total_active_connections': total_active,
-            'total_requests': total_requests,
-            'total_failed_requests': total_failed,
-            'overall_success_rate': ((total_requests - total_failed) / total_requests * 100) if total_requests > 0 else 0,
-            'active_pools': len(self.pools)
+        metrics["overall"] = {
+            "total_connections": total_connections,
+            "total_active_connections": total_active,
+            "total_requests": total_requests,
+            "total_failed_requests": total_failed,
+            "overall_success_rate": (
+                (total_requests - total_failed) / total_requests * 100
+            )
+            if total_requests > 0
+            else 0,
+            "active_pools": len(self.pools),
         }
 
         # Store in history
@@ -667,9 +731,9 @@ class AdvancedConnectionPoolManager:
                 # Trigger immediate cleanup and scaling
                 await pool._cleanup_old_connections()
                 await pool._adjust_pool_size()
-                optimization_results[pool_id] = {'success': True}
+                optimization_results[pool_id] = {"success": True}
             except Exception as e:
-                optimization_results[pool_id] = {'success': False, 'error': str(e)}
+                optimization_results[pool_id] = {"success": False, "error": str(e)}
 
         return optimization_results
 
@@ -694,25 +758,25 @@ async def create_production_pool_manager() -> AdvancedConnectionPoolManager:
 
     # Production configurations using environment variables
     configs = {
-        'postgresql': DatabaseConfig(
+        "postgresql": DatabaseConfig(
             host=os.environ.get("POSTGRES_HOST", "localhost"),
             port=int(os.environ.get("POSTGRES_PORT", "5432")),
             user=os.environ.get("POSTGRES_USER", "raguser"),
             password=os.environ.get("POSTGRES_PASSWORD", ""),
             database=os.environ.get("POSTGRES_DB", "ragdb"),
-            optimization_level=OptimizationLevel.PRODUCTION
+            optimization_level=OptimizationLevel.PRODUCTION,
         ),
-        'neo4j': Neo4jConfig(
+        "neo4j": Neo4jConfig(
             uri=os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
             user=os.environ.get("NEO4J_USER", "neo4j"),
             password=os.environ.get("NEO4J_PASSWORD", ""),
-            optimization_level=Neo4jOptimizationLevel.PRODUCTION
+            optimization_level=Neo4jOptimizationLevel.PRODUCTION,
         ),
-        'redis': RedisConfig(
+        "redis": RedisConfig(
             host=os.environ.get("REDIS_HOST", "localhost"),
             port=int(os.environ.get("REDIS_PORT", "6379")),
             password=os.environ.get("REDIS_PASSWORD", ""),
-            optimization_level=RedisOptimizationLevel.PRODUCTION
+            optimization_level=RedisOptimizationLevel.PRODUCTION,
         ),
         # Qdrant client would be passed separately
     }
