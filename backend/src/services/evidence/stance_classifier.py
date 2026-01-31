@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
 import openai
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ...core.config import settings
 from .cache import EvidenceCacheService
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class StanceClassificationResult(BaseModel):
     """Result of stance classification"""
     stance: str
-    confidence: float
+    confidence: float = Field(ge=0.0, le=1.0)
     justification_excerpt: str
 
 
