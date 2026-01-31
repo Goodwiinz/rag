@@ -1,4 +1,4 @@
-name: Docker Build with Depot
+name: Docker Build
 
 on:
   # Trigger after test-pipeline succeeds on main/develop
@@ -77,17 +77,27 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write # Required for Depot OIDC authentication
 
     steps:
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           # For workflow_run, checkout the SHA from the triggering workflow
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Set up Depot CLI
-        uses: depot/setup-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
@@ -109,9 +119,8 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push backend image
-        uses: depot/build-push-action@v1
+        uses: docker/build-push-action@v5
         with:
-          project: ${{ secrets.DEPOT_PROJECT_ID }}
           context: .
           file: backend/docker/Dockerfile.prod
           platforms: linux/amd64,linux/arm64
@@ -120,7 +129,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             PYTHON_VERSION=3.11
-          # Note: Depot has built-in caching, no need for external cache config
+          cache-from: type=gha
+          cache-to: type=gha,mode=min
 
   build-frontend:
     name: Build Frontend Image
@@ -130,16 +140,26 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write # Required for Depot OIDC authentication
 
     steps:
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Set up Depot CLI
-        uses: depot/setup-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
@@ -161,16 +181,16 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push frontend image
-        uses: depot/build-push-action@v1
+        uses: docker/build-push-action@v5
         with:
-          project: ${{ secrets.DEPOT_PROJECT_ID }}
           context: .
           file: frontend/Dockerfile.prod
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Note: Depot has built-in caching, no need for external cache config
+          cache-from: type=gha
+          cache-to: type=gha,mode=min
 
   build-all-services:
     name: Build All Services (Bake)
@@ -180,16 +200,26 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write
 
     steps:
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Set up Depot CLI
-        uses: depot/setup-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -198,13 +228,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build all services with Depot Bake
-        uses: depot/bake-action@v1
+      - name: Build all services with Docker Bake
+        uses: docker/bake-action@v4
         with:
-          project: ${{ secrets.DEPOT_PROJECT_ID }}
           files: docker-bake.hcl
           push: true
-          # Note: Depot Bake has built-in caching
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=min
 
   # Test images after build (on PRs)
   test-images:
@@ -214,29 +245,40 @@ jobs:
     if: github.event_name == 'pull_request'
 
     steps:
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Depot CLI
-        uses: depot/setup-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build and load backend for testing
-        uses: depot/build-push-action@v1
+        uses: docker/build-push-action@v5
         with:
-          project: ${{ secrets.DEPOT_PROJECT_ID }}
           context: .
           file: backend/docker/Dockerfile.prod
           load: true
           tags: backend:test
+          cache-from: type=gha
 
       - name: Build and load frontend for testing
-        uses: depot/build-push-action@v1
+        uses: docker/build-push-action@v5
         with:
-          project: ${{ secrets.DEPOT_PROJECT_ID }}
           context: .
           file: frontend/Dockerfile.prod
           load: true
           tags: frontend:test
+          cache-from: type=gha
 
       - name: Test backend container starts
         run: |
