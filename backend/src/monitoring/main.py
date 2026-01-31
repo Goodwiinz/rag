@@ -23,6 +23,7 @@ from .services.observability_manager import (
     get_observability_manager,
 )
 from .utils.sentry_integration import init_sentry
+from src.core.config import settings
 
 # Configure logging
 logging.basicConfig(
@@ -85,7 +86,7 @@ app = FastAPI(
 # SECURITY: Restrict allow_headers to specific values instead of "*"
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=["*"] if settings.DEBUG else ["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
