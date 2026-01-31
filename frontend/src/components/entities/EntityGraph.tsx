@@ -3,6 +3,7 @@
  * Terminal Observatory themed entity relationship graph
  */
 
+import type * as d3Type from 'd3';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -141,7 +142,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
       .selectAll('g')
       .data(nodes)
       .enter().append('g')
-      .call((d3.drag() as d3.DragBehavior<SVGGElement, any, any>)
+      .call((d3.drag() as d3Type.DragBehavior<SVGGElement, unknown, unknown>)
         .on('start', (event: any, d: any) => {
           if (!event.active) simulation.alphaTarget(0.3).restart();
           d.fx = d.x;
