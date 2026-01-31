@@ -13,6 +13,7 @@ export * from './evaluation';
 export * from './ui';
 export * from './analytics';
 export * from './project-chat';
+export * from './evidence';
 
 // Export constants with explicit names to avoid conflicts
 export {
