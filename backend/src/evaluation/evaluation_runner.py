@@ -6,31 +6,38 @@ automated testing of the RAG system with scheduling, reporting, and alerting.
 """
 
 import asyncio
-import logging
 import json
+import logging
 import time
-from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, asdict
-from enum import Enum
 import uuid
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
 try:
     import schedule
+
     SCHEDULE_AVAILABLE = True
 except ImportError:
     SCHEDULE_AVAILABLE = False
     schedule = None
 from pathlib import Path
 
-from .deepeval_integration import deepeval_integration, EvaluationResults, EvaluationFramework
-from .test_datasets import test_datasets, DatasetCategory
-from .success_criteria import success_criteria, QueryType, MetricCategory
+from .deepeval_integration import (
+    EvaluationFramework,
+    EvaluationResults,
+    deepeval_integration,
+)
+from .success_criteria import MetricCategory, QueryType, success_criteria
+from .test_datasets import DatasetCategory, test_datasets
 
 logger = logging.getLogger(__name__)
 
 
 class EvaluationFrequency(Enum):
     """Evaluation schedule frequencies"""
+
     CONTINUOUS = "continuous"
     HOURLY = "hourly"
     DAILY = "daily"
@@ -41,6 +48,7 @@ class EvaluationFrequency(Enum):
 
 class AlertLevel(Enum):
     """Alert severity levels"""
+
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
@@ -50,6 +58,7 @@ class AlertLevel(Enum):
 @dataclass
 class EvaluationSchedule:
     """Schedule configuration for automated evaluations"""
+
     name: str
     frequency: EvaluationFrequency
     datasets: List[str]
@@ -63,6 +72,7 @@ class EvaluationSchedule:
 @dataclass
 class EvaluationReport:
     """Comprehensive evaluation report"""
+
     job_id: str
     schedule_name: str
     timestamp: datetime
@@ -100,7 +110,7 @@ class EvaluationRunner:
             enabled=True,
             alert_thresholds={"overall_score": 0.7, "success_rate": 75.0},
             recipients=["dev-team@company.com", "qa-team@company.com"],
-            metadata={"priority": "high", "category": "health_check"}
+            metadata={"priority": "high", "category": "health_check"},
         )
 
         # Weekly Multimodal Evaluation
@@ -112,7 +122,7 @@ class EvaluationRunner:
             enabled=True,
             alert_thresholds={"overall_score": 0.6, "success_rate": 70.0},
             recipients=["ai-team@company.com"],
-            metadata={"priority": "medium", "category": "feature_validation"}
+            metadata={"priority": "medium", "category": "feature_validation"},
         )
 
         # Weekly Enterprise Scenarios
@@ -123,8 +133,11 @@ class EvaluationRunner:
             framework=EvaluationFramework.HYBRID,
             enabled=True,
             alert_thresholds={"overall_score": 0.75, "success_rate": 80.0},
-            recipients=["product-team@company.com", "business-stakeholders@company.com"],
-            metadata={"priority": "high", "category": "business_validation"}
+            recipients=[
+                "product-team@company.com",
+                "business-stakeholders@company.com",
+            ],
+            metadata={"priority": "high", "category": "business_validation"},
         )
 
         # Monthly Full Suite Evaluation
@@ -136,7 +149,7 @@ class EvaluationRunner:
             enabled=True,
             alert_thresholds={"overall_score": 0.7, "success_rate": 75.0},
             recipients=["leadership@company.com", "all-stakeholders@company.com"],
-            metadata={"priority": "high", "category": "comprehensive"}
+            metadata={"priority": "high", "category": "comprehensive"},
         )
 
         # Security Tests (Daily)
@@ -148,7 +161,7 @@ class EvaluationRunner:
             enabled=True,
             alert_thresholds={"overall_score": 1.0, "success_rate": 100.0},
             recipients=["security-team@company.com", "dev-team@company.com"],
-            metadata={"priority": "critical", "category": "security"}
+            metadata={"priority": "critical", "category": "security"},
         )
 
         return schedules
@@ -159,14 +172,14 @@ class EvaluationRunner:
             AlertLevel.INFO: self._handle_info_alert,
             AlertLevel.WARNING: self._handle_warning_alert,
             AlertLevel.ERROR: self._handle_error_alert,
-            AlertLevel.CRITICAL: self._handle_critical_alert
+            AlertLevel.CRITICAL: self._handle_critical_alert,
         }
 
     async def run_scheduled_evaluation(
         self,
         schedule_name: str,
         organization_id: str = "default",
-        user_id: str = "system"
+        user_id: str = "system",
     ) -> EvaluationReport:
         """
         Run a scheduled evaluation
@@ -200,7 +213,7 @@ class EvaluationRunner:
                     dataset_info[dataset_name] = {
                         "test_cases": len(dataset.test_cases),
                         "difficulty": dataset.difficulty_level,
-                        "expected_success_rate": dataset.expected_success_rate
+                        "expected_success_rate": dataset.expected_success_rate,
                     }
                 else:
                     logger.warning(f"Dataset '{dataset_name}' not found")
@@ -228,12 +241,14 @@ class EvaluationRunner:
                         query_type=query_type,
                         framework=schedule.framework,
                         organization_id=organization_id,
-                        user_id=user_id
+                        user_id=user_id,
                     )
 
                     individual_results[query_type.value] = result
                     overall_metrics[f"{query_type.value}_score"] = result.overall_score
-                    overall_metrics[f"{query_type.value}_success_rate"] = result.success_rate
+                    overall_metrics[
+                        f"{query_type.value}_success_rate"
+                    ] = result.success_rate
                     all_violations.extend(result.threshold_violations)
 
                     logger.info(
@@ -253,30 +268,47 @@ class EvaluationRunner:
                         evaluation_time_ms=0.0,
                         test_cases_evaluated=len(test_cases),
                         threshold_violations=[],
-                        metadata={"error": str(e)}
+                        metadata={"error": str(e)},
                     )
 
             # Calculate overall metrics
-            overall_score = sum(r.overall_score for r in individual_results.values()) / len(individual_results)
-            total_tests = sum(r.test_cases_evaluated for r in individual_results.values())
-            total_success = sum(r.success_rate * r.test_cases_evaluated / 100 for r in individual_results.values())
-            overall_success_rate = (total_success / total_tests * 100) if total_tests > 0 else 0.0
+            overall_score = sum(
+                r.overall_score for r in individual_results.values()
+            ) / len(individual_results)
+            total_tests = sum(
+                r.test_cases_evaluated for r in individual_results.values()
+            )
+            total_success = sum(
+                r.success_rate * r.test_cases_evaluated / 100
+                for r in individual_results.values()
+            )
+            overall_success_rate = (
+                (total_success / total_tests * 100) if total_tests > 0 else 0.0
+            )
 
             # Check for threshold violations and generate alerts
             alerts = self._check_thresholds_and_generate_alerts(
-                schedule_name, overall_score, overall_success_rate, all_violations, schedule.alert_thresholds
+                schedule_name,
+                overall_score,
+                overall_success_rate,
+                all_violations,
+                schedule.alert_thresholds,
             )
 
             # Generate recommendations
-            recommendations = self._generate_recommendations(individual_results, all_violations)
+            recommendations = self._generate_recommendations(
+                individual_results, all_violations
+            )
 
             # Performance metrics
             execution_time_ms = (time.time() - start_time) * 1000
             performance_metrics = {
                 "execution_time_ms": execution_time_ms,
-                "test_cases_per_second": total_tests / (execution_time_ms / 1000) if execution_time_ms > 0 else 0,
+                "test_cases_per_second": total_tests / (execution_time_ms / 1000)
+                if execution_time_ms > 0
+                else 0,
                 "datasets_evaluated": len(schedule.datasets),
-                "query_types_evaluated": len(individual_results)
+                "query_types_evaluated": len(individual_results),
             }
 
             # Create evaluation report
@@ -291,7 +323,7 @@ class EvaluationRunner:
                 performance_metrics=performance_metrics,
                 alerts=alerts,
                 recommendations=recommendations,
-                execution_time_ms=execution_time_ms
+                execution_time_ms=execution_time_ms,
             )
 
             # Store in history
@@ -320,14 +352,20 @@ class EvaluationRunner:
                 success_rate=0.0,
                 individual_results={},
                 threshold_violations=[],
-                performance_metrics={"execution_time_ms": (time.time() - start_time) * 1000},
-                alerts=[{
-                    "level": AlertLevel.CRITICAL.value,
-                    "message": f"Evaluation failed: {str(e)}",
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                }],
-                recommendations=["Investigate evaluation failure and fix underlying issues"],
-                execution_time_ms=(time.time() - start_time) * 1000
+                performance_metrics={
+                    "execution_time_ms": (time.time() - start_time) * 1000
+                },
+                alerts=[
+                    {
+                        "level": AlertLevel.CRITICAL.value,
+                        "message": f"Evaluation failed: {str(e)}",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                ],
+                recommendations=[
+                    "Investigate evaluation failure and fix underlying issues"
+                ],
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
             # Send critical alert
@@ -341,7 +379,7 @@ class EvaluationRunner:
         overall_score: float,
         success_rate: float,
         violations: List[Dict[str, Any]],
-        alert_thresholds: Dict[str, float]
+        alert_thresholds: Dict[str, float],
     ) -> List[Dict[str, Any]]:
         """Check thresholds and generate appropriate alerts"""
         alerts = []
@@ -349,59 +387,79 @@ class EvaluationRunner:
         # Check overall score threshold
         score_threshold = alert_thresholds.get("overall_score", 0.7)
         if overall_score < score_threshold:
-            level = AlertLevel.CRITICAL if overall_score < score_threshold * 0.5 else AlertLevel.ERROR
-            alerts.append({
-                "level": level.value,
-                "message": f"Overall score ({overall_score:.3f}) below threshold ({score_threshold:.3f})",
-                "metric": "overall_score",
-                "current_value": overall_score,
-                "threshold": score_threshold,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+            level = (
+                AlertLevel.CRITICAL
+                if overall_score < score_threshold * 0.5
+                else AlertLevel.ERROR
+            )
+            alerts.append(
+                {
+                    "level": level.value,
+                    "message": f"Overall score ({overall_score:.3f}) below threshold ({score_threshold:.3f})",
+                    "metric": "overall_score",
+                    "current_value": overall_score,
+                    "threshold": score_threshold,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
 
         # Check success rate threshold
         success_threshold = alert_thresholds.get("success_rate", 75.0)
         if success_rate < success_threshold:
-            level = AlertLevel.CRITICAL if success_rate < success_threshold * 0.5 else AlertLevel.ERROR
-            alerts.append({
-                "level": level.value,
-                "message": f"Success rate ({success_rate:.1f}%) below threshold ({success_threshold:.1f}%)",
-                "metric": "success_rate",
-                "current_value": success_rate,
-                "threshold": success_threshold,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+            level = (
+                AlertLevel.CRITICAL
+                if success_rate < success_threshold * 0.5
+                else AlertLevel.ERROR
+            )
+            alerts.append(
+                {
+                    "level": level.value,
+                    "message": f"Success rate ({success_rate:.1f}%) below threshold ({success_threshold:.1f}%)",
+                    "metric": "success_rate",
+                    "current_value": success_rate,
+                    "threshold": success_threshold,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
 
         # Check for critical violations (security or high-impact metrics)
-        critical_violations = [v for v in violations if v.get("metric", "").lower() in ["hallucination_rate", "security"]]
+        critical_violations = [
+            v
+            for v in violations
+            if v.get("metric", "").lower() in ["hallucination_rate", "security"]
+        ]
         if critical_violations:
-            alerts.append({
-                "level": AlertLevel.CRITICAL.value,
-                "message": f"Critical threshold violations detected: {len(critical_violations)}",
-                "metric": "critical_violations",
-                "current_value": len(critical_violations),
-                "threshold": 0,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "details": critical_violations[:5]  # Limit to top 5
-            })
+            alerts.append(
+                {
+                    "level": AlertLevel.CRITICAL.value,
+                    "message": f"Critical threshold violations detected: {len(critical_violations)}",
+                    "metric": "critical_violations",
+                    "current_value": len(critical_violations),
+                    "threshold": 0,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "details": critical_violations[:5],  # Limit to top 5
+                }
+            )
 
         # Check for high number of violations
         if len(violations) > 10:
-            alerts.append({
-                "level": AlertLevel.WARNING.value,
-                "message": f"High number of threshold violations: {len(violations)}",
-                "metric": "total_violations",
-                "current_value": len(violations),
-                "threshold": 10,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+            alerts.append(
+                {
+                    "level": AlertLevel.WARNING.value,
+                    "message": f"High number of threshold violations: {len(violations)}",
+                    "metric": "total_violations",
+                    "current_value": len(violations),
+                    "threshold": 10,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
 
         return alerts
 
     def _generate_recommendations(
         self,
         individual_results: Dict[str, EvaluationResults],
-        violations: List[Dict[str, Any]]
+        violations: List[Dict[str, Any]],
     ) -> List[str]:
         """Generate recommendations based on evaluation results"""
         recommendations = []
@@ -411,16 +469,24 @@ class EvaluationRunner:
         avg_score = sum(scores) / len(scores) if scores else 0.0
 
         if avg_score < 0.5:
-            recommendations.append("🚨 **Critical**: System performance requires immediate attention and investigation")
+            recommendations.append(
+                "🚨 **Critical**: System performance requires immediate attention and investigation"
+            )
         elif avg_score < 0.7:
-            recommendations.append("⚠️ **Moderate**: System performance needs improvement to meet quality standards")
+            recommendations.append(
+                "⚠️ **Moderate**: System performance needs improvement to meet quality standards"
+            )
         elif avg_score >= 0.8:
-            recommendations.append("✅ **Good**: System performance is meeting quality standards")
+            recommendations.append(
+                "✅ **Good**: System performance is meeting quality standards"
+            )
 
         # Analyze specific query types
         for query_type, result in individual_results.items():
             if result.overall_score < 0.6:
-                recommendations.append(f"🔍 **Query Type Issue**: {query_type.replace('_', ' ').title()} performance needs improvement")
+                recommendations.append(
+                    f"🔍 **Query Type Issue**: {query_type.replace('_', ' ').title()} performance needs improvement"
+                )
 
         # Analyze violation patterns
         violation_counts = {}
@@ -431,17 +497,25 @@ class EvaluationRunner:
         # Top violation recommendations
         if violation_counts:
             top_violation = max(violation_counts.items(), key=lambda x: x[1])
-            recommendations.append(f"📊 **Primary Issue**: {top_violation[0]} has {top_violation[1]} violations - prioritize investigation")
+            recommendations.append(
+                f"📊 **Primary Issue**: {top_violation[0]} has {top_violation[1]} violations - prioritize investigation"
+            )
 
         # Specific metric recommendations
         if any("hallucination" in v.get("metric", "").lower() for v in violations):
-            recommendations.append("🛡️ **Hallucination Control**: Implement stricter fact-checking and context validation")
+            recommendations.append(
+                "🛡️ **Hallucination Control**: Implement stricter fact-checking and context validation"
+            )
 
         if any("faithfulness" in v.get("metric", "").lower() for v in violations):
-            recommendations.append("🔗 **Faithfulness Improvement**: Ensure answers are properly grounded in retrieved context")
+            recommendations.append(
+                "🔗 **Faithfulness Improvement**: Ensure answers are properly grounded in retrieved context"
+            )
 
         if any("relevancy" in v.get("metric", "").lower() for v in violations):
-            recommendations.append("🎯 **Relevance Enhancement**: Improve query understanding and context retrieval quality")
+            recommendations.append(
+                "🎯 **Relevance Enhancement**: Improve query understanding and context retrieval quality"
+            )
 
         return recommendations[:10]  # Limit to top 10 recommendations
 
@@ -478,14 +552,18 @@ class EvaluationRunner:
         # Send email for error alerts
         await self._send_email_notification(alert, recipients, "ERROR")
 
-    async def _handle_critical_alert(self, alert: Dict[str, Any], recipients: List[str]):
+    async def _handle_critical_alert(
+        self, alert: Dict[str, Any], recipients: List[str]
+    ):
         """Handle critical-level alerts"""
         logger.critical(f"CRITICAL Alert: {alert['message']}")
         # Send immediate email and possibly other notifications for critical alerts
         await self._send_email_notification(alert, recipients, "CRITICAL")
         # Could also send SMS, Slack, etc.
 
-    async def _send_email_notification(self, alert: Dict[str, Any], recipients: List[str], level: str):
+    async def _send_email_notification(
+        self, alert: Dict[str, Any], recipients: List[str], level: str
+    ):
         """Send email notification (placeholder implementation)"""
         # This would integrate with your email service
         logger.info(f"Sending {level} email to {recipients}: {alert['message']}")
@@ -496,7 +574,9 @@ class EvaluationRunner:
 
         # Schedule daily evaluations
         schedule.every().day.at("02:00").do(
-            lambda: asyncio.create_task(self.run_scheduled_evaluation("daily_basic_check"))
+            lambda: asyncio.create_task(
+                self.run_scheduled_evaluation("daily_basic_check")
+            )
         )
         schedule.every().day.at("03:00").do(
             lambda: asyncio.create_task(self.run_scheduled_evaluation("daily_security"))
@@ -504,15 +584,21 @@ class EvaluationRunner:
 
         # Schedule weekly evaluations
         schedule.every().sunday.at("04:00").do(
-            lambda: asyncio.create_task(self.run_scheduled_evaluation("weekly_multimodal"))
+            lambda: asyncio.create_task(
+                self.run_scheduled_evaluation("weekly_multimodal")
+            )
         )
         schedule.every().sunday.at("05:00").do(
-            lambda: asyncio.create_task(self.run_scheduled_evaluation("weekly_enterprise"))
+            lambda: asyncio.create_task(
+                self.run_scheduled_evaluation("weekly_enterprise")
+            )
         )
 
         # Schedule monthly evaluations
         schedule.every().month.do(
-            lambda: asyncio.create_task(self.run_scheduled_evaluation("monthly_full_suite"))
+            lambda: asyncio.create_task(
+                self.run_scheduled_evaluation("monthly_full_suite")
+            )
         )
 
         logger.info("Evaluation scheduler started")
@@ -530,17 +616,16 @@ class EvaluationRunner:
             time.sleep(60)  # Check every minute
 
     def get_evaluation_summary(
-        self,
-        days: int = 30,
-        schedule_name: Optional[str] = None
+        self, days: int = 30, schedule_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """Get evaluation summary for the specified period"""
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
         filtered_reports = [
-            report for report in self.evaluation_history
-            if report.timestamp >= cutoff_date and
-            (schedule_name is None or report.schedule_name == schedule_name)
+            report
+            for report in self.evaluation_history
+            if report.timestamp >= cutoff_date
+            and (schedule_name is None or report.schedule_name == schedule_name)
         ]
 
         if not filtered_reports:
@@ -566,10 +651,10 @@ class EvaluationRunner:
                     "schedule_name": r.schedule_name,
                     "score": r.overall_score,
                     "success_rate": r.success_rate,
-                    "alerts_count": len(r.alerts)
+                    "alerts_count": len(r.alerts),
                 }
                 for r in filtered_reports[-10:]  # Last 10 evaluations
-            ]
+            ],
         }
 
         return summary
@@ -590,7 +675,9 @@ class EvaluationRunner:
         else:
             return "stable"
 
-    def export_evaluation_report(self, report: EvaluationReport, format: str = "json") -> str:
+    def export_evaluation_report(
+        self, report: EvaluationReport, format: str = "json"
+    ) -> str:
         """Export evaluation report in specified format"""
         if format == "json":
             return json.dumps(asdict(report), default=str, indent=2)
@@ -629,7 +716,12 @@ class EvaluationRunner:
         if report.alerts:
             md += "## Alerts\n\n"
             for alert in report.alerts:
-                level_emoji = {"info": "ℹ️", "warning": "⚠️", "error": "❌", "critical": "🚨"}
+                level_emoji = {
+                    "info": "ℹ️",
+                    "warning": "⚠️",
+                    "error": "❌",
+                    "critical": "🚨",
+                }
                 emoji = level_emoji.get(alert["level"], "📢")
                 md += f"- {emoji} **{alert['level'].upper()}**: {alert['message']}\n"
 
@@ -640,14 +732,16 @@ class EvaluationRunner:
 
         return md
 
-    def save_report_to_file(self, report: EvaluationReport, file_path: str, format: str = "json"):
+    def save_report_to_file(
+        self, report: EvaluationReport, file_path: str, format: str = "json"
+    ):
         """Save evaluation report to file"""
         content = self.export_evaluation_report(report, format)
 
         path = Path(file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             f.write(content)
 
         logger.info(f"Evaluation report saved to {file_path}")

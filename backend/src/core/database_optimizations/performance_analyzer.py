@@ -9,21 +9,23 @@ automated performance tuning.
 import asyncio
 import json
 import logging
-import time
 import statistics
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple, Union, Callable
-from dataclasses import dataclass, field
-from enum import Enum
+import time
 import uuid
-import numpy as np
 from collections import defaultdict, deque
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
 class MetricType(str, Enum):
     """Performance metric types"""
+
     RESPONSE_TIME = "response_time"
     THROUGHPUT = "throughput"
     ERROR_RATE = "error_rate"
@@ -35,6 +37,7 @@ class MetricType(str, Enum):
 
 class AlertSeverity(str, Enum):
     """Alert severity levels"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -43,6 +46,7 @@ class AlertSeverity(str, Enum):
 
 class OptimizationSuggestion(str, Enum):
     """Optimization suggestion types"""
+
     INDEX_CREATION = "index_creation"
     QUERY_REWRITE = "query_rewrite"
     CONFIG_CHANGE = "config_change"
@@ -54,6 +58,7 @@ class OptimizationSuggestion(str, Enum):
 @dataclass
 class PerformanceMetric:
     """Individual performance metric"""
+
     metric_type: MetricType
     value: float
     unit: str
@@ -66,6 +71,7 @@ class PerformanceMetric:
 @dataclass
 class PerformanceAlert:
     """Performance alert definition"""
+
     alert_id: str
     metric_type: MetricType
     severity: AlertSeverity
@@ -82,6 +88,7 @@ class PerformanceAlert:
 @dataclass
 class OptimizationRecommendation:
     """Performance optimization recommendation"""
+
     recommendation_id: str
     suggestion_type: OptimizationSuggestion
     database_type: str
@@ -97,13 +104,14 @@ class OptimizationRecommendation:
 @dataclass
 class QueryPerformanceProfile:
     """Query performance profile"""
+
     query_id: str
     query_text: str
     database_type: str
     execution_count: int = 0
     total_exec_time_ms: float = 0.0
     avg_exec_time_ms: float = 0.0
-    min_exec_time_ms: float = float('inf')
+    min_exec_time_ms: float = float("inf")
     max_exec_time_ms: float = 0.0
     std_dev_exec_time_ms: float = 0.0
     rows_examined: int = 0
@@ -134,7 +142,9 @@ class PerformanceAnalyzer:
             return
 
         self.is_monitoring = True
-        self.monitoring_task = asyncio.create_task(self._monitoring_loop(monitoring_interval_seconds))
+        self.monitoring_task = asyncio.create_task(
+            self._monitoring_loop(monitoring_interval_seconds)
+        )
         self.analysis_task = asyncio.create_task(self._analysis_loop())
         logger.info("Performance monitoring started")
 
@@ -180,7 +190,7 @@ class PerformanceAnalyzer:
         current_time = datetime.utcnow()
 
         # Simulate metrics for different database types
-        for db_type in ['postgresql', 'neo4j', 'redis', 'qdrant']:
+        for db_type in ["postgresql", "neo4j", "redis", "qdrant"]:
             # Response time metrics
             response_time = np.random.normal(50, 10)  # Mean 50ms, std 10ms
             await self._add_metric(
@@ -189,7 +199,7 @@ class PerformanceAnalyzer:
                 "ms",
                 current_time,
                 db_type,
-                tags={"operation": "query"}
+                tags={"operation": "query"},
             )
 
             # Throughput metrics
@@ -200,17 +210,13 @@ class PerformanceAnalyzer:
                 "ops/sec",
                 current_time,
                 db_type,
-                tags={"operation": "read"}
+                tags={"operation": "read"},
             )
 
             # Error rate metrics
             error_rate = np.random.uniform(0, 2)  # 0-2% error rate
             await self._add_metric(
-                MetricType.ERROR_RATE,
-                error_rate,
-                "percent",
-                current_time,
-                db_type
+                MetricType.ERROR_RATE, error_rate, "percent", current_time, db_type
             )
 
             # Connection utilization
@@ -220,11 +226,18 @@ class PerformanceAnalyzer:
                 utilization,
                 "percent",
                 current_time,
-                db_type
+                db_type,
             )
 
-    async def _add_metric(self, metric_type: MetricType, value: float, unit: str,
-                         timestamp: datetime, database_type: str, tags: Dict[str, str] = None):
+    async def _add_metric(
+        self,
+        metric_type: MetricType,
+        value: float,
+        unit: str,
+        timestamp: datetime,
+        database_type: str,
+        tags: Dict[str, str] = None,
+    ):
         """Add performance metric to buffer"""
         metric = PerformanceMetric(
             metric_type=metric_type,
@@ -232,7 +245,7 @@ class PerformanceAnalyzer:
             unit=unit,
             timestamp=timestamp,
             database_type=database_type,
-            tags=tags or {}
+            tags=tags or {},
         )
         self.metrics_buffer.append(metric)
 
@@ -248,15 +261,21 @@ class PerformanceAnalyzer:
         recent_metrics = [m for m in self.metrics_buffer if m.timestamp >= cutoff_time]
 
         # Analyze by database type and metric type
-        for db_type in ['postgresql', 'neo4j', 'redis', 'qdrant']:
+        for db_type in ["postgresql", "neo4j", "redis", "qdrant"]:
             for metric_type in MetricType:
                 await self._analyze_metric_type(db_type, metric_type, recent_metrics)
 
-    async def _analyze_metric_type(self, database_type: str, metric_type: MetricType, metrics: List[PerformanceMetric]):
+    async def _analyze_metric_type(
+        self,
+        database_type: str,
+        metric_type: MetricType,
+        metrics: List[PerformanceMetric],
+    ):
         """Analyze specific metric type for a database"""
         # Filter metrics for this database and type
         filtered_metrics = [
-            m for m in metrics
+            m
+            for m in metrics
             if m.database_type == database_type and m.metric_type == metric_type
         ]
 
@@ -267,30 +286,37 @@ class PerformanceAnalyzer:
 
         # Calculate statistics
         stats = {
-            'count': len(values),
-            'avg': statistics.mean(values),
-            'min': min(values),
-            'max': max(values),
-            'median': statistics.median(values),
-            'std_dev': statistics.stdev(values) if len(values) > 1 else 0,
-            'p95': np.percentile(values, 95),
-            'p99': np.percentile(values, 99)
+            "count": len(values),
+            "avg": statistics.mean(values),
+            "min": min(values),
+            "max": max(values),
+            "median": statistics.median(values),
+            "std_dev": statistics.stdev(values) if len(values) > 1 else 0,
+            "p95": np.percentile(values, 95),
+            "p99": np.percentile(values, 99),
         }
 
         # Detect anomalies
-        anomalies = await self._detect_anomalies(database_type, metric_type, filtered_metrics, stats)
+        anomalies = await self._detect_anomalies(
+            database_type, metric_type, filtered_metrics, stats
+        )
 
         # Store in baseline if not exists
         baseline_key = f"{database_type}_{metric_type.value}"
         if baseline_key not in self.baseline_metrics:
             self.baseline_metrics[baseline_key] = {
-                'avg': stats['avg'],
-                'std_dev': stats['std_dev'],
-                'created_at': datetime.utcnow().isoformat()
+                "avg": stats["avg"],
+                "std_dev": stats["std_dev"],
+                "created_at": datetime.utcnow().isoformat(),
             }
 
-    async def _detect_anomalies(self, database_type: str, metric_type: MetricType,
-                               metrics: List[PerformanceMetric], stats: Dict[str, float]) -> List[PerformanceMetric]:
+    async def _detect_anomalies(
+        self,
+        database_type: str,
+        metric_type: MetricType,
+        metrics: List[PerformanceMetric],
+        stats: Dict[str, float],
+    ) -> List[PerformanceMetric]:
         """Detect performance anomalies using statistical methods"""
         anomalies = []
         baseline_key = f"{database_type}_{metric_type.value}"
@@ -299,7 +325,7 @@ class PerformanceAnalyzer:
             return anomalies
 
         baseline = self.baseline_metrics[baseline_key]
-        threshold = baseline['avg'] + (2 * baseline['std_dev'])  # 2-sigma rule
+        threshold = baseline["avg"] + (2 * baseline["std_dev"])  # 2-sigma rule
 
         for metric in metrics:
             if metric.value > threshold:
@@ -322,9 +348,12 @@ class PerformanceAnalyzer:
 
             # Get recent metrics for this alert rule
             recent_metrics = [
-                m for m in self.metrics_buffer
-                if (m.metric_type == alert_rule.metric_type and
-                    m.timestamp >= cutoff_time)
+                m
+                for m in self.metrics_buffer
+                if (
+                    m.metric_type == alert_rule.metric_type
+                    and m.timestamp >= cutoff_time
+                )
             ]
 
             if len(recent_metrics) < alert_rule.duration_minutes:
@@ -348,22 +377,24 @@ class PerformanceAnalyzer:
                 if alert_rule.alert_id in self.active_alerts:
                     del self.active_alerts[alert_rule.alert_id]
 
-    def _evaluate_alert_condition(self, values: List[float], alert_rule: PerformanceAlert) -> bool:
+    def _evaluate_alert_condition(
+        self, values: List[float], alert_rule: PerformanceAlert
+    ) -> bool:
         """Evaluate alert condition against metric values"""
         if not values:
             return False
 
         avg_value = statistics.mean(values)
 
-        if alert_rule.comparison_operator == '>':
+        if alert_rule.comparison_operator == ">":
             return avg_value > alert_rule.threshold_value
-        elif alert_rule.comparison_operator == '<':
+        elif alert_rule.comparison_operator == "<":
             return avg_value < alert_rule.threshold_value
-        elif alert_rule.comparison_operator == '>=':
+        elif alert_rule.comparison_operator == ">=":
             return avg_value >= alert_rule.threshold_value
-        elif alert_rule.comparison_operator == '<=':
+        elif alert_rule.comparison_operator == "<=":
             return avg_value <= alert_rule.threshold_value
-        elif alert_rule.comparison_operator == '==':
+        elif alert_rule.comparison_operator == "==":
             return avg_value == alert_rule.threshold_value
 
         return False
@@ -387,29 +418,43 @@ class PerformanceAnalyzer:
         recent_metrics = [m for m in self.metrics_buffer if m.timestamp >= cutoff_time]
 
         # Generate recommendations for each database type
-        for db_type in ['postgresql', 'neo4j', 'redis', 'qdrant']:
+        for db_type in ["postgresql", "neo4j", "redis", "qdrant"]:
             await self._generate_database_recommendations(db_type, recent_metrics)
 
-    async def _generate_database_recommendations(self, database_type: str, metrics: List[PerformanceMetric]):
+    async def _generate_database_recommendations(
+        self, database_type: str, metrics: List[PerformanceMetric]
+    ):
         """Generate recommendations for specific database"""
         db_metrics = [m for m in metrics if m.database_type == database_type]
 
         # Analyze response times
-        response_times = [m.value for m in db_metrics if m.metric_type == MetricType.RESPONSE_TIME]
+        response_times = [
+            m.value for m in db_metrics if m.metric_type == MetricType.RESPONSE_TIME
+        ]
         if response_times and statistics.mean(response_times) > 100:  # > 100ms average
-            await self._create_response_time_recommendation(database_type, response_times)
+            await self._create_response_time_recommendation(
+                database_type, response_times
+            )
 
         # Analyze error rates
-        error_rates = [m.value for m in db_metrics if m.metric_type == MetricType.ERROR_RATE]
+        error_rates = [
+            m.value for m in db_metrics if m.metric_type == MetricType.ERROR_RATE
+        ]
         if error_rates and statistics.mean(error_rates) > 5:  # > 5% error rate
             await self._create_error_rate_recommendation(database_type, error_rates)
 
         # Analyze connection utilization
-        utilizations = [m.value for m in db_metrics if m.metric_type == MetricType.CONNECTION_UTILIZATION]
+        utilizations = [
+            m.value
+            for m in db_metrics
+            if m.metric_type == MetricType.CONNECTION_UTILIZATION
+        ]
         if utilizations and statistics.mean(utilizations) > 80:  # > 80% utilization
             await self._create_connection_recommendation(database_type, utilizations)
 
-    async def _create_response_time_recommendation(self, database_type: str, response_times: List[float]):
+    async def _create_response_time_recommendation(
+        self, database_type: str, response_times: List[float]
+    ):
         """Create response time optimization recommendation"""
         recommendation = OptimizationRecommendation(
             recommendation_id=str(uuid.uuid4()),
@@ -417,19 +462,21 @@ class PerformanceAnalyzer:
             database_type=database_type,
             priority=7,
             description=f"High response times detected (avg: {statistics.mean(response_times):.1f}ms). "
-                       f"Consider adding missing indexes or optimizing slow queries.",
+            f"Consider adding missing indexes or optimizing slow queries.",
             estimated_improvement="20-40% response time reduction",
             implementation_complexity="medium",
             sql_commands=[
                 "-- Example: Add index for frequently queried columns",
                 "CREATE INDEX CONCURRENTLY idx_table_column ON table_name(column_name);",
                 "-- Analyze slow queries using:",
-                "SELECT query, mean_exec_time, calls FROM pg_stat_statements ORDER BY mean_exec_time DESC LIMIT 10;"
-            ]
+                "SELECT query, mean_exec_time, calls FROM pg_stat_statements ORDER BY mean_exec_time DESC LIMIT 10;",
+            ],
         )
         self.recommendations.append(recommendation)
 
-    async def _create_error_rate_recommendation(self, database_type: str, error_rates: List[float]):
+    async def _create_error_rate_recommendation(
+        self, database_type: str, error_rates: List[float]
+    ):
         """Create error rate optimization recommendation"""
         recommendation = OptimizationRecommendation(
             recommendation_id=str(uuid.uuid4()),
@@ -437,19 +484,21 @@ class PerformanceAnalyzer:
             database_type=database_type,
             priority=9,
             description=f"High error rate detected (avg: {statistics.mean(error_rates):.1f}%). "
-                       f"Investigate connection issues and increase timeout settings.",
+            f"Investigate connection issues and increase timeout settings.",
             estimated_improvement="Significant reduction in failed requests",
             implementation_complexity="low",
             config_changes={
-                'connection_timeout': 30,
-                'query_timeout': 60,
-                'retry_attempts': 3,
-                'retry_delay': 1.0
-            }
+                "connection_timeout": 30,
+                "query_timeout": 60,
+                "retry_attempts": 3,
+                "retry_delay": 1.0,
+            },
         )
         self.recommendations.append(recommendation)
 
-    async def _create_connection_recommendation(self, database_type: str, utilizations: List[float]):
+    async def _create_connection_recommendation(
+        self, database_type: str, utilizations: List[float]
+    ):
         """Create connection pool optimization recommendation"""
         recommendation = OptimizationRecommendation(
             recommendation_id=str(uuid.uuid4()),
@@ -457,29 +506,28 @@ class PerformanceAnalyzer:
             database_type=database_type,
             priority=6,
             description=f"High connection utilization detected (avg: {statistics.mean(utilizations):.1f}%). "
-                       f"Consider increasing connection pool size or implementing connection pooling.",
+            f"Consider increasing connection pool size or implementing connection pooling.",
             estimated_improvement="Improved throughput and reduced wait times",
             implementation_complexity="low",
             config_changes={
-                'min_connections': 20,
-                'max_connections': 100,
-                'connection_timeout': 30,
-                'idle_timeout': 300
-            }
+                "min_connections": 20,
+                "max_connections": 100,
+                "connection_timeout": 30,
+                "idle_timeout": 300,
+            },
         )
         self.recommendations.append(recommendation)
 
-    async def analyze_query_performance(self, query_text: str, database_type: str,
-                                      execution_plan: Dict[str, Any] = None) -> QueryPerformanceProfile:
+    async def analyze_query_performance(
+        self, query_text: str, database_type: str, execution_plan: Dict[str, Any] = None
+    ) -> QueryPerformanceProfile:
         """Analyze individual query performance"""
         query_id = str(hash(query_text))
 
         # Create or update query profile
         if query_id not in self.query_profiles:
             self.query_profiles[query_id] = QueryPerformanceProfile(
-                query_id=query_id,
-                query_text=query_text,
-                database_type=database_type
+                query_id=query_id, query_text=query_text, database_type=database_type
             )
 
         profile = self.query_profiles[query_id]
@@ -512,7 +560,9 @@ class PerformanceAnalyzer:
 
         return profile
 
-    async def _analyze_execution_plan(self, profile: QueryPerformanceProfile, execution_plan: Dict[str, Any]):
+    async def _analyze_execution_plan(
+        self, profile: QueryPerformanceProfile, execution_plan: Dict[str, Any]
+    ):
         """Analyze query execution plan for optimization opportunities"""
         # Look for sequential scans, missing indexes, etc.
         plan_text = str(execution_plan)
@@ -529,8 +579,8 @@ class PerformanceAnalyzer:
                 implementation_complexity="low",
                 sql_commands=[
                     "-- Add index for columns used in WHERE clause",
-                    "CREATE INDEX CONCURRENTLY idx_table_column ON table_name(column_name);"
-                ]
+                    "CREATE INDEX CONCURRENTLY idx_table_column ON table_name(column_name);",
+                ],
             )
             self.recommendations.append(recommendation)
 
@@ -546,8 +596,8 @@ class PerformanceAnalyzer:
                 implementation_complexity="low",
                 sql_commands=[
                     "-- Add index for ORDER BY optimization",
-                    "CREATE INDEX CONCURRENTLY idx_table_order BY ON table_name(order_column);"
-                ]
+                    "CREATE INDEX CONCURRENTLY idx_table_order BY ON table_name(order_column);",
+                ],
             )
             self.recommendations.append(recommendation)
 
@@ -569,45 +619,49 @@ class PerformanceAnalyzer:
         recent_metrics = [m for m in self.metrics_buffer if m.timestamp >= cutoff_time]
 
         summary = {
-            'time_period_hours': hours,
-            'total_metrics': len(recent_metrics),
-            'database_performance': {},
-            'active_alerts': len(self.active_alerts),
-            'pending_recommendations': len(self.recommendations),
-            'top_slow_queries': [],
-            'performance_trends': {}
+            "time_period_hours": hours,
+            "total_metrics": len(recent_metrics),
+            "database_performance": {},
+            "active_alerts": len(self.active_alerts),
+            "pending_recommendations": len(self.recommendations),
+            "top_slow_queries": [],
+            "performance_trends": {},
         }
 
         # Aggregate by database type
-        for db_type in ['postgresql', 'neo4j', 'redis', 'qdrant']:
+        for db_type in ["postgresql", "neo4j", "redis", "qdrant"]:
             db_metrics = [m for m in recent_metrics if m.database_type == db_type]
             if db_metrics:
-                summary['database_performance'][db_type] = self._calculate_db_performance_summary(db_metrics)
+                summary["database_performance"][
+                    db_type
+                ] = self._calculate_db_performance_summary(db_metrics)
 
         # Get top slow queries
         slow_queries = sorted(
-            self.query_profiles.values(),
-            key=lambda q: q.avg_exec_time_ms,
-            reverse=True
+            self.query_profiles.values(), key=lambda q: q.avg_exec_time_ms, reverse=True
         )[:10]
 
-        summary['top_slow_queries'] = [
+        summary["top_slow_queries"] = [
             {
-                'query_id': q.query_id,
-                'database_type': q.database_type,
-                'avg_exec_time_ms': q.avg_exec_time_ms,
-                'execution_count': q.execution_count,
-                'performance_score': q.performance_score
+                "query_id": q.query_id,
+                "database_type": q.database_type,
+                "avg_exec_time_ms": q.avg_exec_time_ms,
+                "execution_count": q.execution_count,
+                "performance_score": q.performance_score,
             }
             for q in slow_queries
         ]
 
         # Calculate performance trends
-        summary['performance_trends'] = self._calculate_performance_trends(recent_metrics)
+        summary["performance_trends"] = self._calculate_performance_trends(
+            recent_metrics
+        )
 
         return summary
 
-    def _calculate_db_performance_summary(self, metrics: List[PerformanceMetric]) -> Dict[str, Any]:
+    def _calculate_db_performance_summary(
+        self, metrics: List[PerformanceMetric]
+    ) -> Dict[str, Any]:
         """Calculate performance summary for a database"""
         summary = {}
 
@@ -616,16 +670,18 @@ class PerformanceAnalyzer:
             if type_metrics:
                 values = [m.value for m in type_metrics]
                 summary[metric_type.value] = {
-                    'avg': statistics.mean(values),
-                    'min': min(values),
-                    'max': max(values),
-                    'p95': np.percentile(values, 95),
-                    'count': len(values)
+                    "avg": statistics.mean(values),
+                    "min": min(values),
+                    "max": max(values),
+                    "p95": np.percentile(values, 95),
+                    "count": len(values),
                 }
 
         return summary
 
-    def _calculate_performance_trends(self, metrics: List[PerformanceMetric]) -> Dict[str, Any]:
+    def _calculate_performance_trends(
+        self, metrics: List[PerformanceMetric]
+    ) -> Dict[str, Any]:
         """Calculate performance trends over time"""
         if len(metrics) < 100:
             return {"message": "Insufficient data for trend analysis"}
@@ -638,37 +694,55 @@ class PerformanceAnalyzer:
         older_cutoff = current_time - timedelta(hours=24)
 
         recent_metrics = [m for m in metrics if m.timestamp >= recent_cutoff]
-        older_metrics = [m for m in metrics if older_cutoff <= m.timestamp < recent_cutoff]
+        older_metrics = [
+            m for m in metrics if older_cutoff <= m.timestamp < recent_cutoff
+        ]
 
         for metric_type in MetricType:
-            recent_values = [m.value for m in recent_metrics if m.metric_type == metric_type]
-            older_values = [m.value for m in older_metrics if m.metric_type == metric_type]
+            recent_values = [
+                m.value for m in recent_metrics if m.metric_type == metric_type
+            ]
+            older_values = [
+                m.value for m in older_metrics if m.metric_type == metric_type
+            ]
 
             if recent_values and older_values:
                 recent_avg = statistics.mean(recent_values)
                 older_avg = statistics.mean(older_values)
 
                 trend_direction = "improving" if recent_avg < older_avg else "degrading"
-                trend_percentage = ((recent_avg - older_avg) / older_avg * 100) if older_avg != 0 else 0
+                trend_percentage = (
+                    ((recent_avg - older_avg) / older_avg * 100)
+                    if older_avg != 0
+                    else 0
+                )
 
                 trends[metric_type.value] = {
-                    'direction': trend_direction,
-                    'percentage_change': trend_percentage,
-                    'recent_avg': recent_avg,
-                    'older_avg': older_avg
+                    "direction": trend_direction,
+                    "percentage_change": trend_percentage,
+                    "recent_avg": recent_avg,
+                    "older_avg": older_avg,
                 }
 
         return trends
 
-    def get_recommendations(self, database_type: Optional[str] = None,
-                          priority_min: int = 1, priority_max: int = 10) -> List[OptimizationRecommendation]:
+    def get_recommendations(
+        self,
+        database_type: Optional[str] = None,
+        priority_min: int = 1,
+        priority_max: int = 10,
+    ) -> List[OptimizationRecommendation]:
         """Get optimization recommendations"""
         recommendations = self.recommendations
 
         if database_type:
-            recommendations = [r for r in recommendations if r.database_type == database_type]
+            recommendations = [
+                r for r in recommendations if r.database_type == database_type
+            ]
 
-        recommendations = [r for r in recommendations if priority_min <= r.priority <= priority_max]
+        recommendations = [
+            r for r in recommendations if priority_min <= r.priority <= priority_max
+        ]
 
         return sorted(recommendations, key=lambda r: r.priority, reverse=True)
 
@@ -697,7 +771,7 @@ async def create_performance_analyzer() -> PerformanceAnalyzer:
             comparison_operator=">",
             duration_minutes=5,
             description="High response time detected",
-            notification_channels=["email", "slack"]
+            notification_channels=["email", "slack"],
         ),
         PerformanceAlert(
             alert_id="high_error_rate",
@@ -707,7 +781,7 @@ async def create_performance_analyzer() -> PerformanceAnalyzer:
             comparison_operator=">",
             duration_minutes=2,
             description="High error rate detected",
-            notification_channels=["email", "slack", "pagerduty"]
+            notification_channels=["email", "slack", "pagerduty"],
         ),
         PerformanceAlert(
             alert_id="high_connection_utilization",
@@ -717,8 +791,8 @@ async def create_performance_analyzer() -> PerformanceAnalyzer:
             comparison_operator=">",
             duration_minutes=10,
             description="High connection utilization detected",
-            notification_channels=["email"]
-        )
+            notification_channels=["email"],
+        ),
     ]
 
     for alert_rule in alert_rules:

@@ -2,10 +2,18 @@
 CitationRelationship model for citation graph (Research Assistant - User Story 3)
 """
 
-from sqlalchemy import Column, String, ForeignKey, Text, Float, CheckConstraint, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    Float,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 
-from .base import BaseModel, GUID
+from .base import GUID, BaseModel
 
 
 class CitationRelationship(BaseModel):
@@ -27,21 +35,18 @@ class CitationRelationship(BaseModel):
         GUID(),
         ForeignKey("citations.id", ondelete="CASCADE"),
         nullable=False,
-        index=True
+        index=True,
     )
     target_citation_id = Column(
         GUID(),
         ForeignKey("citations.id", ondelete="CASCADE"),
         nullable=False,
-        index=True
+        index=True,
     )
 
     # Relationship metadata
     relationship_type = Column(
-        String(50),
-        nullable=False,
-        default="cites",
-        server_default="cites"
+        String(50), nullable=False, default="cites", server_default="cites"
     )  # cites, cited_by, related_to
 
     citation_context = Column(Text, nullable=True)  # Where the citation appears in text
@@ -49,20 +54,21 @@ class CitationRelationship(BaseModel):
 
     # Relationships
     source_citation = relationship(
-        "Citation",
-        foreign_keys=[source_citation_id],
-        backref="outgoing_relationships"
+        "Citation", foreign_keys=[source_citation_id], backref="outgoing_relationships"
     )
     target_citation = relationship(
-        "Citation",
-        foreign_keys=[target_citation_id],
-        backref="incoming_relationships"
+        "Citation", foreign_keys=[target_citation_id], backref="incoming_relationships"
     )
 
     # Constraints
     __table_args__ = (
-        UniqueConstraint('source_citation_id', 'target_citation_id', name='uq_citation_relationship'),
-        CheckConstraint('source_citation_id != target_citation_id', name='ck_citation_no_self_reference'),
+        UniqueConstraint(
+            "source_citation_id", "target_citation_id", name="uq_citation_relationship"
+        ),
+        CheckConstraint(
+            "source_citation_id != target_citation_id",
+            name="ck_citation_no_self_reference",
+        ),
     )
 
     def __repr__(self):
@@ -71,11 +77,11 @@ class CitationRelationship(BaseModel):
     def to_dict(self) -> dict:
         """Convert to dictionary"""
         data = super().to_dict()
-        data['source_citation_id'] = str(self.source_citation_id)
-        data['target_citation_id'] = str(self.target_citation_id)
-        data['relationship_type'] = self.relationship_type
-        data['citation_context'] = self.citation_context
-        data['confidence'] = self.confidence
+        data["source_citation_id"] = str(self.source_citation_id)
+        data["target_citation_id"] = str(self.target_citation_id)
+        data["relationship_type"] = self.relationship_type
+        data["citation_context"] = self.citation_context
+        data["confidence"] = self.confidence
         return data
 
     def to_graph_edge(self) -> dict:
@@ -102,6 +108,6 @@ class CitationRelationship(BaseModel):
                 "type": self.relationship_type,
                 "context": self.citation_context,
                 "confidence": self.confidence,
-                "created_at": self.created_at.isoformat() if self.created_at else None
+                "created_at": self.created_at.isoformat() if self.created_at else None,
             }
         }

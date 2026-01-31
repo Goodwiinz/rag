@@ -6,37 +6,55 @@ including experiment lifecycle management, real-time query routing, metrics coll
 and statistical analysis.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks, Path
-from fastapi.responses import JSONResponse
-from typing import List, Dict, Any, Optional, Union
-import uuid
 import logging
+import uuid
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Union
 
-from src.core.dependencies import get_current_user
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, Query
+from fastapi.responses import JSONResponse
+
 from src.core.database import get_db
-from src.services.core.cache import get_redis_client
+from src.core.dependencies import get_current_user
 from src.models.ab_testing import (
-    Experiment, Variant, ExperimentAssignment, ExperimentMetric,
-    UserSegment, QueryRouting, ExperimentStatus, ExperimentType,
-    TrafficSplitType, MetricType, StatisticalTest, SuccessCriterion
+    Experiment,
+    ExperimentAssignment,
+    ExperimentMetric,
+    ExperimentStatus,
+    ExperimentType,
+    MetricType,
+    QueryRouting,
+    StatisticalTest,
+    SuccessCriterion,
+    TrafficSplitType,
+    UserSegment,
+    Variant,
 )
-from src.models.user import User
 from src.models.organization import Organization
-from src.services.ab_testing import ABIntegrationService
-from src.services.ab_testing import ABStatisticalAnalysisService
+from src.models.user import User
+from src.services.ab_testing import ABIntegrationService, ABStatisticalAnalysisService
+from src.services.core.cache import get_redis_client
 
 # Create service instances
 ab_testing_service = ABIntegrationService()
 statistical_analysis_service = ABStatisticalAnalysisService()
 from src.schemas.ab_testing import (
-    ExperimentCreateRequest, ExperimentUpdateRequest, ExperimentResponse,
-    VariantCreateRequest, VariantUpdateRequest, VariantResponse,
-    ExperimentAssignmentResponse, MetricSubmissionRequest,
-    StatisticalAnalysisRequest, StatisticalAnalysisResponse,
-    ExperimentSummaryRequest, ExperimentSummaryResponse,
-    UserSegmentCreateRequest, UserSegmentResponse,
-    QueryRoutingResponse, BulkMetricSubmissionRequest
+    BulkMetricSubmissionRequest,
+    ExperimentAssignmentResponse,
+    ExperimentCreateRequest,
+    ExperimentResponse,
+    ExperimentSummaryRequest,
+    ExperimentSummaryResponse,
+    ExperimentUpdateRequest,
+    MetricSubmissionRequest,
+    QueryRoutingResponse,
+    StatisticalAnalysisRequest,
+    StatisticalAnalysisResponse,
+    UserSegmentCreateRequest,
+    UserSegmentResponse,
+    VariantCreateRequest,
+    VariantResponse,
+    VariantUpdateRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,11 +65,12 @@ router = APIRouter(prefix="/ab-testing", tags=["A/B Testing"])
 # EXPERIMENT MANAGEMENT ENDPOINTS
 # ============================================================================
 
+
 @router.post("/experiments", response_model=ExperimentResponse, status_code=201)
 async def create_experiment(
     experiment_data: ExperimentCreateRequest,
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Create a new A/B testing experiment
@@ -75,10 +94,12 @@ async def create_experiment(
             experiment_data=experiment_data,
             creator_user_id=current_user.id,
             organization_id=current_user.organization_id,
-            db=db
+            db=db,
         )
 
-        logger.info(f"Created experiment {experiment.id}: {experiment.name} by user {current_user.id}")
+        logger.info(
+            f"Created experiment {experiment.id}: {experiment.name} by user {current_user.id}"
+        )
 
         return ExperimentResponse.from_experiment(experiment)
 
@@ -91,13 +112,21 @@ async def create_experiment(
 
 @router.get("/experiments", response_model=List[ExperimentResponse])
 async def list_experiments(
-    status: Optional[ExperimentStatus] = Query(None, description="Filter by experiment status"),
-    experiment_type: Optional[ExperimentType] = Query(None, description="Filter by experiment type"),
-    limit: int = Query(default=50, ge=1, le=100, description="Number of experiments to return"),
+    status: Optional[ExperimentStatus] = Query(
+        None, description="Filter by experiment status"
+    ),
+    experiment_type: Optional[ExperimentType] = Query(
+        None, description="Filter by experiment type"
+    ),
+    limit: int = Query(
+        default=50, ge=1, le=100, description="Number of experiments to return"
+    ),
     offset: int = Query(default=0, ge=0, description="Number of experiments to skip"),
-    include_results: bool = Query(default=False, description="Include experimental results"),
+    include_results: bool = Query(
+        default=False, description="Include experimental results"
+    ),
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     List A/B testing experiments
@@ -124,7 +153,7 @@ async def list_experiments(
             limit=limit,
             offset=offset,
             include_results=include_results,
-            db=db
+            db=db,
         )
 
         return [ExperimentResponse.from_experiment(exp) for exp in experiments]
@@ -137,9 +166,11 @@ async def list_experiments(
 @router.get("/experiments/{experiment_id}", response_model=ExperimentResponse)
 async def get_experiment(
     experiment_id: uuid.UUID = Path(..., description="Experiment ID"),
-    include_results: bool = Query(default=False, description="Include experimental results"),
+    include_results: bool = Query(
+        default=False, description="Include experimental results"
+    ),
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Get experiment details
@@ -164,7 +195,7 @@ async def get_experiment(
             experiment_id=experiment_id,
             organization_id=current_user.organization_id,
             include_results=include_results,
-            db=db
+            db=db,
         )
 
         if not experiment:
@@ -184,7 +215,7 @@ async def update_experiment(
     experiment_id: uuid.UUID = Path(..., description="Experiment ID"),
     experiment_data: ExperimentUpdateRequest = ...,
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Update experiment configuration
@@ -208,7 +239,7 @@ async def update_experiment(
             experiment_id=experiment_id,
             experiment_data=experiment_data,
             organization_id=current_user.organization_id,
-            db=db
+            db=db,
         )
 
         if not experiment:
@@ -231,7 +262,7 @@ async def update_experiment(
 async def start_experiment(
     experiment_id: uuid.UUID = Path(..., description="Experiment ID"),
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Start an experiment
@@ -253,7 +284,7 @@ async def start_experiment(
         experiment = await ab_testing_service.start_experiment(
             experiment_id=experiment_id,
             organization_id=current_user.organization_id,
-            db=db
+            db=db,
         )
 
         if not experiment:
@@ -276,7 +307,7 @@ async def start_experiment(
 async def stop_experiment(
     experiment_id: uuid.UUID = Path(..., description="Experiment ID"),
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Stop an experiment
@@ -298,7 +329,7 @@ async def stop_experiment(
         experiment = await ab_testing_service.stop_experiment(
             experiment_id=experiment_id,
             organization_id=current_user.organization_id,
-            db=db
+            db=db,
         )
 
         if not experiment:
@@ -320,9 +351,11 @@ async def stop_experiment(
 @router.delete("/experiments/{experiment_id}", status_code=204)
 async def delete_experiment(
     experiment_id: uuid.UUID = Path(..., description="Experiment ID"),
-    force: bool = Query(default=False, description="Force delete even if experiment has data"),
+    force: bool = Query(
+        default=False, description="Force delete even if experiment has data"
+    ),
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Delete an experiment
@@ -344,7 +377,7 @@ async def delete_experiment(
             experiment_id=experiment_id,
             organization_id=current_user.organization_id,
             force=force,
-            db=db
+            db=db,
         )
 
         if not success:
@@ -367,12 +400,17 @@ async def delete_experiment(
 # VARIANT MANAGEMENT ENDPOINTS
 # ============================================================================
 
-@router.post("/experiments/{experiment_id}/variants", response_model=VariantResponse, status_code=201)
+
+@router.post(
+    "/experiments/{experiment_id}/variants",
+    response_model=VariantResponse,
+    status_code=201,
+)
 async def create_variant(
     experiment_id: uuid.UUID = Path(..., description="Experiment ID"),
     variant_data: VariantCreateRequest = ...,
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Create a new variant for an experiment
@@ -396,7 +434,7 @@ async def create_variant(
             experiment_id=experiment_id,
             variant_data=variant_data,
             organization_id=current_user.organization_id,
-            db=db
+            db=db,
         )
 
         if not variant:
@@ -415,11 +453,13 @@ async def create_variant(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/experiments/{experiment_id}/variants", response_model=List[VariantResponse])
+@router.get(
+    "/experiments/{experiment_id}/variants", response_model=List[VariantResponse]
+)
 async def list_variants(
     experiment_id: uuid.UUID = Path(..., description="Experiment ID"),
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     List variants for an experiment
@@ -441,7 +481,7 @@ async def list_variants(
         variants = await ab_testing_service.list_variants(
             experiment_id=experiment_id,
             organization_id=current_user.organization_id,
-            db=db
+            db=db,
         )
 
         return [VariantResponse.from_variant(variant) for variant in variants]
@@ -458,7 +498,7 @@ async def update_variant(
     variant_id: uuid.UUID = Path(..., description="Variant ID"),
     variant_data: VariantUpdateRequest = ...,
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Update variant configuration
@@ -482,7 +522,7 @@ async def update_variant(
             variant_id=variant_id,
             variant_data=variant_data,
             organization_id=current_user.organization_id,
-            db=db
+            db=db,
         )
 
         if not variant:
@@ -505,7 +545,7 @@ async def update_variant(
 async def delete_variant(
     variant_id: uuid.UUID = Path(..., description="Variant ID"),
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Delete a variant
@@ -522,9 +562,7 @@ async def delete_variant(
     """
     try:
         success = await ab_testing_service.delete_variant(
-            variant_id=variant_id,
-            organization_id=current_user.organization_id,
-            db=db
+            variant_id=variant_id, organization_id=current_user.organization_id, db=db
         )
 
         if not success:
@@ -547,14 +585,15 @@ async def delete_variant(
 # REAL-TIME QUERY ROUTING ENDPOINTS
 # ============================================================================
 
+
 @router.post("/routing/assign", response_model=QueryRoutingResponse)
 async def assign_experiment_variant(
     user_id: Optional[uuid.UUID] = None,
     session_id: Optional[str] = None,
     query_context: Optional[Dict[str, Any]] = None,
     current_user: Optional[User] = Depends(get_current_user),
-    db = Depends(get_db),
-    redis_client = Depends(get_redis_client)
+    db=Depends(get_db),
+    redis_client=Depends(get_redis_client),
 ):
     """
     Assign user to experiment variant for query processing
@@ -587,7 +626,7 @@ async def assign_experiment_variant(
             organization_id=current_user.organization_id if current_user else None,
             query_context=query_context or {},
             db=db,
-            redis_client=redis_client
+            redis_client=redis_client,
         )
 
         if not assignment:
@@ -596,7 +635,7 @@ async def assign_experiment_variant(
                 experiment_id=None,
                 variant_id=None,
                 assignment_type="none",
-                routing_reason="no_active_experiments"
+                routing_reason="no_active_experiments",
             )
 
         return QueryRoutingResponse(
@@ -604,7 +643,7 @@ async def assign_experiment_variant(
             variant_id=assignment.variant_id,
             assignment_type=assignment.assignment_type,
             routing_reason=assignment.routing_reason or "standard_assignment",
-            variant_config=assignment.variant.config
+            variant_config=assignment.variant.config,
         )
 
     except Exception as e:
@@ -614,7 +653,7 @@ async def assign_experiment_variant(
             experiment_id=None,
             variant_id=None,
             assignment_type="error_fallback",
-            routing_reason="assignment_failed"
+            routing_reason="assignment_failed",
         )
 
 
@@ -622,8 +661,8 @@ async def assign_experiment_variant(
 async def bulk_assign_experiment_variants(
     assignments: List[Dict[str, Any]],
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db),
-    redis_client = Depends(get_redis_client)
+    db=Depends(get_db),
+    redis_client=Depends(get_redis_client),
 ):
     """
     Bulk assign users to experiment variants
@@ -644,13 +683,15 @@ async def bulk_assign_experiment_variants(
     """
     try:
         if len(assignments) > 1000:
-            raise HTTPException(status_code=400, detail="Maximum 1000 assignments per request")
+            raise HTTPException(
+                status_code=400, detail="Maximum 1000 assignments per request"
+            )
 
         results = await ab_testing_service.bulk_assign_variants(
             assignments=assignments,
             organization_id=current_user.organization_id,
             db=db,
-            redis_client=redis_client
+            redis_client=redis_client,
         )
 
         return results
@@ -666,13 +707,14 @@ async def bulk_assign_experiment_variants(
 # METRICS COLLECTION ENDPOINTS
 # ============================================================================
 
+
 @router.post("/metrics", status_code=201)
 async def submit_metric(
     metric_data: MetricSubmissionRequest,
     background_tasks: BackgroundTasks,
     current_user: Optional[User] = Depends(get_current_user),
-    db = Depends(get_db),
-    redis_client = Depends(get_redis_client)
+    db=Depends(get_db),
+    redis_client=Depends(get_redis_client),
 ):
     """
     Submit metric data for experiment analysis
@@ -699,16 +741,21 @@ async def submit_metric(
             ab_testing_service.process_metric_async,
             metric_data=metric_data,
             user_id=current_user.id if current_user else metric_data.user_id,
-            organization_id=current_user.organization_id if current_user else metric_data.organization_id,
+            organization_id=current_user.organization_id
+            if current_user
+            else metric_data.organization_id,
             db=db,
-            redis_client=redis_client
+            redis_client=redis_client,
         )
 
         logger.debug(f"Queued metric {metric_data.metric_type} for processing")
 
         return JSONResponse(
             status_code=201,
-            content={"message": "Metric submitted for processing", "metric_id": str(uuid.uuid4())}
+            content={
+                "message": "Metric submitted for processing",
+                "metric_id": str(uuid.uuid4()),
+            },
         )
 
     except ValueError as e:
@@ -723,8 +770,8 @@ async def submit_metrics_bulk(
     metrics_data: BulkMetricSubmissionRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db),
-    redis_client = Depends(get_redis_client)
+    db=Depends(get_db),
+    redis_client=Depends(get_redis_client),
 ):
     """
     Submit multiple metrics in bulk
@@ -746,7 +793,9 @@ async def submit_metrics_bulk(
     """
     try:
         if len(metrics_data.metrics) > 10000:
-            raise HTTPException(status_code=400, detail="Maximum 10000 metrics per bulk request")
+            raise HTTPException(
+                status_code=400, detail="Maximum 10000 metrics per bulk request"
+            )
 
         # Queue metrics for async processing
         background_tasks.add_task(
@@ -754,7 +803,7 @@ async def submit_metrics_bulk(
             metrics_data=metrics_data,
             organization_id=current_user.organization_id,
             db=db,
-            redis_client=redis_client
+            redis_client=redis_client,
         )
 
         logger.info(f"Queued {len(metrics_data.metrics)} metrics for bulk processing")
@@ -764,8 +813,8 @@ async def submit_metrics_bulk(
             content={
                 "message": "Metrics submitted for bulk processing",
                 "metrics_count": len(metrics_data.metrics),
-                "batch_id": str(uuid.uuid4())
-            }
+                "batch_id": str(uuid.uuid4()),
+            },
         )
 
     except ValueError as e:
@@ -779,12 +828,15 @@ async def submit_metrics_bulk(
 # STATISTICAL ANALYSIS ENDPOINTS
 # ============================================================================
 
-@router.post("/experiments/{experiment_id}/analyze", response_model=StatisticalAnalysisResponse)
+
+@router.post(
+    "/experiments/{experiment_id}/analyze", response_model=StatisticalAnalysisResponse
+)
 async def analyze_experiment(
     experiment_id: uuid.UUID = Path(..., description="Experiment ID"),
     analysis_request: StatisticalAnalysisRequest = ...,
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Perform statistical analysis on experiment results
@@ -809,7 +861,7 @@ async def analyze_experiment(
             experiment_id=experiment_id,
             analysis_request=analysis_request,
             organization_id=current_user.organization_id,
-            db=db
+            db=db,
         )
 
         if not analysis_result:
@@ -828,12 +880,14 @@ async def analyze_experiment(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/experiments/{experiment_id}/summary", response_model=ExperimentSummaryResponse)
+@router.get(
+    "/experiments/{experiment_id}/summary", response_model=ExperimentSummaryResponse
+)
 async def get_experiment_summary(
     experiment_id: uuid.UUID = Path(..., description="Experiment ID"),
     summary_request: ExperimentSummaryRequest = ...,
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Get experiment summary with key metrics and insights
@@ -858,7 +912,7 @@ async def get_experiment_summary(
             experiment_id=experiment_id,
             summary_request=summary_request,
             organization_id=current_user.organization_id,
-            db=db
+            db=db,
         )
 
         if not summary:
@@ -879,11 +933,12 @@ async def get_experiment_summary(
 # USER SEGMENTATION ENDPOINTS
 # ============================================================================
 
+
 @router.post("/segments", response_model=UserSegmentResponse, status_code=201)
 async def create_user_segment(
     segment_data: UserSegmentCreateRequest,
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Create a new user segment
@@ -906,7 +961,7 @@ async def create_user_segment(
             segment_data=segment_data,
             creator_user_id=current_user.id,
             organization_id=current_user.organization_id,
-            db=db
+            db=db,
         )
 
         logger.info(f"Created user segment {segment.id}: {segment.name}")
@@ -923,9 +978,11 @@ async def create_user_segment(
 @router.get("/segments", response_model=List[UserSegmentResponse])
 async def list_user_segments(
     segment_type: Optional[str] = Query(None, description="Filter by segment type"),
-    limit: int = Query(default=50, ge=1, le=100, description="Number of segments to return"),
+    limit: int = Query(
+        default=50, ge=1, le=100, description="Number of segments to return"
+    ),
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     List user segments
@@ -946,7 +1003,7 @@ async def list_user_segments(
             organization_id=current_user.organization_id,
             segment_type=segment_type,
             limit=limit,
-            db=db
+            db=db,
         )
 
         return [UserSegmentResponse.from_segment(segment) for segment in segments]
@@ -960,10 +1017,10 @@ async def list_user_segments(
 # HEALTH AND MONITORING ENDPOINTS
 # ============================================================================
 
+
 @router.get("/health")
 async def ab_testing_health_check(
-    db = Depends(get_db),
-    redis_client = Depends(get_redis_client)
+    db=Depends(get_db), redis_client=Depends(get_redis_client)
 ):
     """
     Health check for A/B testing system
@@ -978,7 +1035,7 @@ async def ab_testing_health_check(
         health_status = {
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),
-            "components": {}
+            "components": {},
         }
 
         # Check database connectivity
@@ -986,12 +1043,12 @@ async def ab_testing_health_check(
             db.execute("SELECT 1")
             health_status["components"]["database"] = {
                 "status": "healthy",
-                "message": "Database connection successful"
+                "message": "Database connection successful",
             }
         except Exception as e:
             health_status["components"]["database"] = {
                 "status": "unhealthy",
-                "error": str(e)
+                "error": str(e),
             }
             health_status["status"] = "degraded"
 
@@ -1000,27 +1057,29 @@ async def ab_testing_health_check(
             redis_client.ping()
             health_status["components"]["redis"] = {
                 "status": "healthy",
-                "message": "Redis connection successful"
+                "message": "Redis connection successful",
             }
         except Exception as e:
             health_status["components"]["redis"] = {
                 "status": "unhealthy",
-                "error": str(e)
+                "error": str(e),
             }
             health_status["status"] = "degraded"
 
         # Check service availability
         try:
             # Test basic service functionality
-            active_experiments = await ab_testing_service.get_active_experiments_count(db)
+            active_experiments = await ab_testing_service.get_active_experiments_count(
+                db
+            )
             health_status["components"]["ab_testing_service"] = {
                 "status": "healthy",
-                "active_experiments": active_experiments
+                "active_experiments": active_experiments,
             }
         except Exception as e:
             health_status["components"]["ab_testing_service"] = {
                 "status": "unhealthy",
-                "error": str(e)
+                "error": str(e),
             }
             health_status["status"] = "degraded"
 
@@ -1033,8 +1092,8 @@ async def ab_testing_health_check(
             content={
                 "status": "unhealthy",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
-            }
+                "timestamp": datetime.utcnow().isoformat(),
+            },
         )
 
 
@@ -1050,7 +1109,7 @@ async def public_ab_testing_health_check():
             "status": "healthy",
             "service": "A/B Testing System",
             "timestamp": datetime.utcnow().isoformat(),
-            "message": "A/B testing API is accessible"
+            "message": "A/B testing API is accessible",
         }
 
     except Exception as e:
@@ -1060,6 +1119,6 @@ async def public_ab_testing_health_check():
             content={
                 "status": "unhealthy",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
-            }
+                "timestamp": datetime.utcnow().isoformat(),
+            },
         )

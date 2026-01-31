@@ -4,6 +4,7 @@ Configuration for Graph Visualization Service
 
 import os
 from typing import Optional
+
 from pydantic import BaseSettings
 
 
@@ -24,8 +25,7 @@ class GraphVisualizationConfig(BaseSettings):
 
     # PostgreSQL Configuration
     DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql://user:password@localhost:5432/rag_system"
+        "DATABASE_URL", "postgresql://user:password@localhost:5432/rag_system"
     )
 
     # Redis Configuration
@@ -33,8 +33,10 @@ class GraphVisualizationConfig(BaseSettings):
     REDIS_CACHE_TTL: int = 1800  # 30 minutes default
 
     # Performance Configuration
-    MAX_GRAPH_SIZE_FOR_REALTIME: int = 5000    # Maximum nodes for real-time visualization
-    MAX_GRAPH_SIZE_FOR_INTERACTIVE: int = 20000  # Maximum nodes for interactive visualization
+    MAX_GRAPH_SIZE_FOR_REALTIME: int = 5000  # Maximum nodes for real-time visualization
+    MAX_GRAPH_SIZE_FOR_INTERACTIVE: int = (
+        20000  # Maximum nodes for interactive visualization
+    )
     DEFAULT_NODE_LIMIT: int = 1000
     DEFAULT_EDGE_LIMIT: int = 2000
     QUERY_TIMEOUT: int = 30
@@ -54,10 +56,10 @@ class GraphVisualizationConfig(BaseSettings):
 
     # Caching Configuration
     ENABLE_CACHING: bool = True
-    SMALL_GRAPH_CACHE_TTL: int = 1800    # 30 minutes
-    MEDIUM_GRAPH_CACHE_TTL: int = 3600   # 1 hour
-    LARGE_GRAPH_CACHE_TTL: int = 7200    # 2 hours
-    XL_GRAPH_CACHE_TTL: int = 14400      # 4 hours
+    SMALL_GRAPH_CACHE_TTL: int = 1800  # 30 minutes
+    MEDIUM_GRAPH_CACHE_TTL: int = 3600  # 1 hour
+    LARGE_GRAPH_CACHE_TTL: int = 7200  # 2 hours
+    XL_GRAPH_CACHE_TTL: int = 14400  # 4 hours
 
     # Visualization Configuration
     DEFAULT_NODE_SIZE_RANGE: list = [5, 20]
@@ -68,14 +70,14 @@ class GraphVisualizationConfig(BaseSettings):
         "LOCATION": "#96ceb4",
         "PRODUCT": "#ffeaa7",
         "EVENT": "#dfe6e9",
-        "CONCEPT": "#a29bfe"
+        "CONCEPT": "#a29bfe",
     }
     DEFAULT_EDGE_COLORS: dict = {
         "WORKS_FOR": "#e17055",
         "KNOWS": "#00b894",
         "RELATED_TO": "#6c5ce7",
         "LOCATED_IN": "#fdcb6e",
-        "PART_OF": "#e84393"
+        "PART_OF": "#e84393",
     }
 
     # Performance Optimization Configuration

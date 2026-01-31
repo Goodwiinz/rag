@@ -6,12 +6,16 @@ import asyncio
 import logging
 import math
 import random
-from typing import List, Dict, Any, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 
 from src.services.models.visualization_models import (
-    VisualizationNode, VisualizationEdge, GraphLayout, LayoutAlgorithm,
-    NodeShape
+    GraphLayout,
+    LayoutAlgorithm,
+    NodeShape,
+    VisualizationEdge,
+    VisualizationNode,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,7 +35,7 @@ class LayoutAlgorithms:
         threshold: float = 1e-4,
         strength: float = 1.0,
         repulsion: float = 100.0,
-        gravity: float = 0.1
+        gravity: float = 0.1,
     ) -> GraphLayout:
         """Compute force-directed layout using Fruchterman-Reingold algorithm"""
         try:
@@ -55,10 +59,10 @@ class LayoutAlgorithms:
 
                 # Calculate repulsive forces between all pairs
                 for i, node1 in enumerate(nodes):
-                    for j, node2 in enumerate(nodes[i+1:], i+1):
+                    for j, node2 in enumerate(nodes[i + 1 :], i + 1):
                         dx = positions[node2.id][0] - positions[node1.id][0]
                         dy = positions[node2.id][1] - positions[node1.id][1]
-                        distance = math.sqrt(dx*dx + dy*dy)
+                        distance = math.sqrt(dx * dx + dy * dy)
 
                         if distance > 0:
                             # Fr = k^2 / d
@@ -79,7 +83,7 @@ class LayoutAlgorithms:
                     if source_id in positions and target_id in positions:
                         dx = positions[target_id][0] - positions[source_id][0]
                         dy = positions[target_id][1] - positions[source_id][1]
-                        distance = math.sqrt(dx*dx + dy*dy)
+                        distance = math.sqrt(dx * dx + dy * dy)
 
                         if distance > 0:
                             # Fa = d^2 / k
@@ -106,7 +110,7 @@ class LayoutAlgorithms:
                 # Update positions
                 for node in nodes:
                     displacement = math.sqrt(
-                        forces[node.id][0]**2 + forces[node.id][1]**2
+                        forces[node.id][0] ** 2 + forces[node.id][1] ** 2
                     )
 
                     # Limit displacement by temperature
@@ -142,7 +146,7 @@ class LayoutAlgorithms:
             bounding_box = self._calculate_bounding_box(positions)
             center = {
                 "x": (bounding_box["min_x"] + bounding_box["max_x"]) / 2,
-                "y": (bounding_box["min_y"] + bounding_box["max_y"]) / 2
+                "y": (bounding_box["min_y"] + bounding_box["max_y"]) / 2,
             }
 
             return GraphLayout(
@@ -155,8 +159,8 @@ class LayoutAlgorithms:
                 convergence_info={
                     "iterations": iteration + 1,
                     "final_displacement": max_displacement,
-                    "converged": max_displacement < threshold
-                }
+                    "converged": max_displacement < threshold,
+                },
             )
 
         except Exception as e:
@@ -167,7 +171,7 @@ class LayoutAlgorithms:
         self,
         nodes: List[VisualizationNode],
         edges: List[VisualizationEdge],
-        radius: float = 400.0
+        radius: float = 400.0,
     ) -> GraphLayout:
         """Compute circular layout"""
         try:
@@ -197,7 +201,7 @@ class LayoutAlgorithms:
                 "min_x": center_x - radius,
                 "min_y": center_y - radius,
                 "max_x": center_x + radius,
-                "max_y": center_y + radius
+                "max_y": center_y + radius,
             }
 
             return GraphLayout(
@@ -206,7 +210,7 @@ class LayoutAlgorithms:
                 center={"x": center_x, "y": center_y},
                 scale=1.0,
                 rotation=0.0,
-                bounding_box=bounding_box
+                bounding_box=bounding_box,
             )
 
         except Exception as e:
@@ -217,7 +221,7 @@ class LayoutAlgorithms:
         self,
         nodes: List[VisualizationNode],
         edges: List[VisualizationEdge],
-        direction: str = "TB"  # TB = Top-Bottom, LR = Left-Right
+        direction: str = "TB",  # TB = Top-Bottom, LR = Left-Right
     ) -> GraphLayout:
         """Compute hierarchical layout"""
         try:
@@ -265,7 +269,7 @@ class LayoutAlgorithms:
             bounding_box = self._calculate_bounding_box(positions)
             center = {
                 "x": (bounding_box["min_x"] + bounding_box["max_x"]) / 2,
-                "y": (bounding_box["min_y"] + bounding_box["max_y"]) / 2
+                "y": (bounding_box["min_y"] + bounding_box["max_y"]) / 2,
             }
 
             return GraphLayout(
@@ -278,8 +282,8 @@ class LayoutAlgorithms:
                 metadata={
                     "direction": direction,
                     "max_level": max_level,
-                    "levels": len(level_nodes)
-                }
+                    "levels": len(level_nodes),
+                },
             )
 
         except Exception as e:
@@ -290,7 +294,7 @@ class LayoutAlgorithms:
         self,
         nodes: List[VisualizationNode],
         edges: List[VisualizationEdge],
-        cols: Optional[int] = None
+        cols: Optional[int] = None,
     ) -> GraphLayout:
         """Compute grid layout"""
         try:
@@ -310,12 +314,7 @@ class LayoutAlgorithms:
                 node.x = 50 + col * cell_width + cell_width / 2
                 node.y = 50 + row * cell_height + cell_height / 2
 
-            bounding_box = {
-                "min_x": 50,
-                "min_y": 50,
-                "max_x": 950,
-                "max_y": 850
-            }
+            bounding_box = {"min_x": 50, "min_y": 50, "max_x": 950, "max_y": 850}
 
             return GraphLayout(
                 algorithm=LayoutAlgorithm.GRID,
@@ -324,7 +323,7 @@ class LayoutAlgorithms:
                 scale=1.0,
                 rotation=0.0,
                 bounding_box=bounding_box,
-                metadata={"cols": cols, "rows": rows}
+                metadata={"cols": cols, "rows": rows},
             )
 
         except Exception as e:
@@ -336,7 +335,7 @@ class LayoutAlgorithms:
         nodes: List[VisualizationNode],
         edges: List[VisualizationEdge],
         width: int = 1000,
-        height: int = 1000
+        height: int = 1000,
     ) -> GraphLayout:
         """Compute random layout"""
         try:
@@ -348,7 +347,7 @@ class LayoutAlgorithms:
                 "min_x": 50,
                 "min_y": 50,
                 "max_x": width - 50,
-                "max_y": height - 50
+                "max_y": height - 50,
             }
 
             return GraphLayout(
@@ -357,7 +356,7 @@ class LayoutAlgorithms:
                 center={"x": width / 2, "y": height / 2},
                 scale=1.0,
                 rotation=0.0,
-                bounding_box=bounding_box
+                bounding_box=bounding_box,
             )
 
         except Exception as e:
@@ -365,9 +364,7 @@ class LayoutAlgorithms:
             return self._create_empty_layout(LayoutAlgorithm.RANDOM)
 
     async def spiral_layout(
-        self,
-        nodes: List[VisualizationNode],
-        edges: List[VisualizationEdge]
+        self, nodes: List[VisualizationNode], edges: List[VisualizationEdge]
     ) -> GraphLayout:
         """Compute spiral layout"""
         try:
@@ -384,9 +381,9 @@ class LayoutAlgorithms:
                 node.x = center_x + r * math.cos(theta)
                 node.y = center_y + r * math.sin(theta)
 
-            bounding_box = self._calculate_bounding_box({
-                node.id: [node.x, node.y] for node in nodes
-            })
+            bounding_box = self._calculate_bounding_box(
+                {node.id: [node.x, node.y] for node in nodes}
+            )
 
             return GraphLayout(
                 algorithm=LayoutAlgorithm.SPIRAL,
@@ -394,7 +391,7 @@ class LayoutAlgorithms:
                 center={"x": center_x, "y": center_y},
                 scale=1.0,
                 rotation=0.0,
-                bounding_box=bounding_box
+                bounding_box=bounding_box,
             )
 
         except Exception as e:
@@ -402,9 +399,7 @@ class LayoutAlgorithms:
             return await self.random_layout(nodes, edges)
 
     async def concentric_layout(
-        self,
-        nodes: List[VisualizationNode],
-        edges: List[VisualizationEdge]
+        self, nodes: List[VisualizationNode], edges: List[VisualizationEdge]
     ) -> GraphLayout:
         """Compute concentric layout based on node importance"""
         try:
@@ -413,7 +408,9 @@ class LayoutAlgorithms:
 
             # Calculate node importance (using degree as proxy)
             node_degrees = self._calculate_node_degrees(nodes, edges)
-            sorted_nodes = sorted(nodes, key=lambda n: node_degrees.get(n.id, 0), reverse=True)
+            sorted_nodes = sorted(
+                nodes, key=lambda n: node_degrees.get(n.id, 0), reverse=True
+            )
 
             # Assign nodes to concentric circles
             num_circles = min(5, len(sorted_nodes))
@@ -423,14 +420,19 @@ class LayoutAlgorithms:
             for i, node in enumerate(sorted_nodes):
                 circle = i // nodes_per_circle
                 radius = 100 + circle * 80
-                nodes_in_circle = [n for n in sorted_nodes[circle * nodes_per_circle:(circle + 1) * nodes_per_circle]]
+                nodes_in_circle = [
+                    n
+                    for n in sorted_nodes[
+                        circle * nodes_per_circle : (circle + 1) * nodes_per_circle
+                    ]
+                ]
                 angle_step = 2 * math.pi / len(nodes_in_circle)
                 angle = nodes_in_circle.index(node) * angle_step
 
                 center_x, center_y = 500, 500
                 positions[node.id] = [
                     center_x + radius * math.cos(angle),
-                    center_y + radius * math.sin(angle)
+                    center_y + radius * math.sin(angle),
                 ]
 
             # Update node positions
@@ -451,8 +453,8 @@ class LayoutAlgorithms:
                 bounding_box=bounding_box,
                 metadata={
                     "num_circles": num_circles,
-                    "nodes_per_circle": nodes_per_circle
-                }
+                    "nodes_per_circle": nodes_per_circle,
+                },
             )
 
         except Exception as e:
@@ -460,17 +462,21 @@ class LayoutAlgorithms:
             return await self.random_layout(nodes, edges)
 
     # Helper methods
-    def _initialize_positions(self, nodes: List[VisualizationNode], width: int, height: int) -> Dict[str, List[float]]:
+    def _initialize_positions(
+        self, nodes: List[VisualizationNode], width: int, height: int
+    ) -> Dict[str, List[float]]:
         """Initialize random positions for nodes"""
         positions = {}
         for node in nodes:
             positions[node.id] = [
                 random.uniform(50, width - 50),
-                random.uniform(50, height - 50)
+                random.uniform(50, height - 50),
             ]
         return positions
 
-    def _create_adjacency_list(self, nodes: List[VisualizationNode], edges: List[VisualizationEdge]) -> Dict[str, List[str]]:
+    def _create_adjacency_list(
+        self, nodes: List[VisualizationNode], edges: List[VisualizationEdge]
+    ) -> Dict[str, List[str]]:
         """Create adjacency list from edges"""
         adj_list = {node.id: [] for node in nodes}
         for edge in edges:
@@ -480,7 +486,9 @@ class LayoutAlgorithms:
                 adj_list[edge.target].append(edge.source)
         return adj_list
 
-    def _calculate_node_degrees(self, nodes: List[VisualizationNode], edges: List[VisualizationEdge]) -> Dict[str, int]:
+    def _calculate_node_degrees(
+        self, nodes: List[VisualizationNode], edges: List[VisualizationEdge]
+    ) -> Dict[str, int]:
         """Calculate degree for each node"""
         degrees = {node.id: 0 for node in nodes}
         for edge in edges:
@@ -490,7 +498,9 @@ class LayoutAlgorithms:
                 degrees[edge.target] += 1
         return degrees
 
-    def _calculate_bounding_box(self, positions: Dict[str, List[float]]) -> Dict[str, float]:
+    def _calculate_bounding_box(
+        self, positions: Dict[str, List[float]]
+    ) -> Dict[str, float]:
         """Calculate bounding box of positions"""
         if not positions:
             return {"min_x": 0, "min_y": 0, "max_x": 1000, "max_y": 1000}
@@ -502,10 +512,12 @@ class LayoutAlgorithms:
             "min_x": min(x_coords),
             "min_y": min(y_coords),
             "max_x": max(x_coords),
-            "max_y": max(y_coords)
+            "max_y": max(y_coords),
         }
 
-    def _assign_hierarchy_levels(self, nodes: List[VisualizationNode], edges: List[VisualizationEdge]) -> Dict[str, int]:
+    def _assign_hierarchy_levels(
+        self, nodes: List[VisualizationNode], edges: List[VisualizationEdge]
+    ) -> Dict[str, int]:
         """Assign hierarchy levels using topological sorting"""
         # Build adjacency list
         adj_list = self._create_adjacency_list(nodes, edges)
@@ -539,5 +551,5 @@ class LayoutAlgorithms:
             center={"x": 500, "y": 500},
             scale=1.0,
             rotation=0.0,
-            bounding_box={"min_x": 500, "min_y": 500, "max_x": 500, "max_y": 500}
+            bounding_box={"min_x": 500, "min_y": 500, "max_x": 500, "max_y": 500},
         )

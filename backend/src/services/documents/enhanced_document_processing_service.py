@@ -4,19 +4,19 @@ Provides comprehensive document processing with multimodal support, entity extra
 knowledge graph integration, and real-time progress tracking
 """
 
-import os
-import uuid
 import asyncio
-import json
 import hashlib
-from typing import List, Optional, Dict, Any, Tuple, Union
+import io
+import json
+import logging
+import os
+import re
+import traceback
+import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-import logging
-import traceback
-import io
-import re
-from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Document processing libraries (optional dependencies)
 try:
@@ -54,15 +54,17 @@ try:
 except ImportError:
     np = None
 
+import openai
+
 # AI/ML libraries
 import spacy
+from fastapi import Depends
 from sentence_transformers import SentenceTransformer
-import openai
-from transformers import pipeline, AutoTokenizer, AutoModelForTokenClassification
 
 # Database and storage
 from sqlalchemy.orm import Session
-from fastapi import Depends
+from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
+
 try:
     from minio import Minio
     from minio.error import S3Error
@@ -76,24 +78,29 @@ from neo4j import GraphDatabase
 # Internal imports
 from src.core.config import settings
 from src.models.document import Document
-from src.models.processing import ProcessingJob, JobType, JobStatus
+
 # Note: ExtractedEntity and ExtractedRelationship not found in models/entity.py
 # Using Entity from models/entity as fallback
 from src.models.entity import Entity as ExtractedEntity
+from src.models.processing import JobStatus, JobType, ProcessingJob
+
 ExtractedRelationship = None  # Not defined yet
+from src.core.database import get_db
 from src.services.knowledge_graph import KnowledgeGraphService
 from src.services.search.vector_service import VectorService as VectorStoreService
-from src.core.database import get_db
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class ProcessingResult:
     """Result of document processing step"""
+
     success: bool
     data: Dict[str, Any]
     error: Optional[str] = None
     processing_time_ms: Optional[float] = None
+
 
 class MultimodalProcessor:
     """Handles processing of different file types"""
@@ -111,7 +118,7 @@ class MultimodalProcessor:
             self.nlp = spacy.load("en_core_web_sm")
 
             # Load sentence transformer for embeddings
-            self.sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
+            self.sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
 
             logger.info("ML models loaded successfully")
         except Exception as e:
@@ -144,7 +151,7 @@ class MultimodalProcessor:
                     "page_number": page_num + 1,
                     "text": page_text,
                     "image_count": len(images),
-                    "char_count": len(page_text)
+                    "char_count": len(page_text),
                 }
                 pages_data.append(page_data)
 
@@ -163,9 +170,11 @@ class MultimodalProcessor:
                     "pages": pages_data,
                     "total_pages": len(pages_data),
                     "text_length": len(extracted_text),
-                    "processing_method": "pymupdf" if len(extracted_text.strip()) >= 100 else "ocr"
+                    "processing_method": "pymupdf"
+                    if len(extracted_text.strip()) >= 100
+                    else "ocr",
                 },
-                processing_time_ms=processing_time
+                processing_time_ms=processing_time,
             )
 
         except Exception as e:
@@ -174,7 +183,7 @@ class MultimodalProcessor:
                 success=False,
                 data={},
                 error=str(e),
-                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
+                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000,
             )
 
     async def process_text(self, document: Document) -> ProcessingResult:
@@ -186,7 +195,7 @@ class MultimodalProcessor:
             file_content = await self._download_from_storage(document.file_path)
 
             # Decode text
-            text = file_content.decode('utf-8')
+            text = file_content.decode("utf-8")
 
             processing_time = (datetime.now() - start_time).total_seconds() * 1000
 
@@ -195,11 +204,11 @@ class MultimodalProcessor:
                 data={
                     "text": text,
                     "text_length": len(text),
-                    "line_count": len(text.split('\n')),
+                    "line_count": len(text.split("\n")),
                     "word_count": len(text.split()),
-                    "processing_method": "direct"
+                    "processing_method": "direct",
                 },
-                processing_time_ms=processing_time
+                processing_time_ms=processing_time,
             )
 
         except Exception as e:
@@ -208,7 +217,7 @@ class MultimodalProcessor:
                 success=False,
                 data={},
                 error=str(e),
-                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
+                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000,
             )
 
     async def process_image(self, document: Document) -> ProcessingResult:
@@ -231,7 +240,7 @@ class MultimodalProcessor:
                 "height": image.height,
                 "format": image.format,
                 "mode": image.mode,
-                "has_text": len(extracted_text.strip()) > 0
+                "has_text": len(extracted_text.strip()) > 0,
             }
 
             processing_time = (datetime.now() - start_time).total_seconds() * 1000
@@ -242,9 +251,9 @@ class MultimodalProcessor:
                     "text": extracted_text,
                     "metadata": image_metadata,
                     "text_length": len(extracted_text),
-                    "processing_method": "tesseract_ocr"
+                    "processing_method": "tesseract_ocr",
                 },
-                processing_time_ms=processing_time
+                processing_time_ms=processing_time,
             )
 
         except Exception as e:
@@ -253,7 +262,7 @@ class MultimodalProcessor:
                 success=False,
                 data={},
                 error=str(e),
-                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
+                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000,
             )
 
     async def process_audio(self, document: Document) -> ProcessingResult:
@@ -283,7 +292,7 @@ class MultimodalProcessor:
                 "duration_seconds": len(audio) / 1000.0,
                 "channels": audio.channels,
                 "frame_rate": audio.frame_rate,
-                "sample_width": audio.sample_width
+                "sample_width": audio.sample_width,
             }
 
             processing_time = (datetime.now() - start_time).total_seconds() * 1000
@@ -294,9 +303,9 @@ class MultimodalProcessor:
                     "text": extracted_text,
                     "metadata": audio_metadata,
                     "text_length": len(extracted_text),
-                    "processing_method": "google_speech_recognition"
+                    "processing_method": "google_speech_recognition",
                 },
-                processing_time_ms=processing_time
+                processing_time_ms=processing_time,
             )
 
         except Exception as e:
@@ -305,7 +314,7 @@ class MultimodalProcessor:
                 success=False,
                 data={},
                 error=str(e),
-                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
+                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000,
             )
 
     async def _download_from_storage(self, file_path: str) -> bytes:
@@ -329,7 +338,9 @@ class MultimodalProcessor:
                 page = pdf_document[page_num]
 
                 # Convert page to image
-                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x zoom for better OCR
+                pix = page.get_pixmap(
+                    matrix=fitz.Matrix(2, 2)
+                )  # 2x zoom for better OCR
                 img_data = pix.tobytes("png")
                 image = Image.open(io.BytesIO(img_data))
 
@@ -343,6 +354,7 @@ class MultimodalProcessor:
         except Exception as e:
             logger.error(f"PDF OCR failed: {e}")
             return ""
+
 
 class EntityExtractor:
     """Extracts entities and relationships from text"""
@@ -378,7 +390,7 @@ class EntityExtractor:
                     "start": ent.start_char,
                     "end": ent.end_char,
                     "confidence": 1.0,  # spaCy doesn't provide confidence scores
-                    "context": text[max(0, ent.start_char-50):ent.end_char+50]
+                    "context": text[max(0, ent.start_char - 50) : ent.end_char + 50],
                 }
                 entities.append(entity)
 
@@ -390,9 +402,9 @@ class EntityExtractor:
                     "entities": entities,
                     "entity_count": len(entities),
                     "entity_types": list(set([e["label"] for e in entities])),
-                    "processing_method": "spacy"
+                    "processing_method": "spacy",
                 },
-                processing_time_ms=processing_time
+                processing_time_ms=processing_time,
             )
 
         except Exception as e:
@@ -401,10 +413,12 @@ class EntityExtractor:
                 success=False,
                 data={},
                 error=str(e),
-                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
+                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000,
             )
 
-    async def extract_relationships(self, text: str, entities: List[Dict], document_id: str) -> ProcessingResult:
+    async def extract_relationships(
+        self, text: str, entities: List[Dict], document_id: str
+    ) -> ProcessingResult:
         """Extract relationships between entities"""
         start_time = datetime.now()
 
@@ -416,11 +430,23 @@ class EntityExtractor:
 
             # Define relationship patterns
             relationship_patterns = [
-                (r"(\w+)\s+(works for|is employed by|is a member of)\s+(\w+)", "WORKS_FOR"),
-                (r"(\w+)\s+(is located in|is based in|is situated in)\s+(\w+)", "LOCATED_IN"),
-                (r"(\w+)\s+(is the CEO of|is the president of|is the director of)\s+(\w+)", "LEADS"),
+                (
+                    r"(\w+)\s+(works for|is employed by|is a member of)\s+(\w+)",
+                    "WORKS_FOR",
+                ),
+                (
+                    r"(\w+)\s+(is located in|is based in|is situated in)\s+(\w+)",
+                    "LOCATED_IN",
+                ),
+                (
+                    r"(\w+)\s+(is the CEO of|is the president of|is the director of)\s+(\w+)",
+                    "LEADS",
+                ),
                 (r"(\w+)\s+(owns|founded|established)\s+(\w+)", "OWNS"),
-                (r"(\w+)\s+(is a|is an|is the)\s+(\w+)\s+(at|in|for)\s+(\w+)", "RELATED_TO")
+                (
+                    r"(\w+)\s+(is a|is an|is the)\s+(\w+)\s+(at|in|for)\s+(\w+)",
+                    "RELATED_TO",
+                ),
             ]
 
             for pattern, rel_type in relationship_patterns:
@@ -444,8 +470,10 @@ class EntityExtractor:
                             "source": source_entity,
                             "target": target_entity,
                             "type": rel_type,
-                            "context": text[max(0, match.start()-50):match.end()+50],
-                            "confidence": 0.8  # Default confidence for pattern-based extraction
+                            "context": text[
+                                max(0, match.start() - 50) : match.end() + 50
+                            ],
+                            "confidence": 0.8,  # Default confidence for pattern-based extraction
                         }
                         relationships.append(relationship)
 
@@ -457,9 +485,9 @@ class EntityExtractor:
                     "relationships": relationships,
                     "relationship_count": len(relationships),
                     "relationship_types": list(set([r["type"] for r in relationships])),
-                    "processing_method": "pattern_based"
+                    "processing_method": "pattern_based",
                 },
-                processing_time_ms=processing_time
+                processing_time_ms=processing_time,
             )
 
         except Exception as e:
@@ -468,19 +496,21 @@ class EntityExtractor:
                 success=False,
                 data={},
                 error=str(e),
-                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
+                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000,
             )
 
-    async def _extract_entities_basic(self, text: str, document_id: str) -> ProcessingResult:
+    async def _extract_entities_basic(
+        self, text: str, document_id: str
+    ) -> ProcessingResult:
         """Basic entity extraction using patterns"""
         try:
             # Define patterns for common entity types
             patterns = {
-                "EMAIL": r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
-                "PHONE": r'\b\d{3}-\d{3}-\d{4}\b|\b\(\d{3}\)\s*\d{3}-\d{4}\b',
-                "DATE": r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b',
-                "MONEY": r'\$\d+(?:,\d{3})*(?:\.\d{2})?',
-                "URL": r'https?://(?:[-\w.])+(?:[:\d]+)?(?:/(?:[\w/_.])*(?:\?(?:[\w&=%.])*)?(?:#(?:\w*))?)?',
+                "EMAIL": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
+                "PHONE": r"\b\d{3}-\d{3}-\d{4}\b|\b\(\d{3}\)\s*\d{3}-\d{4}\b",
+                "DATE": r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b",
+                "MONEY": r"\$\d+(?:,\d{3})*(?:\.\d{2})?",
+                "URL": r"https?://(?:[-\w.])+(?:[:\d]+)?(?:/(?:[\w/_.])*(?:\?(?:[\w&=%.])*)?(?:#(?:\w*))?)?",
             }
 
             entities = []
@@ -493,7 +523,7 @@ class EntityExtractor:
                         "start": match.start(),
                         "end": match.end(),
                         "confidence": 0.9,
-                        "context": text[max(0, match.start()-50):match.end()+50]
+                        "context": text[max(0, match.start() - 50) : match.end() + 50],
                     }
                     entities.append(entity)
 
@@ -503,18 +533,16 @@ class EntityExtractor:
                     "entities": entities,
                     "entity_count": len(entities),
                     "entity_types": list(patterns.keys()),
-                    "processing_method": "pattern_based"
+                    "processing_method": "pattern_based",
                 },
-                processing_time_ms=0
+                processing_time_ms=0,
             )
 
         except Exception as e:
             return ProcessingResult(
-                success=False,
-                data={},
-                error=str(e),
-                processing_time_ms=0
+                success=False, data={}, error=str(e), processing_time_ms=0
             )
+
 
 class EnhancedDocumentProcessingService:
     """Enhanced document processing service with multimodal support"""
@@ -534,7 +562,7 @@ class EnhancedDocumentProcessingService:
                 settings.MINIO_ENDPOINT,
                 access_key=settings.MINIO_ACCESS_KEY,
                 secret_key=settings.MINIO_SECRET_KEY,
-                secure=settings.MINIO_SECURE
+                secure=settings.MINIO_SECURE,
             )
         except Exception as e:
             logger.error(f"Failed to initialize MinIO client: {e}")
@@ -544,17 +572,17 @@ class EnhancedDocumentProcessingService:
         """Process document through the complete pipeline"""
         try:
             # Get processing job
-            job = self.db.query(ProcessingJob).filter(
-                ProcessingJob.id == job_id
-            ).first()
+            job = (
+                self.db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
+            )
 
             if not job:
                 raise ValueError(f"Processing job {job_id} not found")
 
             # Get document
-            document = self.db.query(Document).filter(
-                Document.id == job.document_id
-            ).first()
+            document = (
+                self.db.query(Document).filter(Document.id == job.document_id).first()
+            )
 
             if not document:
                 raise ValueError(f"Document {job.document_id} not found")
@@ -582,7 +610,9 @@ class EnhancedDocumentProcessingService:
                 )
 
                 if entity_result.success:
-                    await self._save_entities(document, entity_result.data.get("entities", []))
+                    await self._save_entities(
+                        document, entity_result.data.get("entities", [])
+                    )
 
                 current_step += 1
 
@@ -595,10 +625,14 @@ class EnhancedDocumentProcessingService:
                 )
 
                 if relationship_result.success:
-                    await self._save_relationships(document, relationship_result.data.get("relationships", []))
+                    await self._save_relationships(
+                        document, relationship_result.data.get("relationships", [])
+                    )
             else:
                 entity_result = ProcessingResult(success=True, data={"entities": []})
-                relationship_result = ProcessingResult(success=True, data={"relationships": []})
+                relationship_result = ProcessingResult(
+                    success=True, data={"relationships": []}
+                )
 
             current_step += 1
 
@@ -609,10 +643,12 @@ class EnhancedDocumentProcessingService:
                 graph_result = await self._populate_knowledge_graph(
                     document,
                     entity_result.data.get("entities", []),
-                    relationship_result.data.get("relationships", [])
+                    relationship_result.data.get("relationships", []),
                 )
             else:
-                graph_result = ProcessingResult(success=True, data={"nodes_created": 0, "relationships_created": 0})
+                graph_result = ProcessingResult(
+                    success=True, data={"nodes_created": 0, "relationships_created": 0}
+                )
 
             current_step += 1
 
@@ -620,19 +656,26 @@ class EnhancedDocumentProcessingService:
             await self._update_job_progress(job, 90, "Creating vector embeddings")
 
             if extracted_text:
-                vector_result = await self._create_vector_embeddings(document, extracted_text)
+                vector_result = await self._create_vector_embeddings(
+                    document, extracted_text
+                )
             else:
-                vector_result = ProcessingResult(success=True, data={"embedding_id": None})
+                vector_result = ProcessingResult(
+                    success=True, data={"embedding_id": None}
+                )
 
             # Update document with processing results
-            await self._update_document_metadata(document, {
-                "extraction": extraction_result.data,
-                "entities": entity_result.data,
-                "relationships": relationship_result.data,
-                "knowledge_graph": graph_result.data,
-                "vectors": vector_result.data,
-                "processing_completed_at": datetime.utcnow().isoformat()
-            })
+            await self._update_document_metadata(
+                document,
+                {
+                    "extraction": extraction_result.data,
+                    "entities": entity_result.data,
+                    "relationships": relationship_result.data,
+                    "knowledge_graph": graph_result.data,
+                    "vectors": vector_result.data,
+                    "processing_completed_at": datetime.utcnow().isoformat(),
+                },
+            )
 
             # Mark job as completed
             await self._update_job_progress(job, 100, "Processing completed")
@@ -644,13 +687,15 @@ class EnhancedDocumentProcessingService:
                 "relationships": relationship_result.data,
                 "knowledge_graph": graph_result.data,
                 "vectors": vector_result.data,
-                "total_processing_time_ms": sum([
-                    extraction_result.processing_time_ms or 0,
-                    entity_result.processing_time_ms or 0,
-                    relationship_result.processing_time_ms or 0,
-                    graph_result.processing_time_ms or 0,
-                    vector_result.processing_time_ms or 0
-                ])
+                "total_processing_time_ms": sum(
+                    [
+                        extraction_result.processing_time_ms or 0,
+                        entity_result.processing_time_ms or 0,
+                        relationship_result.processing_time_ms or 0,
+                        graph_result.processing_time_ms or 0,
+                        vector_result.processing_time_ms or 0,
+                    ]
+                ),
             }
 
             self.db.commit()
@@ -662,8 +707,10 @@ class EnhancedDocumentProcessingService:
                 data={
                     "document_id": str(document.id),
                     "processing_steps_completed": current_step,
-                    "total_processing_time_ms": job.result_data.get("total_processing_time_ms")
-                }
+                    "total_processing_time_ms": job.result_data.get(
+                        "total_processing_time_ms"
+                    ),
+                },
             )
 
         except Exception as e:
@@ -677,11 +724,7 @@ class EnhancedDocumentProcessingService:
                 job.completed_at = datetime.utcnow()
                 self.db.commit()
 
-            return ProcessingResult(
-                success=False,
-                data={},
-                error=str(e)
-            )
+            return ProcessingResult(success=False, data={}, error=str(e))
 
     async def _extract_content(self, document: Document) -> ProcessingResult:
         """Extract content based on document type"""
@@ -697,10 +740,12 @@ class EnhancedDocumentProcessingService:
             return ProcessingResult(
                 success=False,
                 data={},
-                error=f"Unsupported file type: {document.file_type}"
+                error=f"Unsupported file type: {document.file_type}",
             )
 
-    async def _save_entities(self, document: Document, entities: List[Dict[str, Any]]) -> None:
+    async def _save_entities(
+        self, document: Document, entities: List[Dict[str, Any]]
+    ) -> None:
         """Save extracted entities to database"""
         try:
             for entity_data in entities:
@@ -712,12 +757,14 @@ class EnhancedDocumentProcessingService:
                     start_position=entity_data.get("start"),
                     end_position=entity_data.get("end"),
                     context_text=entity_data.get("context"),
-                    extraction_method="spacy" if self.entity_extractor.nlp else "pattern_based",
+                    extraction_method="spacy"
+                    if self.entity_extractor.nlp
+                    else "pattern_based",
                     model_version="spacy_en_core_web_sm",
                     metadata={
                         "document_id": str(document.id),
-                        "extraction_timestamp": datetime.utcnow().isoformat()
-                    }
+                        "extraction_timestamp": datetime.utcnow().isoformat(),
+                    },
                 )
                 self.db.add(entity)
 
@@ -728,20 +775,30 @@ class EnhancedDocumentProcessingService:
             logger.error(f"Failed to save entities: {e}")
             raise
 
-    async def _save_relationships(self, document: Document, relationships: List[Dict[str, Any]]) -> None:
+    async def _save_relationships(
+        self, document: Document, relationships: List[Dict[str, Any]]
+    ) -> None:
         """Save extracted relationships to database"""
         try:
             for rel_data in relationships:
                 # Find source and target entities
-                source_entity = self.db.query(ExtractedEntity).filter(
-                    ExtractedEntity.document_id == document.id,
-                    ExtractedEntity.entity_text.ilike(f"%{rel_data['source']}%")
-                ).first()
+                source_entity = (
+                    self.db.query(ExtractedEntity)
+                    .filter(
+                        ExtractedEntity.document_id == document.id,
+                        ExtractedEntity.entity_text.ilike(f"%{rel_data['source']}%"),
+                    )
+                    .first()
+                )
 
-                target_entity = self.db.query(ExtractedEntity).filter(
-                    ExtractedEntity.document_id == document.id,
-                    ExtractedEntity.entity_text.ilike(f"%{rel_data['target']}%")
-                ).first()
+                target_entity = (
+                    self.db.query(ExtractedEntity)
+                    .filter(
+                        ExtractedEntity.document_id == document.id,
+                        ExtractedEntity.entity_text.ilike(f"%{rel_data['target']}%"),
+                    )
+                    .first()
+                )
 
                 if source_entity and target_entity:
                     relationship = ExtractedRelationship(
@@ -755,13 +812,15 @@ class EnhancedDocumentProcessingService:
                         model_version="pattern_matching_v1",
                         metadata={
                             "document_id": str(document.id),
-                            "extraction_timestamp": datetime.utcnow().isoformat()
-                        }
+                            "extraction_timestamp": datetime.utcnow().isoformat(),
+                        },
                     )
                     self.db.add(relationship)
 
             self.db.commit()
-            logger.info(f"Saved {len(relationships)} relationships for document {document.id}")
+            logger.info(
+                f"Saved {len(relationships)} relationships for document {document.id}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to save relationships: {e}")
@@ -771,7 +830,7 @@ class EnhancedDocumentProcessingService:
         self,
         document: Document,
         entities: List[Dict[str, Any]],
-        relationships: List[Dict[str, Any]]
+        relationships: List[Dict[str, Any]],
     ) -> ProcessingResult:
         """Populate knowledge graph with entities and relationships"""
         start_time = datetime.now()
@@ -787,7 +846,7 @@ class EnhancedDocumentProcessingService:
                     entity_type=entity_data["label"],
                     document_id=str(document.id),
                     confidence=entity_data.get("confidence", 1.0),
-                    metadata=entity_data.get("context", "")
+                    metadata=entity_data.get("context", ""),
                 )
 
                 if node_id:
@@ -809,7 +868,7 @@ class EnhancedDocumentProcessingService:
                         target_node["id"],
                         rel_data["type"],
                         confidence=rel_data.get("confidence", 0.8),
-                        document_id=str(document.id)
+                        document_id=str(document.id),
                     )
 
                     if rel_id:
@@ -824,9 +883,9 @@ class EnhancedDocumentProcessingService:
                     "relationships_created": relationships_created,
                     "total_entities": len(entities),
                     "total_relationships": len(relationships),
-                    "processing_time_ms": processing_time
+                    "processing_time_ms": processing_time,
                 },
-                processing_time_ms=processing_time
+                processing_time_ms=processing_time,
             )
 
         except Exception as e:
@@ -835,17 +894,19 @@ class EnhancedDocumentProcessingService:
                 success=False,
                 data={},
                 error=str(e),
-                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
+                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000,
             )
 
-    async def _create_vector_embeddings(self, document: Document, text: str) -> ProcessingResult:
+    async def _create_vector_embeddings(
+        self, document: Document, text: str
+    ) -> ProcessingResult:
         """Create vector embeddings for document text"""
         start_time = datetime.now()
 
         try:
             # Split text into chunks
             chunk_size = 500
-            chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+            chunks = [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
 
             # Create embeddings
             embeddings = []
@@ -856,9 +917,12 @@ class EnhancedDocumentProcessingService:
             else:
                 # Fallback: use a simple hash-based embedding
                 import hashlib
+
                 for chunk in chunks:
                     hash_obj = hashlib.md5(chunk.encode())
-                    embedding = [float(ord(c)) for c in hash_obj.hexdigest()[:384]]  # 384 dimensions
+                    embedding = [
+                        float(ord(c)) for c in hash_obj.hexdigest()[:384]
+                    ]  # 384 dimensions
                     embeddings.append(embedding)
 
             # Store in vector database
@@ -873,8 +937,8 @@ class EnhancedDocumentProcessingService:
                         "document_id": str(document.id),
                         "chunk_index": i,
                         "chunk_length": len(chunk),
-                        "document_type": document.file_type
-                    }
+                        "document_type": document.file_type,
+                    },
                 )
                 embedding_ids.append(embedding_id)
 
@@ -886,10 +950,12 @@ class EnhancedDocumentProcessingService:
                     "embedding_count": len(embedding_ids),
                     "embedding_ids": embedding_ids,
                     "chunk_count": len(chunks),
-                    "average_chunk_length": sum(len(c) for c in chunks) / len(chunks) if chunks else 0,
-                    "processing_time_ms": processing_time
+                    "average_chunk_length": sum(len(c) for c in chunks) / len(chunks)
+                    if chunks
+                    else 0,
+                    "processing_time_ms": processing_time,
                 },
-                processing_time_ms=processing_time
+                processing_time_ms=processing_time,
             )
 
         except Exception as e:
@@ -898,10 +964,12 @@ class EnhancedDocumentProcessingService:
                 success=False,
                 data={},
                 error=str(e),
-                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
+                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000,
             )
 
-    async def _update_job_progress(self, job: ProcessingJob, progress: float, current_step: str) -> None:
+    async def _update_job_progress(
+        self, job: ProcessingJob, progress: float, current_step: str
+    ) -> None:
         """Update job progress"""
         job.progress_percentage = progress
         job.result_data = job.result_data or {}
@@ -909,7 +977,9 @@ class EnhancedDocumentProcessingService:
         job.result_data["last_updated"] = datetime.utcnow().isoformat()
         self.db.commit()
 
-    async def _update_document_metadata(self, document: Document, metadata: Dict[str, Any]) -> None:
+    async def _update_document_metadata(
+        self, document: Document, metadata: Dict[str, Any]
+    ) -> None:
         """Update document metadata with processing results"""
         document.metadata = document.metadata or {}
         document.metadata.update(metadata)
@@ -917,7 +987,10 @@ class EnhancedDocumentProcessingService:
         document.processed_at = datetime.utcnow()
         self.db.commit()
 
+
 # Factory function for dependency injection
-def get_enhanced_document_processing_service(db: Session = Depends(get_db)) -> EnhancedDocumentProcessingService:
+def get_enhanced_document_processing_service(
+    db: Session = Depends(get_db),
+) -> EnhancedDocumentProcessingService:
     """Get enhanced document processing service instance"""
     return EnhancedDocumentProcessingService(db)

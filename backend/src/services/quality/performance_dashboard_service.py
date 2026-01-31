@@ -11,31 +11,33 @@ from datetime import datetime, timedelta
 # Try to import psutil, use fallback if not available
 try:
     import psutil
+
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
     logging.warning("psutil not available, using fallback system monitoring")
-from typing import List, Dict, Any, Optional, Tuple
-from dataclasses import dataclass, asdict
-from enum import Enum
-import uuid
 import json
+import uuid
+from dataclasses import asdict, dataclass
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
+from sqlalchemy import and_, asc, desc, func, or_, text
 from sqlalchemy.orm import Session
-from sqlalchemy import text, and_, or_, func, desc, asc
 
-from src.core.database import get_db
-from src.models.quality_metrics import MetricAggregation, SystemMetric, QualityAlert
-from src.models.quality import QualityMetric
-from src.models.processing import ProcessingJob
-from src.models.search import SearchQuery
 from src.core.config import settings
+from src.core.database import get_db
+from src.models.processing import ProcessingJob
+from src.models.quality import QualityMetric
+from src.models.quality_metrics import MetricAggregation, QualityAlert, SystemMetric
+from src.models.search import SearchQuery
 
 logger = logging.getLogger(__name__)
 
 
 class MetricTimeRange(Enum):
     """Time ranges for dashboard metrics"""
+
     LAST_HOUR = "1h"
     LAST_24H = "24h"
     LAST_7D = "7d"
@@ -45,6 +47,7 @@ class MetricTimeRange(Enum):
 
 class DashboardWidgetType(Enum):
     """Types of dashboard widgets"""
+
     LINE_CHART = "line_chart"
     BAR_CHART = "bar_chart"
     PIE_CHART = "pie_chart"
@@ -56,6 +59,7 @@ class DashboardWidgetType(Enum):
 
 class AlertLevel(Enum):
     """Alert severity levels for dashboard"""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -66,6 +70,7 @@ class AlertLevel(Enum):
 @dataclass
 class DashboardMetric:
     """Dashboard metric data point"""
+
     name: str
     value: float
     unit: str
@@ -78,6 +83,7 @@ class DashboardMetric:
 @dataclass
 class SystemHealthMetrics:
     """System health metrics"""
+
     cpu_usage: float
     memory_usage: float
     disk_usage: float
@@ -93,6 +99,7 @@ class SystemHealthMetrics:
 @dataclass
 class SearchPerformanceMetrics:
     """Search performance metrics"""
+
     total_searches: int
     avg_response_time: float
     p95_response_time: float
@@ -106,6 +113,7 @@ class SearchPerformanceMetrics:
 @dataclass
 class QualityMetricsSummary:
     """Quality metrics summary"""
+
     overall_score: float
     precision_avg: float
     recall_avg: float
@@ -119,6 +127,7 @@ class QualityMetricsSummary:
 @dataclass
 class UserEngagementMetrics:
     """User engagement metrics"""
+
     active_users: int
     total_sessions: int
     avg_session_duration: float
@@ -130,6 +139,7 @@ class UserEngagementMetrics:
 @dataclass
 class DashboardWidget:
     """Dashboard widget configuration"""
+
     id: str
     title: str
     widget_type: DashboardWidgetType
@@ -154,7 +164,7 @@ class PerformanceDashboardService:
     async def get_dashboard_overview(
         self,
         organization_id: str,
-        time_range: MetricTimeRange = MetricTimeRange.LAST_24H
+        time_range: MetricTimeRange = MetricTimeRange.LAST_24H,
     ) -> Dict[str, Any]:
         """Get comprehensive dashboard overview"""
 
@@ -184,14 +194,11 @@ class PerformanceDashboardService:
                 "search_performance": asdict(search_performance),
                 "quality_metrics": asdict(quality_metrics),
                 "user_engagement": asdict(user_engagement),
-                "alerts": await self.get_active_alerts(organization_id)
+                "alerts": await self.get_active_alerts(organization_id),
             }
 
             # Cache the result
-            self.metric_cache[cache_key] = {
-                "data": overview,
-                "timestamp": time.time()
-            }
+            self.metric_cache[cache_key] = {"data": overview, "timestamp": time.time()}
 
             return overview
 
@@ -206,7 +213,7 @@ class PerformanceDashboardService:
                 # Get system metrics from psutil
                 cpu_percent = psutil.cpu_percent(interval=1)
                 memory = psutil.virtual_memory()
-                disk = psutil.disk_usage('/')
+                disk = psutil.disk_usage("/")
                 network = psutil.net_io_counters()
 
                 # Get uptime
@@ -217,7 +224,7 @@ class PerformanceDashboardService:
                     "bytes_sent": network.bytes_sent,
                     "bytes_recv": network.bytes_recv,
                     "packets_sent": network.packets_sent,
-                    "packets_recv": network.packets_recv
+                    "packets_recv": network.packets_recv,
                 }
             else:
                 # Fallback metrics when psutil is not available
@@ -229,7 +236,7 @@ class PerformanceDashboardService:
                     "bytes_sent": 0,
                     "bytes_recv": 0,
                     "packets_sent": 0,
-                    "packets_recv": 0
+                    "packets_recv": 0,
                 }
 
             # Get response time metrics from database
@@ -251,7 +258,7 @@ class PerformanceDashboardService:
                 error_rate=error_rate,
                 active_connections=active_connections,
                 uptime=uptime,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.utcnow(),
             )
 
         except Exception as e:
@@ -261,19 +268,22 @@ class PerformanceDashboardService:
                 cpu_usage=0.0,
                 memory_usage=0.0,
                 disk_usage=0.0,
-                network_io={"bytes_sent": 0, "bytes_recv": 0, "packets_sent": 0, "packets_recv": 0},
+                network_io={
+                    "bytes_sent": 0,
+                    "bytes_recv": 0,
+                    "packets_sent": 0,
+                    "packets_recv": 0,
+                },
                 response_time_p50=0.0,
                 response_time_p95=0.0,
                 error_rate=0.0,
                 active_connections=0,
                 uptime=0.0,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.utcnow(),
             )
 
     async def get_search_performance_metrics(
-        self,
-        organization_id: str,
-        time_range: MetricTimeRange
+        self, organization_id: str, time_range: MetricTimeRange
     ) -> SearchPerformanceMetrics:
         """Get search performance metrics"""
 
@@ -283,7 +293,9 @@ class PerformanceDashboardService:
             cutoff_date = self._get_cutoff_date(time_range)
 
             # Get search performance data
-            search_data = db.execute(text("""
+            search_data = db.execute(
+                text(
+                    """
                 SELECT
                     COUNT(*) as total_searches,
                     AVG(search_duration_ms) as avg_response_time,
@@ -292,13 +304,15 @@ class PerformanceDashboardService:
                 FROM search_queries
                 WHERE organization_id = CAST(:org_id AS UUID)
                     AND created_at >= :cutoff_date
-            """), {
-                "org_id": organization_id,
-                "cutoff_date": cutoff_date
-            }).fetchone()
+            """
+                ),
+                {"org_id": organization_id, "cutoff_date": cutoff_date},
+            ).fetchone()
 
             # Get response time percentiles
-            response_times = db.execute(text("""
+            response_times = db.execute(
+                text(
+                    """
                 SELECT search_duration_ms
                 FROM search_queries
                 WHERE organization_id = CAST(:org_id AS UUID)
@@ -309,13 +323,15 @@ class PerformanceDashboardService:
                     search_queries
                     WHERE organization_id = CAST(:org_id AS UUID) AND created_at >= :cutoff_date)
                 LIMIT 1
-            """), {
-                "org_id": organization_id,
-                "cutoff_date": cutoff_date
-            }).scalar()
+            """
+                ),
+                {"org_id": organization_id, "cutoff_date": cutoff_date},
+            ).scalar()
 
             # Get top queries
-            top_queries = db.execute(text("""
+            top_queries = db.execute(
+                text(
+                    """
                 SELECT
                     query_text as query,
                     COUNT(*) as search_count,
@@ -326,13 +342,15 @@ class PerformanceDashboardService:
                 GROUP BY query_text
                 ORDER BY search_count DESC
                 LIMIT 10
-            """), {
-                "org_id": organization_id,
-                "cutoff_date": cutoff_date
-            }).fetchall()
+            """
+                ),
+                {"org_id": organization_id, "cutoff_date": cutoff_date},
+            ).fetchall()
 
             # Get search types distribution
-            search_types = db.execute(text("""
+            search_types = db.execute(
+                text(
+                    """
                 SELECT
                     search_type,
                     COUNT(*) as count
@@ -341,17 +359,25 @@ class PerformanceDashboardService:
                     AND created_at >= :cutoff_date
                 GROUP BY search_type
                 ORDER BY count DESC
-            """), {
-                "org_id": organization_id,
-                "cutoff_date": cutoff_date
-            }).fetchall()
+            """
+                ),
+                {"org_id": organization_id, "cutoff_date": cutoff_date},
+            ).fetchall()
 
             # Calculate metrics
             total_searches = search_data.total_searches or 0
             avg_response_time = float(search_data.avg_response_time or 0)
             p95_response_time = float(response_times or 0)
-            no_results_rate = (search_data.no_results_count / total_searches) if total_searches > 0 else 0
-            success_rate = 1.0 - (search_data.error_count / total_searches) if total_searches > 0 else 1.0
+            no_results_rate = (
+                (search_data.no_results_count / total_searches)
+                if total_searches > 0
+                else 0
+            )
+            success_rate = (
+                1.0 - (search_data.error_count / total_searches)
+                if total_searches > 0
+                else 1.0
+            )
 
             return SearchPerformanceMetrics(
                 total_searches=total_searches,
@@ -363,12 +389,12 @@ class PerformanceDashboardService:
                     {
                         "query": q.query,
                         "count": q.search_count,
-                        "avg_response_time": float(q.avg_response_time or 0)
+                        "avg_response_time": float(q.avg_response_time or 0),
                     }
                     for q in top_queries
                 ],
                 search_types={st.search_type: st.count for st in search_types},
-                errors=[]  # TODO: Implement error tracking
+                errors=[],  # TODO: Implement error tracking
             )
 
         except Exception as e:
@@ -378,9 +404,7 @@ class PerformanceDashboardService:
             db.close()
 
     async def get_quality_metrics_summary(
-        self,
-        organization_id: str,
-        time_range: MetricTimeRange
+        self, organization_id: str, time_range: MetricTimeRange
     ) -> QualityMetricsSummary:
         """Get quality metrics summary"""
 
@@ -389,7 +413,9 @@ class PerformanceDashboardService:
             cutoff_date = self._get_cutoff_date(time_range)
 
             # Get quality metrics
-            quality_data = db.execute(text("""
+            quality_data = db.execute(
+                text(
+                    """
                 SELECT
                     AVG(qm.value) as avg_score,
                     qm.metric_type,
@@ -398,10 +424,10 @@ class PerformanceDashboardService:
                 WHERE qm.organization_id = CAST(:org_id AS UUID)
                     AND qm.created_at >= :cutoff_date
                 GROUP BY qm.metric_type
-            """), {
-                "org_id": organization_id,
-                "cutoff_date": cutoff_date
-            }).fetchall()
+            """
+                ),
+                {"org_id": organization_id, "cutoff_date": cutoff_date},
+            ).fetchall()
 
             # Calculate averages by metric type
             precision_avg = 0.0
@@ -420,21 +446,33 @@ class PerformanceDashboardService:
                     user_satisfaction = float(metric.avg_score or 0)
 
             # Calculate overall score (weighted average)
-            overall_score = (precision_avg * 0.3 + recall_avg * 0.3 +
-                           relevance_avg * 0.2 + user_satisfaction * 0.2)
+            overall_score = (
+                precision_avg * 0.3
+                + recall_avg * 0.3
+                + relevance_avg * 0.2
+                + user_satisfaction * 0.2
+            )
 
             # Get active alerts
-            active_alerts = db.execute(text("""
+            active_alerts = (
+                db.execute(
+                    text(
+                        """
                 SELECT COUNT(*) as count
                 FROM quality_alerts qa
                 WHERE qa.organization_id = CAST(:org_id AS UUID)
                     AND qa.status = 'active'
-            """), {
-                "org_id": organization_id
-            }).scalar() or 0
+            """
+                    ),
+                    {"org_id": organization_id},
+                ).scalar()
+                or 0
+            )
 
             # Get trends (compare to previous period)
-            previous_cutoff = cutoff_date - timedelta(days=self._get_days_for_range(time_range))
+            previous_cutoff = cutoff_date - timedelta(
+                days=self._get_days_for_range(time_range)
+            )
             trends = await self._calculate_quality_trends(
                 organization_id, cutoff_date, previous_cutoff
             )
@@ -447,7 +485,7 @@ class PerformanceDashboardService:
                 user_satisfaction=user_satisfaction,
                 active_alerts=active_alerts,
                 trends=trends,
-                top_issues=[]  # TODO: Implement issue detection
+                top_issues=[],  # TODO: Implement issue detection
             )
 
         except Exception as e:
@@ -457,9 +495,7 @@ class PerformanceDashboardService:
             db.close()
 
     async def get_user_engagement_metrics(
-        self,
-        organization_id: str,
-        time_range: MetricTimeRange
+        self, organization_id: str, time_range: MetricTimeRange
     ) -> UserEngagementMetrics:
         """Get user engagement metrics"""
 
@@ -468,7 +504,9 @@ class PerformanceDashboardService:
             cutoff_date = self._get_cutoff_date(time_range)
 
             # Get user engagement data
-            engagement_data = db.execute(text("""
+            engagement_data = db.execute(
+                text(
+                    """
                 SELECT
                     COUNT(DISTINCT sq.user_id) as active_users,
                     COUNT(DISTINCT sq.session_id) as total_sessions,
@@ -477,13 +515,15 @@ class PerformanceDashboardService:
                 FROM search_queries sq
                 WHERE sq.organization_id = CAST(:org_id AS UUID)
                     AND sq.created_at >= :cutoff_date
-            """), {
-                "org_id": organization_id,
-                "cutoff_date": cutoff_date
-            }).fetchone()
+            """
+                ),
+                {"org_id": organization_id, "cutoff_date": cutoff_date},
+            ).fetchone()
 
             # Get top users
-            top_users = db.execute(text("""
+            top_users = db.execute(
+                text(
+                    """
                 SELECT
                     u.id,
                     u.first_name,
@@ -498,10 +538,10 @@ class PerformanceDashboardService:
                 GROUP BY u.id, u.first_name, u.last_name
                 ORDER BY search_count DESC
                 LIMIT 10
-            """), {
-                "org_id": organization_id,
-                "cutoff_date": cutoff_date
-            }).fetchall()
+            """
+                ),
+                {"org_id": organization_id, "cutoff_date": cutoff_date},
+            ).fetchall()
 
             # Calculate metrics
             active_users = engagement_data.active_users or 0
@@ -526,11 +566,11 @@ class PerformanceDashboardService:
                         "name": f"{u.first_name} {u.last_name}",
                         "session_count": u.session_count,
                         "search_count": u.search_count,
-                        "avg_response_time": float(u.avg_response_time or 0)
+                        "avg_response_time": float(u.avg_response_time or 0),
                     }
                     for u in top_users
                 ],
-                engagement_trend=engagement_trend
+                engagement_trend=engagement_trend,
             )
 
         except Exception as e:
@@ -544,7 +584,9 @@ class PerformanceDashboardService:
 
         db = next(get_db())
         try:
-            alerts = db.execute(text("""
+            alerts = db.execute(
+                text(
+                    """
                 SELECT
                     qa.id,
                     qa.severity,
@@ -560,9 +602,10 @@ class PerformanceDashboardService:
                     AND qa.status = 'active'
                 ORDER BY qa.severity DESC, qa.created_at DESC
                 LIMIT 50
-            """), {
-                "org_id": organization_id
-            }).fetchall()
+            """
+                ),
+                {"org_id": organization_id},
+            ).fetchall()
 
             return [
                 {
@@ -572,7 +615,7 @@ class PerformanceDashboardService:
                     "message": alert.message,
                     "created_at": alert.created_at.isoformat(),
                     "metric_type": alert.metric_type,
-                    "current_value": float(alert.current_value or 0)
+                    "current_value": float(alert.current_value or 0),
                 }
                 for alert in alerts
             ]
@@ -588,7 +631,7 @@ class PerformanceDashboardService:
         organization_id: str,
         metric_name: str,
         time_range: MetricTimeRange,
-        granularity: str = "hour"
+        granularity: str = "hour",
     ) -> List[Dict[str, Any]]:
         """Get time-series data for metric charts"""
 
@@ -606,7 +649,9 @@ class PerformanceDashboardService:
 
             # Get aggregated metric data
             if metric_name == "search_volume":
-                data = db.execute(text(f"""
+                data = db.execute(
+                    text(
+                        f"""
                     SELECT
                         DATE_TRUNC('{granularity}', created_at) as period,
                         COUNT(id) as value
@@ -615,12 +660,14 @@ class PerformanceDashboardService:
                         AND created_at >= :cutoff_date
                     GROUP BY period
                     ORDER BY period
-                """), {
-                    "org_id": organization_id,
-                    "cutoff_date": cutoff_date
-                }).fetchall()
+                """
+                    ),
+                    {"org_id": organization_id, "cutoff_date": cutoff_date},
+                ).fetchall()
             elif metric_name == "response_time":
-                data = db.execute(text(f"""
+                data = db.execute(
+                    text(
+                        f"""
                     SELECT
                         DATE_TRUNC('{granularity}', created_at) as period,
                         AVG(search_duration_ms) as value
@@ -630,12 +677,14 @@ class PerformanceDashboardService:
                         AND search_duration_ms IS NOT NULL
                     GROUP BY period
                     ORDER BY period
-                """), {
-                    "org_id": organization_id,
-                    "cutoff_date": cutoff_date
-                }).fetchall()
+                """
+                    ),
+                    {"org_id": organization_id, "cutoff_date": cutoff_date},
+                ).fetchall()
             elif metric_name == "quality_score":
-                data = db.execute(text(f"""
+                data = db.execute(
+                    text(
+                        f"""
                     SELECT
                         DATE_TRUNC('{granularity}', qm.created_at) as period,
                         AVG(qm.value) as value
@@ -645,13 +694,15 @@ class PerformanceDashboardService:
                         AND qm.metric_type = 'relevance'
                     GROUP BY period
                     ORDER BY period
-                """), {
-                    "org_id": organization_id,
-                    "cutoff_date": cutoff_date
-                }).fetchall()
+                """
+                    ),
+                    {"org_id": organization_id, "cutoff_date": cutoff_date},
+                ).fetchall()
             else:
                 # Default to system metrics
-                data = db.execute(text(f"""
+                data = db.execute(
+                    text(
+                        f"""
                     SELECT
                         DATE_TRUNC('{granularity}', sm.created_at) as period,
                         AVG(sm.metric_value) as value
@@ -661,17 +712,17 @@ class PerformanceDashboardService:
                         AND sm.metric_name = :metric_name
                     GROUP BY period
                     ORDER BY period
-                """), {
-                    "org_id": organization_id,
-                    "cutoff_date": cutoff_date,
-                    "metric_name": metric_name
-                }).fetchall()
+                """
+                    ),
+                    {
+                        "org_id": organization_id,
+                        "cutoff_date": cutoff_date,
+                        "metric_name": metric_name,
+                    },
+                ).fetchall()
 
             return [
-                {
-                    "timestamp": row.period.isoformat(),
-                    "value": float(row.value or 0)
-                }
+                {"timestamp": row.period.isoformat(), "value": float(row.value or 0)}
                 for row in data
             ]
 
@@ -682,9 +733,7 @@ class PerformanceDashboardService:
             db.close()
 
     async def create_dashboard_widgets(
-        self,
-        organization_id: str,
-        widget_configs: List[Dict[str, Any]]
+        self, organization_id: str, widget_configs: List[Dict[str, Any]]
     ) -> List[DashboardWidget]:
         """Create dashboard widgets with data"""
 
@@ -693,9 +742,7 @@ class PerformanceDashboardService:
         for config in widget_configs:
             try:
                 # Get widget data based on type and metrics
-                widget_data = await self._get_widget_data(
-                    organization_id, config
-                )
+                widget_data = await self._get_widget_data(organization_id, config)
 
                 widget = DashboardWidget(
                     id=config.get("id", str(uuid.uuid4())),
@@ -706,21 +753,21 @@ class PerformanceDashboardService:
                     position=config["position"],
                     size=config["size"],
                     data=widget_data,
-                    refresh_interval=config.get("refresh_interval", 300)
+                    refresh_interval=config.get("refresh_interval", 300),
                 )
 
                 widgets.append(widget)
 
             except Exception as e:
-                logger.error(f"Failed to create widget {config.get('title', 'unknown')}: {e}")
+                logger.error(
+                    f"Failed to create widget {config.get('title', 'unknown')}: {e}"
+                )
                 continue
 
         return widgets
 
     async def _get_widget_data(
-        self,
-        organization_id: str,
-        config: Dict[str, Any]
+        self, organization_id: str, config: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Get data for a specific widget"""
 
@@ -737,8 +784,14 @@ class PerformanceDashboardService:
 
             if chart_data:
                 current_value = chart_data[-1]["value"]
-                previous_value = chart_data[-2]["value"] if len(chart_data) > 1 else current_value
-                trend = ((current_value - previous_value) / previous_value * 100) if previous_value != 0 else 0
+                previous_value = (
+                    chart_data[-2]["value"] if len(chart_data) > 1 else current_value
+                )
+                trend = (
+                    ((current_value - previous_value) / previous_value * 100)
+                    if previous_value != 0
+                    else 0
+                )
             else:
                 current_value = 0
                 trend = 0
@@ -746,7 +799,7 @@ class PerformanceDashboardService:
             return {
                 "current_value": current_value,
                 "trend": trend,
-                "data_points": chart_data
+                "data_points": chart_data,
             }
 
         elif widget_type in ["line_chart", "bar_chart"]:
@@ -766,7 +819,9 @@ class PerformanceDashboardService:
                 db = next(get_db())
                 try:
                     cutoff_date = self._get_cutoff_date(time_range)
-                    data = db.execute(text("""
+                    data = db.execute(
+                        text(
+                            """
                         SELECT
                             search_type,
                             COUNT(*) as count
@@ -775,14 +830,14 @@ class PerformanceDashboardService:
                             AND created_at >= :cutoff_date
                         GROUP BY search_type
                         ORDER BY count DESC
-                    """), {
-                        "org_id": organization_id,
-                        "cutoff_date": cutoff_date
-                    }).fetchall()
+                    """
+                        ),
+                        {"org_id": organization_id, "cutoff_date": cutoff_date},
+                    ).fetchall()
 
                     return {
                         "labels": [row.search_type for row in data],
-                        "values": [row.count for row in data]
+                        "values": [row.count for row in data],
                     }
                 finally:
                     db.close()
@@ -821,7 +876,7 @@ class PerformanceDashboardService:
             MetricTimeRange.LAST_24H: 1,
             MetricTimeRange.LAST_7D: 7,
             MetricTimeRange.LAST_30D: 30,
-            MetricTimeRange.LAST_90D: 90
+            MetricTimeRange.LAST_90D: 90,
         }
         return mapping[time_range]
 
@@ -831,13 +886,17 @@ class PerformanceDashboardService:
         db = next(get_db())
         try:
             # Get recent response times
-            response_times = db.execute(text("""
+            response_times = db.execute(
+                text(
+                    """
                 SELECT search_duration_ms
                 FROM search_queries
                 WHERE created_at >= NOW() - INTERVAL '1 hour'
                     AND search_duration_ms IS NOT NULL
                 ORDER BY search_duration_ms
-            """)).fetchall()
+            """
+                )
+            ).fetchall()
 
             if not response_times:
                 return {"p50": 0.0, "p95": 0.0}
@@ -850,7 +909,7 @@ class PerformanceDashboardService:
 
             return {
                 "p50": times[p50_index] if p50_index < len(times) else times[-1],
-                "p95": times[p95_index] if p95_index < len(times) else times[-1]
+                "p95": times[p95_index] if p95_index < len(times) else times[-1],
             }
 
         except Exception as e:
@@ -864,13 +923,17 @@ class PerformanceDashboardService:
 
         db = next(get_db())
         try:
-            result = db.execute(text("""
+            result = db.execute(
+                text(
+                    """
                 SELECT
                     0 as errors,
                     COUNT(*) as total
                 FROM search_queries
                 WHERE created_at >= NOW() - INTERVAL '1 hour'
-            """)).fetchone()
+            """
+                )
+            ).fetchone()
 
             if result.total == 0:
                 return 0.0
@@ -889,12 +952,16 @@ class PerformanceDashboardService:
         # This is a simplified estimate - in production you'd use proper connection tracking
         db = next(get_db())
         try:
-            result = db.execute(text("""
+            result = db.execute(
+                text(
+                    """
                 SELECT COUNT(DISTINCT session_id) as active_sessions
                 FROM search_sessions
                 WHERE start_time >= NOW() - INTERVAL '30 minutes'
                     AND end_time IS NULL
-            """)).fetchone()
+            """
+                )
+            ).fetchone()
 
             return result.active_sessions or 0
 
@@ -905,17 +972,16 @@ class PerformanceDashboardService:
             db.close()
 
     async def _calculate_quality_trends(
-        self,
-        organization_id: str,
-        current_cutoff: datetime,
-        previous_cutoff: datetime
+        self, organization_id: str, current_cutoff: datetime, previous_cutoff: datetime
     ) -> Dict[str, float]:
         """Calculate quality metric trends"""
 
         db = next(get_db())
         try:
             # Current period metrics
-            current_metrics = db.execute(text("""
+            current_metrics = db.execute(
+                text(
+                    """
                 SELECT
                     metric_type,
                     AVG(value) as avg_value
@@ -923,13 +989,15 @@ class PerformanceDashboardService:
                 WHERE organization_id = CAST(:org_id AS UUID)
                     AND measured_at >= :cutoff_date
                 GROUP BY metric_type
-            """), {
-                "org_id": organization_id,
-                "cutoff_date": current_cutoff
-            }).fetchall()
+            """
+                ),
+                {"org_id": organization_id, "cutoff_date": current_cutoff},
+            ).fetchall()
 
             # Previous period metrics
-            previous_metrics = db.execute(text("""
+            previous_metrics = db.execute(
+                text(
+                    """
                 SELECT
                     metric_type,
                     AVG(value) as avg_value
@@ -938,15 +1006,22 @@ class PerformanceDashboardService:
                     AND measured_at >= :prev_cutoff
                     AND measured_at < :current_cutoff
                 GROUP BY metric_type
-            """), {
-                "org_id": organization_id,
-                "prev_cutoff": previous_cutoff,
-                "current_cutoff": current_cutoff
-            }).fetchall()
+            """
+                ),
+                {
+                    "org_id": organization_id,
+                    "prev_cutoff": previous_cutoff,
+                    "current_cutoff": current_cutoff,
+                },
+            ).fetchall()
 
             # Calculate trends
-            current_by_type = {m.metric_type: float(m.avg_value or 0) for m in current_metrics}
-            previous_by_type = {m.metric_type: float(m.avg_value or 0) for m in previous_metrics}
+            current_by_type = {
+                m.metric_type: float(m.avg_value or 0) for m in current_metrics
+            }
+            previous_by_type = {
+                m.metric_type: float(m.avg_value or 0) for m in previous_metrics
+            }
 
             trends = {}
             for metric_type, current_value in current_by_type.items():
@@ -966,41 +1041,45 @@ class PerformanceDashboardService:
             db.close()
 
     async def _calculate_engagement_trend(
-        self,
-        organization_id: str,
-        cutoff_date: datetime,
-        time_range: MetricTimeRange
+        self, organization_id: str, cutoff_date: datetime, time_range: MetricTimeRange
     ) -> str:
         """Calculate engagement trend"""
 
         db = next(get_db())
         try:
             # Current period
-            current_data = db.execute(text("""
+            current_data = db.execute(
+                text(
+                    """
                 SELECT COUNT(DISTINCT user_id) as active_users
                 FROM search_queries
                 WHERE organization_id = CAST(:org_id AS UUID)
                     AND created_at >= :cutoff_date
-            """), {
-                "org_id": organization_id,
-                "cutoff_date": cutoff_date
-            }).fetchone()
+            """
+                ),
+                {"org_id": organization_id, "cutoff_date": cutoff_date},
+            ).fetchone()
 
             # Previous period (same duration)
             days = self._get_days_for_range(time_range)
             prev_cutoff = cutoff_date - timedelta(days=days)
 
-            previous_data = db.execute(text("""
+            previous_data = db.execute(
+                text(
+                    """
                 SELECT COUNT(DISTINCT user_id) as active_users
                 FROM search_queries
                 WHERE organization_id = CAST(:org_id AS UUID)
                     AND created_at >= :prev_cutoff
                     AND created_at < :cutoff_date
-            """), {
-                "org_id": organization_id,
-                "prev_cutoff": prev_cutoff,
-                "cutoff_date": cutoff_date
-            }).fetchone()
+            """
+                ),
+                {
+                    "org_id": organization_id,
+                    "prev_cutoff": prev_cutoff,
+                    "cutoff_date": cutoff_date,
+                },
+            ).fetchone()
 
             current_users = current_data.active_users or 0
             previous_users = previous_data.active_users or 0
@@ -1035,24 +1114,28 @@ class SystemMonitor:
         if self.last_network_stats:
             time_delta = time.time() - self.last_network_stats["timestamp"]
             if time_delta > 0:
-                bytes_sent_per_sec = (current_stats.bytes_sent - self.last_network_stats["bytes_sent"]) / time_delta
-                bytes_recv_per_sec = (current_stats.bytes_recv - self.last_network_stats["bytes_recv"]) / time_delta
+                bytes_sent_per_sec = (
+                    current_stats.bytes_sent - self.last_network_stats["bytes_sent"]
+                ) / time_delta
+                bytes_recv_per_sec = (
+                    current_stats.bytes_recv - self.last_network_stats["bytes_recv"]
+                ) / time_delta
 
                 self.last_network_stats = {
                     "bytes_sent": current_stats.bytes_sent,
                     "bytes_recv": current_stats.bytes_recv,
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
 
                 return {
                     "bytes_sent_per_sec": bytes_sent_per_sec,
-                    "bytes_recv_per_sec": bytes_recv_per_sec
+                    "bytes_recv_per_sec": bytes_recv_per_sec,
                 }
 
         self.last_network_stats = {
             "bytes_sent": current_stats.bytes_sent,
             "bytes_recv": current_stats.bytes_recv,
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
 
         return {"bytes_sent_per_sec": 0, "bytes_recv_per_sec": 0}

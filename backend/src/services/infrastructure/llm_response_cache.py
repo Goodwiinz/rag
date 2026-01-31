@@ -53,20 +53,30 @@ class LLMCacheConfig:
     def __post_init__(self):
         """Validate configuration values after initialization."""
         if self.default_ttl < 0:
-            raise ValueError(f"default_ttl must be non-negative, got {self.default_ttl}")
+            raise ValueError(
+                f"default_ttl must be non-negative, got {self.default_ttl}"
+            )
         if self.default_ttl > 86400 * 7:  # Max 7 days
-            logger.warning(f"default_ttl of {self.default_ttl}s is very long, consider a shorter TTL")
+            logger.warning(
+                f"default_ttl of {self.default_ttl}s is very long, consider a shorter TTL"
+            )
 
         if self.max_entries < 1:
             raise ValueError(f"max_entries must be at least 1, got {self.max_entries}")
         if self.max_entries > 100000:
-            logger.warning(f"max_entries of {self.max_entries} is very large, may cause memory issues")
+            logger.warning(
+                f"max_entries of {self.max_entries} is very large, may cause memory issues"
+            )
 
         if not 0.0 <= self.similarity_threshold <= 1.0:
-            raise ValueError(f"similarity_threshold must be between 0.0 and 1.0, got {self.similarity_threshold}")
+            raise ValueError(
+                f"similarity_threshold must be between 0.0 and 1.0, got {self.similarity_threshold}"
+            )
 
         if self.max_semantic_comparisons < 1:
-            raise ValueError(f"max_semantic_comparisons must be at least 1, got {self.max_semantic_comparisons}")
+            raise ValueError(
+                f"max_semantic_comparisons must be at least 1, got {self.max_semantic_comparisons}"
+            )
 
     @classmethod
     def from_settings(cls) -> "LLMCacheConfig":
@@ -97,13 +107,13 @@ class LLMCacheEntry:
     metadata: Dict[str, Any] = field(default_factory=dict)
     # Store retrieved contexts for RAG responses to ensure consistency
     retrieved_contexts: Optional[List[Dict[str, Any]]] = None
-    
+
     @property
     def is_expired(self) -> bool:
         """Check if the entry has expired."""
         expiry = self.created_at + timedelta(seconds=self.ttl)
         return datetime.now(timezone.utc) > expiry
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary."""
         return {
@@ -120,7 +130,7 @@ class LLMCacheEntry:
             "metadata": self.metadata,
             "retrieved_contexts": self.retrieved_contexts,
         }
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "LLMCacheEntry":
         """Deserialize from dictionary."""
@@ -152,13 +162,13 @@ class LLMCacheEntry:
 class LLMResponseCache:
     """
     Semantic cache for LLM responses.
-    
+
     Supports:
     - Exact hash matching for identical queries
     - Semantic similarity matching using embeddings
     - Dual-tier storage (Redis + in-memory)
     """
-    
+
     def __init__(self, config: Optional[LLMCacheConfig] = None):
         self.config = config or LLMCacheConfig()
         self._memory_cache: Dict[str, LLMCacheEntry] = {}
@@ -176,26 +186,25 @@ class LLMResponseCache:
 
     async def _increment_stat(self, key: str, amount: int = 1) -> None:
         """Thread-safe stat increment.
-        
+
         Args:
             key: The stat key to increment (e.g., 'exact_hits', 'misses')
             amount: Amount to increment by (default 1)
         """
         async with self._lock:
             self._stats[key] += amount
-        
+
     async def _get_redis(self):
         """Get or create Redis client."""
         if not self.config.use_redis:
             return None
-            
+
         if self._redis_client is None:
             try:
                 import redis.asyncio as redis
+
                 self._redis_client = redis.from_url(
-                    settings.REDIS_URL,
-                    encoding="utf-8",
-                    decode_responses=True
+                    settings.REDIS_URL, encoding="utf-8", decode_responses=True
                 )
                 # Test connection
                 await self._redis_client.ping()
@@ -203,50 +212,51 @@ class LLMResponseCache:
             except Exception as e:
                 logger.warning(f"Redis unavailable for LLM cache: {e}")
                 self._redis_client = None
-                
+
         return self._redis_client
-    
+
     async def _get_embedding_service(self):
         """Get embedding service for semantic similarity."""
         if self._embedding_service is None:
             try:
                 from src.services.embedding.embedding_service import EmbeddingService
+
                 self._embedding_service = EmbeddingService()
                 logger.info("Embedding service initialized for semantic cache")
             except Exception as e:
                 logger.warning(f"Embedding service unavailable: {e}")
                 self._embedding_service = None
-                
+
         return self._embedding_service
-    
+
     def _generate_query_hash(self, query: str, model: str, temperature: float) -> str:
         """Generate a hash key for exact matching."""
         # Normalize query
         normalized = query.lower().strip()
-        
+
         # Include model and temperature in hash for more precise matching
         components = {
             "query": normalized,
             "model": model,
             "temperature": round(temperature, 2),
         }
-        
+
         hash_input = json.dumps(components, sort_keys=True)
         return hashlib.sha256(hash_input.encode()).hexdigest()[:32]
-    
+
     def _generate_cache_key(self, query_hash: str) -> str:
         """Generate full cache key with prefix."""
         return f"{self.config.redis_prefix}{query_hash}"
-    
+
     async def _compute_embedding(self, text: str) -> Optional[List[float]]:
         """Compute embedding for semantic similarity."""
         if not self.config.use_semantic_cache:
             return None
-            
+
         embedding_service = await self._get_embedding_service()
         if embedding_service is None:
             return None
-            
+
         try:
             # Use the embed method which returns numpy array
             embedding = embedding_service.embed(text)
@@ -256,56 +266,58 @@ class LLMResponseCache:
         except Exception as e:
             logger.warning(f"Failed to compute embedding: {e}")
             return None
-    
+
     def _cosine_similarity(self, a: List[float], b: List[float]) -> float:
         """Compute cosine similarity between two vectors."""
         a_arr = np.array(a)
         b_arr = np.array(b)
-        
+
         dot_product = np.dot(a_arr, b_arr)
         norm_a = np.linalg.norm(a_arr)
         norm_b = np.linalg.norm(b_arr)
-        
+
         if norm_a == 0 or norm_b == 0:
             return 0.0
-            
+
         return float(dot_product / (norm_a * norm_b))
-    
+
     async def _find_semantic_match(
-        self, 
-        query_embedding: List[float]
+        self, query_embedding: List[float]
     ) -> Optional[LLMCacheEntry]:
         """Find semantically similar cached response."""
         if not query_embedding:
             return None
-            
+
         best_match: Optional[LLMCacheEntry] = None
         best_similarity = 0.0
-        
+
         # Search in-memory cache
         comparisons = 0
         for query_hash, cached_embedding in list(self._embedding_index.items()):
             if comparisons >= self.config.max_semantic_comparisons:
                 break
-                
+
             similarity = self._cosine_similarity(query_embedding, cached_embedding)
-            
-            if similarity > best_similarity and similarity >= self.config.similarity_threshold:
+
+            if (
+                similarity > best_similarity
+                and similarity >= self.config.similarity_threshold
+            ):
                 # Get the actual cache entry
                 cache_key = self._generate_cache_key(query_hash)
                 entry = self._memory_cache.get(cache_key)
-                
+
                 if entry and not entry.is_expired:
                     best_similarity = similarity
                     best_match = entry
-                    
+
             comparisons += 1
-        
+
         if best_match:
             logger.debug(f"Semantic cache hit with similarity {best_similarity:.3f}")
-            
+
         return best_match
-    
+
     async def get(
         self,
         query: str,
@@ -315,25 +327,25 @@ class LLMResponseCache:
     ) -> Optional[Dict[str, Any]]:
         """
         Get cached LLM response.
-        
+
         Args:
             query: The user query text
             model: Model name/ID
             temperature: Sampling temperature
             use_semantic: Whether to use semantic similarity matching
-            
+
         Returns:
             Cached response dict or None if not found
         """
         # Check if caching is enabled
         if not self.config.enabled:
             return None
-            
+
         try:
             # Generate hash for exact matching
             query_hash = self._generate_query_hash(query, model, temperature)
             cache_key = self._generate_cache_key(query_hash)
-            
+
             # Try exact match in memory first
             entry = self._memory_cache.get(cache_key)
             if entry and not entry.is_expired:
@@ -351,9 +363,7 @@ class LLMResponseCache:
                         remaining_ttl = await redis.ttl(cache_key)
                         if remaining_ttl > 0:
                             await redis.setex(
-                                cache_key,
-                                remaining_ttl,
-                                json.dumps(entry.to_dict())
+                                cache_key, remaining_ttl, json.dumps(entry.to_dict())
                             )
                     except Exception as e:
                         # Non-critical, don't fail the request
@@ -393,12 +403,14 @@ class LLMResponseCache:
                                     await redis.setex(
                                         cache_key,
                                         remaining_ttl,
-                                        json.dumps(entry.to_dict())
+                                        json.dumps(entry.to_dict()),
                                     )
                                 except Exception as e:
                                     logger.warning(f"Redis hit_count update error: {e}")
 
-                            logger.info(f"LLM cache Redis exact hit for {query_hash[:8]}...")
+                            logger.info(
+                                f"LLM cache Redis exact hit for {query_hash[:8]}..."
+                            )
                             return {
                                 "content": entry.response_content,
                                 "model": entry.model,
@@ -429,15 +441,15 @@ class LLMResponseCache:
                             "cache_type": "semantic",
                             "retrieved_contexts": semantic_match.retrieved_contexts,
                         }
-            
+
             await self._increment_stat("misses")
             return None
-            
+
         except Exception as e:
             logger.error(f"LLM cache get error: {e}")
             await self._increment_stat("errors")
             return None
-    
+
     async def set(
         self,
         query: str,
@@ -491,7 +503,7 @@ class LLMResponseCache:
                 metadata=metadata or {},
                 retrieved_contexts=retrieved_contexts,
             )
-            
+
             # Use lock for thread-safe cache modifications
             async with self._lock:
                 # Evict if at capacity
@@ -502,28 +514,26 @@ class LLMResponseCache:
                 self._memory_cache[cache_key] = entry
                 if embedding:
                     self._embedding_index[query_hash] = embedding
-            
+
             # Store in Redis
             redis = await self._get_redis()
             if redis:
                 try:
                     await redis.setex(
-                        cache_key,
-                        effective_ttl,
-                        json.dumps(entry.to_dict())
+                        cache_key, effective_ttl, json.dumps(entry.to_dict())
                     )
                 except Exception as e:
                     logger.warning(f"Redis set error: {e}")
-            
+
             await self._increment_stat("sets")
             logger.debug(f"LLM response cached with key {query_hash[:8]}...")
             return True
-            
+
         except Exception as e:
             logger.error(f"LLM cache set error: {e}")
             await self._increment_stat("errors")
             return False
-    
+
     async def _evict_entries(self):
         """Evict oldest/least-used entries when at capacity. Must be called with lock held."""
         if not self._memory_cache:
@@ -531,8 +541,7 @@ class LLMResponseCache:
 
         # Sort by hit count (ascending) and created_at (ascending)
         sorted_entries = sorted(
-            self._memory_cache.items(),
-            key=lambda x: (x[1].hit_count, x[1].created_at)
+            self._memory_cache.items(), key=lambda x: (x[1].hit_count, x[1].created_at)
         )
 
         # Remove bottom 10%
@@ -544,7 +553,7 @@ class LLMResponseCache:
                 self._embedding_index.pop(entry.query_hash, None)
 
         logger.debug(f"Evicted {evict_count} LLM cache entries")
-    
+
     async def clear(self, timeout_seconds: int = 25) -> int:
         """
         Clear all cached entries with batch limiting and timeout protection.
@@ -581,18 +590,22 @@ class LLMResponseCache:
                         break
 
                     # Scan for keys
-                    cursor, keys = await redis.scan(cursor, match=pattern, count=batch_size)
+                    cursor, keys = await redis.scan(
+                        cursor, match=pattern, count=batch_size
+                    )
 
                     if keys:
                         # Delete in batches to avoid blocking
                         for i in range(0, len(keys), batch_size):
-                            batch = keys[i:i + batch_size]
+                            batch = keys[i : i + batch_size]
                             deleted = await redis.delete(*batch)
                             redis_count += deleted
 
                         # Log progress every 500 deletions
                         if redis_count % 500 == 0 and redis_count > 0:
-                            logger.info(f"Cache clear progress: {redis_count} Redis entries deleted")
+                            logger.info(
+                                f"Cache clear progress: {redis_count} Redis entries deleted"
+                            )
 
                     if cursor == 0:
                         break
@@ -606,13 +619,13 @@ class LLMResponseCache:
             f"(memory: {memory_count}, redis: {redis_count})"
         )
         return total_cleared
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
         total_hits = self._stats["exact_hits"] + self._stats["semantic_hits"]
         total_requests = total_hits + self._stats["misses"]
         hit_rate = (total_hits / total_requests * 100) if total_requests > 0 else 0
-        
+
         return {
             "enabled": self.config.enabled,
             "exact_hits": self._stats["exact_hits"],
@@ -630,7 +643,7 @@ class LLMResponseCache:
                 "ttl_seconds": self.config.default_ttl,
                 "semantic_enabled": self.config.use_semantic_cache,
                 "max_entries": self.config.max_entries,
-            }
+            },
         }
 
 
@@ -643,5 +656,6 @@ def _create_cache() -> LLMResponseCache:
     except Exception as e:
         logger.warning(f"Failed to load LLM cache config from settings: {e}")
         return LLMResponseCache()
+
 
 llm_response_cache = _create_cache()

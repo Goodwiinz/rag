@@ -12,29 +12,36 @@ Provides comprehensive automatic instrumentation including:
 
 import asyncio
 import time
-from typing import Dict, Any, Optional, Callable
-from functools import wraps
 from contextlib import asynccontextmanager
+from functools import wraps
+from typing import Any, Callable, Dict, Optional
 
+import httpx
+import redis
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware import Middleware
-from starlette.middleware.base import BaseHTTPMiddleware
-
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
-import redis
-import httpx
+from starlette.middleware.base import BaseHTTPMiddleware
 
-from .tracer import (
-    trace_span, async_trace_span, get_trace_id, get_span_id,
-    set_correlation_id, get_correlation_id, set_span_attribute
-)
-from .metrics import (
-    track_performance, record_histogram, increment_counter,
-    record_search_metrics, record_file_processing_metrics
-)
-from .logging import correlation_context, get_logger
 from ..core.config import settings
+from .logging import correlation_context, get_logger
+from .metrics import (
+    increment_counter,
+    record_file_processing_metrics,
+    record_histogram,
+    record_search_metrics,
+    track_performance,
+)
+from .tracer import (
+    async_trace_span,
+    get_correlation_id,
+    get_span_id,
+    get_trace_id,
+    set_correlation_id,
+    set_span_attribute,
+    trace_span,
+)
 
 logger = get_logger(__name__)
 
@@ -65,9 +72,11 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                     "http.host": request.url.hostname,
                     "http.target": request.url.path,
                     "http.user_agent": request.headers.get("user-agent", ""),
-                    "http.client_ip": request.client.host if request.client else "unknown",
+                    "http.client_ip": request.client.host
+                    if request.client
+                    else "unknown",
                     "http.referer": request.headers.get("referer", ""),
-                }
+                },
             ) as span:
                 start_time = time.time()
 
@@ -92,7 +101,7 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                         "method": request.method,
                         "path": request.url.path,
                         "status_code": str(status_code),
-                        "status_class": f"{status_code // 100}xx"
+                        "status_class": f"{status_code // 100}xx",
                     }
 
                     if user_id:
@@ -100,7 +109,9 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                     if tenant_id:
                         attributes["tenant_id"] = tenant_id
 
-                    record_histogram("http_request_duration_seconds", duration, attributes)
+                    record_histogram(
+                        "http_request_duration_seconds", duration, attributes
+                    )
                     increment_counter("http_requests_total", attributes=attributes)
 
                     # Log request completion
@@ -111,7 +122,7 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                         path=request.url.path,
                         status_code=status_code,
                         user_id=user_id,
-                        tenant_id=tenant_id
+                        tenant_id=tenant_id,
                     )
 
                     # Add timing header
@@ -129,14 +140,16 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                         "error_type": type(e).__name__,
                     }
 
-                    increment_counter("http_requests_errors_total", attributes=error_attrs)
+                    increment_counter(
+                        "http_requests_errors_total", attributes=error_attrs
+                    )
                     logger.error(
                         f"HTTP Request Error: {request.method} {request.url.path}",
                         error=str(e),
                         error_type=type(e).__name__,
                         duration=duration,
                         method=request.method,
-                        path=request.url.path
+                        path=request.url.path,
                     )
 
                     # Update span with error info
@@ -154,7 +167,9 @@ class DatabaseInstrumentation:
         """Instrument SQLAlchemy engine for query tracing"""
 
         @event.listens_for(engine, "before_cursor_execute")
-        def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        def before_cursor_execute(
+            conn, cursor, statement, parameters, context, executemany
+        ):
             """Start tracing database query"""
             context._query_start_time = time.time()
             context._query_span_name = "database.query"
@@ -167,53 +182,71 @@ class DatabaseInstrumentation:
                     "db.operation": context.execution_options.get("operation", "query"),
                     "db.statement": statement[:500],  # Truncate long statements
                     "db.query.parameters_count": len(parameters) if parameters else 0,
-                }
+                },
             )
 
             context._query_span = span
 
         @event.listens_for(engine, "after_cursor_execute")
-        def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        def after_cursor_execute(
+            conn, cursor, statement, parameters, context, executemany
+        ):
             """Complete database query tracing"""
-            if hasattr(context, '_query_start_time'):
+            if hasattr(context, "_query_start_time"):
                 duration = time.time() - context._query_start_time
 
                 # Record metrics
-                record_histogram("database_query_duration_seconds", duration, {
-                    "operation": context.execution_options.get("operation", "query"),
-                    "success": "true"
-                })
+                record_histogram(
+                    "database_query_duration_seconds",
+                    duration,
+                    {
+                        "operation": context.execution_options.get(
+                            "operation", "query"
+                        ),
+                        "success": "true",
+                    },
+                )
 
-                increment_counter("database_queries_total", {
-                    "operation": context.execution_options.get("operation", "query"),
-                    "success": "true"
-                })
+                increment_counter(
+                    "database_queries_total",
+                    {
+                        "operation": context.execution_options.get(
+                            "operation", "query"
+                        ),
+                        "success": "true",
+                    },
+                )
 
                 logger.debug(
                     f"Database query completed",
                     duration=duration,
                     operation=context.execution_options.get("operation", "query"),
-                    statement_preview=statement[:100]
+                    statement_preview=statement[:100],
                 )
 
         @event.listens_for(engine, "handle_error")
         def handle_error(context, exception):
             """Handle database errors"""
-            if hasattr(context, '_query_start_time'):
+            if hasattr(context, "_query_start_time"):
                 duration = time.time() - context._query_start_time
 
                 # Record error metrics
-                increment_counter("database_queries_total", {
-                    "operation": context.execution_options.get("operation", "query"),
-                    "success": "false",
-                    "error_type": type(exception).__name__
-                })
+                increment_counter(
+                    "database_queries_total",
+                    {
+                        "operation": context.execution_options.get(
+                            "operation", "query"
+                        ),
+                        "success": "false",
+                        "error_type": type(exception).__name__,
+                    },
+                )
 
                 logger.error(
                     f"Database query error",
                     error=str(exception),
                     error_type=type(exception).__name__,
-                    duration=duration
+                    duration=duration,
                 )
 
 
@@ -238,22 +271,22 @@ class RedisInstrumentation:
                 attributes={
                     "redis.command": command,
                     "redis.args_count": len(args) - 1,  # Exclude command name
-                }
+                },
             ) as span:
                 try:
                     result = original_execute_command(*args, **kwargs)
                     duration = time.time() - start_time
 
                     # Record metrics
-                    record_histogram("redis_command_duration_seconds", duration, {
-                        "command": command,
-                        "success": "true"
-                    })
+                    record_histogram(
+                        "redis_command_duration_seconds",
+                        duration,
+                        {"command": command, "success": "true"},
+                    )
 
-                    increment_counter("redis_commands_total", {
-                        "command": command,
-                        "success": "true"
-                    })
+                    increment_counter(
+                        "redis_commands_total", {"command": command, "success": "true"}
+                    )
 
                     return result
 
@@ -261,11 +294,14 @@ class RedisInstrumentation:
                     duration = time.time() - start_time
 
                     # Record error metrics
-                    increment_counter("redis_commands_total", {
-                        "command": command,
-                        "success": "false",
-                        "error_type": type(e).__name__
-                    })
+                    increment_counter(
+                        "redis_commands_total",
+                        {
+                            "command": command,
+                            "success": "false",
+                            "error_type": type(e).__name__,
+                        },
+                    )
 
                     span.record_exception(e)
                     span.set_status("ERROR", str(e))
@@ -297,7 +333,7 @@ class HTTPClientInstrumentation:
                     "http.scheme": parsed_url.scheme,
                     "http.host": parsed_url.host,
                     "http.target": str(parsed_url.path),
-                }
+                },
             ) as span:
                 try:
                     response = original_request(method, url, **kwargs)
@@ -307,17 +343,24 @@ class HTTPClientInstrumentation:
                     span.set_attribute("http.status_code", response.status_code)
 
                     # Record metrics
-                    record_histogram("http_client_request_duration_seconds", duration, {
-                        "method": method.upper(),
-                        "status_code": str(response.status_code),
-                        "target_host": parsed_url.host
-                    })
+                    record_histogram(
+                        "http_client_request_duration_seconds",
+                        duration,
+                        {
+                            "method": method.upper(),
+                            "status_code": str(response.status_code),
+                            "target_host": parsed_url.host,
+                        },
+                    )
 
-                    increment_counter("http_client_requests_total", {
-                        "method": method.upper(),
-                        "status_code": str(response.status_code),
-                        "target_host": parsed_url.host
-                    })
+                    increment_counter(
+                        "http_client_requests_total",
+                        {
+                            "method": method.upper(),
+                            "status_code": str(response.status_code),
+                            "target_host": parsed_url.host,
+                        },
+                    )
 
                     return response
 
@@ -325,12 +368,15 @@ class HTTPClientInstrumentation:
                     duration = time.time() - start_time
 
                     # Record error metrics
-                    increment_counter("http_client_requests_total", {
-                        "method": method.upper(),
-                        "success": "false",
-                        "error_type": type(e).__name__,
-                        "target_host": parsed_url.host
-                    })
+                    increment_counter(
+                        "http_client_requests_total",
+                        {
+                            "method": method.upper(),
+                            "success": "false",
+                            "error_type": type(e).__name__,
+                            "target_host": parsed_url.host,
+                        },
+                    )
 
                     span.record_exception(e)
                     span.set_status("ERROR", str(e))
@@ -347,17 +393,22 @@ def instrument_app(app: FastAPI) -> FastAPI:
 
     # Configure logging
     from .logging import configure_logging
+
     configure_logging()
 
     # Configure metrics
     from .metrics import configure_metrics
+
     configure_metrics()
 
     # Configure tracing
     from .tracer import configure_tracing
+
     configure_tracing()
 
-    logger.info("Application instrumented with observability", service="rag-system-backend")
+    logger.info(
+        "Application instrumented with observability", service="rag-system-backend"
+    )
 
     return app
 
@@ -365,7 +416,7 @@ def instrument_app(app: FastAPI) -> FastAPI:
 def instrument_services(
     sql_engine: Optional[Engine] = None,
     redis_client: Optional[redis.Redis] = None,
-    http_client: Optional[httpx.Client] = None
+    http_client: Optional[httpx.Client] = None,
 ) -> Dict[str, Any]:
     """Instrument various services and clients"""
     instrumentation_results = {}
@@ -394,9 +445,10 @@ def instrument_services(
 def trace_async_business_operation(
     operation_name: str,
     business_entity: Optional[str] = None,
-    business_id: Optional[str] = None
+    business_id: Optional[str] = None,
 ):
     """Decorator for tracing async business operations"""
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -420,12 +472,13 @@ def trace_async_business_operation(
 
                         # Log business event
                         from .logging import log_business_event
+
                         log_business_event(
                             event_type=operation_name,
                             entity_type=business_entity or "unknown",
                             entity_id=business_id or "unknown",
                             action="completed",
-                            details={"duration": duration}
+                            details={"duration": duration},
                         )
 
                         return result
@@ -433,26 +486,29 @@ def trace_async_business_operation(
                     except Exception as e:
                         # Log business error
                         from .logging import log_error_with_context
+
                         log_error_with_context(
                             error=e,
                             context={
                                 "operation": operation_name,
                                 "business_entity": business_entity,
-                                "business_id": business_id
-                            }
+                                "business_id": business_id,
+                            },
                         )
                         raise
 
         return wrapper
+
     return decorator
 
 
 def trace_sync_business_operation(
     operation_name: str,
     business_entity: Optional[str] = None,
-    business_id: Optional[str] = None
+    business_id: Optional[str] = None,
 ):
     """Decorator for tracing sync business operations"""
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -476,12 +532,13 @@ def trace_sync_business_operation(
 
                         # Log business event
                         from .logging import log_business_event
+
                         log_business_event(
                             event_type=operation_name,
                             entity_type=business_entity or "unknown",
                             entity_id=business_id or "unknown",
                             action="completed",
-                            details={"duration": duration}
+                            details={"duration": duration},
                         )
 
                         return result
@@ -489,15 +546,17 @@ def trace_sync_business_operation(
                     except Exception as e:
                         # Log business error
                         from .logging import log_error_with_context
+
                         log_error_with_context(
                             error=e,
                             context={
                                 "operation": operation_name,
                                 "business_entity": business_entity,
-                                "business_id": business_id
-                            }
+                                "business_id": business_id,
+                            },
                         )
                         raise
 
         return wrapper
+
     return decorator

@@ -8,34 +8,37 @@ optimize system performance based on real-time metrics and machine learning.
 import asyncio
 import json
 import logging
-import time
 import statistics
+import subprocess
 import threading
-from typing import Dict, List, Any, Optional, Callable, Tuple
-from dataclasses import dataclass, asdict
+import time
+from collections import defaultdict, deque
+from contextlib import asynccontextmanager
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from collections import deque, defaultdict
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+import aiofiles
+import asyncpg
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor, IsolationForest
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-import redis
-import aiofiles
-import subprocess
 import psutil
-import yaml
+import redis
 import requests
-from contextlib import asynccontextmanager
-import asyncpg
+import yaml
+from sklearn.ensemble import IsolationForest, RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class OptimizationAction:
     """Represents an optimization action"""
+
     id: str
     name: str
     description: str
@@ -49,9 +52,11 @@ class OptimizationAction:
     success: Optional[bool] = None
     error_message: Optional[str] = None
 
+
 @dataclass
 class PerformancePattern:
     """Represents a detected performance pattern"""
+
     pattern_id: str
     pattern_type: str  # 'seasonal', 'trend', 'anomaly', 'correlation'
     description: str
@@ -61,9 +66,11 @@ class PerformancePattern:
     parameters: Dict[str, Any]
     recommendations: List[str]
 
+
 @dataclass
 class OptimizationTarget:
     """Optimization target definition"""
+
     name: str
     description: str
     metric_name: str
@@ -71,6 +78,7 @@ class OptimizationTarget:
     acceptable_range: Tuple[float, float]
     priority: int  # 1-10, 1 being highest
     optimization_strategies: List[str]
+
 
 class MLPerformancePredictor:
     """Machine learning-based performance prediction"""
@@ -88,18 +96,17 @@ class MLPerformancePredictor:
     async def initialize(self):
         """Initialize the ML predictor"""
         self.feature_columns = [
-            'cpu_percent', 'memory_percent', 'disk_percent',
-            'connections_active', 'requests_per_second',
-            'avg_response_time', 'cache_hit_ratio'
+            "cpu_percent",
+            "memory_percent",
+            "disk_percent",
+            "connections_active",
+            "requests_per_second",
+            "avg_response_time",
+            "cache_hit_ratio",
         ]
-        self.target_columns = [
-            'response_time_p95', 'error_rate', 'throughput'
-        ]
+        self.target_columns = ["response_time_p95", "error_rate", "throughput"]
 
-        self.anomaly_detector = IsolationForest(
-            contamination=0.1,
-            random_state=42
-        )
+        self.anomaly_detector = IsolationForest(contamination=0.1, random_state=42)
 
         await self._train_initial_models()
         self.is_trained = True
@@ -127,55 +134,64 @@ class MLPerformancePredictor:
         requests_per_second = np.random.exponential(100, n_samples)
 
         # Simulate relationships
-        avg_response_time = 50 + cpu_percent * 2 + memory_percent * 1.5 + np.random.normal(0, 20, n_samples)
+        avg_response_time = (
+            50
+            + cpu_percent * 2
+            + memory_percent * 1.5
+            + np.random.normal(0, 20, n_samples)
+        )
         avg_response_time = np.maximum(10, avg_response_time)
 
         cache_hit_ratio = np.random.beta(5, 2, n_samples) * 0.3 + 0.7
 
         # Calculate target variables
-        response_time_p95 = avg_response_time * (1 + np.random.exponential(0.3, n_samples))
-        error_rate = np.maximum(0, 0.001 + (cpu_percent / 100) ** 2 + np.random.normal(0, 0.01, n_samples))
+        response_time_p95 = avg_response_time * (
+            1 + np.random.exponential(0.3, n_samples)
+        )
+        error_rate = np.maximum(
+            0, 0.001 + (cpu_percent / 100) ** 2 + np.random.normal(0, 0.01, n_samples)
+        )
         throughput = requests_per_second * (1 - error_rate) * cache_hit_ratio
 
-        return pd.DataFrame({
-            'cpu_percent': cpu_percent,
-            'memory_percent': memory_percent,
-            'disk_percent': disk_percent,
-            'connections_active': connections_active,
-            'requests_per_second': requests_per_second,
-            'avg_response_time': avg_response_time,
-            'cache_hit_ratio': cache_hit_ratio,
-            'response_time_p95': response_time_p95,
-            'error_rate': error_rate,
-            'throughput': throughput
-        })
+        return pd.DataFrame(
+            {
+                "cpu_percent": cpu_percent,
+                "memory_percent": memory_percent,
+                "disk_percent": disk_percent,
+                "connections_active": connections_active,
+                "requests_per_second": requests_per_second,
+                "avg_response_time": avg_response_time,
+                "cache_hit_ratio": cache_hit_ratio,
+                "response_time_p95": response_time_p95,
+                "error_rate": error_rate,
+                "throughput": throughput,
+            }
+        )
 
     async def update_models(self, data: pd.DataFrame):
         """Update ML models with new data"""
         try:
             # Prepare features
             X = data[self.feature_columns]
-            y_response_time = data['response_time_p95']
-            y_error_rate = data['error_rate']
-            y_throughput = data['throughput']
+            y_response_time = data["response_time_p95"]
+            y_error_rate = data["error_rate"]
+            y_throughput = data["throughput"]
 
             # Scale features
-            if 'scaler_features' not in self.scalers:
-                self.scalers['scaler_features'] = StandardScaler()
-                X_scaled = self.scalers['scaler_features'].fit_transform(X)
+            if "scaler_features" not in self.scalers:
+                self.scalers["scaler_features"] = StandardScaler()
+                X_scaled = self.scalers["scaler_features"].fit_transform(X)
             else:
-                X_scaled = self.scalers['scaler_features'].transform(X)
+                X_scaled = self.scalers["scaler_features"].transform(X)
 
             # Train regression models
             for target_name, y_data in [
-                ('response_time', y_response_time),
-                ('error_rate', y_error_rate),
-                ('throughput', y_throughput)
+                ("response_time", y_response_time),
+                ("error_rate", y_error_rate),
+                ("throughput", y_throughput),
             ]:
                 model = RandomForestRegressor(
-                    n_estimators=100,
-                    random_state=42,
-                    n_jobs=-1
+                    n_estimators=100, random_state=42, n_jobs=-1
                 )
 
                 X_train, X_test, y_train, y_test = train_test_split(
@@ -186,9 +202,11 @@ class MLPerformancePredictor:
                 score = model.score(X_test, y_test)
 
                 self.models[target_name] = {
-                    'model': model,
-                    'score': score,
-                    'feature_importance': dict(zip(self.feature_columns, model.feature_importances_))
+                    "model": model,
+                    "score": score,
+                    "feature_importance": dict(
+                        zip(self.feature_columns, model.feature_importances_)
+                    ),
                 }
 
                 logger.info(f"Updated {target_name} model with R² score: {score:.3f}")
@@ -202,7 +220,9 @@ class MLPerformancePredictor:
         except Exception as e:
             logger.error(f"Error updating ML models: {e}")
 
-    async def predict_performance(self, current_metrics: Dict[str, Any]) -> Dict[str, float]:
+    async def predict_performance(
+        self, current_metrics: Dict[str, Any]
+    ) -> Dict[str, float]:
         """Predict future performance based on current metrics"""
         if not self.is_trained:
             return {}
@@ -215,11 +235,11 @@ class MLPerformancePredictor:
                 feature_data.append(value)
 
             X = np.array([feature_data])
-            X_scaled = self.scalers['scaler_features'].transform(X)
+            X_scaled = self.scalers["scaler_features"].transform(X)
 
             predictions = {}
             for target_name, model_data in self.models.items():
-                prediction = model_data['model'].predict(X_scaled)[0]
+                prediction = model_data["model"].predict(X_scaled)[0]
                 predictions[target_name] = float(prediction)
 
             return predictions
@@ -247,7 +267,7 @@ class MLPerformancePredictor:
                 return []
 
             X = np.array(data)
-            X_scaled = self.scalers['scaler_features'].transform(X)
+            X_scaled = self.scalers["scaler_features"].transform(X)
 
             # Detect anomalies
             anomaly_labels = self.anomaly_detector.predict(X_scaled)
@@ -256,18 +276,23 @@ class MLPerformancePredictor:
             anomalies = []
             for i, (label, score) in enumerate(zip(anomaly_labels, anomaly_scores)):
                 if label == -1:  # Anomaly detected
-                    anomalies.append({
-                        'timestamp': metrics[-len(data) + i].get('timestamp', datetime.now().isoformat()),
-                        'score': float(score),
-                        'metrics': metrics[-len(data) + i],
-                        'severity': 'high' if score < -0.5 else 'medium'
-                    })
+                    anomalies.append(
+                        {
+                            "timestamp": metrics[-len(data) + i].get(
+                                "timestamp", datetime.now().isoformat()
+                            ),
+                            "score": float(score),
+                            "metrics": metrics[-len(data) + i],
+                            "severity": "high" if score < -0.5 else "medium",
+                        }
+                    )
 
             return anomalies
 
         except Exception as e:
             logger.error(f"Error detecting anomalies: {e}")
             return []
+
 
 class AutomatedOptimizer:
     """Main automated optimization engine"""
@@ -283,7 +308,9 @@ class AutomatedOptimizer:
         self.redis_client: Optional[redis.Redis] = None
         self.system_config: Dict[str, Any] = {}
 
-    async def initialize(self, redis_url: Optional[str] = None, config_file: Optional[str] = None):
+    async def initialize(
+        self, redis_url: Optional[str] = None, config_file: Optional[str] = None
+    ):
         """Initialize the automated optimizer"""
         if redis_url:
             self.redis_client = redis.Redis.from_url(redis_url, decode_responses=True)
@@ -306,7 +333,7 @@ class AutomatedOptimizer:
     async def _load_config(self, config_file: str):
         """Load configuration from file"""
         try:
-            async with aiofiles.open(config_file, 'r') as f:
+            async with aiofiles.open(config_file, "r") as f:
                 content = await f.read()
                 self.system_config = yaml.safe_load(content)
         except Exception as e:
@@ -316,84 +343,81 @@ class AutomatedOptimizer:
     def _setup_default_config(self):
         """Setup default system configuration"""
         self.system_config = {
-            'optimization': {
-                'enabled': True,
-                'auto_apply': False,  # Require manual approval by default
-                'confidence_threshold': 0.7,
-                'max_concurrent_optimizations': 3,
-                'rollback_timeout': 300  # 5 minutes
+            "optimization": {
+                "enabled": True,
+                "auto_apply": False,  # Require manual approval by default
+                "confidence_threshold": 0.7,
+                "max_concurrent_optimizations": 3,
+                "rollback_timeout": 300,  # 5 minutes
             },
-            'components': {
-                'database': {
-                    'enabled': True,
-                    'config_file': '/etc/postgresql/postgresql.conf',
-                    'restart_command': 'systemctl restart postgresql'
+            "components": {
+                "database": {
+                    "enabled": True,
+                    "config_file": "/etc/postgresql/postgresql.conf",
+                    "restart_command": "systemctl restart postgresql",
                 },
-                'application': {
-                    'enabled': True,
-                    'config_file': 'config.yaml',
-                    'restart_command': 'systemctl restart rag-app'
+                "application": {
+                    "enabled": True,
+                    "config_file": "config.yaml",
+                    "restart_command": "systemctl restart rag-app",
                 },
-                'cache': {
-                    'enabled': True,
-                    'redis_url': 'redis://localhost:6379'
-                }
+                "cache": {"enabled": True, "redis_url": "redis://localhost:6379"},
             },
-            'ml': {
-                'model_update_interval': 3600,
-                'prediction_window': 300,  # 5 minutes
-                'anomaly_threshold': 0.1
-            }
+            "ml": {
+                "model_update_interval": 3600,
+                "prediction_window": 300,  # 5 minutes
+                "anomaly_threshold": 0.1,
+            },
         }
 
     def _setup_optimization_targets(self):
         """Setup optimization targets"""
         self.optimization_targets = {
-            'response_time': OptimizationTarget(
-                name='Response Time',
-                description='95th percentile response time',
-                metric_name='response_time_p95',
+            "response_time": OptimizationTarget(
+                name="Response Time",
+                description="95th percentile response time",
+                metric_name="response_time_p95",
                 target_value=200.0,
                 acceptable_range=(150.0, 300.0),
                 priority=1,
-                optimization_strategies=['config', 'scale', 'cache', 'index']
+                optimization_strategies=["config", "scale", "cache", "index"],
             ),
-            'error_rate': OptimizationTarget(
-                name='Error Rate',
-                description='Application error rate',
-                metric_name='error_rate',
+            "error_rate": OptimizationTarget(
+                name="Error Rate",
+                description="Application error rate",
+                metric_name="error_rate",
                 target_value=0.001,
                 acceptable_range=(0.0, 0.01),
                 priority=1,
-                optimization_strategies=['config', 'scale', 'cleanup']
+                optimization_strategies=["config", "scale", "cleanup"],
             ),
-            'throughput': OptimizationTarget(
-                name='Throughput',
-                description='Requests per second',
-                metric_name='throughput',
+            "throughput": OptimizationTarget(
+                name="Throughput",
+                description="Requests per second",
+                metric_name="throughput",
                 target_value=1000.0,
                 acceptable_range=(800.0, 1500.0),
                 priority=2,
-                optimization_strategies=['scale', 'cache', 'config']
+                optimization_strategies=["scale", "cache", "config"],
             ),
-            'cpu_usage': OptimizationTarget(
-                name='CPU Usage',
-                description='System CPU usage percentage',
-                metric_name='cpu_percent',
+            "cpu_usage": OptimizationTarget(
+                name="CPU Usage",
+                description="System CPU usage percentage",
+                metric_name="cpu_percent",
                 target_value=70.0,
                 acceptable_range=(50.0, 85.0),
                 priority=3,
-                optimization_strategies=['scale', 'config']
+                optimization_strategies=["scale", "config"],
             ),
-            'memory_usage': OptimizationTarget(
-                name='Memory Usage',
-                description='System memory usage percentage',
-                metric_name='memory_percent',
+            "memory_usage": OptimizationTarget(
+                name="Memory Usage",
+                description="System memory usage percentage",
+                metric_name="memory_percent",
                 target_value=75.0,
                 acceptable_range=(60.0, 90.0),
                 priority=3,
-                optimization_strategies=['scale', 'cleanup', 'config']
-            )
+                optimization_strategies=["scale", "cleanup", "config"],
+            ),
         }
 
     async def start_optimization(self):
@@ -423,16 +447,22 @@ class AutomatedOptimizer:
 
                 if current_metrics:
                     # Predict future performance
-                    predictions = await self.ml_predictor.predict_performance(current_metrics)
+                    predictions = await self.ml_predictor.predict_performance(
+                        current_metrics
+                    )
 
                     # Detect performance issues
-                    issues = await self._detect_performance_issues(current_metrics, predictions)
+                    issues = await self._detect_performance_issues(
+                        current_metrics, predictions
+                    )
 
                     # Generate optimization recommendations
-                    recommendations = await self._generate_optimization_recommendations(current_metrics, predictions, issues)
+                    recommendations = await self._generate_optimization_recommendations(
+                        current_metrics, predictions, issues
+                    )
 
                     # Apply optimizations if auto-apply is enabled
-                    if self.system_config['optimization']['auto_apply']:
+                    if self.system_config["optimization"]["auto_apply"]:
                         await self._apply_optimizations(recommendations)
 
                 await asyncio.sleep(self.optimization_interval)
@@ -454,7 +484,10 @@ class AutomatedOptimizer:
                     self.performance_patterns = patterns
 
                     # Update ML models if enough data
-                    if time.time() - self.ml_predictor.last_model_update > self.ml_predictor.model_update_interval:
+                    if (
+                        time.time() - self.ml_predictor.last_model_update
+                        > self.ml_predictor.model_update_interval
+                    ):
                         df = pd.DataFrame(historical_data)
                         await self.ml_predictor.update_models(df)
 
@@ -487,7 +520,7 @@ class AutomatedOptimizer:
             # System metrics
             cpu_percent = psutil.cpu_percent(interval=1)
             memory = psutil.virtual_memory()
-            disk = psutil.disk_usage('/')
+            disk = psutil.disk_usage("/")
 
             # Application metrics (would be collected from your application)
             app_metrics = await self._collect_application_metrics()
@@ -496,15 +529,15 @@ class AutomatedOptimizer:
             db_metrics = await self._collect_database_metrics()
 
             metrics = {
-                'timestamp': datetime.now().isoformat(),
-                'cpu_percent': cpu_percent,
-                'memory_percent': memory.percent,
-                'disk_percent': (disk.used / disk.total) * 100,
-                'connections_active': app_metrics.get('active_connections', 0),
-                'requests_per_second': app_metrics.get('requests_per_second', 0),
-                'avg_response_time': app_metrics.get('avg_response_time', 0),
-                'cache_hit_ratio': app_metrics.get('cache_hit_ratio', 0),
-                **db_metrics
+                "timestamp": datetime.now().isoformat(),
+                "cpu_percent": cpu_percent,
+                "memory_percent": memory.percent,
+                "disk_percent": (disk.used / disk.total) * 100,
+                "connections_active": app_metrics.get("active_connections", 0),
+                "requests_per_second": app_metrics.get("requests_per_second", 0),
+                "avg_response_time": app_metrics.get("avg_response_time", 0),
+                "cache_hit_ratio": app_metrics.get("cache_hit_ratio", 0),
+                **db_metrics,
             }
 
             return metrics
@@ -518,11 +551,11 @@ class AutomatedOptimizer:
         # This would integrate with your application monitoring
         # For now, return placeholder data
         return {
-            'active_connections': 45,
-            'requests_per_second': 120.5,
-            'avg_response_time': 85.2,
-            'cache_hit_ratio': 0.85,
-            'error_rate': 0.002
+            "active_connections": 45,
+            "requests_per_second": 120.5,
+            "avg_response_time": 85.2,
+            "cache_hit_ratio": 0.85,
+            "error_rate": 0.002,
         }
 
     async def _collect_database_metrics(self) -> Dict[str, Any]:
@@ -530,12 +563,12 @@ class AutomatedOptimizer:
         # This would connect to your database and collect metrics
         # For now, return placeholder data
         return {
-            'db_connections_active': 15,
-            'db_connections_idle': 35,
-            'db_queries_per_second': 95.2,
-            'db_avg_query_time': 45.8,
-            'db_cache_hit_ratio': 0.92,
-            'db_slow_queries': 2
+            "db_connections_active": 15,
+            "db_connections_idle": 35,
+            "db_queries_per_second": 95.2,
+            "db_avg_query_time": 45.8,
+            "db_cache_hit_ratio": 0.92,
+            "db_slow_queries": 2,
         }
 
     async def _collect_historical_data(self, hours: int = 24) -> List[Dict[str, Any]]:
@@ -556,31 +589,31 @@ class AutomatedOptimizer:
                     json_data = await self.redis_client.get(key)
                     if json_data:
                         snapshot = json.loads(json_data)
-                        timestamp = datetime.fromisoformat(snapshot['timestamp'].replace('Z', '+00:00'))
+                        timestamp = datetime.fromisoformat(
+                            snapshot["timestamp"].replace("Z", "+00:00")
+                        )
 
                         if timestamp > cutoff_time:
                             # Flatten the snapshot into metrics
                             metrics = {
-                                'timestamp': snapshot['timestamp'],
-                                **snapshot.get('systemMetrics', {}),
-                                **snapshot.get('applicationMetrics', {}),
-                                **snapshot.get('databaseMetrics', {}),
-                                **snapshot.get('networkMetrics', {})
+                                "timestamp": snapshot["timestamp"],
+                                **snapshot.get("systemMetrics", {}),
+                                **snapshot.get("applicationMetrics", {}),
+                                **snapshot.get("databaseMetrics", {}),
+                                **snapshot.get("networkMetrics", {}),
                             }
                             data.append(metrics)
                 except Exception as e:
                     logger.error(f"Error processing key {key}: {e}")
 
-            return sorted(data, key=lambda x: x['timestamp'])
+            return sorted(data, key=lambda x: x["timestamp"])
 
         except Exception as e:
             logger.error(f"Error collecting historical data: {e}")
             return []
 
     async def _detect_performance_issues(
-        self,
-        current_metrics: Dict[str, Any],
-        predictions: Dict[str, Any]
+        self, current_metrics: Dict[str, Any], predictions: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """Detect current and predicted performance issues"""
         issues = []
@@ -592,41 +625,53 @@ class AutomatedOptimizer:
 
             if current_value is not None:
                 # Check if current value is outside acceptable range
-                if current_value < target.acceptable_range[0] or current_value > target.acceptable_range[1]:
-                    severity = 'high' if target.priority <= 2 else 'medium'
-                    issues.append({
-                        'type': 'current',
-                        'target': target_name,
-                        'current_value': current_value,
-                        'target_value': target.target_value,
-                        'severity': severity,
-                        'description': f"{target.name} is {current_value:.2f} (target: {target.target_value:.2f})"
-                    })
+                if (
+                    current_value < target.acceptable_range[0]
+                    or current_value > target.acceptable_range[1]
+                ):
+                    severity = "high" if target.priority <= 2 else "medium"
+                    issues.append(
+                        {
+                            "type": "current",
+                            "target": target_name,
+                            "current_value": current_value,
+                            "target_value": target.target_value,
+                            "severity": severity,
+                            "description": f"{target.name} is {current_value:.2f} (target: {target.target_value:.2f})",
+                        }
+                    )
 
             # Check predicted values
             if predicted_value is not None:
-                if predicted_value < target.acceptable_range[0] or predicted_value > target.acceptable_range[1]:
-                    severity = 'high' if target.priority <= 2 else 'medium'
-                    issues.append({
-                        'type': 'predicted',
-                        'target': target_name,
-                        'predicted_value': predicted_value,
-                        'target_value': target.target_value,
-                        'severity': severity,
-                        'description': f"{target.name} predicted to be {predicted_value:.2f} (target: {target.target_value:.2f})"
-                    })
+                if (
+                    predicted_value < target.acceptable_range[0]
+                    or predicted_value > target.acceptable_range[1]
+                ):
+                    severity = "high" if target.priority <= 2 else "medium"
+                    issues.append(
+                        {
+                            "type": "predicted",
+                            "target": target_name,
+                            "predicted_value": predicted_value,
+                            "target_value": target.target_value,
+                            "severity": severity,
+                            "description": f"{target.name} predicted to be {predicted_value:.2f} (target: {target.target_value:.2f})",
+                        }
+                    )
 
         # Detect anomalies
         historical_data = await self._collect_historical_data(hours=1)
         if len(historical_data) > 10:
             anomalies = self.ml_predictor.detect_anomalies(historical_data)
             for anomaly in anomalies:
-                issues.append({
-                    'type': 'anomaly',
-                    'severity': anomaly['severity'],
-                    'description': f"Performance anomaly detected (score: {anomaly['score']:.3f})",
-                    'anomaly_data': anomaly
-                })
+                issues.append(
+                    {
+                        "type": "anomaly",
+                        "severity": anomaly["severity"],
+                        "description": f"Performance anomaly detected (score: {anomaly['score']:.3f})",
+                        "anomaly_data": anomaly,
+                    }
+                )
 
         return issues
 
@@ -634,13 +679,13 @@ class AutomatedOptimizer:
         self,
         current_metrics: Dict[str, Any],
         predictions: Dict[str, Any],
-        issues: List[Dict[str, Any]]
+        issues: List[Dict[str, Any]],
     ) -> List[OptimizationAction]:
         """Generate optimization recommendations based on detected issues"""
         recommendations = []
 
         for issue in issues:
-            target_name = issue.get('target')
+            target_name = issue.get("target")
             if target_name and target_name in self.optimization_targets:
                 target = self.optimization_targets[target_name]
 
@@ -656,13 +701,25 @@ class AutomatedOptimizer:
         seen_actions = set()
         unique_recommendations = []
         for rec in recommendations:
-            action_key = (rec.action_type, rec.target_component, str(sorted(rec.parameters.items())))
+            action_key = (
+                rec.action_type,
+                rec.target_component,
+                str(sorted(rec.parameters.items())),
+            )
             if action_key not in seen_actions:
                 seen_actions.add(action_key)
                 unique_recommendations.append(rec)
 
         # Sort by confidence and priority
-        unique_recommendations.sort(key=lambda x: (x.confidence_score, -self.optimization_targets.get(x.name.split()[0], OptimizationTarget('', '', '', 0, (0, 0), 5, [])).priority), reverse=True)
+        unique_recommendations.sort(
+            key=lambda x: (
+                x.confidence_score,
+                -self.optimization_targets.get(
+                    x.name.split()[0], OptimizationTarget("", "", "", 0, (0, 0), 5, [])
+                ).priority,
+            ),
+            reverse=True,
+        )
 
         return unique_recommendations[:5]  # Return top 5 recommendations
 
@@ -671,20 +728,30 @@ class AutomatedOptimizer:
         strategy: str,
         target: OptimizationTarget,
         issue: Dict[str, Any],
-        current_metrics: Dict[str, Any]
+        current_metrics: Dict[str, Any],
     ) -> Optional[OptimizationAction]:
         """Create a specific optimization action"""
         try:
-            if strategy == 'config':
-                return await self._create_config_optimization(target, issue, current_metrics)
-            elif strategy == 'scale':
-                return await self._create_scaling_optimization(target, issue, current_metrics)
-            elif strategy == 'cache':
-                return await self._create_cache_optimization(target, issue, current_metrics)
-            elif strategy == 'index':
-                return await self._create_index_optimization(target, issue, current_metrics)
-            elif strategy == 'cleanup':
-                return await self._create_cleanup_optimization(target, issue, current_metrics)
+            if strategy == "config":
+                return await self._create_config_optimization(
+                    target, issue, current_metrics
+                )
+            elif strategy == "scale":
+                return await self._create_scaling_optimization(
+                    target, issue, current_metrics
+                )
+            elif strategy == "cache":
+                return await self._create_cache_optimization(
+                    target, issue, current_metrics
+                )
+            elif strategy == "index":
+                return await self._create_index_optimization(
+                    target, issue, current_metrics
+                )
+            elif strategy == "cleanup":
+                return await self._create_cleanup_optimization(
+                    target, issue, current_metrics
+                )
 
         except Exception as e:
             logger.error(f"Error creating optimization action for {strategy}: {e}")
@@ -694,10 +761,10 @@ class AutomatedOptimizer:
         self,
         target: OptimizationTarget,
         issue: Dict[str, Any],
-        current_metrics: Dict[str, Any]
+        current_metrics: Dict[str, Any],
     ) -> OptimizationAction:
         """Create configuration optimization action"""
-        if target.metric_name in ['response_time_p95', 'avg_response_time']:
+        if target.metric_name in ["response_time_p95", "avg_response_time"]:
             # Optimize database connection pool
             return OptimizationAction(
                 id=f"config_db_pool_{int(time.time())}",
@@ -706,20 +773,24 @@ class AutomatedOptimizer:
                 action_type="config",
                 target_component="database",
                 parameters={
-                    "max_connections": min(200, current_metrics.get('connections_active', 50) * 2),
-                    "min_connections": max(10, current_metrics.get('connections_active', 50) // 2),
-                    "connection_timeout": 30
+                    "max_connections": min(
+                        200, current_metrics.get("connections_active", 50) * 2
+                    ),
+                    "min_connections": max(
+                        10, current_metrics.get("connections_active", 50) // 2
+                    ),
+                    "connection_timeout": 30,
                 },
                 expected_impact={"response_time": -15.0, "throughput": 10.0},
                 rollback_parameters={
                     "max_connections": 100,
                     "min_connections": 20,
-                    "connection_timeout": 30
+                    "connection_timeout": 30,
                 },
-                confidence_score=0.8
+                confidence_score=0.8,
             )
 
-        elif target.metric_name == 'memory_percent':
+        elif target.metric_name == "memory_percent":
             # Optimize application memory settings
             return OptimizationAction(
                 id=f"config_memory_{int(time.time())}",
@@ -731,18 +802,18 @@ class AutomatedOptimizer:
                     "heap_size": "1g",
                     "gc_settings": {
                         "g1_heap_region_size": "16m",
-                        "max_gcpause_millis": "200"
-                    }
+                        "max_gcpause_millis": "200",
+                    },
                 },
                 expected_impact={"memory_usage": -20.0},
                 rollback_parameters={
                     "heap_size": "2g",
                     "gc_settings": {
                         "g1_heap_region_size": "32m",
-                        "max_gcpause_millis": "400"
-                    }
+                        "max_gcpause_millis": "400",
+                    },
                 },
-                confidence_score=0.7
+                confidence_score=0.7,
             )
 
         return None
@@ -751,12 +822,12 @@ class AutomatedOptimizer:
         self,
         target: OptimizationTarget,
         issue: Dict[str, Any],
-        current_metrics: Dict[str, Any]
+        current_metrics: Dict[str, Any],
     ) -> OptimizationAction:
         """Create scaling optimization action"""
-        if target.metric_name in ['cpu_percent', 'throughput']:
+        if target.metric_name in ["cpu_percent", "throughput"]:
             # Scale up application instances
-            current_instances = current_metrics.get('app_instances', 2)
+            current_instances = current_metrics.get("app_instances", 2)
             new_instances = min(8, current_instances + 1)
 
             return OptimizationAction(
@@ -768,11 +839,11 @@ class AutomatedOptimizer:
                 parameters={
                     "instances": new_instances,
                     "cpu_threshold": 80,
-                    "memory_threshold": 85
+                    "memory_threshold": 85,
                 },
                 expected_impact={"cpu_usage": -30.0, "throughput": 50.0},
                 rollback_parameters={"instances": current_instances},
-                confidence_score=0.85
+                confidence_score=0.85,
             )
 
         return None
@@ -781,10 +852,10 @@ class AutomatedOptimizer:
         self,
         target: OptimizationTarget,
         issue: Dict[str, Any],
-        current_metrics: Dict[str, Any]
+        current_metrics: Dict[str, Any],
     ) -> OptimizationAction:
         """Create cache optimization action"""
-        current_cache_size = current_metrics.get('cache_size_mb', 100)
+        current_cache_size = current_metrics.get("cache_size_mb", 100)
         new_cache_size = min(1024, current_cache_size * 2)
 
         return OptimizationAction(
@@ -796,22 +867,22 @@ class AutomatedOptimizer:
             parameters={
                 "max_memory": f"{new_cache_size}mb",
                 "ttl": 3600,
-                "eviction_policy": "allkeys-lru"
+                "eviction_policy": "allkeys-lru",
             },
             expected_impact={"cache_hit_ratio": 15.0, "response_time": -20.0},
             rollback_parameters={
                 "max_memory": f"{current_cache_size}mb",
                 "ttl": 3600,
-                "eviction_policy": "allkeys-lru"
+                "eviction_policy": "allkeys-lru",
             },
-            confidence_score=0.75
+            confidence_score=0.75,
         )
 
     async def _create_index_optimization(
         self,
         target: OptimizationTarget,
         issue: Dict[str, Any],
-        current_metrics: Dict[str, Any]
+        current_metrics: Dict[str, Any],
     ) -> OptimizationAction:
         """Create index optimization action"""
         return OptimizationAction(
@@ -823,21 +894,24 @@ class AutomatedOptimizer:
             parameters={
                 "indexes_to_create": [
                     "CREATE INDEX CONCURRENTLY idx_documents_created_at ON documents (created_at DESC)",
-                    "CREATE INDEX CONCURRENTLY idx_search_results_query_score ON search_results (query_id, score)"
+                    "CREATE INDEX CONCURRENTLY idx_search_results_query_score ON search_results (query_id, score)",
                 ]
             },
             expected_impact={"response_time": -25.0, "query_time": -40.0},
             rollback_parameters={
-                "indexes_to_drop": ["idx_documents_created_at", "idx_search_results_query_score"]
+                "indexes_to_drop": [
+                    "idx_documents_created_at",
+                    "idx_search_results_query_score",
+                ]
             },
-            confidence_score=0.9
+            confidence_score=0.9,
         )
 
     async def _create_cleanup_optimization(
         self,
         target: OptimizationTarget,
         issue: Dict[str, Any],
-        current_metrics: Dict[str, Any]
+        current_metrics: Dict[str, Any],
     ) -> OptimizationAction:
         """Create cleanup optimization action"""
         return OptimizationAction(
@@ -850,21 +924,26 @@ class AutomatedOptimizer:
                 "cleanup_logs_older_than": 7,  # days
                 "cleanup_temp_files": True,
                 "cleanup_cache_entries": True,
-                "vaccum_database": True
+                "vaccum_database": True,
             },
             expected_impact={"disk_usage": -10.0, "memory_usage": -5.0},
             rollback_parameters={},
-            confidence_score=0.8
+            confidence_score=0.8,
         )
 
     async def _apply_optimizations(self, recommendations: List[OptimizationAction]):
         """Apply optimization recommendations"""
-        max_concurrent = self.system_config['optimization']['max_concurrent_optimizations']
-        confidence_threshold = self.system_config['optimization']['confidence_threshold']
+        max_concurrent = self.system_config["optimization"][
+            "max_concurrent_optimizations"
+        ]
+        confidence_threshold = self.system_config["optimization"][
+            "confidence_threshold"
+        ]
 
         # Filter by confidence threshold
         high_confidence_recs = [
-            rec for rec in recommendations
+            rec
+            for rec in recommendations
             if rec.confidence_score >= confidence_threshold
         ]
 
@@ -927,7 +1006,9 @@ class AutomatedOptimizer:
         try:
             if action.target_component == "database":
                 # Update PostgreSQL configuration
-                config_file = self.system_config['components']['database']['config_file']
+                config_file = self.system_config["components"]["database"][
+                    "config_file"
+                ]
 
                 # This would update the actual PostgreSQL configuration file
                 # For now, simulate the change
@@ -943,7 +1024,9 @@ class AutomatedOptimizer:
 
             elif action.target_component == "application":
                 # Update application configuration
-                config_file = self.system_config['components']['application']['config_file']
+                config_file = self.system_config["components"]["application"][
+                    "config_file"
+                ]
 
                 logger.info(f"Would update {config_file} with: {action.parameters}")
 
@@ -987,7 +1070,10 @@ class AutomatedOptimizer:
                 max_memory = action.parameters.get("max_memory", "256mb")
 
                 await self.redis_client.config_set("maxmemory", max_memory)
-                await self.redis_client.config_set("maxmemory-policy", action.parameters.get("eviction_policy", "allkeys-lru"))
+                await self.redis_client.config_set(
+                    "maxmemory-policy",
+                    action.parameters.get("eviction_policy", "allkeys-lru"),
+                )
 
                 logger.info(f"Updated Redis maxmemory to {max_memory}")
                 return True
@@ -1020,15 +1106,22 @@ class AutomatedOptimizer:
         """Apply cleanup operations"""
         try:
             # Clean up old logs
-            cleanup_logs_older_than = action.parameters.get("cleanup_logs_older_than", 7)
-            logger.info(f"Would clean up logs older than {cleanup_logs_older_than} days")
+            cleanup_logs_older_than = action.parameters.get(
+                "cleanup_logs_older_than", 7
+            )
+            logger.info(
+                f"Would clean up logs older than {cleanup_logs_older_than} days"
+            )
 
             # Clean temporary files
             if action.parameters.get("cleanup_temp_files", False):
                 logger.info("Would clean up temporary files")
 
             # Clean cache entries
-            if action.parameters.get("cleanup_cache_entries", False) and self.redis_client:
+            if (
+                action.parameters.get("cleanup_cache_entries", False)
+                and self.redis_client
+            ):
                 # Clean old cache entries
                 logger.info("Would clean up old cache entries")
 
@@ -1044,7 +1137,7 @@ class AutomatedOptimizer:
 
     async def _monitor_optimization_result(self, action: OptimizationAction):
         """Monitor the result of an optimization and rollback if needed"""
-        rollback_timeout = self.system_config['optimization']['rollback_timeout']
+        rollback_timeout = self.system_config["optimization"]["rollback_timeout"]
 
         # Wait for the optimization to take effect
         await asyncio.sleep(60)
@@ -1058,7 +1151,9 @@ class AutomatedOptimizer:
         improvement = await self._evaluate_optimization_impact(action, current_metrics)
 
         if improvement < 0:  # Performance degraded
-            logger.warning(f"Optimization {action.id} degraded performance, initiating rollback")
+            logger.warning(
+                f"Optimization {action.id} degraded performance, initiating rollback"
+            )
             await self._rollback_optimization(action)
 
         # Remove from active optimizations
@@ -1066,9 +1161,7 @@ class AutomatedOptimizer:
             del self.active_optimizations[action.id]
 
     async def _evaluate_optimization_impact(
-        self,
-        action: OptimizationAction,
-        current_metrics: Dict[str, Any]
+        self, action: OptimizationAction, current_metrics: Dict[str, Any]
     ) -> float:
         """Evaluate the impact of an optimization"""
         # Calculate improvement based on expected impact
@@ -1081,7 +1174,9 @@ class AutomatedOptimizer:
                 # For simplicity, assume baseline value and calculate improvement
                 # In a real implementation, you'd compare with pre-optimization metrics
                 baseline_value = current_value * (1 + (expected_change / 100))
-                actual_change = ((baseline_value - current_value) / baseline_value) * 100
+                actual_change = (
+                    (baseline_value - current_value) / baseline_value
+                ) * 100
 
                 total_expected_impact += abs(expected_change)
                 total_actual_impact += actual_change
@@ -1109,7 +1204,7 @@ class AutomatedOptimizer:
                 parameters=action.rollback_parameters,
                 expected_impact={},
                 rollback_parameters=None,
-                confidence_score=1.0
+                confidence_score=1.0,
             )
 
             success = await self._apply_action(rollback_action)
@@ -1122,30 +1217,32 @@ class AutomatedOptimizer:
         except Exception as e:
             logger.error(f"Error during rollback of {action.id}: {e}")
 
-    async def _detect_performance_patterns(self, data: List[Dict[str, Any]]) -> List[PerformancePattern]:
+    async def _detect_performance_patterns(
+        self, data: List[Dict[str, Any]]
+    ) -> List[PerformancePattern]:
         """Detect performance patterns in historical data"""
         patterns = []
 
         try:
             df = pd.DataFrame(data)
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-            df.set_index('timestamp', inplace=True)
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            df.set_index("timestamp", inplace=True)
 
             # Detect seasonal patterns (daily/weekly)
-            for metric in ['cpu_percent', 'memory_percent', 'avg_response_time']:
+            for metric in ["cpu_percent", "memory_percent", "avg_response_time"]:
                 if metric in df.columns:
                     # Daily pattern
-                    daily_pattern = self._detect_seasonal_pattern(df[metric], 'daily')
+                    daily_pattern = self._detect_seasonal_pattern(df[metric], "daily")
                     if daily_pattern:
                         patterns.append(daily_pattern)
 
                     # Weekly pattern
-                    weekly_pattern = self._detect_seasonal_pattern(df[metric], 'weekly')
+                    weekly_pattern = self._detect_seasonal_pattern(df[metric], "weekly")
                     if weekly_pattern:
                         patterns.append(weekly_pattern)
 
             # Detect trends
-            for metric in ['cpu_percent', 'memory_percent', 'throughput']:
+            for metric in ["cpu_percent", "memory_percent", "throughput"]:
                 if metric in df.columns:
                     trend = self._detect_trend(df[metric])
                     if trend:
@@ -1160,16 +1257,18 @@ class AutomatedOptimizer:
 
         return patterns
 
-    def _detect_seasonal_pattern(self, series: pd.Series, period: str) -> Optional[PerformancePattern]:
+    def _detect_seasonal_pattern(
+        self, series: pd.Series, period: str
+    ) -> Optional[PerformancePattern]:
         """Detect seasonal patterns in time series"""
         try:
             if len(series) < 24:  # Need at least 24 data points
                 return None
 
             # Simple seasonality detection using autocorrelation
-            if period == 'daily':
+            if period == "daily":
                 lag = 24  # Assuming hourly data
-            elif period == 'weekly':
+            elif period == "weekly":
                 lag = 24 * 7  # Weekly pattern
             else:
                 return None
@@ -1185,7 +1284,9 @@ class AutomatedOptimizer:
                     metrics=[series.name],
                     time_range=(series.index.min(), series.index.max()),
                     parameters={"period": period, "autocorrelation": autocorr},
-                    recommendations=[f"Consider {period}-based resource scaling for {series.name}"]
+                    recommendations=[
+                        f"Consider {period}-based resource scaling for {series.name}"
+                    ],
                 )
 
         except Exception as e:
@@ -1219,8 +1320,14 @@ class AutomatedOptimizer:
                     confidence=abs(r_squared),
                     metrics=[series.name],
                     time_range=(series.index.min(), series.index.max()),
-                    parameters={"slope": slope, "r_squared": r_squared, "direction": trend_direction},
-                    recommendations=[f"Monitor {series.name} trend and plan capacity accordingly"]
+                    parameters={
+                        "slope": slope,
+                        "r_squared": r_squared,
+                        "direction": trend_direction,
+                    },
+                    recommendations=[
+                        f"Monitor {series.name} trend and plan capacity accordingly"
+                    ],
                 )
 
         except Exception as e:
@@ -1249,16 +1356,24 @@ class AutomatedOptimizer:
                         metric1 = correlation_matrix.columns[i]
                         metric2 = correlation_matrix.columns[j]
 
-                        patterns.append(PerformancePattern(
-                            pattern_id=f"correlation_{metric1}_{metric2}_{int(time.time())}",
-                            pattern_type="correlation",
-                            description=f"Strong correlation ({corr_value:.3f}) between {metric1} and {metric2}",
-                            confidence=abs(corr_value),
-                            metrics=[metric1, metric2],
-                            time_range=(df.index.min(), df.index.max()),
-                            parameters={"correlation": corr_value, "metric1": metric1, "metric2": metric2},
-                            recommendations=[f"Consider joint optimization of {metric1} and {metric2}"]
-                        ))
+                        patterns.append(
+                            PerformancePattern(
+                                pattern_id=f"correlation_{metric1}_{metric2}_{int(time.time())}",
+                                pattern_type="correlation",
+                                description=f"Strong correlation ({corr_value:.3f}) between {metric1} and {metric2}",
+                                confidence=abs(corr_value),
+                                metrics=[metric1, metric2],
+                                time_range=(df.index.min(), df.index.max()),
+                                parameters={
+                                    "correlation": corr_value,
+                                    "metric1": metric1,
+                                    "metric2": metric2,
+                                },
+                                recommendations=[
+                                    f"Consider joint optimization of {metric1} and {metric2}"
+                                ],
+                            )
+                        )
 
         except Exception as e:
             logger.error(f"Error detecting correlations: {e}")
@@ -1274,7 +1389,9 @@ class AutomatedOptimizer:
 
         predictions = await self.ml_predictor.predict_performance(current_metrics)
         issues = await self._detect_performance_issues(current_metrics, predictions)
-        recommendations = await self._generate_optimization_recommendations(current_metrics, predictions, issues)
+        recommendations = await self._generate_optimization_recommendations(
+            current_metrics, predictions, issues
+        )
 
         return recommendations
 
@@ -1282,7 +1399,9 @@ class AutomatedOptimizer:
         """Get detected performance patterns"""
         return self.performance_patterns
 
-    async def get_optimization_history(self, limit: int = 50) -> List[OptimizationAction]:
+    async def get_optimization_history(
+        self, limit: int = 50
+    ) -> List[OptimizationAction]:
         """Get optimization history"""
         return self.optimization_history[-limit:]
 
@@ -1300,31 +1419,45 @@ class AutomatedOptimizer:
     async def get_system_status(self) -> Dict[str, Any]:
         """Get overall system optimization status"""
         current_metrics = await self._collect_current_metrics()
-        predictions = await self.ml_predictor.predict_performance(current_metrics) if current_metrics else {}
-        issues = await self._detect_performance_issues(current_metrics, predictions) if current_metrics else []
+        predictions = (
+            await self.ml_predictor.predict_performance(current_metrics)
+            if current_metrics
+            else {}
+        )
+        issues = (
+            await self._detect_performance_issues(current_metrics, predictions)
+            if current_metrics
+            else []
+        )
 
         return {
             "is_running": self.is_running,
             "active_optimizations": len(self.active_optimizations),
             "total_optimizations": len(self.optimization_history),
-            "success_rate": sum(1 for opt in self.optimization_history if opt.success) / max(1, len(self.optimization_history)),
+            "success_rate": sum(1 for opt in self.optimization_history if opt.success)
+            / max(1, len(self.optimization_history)),
             "current_metrics": current_metrics,
             "predictions": predictions,
             "active_issues": len(issues),
             "detected_patterns": len(self.performance_patterns),
             "ml_models_trained": self.ml_predictor.is_trained,
-            "last_model_update": self.ml_predictor.last_model_update
+            "last_model_update": self.ml_predictor.last_model_update,
         }
+
 
 # Global optimizer instance
 automated_optimizer = AutomatedOptimizer()
 
+
 # Startup and shutdown functions
-async def initialize_automated_optimization(redis_url: Optional[str] = None, config_file: Optional[str] = None):
+async def initialize_automated_optimization(
+    redis_url: Optional[str] = None, config_file: Optional[str] = None
+):
     """Initialize automated optimization system"""
     await automated_optimizer.initialize(redis_url, config_file)
     await automated_optimizer.start_optimization()
     logger.info("Automated optimization system initialized")
+
 
 async def shutdown_automated_optimization():
     """Shutdown automated optimization system"""

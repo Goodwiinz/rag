@@ -3,21 +3,26 @@ Audit and compliance service
 Provides comprehensive audit logging, compliance reporting, and security monitoring
 """
 
-import logging
 import json
-from typing import List, Optional, Dict, Any, Union
+import logging
 from datetime import datetime, timedelta, timezone
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func, desc, asc
+from typing import Any, Dict, List, Optional, Union
 
-from src.models.audit import (
-    AuditEvent, ComplianceReport, DataRetentionPolicy, SecurityIncident,
-    AuditEventType, AuditSeverity
-)
-from src.models.user import User
-from src.models.organization import Organization
-from src.middleware.multi_tenancy import get_current_tenant_id, get_current_user_id
+from sqlalchemy import and_, asc, desc, func, or_
+from sqlalchemy.orm import Session
+
 from src.core.database import get_db
+from src.middleware.multi_tenancy import get_current_tenant_id, get_current_user_id
+from src.models.audit import (
+    AuditEvent,
+    AuditEventType,
+    AuditSeverity,
+    ComplianceReport,
+    DataRetentionPolicy,
+    SecurityIncident,
+)
+from src.models.organization import Organization
+from src.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +52,7 @@ class AuditService:
         user_agent: Optional[str] = None,
         endpoint: Optional[str] = None,
         http_method: Optional[str] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
     ) -> AuditEvent:
         """Log an audit event"""
         try:
@@ -82,7 +87,7 @@ class AuditService:
                 new_values=new_values,
                 success=success,
                 error_message=error_message,
-                error_code=error_code
+                error_code=error_code,
             )
 
             self.db.add(audit_event)
@@ -104,10 +109,12 @@ class AuditService:
         success: bool = True,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ) -> AuditEvent:
         """Log user login attempt"""
-        event_type = AuditEventType.USER_LOGIN if success else AuditEventType.USER_LOGIN_FAILED
+        event_type = (
+            AuditEventType.USER_LOGIN if success else AuditEventType.USER_LOGIN_FAILED
+        )
         severity = AuditSeverity.LOW if success else AuditSeverity.MEDIUM
 
         return self.log_event(
@@ -119,14 +126,11 @@ class AuditService:
             error_message=error_message,
             severity=severity,
             ip_address=ip_address,
-            user_agent=user_agent
+            user_agent=user_agent,
         )
 
     def log_user_logout(
-        self,
-        user_id: str,
-        organization_id: str,
-        session_id: Optional[str] = None
+        self, user_id: str, organization_id: str, session_id: Optional[str] = None
     ) -> AuditEvent:
         """Log user logout"""
         return self.log_event(
@@ -135,7 +139,7 @@ class AuditService:
             user_id=user_id,
             organization_id=organization_id,
             session_id=session_id,
-            severity=AuditSeverity.LOW
+            severity=AuditSeverity.LOW,
         )
 
     def log_document_access(
@@ -145,7 +149,7 @@ class AuditService:
         document_id: str,
         action: str = "access",
         success: bool = True,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ) -> AuditEvent:
         """Log document access"""
         return self.log_event(
@@ -157,7 +161,7 @@ class AuditService:
             resource_id=document_id,
             success=success,
             error_message=error_message,
-            severity=AuditSeverity.LOW
+            severity=AuditSeverity.LOW,
         )
 
     def log_search_query(
@@ -167,7 +171,7 @@ class AuditService:
         query: str,
         result_count: int,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
     ) -> AuditEvent:
         """Log search query"""
         return self.log_event(
@@ -176,13 +180,10 @@ class AuditService:
             user_id=user_id,
             organization_id=organization_id,
             resource_type="search_query",
-            details={
-                "query": query,
-                "result_count": result_count
-            },
+            details={"query": query, "result_count": result_count},
             ip_address=ip_address,
             user_agent=user_agent,
-            severity=AuditSeverity.LOW
+            severity=AuditSeverity.LOW,
         )
 
     def log_security_event(
@@ -193,7 +194,7 @@ class AuditService:
         user_id: Optional[str] = None,
         severity: Union[AuditSeverity, str] = AuditSeverity.HIGH,
         details: Optional[Dict[str, Any]] = None,
-        ip_address: Optional[str] = None
+        ip_address: Optional[str] = None,
     ) -> AuditEvent:
         """Log security event"""
         return self.log_event(
@@ -203,7 +204,7 @@ class AuditService:
             organization_id=organization_id,
             details=details,
             severity=severity,
-            ip_address=ip_address
+            ip_address=ip_address,
         )
 
     def get_audit_events(
@@ -217,7 +218,7 @@ class AuditService:
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
     ) -> List[AuditEvent]:
         """Get audit events with filtering"""
         try:
@@ -242,7 +243,12 @@ class AuditService:
                 query = query.filter(AuditEvent.created_at <= end_date)
 
             # Order and paginate
-            events = query.order_by(desc(AuditEvent.created_at)).offset(offset).limit(limit).all()
+            events = (
+                query.order_by(desc(AuditEvent.created_at))
+                .offset(offset)
+                .limit(limit)
+                .all()
+            )
             return events
 
         except Exception as e:
@@ -250,60 +256,77 @@ class AuditService:
             return []
 
     def get_user_activity_summary(
-        self,
-        organization_id: str,
-        user_id: str,
-        days: int = 30
+        self, organization_id: str, user_id: str, days: int = 30
     ) -> Dict[str, Any]:
         """Get activity summary for a user"""
         try:
             start_date = datetime.now(timezone.utc) - timedelta(days=days)
 
             # Get various metrics
-            total_events = self.db.query(func.count(AuditEvent.id)).filter(
-                and_(
-                    AuditEvent.organization_id == organization_id,
-                    AuditEvent.user_id == user_id,
-                    AuditEvent.created_at >= start_date
+            total_events = (
+                self.db.query(func.count(AuditEvent.id))
+                .filter(
+                    and_(
+                        AuditEvent.organization_id == organization_id,
+                        AuditEvent.user_id == user_id,
+                        AuditEvent.created_at >= start_date,
+                    )
                 )
-            ).scalar()
+                .scalar()
+            )
 
-            failed_events = self.db.query(func.count(AuditEvent.id)).filter(
-                and_(
-                    AuditEvent.organization_id == organization_id,
-                    AuditEvent.user_id == user_id,
-                    AuditEvent.success == False,
-                    AuditEvent.created_at >= start_date
+            failed_events = (
+                self.db.query(func.count(AuditEvent.id))
+                .filter(
+                    and_(
+                        AuditEvent.organization_id == organization_id,
+                        AuditEvent.user_id == user_id,
+                        AuditEvent.success == False,
+                        AuditEvent.created_at >= start_date,
+                    )
                 )
-            ).scalar()
+                .scalar()
+            )
 
             # Event type breakdown
-            event_types = self.db.query(
-                AuditEvent.event_type,
-                func.count(AuditEvent.id).label('count')
-            ).filter(
-                and_(
-                    AuditEvent.organization_id == organization_id,
-                    AuditEvent.user_id == user_id,
-                    AuditEvent.created_at >= start_date
+            event_types = (
+                self.db.query(
+                    AuditEvent.event_type, func.count(AuditEvent.id).label("count")
                 )
-            ).group_by(AuditEvent.event_type).all()
+                .filter(
+                    and_(
+                        AuditEvent.organization_id == organization_id,
+                        AuditEvent.user_id == user_id,
+                        AuditEvent.created_at >= start_date,
+                    )
+                )
+                .group_by(AuditEvent.event_type)
+                .all()
+            )
 
             # Recent activity
-            recent_events = self.db.query(AuditEvent).filter(
-                and_(
-                    AuditEvent.organization_id == organization_id,
-                    AuditEvent.user_id == user_id
+            recent_events = (
+                self.db.query(AuditEvent)
+                .filter(
+                    and_(
+                        AuditEvent.organization_id == organization_id,
+                        AuditEvent.user_id == user_id,
+                    )
                 )
-            ).order_by(desc(AuditEvent.created_at)).limit(10).all()
+                .order_by(desc(AuditEvent.created_at))
+                .limit(10)
+                .all()
+            )
 
             return {
                 "period_days": days,
                 "total_events": total_events or 0,
                 "failed_events": failed_events or 0,
-                "success_rate": ((total_events - failed_events) / total_events * 100) if total_events > 0 else 100,
+                "success_rate": ((total_events - failed_events) / total_events * 100)
+                if total_events > 0
+                else 100,
                 "event_types": {et.event_type: et.count for et in event_types},
-                "recent_activity": [event.to_dict() for event in recent_events]
+                "recent_activity": [event.to_dict() for event in recent_events],
             }
 
         except Exception as e:
@@ -318,7 +341,7 @@ class AuditService:
         period_start: datetime,
         period_end: datetime,
         generated_by: str,
-        description: Optional[str] = None
+        description: Optional[str] = None,
     ) -> ComplianceReport:
         """Create a compliance report"""
         try:
@@ -332,7 +355,7 @@ class AuditService:
                 period_end=period_end,
                 data={},
                 metrics={},
-                status="pending"
+                status="pending",
             )
 
             self.db.add(report)
@@ -361,7 +384,9 @@ class AuditService:
             elif report.report_type == "access_audit":
                 data = self._generate_access_audit(org_id, start_date, end_date)
             elif report.report_type == "data_retention":
-                data = self._generate_data_retention_report(org_id, start_date, end_date)
+                data = self._generate_data_retention_report(
+                    org_id, start_date, end_date
+                )
             else:
                 data = {"message": "Unknown report type"}
 
@@ -381,73 +406,118 @@ class AuditService:
             self.db.commit()
             raise
 
-    def _generate_security_summary(self, org_id: str, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+    def _generate_security_summary(
+        self, org_id: str, start_date: datetime, end_date: datetime
+    ) -> Dict[str, Any]:
         """Generate security summary report data"""
         try:
             # Get security events
-            security_events = self.db.query(AuditEvent).filter(
-                and_(
-                    AuditEvent.organization_id == org_id,
-                    AuditEvent.created_at >= start_date,
-                    AuditEvent.created_at <= end_date,
-                    or_(
-                        AuditEvent.event_type.in_([
-                            AuditEventType.USER_LOGIN_FAILED,
-                            AuditEventType.ACCESS_VIOLATION,
-                            AuditEventType.SECURITY_EVENT
-                        ]),
-                        AuditEvent.severity.in_([AuditSeverity.HIGH.value, AuditSeverity.CRITICAL.value])
+            security_events = (
+                self.db.query(AuditEvent)
+                .filter(
+                    and_(
+                        AuditEvent.organization_id == org_id,
+                        AuditEvent.created_at >= start_date,
+                        AuditEvent.created_at <= end_date,
+                        or_(
+                            AuditEvent.event_type.in_(
+                                [
+                                    AuditEventType.USER_LOGIN_FAILED,
+                                    AuditEventType.ACCESS_VIOLATION,
+                                    AuditEventType.SECURITY_EVENT,
+                                ]
+                            ),
+                            AuditEvent.severity.in_(
+                                [AuditSeverity.HIGH.value, AuditSeverity.CRITICAL.value]
+                            ),
+                        ),
                     )
                 )
-            ).all()
+                .all()
+            )
 
             # Get login statistics
-            successful_logins = self.db.query(func.count(AuditEvent.id)).filter(
-                and_(
-                    AuditEvent.organization_id == org_id,
-                    AuditEvent.event_type == AuditEventType.USER_LOGIN,
-                    AuditEvent.success == True,
-                    AuditEvent.created_at >= start_date,
-                    AuditEvent.created_at <= end_date
+            successful_logins = (
+                self.db.query(func.count(AuditEvent.id))
+                .filter(
+                    and_(
+                        AuditEvent.organization_id == org_id,
+                        AuditEvent.event_type == AuditEventType.USER_LOGIN,
+                        AuditEvent.success == True,
+                        AuditEvent.created_at >= start_date,
+                        AuditEvent.created_at <= end_date,
+                    )
                 )
-            ).scalar()
+                .scalar()
+            )
 
-            failed_logins = self.db.query(func.count(AuditEvent.id)).filter(
-                and_(
-                    AuditEvent.organization_id == org_id,
-                    AuditEvent.event_type == AuditEventType.USER_LOGIN_FAILED,
-                    AuditEvent.created_at >= start_date,
-                    AuditEvent.created_at <= end_date
+            failed_logins = (
+                self.db.query(func.count(AuditEvent.id))
+                .filter(
+                    and_(
+                        AuditEvent.organization_id == org_id,
+                        AuditEvent.event_type == AuditEventType.USER_LOGIN_FAILED,
+                        AuditEvent.created_at >= start_date,
+                        AuditEvent.created_at <= end_date,
+                    )
                 )
-            ).scalar()
+                .scalar()
+            )
 
             # Active users
-            active_users = self.db.query(func.count(func.distinct(AuditEvent.user_id))).filter(
-                and_(
-                    AuditEvent.organization_id == org_id,
-                    AuditEvent.created_at >= start_date,
-                    AuditEvent.created_at <= end_date
+            active_users = (
+                self.db.query(func.count(func.distinct(AuditEvent.user_id)))
+                .filter(
+                    and_(
+                        AuditEvent.organization_id == org_id,
+                        AuditEvent.created_at >= start_date,
+                        AuditEvent.created_at <= end_date,
+                    )
                 )
-            ).scalar()
+                .scalar()
+            )
 
             data = {
                 "security_events": [event.to_dict() for event in security_events],
-                "security_incidents": [event.to_dict() for event in security_events if event.severity in [AuditSeverity.HIGH.value, AuditSeverity.CRITICAL.value]]
+                "security_incidents": [
+                    event.to_dict()
+                    for event in security_events
+                    if event.severity
+                    in [AuditSeverity.HIGH.value, AuditSeverity.CRITICAL.value]
+                ],
             }
 
             metrics = {
                 "total_security_events": len(security_events),
                 "successful_logins": successful_logins or 0,
                 "failed_logins": failed_logins or 0,
-                "login_success_rate": ((successful_logins / (successful_logins + failed_logins)) * 100) if (successful_logins + failed_logins) > 0 else 100,
+                "login_success_rate": (
+                    (successful_logins / (successful_logins + failed_logins)) * 100
+                )
+                if (successful_logins + failed_logins) > 0
+                else 100,
                 "active_users": active_users or 0,
-                "high_severity_events": len([e for e in security_events if e.severity == AuditSeverity.HIGH.value]),
-                "critical_severity_events": len([e for e in security_events if e.severity == AuditSeverity.CRITICAL.value])
+                "high_severity_events": len(
+                    [
+                        e
+                        for e in security_events
+                        if e.severity == AuditSeverity.HIGH.value
+                    ]
+                ),
+                "critical_severity_events": len(
+                    [
+                        e
+                        for e in security_events
+                        if e.severity == AuditSeverity.CRITICAL.value
+                    ]
+                ),
             }
 
-            summary = f"Security summary for period {start_date.date()} to {end_date.date()}. " \
-                      f"Total security events: {len(security_events)}. " \
-                      f"Login success rate: {metrics['login_success_rate']:.1f}%."
+            summary = (
+                f"Security summary for period {start_date.date()} to {end_date.date()}. "
+                f"Total security events: {len(security_events)}. "
+                f"Login success rate: {metrics['login_success_rate']:.1f}%."
+            )
 
             return {"data": data, "metrics": metrics, "summary": summary}
 
@@ -455,28 +525,38 @@ class AuditService:
             logger.error(f"Failed to generate security summary: {e}")
             return {"data": {}, "metrics": {}, "summary": f"Error: {str(e)}"}
 
-    def _generate_access_audit(self, org_id: str, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+    def _generate_access_audit(
+        self, org_id: str, start_date: datetime, end_date: datetime
+    ) -> Dict[str, Any]:
         """Generate access audit report data"""
         try:
             # Get document access events
-            access_events = self.db.query(AuditEvent).filter(
-                and_(
-                    AuditEvent.organization_id == org_id,
-                    AuditEvent.event_type == AuditEventType.DOCUMENT_ACCESS,
-                    AuditEvent.created_at >= start_date,
-                    AuditEvent.created_at <= end_date
+            access_events = (
+                self.db.query(AuditEvent)
+                .filter(
+                    and_(
+                        AuditEvent.organization_id == org_id,
+                        AuditEvent.event_type == AuditEventType.DOCUMENT_ACCESS,
+                        AuditEvent.created_at >= start_date,
+                        AuditEvent.created_at <= end_date,
+                    )
                 )
-            ).all()
+                .all()
+            )
 
             # Get access violations
-            violations = self.db.query(AuditEvent).filter(
-                and_(
-                    AuditEvent.organization_id == org_id,
-                    AuditEvent.event_type == AuditEventType.ACCESS_VIOLATION,
-                    AuditEvent.created_at >= start_date,
-                    AuditEvent.created_at <= end_date
+            violations = (
+                self.db.query(AuditEvent)
+                .filter(
+                    and_(
+                        AuditEvent.organization_id == org_id,
+                        AuditEvent.event_type == AuditEventType.ACCESS_VIOLATION,
+                        AuditEvent.created_at >= start_date,
+                        AuditEvent.created_at <= end_date,
+                    )
                 )
-            ).all()
+                .all()
+            )
 
             # Group by user
             user_access = {}
@@ -491,19 +571,23 @@ class AuditService:
             data = {
                 "access_events": [event.to_dict() for event in access_events],
                 "access_violations": [event.to_dict() for event in violations],
-                "user_access_summary": user_access
+                "user_access_summary": user_access,
             }
 
             metrics = {
                 "total_access_events": len(access_events),
                 "access_violations": len(violations),
                 "unique_users": len(user_access),
-                "failed_access_attempts": sum(user["failed_count"] for user in user_access.values())
+                "failed_access_attempts": sum(
+                    user["failed_count"] for user in user_access.values()
+                ),
             }
 
-            summary = f"Access audit for period {start_date.date()} to {end_date.date()}. " \
-                      f"Total access events: {len(access_events)}. " \
-                      f"Access violations: {len(violations)}."
+            summary = (
+                f"Access audit for period {start_date.date()} to {end_date.date()}. "
+                f"Total access events: {len(access_events)}. "
+                f"Access violations: {len(violations)}."
+            )
 
             return {"data": data, "metrics": metrics, "summary": summary}
 
@@ -511,43 +595,59 @@ class AuditService:
             logger.error(f"Failed to generate access audit: {e}")
             return {"data": {}, "metrics": {}, "summary": f"Error: {str(e)}"}
 
-    def _generate_data_retention_report(self, org_id: str, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+    def _generate_data_retention_report(
+        self, org_id: str, start_date: datetime, end_date: datetime
+    ) -> Dict[str, Any]:
         """Generate data retention report data"""
         try:
             # Get data export events
-            export_events = self.db.query(AuditEvent).filter(
-                and_(
-                    AuditEvent.organization_id == org_id,
-                    AuditEvent.event_type == AuditEventType.DATA_EXPORT,
-                    AuditEvent.created_at >= start_date,
-                    AuditEvent.created_at <= end_date
+            export_events = (
+                self.db.query(AuditEvent)
+                .filter(
+                    and_(
+                        AuditEvent.organization_id == org_id,
+                        AuditEvent.event_type == AuditEventType.DATA_EXPORT,
+                        AuditEvent.created_at >= start_date,
+                        AuditEvent.created_at <= end_date,
+                    )
                 )
-            ).all()
+                .all()
+            )
 
             # Get privacy requests
-            privacy_requests = self.db.query(AuditEvent).filter(
-                and_(
-                    AuditEvent.organization_id == org_id,
-                    AuditEvent.event_type == AuditEventType.PRIVACY_REQUEST,
-                    AuditEvent.created_at >= start_date,
-                    AuditEvent.created_at <= end_date
+            privacy_requests = (
+                self.db.query(AuditEvent)
+                .filter(
+                    and_(
+                        AuditEvent.organization_id == org_id,
+                        AuditEvent.event_type == AuditEventType.PRIVACY_REQUEST,
+                        AuditEvent.created_at >= start_date,
+                        AuditEvent.created_at <= end_date,
+                    )
                 )
-            ).all()
+                .all()
+            )
 
             data = {
                 "export_events": [event.to_dict() for event in export_events],
-                "privacy_requests": [event.to_dict() for event in privacy_requests]
+                "privacy_requests": [event.to_dict() for event in privacy_requests],
             }
 
             metrics = {
                 "data_exports": len(export_events),
                 "privacy_requests": len(privacy_requests),
-                "export_volume": sum(event.details.get("file_size", 0) for event in export_events if event.details)
+                "export_volume": sum(
+                    event.details.get("file_size", 0)
+                    for event in export_events
+                    if event.details
+                ),
             }
 
-            summary = f"Data retention report for period {start_date.date()} to {end_date.date()}. " \
-                      f"Data exports: {len(export_events)}. " \
-                      f"Privacy requests: {len(privacy_requests)}."
+            summary = (
+                f"Data retention report for period {start_date.date()} to {end_date.date()}. "
+                f"Data exports: {len(export_events)}. "
+                f"Privacy requests: {len(privacy_requests)}."
+            )
 
             return {"data": data, "metrics": metrics, "summary": summary}
 
@@ -567,7 +667,7 @@ class AuditService:
         source_details: Optional[Dict[str, Any]] = None,
         affected_users: Optional[List[str]] = None,
         affected_resources: Optional[List[str]] = None,
-        impact_assessment: Optional[str] = None
+        impact_assessment: Optional[str] = None,
     ) -> SecurityIncident:
         """Create a security incident"""
         try:
@@ -589,7 +689,7 @@ class AuditService:
                 source_details=source_details,
                 affected_users=affected_users,
                 affected_resources=affected_resources,
-                impact_assessment=impact_assessment
+                impact_assessment=impact_assessment,
             )
 
             self.db.add(incident)
@@ -605,8 +705,8 @@ class AuditService:
                 details={
                     "incident_id": incident_id,
                     "category": category,
-                    "affected_users": len(affected_users) if affected_users else 0
-                }
+                    "affected_users": len(affected_users) if affected_users else 0,
+                },
             )
 
             logger.info(f"Security incident created: {incident_id}")
@@ -624,7 +724,7 @@ class AuditService:
         severity: Optional[str] = None,
         category: Optional[str] = None,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
     ) -> List[SecurityIncident]:
         """Get security incidents with filtering"""
         try:
@@ -639,7 +739,12 @@ class AuditService:
             if category:
                 query = query.filter(SecurityIncident.category == category)
 
-            incidents = query.order_by(desc(SecurityIncident.detected_at)).offset(offset).limit(limit).all()
+            incidents = (
+                query.order_by(desc(SecurityIncident.detected_at))
+                .offset(offset)
+                .limit(limit)
+                .all()
+            )
             return incidents
 
         except Exception as e:
@@ -652,9 +757,11 @@ class AuditService:
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
             # Count events to be deleted
-            count = self.db.query(func.count(AuditEvent.id)).filter(
-                AuditEvent.created_at < cutoff_date
-            ).scalar()
+            count = (
+                self.db.query(func.count(AuditEvent.id))
+                .filter(AuditEvent.created_at < cutoff_date)
+                .scalar()
+            )
 
             # Delete old events
             self.db.query(AuditEvent).filter(
@@ -663,7 +770,9 @@ class AuditService:
 
             self.db.commit()
 
-            logger.info(f"Cleaned up {count} old audit events older than {retention_days} days")
+            logger.info(
+                f"Cleaned up {count} old audit events older than {retention_days} days"
+            )
             return count
 
         except Exception as e:
@@ -685,15 +794,14 @@ class AuditService:
 
 # Utility functions
 
+
 def get_audit_service(db: Session = None) -> AuditService:
     """Get audit service instance"""
     return AuditService(db)
 
 
 def log_audit_event(
-    event_type: Union[AuditEventType, str],
-    action: str,
-    **kwargs
+    event_type: Union[AuditEventType, str], action: str, **kwargs
 ) -> AuditEvent:
     """Utility function to log audit event"""
     with AuditService() as audit:

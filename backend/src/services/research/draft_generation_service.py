@@ -16,14 +16,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.citation import Citation
 from src.models.document import Document
-from src.models.generated_draft import GeneratedDraft
 from src.models.draft_citation import DraftCitation
+from src.models.generated_draft import GeneratedDraft
 
 logger = structlog.get_logger(__name__)
 
 
 class DraftGenerationStatus:
     """Tracks draft generation progress"""
+
     PENDING = "pending"
     ANALYZING = "analyzing"
     GENERATING = "generating"
@@ -118,7 +119,9 @@ class DraftGenerationService:
 
         try:
             # Phase 1: Analyzing documents
-            self._update_status(task_id, DraftGenerationStatus.ANALYZING, 10, "Analyzing documents")
+            self._update_status(
+                task_id, DraftGenerationStatus.ANALYZING, 10, "Analyzing documents"
+            )
 
             # Get documents for the project
             if document_ids:
@@ -126,6 +129,7 @@ class DraftGenerationService:
             else:
                 # Get all documents in project through project_documents
                 from src.models.project_document import ProjectDocument
+
                 docs_query = (
                     select(Document)
                     .join(ProjectDocument, Document.id == ProjectDocument.document_id)
@@ -136,13 +140,17 @@ class DraftGenerationService:
             documents = result.scalars().all()
 
             if not documents:
-                self._update_status(task_id, DraftGenerationStatus.FAILED, 0, "No documents found")
+                self._update_status(
+                    task_id, DraftGenerationStatus.FAILED, 0, "No documents found"
+                )
                 return
 
             await asyncio.sleep(0.5)  # Simulate processing
 
             # Phase 2: Generating content
-            self._update_status(task_id, DraftGenerationStatus.GENERATING, 30, "Generating content")
+            self._update_status(
+                task_id, DraftGenerationStatus.GENERATING, 30, "Generating content"
+            )
 
             # Build draft content
             draft_content = await self._build_draft_content(
@@ -153,17 +161,25 @@ class DraftGenerationService:
                 include_abstract=include_abstract,
             )
 
-            self._update_status(task_id, DraftGenerationStatus.GENERATING, 60, "Building sections")
+            self._update_status(
+                task_id, DraftGenerationStatus.GENERATING, 60, "Building sections"
+            )
             await asyncio.sleep(0.3)
 
             # Phase 3: Adding citations
-            self._update_status(task_id, DraftGenerationStatus.CITING, 80, "Adding citations")
+            self._update_status(
+                task_id, DraftGenerationStatus.CITING, 80, "Adding citations"
+            )
 
             # Extract citations
-            citations_data = self._extract_citations_from_content(draft_content, documents)
+            citations_data = self._extract_citations_from_content(
+                draft_content, documents
+            )
 
             # Phase 4: Finalizing
-            self._update_status(task_id, DraftGenerationStatus.FINALIZING, 90, "Finalizing draft")
+            self._update_status(
+                task_id, DraftGenerationStatus.FINALIZING, 90, "Finalizing draft"
+            )
 
             # Get next version number
             version_query = select(func.max(GeneratedDraft.version)).where(
@@ -237,11 +253,15 @@ class DraftGenerationService:
             )
 
         except asyncio.CancelledError:
-            self._update_status(task_id, DraftGenerationStatus.CANCELLED, 0, "Generation cancelled")
+            self._update_status(
+                task_id, DraftGenerationStatus.CANCELLED, 0, "Generation cancelled"
+            )
             logger.info("draft_generation_cancelled", task_id=task_id)
 
         except Exception as e:
-            self._update_status(task_id, DraftGenerationStatus.FAILED, 0, f"Error: {str(e)}")
+            self._update_status(
+                task_id, DraftGenerationStatus.FAILED, 0, f"Error: {str(e)}"
+            )
             logger.error("draft_generation_failed", task_id=task_id, error=str(e))
 
     async def _build_draft_content(
@@ -273,9 +293,11 @@ The field encompassing {themes[0] if themes else 'this research area'} has seen 
         sections.append(intro)
 
         # Theme sections
-        for i, theme in enumerate(themes[:max_sections - 2], start=2):
+        for i, theme in enumerate(themes[: max_sections - 2], start=2):
             doc_refs = []
-            for j, doc in enumerate(documents[:3], start=1):  # Use up to 3 docs per theme
+            for j, doc in enumerate(
+                documents[:3], start=1
+            ):  # Use up to 3 docs per theme
                 doc_refs.append(f"[Doc {j}]")
 
             section = f"""## {i}. {theme.title()}
@@ -308,7 +330,7 @@ Key takeaways include the importance of continued investigation and the potentia
         import re
 
         citations = []
-        pattern = r'\[Doc (\d+)\]'
+        pattern = r"\[Doc (\d+)\]"
         matches = re.findall(pattern, content)
 
         seen = set()
@@ -317,12 +339,14 @@ Key takeaways include the importance of continued investigation and the potentia
             if doc_idx < len(documents) and doc_idx not in seen:
                 seen.add(doc_idx)
                 doc = documents[doc_idx]
-                citations.append({
-                    "document_id": doc.id,
-                    "citation_id": None,
-                    "snippet": doc.title[:200] if doc.title else "",
-                    "context": f"Referenced as [Doc {match}]",
-                })
+                citations.append(
+                    {
+                        "document_id": doc.id,
+                        "citation_id": None,
+                        "snippet": doc.title[:200] if doc.title else "",
+                        "context": f"Referenced as [Doc {match}]",
+                    }
+                )
 
         return citations
 
@@ -336,13 +360,15 @@ Key takeaways include the importance of continued investigation and the potentia
     ) -> None:
         """Update generation status"""
         if task_id in _generation_status:
-            _generation_status[task_id].update({
-                "status": status,
-                "progress": progress,
-                "current_step": step,
-                "updated_at": datetime.utcnow().isoformat(),
-                **extra,
-            })
+            _generation_status[task_id].update(
+                {
+                    "status": status,
+                    "progress": progress,
+                    "current_step": step,
+                    "updated_at": datetime.utcnow().isoformat(),
+                    **extra,
+                }
+            )
 
     @staticmethod
     def get_status(task_id: str) -> Optional[Dict[str, Any]]:
@@ -494,13 +520,17 @@ Key takeaways include the importance of continued investigation and the potentia
                 "version": draft_a.version,
                 "word_count": draft_a.word_count,
                 "citation_count": draft_a.citation_count,
-                "created_at": draft_a.created_at.isoformat() if draft_a.created_at else None,
+                "created_at": draft_a.created_at.isoformat()
+                if draft_a.created_at
+                else None,
             },
             "version_b": {
                 "version": draft_b.version,
                 "word_count": draft_b.word_count,
                 "citation_count": draft_b.citation_count,
-                "created_at": draft_b.created_at.isoformat() if draft_b.created_at else None,
+                "created_at": draft_b.created_at.isoformat()
+                if draft_b.created_at
+                else None,
             },
             "word_count_diff": draft_b.word_count - draft_a.word_count,
             "citation_count_diff": draft_b.citation_count - draft_a.citation_count,
@@ -571,14 +601,16 @@ Key takeaways include the importance of continued investigation and the potentia
         latex = markdown_content
 
         # Convert headers
-        latex = re.sub(r'^## (\d+\.\s)?(.+)$', r'\\section{\2}', latex, flags=re.MULTILINE)
-        latex = re.sub(r'^### (.+)$', r'\\subsection{\1}', latex, flags=re.MULTILINE)
+        latex = re.sub(
+            r"^## (\d+\.\s)?(.+)$", r"\\section{\2}", latex, flags=re.MULTILINE
+        )
+        latex = re.sub(r"^### (.+)$", r"\\subsection{\1}", latex, flags=re.MULTILINE)
 
         # Convert [Doc N] to \cite{docN}
-        latex = re.sub(r'\[Doc (\d+)\]', r'\\cite{doc\1}', latex)
+        latex = re.sub(r"\[Doc (\d+)\]", r"\\cite{doc\1}", latex)
 
         # Extract title (avoid backslash in f-string)
-        title_text = markdown_content.split('\n')[0].replace('## ', '')
+        title_text = markdown_content.split("\n")[0].replace("## ", "")
 
         # Wrap in document
         latex = f"""\\documentclass{{article}}

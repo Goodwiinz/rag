@@ -5,15 +5,19 @@ Background job processor for analytics service
 import asyncio
 import logging
 import uuid
-from typing import Dict, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, Optional
+
 from celery import Celery
 
-from src.services.models.analytics_models import (
-    AnalyticsJobRequest, AnalyticsJobResponse, JobType, JobStatus
-)
 from src.services.config.analytics_config import config
 from src.services.knowledge_graph.graph_algorithms import GraphAlgorithms
+from src.services.models.analytics_models import (
+    AnalyticsJobRequest,
+    AnalyticsJobResponse,
+    JobStatus,
+    JobType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +41,7 @@ class BackgroundJobProcessor:
         logger.info("Background job processor stopped")
 
     async def process_job(
-        self,
-        job_id: str,
-        job_type: JobType,
-        parameters: Dict[str, Any],
-        tenant_id: str
+        self, job_id: str, job_type: JobType, parameters: Dict[str, Any], tenant_id: str
     ):
         """Process a single analytics job"""
         try:
@@ -71,9 +71,13 @@ class BackgroundJobProcessor:
 
         except Exception as e:
             logger.error(f"Job {job_id} failed: {e}")
-            await self._update_job_status(job_id, JobStatus.FAILED, error_message=str(e))
+            await self._update_job_status(
+                job_id, JobStatus.FAILED, error_message=str(e)
+            )
 
-    async def _process_centrality_job(self, parameters: Dict[str, Any], tenant_id: str) -> Dict[str, Any]:
+    async def _process_centrality_job(
+        self, parameters: Dict[str, Any], tenant_id: str
+    ) -> Dict[str, Any]:
         """Process centrality computation job"""
         algorithm = parameters.get("algorithm", "pagerank")
         entity_types = parameters.get("entity_types")
@@ -86,10 +90,12 @@ class BackgroundJobProcessor:
             "results": [],
             "computation_time": 0.0,
             "node_count": 0,
-            "job_type": "centrality_computation"
+            "job_type": "centrality_computation",
         }
 
-    async def _process_community_job(self, parameters: Dict[str, Any], tenant_id: str) -> Dict[str, Any]:
+    async def _process_community_job(
+        self, parameters: Dict[str, Any], tenant_id: str
+    ) -> Dict[str, Any]:
         """Process community detection job"""
         algorithm = parameters.get("algorithm", "louvain")
         entity_types = parameters.get("entity_types")
@@ -101,10 +107,12 @@ class BackgroundJobProcessor:
             "computation_time": 0.0,
             "community_count": 0,
             "modularity_score": 0.0,
-            "job_type": "community_detection"
+            "job_type": "community_detection",
         }
 
-    async def _process_path_job(self, parameters: Dict[str, Any], tenant_id: str) -> Dict[str, Any]:
+    async def _process_path_job(
+        self, parameters: Dict[str, Any], tenant_id: str
+    ) -> Dict[str, Any]:
         """Process path analysis job"""
         source_entity_id = parameters.get("source_entity_id")
         target_entity_id = parameters.get("target_entity_id")
@@ -117,10 +125,12 @@ class BackgroundJobProcessor:
             "paths": [],
             "computation_time": 0.0,
             "path_count": 0,
-            "job_type": "path_analysis"
+            "job_type": "path_analysis",
         }
 
-    async def _process_insights_job(self, parameters: Dict[str, Any], tenant_id: str) -> Dict[str, Any]:
+    async def _process_insights_job(
+        self, parameters: Dict[str, Any], tenant_id: str
+    ) -> Dict[str, Any]:
         """Process graph insights job"""
         insight_types = parameters.get("insight_types", [])
 
@@ -128,24 +138,28 @@ class BackgroundJobProcessor:
             "insights": {},
             "insight_types": insight_types,
             "computation_time": 0.0,
-            "job_type": "graph_insights"
+            "job_type": "graph_insights",
         }
 
-    async def _process_anomaly_job(self, parameters: Dict[str, Any], tenant_id: str) -> Dict[str, Any]:
+    async def _process_anomaly_job(
+        self, parameters: Dict[str, Any], tenant_id: str
+    ) -> Dict[str, Any]:
         """Process anomaly detection job"""
         return {
             "anomalies": [],
             "computation_time": 0.0,
             "anomaly_count": 0,
-            "job_type": "anomaly_detection"
+            "job_type": "anomaly_detection",
         }
 
-    async def _process_growth_job(self, parameters: Dict[str, Any], tenant_id: str) -> Dict[str, Any]:
+    async def _process_growth_job(
+        self, parameters: Dict[str, Any], tenant_id: str
+    ) -> Dict[str, Any]:
         """Process growth analysis job"""
         return {
             "growth_trends": [],
             "computation_time": 0.0,
-            "job_type": "growth_analysis"
+            "job_type": "growth_analysis",
         }
 
     async def _update_job_status(
@@ -153,14 +167,14 @@ class BackgroundJobProcessor:
         job_id: str,
         status: JobStatus,
         result: Optional[Dict[str, Any]] = None,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ):
         """Update job status in storage"""
         # This would update job status in Redis or database
         job_data = {
             "job_id": job_id,
             "status": status.value,
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         if result:
@@ -191,5 +205,5 @@ class BackgroundJobProcessor:
             "queued_jobs": 0,
             "running_jobs": len(self.active_jobs),
             "completed_jobs": 0,
-            "failed_jobs": 0
+            "failed_jobs": 0,
         }
