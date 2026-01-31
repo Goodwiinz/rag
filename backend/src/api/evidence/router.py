@@ -4,14 +4,57 @@ Evidence Agreement Meter API endpoints
 
 import asyncio
 import logging
-from typing import List, Optional
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, Request
 from sqlalchemy.orm import Session
 
 from ...core.database import get_db
 from ...core.dependencies import get_current_user
+
+
+# Rate limiter for evidence endpoints
+class EvidenceRateLimiter:
+    """Rate limiter for evidence API endpoints"""
+    
+    def __init__(self, max_requests: int = 60, window_minutes: int = 1):
+        self.max_requests = max_requests
+        self.window_minutes = window_minutes
+        self.requests: Dict[str, List[datetime]] = {}
+    
+    def check_rate_limit(self, identifier: str) -> bool:
+        """Check if request is allowed, raises HTTPException if not"""
+        now = datetime.utcnow()
+        window_start = now - timedelta(minutes=self.window_minutes)
+        
+        if identifier in self.requests:
+            self.requests[identifier] = [
+                req_time for req_time in self.requests[identifier]
+                if req_time > window_start
+            ]
+        else:
+            self.requests[identifier] = []
+        
+        if len(self.requests[identifier]) >= self.max_requests:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Rate limit exceeded. Max {self.max_requests} requests per {self.window_minutes} minute(s)."
+            )
+        
+        self.requests[identifier].append(now)
+        return True
+
+
+evidence_rate_limiter = EvidenceRateLimiter(max_requests=60, window_minutes=1)
+
+
+async def rate_limit_dependency(request: Request):
+    """Dependency to enforce rate limiting"""
+    client_ip = request.client.host if request.client else "unknown"
+    evidence_rate_limiter.check_rate_limit(client_ip)
+    return True
 from ...models.evidence import StanceClassificationModel
 from ...services.evidence import (
     EvidenceCacheService,
@@ -52,9 +95,10 @@ def _generate_reproducibility_hash(claim_hash: str, source_ids: List[str], model
 
 @router.get("/meter", response_model=EvidenceMeter)
 async def get_evidence_meter(
-    claim: str = Query(..., description="The claim to evaluate"),
+    claim: str = Query(..., min_length=10, max_length=1000, description="The claim to evaluate"),
     source_ids: Optional[str] = Query(None, description="Comma-separated source IDs"),
     query_id: Optional[str] = Query(None, description="Optional query ID for context"),
+    _rate_limit: bool = Depends(rate_limit_dependency),
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -163,6 +207,9 @@ async def get_evidence_meter(
 async def get_evidence_breakdown(
     claim_hash: str = Query(..., description="SHA256 hash of claim"),
     stance_filter: Optional[Stance] = Query(None, description="Filter by specific stance"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum sources to return"),
+    offset: int = Query(0, ge=0, description="Number of sources to skip"),
+    _rate_limit: bool = Depends(rate_limit_dependency),
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -182,7 +229,9 @@ async def get_evidence_breakdown(
         if stance_filter:
             query = query.filter(StanceClassificationModel.stance == stance_filter.value)
         
-        classifications = query.all()
+        # Apply pagination
+        total_count = query.count()
+        classifications = query.offset(offset).limit(limit).all()
         
         if not classifications:
             raise HTTPException(status_code=404, detail="No classifications found for this claim")
