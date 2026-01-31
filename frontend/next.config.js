@@ -7,7 +7,7 @@ const nextConfig = {
   output: 'standalone',
 
   // Output file tracing root to resolve workspace warning
-  outputFileTracingRoot: '../..',
+  outputFileTracingRoot: '/home/clawdbot/clawd',
 
   // Ignore TypeScript build errors temporarily
   typescript: {
