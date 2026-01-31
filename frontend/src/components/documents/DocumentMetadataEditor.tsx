@@ -279,6 +279,7 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
                       <button
                         onClick={() => handleRemoveTag(tag)}
                         className="ml-1 text-gray-500 hover:text-gray-700"
+                        aria-label={`Remove tag: ${tag}`}
                       >
                         <XMarkIcon className="h-3 w-3" />
                       </button>

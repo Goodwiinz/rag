@@ -373,6 +373,7 @@ export function ChatInput({
                       size="sm"
                       className="h-5 w-5 text-white hover:bg-white/20"
                       onClick={stopRecording}
+                      aria-label="Stop recording"
                     >
                       <Square className="w-3 h-3 fill-current" />
                     </Button>
@@ -424,6 +425,7 @@ export function ChatInput({
                 isRecording
               }
               size="sm"
+              aria-label={isLoading ? "Stop generation" : "Send message"}
               className={cn(
                 "h-8 min-w-[32px] transition-all",
                 isLoading
