@@ -12,7 +12,6 @@ from celery.exceptions import Retry
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from src.api.document_upload import upload_manager
 from src.core.config import settings
 from src.core.database import get_db
 from src.models.document import Document, ProcessingStatus
@@ -24,6 +23,13 @@ from src.services.processing.multimodal_processing_service import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def get_upload_manager():
+    """Lazy import to avoid circular dependency."""
+    from src.api.documents.document_upload import upload_manager
+    return upload_manager
+
 
 # Initialize Celery
 celery_app = Celery(
@@ -129,7 +135,7 @@ def process_document_upload(self, job_id: str, upload_id: Optional[str] = None):
         # Update upload progress if available
         if upload_id:
             asyncio.run(
-                upload_manager.update_progress(
+                get_upload_manager().update_progress(
                     upload_id, 20.0, "Starting processing pipeline"
                 )
             )
@@ -143,14 +149,14 @@ def process_document_upload(self, job_id: str, upload_id: Optional[str] = None):
         if upload_id:
             if processing_results["success"]:
                 asyncio.run(
-                    upload_manager.update_progress(
+                    get_upload_manager().update_progress(
                         upload_id, 100.0, "Processing completed"
                     )
                 )
             else:
                 error_msg = "; ".join(processing_results["errors"])
                 asyncio.run(
-                    upload_manager.update_progress(
+                    get_upload_manager().update_progress(
                         upload_id, 0.0, error_message=f"Processing failed: {error_msg}"
                     )
                 )
@@ -183,7 +189,7 @@ def process_document_upload(self, job_id: str, upload_id: Optional[str] = None):
         if upload_id:
             try:
                 asyncio.run(
-                    upload_manager.update_progress(
+                    get_upload_manager().update_progress(
                         upload_id, 0.0, error_message=f"Processing failed: {str(e)}"
                     )
                 )

@@ -136,7 +136,7 @@ services:
       # - ../../database/init.sql:/docker-entrypoint-initdb.d/init.sql
       # - ../../database/dev-seeds.sql:/docker-entrypoint-initdb.d/02-seeds.sql
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"  # Localhost only - security fix
     networks:
       - multimodal-rag-network
     restart: unless-stopped
@@ -153,7 +153,7 @@ services:
     volumes:
       - redis_dev_data:/data
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"  # Localhost only - security fix
     networks:
       - multimodal-rag-network
     restart: unless-stopped
@@ -182,8 +182,8 @@ services:
       - neo4j_dev_import:/var/lib/neo4j/import
       - neo4j_dev_plugins:/plugins
     ports:
-      - "7474:7474" # HTTP
-      - "7687:7687" # Bolt
+      - "127.0.0.1:7474:7474" # HTTP - localhost only
+      - "127.0.0.1:7687:7687" # Bolt - localhost only
     networks:
       - multimodal-rag-network
     restart: unless-stopped
@@ -202,8 +202,8 @@ services:
     volumes:
       - qdrant_dev_data:/qdrant/storage
     ports:
-      - "6333:6333" # HTTP
-      - "6334:6334" # gRPC
+      - "127.0.0.1:6333:6333" # HTTP - localhost only
+      - "127.0.0.1:6334:6334" # gRPC - localhost only
     networks:
       - multimodal-rag-network
     restart: unless-stopped
@@ -326,7 +326,7 @@ services:
       dockerfile: docker/Dockerfile.simple
     command: python -m celery --broker=redis://redis:6379/0 -A src.tasks.celery_app flower --port=5555 --max_tasks=10000 --purge_offline_workers=60
     ports:
-      - "5555:5555"
+      - "127.0.0.1:5555:5555"  # Localhost only
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag_dev
       - REDIS_URL=redis://redis:6379/0
@@ -350,8 +350,8 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000" # API
-      - "9001:9001" # Console
+      - "127.0.0.1:9000:9000" # API - localhost only
+      - "127.0.0.1:9001:9001" # Console - localhost only
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=minioadmin123
@@ -371,8 +371,8 @@ services:
     image: ghcr.io/oraios/serena:latest
     container_name: rag-serena-dev
     ports:
-      - "9121:9121"      # MCP server port
-      - "24282:24282"    # Web dashboard port
+      - "127.0.0.1:9121:9121"      # MCP server port - localhost only
+      - "127.0.0.1:24282:24282"    # Web dashboard port - localhost only
     environment:
       - SERENA_DOCKER=1
       - SERENA_PORT=9121
@@ -400,7 +400,7 @@ services:
   adminer:
     image: adminer:latest
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"  # Localhost only
     environment:
       - ADMINER_DEFAULT_SERVER=postgres
     depends_on:
@@ -412,7 +412,7 @@ services:
   redis-commander:
     image: rediscommander/redis-commander:latest
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"  # Localhost only
     environment:
       - REDIS_HOSTS=local:redis:6379
     depends_on:

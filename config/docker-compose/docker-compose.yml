@@ -4,7 +4,7 @@ services:
   # Frontend Service
   frontend:
     build:
-      context: ../../frontend
+      context: ./frontend
       target: production
       dockerfile: Dockerfile
     container_name: rag-frontend
@@ -28,7 +28,7 @@ services:
   # Backend API Service
   backend:
     build:
-      context: ../../
+      context: ./
       target: production
       dockerfile: backend/Dockerfile
     container_name: rag-backend
@@ -83,7 +83,7 @@ services:
   # Celery Worker Service
   celery-worker:
     build:
-      context: ../../
+      context: ./
       target: worker
       dockerfile: backend/Dockerfile
     environment:
@@ -125,7 +125,7 @@ services:
   # Celery Beat Scheduler
   celery-beat:
     build:
-      context: ../../
+      context: ./
       target: worker
       dockerfile: backend/Dockerfile
     container_name: rag-celery-beat
