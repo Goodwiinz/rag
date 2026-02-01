@@ -12,10 +12,8 @@ from typing import Any, Dict, Optional, Set
 
 from src.core.database import get_db
 from src.models.document import Document
-from src.services.evaluation.rag_evaluation_service import (
-    RAGEvaluationInput,
-    rag_evaluation_service,
-)
+# Lazy import to avoid circular dependency
+# from src.services.evaluation.rag_evaluation_service import RAGEvaluationInput, rag_evaluation_service
 from src.services.websocket import connection_manager
 
 logger = logging.getLogger(__name__)
@@ -184,6 +182,11 @@ class RealTimeQualityMetricsService:
                 try:
                     db = next(get_db())
                     try:
+                        # Lazy import to avoid circular dependency
+                        from src.services.evaluation.rag_evaluation_service import (
+                            RAGEvaluationInput,
+                            rag_evaluation_service,
+                        )
                         evaluation_input = RAGEvaluationInput(
                             query=query,
                             generated_answer=generated_answer,

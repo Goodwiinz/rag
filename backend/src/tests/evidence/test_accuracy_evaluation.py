@@ -9,6 +9,7 @@ import pytest
 from pathlib import Path
 from uuid import uuid4
 from typing import List, Dict
+from unittest.mock import patch, AsyncMock
 
 from src.services.evidence.stance_classifier import StanceClassifier
 from src.services.evidence.cache import EvidenceCacheService
