@@ -10,8 +10,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.main import app
-from src.core.database import get_db, Base
+from src.core.database import get_db
+from src.core.dependencies import get_current_user
 from src.models.evidence import StanceClassificationModel
+from src.models.base import Base  # Use the models/base.py Base, not core/database
 
 
 # Test database setup
@@ -29,24 +31,45 @@ def override_get_db():
         db.close()
 
 
+# Mock user for testing
+class MockUser:
+    """Mock user object for testing"""
+    def __init__(self):
+        self.id = uuid4()
+        self.organization_id = uuid4()
+        self.is_active = True
+        self.email = "test@example.com"
+        
+    def has_permission(self, role):
+        return True
+        
+    def can_view_analytics(self):
+        return True
+
+
+def override_get_current_user():
+    """Override authentication for testing"""
+    return MockUser()
+
+
 app.dependency_overrides[get_db] = override_get_db
+app.dependency_overrides[get_current_user] = override_get_current_user
 
 
 @pytest.fixture(scope="module")
 def test_client():
     """Test client with database override"""
-    Base.metadata.create_all(bind=engine)
+    # Only create the specific tables we need for testing (avoid PostgreSQL-specific types)
+    StanceClassificationModel.__table__.create(bind=engine, checkfirst=True)
     with TestClient(app) as client:
         yield client
-    Base.metadata.drop_all(bind=engine)
+    StanceClassificationModel.__table__.drop(bind=engine, checkfirst=True)
 
 
 @pytest.fixture
 def mock_auth():
-    """Mock authentication dependency"""
-    with patch('src.api.evidence.router.get_current_user') as mock_get_user:
-        mock_get_user.return_value = {"user_id": "test_user", "org_id": "test_org"}
-        yield mock_get_user
+    """Mock authentication dependency (already set at app level)"""
+    yield
 
 
 @pytest.fixture
@@ -63,8 +86,9 @@ class TestEvidenceMeterEndpoint:
     @patch('src.api.evidence.router.cache_service')
     def test_get_evidence_meter_success(self, mock_cache, mock_consensus, mock_classifier, test_client, mock_auth, sample_source_ids):
         """Test successful evidence meter generation"""
-        # Mock cache miss
-        mock_cache.get_evidence_meter.return_value = None
+        # Mock cache miss (async method)
+        mock_cache.get_evidence_meter = AsyncMock(return_value=None)
+        mock_cache.set_evidence_meter = AsyncMock(return_value=None)
         
         # Mock stance classifications
         mock_classifications = [
@@ -145,7 +169,10 @@ class TestEvidenceMeterEndpoint:
         )
         
         assert response.status_code == 400
-        assert "Invalid source ID format" in response.json()["detail"]
+        data = response.json()
+        # Check both possible error response formats
+        detail = data.get("detail") or data.get("error", {}).get("message", "")
+        assert "Invalid source ID format" in detail
     
     def test_get_evidence_meter_no_sources(self, test_client, mock_auth):
         """Test meter endpoint with no source IDs (MVP requirement)"""
@@ -155,7 +182,9 @@ class TestEvidenceMeterEndpoint:
         )
         
         assert response.status_code == 400
-        assert "source_ids parameter required" in response.json()["detail"]
+        data = response.json()
+        detail = data.get("detail") or data.get("error", {}).get("message", "")
+        assert "source_ids parameter required" in detail
     
     @patch('src.api.evidence.router.cache_service')
     def test_get_evidence_meter_cached_result(self, mock_cache, test_client, mock_auth, sample_source_ids):
@@ -307,7 +336,9 @@ class TestEvidenceBreakdownEndpoint:
         )
         
         assert response.status_code == 404
-        assert "No classifications found" in response.json()["detail"]
+        data = response.json()
+        detail = data.get("detail") or data.get("error", {}).get("message", "")
+        assert "No classifications found" in detail
     
     def test_get_evidence_breakdown_missing_claim_hash(self, test_client, mock_auth):
         """Test breakdown endpoint with missing claim_hash parameter"""

@@ -12,8 +12,8 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.sql import func
 
-from ..base import GUID
-from ..base import BaseModel as SQLBaseModel
+from .base import GUID
+from .base import BaseModel as SQLBaseModel
 
 
 class StanceEnum(str, Enum):
@@ -33,10 +33,10 @@ class StanceClassificationModel(SQLBaseModel):
     """
     __tablename__ = "stance_classifications"
 
-    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     claim_hash = Column(String(64), nullable=False, index=True, 
                        doc="SHA256 hash of normalized claim text")
-    source_id = Column(PG_UUID(as_uuid=True), nullable=False, index=True,
+    source_id = Column(GUID(), nullable=False, index=True,
                       doc="UUID of the source document")
     stance = Column(SQLEnum(StanceEnum), nullable=False,
                    doc="Classification of source's stance on claim")
@@ -53,7 +53,7 @@ class StanceClassificationModel(SQLBaseModel):
     # Add check constraints for data validation
     __table_args__ = (
         CheckConstraint(
-            confidence >= 0.0 and confidence <= 1.0,
+            'confidence >= 0.0 AND confidence <= 1.0',
             name='ck_stance_classifications_confidence'
         ),
         # Unique constraint for reproducibility - one classification per (claim, source, model)
