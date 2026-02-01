@@ -45,9 +45,13 @@ from src.services.processing.multimodal_processing_service import (
     MultimodalProcessingService,
     get_multimodal_processing_service,
 )
-from src.tasks.document_processing_tasks import process_document_upload
-
 logger = logging.getLogger(__name__)
+
+
+def get_process_document_upload():
+    """Lazy import to avoid circular dependency."""
+    from src.tasks.document_processing_tasks import process_document_upload
+    return process_document_upload
 router = APIRouter(prefix="/api/v2/documents/upload", tags=["enhanced-document-upload"])
 
 
@@ -331,7 +335,7 @@ async def upload_single_document(
 
         # Queue background processing
         background_tasks.add_task(
-            process_document_upload, str(processing_job.id), upload_id
+            get_process_document_upload(), str(processing_job.id), upload_id
         )
 
         await upload_manager.update_progress(upload_id, 90.0, "Processing queued")
