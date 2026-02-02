@@ -5,8 +5,8 @@
  * Catches and displays errors in research components
  */
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { AlertCircle, RefreshCw, Home } from 'lucide-react';
+import { AlertCircle, Home, RefreshCw } from 'lucide-react';
+import { Component, ErrorInfo, ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -61,6 +61,7 @@ export class ResearchErrorBoundary extends Component<Props, State> {
               <RefreshCw className="h-4 w-4" />
               Try Again
             </button>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- Class component error boundary intentionally uses native anchor for reliable navigation during error states */}
             <a
               href="/projects"
               className="inline-flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] text-gray-400 border border-[#333] rounded font-mono text-sm hover:border-[#555] transition-colors"

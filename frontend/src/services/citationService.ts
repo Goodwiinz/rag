@@ -15,7 +15,26 @@ export const citationService = {
    * Create a new citation from chat message context
    */
   async createCitation(data: CitationCreate): Promise<CitationResponse> {
-    return apiClient.post<CitationResponse>('/citations', data);
+    // Transform camelCase to snake_case for backend API
+    const apiData: Record<string, any> = {};
+    if (data.messageId) apiData.message_id = data.messageId;
+    if (data.documentId) apiData.document_id = data.documentId;
+    if (data.externalReferenceId) apiData.external_reference_id = data.externalReferenceId;
+    if (data.documentTitle) apiData.document_title = data.documentTitle;
+    if (data.documentType) apiData.document_type = data.documentType;
+    if (data.authors) apiData.authors = data.authors;
+    if (data.year) apiData.year = data.year;
+    if (data.venue) apiData.venue = data.venue;
+    if (data.doi) apiData.doi = data.doi;
+    if (data.arxivId) apiData.arxiv_id = data.arxivId;
+    if (data.abstract) apiData.abstract = data.abstract;
+    if (data.snippet) apiData.snippet = data.snippet;
+    if (data.pageNumber) apiData.page_number = data.pageNumber;
+    if (data.score !== undefined) apiData.score = data.score;
+    if (data.metadataSource) apiData.metadata_source = data.metadataSource;
+    if (data.needsReview !== undefined) apiData.needs_review = data.needsReview;
+
+    return apiClient.post<CitationResponse>('/citations', apiData);
   },
 
   /**
@@ -37,8 +56,18 @@ export const citationService = {
     skip?: number;
     limit?: number;
   }): Promise<CitationListResponse> {
+    // Transform camelCase params to snake_case for backend API
+    const apiParams: Record<string, any> = {};
+    if (params?.messageId) apiParams.message_id = params.messageId;
+    if (params?.documentId) apiParams.document_id = params.documentId;
+    if (params?.arxivId) apiParams.arxiv_id = params.arxivId;
+    if (params?.doi) apiParams.doi = params.doi;
+    if (params?.needsReview !== undefined) apiParams.needs_review = params.needsReview;
+    if (params?.skip !== undefined) apiParams.skip = params.skip;
+    if (params?.limit !== undefined) apiParams.limit = params.limit;
+
     return apiClient.get<CitationListResponse>('/citations', {
-      params,
+      params: apiParams,
     });
   },
 
@@ -90,10 +119,14 @@ export const citationService = {
     doi?: string;
     title?: string;
   }): Promise<CitationResponse> {
-    return apiClient.post<CitationResponse>('/citations/lookup', {
-      arxiv_id: params.arxivId,
-      doi: params.doi,
-      title: params.title,
+    // Backend expects query parameters, not body
+    const queryParams: Record<string, string> = {};
+    if (params.arxivId) queryParams.arxiv_id = params.arxivId;
+    if (params.doi) queryParams.doi = params.doi;
+    if (params.title) queryParams.title = params.title;
+
+    return apiClient.post<CitationResponse>('/citations/lookup', null, {
+      params: queryParams,
     });
   },
 
