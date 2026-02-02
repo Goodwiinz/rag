@@ -132,6 +132,7 @@ export const BulkOperations: React.FC = () => {
   const handleDownloadTemplate = (format: 'json' | 'csv') => {
     if (format === 'json') {
       const template = {
+        _comment: 'Available relationship_types: WORKS_FOR, KNOWS, RELATED_TO, LOCATED_IN, PART_OF, MENTIONED_IN, APPEARS_WITH, CREATED_BY, OWNS, MANAGES, COLLABORATES_WITH, REPORTS_TO, MEMBER_OF, ATTENDED, SPOKE_AT, PUBLISHED_BY, CITED, REFERENCES, CUSTOM',
         entities: [
           {
             name: 'Example Entity',
