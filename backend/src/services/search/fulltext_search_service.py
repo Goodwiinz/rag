@@ -415,7 +415,7 @@ class FullTextSearchService:
         try:
             # Simple suggestion based on document titles and content
             suggestion_query = text(
-                """
+                r"""
                 SELECT DISTINCT
                     regexp_replace(regexp_replace(lower(title), '[^a-zA-Z0-9\s]', ' ', 'g'), '\s+', ' ', 'g') as suggestion
                 FROM documents
