@@ -8,62 +8,69 @@ import { devtools, subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import {
   RealtimeStore,
-  WebSocketConnectionState,
   DocumentProcessingState,
   WebSocketMessage,
   DocumentUpdateMessage,
+  DocumentUpdatePayload,
   QueueUpdateMessage,
   SystemMetricsMessage,
   NotificationMessage,
   ConnectionStatusMessage,
   Channel,
   UpdateFrequency,
-  MessagePriority,
-  RealtimeProcessingState,
-  WebSocketClientConfig
+  WebSocketClientConfig,
+  WebSocketClientInfo
 } from '../types/realtime-processing';
 
 // WebSocket Service
-import { RealtimeWebSocketService } from '../services/realtime-websocket-service';
+import RealtimeWebSocketService from '../services/realtime-websocket-service';
 
-// Initial state
-const initialState: Omit<RealtimeStore, 'actions'> = {
-  connection: {
-    status: 'disconnected',
-    reconnectionAttempts: 0,
-    maxReconnectionAttempts: 5,
-    reconnectInterval: 5000,
-    latency: 0
-  },
-  connectionInfo: null,
-  documents: new Map(),
-  subscribedDocuments: new Set(),
-  systemMetrics: {
-    concurrentConnections: 0,
-    memoryUsage: 0,
-    cpuUsage: 0,
-    diskSpace: 0,
-    activeJobs: 0,
-    queuedJobs: 0,
-    completedJobs: 0,
-    averageJobDuration: 0
-  },
-  config: {
-    updateFrequency: UpdateFrequency.NORMAL,
-    subscribedChannels: new Set([Channel.DOCUMENT_PROCESSING, Channel.USER_NOTIFICATIONS]),
-    messageFilter: {},
-    autoReconnect: true,
-    reconnectDelay: 5000,
-    maxReconnectAttempts: 5
-  }
+// Initial connection state
+const initialConnectionState = {
+  status: 'disconnected' as const,
+  reconnectionAttempts: 0,
+  maxReconnectionAttempts: 5,
+  reconnectInterval: 5000,
+  latency: 0
 };
+
+// Initial system metrics
+const initialSystemMetrics = {
+  concurrentConnections: 0,
+  memoryUsage: 0,
+  cpuUsage: 0,
+  diskSpace: 0,
+  activeJobs: 0,
+  queuedJobs: 0,
+  completedJobs: 0,
+  averageJobDuration: 0
+};
+
+// Initial config
+const initialConfig = {
+  updateFrequency: UpdateFrequency.NORMAL,
+  subscribedChannels: new Set([Channel.DOCUMENT_PROCESSING, Channel.USER_NOTIFICATIONS]),
+  messageFilter: {} as Record<string, unknown>,
+  autoReconnect: true,
+  reconnectDelay: 5000,
+  maxReconnectAttempts: 5
+};
+
+// WebSocket service singleton
+const wsService = RealtimeWebSocketService.getInstance();
 
 // Create the Zustand store
 export const useRealtimeStore = create<RealtimeStore>()(
   devtools(
     subscribeWithSelector(
       immer((set, get) => ({
-        ...initialState,
+        // Initial state
+        connection: initialConnectionState,
+        connectionInfo: null,
+        documents: new Map(),
+        subscribedDocuments: new Set<string>(),
+        systemMetrics: initialSystemMetrics,
+        config: initialConfig,
 
         // WebSocket Connection Actions
         connect: async (token, options = {}) => {
@@ -99,8 +106,8 @@ export const useRealtimeStore = create<RealtimeStore>()(
             };
 
             // Initialize and connect WebSocket service
-            await RealtimeWebSocketService.initialize(wsConfig, {
-              onConnect: (connectionInfo) => {
+            await wsService.initialize(wsConfig, {
+              onConnect: (connectionInfo: import('../types/realtime-processing').WebSocketConnectionInfo) => {
                 set((draft) => {
                   draft.connection.status = 'connected';
                   draft.connection.lastConnectedAt = new Date().toISOString();
@@ -108,13 +115,13 @@ export const useRealtimeStore = create<RealtimeStore>()(
                   draft.connectionInfo = connectionInfo;
                 });
               },
-              onDisconnect: (reason) => {
+              onDisconnect: (_reason?: string) => {
                 set((draft) => {
                   draft.connection.status = 'disconnected';
                   draft.connectionInfo = null;
                 });
               },
-              onError: (error) => {
+              onError: (error: Error) => {
                 set((draft) => {
                   draft.connection.status = 'error';
                   draft.connection.lastError = error.message;
@@ -142,7 +149,7 @@ export const useRealtimeStore = create<RealtimeStore>()(
 
         disconnect: () => {
           try {
-            RealtimeWebSocketService.disconnect();
+            wsService.disconnect();
             set((draft) => {
               draft.connection.status = 'disconnected';
               draft.connectionInfo = null;
@@ -157,14 +164,14 @@ export const useRealtimeStore = create<RealtimeStore>()(
           const { connection } = get();
           if (connection.status === 'disconnected' || connection.status === 'error') {
             // Trigger reconnection
-            RealtimeWebSocketService.reconnect();
+            wsService.reconnect();
           }
         },
 
         // Channel Management
         subscribeToChannel: (channel: Channel) => {
           try {
-            RealtimeWebSocketService.subscribeToChannel(channel);
+            wsService.subscribeToChannel(channel);
             set((draft) => {
               draft.config.subscribedChannels.add(channel);
             });
@@ -175,7 +182,7 @@ export const useRealtimeStore = create<RealtimeStore>()(
 
         unsubscribeFromChannel: (channel: Channel) => {
           try {
-            RealtimeWebSocketService.unsubscribeFromChannel(channel);
+            wsService.unsubscribeFromChannel(channel);
             set((draft) => {
               draft.config.subscribedChannels.delete(channel);
             });
@@ -278,7 +285,7 @@ export const useRealtimeStore = create<RealtimeStore>()(
         // WebSocket Message Sending
         sendWebSocketMessage: (message: WebSocketMessage | { type: string; payload: Record<string, unknown> }) => {
           try {
-            RealtimeWebSocketService.sendMessage(message);
+            wsService.sendMessage(message as WebSocketMessage);
           } catch (error) {
             console.error('Error sending WebSocket message:', error);
           }
@@ -316,7 +323,7 @@ function handleWebSocketMessage(
 
   switch (type) {
     case 'document_update':
-      handleDocumentUpdate(payload as DocumentUpdateMessage['payload'], set);
+      handleDocumentUpdate(payload as DocumentUpdatePayload, set);
       break;
 
     case 'queue_update':
@@ -328,7 +335,10 @@ function handleWebSocketMessage(
       break;
 
     case 'notification':
-      handleNotification(payload as NotificationMessage['payload'], set);
+      // Handle notification payload - validate required fields exist
+      if (payload && typeof payload === 'object' && 'id' in payload && 'type' in payload && 'title' in payload && 'message' in payload && 'timestamp' in payload) {
+        handleNotification(payload as unknown as NotificationMessage['payload'], set);
+      }
       break;
 
     case 'connection_status':
@@ -342,7 +352,7 @@ function handleWebSocketMessage(
 
     case 'pong':
       // Update latency
-      if (payload?.timestamp) {
+      if (payload && typeof payload.timestamp === 'number') {
         const latency = Date.now() - payload.timestamp;
         set((draft) => {
           draft.connection.latency = latency;
@@ -357,9 +367,9 @@ function handleWebSocketMessage(
 
 // Message Type Handlers
 function handleDocumentUpdate(
-  payload: DocumentUpdateMessage['payload'],
+  payload: DocumentUpdatePayload,
   set: (updater: (draft: RealtimeStore) => void) => void
-) {
+): void {
   set((draft) => {
     const { documentId, progress, currentStage, status, error } = payload;
     const existingDoc = draft.documents.get(documentId);
@@ -384,7 +394,7 @@ function handleDocumentUpdate(
 function handleQueueUpdate(
   payload: QueueUpdateMessage['payload'],
   set: (updater: (draft: RealtimeStore) => void) => void
-) {
+): void {
   set((draft) => {
     // Update system metrics from queue update
     if (payload.metrics) {
@@ -400,7 +410,7 @@ function handleQueueUpdate(
 function handleSystemMetricsUpdate(
   payload: SystemMetricsMessage['payload'],
   set: (updater: (draft: RealtimeStore) => void) => void
-) {
+): void {
   set((draft) => {
     draft.systemMetrics = {
       ...draft.systemMetrics,
@@ -412,7 +422,7 @@ function handleSystemMetricsUpdate(
 function handleNotification(
   payload: NotificationMessage['payload'],
   set: (updater: (draft: RealtimeStore) => void) => void
-) {
+): void {
   // This would handle notification updates
   // For now, just log the notification
   console.log('Notification received:', payload);
@@ -421,7 +431,7 @@ function handleNotification(
 function handleConnectionStatusUpdate(
   payload: ConnectionStatusMessage['payload'],
   set: (updater: (draft: RealtimeStore) => void) => void
-) {
+): void {
   set((draft) => {
     if (payload.status === 'connected') {
       draft.connection.status = 'connected';

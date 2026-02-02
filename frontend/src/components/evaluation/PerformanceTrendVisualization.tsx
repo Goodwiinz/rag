@@ -129,7 +129,7 @@ const generateMockData = (days: number = 30): TrendData => {
 
   metrics.forEach(metric => {
     const metricData: DataPoint[] = [];
-    let baseValue = metric === 'latency' ? 1200 :
+    const baseValue = metric === 'latency' ? 1200 :
                    metric === 'throughput' ? 45 :
                    metric === 'successRate' ? 85 :
                    metric === 'hallucinationRate' ? 15 :
