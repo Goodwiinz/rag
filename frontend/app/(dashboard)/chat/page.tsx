@@ -381,8 +381,8 @@ function ChatMessage({
         ease: [0.25, 0.46, 0.45, 0.94]
       }}
       className={cn(
-        'group relative mb-6', 
-        isUser ? 'ml-8 sm:ml-20' : 'mr-8 sm:mr-20'
+        'group relative mb-4',
+        isUser ? 'ml-8 sm:ml-16' : 'mr-8 sm:mr-16'
       )}
     >
       {/* Transmission Line - Refined opacity */}
@@ -724,7 +724,7 @@ function ChatInput({
   const isNearLimit = charCount > maxChars * 0.8;
 
   return (
-    <div className="z-40 bg-gradient-to-t from-[var(--terminal-bg)] via-[var(--terminal-bg)] to-transparent pt-6 pb-6 px-4">
+    <div className="z-40 bg-gradient-to-t from-[var(--terminal-bg)] via-[var(--terminal-bg)] to-transparent pt-4 pb-4 px-4">
       <div className="max-w-4xl mx-auto">
         <motion.div
           className={cn(
@@ -1912,7 +1912,7 @@ function ChatPageContent() {
           ) : messages.length === 0 ? (
             <WelcomeState onPromptSelect={handlePromptSelect} selectedModel={selectedModel} />
           ) : (
-            <div className="max-w-4xl mx-auto pt-8 px-4 pb-12">
+            <div className="max-w-4xl mx-auto pt-4 px-4 pb-6">
               <AnimatePresence>
                 {messages.map((message, index) => (
                   <ChatMessage
