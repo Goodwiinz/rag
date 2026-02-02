@@ -50,7 +50,6 @@
     "autoprefixer": "^10.4.24",
     "jest-environment-jsdom": "^30.2.0",
     "postcss": "^8.5.6",
-    "shadcn": "^3.6.1",
-    "tailwindcss": "^4.1.18"
+    "shadcn": "^3.6.1"
   }
 }
