@@ -859,10 +859,13 @@ class KnowledgeGraphService:
         """Find entities related to a given entity"""
         try:
             with self.get_session() as session:
-                query = """
-                MATCH (start:Entity {id: $entity_id})
-                MATCH (start)-[r:RELATED_TO*1..$max_depth]-(related:Entity)
-                WHERE all(rel in r WHERE rel.strength >= $min_strength)
+                # Match ANY relationship type, not just RELATED_TO
+                # Note: Neo4j doesn't support parameters in variable-length patterns
+                # max_depth is validated at API level (1-5), safe to interpolate
+                query = f"""
+                MATCH (start:Entity {{id: $entity_id}})
+                MATCH (start)-[r*1..{max_depth}]-(related:Entity)
+                WHERE all(rel in r WHERE coalesce(rel.strength, 1.0) >= $min_strength)
                 RETURN DISTINCT related
                 LIMIT $limit
                 """
@@ -871,7 +874,6 @@ class KnowledgeGraphService:
                     query,
                     {
                         "entity_id": entity_id,
-                        "max_depth": max_depth,
                         "min_strength": min_strength,
                         "limit": limit,
                     },
