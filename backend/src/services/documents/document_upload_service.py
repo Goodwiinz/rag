@@ -30,8 +30,8 @@ from src.models.document import Document
 from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
 from src.models.user import User
 from src.services.knowledge_graph.knowledge_graph_service import KnowledgeGraphService
-# Lazy import to avoid circular dependency
-# from src.services.processing.processing_service import ProcessingPipeline as ProcessingService
+
+# ProcessingPipeline imported lazily in __init__ to avoid circular import
 
 
 # Stub functions - file_utils module not found
@@ -77,8 +77,8 @@ class DocumentUploadService:
         self.minio_client = self._init_minio_client()
         self.knowledge_graph_service = KnowledgeGraphService(db)
         # Lazy import to avoid circular dependency
-        from src.services.processing.processing_service import ProcessingPipeline as ProcessingService
-        self.processing_service = ProcessingService(db)
+        from src.services.processing.processing_service import ProcessingPipeline
+        self.processing_service = ProcessingPipeline(db)
 
     def _init_minio_client(self) -> Minio:
         """Initialize MinIO client for file storage"""

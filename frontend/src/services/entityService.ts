@@ -289,10 +289,12 @@ class EntityService {
       return response;
     } catch (error) {
       console.error('Error fetching relationship types:', error);
-      // Return fallback hardcoded types if API fails
+      // Return fallback types matching backend RelationshipType enum
       return [
-        'WORKS_FOR', 'LOCATED_IN', 'KNOWS', 'RELATED_TO', 'PART_OF',
-        'OWNS', 'CREATED_BY', 'USES', 'MANAGES', 'COLLABORATES_WITH'
+        'WORKS_FOR', 'KNOWS', 'RELATED_TO', 'LOCATED_IN', 'PART_OF',
+        'MENTIONED_IN', 'APPEARS_WITH', 'CREATED_BY', 'OWNS', 'MANAGES',
+        'COLLABORATES_WITH', 'REPORTS_TO', 'MEMBER_OF', 'ATTENDED',
+        'SPOKE_AT', 'PUBLISHED_BY', 'CITED', 'REFERENCES', 'CUSTOM'
       ];
     }
   }
