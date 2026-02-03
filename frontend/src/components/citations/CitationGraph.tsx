@@ -17,11 +17,11 @@
  * - Expand/collapse cluster nodes
  */
 
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import cytoscape, { Core, NodeSingular, EdgeSingular, ElementDefinition, NodeCollection } from 'cytoscape';
+import cytoscape, { Core, EdgeSingular, ElementDefinition, NodeSingular } from 'cytoscape';
 import coseBilkent from 'cytoscape-cose-bilkent';
 import popper from 'cytoscape-popper';
-import { Loader2, Layers, Minimize2 } from 'lucide-react';
+import { Layers, Loader2, Minimize2 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 // Register Cytoscape extensions
 if (typeof window !== 'undefined') {
@@ -550,7 +550,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
       ],
       layout: {
         name: 'cose-bilkent',
-        // @ts-ignore - cose-bilkent options
+        // @ts-expect-error - cose-bilkent options
         quality: 'default',
         randomize: !data.nodes.some(n => n.position),
         animate: false,

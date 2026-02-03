@@ -859,10 +859,13 @@ class KnowledgeGraphService:
         """Find entities related to a given entity"""
         try:
             with self.get_session() as session:
-                query = """
-                MATCH (start:Entity {id: $entity_id})
-                MATCH (start)-[r:RELATED_TO*1..$max_depth]-(related:Entity)
-                WHERE all(rel in r WHERE rel.strength >= $min_strength)
+                # Match ANY relationship type, not just RELATED_TO
+                # Note: Neo4j doesn't support parameters in variable-length patterns
+                # max_depth is validated at API level (1-5), safe to interpolate
+                query = f"""
+                MATCH (start:Entity {{id: $entity_id}})
+                MATCH (start)-[r*1..{max_depth}]-(related:Entity)
+                WHERE all(rel in r WHERE coalesce(rel.strength, 1.0) >= $min_strength)
                 RETURN DISTINCT related
                 LIMIT $limit
                 """
@@ -871,7 +874,6 @@ class KnowledgeGraphService:
                     query,
                     {
                         "entity_id": entity_id,
-                        "max_depth": max_depth,
                         "min_strength": min_strength,
                         "limit": limit,
                     },
@@ -916,11 +918,14 @@ class KnowledgeGraphService:
         """Find paths between two entities"""
         try:
             with self.get_session() as session:
-                query = """
-                MATCH path = (start:Entity {id: $source_id})-[:RELATED_TO*1..$max_depth]-(end:Entity {id: $target_id})
-                WHERE all(rel in relationships(path) WHERE rel.strength >= $min_strength)
+                # Match ANY relationship type, not just RELATED_TO
+                # Note: Neo4j doesn't support parameters in variable-length patterns
+                # max_depth is validated at API level (1-5), safe to interpolate
+                query = f"""
+                MATCH path = (start:Entity {{id: $source_id}})-[*1..{max_depth}]-(end:Entity {{id: $target_id}})
+                WHERE all(rel in relationships(path) WHERE coalesce(rel.strength, 1.0) >= $min_strength)
                 RETURN path, length(path) as path_length
-                ORDER BY path_length, reduce(strength = 1.0, rel in relationships(path) | strength * rel.strength) DESC
+                ORDER BY path_length, reduce(strength = 1.0, rel in relationships(path) | strength * coalesce(rel.strength, 1.0)) DESC
                 LIMIT 10
                 """
 
@@ -929,7 +934,6 @@ class KnowledgeGraphService:
                     {
                         "source_id": source_id,
                         "target_id": target_id,
-                        "max_depth": max_depth,
                         "min_strength": min_strength,
                     },
                 )

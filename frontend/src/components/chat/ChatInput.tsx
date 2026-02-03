@@ -318,7 +318,7 @@ export function ChatInput({
             className={cn(
               "min-h-[60px] max-h-[200px] resize-none pr-28 transition-all",
               "border-2 shadow-sm focus:shadow-md",
-              "focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500",
+              "focus:ring-2 focus:ring-[#00ff9f]/20 focus:border-[#00ff9f]",
               disabled && "opacity-50 cursor-not-allowed"
             )}
             rows={1}
@@ -427,10 +427,10 @@ export function ChatInput({
               size="sm"
               aria-label={isLoading ? "Stop generation" : "Send message"}
               className={cn(
-                "h-8 min-w-[32px] transition-all",
+                "h-8 min-w-[32px] transition-all shadow-lg",
                 isLoading
                   ? "bg-red-500 hover:bg-red-600 text-white"
-                  : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+                  : "bg-gradient-to-r from-[#00ff9f] to-[#00cc7a] hover:from-[#00cc7a] hover:to-[#00994d] text-[#0a0a0f] font-medium hover:shadow-[0_0_20px_rgba(0,255,159,0.3)]"
               )}
             >
               {isLoading ? (

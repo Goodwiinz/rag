@@ -203,8 +203,8 @@ export function ModelSelector({
       whileTap={{ scale: 0.98 }}
       className={cn(
         "relative p-4 rounded-lg border cursor-pointer transition-all",
-        "hover:shadow-md hover:border-orange-200",
-        selectedModelId === model.id && "border-orange-500 bg-orange-50/50",
+        "hover:shadow-md hover:border-[#00ff9f]/30",
+        selectedModelId === model.id && "border-[#00ff9f] bg-[#00ff9f]/5",
         compact ? "p-3" : "p-4"
       )}
       onClick={() => {
@@ -214,7 +214,7 @@ export function ModelSelector({
     >
       {model.isFeatured && (
         <div className="absolute -top-2 -right-2">
-          <Badge className="bg-gradient-to-r from-orange-500 to-orange-600">
+          <Badge className="bg-gradient-to-r from-[#00ff9f] to-[#00cc7a] text-[#0a0a0f]">
             <Star className="w-3 h-3 mr-1" />
             Featured
           </Badge>
@@ -225,12 +225,12 @@ export function ModelSelector({
         <div className="flex items-center justify-between">
           <h3 className={cn(
             "font-semibold text-sm",
-            selectedModelId === model.id && "text-orange-600"
+            selectedModelId === model.id && "text-[#00ff9f]"
           )}>
             {model.name}
           </h3>
           {selectedModelId === model.id && (
-            <CheckCircle2 className="w-4 h-4 text-orange-600" />
+            <CheckCircle2 className="w-4 h-4 text-[#00ff9f]" />
           )}
         </div>
 
@@ -290,7 +290,7 @@ export function ModelSelector({
           {comparisonModels.map(model => (
             <Card key={model.id} className={cn(
               "transition-all",
-              selectedModelId === model.id && "ring-2 ring-orange-500"
+              selectedModelId === model.id && "ring-2 ring-[#00ff9f]"
             )}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -400,19 +400,19 @@ export function ModelSelector({
           <div className="space-y-6">
             {/* Quick Stats */}
             {selectedModel && (
-              <Card className="bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200">
+              <Card className="bg-gradient-to-r from-[#0d0d14] to-[#12121a] border-[#00ff9f]/20">
                 <CardContent className="pt-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
-                        <Cpu className="w-5 h-5 text-white" />
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00ff9f] to-[#00cc7a] flex items-center justify-center">
+                        <Cpu className="w-5 h-5 text-[#0a0a0f]" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-orange-900">{selectedModel.name}</h3>
-                        <p className="text-sm text-orange-700">{selectedModel.description}</p>
+                        <h3 className="font-semibold text-[#e0e0e8]">{selectedModel.name}</h3>
+                        <p className="text-sm text-[#a1a1aa]">{selectedModel.description}</p>
                       </div>
                     </div>
-                    <Badge className="bg-orange-500 text-white">
+                    <Badge className="bg-[#00ff9f] text-[#0a0a0f]">
                       Currently Active
                     </Badge>
                   </div>
@@ -455,7 +455,7 @@ export function ModelSelector({
                   {featuredModels.length > 0 && (
                     <div>
                       <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                        <Star className="w-4 h-4 text-orange-500" />
+                        <Star className="w-4 h-4 text-[#00ff9f]" />
                         Featured Models
                       </h3>
                       <div className="grid md:grid-cols-2 gap-3">
@@ -470,7 +470,7 @@ export function ModelSelector({
                   {recommendedModels.length > 0 && (
                     <div>
                       <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-blue-500" />
+                        <Sparkles className="w-4 h-4 text-[#ffb700]" />
                         Recommended
                       </h3>
                       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
