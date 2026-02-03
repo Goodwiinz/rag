@@ -3,9 +3,10 @@ Analytics-specific permissions and access control
 Defines granular permissions for T3 analytics features
 """
 
-from enum import Enum
-from typing import List, Dict, Set, Optional
 from dataclasses import dataclass
+from enum import Enum
+from typing import Dict, List, Optional, Set
+
 from src.models.user import UserRole
 
 
@@ -60,6 +61,7 @@ class AnalyticsPermission(Enum):
 @dataclass
 class PermissionSet:
     """Set of analytics permissions for a role"""
+
     permissions: Set[AnalyticsPermission]
     description: str
 
@@ -72,43 +74,36 @@ ROLE_PERMISSIONS: Dict[UserRole, PermissionSet] = {
             AnalyticsPermission.VIEW_BASIC_METRICS,
             AnalyticsPermission.EXPORT_BASIC_REPORTS,
         },
-        description="Basic users can view their own metrics and basic analytics"
+        description="Basic users can view their own metrics and basic analytics",
     ),
-
     UserRole.ANALYST: PermissionSet(
         permissions={
             # Basic Analytics
             AnalyticsPermission.VIEW_DASHBOARD,
             AnalyticsPermission.VIEW_BASIC_METRICS,
             AnalyticsPermission.VIEW_OWN_METRICS,
-
             # User Behavior Analytics
             AnalyticsPermission.VIEW_USER_BEHAVIOR,
             AnalyticsPermission.VIEW_SESSION_DATA,
             AnalyticsPermission.VIEW_SEARCH_ANALYTICS,
             AnalyticsPermission.VIEW_DOCUMENT_ANALYTICS,
-
             # Quality Analytics
             AnalyticsPermission.VIEW_QUALITY_METRICS,
             AnalyticsPermission.VIEW_QUALITY_ALERTS,
             AnalyticsPermission.ACKNOWLEDGE_ALERTS,
-
             # Performance Analytics
             AnalyticsPermission.VIEW_PERFORMANCE_METRICS,
             AnalyticsPermission.VIEW_SYSTEM_HEALTH,
             AnalyticsPermission.VIEW_PERFORMANCE_ALERTS,
-
             # Export and Reporting
             AnalyticsPermission.EXPORT_BASIC_REPORTS,
             AnalyticsPermission.EXPORT_DETAILED_REPORTS,
             AnalyticsPermission.GENERATE_CUSTOM_REPORTS,
-
             # Data Privacy
             AnalyticsPermission.VIEW_ANONYMIZED_DATA,
         },
-        description="Analysts can access most analytics features and generate reports"
+        description="Analysts can access most analytics features and generate reports",
     ),
-
     UserRole.CONTENT_MANAGER: PermissionSet(
         permissions={
             # All ANALYST permissions
@@ -129,16 +124,14 @@ ROLE_PERMISSIONS: Dict[UserRole, PermissionSet] = {
             AnalyticsPermission.EXPORT_DETAILED_REPORTS,
             AnalyticsPermission.GENERATE_CUSTOM_REPORTS,
             AnalyticsPermission.VIEW_ANONYMIZED_DATA,
-
             # Additional content management permissions
             AnalyticsPermission.MANAGE_QUALITY_THRESHOLDS,
             AnalyticsPermission.VIEW_ADVANCED_ANALYTICS,
             AnalyticsPermission.SCHEDULE_REPORTS,
             AnalyticsPermission.MANAGE_DATA_RETENTION,
         },
-        description="Content managers have extended analytics permissions for content oversight"
+        description="Content managers have extended analytics permissions for content oversight",
     ),
-
     UserRole.ADMIN: PermissionSet(
         permissions={
             # All CONTENT_MANAGER permissions
@@ -163,7 +156,6 @@ ROLE_PERMISSIONS: Dict[UserRole, PermissionSet] = {
             AnalyticsPermission.VIEW_ADVANCED_ANALYTICS,
             AnalyticsPermission.SCHEDULE_REPORTS,
             AnalyticsPermission.MANAGE_DATA_RETENTION,
-
             # Administrative permissions
             AnalyticsPermission.VIEW_PREDICTIVE_ANALYTICS,
             AnalyticsPermission.VIEW_COMPARATIVE_ANALYTICS,
@@ -173,7 +165,7 @@ ROLE_PERMISSIONS: Dict[UserRole, PermissionSet] = {
             AnalyticsPermission.VIEW_AUDIT_LOGS,
             AnalyticsPermission.PROCESS_GDPR_REQUESTS,
         },
-        description="Administrators have full access to all analytics features"
+        description="Administrators have full access to all analytics features",
     ),
 }
 
@@ -195,7 +187,9 @@ class AnalyticsPermissionsChecker:
         return permission in role_permissions.permissions
 
     @staticmethod
-    def has_any_permission(user_role: UserRole, permissions: List[AnalyticsPermission]) -> bool:
+    def has_any_permission(
+        user_role: UserRole, permissions: List[AnalyticsPermission]
+    ) -> bool:
         """
         Check if a role has any of the specified permissions
         """
@@ -205,7 +199,9 @@ class AnalyticsPermissionsChecker:
         )
 
     @staticmethod
-    def has_all_permissions(user_role: UserRole, permissions: List[AnalyticsPermission]) -> bool:
+    def has_all_permissions(
+        user_role: UserRole, permissions: List[AnalyticsPermission]
+    ) -> bool:
         """
         Check if a role has all of the specified permissions
         """
@@ -245,36 +241,30 @@ class AnalyticsPermissionsChecker:
             AnalyticsPermission.VIEW_DASHBOARD: "dashboard",
             AnalyticsPermission.VIEW_BASIC_METRICS: "dashboard",
             AnalyticsPermission.VIEW_OWN_METRICS: "dashboard",
-
             # User Behavior
             AnalyticsPermission.VIEW_USER_BEHAVIOR: "user_behavior",
             AnalyticsPermission.VIEW_SESSION_DATA: "user_behavior",
             AnalyticsPermission.VIEW_SEARCH_ANALYTICS: "user_behavior",
             AnalyticsPermission.VIEW_DOCUMENT_ANALYTICS: "user_behavior",
-
             # Quality
             AnalyticsPermission.VIEW_QUALITY_METRICS: "quality",
             AnalyticsPermission.VIEW_QUALITY_ALERTS: "quality",
             AnalyticsPermission.MANAGE_QUALITY_THRESHOLDS: "quality",
             AnalyticsPermission.ACKNOWLEDGE_ALERTS: "quality",
-
             # Performance
             AnalyticsPermission.VIEW_PERFORMANCE_METRICS: "performance",
             AnalyticsPermission.VIEW_SYSTEM_HEALTH: "performance",
             AnalyticsPermission.VIEW_PERFORMANCE_ALERTS: "performance",
-
             # Reports
             AnalyticsPermission.EXPORT_BASIC_REPORTS: "reports",
             AnalyticsPermission.EXPORT_DETAILED_REPORTS: "reports",
             AnalyticsPermission.GENERATE_CUSTOM_REPORTS: "reports",
             AnalyticsPermission.SCHEDULE_REPORTS: "reports",
-
             # Admin
             AnalyticsPermission.MANAGE_ANALYTICS_SETTINGS: "admin",
             AnalyticsPermission.VIEW_ALL_ORG_DATA: "admin",
             AnalyticsPermission.MANAGE_ACCESS_CONTROL: "admin",
             AnalyticsPermission.VIEW_AUDIT_LOGS: "admin",
-
             # Privacy
             AnalyticsPermission.VIEW_ANONYMIZED_DATA: "privacy",
             AnalyticsPermission.MANAGE_DATA_RETENTION: "privacy",
@@ -298,33 +288,52 @@ class AnalyticsPermissionsChecker:
             # Dashboard endpoints
             "/api/analytics/dashboard": [AnalyticsPermission.VIEW_DASHBOARD],
             "/api/analytics/overview": [AnalyticsPermission.VIEW_BASIC_METRICS],
-
             # User behavior endpoints
             "/api/analytics/user-behavior": [AnalyticsPermission.VIEW_USER_BEHAVIOR],
             "/api/analytics/sessions": [AnalyticsPermission.VIEW_SESSION_DATA],
-            "/api/analytics/search-analytics": [AnalyticsPermission.VIEW_SEARCH_ANALYTICS],
-            "/api/analytics/document-analytics": [AnalyticsPermission.VIEW_DOCUMENT_ANALYTICS],
-
+            "/api/analytics/search-analytics": [
+                AnalyticsPermission.VIEW_SEARCH_ANALYTICS
+            ],
+            "/api/analytics/document-analytics": [
+                AnalyticsPermission.VIEW_DOCUMENT_ANALYTICS
+            ],
             # Quality endpoints
-            "/api/analytics/quality/metrics": [AnalyticsPermission.VIEW_QUALITY_METRICS],
+            "/api/analytics/quality/metrics": [
+                AnalyticsPermission.VIEW_QUALITY_METRICS
+            ],
             "/api/analytics/quality/alerts": [AnalyticsPermission.VIEW_QUALITY_ALERTS],
-            "/api/analytics/quality/thresholds": [AnalyticsPermission.MANAGE_QUALITY_THRESHOLDS],
-            "/api/analytics/quality/acknowledge": [AnalyticsPermission.ACKNOWLEDGE_ALERTS],
-
+            "/api/analytics/quality/thresholds": [
+                AnalyticsPermission.MANAGE_QUALITY_THRESHOLDS
+            ],
+            "/api/analytics/quality/acknowledge": [
+                AnalyticsPermission.ACKNOWLEDGE_ALERTS
+            ],
             # Performance endpoints
-            "/api/analytics/performance/metrics": [AnalyticsPermission.VIEW_PERFORMANCE_METRICS],
-            "/api/analytics/performance/health": [AnalyticsPermission.VIEW_SYSTEM_HEALTH],
-            "/api/analytics/performance/alerts": [AnalyticsPermission.VIEW_PERFORMANCE_ALERTS],
-
+            "/api/analytics/performance/metrics": [
+                AnalyticsPermission.VIEW_PERFORMANCE_METRICS
+            ],
+            "/api/analytics/performance/health": [
+                AnalyticsPermission.VIEW_SYSTEM_HEALTH
+            ],
+            "/api/analytics/performance/alerts": [
+                AnalyticsPermission.VIEW_PERFORMANCE_ALERTS
+            ],
             # Export endpoints
             "/api/analytics/export/basic": [AnalyticsPermission.EXPORT_BASIC_REPORTS],
-            "/api/analytics/export/detailed": [AnalyticsPermission.EXPORT_DETAILED_REPORTS],
-            "/api/analytics/reports/generate": [AnalyticsPermission.GENERATE_CUSTOM_REPORTS],
+            "/api/analytics/export/detailed": [
+                AnalyticsPermission.EXPORT_DETAILED_REPORTS
+            ],
+            "/api/analytics/reports/generate": [
+                AnalyticsPermission.GENERATE_CUSTOM_REPORTS
+            ],
             "/api/analytics/reports/schedule": [AnalyticsPermission.SCHEDULE_REPORTS],
-
             # Admin endpoints
-            "/api/analytics/admin/settings": [AnalyticsPermission.MANAGE_ANALYTICS_SETTINGS],
-            "/api/analytics/admin/organizations": [AnalyticsPermission.VIEW_ALL_ORG_DATA],
+            "/api/analytics/admin/settings": [
+                AnalyticsPermission.MANAGE_ANALYTICS_SETTINGS
+            ],
+            "/api/analytics/admin/organizations": [
+                AnalyticsPermission.VIEW_ALL_ORG_DATA
+            ],
             "/api/analytics/admin/access": [AnalyticsPermission.MANAGE_ACCESS_CONTROL],
             "/api/analytics/admin/audit": [AnalyticsPermission.VIEW_AUDIT_LOGS],
         }
@@ -341,13 +350,16 @@ class AnalyticsPermissionsChecker:
             return True
 
         # Check if user has any of the required permissions
-        return AnalyticsPermissionsChecker.has_any_permission(user_role, required_permissions)
+        return AnalyticsPermissionsChecker.has_any_permission(
+            user_role, required_permissions
+        )
 
 
 def require_analytics_permission(permission: AnalyticsPermission):
     """
     Decorator factory to require specific analytics permission
     """
+
     def permission_checker(user_role: UserRole) -> bool:
         return AnalyticsPermissionsChecker.has_permission(user_role, permission)
 
@@ -363,8 +375,12 @@ def get_user_analytics_summary(user_role: UserRole) -> Dict:
 
     return {
         "role": user_role.value,
-        "description": role_permissions.description if role_permissions else "No access",
-        "total_permissions": len(AnalyticsPermissionsChecker.get_role_permissions(user_role)),
+        "description": role_permissions.description
+        if role_permissions
+        else "No access",
+        "total_permissions": len(
+            AnalyticsPermissionsChecker.get_role_permissions(user_role)
+        ),
         "accessible_features": {k: len(v) for k, v in accessible_features.items()},
-        "feature_categories": {k: v for k, v in accessible_features.items() if v}
+        "feature_categories": {k: v for k, v in accessible_features.items() if v},
     }

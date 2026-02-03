@@ -3,20 +3,22 @@ Document Upload Service
 Handles document upload, processing, and knowledge graph integration
 """
 
+import asyncio
+import hashlib
+import logging
 import os
 import uuid
-import hashlib
-import asyncio
-from typing import List, Optional, Dict, Any, BinaryIO
 from datetime import datetime
 from pathlib import Path
-import logging
+from typing import Any, BinaryIO, Dict, List, Optional
 
+from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
-from fastapi import UploadFile, HTTPException
+
 try:
     from minio import Minio
     from minio.error import S3Error
+
     MINIO_AVAILABLE = True
 except ImportError:
     Minio = None
@@ -25,29 +27,48 @@ except ImportError:
 
 from src.core.config import settings
 from src.models.document import Document
-from src.models.processing import ProcessingJob, JobType, JobStatus, JobPriority
+from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
 from src.models.user import User
 from src.services.knowledge_graph.knowledge_graph_service import KnowledgeGraphService
-from src.services.processing.processing_service import ProcessingPipeline as ProcessingService
+from src.services.processing.processing_service import (
+    ProcessingPipeline as ProcessingService,
+)
+
+
 # Stub functions - file_utils module not found
 def validate_file_type(filename: str) -> bool:
     """Validate file type is supported"""
-    supported_extensions = {'.pdf', '.txt', '.doc', '.docx', '.md', '.jpg', '.png', '.mp3', '.mp4'}
+    supported_extensions = {
+        ".pdf",
+        ".txt",
+        ".doc",
+        ".docx",
+        ".md",
+        ".jpg",
+        ".png",
+        ".mp3",
+        ".mp4",
+    }
     from pathlib import Path
+
     return Path(filename).suffix.lower() in supported_extensions
+
 
 def get_file_metadata(file_path: str) -> dict:
     """Get basic file metadata"""
-    from pathlib import Path
     import os
+    from pathlib import Path
+
     p = Path(file_path)
     return {
-        'name': p.name,
-        'size': os.path.getsize(file_path) if p.exists() else 0,
-        'extension': p.suffix
+        "name": p.name,
+        "size": os.path.getsize(file_path) if p.exists() else 0,
+        "extension": p.suffix,
     }
 
+
 logger = logging.getLogger(__name__)
+
 
 class DocumentUploadService:
     """Service for handling document uploads and processing"""
@@ -65,7 +86,7 @@ class DocumentUploadService:
                 settings.MINIO_ENDPOINT,
                 access_key=settings.MINIO_ACCESS_KEY,
                 secret_key=settings.MINIO_SECRET_KEY,
-                secure=settings.MINIO_SECURE
+                secure=settings.MINIO_SECURE,
             )
         except Exception as e:
             logger.error(f"Failed to initialize MinIO client: {e}")
@@ -78,7 +99,7 @@ class DocumentUploadService:
         user: User,
         description: Optional[str] = None,
         tags: Optional[List[str]] = None,
-        custom_metadata: Optional[Dict[str, Any]] = None
+        custom_metadata: Optional[Dict[str, Any]] = None,
     ) -> Document:
         """
         Upload a document and start processing
@@ -89,7 +110,7 @@ class DocumentUploadService:
             if not validation_result["is_valid"]:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"File validation failed: {validation_result['error']}"
+                    detail=f"File validation failed: {validation_result['error']}",
                 )
 
             # Read file content
@@ -120,7 +141,7 @@ class DocumentUploadService:
                 description=description,
                 tags=tags or [],
                 metadata=custom_metadata or {},
-                status="uploaded"
+                status="uploaded",
             )
 
             self.db.add(document)
@@ -145,7 +166,7 @@ class DocumentUploadService:
             if file.size and file.size > settings.MAX_FILE_SIZE_MB * 1024 * 1024:
                 return {
                     "is_valid": False,
-                    "error": f"File size exceeds {settings.MAX_FILE_SIZE_MB}MB limit"
+                    "error": f"File size exceeds {settings.MAX_FILE_SIZE_MB}MB limit",
                 }
 
             # Check file type
@@ -158,27 +179,24 @@ class DocumentUploadService:
                 "audio/mpeg": "mp3",
                 "audio/wav": "wav",
                 "video/mp4": "mp4",
-                "video/quicktime": "mov"
+                "video/quicktime": "mov",
             }
 
             file_type = allowed_types.get(file.content_type)
             if not file_type:
                 return {
                     "is_valid": False,
-                    "error": f"Unsupported file type: {file.content_type}"
+                    "error": f"Unsupported file type: {file.content_type}",
                 }
 
             return {
                 "is_valid": True,
                 "file_type": file_type,
-                "validation_details": f"Valid {file_type} file"
+                "validation_details": f"Valid {file_type} file",
             }
 
         except Exception as e:
-            return {
-                "is_valid": False,
-                "error": f"Validation error: {str(e)}"
-            }
+            return {"is_valid": False, "error": f"Validation error: {str(e)}"}
 
     def _generate_file_path(self, filename: str, user_id: str) -> str:
         """Generate unique file path for storage"""
@@ -188,10 +206,7 @@ class DocumentUploadService:
         return f"documents/{user_id}/{date_path}/{unique_id}{file_ext}"
 
     async def _upload_to_storage(
-        self,
-        file_content: bytes,
-        file_path: str,
-        content_type: str
+        self, file_content: bytes, file_path: str, content_type: str
     ) -> None:
         """Upload file to MinIO storage"""
         try:
@@ -202,12 +217,13 @@ class DocumentUploadService:
 
             # Upload file
             from io import BytesIO
+
             self.minio_client.put_object(
                 bucket_name,
                 file_path,
                 BytesIO(file_content),
                 length=len(file_content),
-                content_type=content_type
+                content_type=content_type,
             )
 
             logger.info(f"File uploaded to storage: {file_path}")
@@ -229,7 +245,7 @@ class DocumentUploadService:
                     job_type=JobType.TEXT_EXTRACTION,
                     status=JobStatus.PENDING,
                     priority=JobPriority.NORMAL,
-                    parameters={"file_path": document.file_path}
+                    parameters={"file_path": document.file_path},
                 )
                 jobs.append(text_job)
 
@@ -239,7 +255,7 @@ class DocumentUploadService:
                 job_type=JobType.ENTITY_EXTRACTION,
                 status=JobStatus.PENDING,
                 priority=JobPriority.NORMAL,
-                parameters={"document_id": str(document.id)}
+                parameters={"document_id": str(document.id)},
             )
             jobs.append(entity_job)
 
@@ -249,7 +265,7 @@ class DocumentUploadService:
                 job_type=JobType.KNOWLEDGE_GRAPH_POPULATION,
                 status=JobStatus.PENDING,
                 priority=JobPriority.NORMAL,
-                parameters={"document_id": str(document.id)}
+                parameters={"document_id": str(document.id)},
             )
             jobs.append(graph_job)
 
@@ -259,7 +275,7 @@ class DocumentUploadService:
                 job_type=JobType.VECTOR_INDEXING,
                 status=JobStatus.PENDING,
                 priority=JobPriority.NORMAL,
-                parameters={"document_id": str(document.id)}
+                parameters={"document_id": str(document.id)},
             )
             jobs.append(vector_job)
 
@@ -318,9 +334,9 @@ class DocumentUploadService:
         """Process text extraction job"""
         try:
             # Get document
-            document = self.db.query(Document).filter(
-                Document.id == job.document_id
-            ).first()
+            document = (
+                self.db.query(Document).filter(Document.id == job.document_id).first()
+            )
 
             if not document:
                 raise ValueError("Document not found")
@@ -333,7 +349,9 @@ class DocumentUploadService:
             elif document.file_type == "docx":
                 text = await self._extract_docx_text(document)
             else:
-                raise ValueError(f"Unsupported file type for text extraction: {document.file_type}")
+                raise ValueError(
+                    f"Unsupported file type for text extraction: {document.file_type}"
+                )
 
             # Update document with extracted text
             document.metadata = document.metadata or {}
@@ -344,7 +362,7 @@ class DocumentUploadService:
             job.progress_percentage = 100.0
             job.result_data = {
                 "text_length": len(text),
-                "extraction_method": f"{document.file_type}_extractor"
+                "extraction_method": f"{document.file_type}_extractor",
             }
 
             self.db.commit()
@@ -357,9 +375,9 @@ class DocumentUploadService:
         """Process entity extraction job"""
         try:
             # Get document
-            document = self.db.query(Document).filter(
-                Document.id == job.document_id
-            ).first()
+            document = (
+                self.db.query(Document).filter(Document.id == job.document_id).first()
+            )
 
             if not document:
                 raise ValueError("Document not found")
@@ -376,7 +394,7 @@ class DocumentUploadService:
             job.progress_percentage = 100.0
             job.result_data = {
                 "entities_extracted": len(entities),
-                "extraction_method": "nlp_service"
+                "extraction_method": "nlp_service",
             }
 
             self.db.commit()
@@ -389,21 +407,23 @@ class DocumentUploadService:
         """Process knowledge graph population job"""
         try:
             # Get document and extracted entities
-            document = self.db.query(Document).filter(
-                Document.id == job.document_id
-            ).first()
+            document = (
+                self.db.query(Document).filter(Document.id == job.document_id).first()
+            )
 
             if not document:
                 raise ValueError("Document not found")
 
             # Populate knowledge graph
-            entities_added = await self.knowledge_graph_service.populate_from_document(document)
+            entities_added = await self.knowledge_graph_service.populate_from_document(
+                document
+            )
 
             # Update job result
             job.progress_percentage = 100.0
             job.result_data = {
                 "entities_added_to_graph": entities_added,
-                "graph_nodes_created": entities_added
+                "graph_nodes_created": entities_added,
             }
 
             self.db.commit()
@@ -416,9 +436,9 @@ class DocumentUploadService:
         """Process vector indexing job"""
         try:
             # Get document
-            document = self.db.query(Document).filter(
-                Document.id == job.document_id
-            ).first()
+            document = (
+                self.db.query(Document).filter(Document.id == job.document_id).first()
+            )
 
             if not document:
                 raise ValueError("Document not found")
@@ -436,7 +456,7 @@ class DocumentUploadService:
             job.result_data = {
                 "embedding_id": embedding_id,
                 "vector_dimension": 1536,  # Placeholder
-                "indexed_chunks": 1
+                "indexed_chunks": 1,
             }
 
             self.db.commit()
@@ -461,12 +481,14 @@ class DocumentUploadService:
         # Placeholder: Use python-docx
         return f"Extracted text from {document.filename}"
 
-    async def _extract_entities(self, text: str, document_id: str) -> List[Dict[str, Any]]:
+    async def _extract_entities(
+        self, text: str, document_id: str
+    ) -> List[Dict[str, Any]]:
         """Extract entities from text"""
         # Placeholder: Use spaCy or similar NLP service
         return [
             {"text": "Entity1", "type": "PERSON", "confidence": 0.9},
-            {"text": "Entity2", "type": "ORGANIZATION", "confidence": 0.85}
+            {"text": "Entity2", "type": "ORGANIZATION", "confidence": 0.85},
         ]
 
     async def _create_embeddings(self, text: str, document_id: str) -> str:
@@ -478,17 +500,19 @@ class DocumentUploadService:
         """Get comprehensive document processing status"""
         try:
             # Get document
-            document = self.db.query(Document).filter(
-                Document.id == document_id
-            ).first()
+            document = (
+                self.db.query(Document).filter(Document.id == document_id).first()
+            )
 
             if not document:
                 raise ValueError("Document not found")
 
             # Get processing jobs
-            jobs = self.db.query(ProcessingJob).filter(
-                ProcessingJob.document_id == document_id
-            ).all()
+            jobs = (
+                self.db.query(ProcessingJob)
+                .filter(ProcessingJob.document_id == document_id)
+                .all()
+            )
 
             # Calculate overall status
             total_jobs = len(jobs)
@@ -496,7 +520,9 @@ class DocumentUploadService:
             failed_jobs = len([j for j in jobs if j.status == JobStatus.FAILED])
             running_jobs = len([j for j in jobs if j.status == JobStatus.RUNNING])
 
-            overall_progress = (completed_jobs / total_jobs * 100) if total_jobs > 0 else 0
+            overall_progress = (
+                (completed_jobs / total_jobs * 100) if total_jobs > 0 else 0
+            )
 
             if running_jobs > 0:
                 overall_status = "processing"
@@ -521,13 +547,17 @@ class DocumentUploadService:
                         "job_type": job.job_type.value,
                         "status": job.status.value,
                         "progress_percentage": float(job.progress_percentage),
-                        "started_at": job.started_at.isoformat() if job.started_at else None,
-                        "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                        "started_at": job.started_at.isoformat()
+                        if job.started_at
+                        else None,
+                        "completed_at": job.completed_at.isoformat()
+                        if job.completed_at
+                        else None,
                         "error_message": job.error_message,
-                        "result_data": job.result_data
+                        "result_data": job.result_data,
                     }
                     for job in jobs
-                ]
+                ],
             }
 
         except Exception as e:

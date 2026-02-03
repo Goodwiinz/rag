@@ -3,16 +3,17 @@ Rate limiting middleware for analytics endpoints
 Protects against abuse and ensures fair usage
 """
 
-import time
 import hashlib
-from typing import Dict, Optional, Tuple
-from datetime import datetime, timedelta
+import logging
+import time
 from collections import defaultdict, deque
-from fastapi import Request, HTTPException, status
+from datetime import datetime, timedelta
+from typing import Dict, Optional, Tuple
+
+import redis
+from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
-import redis
-import logging
 
 from src.core.config import settings
 from src.models.user import UserRole
@@ -57,7 +58,7 @@ class InMemoryRateLimiter:
             "limit": limit,
             "window": window,
             "reset_time": now + window,
-            "retry_after": None
+            "retry_after": None,
         }
 
         if current_requests >= limit:
@@ -102,7 +103,7 @@ class RedisRateLimiter:
                 "limit": limit,
                 "window": window,
                 "reset_time": now + window,
-                "retry_after": None
+                "retry_after": None,
             }
 
             if current_requests >= limit:
@@ -137,27 +138,34 @@ class AnalyticsRateLimitMiddleware(BaseHTTPMiddleware):
             self.rate_limiter = RedisRateLimiter(redis_client)
         else:
             self.rate_limiter = InMemoryRateLimiter()
-            logger.warning("Using in-memory rate limiter. Consider using Redis for production.")
+            logger.warning(
+                "Using in-memory rate limiter. Consider using Redis for production."
+            )
 
         # Rate limit configurations
         self.rate_limits = {
             # General analytics limits
             UserRole.USER: {"requests": 100, "window": 3600},  # 100 requests/hour
             UserRole.ANALYST: {"requests": 500, "window": 3600},  # 500 requests/hour
-            UserRole.CONTENT_MANAGER: {"requests": 1000, "window": 3600},  # 1000 requests/hour
+            UserRole.CONTENT_MANAGER: {
+                "requests": 1000,
+                "window": 3600,
+            },  # 1000 requests/hour
             UserRole.ADMIN: {"requests": 2000, "window": 3600},  # 2000 requests/hour
-
             # Heavy operation limits (e.g., large reports)
-            "heavy_operations": {"requests": 10, "window": 3600},  # 10 heavy operations/hour
-
+            "heavy_operations": {
+                "requests": 10,
+                "window": 3600,
+            },  # 10 heavy operations/hour
             # Export limits
             "exports": {"requests": 20, "window": 3600},  # 20 exports/hour
-
             # API call limits (smaller window)
             "api_calls": {"requests": 50, "window": 300},  # 50 requests/5 minutes
         }
 
-    def _get_rate_limit_key(self, request: Request, limit_type: str = "api_calls") -> str:
+    def _get_rate_limit_key(
+        self, request: Request, limit_type: str = "api_calls"
+    ) -> str:
         """
         Generate rate limit key based on request context
         """
@@ -184,7 +192,7 @@ class AnalyticsRateLimitMiddleware(BaseHTTPMiddleware):
             "/analytics/export",
             "/quality/trends",
             "/behavior/analysis",
-            "/performance/summary"
+            "/performance/summary",
         ]
 
         return any(pattern in path for pattern in heavy_patterns)
@@ -201,7 +209,7 @@ class AnalyticsRateLimitMiddleware(BaseHTTPMiddleware):
             "/download",
             "format=csv",
             "format=excel",
-            "format=pdf"
+            "format=pdf",
         ]
 
         return any(pattern in path or pattern in query for pattern in export_patterns)
@@ -211,7 +219,10 @@ class AnalyticsRateLimitMiddleware(BaseHTTPMiddleware):
         Apply rate limiting to analytics requests
         """
         # Only apply to analytics endpoints
-        if not request.url.path.startswith("/api/") or "analytics" not in request.url.path:
+        if (
+            not request.url.path.startswith("/api/")
+            or "analytics" not in request.url.path
+        ):
             return await call_next(request)
 
         # Get user role from request state (should be set by auth middleware)
@@ -231,7 +242,9 @@ class AnalyticsRateLimitMiddleware(BaseHTTPMiddleware):
             limit_config = self.rate_limits["exports"]
             limit_type = "exports"
         else:
-            limit_config = self.rate_limits.get(user_role, self.rate_limits[UserRole.USER])
+            limit_config = self.rate_limits.get(
+                user_role, self.rate_limits[UserRole.USER]
+            )
             limit_type = "api_calls"
 
         # Generate rate limit key
@@ -241,7 +254,7 @@ class AnalyticsRateLimitMiddleware(BaseHTTPMiddleware):
         allowed, info = self.rate_limiter.is_allowed(
             key=rate_limit_key,
             limit=limit_config["requests"],
-            window=limit_config["window"]
+            window=limit_config["window"],
         )
 
         # Log rate limiting attempt
@@ -251,7 +264,7 @@ class AnalyticsRateLimitMiddleware(BaseHTTPMiddleware):
             "limit_type": limit_type,
             "current_requests": info["current_requests"],
             "limit": info["limit"],
-            "allowed": allowed
+            "allowed": allowed,
         }
 
         if user_context.get("user_id"):
@@ -260,10 +273,7 @@ class AnalyticsRateLimitMiddleware(BaseHTTPMiddleware):
             log_data["client_ip"] = request.client.host if request.client else "unknown"
 
         if not allowed:
-            logger.warning(
-                f"Rate limit exceeded for analytics request",
-                extra=log_data
-            )
+            logger.warning(f"Rate limit exceeded for analytics request", extra=log_data)
 
             # Add rate limit headers
             headers = {
@@ -278,12 +288,11 @@ class AnalyticsRateLimitMiddleware(BaseHTTPMiddleware):
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Rate limit exceeded. Maximum {info['limit']} requests per {info['window']} seconds.",
-                headers=headers
+                headers=headers,
             )
         else:
             logger.info(
-                f"Rate limit check passed for analytics request",
-                extra=log_data
+                f"Rate limit check passed for analytics request", extra=log_data
             )
 
             # Add rate limit headers to response

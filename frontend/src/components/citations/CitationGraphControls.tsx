@@ -77,6 +77,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
             disabled={loading}
             className="p-2 text-gray-500 hover:text-[#00ff9f] transition-colors disabled:opacity-50"
             title="Refresh Graph"
+            aria-label="Refresh citation graph"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -144,11 +145,14 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
 
         {/* Include External Toggle */}
         <div className="flex items-center justify-between">
-          <label className="text-xs text-gray-500 font-mono uppercase tracking-wide">
+          <label id="external-papers-label" className="text-xs text-gray-500 font-mono uppercase tracking-wide">
             Include External Papers
           </label>
           <button
             onClick={handleExternalToggle}
+            role="switch"
+            aria-checked={filters.includeExternal}
+            aria-labelledby="external-papers-label"
             className={`relative w-12 h-6 rounded-full transition-colors ${
               filters.includeExternal
                 ? 'bg-[#00ff9f]/30 border-[#00ff9f]'
@@ -156,6 +160,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
             } border`}
           >
             <span
+              aria-hidden="true"
               className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform ${
                 filters.includeExternal
                   ? 'translate-x-6 bg-[#00ff9f]'

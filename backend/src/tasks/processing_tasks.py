@@ -2,25 +2,26 @@
 Celery tasks for document processing
 """
 
+import asyncio
+import logging
 import os
 import sys
-import logging
-import asyncio
-from typing import Dict, Any
 from datetime import datetime, timedelta
+from typing import Any, Dict
+
 from celery import Task
 
 # Add src directory to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from celery import Celery, current_app
 
 # Create Celery app
 celery_app = Celery(
-    'multimodal_rag',
-    broker='redis://redis:6379/0',
-    backend='redis://redis:6379/0',
-    include=['src.tasks.processing_tasks']
+    "multimodal_rag",
+    broker="redis://redis:6379/0",
+    backend="redis://redis:6379/0",
+    include=["src.tasks.processing_tasks"],
 )
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -28,8 +29,8 @@ from sqlalchemy.orm import sessionmaker
 from src.core.config import settings
 from src.core.database import get_db
 from src.models.document import Document, ProcessingStatus
-from src.models.processing import ProcessingJob, JobStatus
 from src.models.entity import Entity
+from src.models.processing import JobStatus, ProcessingJob
 from src.services.processing.processing_service import ProcessingPipeline
 from src.services.search.fulltext_search_service import fulltext_search_service
 
@@ -38,6 +39,7 @@ logger = logging.getLogger(__name__)
 # Database session for tasks
 engine = create_engine(settings.DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
+
 
 class ProcessingTask(Task):
     """Base class for processing tasks"""
@@ -55,9 +57,7 @@ class ProcessingTask(Task):
             job_id = args[0]
             db = SessionLocal()
             try:
-                job = db.query(ProcessingJob).filter(
-                    ProcessingJob.id == job_id
-                ).first()
+                job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
 
                 if job:
                     job.fail_job(str(exc))
@@ -67,22 +67,23 @@ class ProcessingTask(Task):
             finally:
                 db.close()
 
+
 @current_app.task(base=ProcessingTask, bind=True)
 def process_document_ingestion(self, job_id: str):
     """Process complete document ingestion pipeline"""
     db = SessionLocal()
     try:
         # Get job and document
-        job = db.query(ProcessingJob).filter(
-            ProcessingJob.id == job_id
-        ).first()
+        job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
 
         if not job:
             raise ValueError(f"Job {job_id} not found")
 
-        document = db.query(Document).filter(
-            Document.id == job.parameters["document_id"]
-        ).first()
+        document = (
+            db.query(Document)
+            .filter(Document.id == job.parameters["document_id"])
+            .first()
+        )
 
         if not document:
             raise ValueError(f"Document not found for job {job_id}")
@@ -118,7 +119,9 @@ def process_document_ingestion(self, job_id: str):
 
             # Add metadata
             document.add_metadata("word_count", text_extraction_result["word_count"])
-            document.add_metadata("character_count", text_extraction_result["character_count"])
+            document.add_metadata(
+                "character_count", text_extraction_result["character_count"]
+            )
         db.commit()
 
         # Step 2: Entity Extraction
@@ -173,7 +176,9 @@ def process_document_ingestion(self, job_id: str):
             fulltext_search_service.update_document_search_vector(str(document.id), db)
             logger.info(f"Updated search vector for document {document.id}")
         except Exception as e:
-            logger.warning(f"Failed to update search vector for document {document.id}: {e}")
+            logger.warning(
+                f"Failed to update search vector for document {document.id}: {e}"
+            )
 
         # Step 5: Finalize
         job.update_progress("Finalizing", 95)
@@ -188,9 +193,9 @@ def process_document_ingestion(self, job_id: str):
         job.complete_job(
             result={
                 "text_extracted": bool(document.content_text),
-                "entities_found": len(entities) if 'entities' in locals() else 0,
+                "entities_found": len(entities) if "entities" in locals() else 0,
                 "embedding_generated": bool(document.embedding_id),
-                "word_count": text_extraction_result.get("word_count", 0)
+                "word_count": text_extraction_result.get("word_count", 0),
             }
         )
         db.commit()
@@ -200,7 +205,7 @@ def process_document_ingestion(self, job_id: str):
         return {
             "status": "completed",
             "document_id": str(document.id),
-            "processing_time": job.duration_seconds
+            "processing_time": job.duration_seconds,
         }
 
     except Exception as e:
@@ -208,9 +213,11 @@ def process_document_ingestion(self, job_id: str):
 
         # Update document and job status
         try:
-            document = db.query(Document).filter(
-                Document.id == job.parameters["document_id"]
-            ).first()
+            document = (
+                db.query(Document)
+                .filter(Document.id == job.parameters["document_id"])
+                .first()
+            )
 
             if document:
                 document.update_processing_status(ProcessingStatus.FAILED, str(e))
@@ -227,21 +234,22 @@ def process_document_ingestion(self, job_id: str):
     finally:
         db.close()
 
+
 @current_app.task(base=ProcessingTask, bind=True)
 def extract_text_content(self, job_id: str):
     """Extract text content from document"""
     db = SessionLocal()
     try:
-        job = db.query(ProcessingJob).filter(
-            ProcessingJob.id == job_id
-        ).first()
+        job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
 
         if not job:
             raise ValueError(f"Job {job_id} not found")
 
-        document = db.query(Document).filter(
-            Document.id == job.parameters["document_id"]
-        ).first()
+        document = (
+            db.query(Document)
+            .filter(Document.id == job.parameters["document_id"])
+            .first()
+        )
 
         if not document:
             raise ValueError(f"Document not found for job {job_id}")
@@ -279,21 +287,22 @@ def extract_text_content(self, job_id: str):
     finally:
         db.close()
 
+
 @current_app.task(base=ProcessingTask, bind=True)
 def extract_entities(self, job_id: str):
     """Extract entities from document text"""
     db = SessionLocal()
     try:
-        job = db.query(ProcessingJob).filter(
-            ProcessingJob.id == job_id
-        ).first()
+        job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
 
         if not job:
             raise ValueError(f"Job {job_id} not found")
 
-        document = db.query(Document).filter(
-            Document.id == job.parameters["document_id"]
-        ).first()
+        document = (
+            db.query(Document)
+            .filter(Document.id == job.parameters["document_id"])
+            .first()
+        )
 
         if not document:
             raise ValueError(f"Document not found for job {job_id}")
@@ -319,15 +328,17 @@ def extract_entities(self, job_id: str):
         db.commit()
 
         # Complete job
-        job.complete_job(result={
-            "entities_extracted": len(saved_entities),
-            "entity_types": list(set(e.entity_type.value for e in saved_entities))
-        })
+        job.complete_job(
+            result={
+                "entities_extracted": len(saved_entities),
+                "entity_types": list(set(e.entity_type.value for e in saved_entities)),
+            }
+        )
         db.commit()
 
         return {
             "entities_extracted": len(saved_entities),
-            "entities": [e.to_dict() for e in saved_entities]
+            "entities": [e.to_dict() for e in saved_entities],
         }
 
     except Exception as e:
@@ -340,21 +351,22 @@ def extract_entities(self, job_id: str):
     finally:
         db.close()
 
+
 @current_app.task(base=ProcessingTask, bind=True)
 def generate_embeddings(self, job_id: str):
     """Generate embeddings for document"""
     db = SessionLocal()
     try:
-        job = db.query(ProcessingJob).filter(
-            ProcessingJob.id == job_id
-        ).first()
+        job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
 
         if not job:
             raise ValueError(f"Job {job_id} not found")
 
-        document = db.query(Document).filter(
-            Document.id == job.parameters["document_id"]
-        ).first()
+        document = (
+            db.query(Document)
+            .filter(Document.id == job.parameters["document_id"])
+            .first()
+        )
 
         if not document:
             raise ValueError(f"Document not found for job {job_id}")
@@ -396,21 +408,22 @@ def generate_embeddings(self, job_id: str):
     finally:
         db.close()
 
+
 @current_app.task(base=ProcessingTask, bind=True)
 def index_in_graph(self, job_id: str):
     """Index document and entities in knowledge graph"""
     db = SessionLocal()
     try:
-        job = db.query(ProcessingJob).filter(
-            ProcessingJob.id == job_id
-        ).first()
+        job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
 
         if not job:
             raise ValueError(f"Job {job_id} not found")
 
-        document = db.query(Document).filter(
-            Document.id == job.parameters["document_id"]
-        ).first()
+        document = (
+            db.query(Document)
+            .filter(Document.id == job.parameters["document_id"])
+            .first()
+        )
 
         if not document:
             raise ValueError(f"Document not found for job {job_id}")
@@ -420,9 +433,7 @@ def index_in_graph(self, job_id: str):
         db.commit()
 
         # Get entities for this document
-        entities = db.query(Entity).filter(
-            Entity.document_id == document.id
-        ).all()
+        entities = db.query(Entity).filter(Entity.document_id == document.id).all()
 
         # Index in Neo4j (this would be implemented with actual Neo4j client)
         # For now, simulate the process
@@ -440,16 +451,15 @@ def index_in_graph(self, job_id: str):
         db.commit()
 
         # Complete job
-        job.complete_job(result={
-            "entities_indexed": len(indexed_entities),
-            "document_indexed": True
-        })
+        job.complete_job(
+            result={"entities_indexed": len(indexed_entities), "document_indexed": True}
+        )
         db.commit()
 
         return {
             "entities_indexed": len(indexed_entities),
             "document_indexed": True,
-            "status": "success"
+            "status": "success",
         }
 
     except Exception as e:
@@ -462,6 +472,7 @@ def index_in_graph(self, job_id: str):
     finally:
         db.close()
 
+
 @current_app.task
 def cleanup_old_jobs():
     """Cleanup old processing jobs"""
@@ -470,10 +481,16 @@ def cleanup_old_jobs():
         # Delete jobs older than 30 days
         cutoff_date = datetime.utcnow() - timedelta(days=30)
 
-        old_jobs = db.query(ProcessingJob).filter(
-            ProcessingJob.created_at < cutoff_date,
-            ProcessingJob.status.in_([JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED])
-        ).all()
+        old_jobs = (
+            db.query(ProcessingJob)
+            .filter(
+                ProcessingJob.created_at < cutoff_date,
+                ProcessingJob.status.in_(
+                    [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]
+                ),
+            )
+            .all()
+        )
 
         for job in old_jobs:
             db.delete(job)
@@ -490,12 +507,13 @@ def cleanup_old_jobs():
     finally:
         db.close()
 
+
 # Periodic tasks
 from celery.schedules import crontab
 
 current_app.conf.beat_schedule = {
-    'cleanup-old-jobs': {
-        'task': 'src.tasks.processing_tasks.cleanup_old_jobs',
-        'schedule': crontab(hour=2, minute=0),  # Run daily at 2 AM
+    "cleanup-old-jobs": {
+        "task": "src.tasks.processing_tasks.cleanup_old_jobs",
+        "schedule": crontab(hour=2, minute=0),  # Run daily at 2 AM
     },
 }

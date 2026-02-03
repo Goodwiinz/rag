@@ -4,42 +4,72 @@ Handles file upload, metadata management, storage quota enforcement, and documen
 """
 
 import asyncio
+import hashlib
+import json
+import mimetypes
 import os
 import uuid
-import json
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any, BinaryIO
-import mimetypes
-import hashlib
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any, BinaryIO, Dict, List, Optional
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, status, Depends, Query, BackgroundTasks
+import aiofiles
+import redis.asyncio as redis
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import and_, asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func, desc, asc
-import aiofiles
-import redis.asyncio as redis
 
-from src.shared.schemas import (
-    BaseResponse, ErrorResponse, PaginationRequest, PaginatedResponse,
-    DocumentMetadata, DocumentResponse, DocumentDetailResponse, ProcessingStatusResponse,
-    DocumentType, ProcessingStatus, HealthCheckResponse
-)
+from src.core.config import settings
+from src.core.database import get_db
+from src.models.document import Document
+from src.models.document import DocumentType as DocType
+from src.models.document import ProcessingStatus as ProcStatus
+from src.models.organization import Organization, StorageTier
 from src.shared.exceptions import (
-    BaseCustomException, ValidationError, NotFoundError, ConflictError,
-    StorageQuotaError, FileUploadError, handle_exceptions
+    BaseCustomException,
+    ConflictError,
+    FileUploadError,
+    NotFoundError,
+    StorageQuotaError,
+    ValidationError,
+    handle_exceptions,
+)
+from src.shared.schemas import (
+    BaseResponse,
+    DocumentDetailResponse,
+    DocumentMetadata,
+    DocumentResponse,
+    DocumentType,
+    ErrorResponse,
+    HealthCheckResponse,
+    PaginatedResponse,
+    PaginationRequest,
+    ProcessingStatus,
+    ProcessingStatusResponse,
 )
 from src.shared.utils import (
-    CorrelationIdMiddleware, EventLogger, HealthChecker, MetricsCollector,
-    sanitize_filename, format_file_size, validate_mime_type, paginate_query
+    CorrelationIdMiddleware,
+    EventLogger,
+    HealthChecker,
+    MetricsCollector,
+    format_file_size,
+    paginate_query,
+    sanitize_filename,
+    validate_mime_type,
 )
-from src.core.database import get_db
-from src.core.config import settings
-from src.models.document import Document, DocumentType as DocType, ProcessingStatus as ProcStatus
-from src.models.organization import Organization, StorageTier
-
 
 # Configuration
 DOCUMENT_SERVICE_CONFIG = {
@@ -56,28 +86,45 @@ DOCUMENT_SERVICE_CONFIG = {
         DocumentType.SPREADSHEET: [
             "application/vnd.ms-excel",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "text/csv"
+            "text/csv",
         ],
         DocumentType.PRESENTATION: [
             "application/vnd.ms-powerpoint",
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         ],
         # Images
         DocumentType.IMAGE: [
-            "image/jpeg", "image/jpg", "image/png", "image/gif", "image/bmp",
-            "image/tiff", "image/webp", "image/svg+xml"
+            "image/jpeg",
+            "image/jpg",
+            "image/png",
+            "image/gif",
+            "image/bmp",
+            "image/tiff",
+            "image/webp",
+            "image/svg+xml",
         ],
         # Audio
         DocumentType.AUDIO: [
-            "audio/mpeg", "audio/mp3", "audio/wav", "audio/ogg", "audio/m4a",
-            "audio/flac", "audio/aac"
+            "audio/mpeg",
+            "audio/mp3",
+            "audio/wav",
+            "audio/ogg",
+            "audio/m4a",
+            "audio/flac",
+            "audio/aac",
         ],
         # Video
         DocumentType.VIDEO: [
-            "video/mp4", "video/avi", "video/mov", "video/wmv", "video/flv",
-            "video/webm", "video/mkv", "video/3gp"
-        ]
-    }
+            "video/mp4",
+            "video/avi",
+            "video/mov",
+            "video/wmv",
+            "video/flv",
+            "video/webm",
+            "video/mkv",
+            "video/3gp",
+        ],
+    },
 }
 
 # Initialize FastAPI app
@@ -114,6 +161,7 @@ os.makedirs(DOCUMENT_SERVICE_CONFIG["upload_dir"], exist_ok=True)
 
 class DocumentUploadRequest(BaseModel):
     """Document upload request"""
+
     title: str = Field(..., min_length=1, max_length=500)
     tags: List[str] = Field(default_factory=list)
     is_public: bool = False
@@ -122,6 +170,7 @@ class DocumentUploadRequest(BaseModel):
 
 class DocumentUpdateRequest(BaseModel):
     """Document update request"""
+
     title: Optional[str] = Field(None, min_length=1, max_length=500)
     tags: Optional[List[str]] = None
     is_public: Optional[bool] = None
@@ -130,6 +179,7 @@ class DocumentUpdateRequest(BaseModel):
 
 class DocumentListRequest(PaginationRequest):
     """Document list request with filters"""
+
     document_type: Optional[DocumentType] = None
     processing_status: Optional[ProcessingStatus] = None
     tags: Optional[List[str]] = None
@@ -141,7 +191,9 @@ class DocumentListRequest(PaginationRequest):
 
 def get_document_type_from_mime(mime_type: str) -> DocumentType:
     """Get document type from MIME type"""
-    for doc_type, allowed_mimes in DOCUMENT_SERVICE_CONFIG["allowed_mime_types"].items():
+    for doc_type, allowed_mimes in DOCUMENT_SERVICE_CONFIG[
+        "allowed_mime_types"
+    ].items():
         if mime_type in allowed_mimes:
             return doc_type
     return DocumentType.MULTIMODAL
@@ -150,15 +202,22 @@ def get_document_type_from_mime(mime_type: str) -> DocumentType:
 def validate_file_upload(file: UploadFile) -> tuple[DocumentType, bool]:
     """Validate uploaded file"""
     # Check file size
-    if file.size and file.size > DOCUMENT_SERVICE_CONFIG["max_file_size_mb"] * 1024 * 1024:
+    if (
+        file.size
+        and file.size > DOCUMENT_SERVICE_CONFIG["max_file_size_mb"] * 1024 * 1024
+    ):
         raise FileUploadError(
             message=f"File size exceeds maximum limit of {DOCUMENT_SERVICE_CONFIG['max_file_size_mb']}MB",
             filename=file.filename,
-            file_size=file.size
+            file_size=file.size,
         )
 
     # Get MIME type
-    mime_type = file.content_type or mimetypes.guess_type(file.filename)[0] or "application/octet-stream"
+    mime_type = (
+        file.content_type
+        or mimetypes.guess_type(file.filename)[0]
+        or "application/octet-stream"
+    )
 
     # Determine document type
     document_type = get_document_type_from_mime(mime_type)
@@ -172,9 +231,7 @@ async def calculate_file_hash(file_content: bytes) -> str:
 
 
 async def check_storage_quota(
-    db: AsyncSession,
-    organization_id: uuid.UUID,
-    additional_size: int
+    db: AsyncSession, organization_id: uuid.UUID, additional_size: int
 ) -> tuple[bool, int, int]:
     """Check if organization has sufficient storage quota"""
     # Get organization info
@@ -188,11 +245,10 @@ async def check_storage_quota(
 
     # Calculate current storage usage
     result = await db.execute(
-        select(func.coalesce(func.sum(Document.file_size_bytes), 0))
-        .where(
+        select(func.coalesce(func.sum(Document.file_size_bytes), 0)).where(
             and_(
                 Document.organization_id == organization_id,
-                Document.is_deleted == False
+                Document.is_deleted == False,
             )
         )
     )
@@ -208,9 +264,7 @@ async def check_storage_quota(
 
 
 async def save_uploaded_file(
-    file: UploadFile,
-    organization_id: uuid.UUID,
-    document_id: uuid.UUID
+    file: UploadFile, organization_id: uuid.UUID, document_id: uuid.UUID
 ) -> str:
     """Save uploaded file to storage"""
     # Create organization-specific directory
@@ -226,7 +280,7 @@ async def save_uploaded_file(
     file_path = org_dir / storage_filename
 
     # Save file
-    async with aiofiles.open(file_path, 'wb') as f:
+    async with aiofiles.open(file_path, "wb") as f:
         content = await file.read()
         await f.write(content)
 
@@ -249,12 +303,16 @@ async def startup_event():
     """Initialize service on startup"""
     await event_logger.log_event(
         event_type="service_startup",
-        event_data={"version": DOCUMENT_SERVICE_CONFIG["version"]}
+        event_data={"version": DOCUMENT_SERVICE_CONFIG["version"]},
     )
 
     # Add health checks
-    health_checker.add_check("storage", lambda: os.access(DOCUMENT_SERVICE_CONFIG["upload_dir"], os.W_OK))
-    health_checker.add_check("database", lambda: True)  # Would check actual DB connection
+    health_checker.add_check(
+        "storage", lambda: os.access(DOCUMENT_SERVICE_CONFIG["upload_dir"], os.W_OK)
+    )
+    health_checker.add_check(
+        "database", lambda: True
+    )  # Would check actual DB connection
     health_checker.add_check("redis", lambda: True)  # Would check Redis connection
 
 
@@ -269,7 +327,7 @@ async def upload_document(
     custom_metadata: str = Form(default="{}"),
     organization_id: uuid.UUID = Form(...),
     uploaded_by_user_id: uuid.UUID = Form(...),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Upload a new document"""
     start_time = datetime.now(timezone.utc)
@@ -296,14 +354,14 @@ async def upload_document(
                 and_(
                     Document.organization_id == organization_id,
                     Document.file_hash == file_hash,
-                    Document.is_deleted == False
+                    Document.is_deleted == False,
                 )
             )
         )
         if existing_doc.scalar_one_or_none():
             raise ConflictError(
                 message="Duplicate file detected",
-                conflict_details={"file_hash": file_hash}
+                conflict_details={"file_hash": file_hash},
             )
 
         # Check storage quota
@@ -314,7 +372,7 @@ async def upload_document(
         if not has_quota:
             raise StorageQuotaError(
                 current_usage_mb=current_usage / (1024 * 1024),
-                quota_limit_mb=quota_limit / (1024 * 1024)
+                quota_limit_mb=quota_limit / (1024 * 1024),
             )
 
         # Reset file position for saving
@@ -334,7 +392,7 @@ async def upload_document(
             document_metadata=metadata_dict,
             organization_id=organization_id,
             uploaded_by_user_id=uploaded_by_user_id,
-            file_hash=file_hash
+            file_hash=file_hash,
         )
 
         db.add(document)
@@ -351,7 +409,7 @@ async def upload_document(
             schedule_document_processing,
             str(document.id),
             organization_id,
-            uploaded_by_user_id
+            uploaded_by_user_id,
         )
 
         # Log successful upload
@@ -362,21 +420,20 @@ async def upload_document(
                 "filename": file.filename,
                 "file_size": file_size,
                 "document_type": document_type.value,
-                "processing_status": document.processing_status.value
+                "processing_status": document.processing_status.value,
             },
             user_id=str(uploaded_by_user_id),
-            organization_id=str(organization_id)
+            organization_id=str(organization_id),
         )
 
         # Record metrics
         metrics.increment_counter(
-            "documents_uploaded",
-            labels={"document_type": document_type.value}
+            "documents_uploaded", labels={"document_type": document_type.value}
         )
         metrics.set_gauge(
             "storage_usage_bytes",
             current_usage + file_size,
-            {"organization_id": str(organization_id)}
+            {"organization_id": str(organization_id)},
         )
 
         processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
@@ -396,21 +453,19 @@ async def upload_document(
             updated_at=document.updated_at,
             processing_started_at=document.processing_started_at,
             processing_completed_at=document.processing_completed_at,
-            content_preview=document.get_content_preview()
+            content_preview=document.get_content_preview(),
         )
 
     except Exception as e:
         await db.rollback()
         # Clean up uploaded file if it exists
-        if 'document' in locals() and document.file_path:
+        if "document" in locals() and document.file_path:
             await delete_file_from_storage(document.file_path)
         raise
 
 
 async def schedule_document_processing(
-    document_id: str,
-    organization_id: uuid.UUID,
-    user_id: uuid.UUID
+    document_id: str, organization_id: uuid.UUID, user_id: uuid.UUID
 ):
     """Schedule document processing job"""
     try:
@@ -421,8 +476,8 @@ async def schedule_document_processing(
             event_data={
                 "document_id": document_id,
                 "organization_id": str(organization_id),
-                "user_id": str(user_id)
-            }
+                "user_id": str(user_id),
+            },
         )
     except Exception as e:
         await event_logger.log_error(e, {"document_id": document_id})
@@ -434,23 +489,24 @@ async def list_documents(
     request: DocumentListRequest = Depends(),
     organization_id: uuid.UUID = Query(...),
     user_id: Optional[uuid.UUID] = Query(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """List documents with pagination and filters"""
     # Build base query
     query = select(Document).where(
-        and_(
-            Document.organization_id == organization_id,
-            Document.is_deleted == False
-        )
+        and_(Document.organization_id == organization_id, Document.is_deleted == False)
     )
 
     # Apply filters
     if request.document_type:
-        query = query.where(Document.document_type == DocType(request.document_type.value))
+        query = query.where(
+            Document.document_type == DocType(request.document_type.value)
+        )
 
     if request.processing_status:
-        query = query.where(Document.processing_status == ProcStatus(request.processing_status.value))
+        query = query.where(
+            Document.processing_status == ProcStatus(request.processing_status.value)
+        )
 
     if request.tags:
         # Filter by tags (PostgreSQL array contains)
@@ -467,7 +523,7 @@ async def list_documents(
             or_(
                 Document.title.ilike(search_term),
                 Document.filename.ilike(search_term),
-                Document.content_text.ilike(search_term)
+                Document.content_text.ilike(search_term),
             )
         )
 
@@ -480,10 +536,7 @@ async def list_documents(
     # If not admin, filter by user
     if user_id:
         query = query.where(
-            or_(
-                Document.uploaded_by_user_id == user_id,
-                Document.is_public == True
-            )
+            or_(Document.uploaded_by_user_id == user_id, Document.is_public == True)
         )
 
     # Order by creation date (newest first)
@@ -497,28 +550,28 @@ async def list_documents(
     # Convert to response models
     document_responses = []
     for doc in documents:
-        document_responses.append(DocumentResponse(
-            id=doc.id,
-            title=doc.title,
-            filename=doc.filename,
-            document_type=DocumentType(doc.document_type.value),
-            file_size_bytes=doc.file_size_bytes,
-            file_size_mb=doc.file_size_mb,
-            mime_type=doc.mime_type,
-            processing_status=ProcessingStatus(doc.processing_status.value),
-            tags=doc.tags or [],
-            is_public=doc.is_public,
-            created_at=doc.created_at,
-            updated_at=doc.updated_at,
-            processing_started_at=doc.processing_started_at,
-            processing_completed_at=doc.processing_completed_at,
-            content_preview=doc.get_content_preview()
-        ))
+        document_responses.append(
+            DocumentResponse(
+                id=doc.id,
+                title=doc.title,
+                filename=doc.filename,
+                document_type=DocumentType(doc.document_type.value),
+                file_size_bytes=doc.file_size_bytes,
+                file_size_mb=doc.file_size_mb,
+                mime_type=doc.mime_type,
+                processing_status=ProcessingStatus(doc.processing_status.value),
+                tags=doc.tags or [],
+                is_public=doc.is_public,
+                created_at=doc.created_at,
+                updated_at=doc.updated_at,
+                processing_started_at=doc.processing_started_at,
+                processing_completed_at=doc.processing_completed_at,
+                content_preview=doc.get_content_preview(),
+            )
+        )
 
     return PaginatedResponse(
-        success=True,
-        data=document_responses,
-        pagination=pagination_info
+        success=True, data=document_responses, pagination=pagination_info
     )
 
 
@@ -528,7 +581,7 @@ async def get_document(
     document_id: uuid.UUID,
     organization_id: uuid.UUID = Query(...),
     user_id: Optional[uuid.UUID] = Query(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get document details"""
     # Get document
@@ -537,7 +590,7 @@ async def get_document(
             and_(
                 Document.id == document_id,
                 Document.organization_id == organization_id,
-                Document.is_deleted == False
+                Document.is_deleted == False,
             )
         )
     )
@@ -545,16 +598,14 @@ async def get_document(
 
     if not document:
         raise NotFoundError(
-            "Document not found",
-            resource_type="document",
-            resource_id=str(document_id)
+            "Document not found", resource_type="document", resource_id=str(document_id)
         )
 
     # Check access permissions
     if user_id and not document.is_public and document.uploaded_by_user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this document"
+            detail="Access denied to this document",
         )
 
     return DocumentDetailResponse(
@@ -576,7 +627,7 @@ async def get_document(
         content_text=document.content_text,
         metadata=document.get_metadata(),
         processing_error=document.processing_error,
-        processing_retry_count=document.processing_retry_count
+        processing_retry_count=document.processing_retry_count,
     )
 
 
@@ -587,7 +638,7 @@ async def update_document(
     update_data: DocumentUpdateRequest,
     organization_id: uuid.UUID = Query(...),
     user_id: uuid.UUID = Query(...),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Update document metadata"""
     # Get document
@@ -597,7 +648,7 @@ async def update_document(
                 Document.id == document_id,
                 Document.organization_id == organization_id,
                 Document.uploaded_by_user_id == user_id,
-                Document.is_deleted == False
+                Document.is_deleted == False,
             )
         )
     )
@@ -605,9 +656,7 @@ async def update_document(
 
     if not document:
         raise NotFoundError(
-            "Document not found",
-            resource_type="document",
-            resource_id=str(document_id)
+            "Document not found", resource_type="document", resource_id=str(document_id)
         )
 
     # Update fields
@@ -630,10 +679,10 @@ async def update_document(
         event_type="document_updated",
         event_data={
             "document_id": str(document_id),
-            "updated_fields": update_data.dict(exclude_unset=True)
+            "updated_fields": update_data.dict(exclude_unset=True),
         },
         user_id=str(user_id),
-        organization_id=str(organization_id)
+        organization_id=str(organization_id),
     )
 
     return DocumentResponse(
@@ -651,7 +700,7 @@ async def update_document(
         updated_at=document.updated_at,
         processing_started_at=document.processing_started_at,
         processing_completed_at=document.processing_completed_at,
-        content_preview=document.get_content_preview()
+        content_preview=document.get_content_preview(),
     )
 
 
@@ -661,7 +710,7 @@ async def delete_document(
     document_id: uuid.UUID,
     organization_id: uuid.UUID = Query(...),
     user_id: uuid.UUID = Query(...),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Delete document (soft delete)"""
     # Get document
@@ -671,7 +720,7 @@ async def delete_document(
                 Document.id == document_id,
                 Document.organization_id == organization_id,
                 Document.uploaded_by_user_id == user_id,
-                Document.is_deleted == False
+                Document.is_deleted == False,
             )
         )
     )
@@ -679,9 +728,7 @@ async def delete_document(
 
     if not document:
         raise NotFoundError(
-            "Document not found",
-            resource_type="document",
-            resource_id=str(document_id)
+            "Document not found", resource_type="document", resource_id=str(document_id)
         )
 
     # Soft delete
@@ -697,24 +744,24 @@ async def delete_document(
         event_data={
             "document_id": str(document_id),
             "filename": document.filename,
-            "file_size_bytes": document.file_size_bytes
+            "file_size_bytes": document.file_size_bytes,
         },
         user_id=str(user_id),
-        organization_id=str(organization_id)
+        organization_id=str(organization_id),
     )
 
-    return BaseResponse(
-        success=True,
-        message="Document deleted successfully"
-    )
+    return BaseResponse(success=True, message="Document deleted successfully")
 
 
-@app.get("/documents/{document_id}/processing-status", response_model=ProcessingStatusResponse)
+@app.get(
+    "/documents/{document_id}/processing-status",
+    response_model=ProcessingStatusResponse,
+)
 @handle_exceptions
 async def get_processing_status(
     document_id: uuid.UUID,
     organization_id: uuid.UUID = Query(...),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get document processing status"""
     # Get document
@@ -723,7 +770,7 @@ async def get_processing_status(
             and_(
                 Document.id == document_id,
                 Document.organization_id == organization_id,
-                Document.is_deleted == False
+                Document.is_deleted == False,
             )
         )
     )
@@ -731,9 +778,7 @@ async def get_processing_status(
 
     if not document:
         raise NotFoundError(
-            "Document not found",
-            resource_type="document",
-            resource_id=str(document_id)
+            "Document not found", resource_type="document", resource_id=str(document_id)
         )
 
     # Calculate progress percentage based on status
@@ -741,15 +786,20 @@ async def get_processing_status(
         ProcStatus.QUEUED: 0,
         ProcStatus.PROCESSING: 50,
         ProcStatus.COMPLETED: 100,
-        ProcStatus.FAILED: 0
+        ProcStatus.FAILED: 0,
     }
 
     # Estimate completion time (simplified)
     estimated_completion = None
-    if document.processing_status == ProcStatus.PROCESSING and document.processing_started_at:
+    if (
+        document.processing_status == ProcStatus.PROCESSING
+        and document.processing_started_at
+    ):
         # Assume average processing time of 2 minutes
         avg_processing_time = 120  # seconds
-        elapsed = (datetime.now(timezone.utc) - document.processing_started_at).total_seconds()
+        elapsed = (
+            datetime.now(timezone.utc) - document.processing_started_at
+        ).total_seconds()
         remaining = max(0, avg_processing_time - elapsed)
         estimated_completion = datetime.now(timezone.utc) + timedelta(seconds=remaining)
 
@@ -760,7 +810,7 @@ async def get_processing_status(
         progress_percentage=progress_map.get(document.processing_status, 0),
         estimated_completion=estimated_completion,
         error_message=document.processing_error,
-        retry_count=document.processing_retry_count
+        retry_count=document.processing_retry_count,
     )
 
 
@@ -770,7 +820,7 @@ async def download_document(
     document_id: uuid.UUID,
     organization_id: uuid.UUID = Query(...),
     user_id: Optional[uuid.UUID] = Query(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Download document file"""
     # Get document
@@ -779,7 +829,7 @@ async def download_document(
             and_(
                 Document.id == document_id,
                 Document.organization_id == organization_id,
-                Document.is_deleted == False
+                Document.is_deleted == False,
             )
         )
     )
@@ -787,28 +837,25 @@ async def download_document(
 
     if not document:
         raise NotFoundError(
-            "Document not found",
-            resource_type="document",
-            resource_id=str(document_id)
+            "Document not found", resource_type="document", resource_id=str(document_id)
         )
 
     # Check access permissions
     if user_id and not document.is_public and document.uploaded_by_user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this document"
+            detail="Access denied to this document",
         )
 
     # Check if file exists
     if not os.path.exists(document.file_path):
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found on storage"
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found on storage"
         )
 
     # Stream file
     async def file_generator():
-        async with aiofiles.open(document.file_path, 'rb') as f:
+        async with aiofiles.open(document.file_path, "rb") as f:
             while chunk := await f.read(8192):
                 yield chunk
 
@@ -818,28 +865,23 @@ async def download_document(
         event_data={
             "document_id": str(document_id),
             "filename": document.filename,
-            "file_size_bytes": document.file_size_bytes
+            "file_size_bytes": document.file_size_bytes,
         },
         user_id=str(user_id) if user_id else None,
-        organization_id=str(organization_id)
+        organization_id=str(organization_id),
     )
 
-    headers = {
-        "Content-Disposition": f'attachment; filename="{document.filename}"'
-    }
+    headers = {"Content-Disposition": f'attachment; filename="{document.filename}"'}
 
     return StreamingResponse(
-        file_generator(),
-        media_type=document.mime_type,
-        headers=headers
+        file_generator(), media_type=document.mime_type, headers=headers
     )
 
 
 @app.get("/storage/quota", response_model=Dict[str, Any])
 @handle_exceptions
 async def get_storage_quota(
-    organization_id: uuid.UUID = Query(...),
-    db: AsyncSession = Depends(get_db)
+    organization_id: uuid.UUID = Query(...), db: AsyncSession = Depends(get_db)
 ):
     """Get storage quota information"""
     # Get organization info
@@ -853,11 +895,10 @@ async def get_storage_quota(
 
     # Calculate current usage
     result = await db.execute(
-        select(func.coalesce(func.sum(Document.file_size_bytes), 0))
-        .where(
+        select(func.coalesce(func.sum(Document.file_size_bytes), 0)).where(
             and_(
                 Document.organization_id == organization_id,
-                Document.is_deleted == False
+                Document.is_deleted == False,
             )
         )
     )
@@ -872,7 +913,8 @@ async def get_storage_quota(
         "current_usage_mb": current_usage / (1024 * 1024),
         "usage_percentage": (current_usage / organization.storage_limit_bytes) * 100,
         "available_bytes": organization.storage_limit_bytes - current_usage,
-        "available_mb": (organization.storage_limit_bytes - current_usage) / (1024 * 1024)
+        "available_mb": (organization.storage_limit_bytes - current_usage)
+        / (1024 * 1024),
     }
 
 
@@ -887,7 +929,7 @@ async def health_check():
         environment=settings.ENVIRONMENT,
         timestamp=datetime.now(timezone.utc),
         services=health_data["checks"],
-        uptime_seconds=0  # Would track actual uptime
+        uptime_seconds=0,  # Would track actual uptime
     )
 
 
@@ -895,10 +937,7 @@ async def health_check():
 async def shutdown_event():
     """Cleanup on shutdown"""
     await cache.close()
-    await event_logger.log_event(
-        event_type="service_shutdown",
-        event_data={}
-    )
+    await event_logger.log_event(event_type="service_shutdown", event_data={})
 
 
 if __name__ == "__main__":
@@ -908,5 +947,5 @@ if __name__ == "__main__":
         "src.services.document_management:app",
         host=DOCUMENT_SERVICE_CONFIG["host"],
         port=DOCUMENT_SERVICE_CONFIG["port"],
-        log_level=settings.LOG_LEVEL.lower()
+        log_level=settings.LOG_LEVEL.lower(),
     )

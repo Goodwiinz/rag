@@ -62,6 +62,7 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
           <button
             onClick={onClose}
             className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+            aria-label="Close details panel"
           >
             <X className="h-4 w-4" />
           </button>
@@ -130,6 +131,7 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
                 onClick={handleCopyDoi}
                 className="p-1 text-gray-500 hover:text-gray-300"
                 title="Copy DOI"
+                aria-label="Copy DOI to clipboard"
               >
                 <Copy className="h-3 w-3" />
               </button>
@@ -154,6 +156,7 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
                 onClick={handleCopyArxiv}
                 className="p-1 text-gray-500 hover:text-gray-300"
                 title="Copy arXiv ID"
+                aria-label="Copy arXiv ID to clipboard"
               >
                 <Copy className="h-3 w-3" />
               </button>

@@ -6,31 +6,40 @@ processing, and exporting trace data across the RAG system.
 """
 
 import asyncio
+import json
 import logging
 import time
 import uuid
-from typing import Dict, List, Optional, Any, Union
-from datetime import datetime, timedelta
-from dataclasses import dataclass, field, asdict
 from contextlib import asynccontextmanager
-import json
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Union
 
 from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.jaeger.thrift import JaegerExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.semconv.resource import ResourceAttributes
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.instrumentation.redis import RedisInstrumentor
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.propagate import set_global_textmap
 from opentelemetry.propagators.b3 import B3MultiFormat
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-from opentelemetry.instrumentation.redis import RedisInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.semconv.resource import ResourceAttributes
+
+from src.monitoring.models.tracing import (
+    Span,
+    SpanEvent,
+    SpanKind,
+    SpanLink,
+    SpanStatus,
+    Trace,
+    TraceError,
+)
 
 from ..config.monitoring_config import TracingConfig
-from src.monitoring.models.tracing import Trace, Span, SpanEvent, SpanLink, TraceError, SpanStatus, SpanKind
 from ..utils.exceptions import TracingError
 
 logger = logging.getLogger(__name__)
@@ -39,6 +48,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SpanContext:
     """Context for active spans"""
+
     span_id: str
     trace_id: str
     parent_span_id: Optional[str]
@@ -165,13 +175,15 @@ class TracingCollector:
         self._exporters.clear()
         logger.info("✅ Tracing collector cleanup complete")
 
-    async def start_span(self,
-                        operation_name: str,
-                        service: str,
-                        component: Optional[str] = None,
-                        parent_span: Optional[str] = None,
-                        labels: Optional[Dict[str, str]] = None,
-                        attributes: Optional[Dict[str, Any]] = None) -> SpanContext:
+    async def start_span(
+        self,
+        operation_name: str,
+        service: str,
+        component: Optional[str] = None,
+        parent_span: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> SpanContext:
         """
         Start a new span
 
@@ -210,7 +222,7 @@ class TracingCollector:
                 component=component,
                 start_time=datetime.utcnow(),
                 labels=labels or {},
-                attributes=attributes or {}
+                attributes=attributes or {},
             )
 
             # Track active span
@@ -229,11 +241,13 @@ class TracingCollector:
             logger.error(f"Error starting span {operation_name}: {e}")
             raise TracingError(f"Failed to start span: {e}")
 
-    async def finish_span(self,
-                         span_context: SpanContext,
-                         status: str = SpanStatus.OK,
-                         error: Optional[str] = None,
-                         attributes: Optional[Dict[str, Any]] = None) -> None:
+    async def finish_span(
+        self,
+        span_context: SpanContext,
+        status: str = SpanStatus.OK,
+        error: Optional[str] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """
         Finish a span
 
@@ -263,10 +277,7 @@ class TracingCollector:
                 await self.add_span_event(
                     span_context,
                     "error",
-                    {
-                        "exception.message": error,
-                        "exception.type": "Exception"
-                    }
+                    {"exception.message": error, "exception.type": "Exception"},
                 )
 
             # Convert to trace data
@@ -285,7 +296,7 @@ class TracingCollector:
                 "attributes": span_context.attributes,
                 "events": span_context.events,
                 "links": span_context.links,
-                "error_message": error
+                "error_message": error,
             }
 
             # Add to buffer
@@ -297,18 +308,22 @@ class TracingCollector:
                 self._active_spans.pop(span_context.span_id, None)
 
             # Finish OpenTelemetry span
-            if hasattr(span_context, 'otel_span') and span_context.otel_span:
+            if hasattr(span_context, "otel_span") and span_context.otel_span:
                 span_context.otel_span.end()
 
-            logger.debug(f"Finished span: {span_context.operation_name} (ID: {span_context.span_id})")
+            logger.debug(
+                f"Finished span: {span_context.operation_name} (ID: {span_context.span_id})"
+            )
 
         except Exception as e:
             logger.error(f"Error finishing span {span_context.span_id}: {e}")
 
-    async def add_span_event(self,
-                           span_context: SpanContext,
-                           name: str,
-                           attributes: Optional[Dict[str, Any]] = None) -> None:
+    async def add_span_event(
+        self,
+        span_context: SpanContext,
+        name: str,
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """
         Add an event to a span
 
@@ -321,23 +336,25 @@ class TracingCollector:
             event = {
                 "name": name,
                 "timestamp": datetime.utcnow().isoformat(),
-                "attributes": attributes or {}
+                "attributes": attributes or {},
             }
 
             span_context.events.append(event)
 
             # Add to OpenTelemetry span
-            if hasattr(span_context, 'otel_span') and span_context.otel_span:
+            if hasattr(span_context, "otel_span") and span_context.otel_span:
                 span_context.otel_span.add_event(name, attributes or {})
 
         except Exception as e:
             logger.error(f"Error adding event to span {span_context.span_id}: {e}")
 
-    async def add_span_link(self,
-                          span_context: SpanContext,
-                          linked_trace_id: str,
-                          linked_span_id: str,
-                          attributes: Optional[Dict[str, Any]] = None) -> None:
+    async def add_span_link(
+        self,
+        span_context: SpanContext,
+        linked_trace_id: str,
+        linked_span_id: str,
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """
         Add a link to another span
 
@@ -351,7 +368,7 @@ class TracingCollector:
             link = {
                 "linked_trace_id": linked_trace_id,
                 "linked_span_id": linked_span_id,
-                "attributes": attributes or {}
+                "attributes": attributes or {},
             }
 
             span_context.links.append(link)
@@ -360,12 +377,14 @@ class TracingCollector:
             logger.error(f"Error adding link to span {span_context.span_id}: {e}")
 
     @asynccontextmanager
-    async def trace_operation(self,
-                             operation_name: str,
-                             service: str,
-                             component: Optional[str] = None,
-                             labels: Optional[Dict[str, str]] = None,
-                             attributes: Optional[Dict[str, Any]] = None):
+    async def trace_operation(
+        self,
+        operation_name: str,
+        service: str,
+        component: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+    ):
         """
         Context manager for tracing operations
 
@@ -383,26 +402,26 @@ class TracingCollector:
                 service=service,
                 component=component,
                 labels=labels,
-                attributes=attributes
+                attributes=attributes,
             )
             yield span_context
             await self.finish_span(span_context, status=SpanStatus.OK)
         except Exception as e:
             if span_context:
                 await self.finish_span(
-                    span_context,
-                    status=SpanStatus.ERROR,
-                    error=str(e)
+                    span_context, status=SpanStatus.ERROR, error=str(e)
                 )
             raise
 
-    async def get_traces(self,
-                        trace_id: Optional[str] = None,
-                        service: Optional[str] = None,
-                        operation: Optional[str] = None,
-                        start_time: Optional[datetime] = None,
-                        end_time: Optional[datetime] = None,
-                        limit: int = 100) -> Dict[str, Any]:
+    async def get_traces(
+        self,
+        trace_id: Optional[str] = None,
+        service: Optional[str] = None,
+        operation: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 100,
+    ) -> Dict[str, Any]:
         """
         Get traces data
 
@@ -427,27 +446,27 @@ class TracingCollector:
             # Filter traces from buffer
             async with self._buffer_lock:
                 filtered_traces = [
-                    trace for trace in self._trace_buffer
-                    if start_time <= datetime.fromisoformat(trace["start_time"]) <= end_time
+                    trace
+                    for trace in self._trace_buffer
+                    if start_time
+                    <= datetime.fromisoformat(trace["start_time"])
+                    <= end_time
                 ]
 
             # Apply filters
             if trace_id:
                 filtered_traces = [
-                    t for t in filtered_traces
-                    if t["trace_id"] == trace_id
+                    t for t in filtered_traces if t["trace_id"] == trace_id
                 ]
 
             if service:
                 filtered_traces = [
-                    t for t in filtered_traces
-                    if t["service_name"] == service
+                    t for t in filtered_traces if t["service_name"] == service
                 ]
 
             if operation:
                 filtered_traces = [
-                    t for t in filtered_traces
-                    if t["operation_name"] == operation
+                    t for t in filtered_traces if t["operation_name"] == operation
                 ]
 
             # Group by trace ID
@@ -461,7 +480,7 @@ class TracingCollector:
                         "end_time": span_data["end_time"],
                         "duration_ms": span_data["duration_ms"],
                         "service_name": span_data["service_name"],
-                        "status": span_data["status"]
+                        "status": span_data["status"],
                     }
                 traces_by_id[span_data["trace_id"]]["spans"].append(span_data)
 
@@ -477,8 +496,8 @@ class TracingCollector:
                 "filters": {
                     "trace_id": trace_id,
                     "service": service,
-                    "operation": operation
-                }
+                    "operation": operation,
+                },
             }
 
         except Exception as e:
@@ -497,18 +516,20 @@ class TracingCollector:
             "exporters_count": len(self._exporters),
             "jaeger_enabled": self.config.jaeger_enabled,
             "otlp_enabled": self.config.otlp_enabled,
-            "status": "healthy" if self._running else "stopped"
+            "status": "healthy" if self._running else "stopped",
         }
 
     async def _initialize_opentelemetry(self) -> None:
         """Initialize OpenTelemetry components"""
         try:
             # Create resource with service information
-            resource = Resource.create({
-                ResourceAttributes.SERVICE_NAME: self.config.service_name,
-                ResourceAttributes.SERVICE_VERSION: self.config.service_version,
-                "environment": self.config.service_name
-            })
+            resource = Resource.create(
+                {
+                    ResourceAttributes.SERVICE_NAME: self.config.service_name,
+                    ResourceAttributes.SERVICE_VERSION: self.config.service_version,
+                    "environment": self.config.service_name,
+                }
+            )
 
             # Create tracer provider
             self._tracer_provider = TracerProvider(resource=resource)
@@ -557,7 +578,7 @@ class TracingCollector:
             if self.config.jaeger_enabled:
                 jaeger_exporter = JaegerExporter(
                     endpoint=self.config.jaeger_endpoint,
-                    collector_endpoint=self.config.jaeger_endpoint
+                    collector_endpoint=self.config.jaeger_endpoint,
                 )
                 span_processor = BatchSpanProcessor(jaeger_exporter)
                 self._tracer_provider.add_span_processor(span_processor)
@@ -567,8 +588,7 @@ class TracingCollector:
             # OTLP exporter
             if self.config.otlp_enabled:
                 otlp_exporter = OTLPSpanExporter(
-                    endpoint=self.config.otlp_endpoint,
-                    headers=self.config.otlp_headers
+                    endpoint=self.config.otlp_endpoint, headers=self.config.otlp_headers
                 )
                 span_processor = BatchSpanProcessor(otlp_exporter)
                 self._tracer_provider.add_span_processor(span_processor)
@@ -624,19 +644,20 @@ class TracingCollector:
 
         async with self._spans_lock:
             old_spans = [
-                span_id for span_id, span_context in self._active_spans.items()
+                span_id
+                for span_id, span_context in self._active_spans.items()
                 if span_context.start_time < cutoff_time
             ]
 
             for span_id in old_spans:
                 span_context = self._active_spans.pop(span_id, None)
                 if span_context:
-                    logger.warning(f"Cleaning up abandoned span: {span_context.operation_name} (ID: {span_id})")
+                    logger.warning(
+                        f"Cleaning up abandoned span: {span_context.operation_name} (ID: {span_id})"
+                    )
                     # Finish the span as timed out
                     await self.finish_span(
-                        span_context,
-                        status=SpanStatus.TIMEOUT,
-                        error="Span timed out"
+                        span_context, status=SpanStatus.TIMEOUT, error="Span timed out"
                     )
 
         if old_spans:

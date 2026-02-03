@@ -3,14 +3,14 @@ Shared utilities and types for the backend application.
 """
 
 from .enums import (
+    SORT_FIELD_MAPPINGS,
     DocumentSortField,
-    SortOrder,
     EntitySortField,
     JobSortField,
-    SearchSortField,
-    UserSortField,
     OrganizationSortField,
-    SORT_FIELD_MAPPINGS,
+    SearchSortField,
+    SortOrder,
+    UserSortField,
     validate_sort_field,
 )
 

@@ -2,30 +2,37 @@
 Hybrid Search Service that combines vector, graph, and full-text search results
 """
 
+import asyncio
 import logging
 import time
 import uuid
-from typing import List, Dict, Any, Optional, Tuple
-from dataclasses import dataclass
-from enum import Enum
-import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
+from sqlalchemy.orm import Session
 
 from src.core.database import get_db
-from sqlalchemy.orm import Session
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.search_schemas import (
-    SearchQuery, SearchResponse, SearchResult, SearchType, SearchFilter
+    SearchFilter,
+    SearchQuery,
+    SearchResponse,
+    SearchResult,
+    SearchType,
 )
-from .fulltext_search_service import fulltext_search_service
+
 from .cohere_rerank_service import cohere_rerank_service
+from .fulltext_search_service import fulltext_search_service
 
 logger = logging.getLogger(__name__)
 
 
 class SearchSourceType(Enum):
     """Source types for search results"""
+
     FULLTEXT = "fulltext"
     VECTOR = "vector"
     KNOWLEDGE_GRAPH = "knowledge_graph"
@@ -34,6 +41,7 @@ class SearchSourceType(Enum):
 @dataclass
 class RawSearchResult:
     """Raw search result from a specific source"""
+
     document_id: str
     source_type: SearchSourceType
     relevance_score: float
@@ -44,6 +52,7 @@ class RawSearchResult:
 @dataclass
 class SearchSourceResult:
     """Results from a specific search source"""
+
     source_type: SearchSourceType
     results: List[RawSearchResult]
     search_time_ms: float
@@ -69,7 +78,13 @@ class HybridSearchService:
         # Thread pool for parallel search execution
         self.executor = ThreadPoolExecutor(max_workers=3)
 
-    def search(self, search_request: SearchQuery, user_id: str = None, organization_id: str = None, db: Session = None) -> SearchResponse:
+    def search(
+        self,
+        search_request: SearchQuery,
+        user_id: str = None,
+        organization_id: str = None,
+        db: Session = None,
+    ) -> SearchResponse:
         """
         Perform hybrid search combining multiple search modalities
 
@@ -98,11 +113,13 @@ class HybridSearchService:
 
             # Apply Cohere reranking if enabled (improves Precision@3/5)
             if cohere_rerank_service.is_enabled and fused_results:
-                logger.info(f"Applying Cohere reranking to {len(fused_results)} results")
+                logger.info(
+                    f"Applying Cohere reranking to {len(fused_results)} results"
+                )
                 reranked = self._apply_cohere_reranking(
                     search_request.query,
                     fused_results,
-                    search_request.limit * 2  # Get more for filtering
+                    search_request.limit * 2,  # Get more for filtering
                 )
                 fused_results = reranked
 
@@ -125,7 +142,9 @@ class HybridSearchService:
                 limit=search_request.limit,
                 offset=search_request.offset,
                 has_more=len(final_results) >= search_request.limit,
-                suggestions=self._get_hybrid_suggestions(search_request, source_results)
+                suggestions=self._get_hybrid_suggestions(
+                    search_request, source_results
+                ),
             )
 
         except Exception as e:
@@ -133,7 +152,9 @@ class HybridSearchService:
             # Fallback to full-text search if hybrid fails
             return self._fallback_to_fulltext(search_request, user_id, organization_id)
 
-    def _route_search_query(self, search_request: SearchQuery) -> List[SearchSourceType]:
+    def _route_search_query(
+        self, search_request: SearchQuery
+    ) -> List[SearchSourceType]:
         """
         Determine which search sources to use based on query characteristics
 
@@ -157,13 +178,25 @@ class HybridSearchService:
         if search_request.search_type in [SearchType.HYBRID]:
             # Check if query contains entities or relationship indicators
             query_lower = search_request.query.lower()
-            entity_indicators = ['who', 'what', 'where', 'when', 'how', 'relationship', 'connected']
+            entity_indicators = [
+                "who",
+                "what",
+                "where",
+                "when",
+                "how",
+                "relationship",
+                "connected",
+            ]
             if any(indicator in query_lower for indicator in entity_indicators):
                 sources.append(SearchSourceType.KNOWLEDGE_GRAPH)
 
         # Default to all sources for hybrid search
         if search_request.search_type == SearchType.HYBRID and not sources:
-            sources = [SearchSourceType.FULLTEXT, SearchSourceType.VECTOR, SearchSourceType.KNOWLEDGE_GRAPH]
+            sources = [
+                SearchSourceType.FULLTEXT,
+                SearchSourceType.VECTOR,
+                SearchSourceType.KNOWLEDGE_GRAPH,
+            ]
 
         return sources
 
@@ -173,7 +206,7 @@ class HybridSearchService:
         sources: List[SearchSourceType],
         user_id: str,
         organization_id: str,
-        db: Session = None
+        db: Session = None,
     ) -> Dict[SearchSourceType, SearchSourceResult]:
         """
         Execute searches from multiple sources in parallel
@@ -193,11 +226,38 @@ class HybridSearchService:
         search_tasks = []
         for source_type in sources:
             if source_type == SearchSourceType.FULLTEXT:
-                search_tasks.append((source_type, self._execute_fulltext_search, search_request, user_id, organization_id, db))
+                search_tasks.append(
+                    (
+                        source_type,
+                        self._execute_fulltext_search,
+                        search_request,
+                        user_id,
+                        organization_id,
+                        db,
+                    )
+                )
             elif source_type == SearchSourceType.VECTOR:
-                search_tasks.append((source_type, self._execute_vector_search, search_request, user_id, organization_id, db))
+                search_tasks.append(
+                    (
+                        source_type,
+                        self._execute_vector_search,
+                        search_request,
+                        user_id,
+                        organization_id,
+                        db,
+                    )
+                )
             elif source_type == SearchSourceType.KNOWLEDGE_GRAPH:
-                search_tasks.append((source_type, self._execute_knowledge_graph_search, search_request, user_id, organization_id, db))
+                search_tasks.append(
+                    (
+                        source_type,
+                        self._execute_knowledge_graph_search,
+                        search_request,
+                        user_id,
+                        organization_id,
+                        db,
+                    )
+                )
 
         # Execute searches in parallel
         future_to_source = {
@@ -209,7 +269,9 @@ class HybridSearchService:
         for future in future_to_source:
             source_type = future_to_source[future]
             try:
-                results[source_type] = future.result(timeout=10)  # 10 second timeout per source
+                results[source_type] = future.result(
+                    timeout=10
+                )  # 10 second timeout per source
             except Exception as e:
                 logger.error(f"Error in {source_type.value} search: {e}")
                 results[source_type] = SearchSourceResult(
@@ -218,7 +280,7 @@ class HybridSearchService:
                     search_time_ms=0,
                     total_available=0,
                     success=False,
-                    error=str(e)
+                    error=str(e),
                 )
 
         return results
@@ -228,7 +290,7 @@ class HybridSearchService:
         search_request: SearchQuery,
         user_id: str,
         organization_id: str,
-        db: Session = None
+        db: Session = None,
     ) -> SearchSourceResult:
         """Execute full-text search"""
         start_time = time.time()
@@ -241,7 +303,7 @@ class HybridSearchService:
                 limit=self.max_results_per_source,
                 offset=0,
                 filters=search_request.filters,
-                include_snippets=search_request.include_snippets
+                include_snippets=search_request.include_snippets,
             )
 
             # Execute search
@@ -249,23 +311,25 @@ class HybridSearchService:
                 search_request=ft_search_request,
                 user_id=user_id,
                 organization_id=organization_id,
-                db=db
+                db=db,
             )
 
             # Convert to raw results
             raw_results = []
             for result in ft_result.results:
-                raw_results.append(RawSearchResult(
-                    document_id=result.document_id,
-                    source_type=SearchSourceType.FULLTEXT,
-                    relevance_score=result.relevance_score,
-                    metadata={
-                        'original_score': result.relevance_score,
-                        'source': 'fulltext',
-                        'snippets': result.snippets
-                    },
-                    search_result=result
-                ))
+                raw_results.append(
+                    RawSearchResult(
+                        document_id=result.document_id,
+                        source_type=SearchSourceType.FULLTEXT,
+                        relevance_score=result.relevance_score,
+                        metadata={
+                            "original_score": result.relevance_score,
+                            "source": "fulltext",
+                            "snippets": result.snippets,
+                        },
+                        search_result=result,
+                    )
+                )
 
             search_time_ms = (time.time() - start_time) * 1000
 
@@ -274,7 +338,7 @@ class HybridSearchService:
                 results=raw_results,
                 search_time_ms=search_time_ms,
                 total_available=ft_result.total_results,
-                success=True
+                success=True,
             )
 
         except Exception as e:
@@ -285,7 +349,7 @@ class HybridSearchService:
                 search_time_ms=0,
                 total_available=0,
                 success=False,
-                error=str(e)
+                error=str(e),
             )
 
     def _execute_vector_search(
@@ -293,7 +357,7 @@ class HybridSearchService:
         search_request: SearchQuery,
         user_id: str,
         organization_id: str,
-        db: Session = None
+        db: Session = None,
     ) -> SearchSourceResult:
         """Execute vector similarity search"""
         start_time = time.time()
@@ -307,7 +371,7 @@ class HybridSearchService:
                 query=search_request.query,
                 organization_id=organization_id,
                 limit=self.max_results_per_source,
-                score_threshold=0.2  # Lowered to 0.2 for more results (P@3, P@5 calculation)
+                score_threshold=0.2,  # Lowered to 0.2 for more results (P@3, P@5 calculation)
             )
 
             # Convert to raw results
@@ -328,21 +392,25 @@ class HybridSearchService:
                     tags=[],
                     is_public=False,
                     uploaded_by_user_id=user_id or "",
-                    organization_id=result.metadata.organization_id or organization_id or "",
-                    metadata=result.metadata.additional_data or {}
+                    organization_id=result.metadata.organization_id
+                    or organization_id
+                    or "",
+                    metadata=result.metadata.additional_data or {},
                 )
 
-                raw_results.append(RawSearchResult(
-                    document_id=result.metadata.document_id,
-                    source_type=SearchSourceType.VECTOR,
-                    relevance_score=result.score,
-                    metadata={
-                        'original_score': result.score,
-                        'source': 'vector',
-                        'similarity': result.score
-                    },
-                    search_result=search_result
-                ))
+                raw_results.append(
+                    RawSearchResult(
+                        document_id=result.metadata.document_id,
+                        source_type=SearchSourceType.VECTOR,
+                        relevance_score=result.score,
+                        metadata={
+                            "original_score": result.score,
+                            "source": "vector",
+                            "similarity": result.score,
+                        },
+                        search_result=search_result,
+                    )
+                )
 
             search_time_ms = (time.time() - start_time) * 1000
 
@@ -351,7 +419,7 @@ class HybridSearchService:
                 results=raw_results,
                 search_time_ms=search_time_ms,
                 total_available=vector_result.total_found,
-                success=True
+                success=True,
             )
 
         except Exception as e:
@@ -362,7 +430,7 @@ class HybridSearchService:
                 search_time_ms=0,
                 total_available=0,
                 success=False,
-                error=str(e)
+                error=str(e),
             )
 
     def _execute_knowledge_graph_search(
@@ -370,7 +438,7 @@ class HybridSearchService:
         search_request: SearchQuery,
         user_id: str,
         organization_id: str,
-        db: Session = None
+        db: Session = None,
     ) -> SearchSourceResult:
         """Execute knowledge graph search"""
         start_time = time.time()
@@ -381,19 +449,20 @@ class HybridSearchService:
 
             # Execute search using the available interface
             kg_result = knowledge_graph_service.search_entities(
-                query=search_request.query,
-                limit=self.max_results_per_source
+                query=search_request.query, limit=self.max_results_per_source
             )
 
             # Convert to raw results
             raw_results = []
-            for result in kg_result.results if hasattr(kg_result, 'results') else []:
+            for result in kg_result.results if hasattr(kg_result, "results") else []:
                 # Create SearchResult from knowledge graph result
                 search_result = SearchResult(
-                    document_id=str(result.id) if hasattr(result, 'id') else str(uuid.uuid4()),
-                    title=getattr(result, 'name', 'Entity'),
+                    document_id=str(result.id)
+                    if hasattr(result, "id")
+                    else str(uuid.uuid4()),
+                    title=getattr(result, "name", "Entity"),
                     document_type=DocumentType.TEXT,
-                    content_preview=getattr(result, 'description', ''),
+                    content_preview=getattr(result, "description", ""),
                     snippets=[],
                     relevance_score=0.8,  # Default score
                     file_size_bytes=0,
@@ -404,20 +473,22 @@ class HybridSearchService:
                     is_public=False,
                     uploaded_by_user_id=user_id or "",
                     organization_id=organization_id,
-                    metadata={}
+                    metadata={},
                 )
 
-                raw_results.append(RawSearchResult(
-                    document_id=search_result.document_id,
-                    source_type=SearchSourceType.KNOWLEDGE_GRAPH,
-                    relevance_score=search_result.relevance_score,
-                    metadata={
-                        'original_score': search_result.relevance_score,
-                        'source': 'knowledge_graph',
-                        'entities': []
-                    },
-                    search_result=search_result
-                ))
+                raw_results.append(
+                    RawSearchResult(
+                        document_id=search_result.document_id,
+                        source_type=SearchSourceType.KNOWLEDGE_GRAPH,
+                        relevance_score=search_result.relevance_score,
+                        metadata={
+                            "original_score": search_result.relevance_score,
+                            "source": "knowledge_graph",
+                            "entities": [],
+                        },
+                        search_result=search_result,
+                    )
+                )
 
             search_time_ms = (time.time() - start_time) * 1000
 
@@ -426,7 +497,7 @@ class HybridSearchService:
                 results=raw_results,
                 search_time_ms=search_time_ms,
                 total_available=len(raw_results),  # KG service doesn't provide total
-                success=True
+                success=True,
             )
 
         except Exception as e:
@@ -437,13 +508,13 @@ class HybridSearchService:
                 search_time_ms=0,
                 total_available=0,
                 success=False,
-                error=str(e)
+                error=str(e),
             )
 
     def _fuse_search_results(
         self,
         source_results: Dict[SearchSourceType, SearchSourceResult],
-        search_request: SearchQuery
+        search_request: SearchQuery,
     ) -> List[RawSearchResult]:
         """
         Fuse results from multiple search sources using weighted scoring
@@ -468,44 +539,46 @@ class HybridSearchService:
 
                 if document_id not in all_results:
                     all_results[document_id] = {
-                        'document_id': document_id,
-                        'sources': {},
-                        'search_result': result.search_result,
-                        'boost_factors': {}
+                        "document_id": document_id,
+                        "sources": {},
+                        "search_result": result.search_result,
+                        "boost_factors": {},
                     }
 
                 # Add source-specific score
                 weight = self._get_source_weight(source_type)
-                normalized_score = self._normalize_score(result.relevance_score, source_type)
-                all_results[document_id]['sources'][source_type] = {
-                    'score': result.relevance_score,
-                    'normalized_score': normalized_score,
-                    'weight': weight,
-                    'metadata': result.metadata
+                normalized_score = self._normalize_score(
+                    result.relevance_score, source_type
+                )
+                all_results[document_id]["sources"][source_type] = {
+                    "score": result.relevance_score,
+                    "normalized_score": normalized_score,
+                    "weight": weight,
+                    "metadata": result.metadata,
                 }
 
         # Calculate fused scores for each document
         fused_results = []
         for document_id, doc_data in all_results.items():
             fused_score = 0.0
-            source_count = len(doc_data['sources'])
+            source_count = len(doc_data["sources"])
 
             # Base score from weighted combination
-            for source_type, source_data in doc_data['sources'].items():
-                fused_score += source_data['normalized_score'] * source_data['weight']
+            for source_type, source_data in doc_data["sources"].items():
+                fused_score += source_data["normalized_score"] * source_data["weight"]
 
             # Apply diversity boost for documents from multiple sources
             if source_count > 1:
                 diversity_boost = self.diversity_boost * (source_count - 1)
                 fused_score += diversity_boost
-                doc_data['boost_factors']['diversity'] = diversity_boost
+                doc_data["boost_factors"]["diversity"] = diversity_boost
 
             # Apply recency boost
-            if doc_data['search_result']:
-                recency_boost = self._calculate_recency_boost(doc_data['search_result'])
+            if doc_data["search_result"]:
+                recency_boost = self._calculate_recency_boost(doc_data["search_result"])
                 if recency_boost > 0:
                     fused_score += recency_boost
-                    doc_data['boost_factors']['recency'] = recency_boost
+                    doc_data["boost_factors"]["recency"] = recency_boost
 
             # Create fused result
             fused_result = RawSearchResult(
@@ -513,13 +586,13 @@ class HybridSearchService:
                 source_type=SearchSourceType.FULLTEXT,  # Default for hybrid
                 relevance_score=fused_score,
                 metadata={
-                    'fused_score': fused_score,
-                    'sources': doc_data['sources'],
-                    'source_count': source_count,
-                    'boost_factors': doc_data['boost_factors'],
-                    'original_sources': list(doc_data['sources'].keys())
+                    "fused_score": fused_score,
+                    "sources": doc_data["sources"],
+                    "source_count": source_count,
+                    "boost_factors": doc_data["boost_factors"],
+                    "original_sources": list(doc_data["sources"].keys()),
                 },
-                search_result=doc_data['search_result']
+                search_result=doc_data["search_result"],
             )
 
             fused_results.append(fused_result)
@@ -534,7 +607,7 @@ class HybridSearchService:
         weights = {
             SearchSourceType.FULLTEXT: self.fulltext_weight,
             SearchSourceType.VECTOR: self.vector_weight,
-            SearchSourceType.KNOWLEDGE_GRAPH: self.knowledge_graph_weight
+            SearchSourceType.KNOWLEDGE_GRAPH: self.knowledge_graph_weight,
         }
         return weights.get(source_type, 0.33)
 
@@ -560,13 +633,14 @@ class HybridSearchService:
 
         import datetime
         from datetime import timezone
+
         now = datetime.datetime.now(timezone.utc)
-        
+
         # Ensure created_at is aware
         created_at = search_result.created_at
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=timezone.utc)
-            
+
         age_hours = (now - created_at).total_seconds() / 3600
 
         if age_hours < self.recency_boost_hours:
@@ -577,19 +651,16 @@ class HybridSearchService:
         return 0.0
 
     def _apply_cohere_reranking(
-        self,
-        query: str,
-        fused_results: List[RawSearchResult],
-        top_n: int
+        self, query: str, fused_results: List[RawSearchResult], top_n: int
     ) -> List[RawSearchResult]:
         """
         Apply Cohere reranking to improve precision of results.
-        
+
         Args:
             query: The search query
             fused_results: List of fused search results
             top_n: Number of results to return
-            
+
         Returns:
             Reranked list of results
         """
@@ -599,35 +670,43 @@ class HybridSearchService:
             for result in fused_results:
                 content = ""
                 if result.search_result:
-                    content = result.search_result.content_preview or result.search_result.title or ""
-                
-                documents.append({
-                    'id': result.document_id,
-                    'document_id': result.document_id,
-                    'content': content,
-                    'content_snippet': content[:500],
-                    'relevance_score': result.relevance_score
-                })
-            
+                    content = (
+                        result.search_result.content_preview
+                        or result.search_result.title
+                        or ""
+                    )
+
+                documents.append(
+                    {
+                        "id": result.document_id,
+                        "document_id": result.document_id,
+                        "content": content,
+                        "content_snippet": content[:500],
+                        "relevance_score": result.relevance_score,
+                    }
+                )
+
             # Use sync version of reranking for sync context
             rerank_results = cohere_rerank_service.rerank_sync(query, documents, top_n)
-            
+
             # Build reordered results
             result_map = {r.document_id: r for r in fused_results}
             reranked = []
-            
+
             for rr in rerank_results:
                 if rr.document_id in result_map:
                     original = result_map[rr.document_id]
                     # Update score with Cohere's relevance score
                     original.relevance_score = rr.relevance_score
-                    original.metadata['cohere_score'] = rr.relevance_score
-                    original.metadata['original_score'] = rr.original_score
+                    original.metadata["cohere_score"] = rr.relevance_score
+                    original.metadata["original_score"] = rr.original_score
                     reranked.append(original)
-            
-            logger.info(f"Cohere reranking complete: {len(fused_results)} -> {len(reranked)} results")
+
+            logger.info(
+                f"Cohere reranking complete: {len(fused_results)} -> {len(reranked)} results"
+            )
             return reranked
-            
+
         except Exception as e:
             logger.error(f"Cohere reranking failed, using original order: {e}")
             return fused_results[:top_n]
@@ -636,7 +715,7 @@ class HybridSearchService:
         self,
         fused_results: List[RawSearchResult],
         search_request: SearchQuery,
-        organization_id: str
+        organization_id: str,
     ) -> List[SearchResult]:
         """Apply final filtering and pagination to fused results"""
         # Apply offset and limit
@@ -659,15 +738,15 @@ class HybridSearchService:
     def _get_hybrid_suggestions(
         self,
         search_request: SearchQuery,
-        source_results: Dict[SearchSourceType, SearchSourceResult]
+        source_results: Dict[SearchSourceType, SearchSourceResult],
     ) -> List[str]:
         """Get suggestions from multiple sources"""
         suggestions = []
 
         # Collect suggestions from successful sources
         for source_type, source_result in source_results.items():
-            if source_result.success and hasattr(source_result, 'suggestions'):
-                if hasattr(source_result, 'suggestions') and source_result.suggestions:
+            if source_result.success and hasattr(source_result, "suggestions"):
+                if hasattr(source_result, "suggestions") and source_result.suggestions:
                     suggestions.extend(source_result.suggestions)
 
         # Remove duplicates and limit
@@ -675,10 +754,7 @@ class HybridSearchService:
         return unique_suggestions[:5]
 
     def _fallback_to_fulltext(
-        self,
-        search_request: SearchQuery,
-        user_id: str,
-        organization_id: str
+        self, search_request: SearchQuery, user_id: str, organization_id: str
     ) -> SearchResponse:
         """Fallback to full-text search if hybrid search fails"""
         logger.warning("Hybrid search failed, falling back to full-text search")
@@ -690,13 +766,13 @@ class HybridSearchService:
                 limit=search_request.limit,
                 offset=search_request.offset,
                 filters=search_request.filters,
-                include_snippets=search_request.include_snippets
+                include_snippets=search_request.include_snippets,
             )
 
             return fulltext_search_service.search(
                 search_request=ft_search_request,
                 user_id=user_id,
-                organization_id=organization_id
+                organization_id=organization_id,
             )
         except Exception as e:
             logger.error(f"Fallback full-text search also failed: {e}")
@@ -711,7 +787,7 @@ class HybridSearchService:
                 limit=search_request.limit,
                 offset=search_request.offset,
                 has_more=False,
-                suggestions=[]
+                suggestions=[],
             )
 
 

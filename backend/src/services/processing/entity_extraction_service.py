@@ -2,19 +2,20 @@
 Entity extraction service for NER and relationship mapping
 """
 
-import re
 import logging
-from typing import List, Dict, Any, Tuple, Optional
-from datetime import datetime
+import re
 import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 import spacy
 from spacy import displacy
 
-from src.models.entity import Entity, EntityType, ExtractionMethod
 from src.models.document import Document
+from src.models.entity import Entity, EntityType, ExtractionMethod
 
 logger = logging.getLogger(__name__)
+
 
 class EntityExtractionService:
     """Service for extracting entities and relationships from text"""
@@ -65,10 +66,14 @@ class EntityExtractionService:
         # Deduplicate entities
         deduplicated_entities = self._deduplicate_entities(entities)
 
-        logger.info(f"Extracted {len(deduplicated_entities)} unique entities from document")
+        logger.info(
+            f"Extracted {len(deduplicated_entities)} unique entities from document"
+        )
         return deduplicated_entities
 
-    def _create_entity_from_spacy(self, document: Document, spacy_entity) -> Optional[Entity]:
+    def _create_entity_from_spacy(
+        self, document: Document, spacy_entity
+    ) -> Optional[Entity]:
         """Create an Entity object from spaCy entity"""
         try:
             # Filter out low-quality entities early
@@ -77,22 +82,22 @@ class EntityExtractionService:
 
             # Map spaCy entity types to our entity types
             entity_type_mapping = {
-                'PERSON': EntityType.PERSON,
-                'ORG': EntityType.ORGANIZATION,
-                'GPE': EntityType.LOCATION,  # Geopolitical Entity
-                'LOC': EntityType.LOCATION,  # Location
-                'PRODUCT': EntityType.PRODUCT,
-                'EVENT': EntityType.CONCEPT,
-                'WORK_OF_ART': EntityType.CONCEPT,
-                'LAW': EntityType.CONCEPT,
-                'LANGUAGE': EntityType.CONCEPT,
-                'DATE': EntityType.DATE,
-                'TIME': EntityType.DATE,
-                'PERCENT': EntityType.NUMBER,
-                'MONEY': EntityType.NUMBER,
-                'QUANTITY': EntityType.NUMBER,
-                'CARDINAL': EntityType.NUMBER,
-                'ORDINAL': EntityType.NUMBER
+                "PERSON": EntityType.PERSON,
+                "ORG": EntityType.ORGANIZATION,
+                "GPE": EntityType.LOCATION,  # Geopolitical Entity
+                "LOC": EntityType.LOCATION,  # Location
+                "PRODUCT": EntityType.PRODUCT,
+                "EVENT": EntityType.CONCEPT,
+                "WORK_OF_ART": EntityType.CONCEPT,
+                "LAW": EntityType.CONCEPT,
+                "LANGUAGE": EntityType.CONCEPT,
+                "DATE": EntityType.DATE,
+                "TIME": EntityType.DATE,
+                "PERCENT": EntityType.NUMBER,
+                "MONEY": EntityType.NUMBER,
+                "QUANTITY": EntityType.NUMBER,
+                "CARDINAL": EntityType.NUMBER,
+                "ORDINAL": EntityType.NUMBER,
             }
 
             spacy_type = spacy_entity.label_
@@ -103,24 +108,28 @@ class EntityExtractionService:
 
             # Extract additional properties
             properties = {
-                'spacy_label': spacy_type,
-                'start_char': spacy_entity.start_char,
-                'end_char': spacy_entity.end_char,
-                'text_length': len(spacy_entity.text),
-                'context_window': self._get_context_window(spacy_entity.sent, spacy_entity)
+                "spacy_label": spacy_type,
+                "start_char": spacy_entity.start_char,
+                "end_char": spacy_entity.end_char,
+                "text_length": len(spacy_entity.text),
+                "context_window": self._get_context_window(
+                    spacy_entity.sent, spacy_entity
+                ),
             }
 
             entity = Entity(
                 entity_type=entity_type,
                 name=spacy_entity.text.strip(),
-                canonical_name=self._generate_canonical_name(spacy_entity.text, entity_type),
+                canonical_name=self._generate_canonical_name(
+                    spacy_entity.text, entity_type
+                ),
                 confidence=confidence,
                 extraction_method=ExtractionMethod.SPACY,
                 extracted_at=datetime.now(),
                 extraction_model="en_core_web_sm",
                 properties=properties,
                 document_id=document.id,
-                organization_id=document.organization_id
+                organization_id=document.organization_id,
             )
 
             return entity
@@ -134,7 +143,7 @@ class EntityExtractionService:
         entities = []
 
         # Email addresses
-        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+        email_pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
         for match in re.finditer(email_pattern, text):
             entity = Entity(
                 entity_type=EntityType.EMAIL,
@@ -143,14 +152,20 @@ class EntityExtractionService:
                 extraction_method=ExtractionMethod.REGEX,
                 extracted_at=datetime.now(),
                 extraction_model="email_pattern",
-                properties={'pattern': 'email_regex', 'start': match.start(), 'end': match.end()},
+                properties={
+                    "pattern": "email_regex",
+                    "start": match.start(),
+                    "end": match.end(),
+                },
                 document_id=document.id,
-                organization_id=document.organization_id
+                organization_id=document.organization_id,
             )
             entities.append(entity)
 
         # Phone numbers
-        phone_pattern = r'\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b'
+        phone_pattern = (
+            r"\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b"
+        )
         for match in re.finditer(phone_pattern, text):
             entity = Entity(
                 entity_type=EntityType.PHONE,
@@ -159,14 +174,18 @@ class EntityExtractionService:
                 extraction_method=ExtractionMethod.REGEX,
                 extracted_at=datetime.now(),
                 extraction_model="phone_pattern",
-                properties={'pattern': 'phone_regex', 'start': match.start(), 'end': match.end()},
+                properties={
+                    "pattern": "phone_regex",
+                    "start": match.start(),
+                    "end": match.end(),
+                },
                 document_id=document.id,
-                organization_id=document.organization_id
+                organization_id=document.organization_id,
             )
             entities.append(entity)
 
         # URLs
-        url_pattern = r'https?://(?:[-\w.])+(?:[:\d]+)?(?:/(?:[\w/_.])*(?:\?(?:[\w&=%.])*)?(?:#(?:\w*))?)?'
+        url_pattern = r"https?://(?:[-\w.])+(?:[:\d]+)?(?:/(?:[\w/_.])*(?:\?(?:[\w&=%.])*)?(?:#(?:\w*))?)?"
         for match in re.finditer(url_pattern, text):
             entity = Entity(
                 entity_type=EntityType.URL,
@@ -175,15 +194,19 @@ class EntityExtractionService:
                 extraction_method=ExtractionMethod.REGEX,
                 extracted_at=datetime.now(),
                 extraction_model="url_pattern",
-                properties={'pattern': 'url_regex', 'start': match.start(), 'end': match.end()},
+                properties={
+                    "pattern": "url_regex",
+                    "start": match.start(),
+                    "end": match.end(),
+                },
                 document_id=document.id,
-                organization_id=document.organization_id
+                organization_id=document.organization_id,
             )
             entities.append(entity)
 
         # Custom business entities (example: project codes, product names)
         # Project codes like PROJ-1234, PROD-5678
-        project_pattern = r'\b(?:PROJ|PROD|TASK|TICKET)[-\s]?[0-9]{4,6}\b'
+        project_pattern = r"\b(?:PROJ|PROD|TASK|TICKET)[-\s]?[0-9]{4,6}\b"
         for match in re.finditer(project_pattern, text, re.IGNORECASE):
             entity = Entity(
                 entity_type=EntityType.CUSTOM,
@@ -194,50 +217,63 @@ class EntityExtractionService:
                 extracted_at=datetime.now(),
                 extraction_model="project_pattern",
                 properties={
-                    'pattern': 'project_regex',
-                    'type': 'project_code',
-                    'start': match.start(),
-                    'end': match.end()
+                    "pattern": "project_regex",
+                    "type": "project_code",
+                    "start": match.start(),
+                    "end": match.end(),
                 },
                 document_id=document.id,
-                organization_id=document.organization_id
+                organization_id=document.organization_id,
             )
             entities.append(entity)
 
         return entities
 
-    def _extract_relationships(self, spacy_doc, entities: List[Entity]) -> List[Dict[str, Any]]:
+    def _extract_relationships(
+        self, spacy_doc, entities: List[Entity]
+    ) -> List[Dict[str, Any]]:
         """Extract relationships between entities"""
         relationships = []
 
         # Simple relationship extraction based on dependency parsing
         for sent in spacy_doc.sents:
-            sent_entities = [ent for ent in entities if
-                           ent.properties and
-                           'start_char' in ent.properties and
-                           'end_char' in ent.properties and
-                           ent.properties['start_char'] >= sent.start_char and
-                           ent.properties['end_char'] <= sent.end_char]
+            sent_entities = [
+                ent
+                for ent in entities
+                if ent.properties
+                and "start_char" in ent.properties
+                and "end_char" in ent.properties
+                and ent.properties["start_char"] >= sent.start_char
+                and ent.properties["end_char"] <= sent.end_char
+            ]
 
             # Extract relationships based on dependency patterns
             if len(sent_entities) >= 2:
                 for i, entity1 in enumerate(sent_entities):
-                    for entity2 in sent_entities[i+1:]:
-                        relationship = self._analyze_entity_relationship(sent, entity1, entity2)
+                    for entity2 in sent_entities[i + 1 :]:
+                        relationship = self._analyze_entity_relationship(
+                            sent, entity1, entity2
+                        )
                         if relationship:
                             relationships.append(relationship)
 
         return relationships
 
-    def _analyze_entity_relationship(self, sentence, entity1: Entity, entity2: Entity) -> Optional[Dict[str, Any]]:
+    def _analyze_entity_relationship(
+        self, sentence, entity1: Entity, entity2: Entity
+    ) -> Optional[Dict[str, Any]]:
         """Analyze relationship between two entities in a sentence"""
         try:
             # Simple pattern-based relationship extraction
             # Look for relationship indicators between entities
-            entity1_start = entity1.properties.get('start_char', 0) - sentence.start_char
-            entity1_end = entity1.properties.get('end_char', 0) - sentence.start_char
-            entity2_start = entity2.properties.get('start_char', 0) - sentence.start_char
-            entity2_end = entity2.properties.get('end_char', 0) - sentence.start_char
+            entity1_start = (
+                entity1.properties.get("start_char", 0) - sentence.start_char
+            )
+            entity1_end = entity1.properties.get("end_char", 0) - sentence.start_char
+            entity2_start = (
+                entity2.properties.get("start_char", 0) - sentence.start_char
+            )
+            entity2_end = entity2.properties.get("end_char", 0) - sentence.start_char
 
             # Get text between entities
             if entity1_end < entity2_start:
@@ -249,25 +285,25 @@ class EntityExtractionService:
 
             # Relationship patterns
             relationship_patterns = {
-                'works_for': ['works at', 'works for', 'employed by', 'employee of'],
-                'located_in': ['located in', 'based in', 'in', 'at'],
-                'part_of': ['part of', 'member of', 'belongs to'],
-                'related_to': ['related to', 'associated with', 'connected to'],
-                'owns': ['owns', 'owner of', 'possesses'],
-                'created_by': ['created by', 'made by', 'developed by'],
-                'manages': ['manages', 'manager of', 'leads', 'supervises']
+                "works_for": ["works at", "works for", "employed by", "employee of"],
+                "located_in": ["located in", "based in", "in", "at"],
+                "part_of": ["part of", "member of", "belongs to"],
+                "related_to": ["related to", "associated with", "connected to"],
+                "owns": ["owns", "owner of", "possesses"],
+                "created_by": ["created by", "made by", "developed by"],
+                "manages": ["manages", "manager of", "leads", "supervises"],
             }
 
             for relationship_type, patterns in relationship_patterns.items():
                 for pattern in patterns:
                     if pattern in between_text:
                         return {
-                            'source_entity': entity1,
-                            'target_entity': entity2,
-                            'relationship_type': relationship_type,
-                            'confidence': 0.7,
-                            'evidence': sentence.text,
-                            'pattern_matched': pattern
+                            "source_entity": entity1,
+                            "target_entity": entity2,
+                            "relationship_type": relationship_type,
+                            "confidence": 0.7,
+                            "evidence": sentence.text,
+                            "pattern_matched": pattern,
                         }
 
             return None
@@ -296,11 +332,11 @@ class EntityExtractionService:
             base_confidence += 0.1
 
         # Entity type-specific adjustments
-        if spacy_entity.label_ in ['PERSON', 'ORG', 'GPE']:
+        if spacy_entity.label_ in ["PERSON", "ORG", "GPE"]:
             base_confidence += 0.1
-        elif spacy_entity.label_ in ['DATE', 'TIME']:
+        elif spacy_entity.label_ in ["DATE", "TIME"]:
             base_confidence += 0.15
-        elif spacy_entity.label_ in ['CARDINAL', 'ORDINAL']:
+        elif spacy_entity.label_ in ["CARDINAL", "ORDINAL"]:
             base_confidence -= 0.1
 
         return max(0.0, min(1.0, base_confidence))
@@ -320,15 +356,24 @@ class EntityExtractionService:
 
         elif entity_type == EntityType.ORGANIZATION:
             # Remove common suffixes and normalize
-            suffixes = [' Inc.', ' Inc', ' LLC', ' Ltd.', ' Ltd', ' Corp.', ' Corp', ' Corporation']
+            suffixes = [
+                " Inc.",
+                " Inc",
+                " LLC",
+                " Ltd.",
+                " Ltd",
+                " Corp.",
+                " Corp",
+                " Corporation",
+            ]
             for suffix in suffixes:
                 if text.endswith(suffix):
-                    text = text[:-len(suffix)].strip()
+                    text = text[: -len(suffix)].strip()
             return text
 
         elif entity_type == EntityType.CUSTOM:
             # Uppercase for codes
-            if re.match(r'^[A-Z]+[-\s]?[0-9]+$', text, re.IGNORECASE):
+            if re.match(r"^[A-Z]+[-\s]?[0-9]+$", text, re.IGNORECASE):
                 return text.upper()
 
         return text
@@ -351,22 +396,82 @@ class EntityExtractionService:
         # Whitelist of legitimate short names (universities, companies, acronyms)
         legitimate_short_names = {
             # Universities
-            'MIT', 'UCLA', 'USC', 'NYU', 'UCL', 'ETH', 'EPFL', 'CMU', 'RIT',
-            'Yale', 'Duke', 'Rice', 'Case', 'Drew',
-            'GTech', 'GaTech', 'Caltech', 'Pitt',
+            "MIT",
+            "UCLA",
+            "USC",
+            "NYU",
+            "UCL",
+            "ETH",
+            "EPFL",
+            "CMU",
+            "RIT",
+            "Yale",
+            "Duke",
+            "Rice",
+            "Case",
+            "Drew",
+            "GTech",
+            "GaTech",
+            "Caltech",
+            "Pitt",
             # Tech companies
-            'IBM', 'SAP', 'AMD', 'ARM', 'AWS', 'GCP', 'API',
-            'Meta', 'Uber', 'Lyft', 'Snap', 'Zoom',
+            "IBM",
+            "SAP",
+            "AMD",
+            "ARM",
+            "AWS",
+            "GCP",
+            "API",
+            "Meta",
+            "Uber",
+            "Lyft",
+            "Snap",
+            "Zoom",
             # Research/Standards
-            'IEEE', 'ACM', 'ISO', 'NIST', 'DARPA', 'NASA', 'ESA',
-            'WHO', 'FDA', 'CDC', 'NIH', 'NSF',
+            "IEEE",
+            "ACM",
+            "ISO",
+            "NIST",
+            "DARPA",
+            "NASA",
+            "ESA",
+            "WHO",
+            "FDA",
+            "CDC",
+            "NIH",
+            "NSF",
             # Common abbreviations
-            'USA', 'UK', 'EU', 'UN', 'NATO', 'ASEAN',
-            'CEO', 'CTO', 'CFO', 'COO', 'VP', 'SVP', 'EVP',
-            'AI', 'ML', 'NLP', 'CV', 'IoT', 'API', 'GPU', 'CPU',
-            'PhD', 'MSc', 'BSc', 'MBA', 'MD',
+            "USA",
+            "UK",
+            "EU",
+            "UN",
+            "NATO",
+            "ASEAN",
+            "CEO",
+            "CTO",
+            "CFO",
+            "COO",
+            "VP",
+            "SVP",
+            "EVP",
+            "AI",
+            "ML",
+            "NLP",
+            "CV",
+            "IoT",
+            "API",
+            "GPU",
+            "CPU",
+            "PhD",
+            "MSc",
+            "BSc",
+            "MBA",
+            "MD",
             # Cities with short names
-            'LA', 'NY', 'SF', 'DC',
+            "LA",
+            "NY",
+            "SF",
+            "DC",
         }
 
         # Check if it's a known legitimate short name (case-insensitive)
@@ -374,7 +479,7 @@ class EntityExtractionService:
             return True
 
         # Check if it looks like a legitimate abbreviation (all uppercase, 2-5 chars, alphabetic)
-        if entity_type == 'ORG' and 2 <= len(text) <= 5:
+        if entity_type == "ORG" and 2 <= len(text) <= 5:
             if text.isupper() and text.isalpha():
                 # Likely a legitimate abbreviation
                 return True
@@ -384,29 +489,29 @@ class EntityExtractionService:
             return False
 
         # Skip standalone numbers for CARDINAL/ORDINAL types
-        if entity_type in ['CARDINAL', 'ORDINAL']:
+        if entity_type in ["CARDINAL", "ORDINAL"]:
             # Allow numbers only if they're part of meaningful context
             if text.isdigit() and len(text) <= 4:
                 return False
             # Skip things like "l", "2)", "3.", etc.
-            if re.match(r'^[\d\W]+$', text):
+            if re.match(r"^[\d\W]+$", text):
                 return False
 
         # Skip meaningless single characters
-        if len(text) == 1 and text.lower() in ['l', 'i', 'o', 'a', 's', 'x', 'y', 'z']:
+        if len(text) == 1 and text.lower() in ["l", "i", "o", "a", "s", "x", "y", "z"]:
             return False
 
         # Skip entities that are just punctuation or symbols
-        if re.match(r'^[\W_]+$', text):
+        if re.match(r"^[\W_]+$", text):
             return False
 
         # Skip entities that look like OCR errors (common in scanned documents)
         # e.g., "l20" (should be "120"), "l4" (should be "14")
-        if re.match(r'^[l|I][0-9]+$', text, re.IGNORECASE):
+        if re.match(r"^[l|I][0-9]+$", text, re.IGNORECASE):
             return False
 
         # Skip very short ORG entities (likely OCR errors) - but allow acronyms
-        if entity_type == 'ORG' and len(text) <= 3:
+        if entity_type == "ORG" and len(text) <= 3:
             # Allow if it's all uppercase letters (likely acronym)
             if text.isupper() and text.isalpha():
                 return True
@@ -414,15 +519,28 @@ class EntityExtractionService:
             return False
 
         # Skip very generic DATE entities
-        if entity_type == 'DATE' and text.lower() in ['l', 'i', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']:
+        if entity_type == "DATE" and text.lower() in [
+            "l",
+            "i",
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+        ]:
             return False
 
         # Skip NORP (nationalities/religious/political groups) that are too short
-        if entity_type == 'NORP' and len(text) <= 2:
+        if entity_type == "NORP" and len(text) <= 2:
             return False
 
         # For PERSON entities, require at least 2 words or a longer single word
-        if entity_type == 'PERSON':
+        if entity_type == "PERSON":
             words = text.split()
             if len(words) == 1 and len(text) < 4:
                 return False
@@ -445,9 +563,15 @@ class EntityExtractionService:
             else:
                 # Merge with existing entity if higher confidence
                 existing_canonical = entity.canonical_name or entity.name
-                existing_idx = next(i for i, e in enumerate(deduplicated)
-                                 if (e.entity_type == entity.entity_type and
-                                     (e.canonical_name or e.name).lower().strip() == existing_canonical.lower().strip()))
+                existing_idx = next(
+                    i
+                    for i, e in enumerate(deduplicated)
+                    if (
+                        e.entity_type == entity.entity_type
+                        and (e.canonical_name or e.name).lower().strip()
+                        == existing_canonical.lower().strip()
+                    )
+                )
 
                 if entity.confidence > deduplicated[existing_idx].confidence:
                     deduplicated[existing_idx] = entity
@@ -457,11 +581,11 @@ class EntityExtractionService:
     def get_entity_statistics(self, entities: List[Entity]) -> Dict[str, Any]:
         """Get statistics about extracted entities"""
         stats = {
-            'total_entities': len(entities),
-            'entity_types': {},
-            'extraction_methods': {},
-            'confidence_distribution': {'high': 0, 'medium': 0, 'low': 0},
-            'average_confidence': 0.0
+            "total_entities": len(entities),
+            "entity_types": {},
+            "extraction_methods": {},
+            "confidence_distribution": {"high": 0, "medium": 0, "low": 0},
+            "average_confidence": 0.0,
         }
 
         if not entities:
@@ -471,22 +595,26 @@ class EntityExtractionService:
         for entity in entities:
             # Count by type
             entity_type = entity.entity_type.value
-            stats['entity_types'][entity_type] = stats['entity_types'].get(entity_type, 0) + 1
+            stats["entity_types"][entity_type] = (
+                stats["entity_types"].get(entity_type, 0) + 1
+            )
 
             # Count by extraction method
             method = entity.extraction_method.value
-            stats['extraction_methods'][method] = stats['extraction_methods'].get(method, 0) + 1
+            stats["extraction_methods"][method] = (
+                stats["extraction_methods"].get(method, 0) + 1
+            )
 
             # Confidence distribution
             if entity.confidence >= 0.8:
-                stats['confidence_distribution']['high'] += 1
+                stats["confidence_distribution"]["high"] += 1
             elif entity.confidence >= 0.6:
-                stats['confidence_distribution']['medium'] += 1
+                stats["confidence_distribution"]["medium"] += 1
             else:
-                stats['confidence_distribution']['low'] += 1
+                stats["confidence_distribution"]["low"] += 1
 
             total_confidence += entity.confidence
 
-        stats['average_confidence'] = total_confidence / len(entities)
+        stats["average_confidence"] = total_confidence / len(entities)
 
         return stats

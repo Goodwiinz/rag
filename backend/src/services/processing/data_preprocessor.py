@@ -4,10 +4,13 @@ Data preprocessing service for graph visualization
 
 import asyncio
 import logging
-from typing import List, Dict, Any, Tuple, Optional
 from collections import defaultdict
+from typing import Any, Dict, List, Optional, Tuple
 
-from src.services.models.visualization_models import VisualizationNode, VisualizationEdge
+from src.services.models.visualization_models import (
+    VisualizationEdge,
+    VisualizationNode,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +25,7 @@ class DataPreprocessor:
         self,
         raw_nodes: List[Dict[str, Any]],
         raw_edges: List[Dict[str, Any]],
-        options: Optional[Dict[str, Any]] = None
+        options: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Process raw graph data"""
         try:
@@ -53,7 +56,9 @@ class DataPreprocessor:
             # Sample similar nodes if requested
             if options.get("sample_similar_nodes", False):
                 processed_nodes, processed_edges = self._sample_similar_nodes(
-                    processed_nodes, processed_edges, options.get("max_similar_nodes", 10)
+                    processed_nodes,
+                    processed_edges,
+                    options.get("max_similar_nodes", 10),
                 )
 
             # Collapse clusters if requested
@@ -63,7 +68,9 @@ class DataPreprocessor:
                 )
 
             # Add computed properties
-            processed_nodes = self._add_computed_properties(processed_nodes, processed_edges)
+            processed_nodes = self._add_computed_properties(
+                processed_nodes, processed_edges
+            )
             processed_edges = self._add_edge_properties(processed_edges)
 
             return processed_nodes, processed_edges
@@ -73,9 +80,7 @@ class DataPreprocessor:
             return raw_nodes, raw_edges
 
     def _remove_isolated_nodes(
-        self,
-        nodes: List[Dict[str, Any]],
-        edges: List[Dict[str, Any]]
+        self, nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Remove nodes with no connections"""
         # Get connected node IDs
@@ -85,18 +90,12 @@ class DataPreprocessor:
             connected_nodes.add(edge["target"])
 
         # Filter nodes
-        filtered_nodes = [
-            node for node in nodes
-            if node["id"] in connected_nodes
-        ]
+        filtered_nodes = [node for node in nodes if node["id"] in connected_nodes]
 
         return filtered_nodes, edges
 
     def _filter_by_degree(
-        self,
-        nodes: List[Dict[str, Any]],
-        edges: List[Dict[str, Any]],
-        min_degree: int
+        self, nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]], min_degree: int
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Filter nodes by minimum degree"""
         # Calculate degrees
@@ -107,8 +106,7 @@ class DataPreprocessor:
 
         # Filter nodes
         filtered_nodes = [
-            node for node in nodes
-            if node_degrees[node["id"]] >= min_degree
+            node for node in nodes if node_degrees[node["id"]] >= min_degree
         ]
 
         # Get filtered node IDs
@@ -116,16 +114,16 @@ class DataPreprocessor:
 
         # Filter edges
         filtered_edges = [
-            edge for edge in edges
-            if edge["source"] in filtered_node_ids and edge["target"] in filtered_node_ids
+            edge
+            for edge in edges
+            if edge["source"] in filtered_node_ids
+            and edge["target"] in filtered_node_ids
         ]
 
         return filtered_nodes, filtered_edges
 
     def _filter_edges_by_strength(
-        self,
-        edges: List[Dict[str, Any]],
-        min_strength: float
+        self, edges: List[Dict[str, Any]], min_strength: float
     ) -> List[Dict[str, Any]]:
         """Filter edges by minimum strength"""
         filtered_edges = []
@@ -140,7 +138,7 @@ class DataPreprocessor:
         self,
         nodes: List[Dict[str, Any]],
         edges: List[Dict[str, Any]],
-        max_per_type: int = 10
+        max_per_type: int = 10,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Sample similar nodes to reduce visual clutter"""
         # Group nodes by type and properties
@@ -168,6 +166,7 @@ class DataPreprocessor:
                 else:
                     # Random sampling
                     import random
+
                     random.shuffle(group_nodes)
 
                 sampled_nodes.extend(group_nodes[:max_per_type])
@@ -179,7 +178,8 @@ class DataPreprocessor:
 
         # Filter edges
         filtered_edges = [
-            edge for edge in edges
+            edge
+            for edge in edges
             if edge["source"] in sampled_node_ids and edge["target"] in sampled_node_ids
         ]
 
@@ -189,7 +189,7 @@ class DataPreprocessor:
         self,
         nodes: List[Dict[str, Any]],
         edges: List[Dict[str, Any]],
-        cluster_threshold: float = 0.8
+        cluster_threshold: float = 0.8,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Collapse densely connected clusters into single nodes"""
         # This is a simplified implementation
@@ -214,9 +214,9 @@ class DataPreprocessor:
                     "properties": {
                         "original_type": node_type,
                         "node_count": len(group_nodes),
-                        "member_ids": [n["id"] for n in group_nodes]
+                        "member_ids": [n["id"] for n in group_nodes],
                     },
-                    "degree": sum(n.get("degree", 0) for n in group_nodes)
+                    "degree": sum(n.get("degree", 0) for n in group_nodes),
                 }
                 collapsed_nodes.append(collapsed_node)
             else:
@@ -227,8 +227,12 @@ class DataPreprocessor:
         regular_nodes = {n["id"]: n for n in collapsed_nodes if n["type"] != "cluster"}
 
         for edge in edges:
-            source_cluster = self._find_cluster_for_node(edge["source"], cluster_nodes, regular_nodes)
-            target_cluster = self._find_cluster_for_node(edge["target"], cluster_nodes, regular_nodes)
+            source_cluster = self._find_cluster_for_node(
+                edge["source"], cluster_nodes, regular_nodes
+            )
+            target_cluster = self._find_cluster_for_node(
+                edge["target"], cluster_nodes, regular_nodes
+            )
 
             if source_cluster and target_cluster and source_cluster != target_cluster:
                 collapsed_edge = {
@@ -238,8 +242,10 @@ class DataPreprocessor:
                     "type": edge["type"],
                     "properties": {
                         "original_edges": 1,
-                        "total_strength": edge.get("properties", {}).get("strength", 1.0)
-                    }
+                        "total_strength": edge.get("properties", {}).get(
+                            "strength", 1.0
+                        ),
+                    },
                 }
                 collapsed_edges.append(collapsed_edge)
 
@@ -249,7 +255,7 @@ class DataPreprocessor:
         self,
         node_id: str,
         cluster_nodes: Dict[str, Dict[str, Any]],
-        regular_nodes: Dict[str, Dict[str, Any]]
+        regular_nodes: Dict[str, Dict[str, Any]],
     ) -> Optional[str]:
         """Find which cluster a node belongs to"""
         # Check if it's a regular node that belongs to a cluster
@@ -268,9 +274,7 @@ class DataPreprocessor:
         return None
 
     def _add_computed_properties(
-        self,
-        nodes: List[Dict[str, Any]],
-        edges: List[Dict[str, Any]]
+        self, nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Add computed properties to nodes"""
         # Calculate degrees
@@ -290,21 +294,19 @@ class DataPreprocessor:
             node["degree"] = node_degrees.get(node_id, 0)
             node["total_strength"] = node_strength.get(node_id, 0.0)
             node["avg_strength"] = (
-                node["total_strength"] / node["degree"]
-                if node["degree"] > 0 else 0.0
+                node["total_strength"] / node["degree"] if node["degree"] > 0 else 0.0
             )
 
             # Add normalized degree (0-1)
             if node_degrees:
                 max_degree = max(node_degrees.values())
-                node["normalized_degree"] = node["degree"] / max_degree if max_degree > 0 else 0.0
+                node["normalized_degree"] = (
+                    node["degree"] / max_degree if max_degree > 0 else 0.0
+                )
 
         return nodes
 
-    def _add_edge_properties(
-        self,
-        edges: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _add_edge_properties(self, edges: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Add computed properties to edges"""
         for edge in edges:
             # Ensure strength property exists
@@ -324,9 +326,14 @@ class DataPreprocessor:
         """Categorize edge type for styling"""
         edge_type = edge_type.lower()
 
-        if any(keyword in edge_type for keyword in ["work", "employ", "manage", "report"]):
+        if any(
+            keyword in edge_type for keyword in ["work", "employ", "manage", "report"]
+        ):
             return "organizational"
-        elif any(keyword in edge_type for keyword in ["know", "friend", "colleague", "relate"]):
+        elif any(
+            keyword in edge_type
+            for keyword in ["know", "friend", "colleague", "relate"]
+        ):
             return "social"
         elif any(keyword in edge_type for keyword in ["located", "based", "place"]):
             return "geographic"
@@ -341,7 +348,7 @@ class DataPreprocessor:
         self,
         nodes: List[Dict[str, Any]],
         edges: List[Dict[str, Any]],
-        filters: Dict[str, Any]
+        filters: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Apply dynamic filtering based on user input"""
         try:
@@ -352,23 +359,22 @@ class DataPreprocessor:
             if "node_types" in filters and filters["node_types"]:
                 allowed_types = set(filters["node_types"])
                 filtered_nodes = [
-                    node for node in filtered_nodes
-                    if node["type"] in allowed_types
+                    node for node in filtered_nodes if node["type"] in allowed_types
                 ]
 
             # Filter by edge types
             if "edge_types" in filters and filters["edge_types"]:
                 allowed_types = set(filters["edge_types"])
                 filtered_edges = [
-                    edge for edge in filtered_edges
-                    if edge["type"] in allowed_types
+                    edge for edge in filtered_edges if edge["type"] in allowed_types
                 ]
 
             # Filter by degree range
             if "degree_range" in filters:
                 min_degree, max_degree = filters["degree_range"]
                 filtered_nodes = [
-                    node for node in filtered_nodes
+                    node
+                    for node in filtered_nodes
                     if min_degree <= node.get("degree", 0) <= max_degree
                 ]
 
@@ -376,23 +382,29 @@ class DataPreprocessor:
             if "strength_range" in filters:
                 min_strength, max_strength = filters["strength_range"]
                 filtered_edges = [
-                    edge for edge in filtered_edges
-                    if min_strength <= edge.get("properties", {}).get("strength", 1.0) <= max_strength
+                    edge
+                    for edge in filtered_edges
+                    if min_strength
+                    <= edge.get("properties", {}).get("strength", 1.0)
+                    <= max_strength
                 ]
 
             # Filter by date range
             if "date_range" in filters:
                 start_date, end_date = filters["date_range"]
                 filtered_nodes = [
-                    node for node in filtered_nodes
+                    node
+                    for node in filtered_nodes
                     if self._is_in_date_range(node, start_date, end_date)
                 ]
 
             # Rebuild edges to match filtered nodes
             filtered_node_ids = {node["id"] for node in filtered_nodes}
             filtered_edges = [
-                edge for edge in filtered_edges
-                if edge["source"] in filtered_node_ids and edge["target"] in filtered_node_ids
+                edge
+                for edge in filtered_edges
+                if edge["source"] in filtered_node_ids
+                and edge["target"] in filtered_node_ids
             ]
 
             return filtered_nodes, filtered_edges
@@ -402,10 +414,7 @@ class DataPreprocessor:
             return nodes, edges
 
     def _is_in_date_range(
-        self,
-        node: Dict[str, Any],
-        start_date: Any,
-        end_date: Any
+        self, node: Dict[str, Any], start_date: Any, end_date: Any
     ) -> bool:
         """Check if node is within date range"""
         # This would need proper date handling based on the actual date format

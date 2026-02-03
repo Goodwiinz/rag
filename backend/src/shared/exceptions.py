@@ -2,7 +2,8 @@
 Shared exceptions for microservices
 """
 
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
+
 from fastapi import HTTPException, status
 
 
@@ -16,7 +17,7 @@ class BaseCustomException(Exception):
         error_type: str = "custom_error",
         status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
         details: Optional[Dict[str, Any]] = None,
-        suggestions: Optional[List[str]] = None
+        suggestions: Optional[List[str]] = None,
     ):
         self.message = message
         self.error_code = error_code
@@ -33,7 +34,7 @@ class ValidationError(BaseCustomException):
     def __init__(
         self,
         message: str = "Validation failed",
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             message=message,
@@ -44,18 +45,15 @@ class ValidationError(BaseCustomException):
             suggestions=[
                 "Check request parameters",
                 "Verify data format",
-                "Review API documentation"
-            ]
+                "Review API documentation",
+            ],
         )
 
 
 class AuthenticationError(BaseCustomException):
     """Authentication error"""
 
-    def __init__(
-        self,
-        message: str = "Authentication failed"
-    ):
+    def __init__(self, message: str = "Authentication failed"):
         super().__init__(
             message=message,
             error_code="AUTHENTICATION_ERROR",
@@ -64,8 +62,8 @@ class AuthenticationError(BaseCustomException):
             suggestions=[
                 "Check your credentials",
                 "Verify token is valid",
-                "Try logging in again"
-            ]
+                "Try logging in again",
+            ],
         )
 
 
@@ -73,9 +71,7 @@ class AuthorizationError(BaseCustomException):
     """Authorization error"""
 
     def __init__(
-        self,
-        message: str = "Access denied",
-        required_permission: Optional[str] = None
+        self, message: str = "Access denied", required_permission: Optional[str] = None
     ):
         details = {}
         if required_permission:
@@ -90,8 +86,8 @@ class AuthorizationError(BaseCustomException):
             suggestions=[
                 "Check your permissions",
                 "Contact administrator",
-                "Verify account status"
-            ]
+                "Verify account status",
+            ],
         )
 
 
@@ -102,7 +98,7 @@ class NotFoundError(BaseCustomException):
         self,
         message: str = "Resource not found",
         resource_type: Optional[str] = None,
-        resource_id: Optional[str] = None
+        resource_id: Optional[str] = None,
     ):
         details = {}
         if resource_type:
@@ -119,8 +115,8 @@ class NotFoundError(BaseCustomException):
             suggestions=[
                 "Verify resource ID",
                 "Check if resource exists",
-                "Review access permissions"
-            ]
+                "Review access permissions",
+            ],
         )
 
 
@@ -131,7 +127,7 @@ class ConflictError(BaseCustomException):
         self,
         message: str = "Resource conflict",
         resource_type: Optional[str] = None,
-        conflict_details: Optional[Dict[str, Any]] = None
+        conflict_details: Optional[Dict[str, Any]] = None,
     ):
         details = conflict_details or {}
         if resource_type:
@@ -146,8 +142,8 @@ class ConflictError(BaseCustomException):
             suggestions=[
                 "Check for duplicate resources",
                 "Verify resource state",
-                "Review recent changes"
-            ]
+                "Review recent changes",
+            ],
         )
 
 
@@ -159,7 +155,7 @@ class RateLimitError(BaseCustomException):
         message: str = "Rate limit exceeded",
         retry_after: Optional[int] = None,
         limit: Optional[int] = None,
-        window: Optional[int] = None
+        window: Optional[int] = None,
     ):
         details = {}
         if retry_after:
@@ -179,7 +175,7 @@ class RateLimitError(BaseCustomException):
             error_type="rate_limit_error",
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             details=details,
-            suggestions=suggestions
+            suggestions=suggestions,
         )
 
 
@@ -190,7 +186,7 @@ class StorageQuotaError(BaseCustomException):
         self,
         message: str = "Storage quota exceeded",
         current_usage_mb: Optional[float] = None,
-        quota_limit_mb: Optional[int] = None
+        quota_limit_mb: Optional[int] = None,
     ):
         details = {}
         if current_usage_mb:
@@ -207,8 +203,8 @@ class StorageQuotaError(BaseCustomException):
             suggestions=[
                 "Delete unused documents",
                 "Upgrade storage plan",
-                "Contact administrator"
-            ]
+                "Contact administrator",
+            ],
         )
 
 
@@ -220,7 +216,7 @@ class ProcessingError(BaseCustomException):
         message: str = "Processing failed",
         document_id: Optional[str] = None,
         stage: Optional[str] = None,
-        retry_count: Optional[int] = None
+        retry_count: Optional[int] = None,
     ):
         details = {}
         if document_id:
@@ -240,8 +236,8 @@ class ProcessingError(BaseCustomException):
                 "Check document format",
                 "Verify file integrity",
                 "Try re-uploading the document",
-                "Contact support if issue persists"
-            ]
+                "Contact support if issue persists",
+            ],
         )
 
 
@@ -252,7 +248,7 @@ class SearchError(BaseCustomException):
         self,
         message: str = "Search failed",
         query: Optional[str] = None,
-        search_type: Optional[str] = None
+        search_type: Optional[str] = None,
     ):
         details = {}
         if query:
@@ -270,8 +266,8 @@ class SearchError(BaseCustomException):
                 "Simplify search query",
                 "Try different keywords",
                 "Check search filters",
-                "Contact support if issue persists"
-            ]
+                "Contact support if issue persists",
+            ],
         )
 
 
@@ -282,7 +278,7 @@ class VectorStoreError(BaseCustomException):
         self,
         message: str = "Vector store operation failed",
         operation: Optional[str] = None,
-        collection: Optional[str] = None
+        collection: Optional[str] = None,
     ):
         details = {}
         if operation:
@@ -300,8 +296,8 @@ class VectorStoreError(BaseCustomException):
                 "Check vector store connection",
                 "Verify collection exists",
                 "Try the operation again",
-                "Contact support if issue persists"
-            ]
+                "Contact support if issue persists",
+            ],
         )
 
 
@@ -312,7 +308,7 @@ class KnowledgeGraphError(BaseCustomException):
         self,
         message: str = "Knowledge graph operation failed",
         operation: Optional[str] = None,
-        entity_type: Optional[str] = None
+        entity_type: Optional[str] = None,
     ):
         details = {}
         if operation:
@@ -330,8 +326,8 @@ class KnowledgeGraphError(BaseCustomException):
                 "Check graph database connection",
                 "Verify entity data",
                 "Try the operation again",
-                "Contact support if issue persists"
-            ]
+                "Contact support if issue persists",
+            ],
         )
 
 
@@ -342,7 +338,7 @@ class EvaluationError(BaseCustomException):
         self,
         message: str = "Evaluation failed",
         evaluation_type: Optional[str] = None,
-        query_id: Optional[str] = None
+        query_id: Optional[str] = None,
     ):
         details = {}
         if evaluation_type:
@@ -360,8 +356,8 @@ class EvaluationError(BaseCustomException):
                 "Check evaluation parameters",
                 "Verify query and answer format",
                 "Try the evaluation again",
-                "Contact support if issue persists"
-            ]
+                "Contact support if issue persists",
+            ],
         )
 
 
@@ -373,7 +369,7 @@ class FileUploadError(BaseCustomException):
         message: str = "File upload failed",
         filename: Optional[str] = None,
         file_size: Optional[int] = None,
-        mime_type: Optional[str] = None
+        mime_type: Optional[str] = None,
     ):
         details = {}
         if filename:
@@ -393,8 +389,8 @@ class FileUploadError(BaseCustomException):
                 "Check file format",
                 "Verify file size limit",
                 "Ensure file is not corrupted",
-                "Try uploading again"
-            ]
+                "Try uploading again",
+            ],
         )
 
 
@@ -405,7 +401,7 @@ class ServiceUnavailableError(BaseCustomException):
         self,
         message: str = "Service temporarily unavailable",
         service_name: Optional[str] = None,
-        retry_after: Optional[int] = None
+        retry_after: Optional[int] = None,
     ):
         details = {}
         if service_name:
@@ -421,7 +417,7 @@ class ServiceUnavailableError(BaseCustomException):
             error_type="service_unavailable_error",
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             details=details,
-            suggestions=suggestions
+            suggestions=suggestions,
         )
 
 
@@ -432,7 +428,7 @@ class DatabaseError(BaseCustomException):
         self,
         message: str = "Database operation failed",
         operation: Optional[str] = None,
-        table: Optional[str] = None
+        table: Optional[str] = None,
     ):
         details = {}
         if operation:
@@ -448,8 +444,8 @@ class DatabaseError(BaseCustomException):
             details=details,
             suggestions=[
                 "Try the operation again",
-                "Contact support if issue persists"
-            ]
+                "Contact support if issue persists",
+            ],
         )
 
 
@@ -460,7 +456,7 @@ class CacheError(BaseCustomException):
         self,
         message: str = "Cache operation failed",
         operation: Optional[str] = None,
-        key: Optional[str] = None
+        key: Optional[str] = None,
     ):
         details = {}
         if operation:
@@ -476,8 +472,8 @@ class CacheError(BaseCustomException):
             details=details,
             suggestions=[
                 "Try the operation again",
-                "Contact support if issue persists"
-            ]
+                "Contact support if issue persists",
+            ],
         )
 
 
@@ -488,7 +484,7 @@ class ExternalServiceError(BaseCustomException):
         self,
         message: str = "External service error",
         service_name: Optional[str] = None,
-        status_code: Optional[int] = None
+        status_code: Optional[int] = None,
     ):
         details = {}
         if service_name:
@@ -504,8 +500,8 @@ class ExternalServiceError(BaseCustomException):
             details=details,
             suggestions=[
                 "Try the operation again",
-                "Contact support if issue persists"
-            ]
+                "Contact support if issue persists",
+            ],
         )
 
 
@@ -520,15 +516,16 @@ def create_http_exception(exc: BaseCustomException) -> HTTPException:
                 "error_code": exc.error_code,
                 "error_type": exc.error_type,
                 "details": exc.details,
-                "suggestions": exc.suggestions
+                "suggestions": exc.suggestions,
             }
-        }
+        },
     )
 
 
 # Exception handler decorator
 def handle_exceptions(func):
     """Decorator to handle custom exceptions"""
+
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
@@ -537,12 +534,16 @@ def handle_exceptions(func):
         except Exception as e:
             # Log unexpected exceptions
             import logging
+
             logger = logging.getLogger(__name__)
             logger.error(f"Unexpected error in {func.__name__}: {e}", exc_info=True)
 
-            raise create_http_exception(BaseCustomException(
-                message="Internal server error",
-                error_code="INTERNAL_ERROR",
-                error_type="internal_error"
-            ))
+            raise create_http_exception(
+                BaseCustomException(
+                    message="Internal server error",
+                    error_code="INTERNAL_ERROR",
+                    error_type="internal_error",
+                )
+            )
+
     return wrapper

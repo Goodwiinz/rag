@@ -5,45 +5,57 @@ Comprehensive error handling and reconnection logic for WebSocket services
 import asyncio
 import json
 import logging
+import random
 import traceback
 import uuid
-from datetime import datetime, timezone as dt_timezone, timedelta
-from typing import Dict, List, Optional, Any, Callable, Set
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from enum import Enum
-import random
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from fastapi import WebSocket, status
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func
 
-from src.services.base import BaseService
-from src.services.websocket.websocket_manager import connection_manager, WebSocketMessage, MessageType, Priority
-from src.services.infrastructure.status_update_service import status_update_service
-from src.core.database import get_async_session
 from src.core.config import settings
+from src.core.database import get_async_session
 from src.models.websocket_status import ConnectionEvent, WebSocketConnection
+from src.services.base import BaseService
+from src.services.infrastructure.status_update_service import status_update_service
+from src.services.websocket.websocket_manager import (
+    MessageType,
+    Priority,
+    WebSocketMessage,
+    connection_manager,
+)
 
 logger = logging.getLogger(__name__)
 
+
 class ErrorSeverity(Enum):
     """Error severity levels"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
 
+
 class RecoveryStrategy(Enum):
     """Error recovery strategies"""
+
     RECONNECT = "reconnect"
     RETRY = "retry"
     FAILFAST = "failfast"
     GRACEFUL_DEGRADATION = "graceful_degradation"
     CIRCUIT_BREAKER = "circuit_breaker"
 
+
 @dataclass
 class ErrorContext:
     """Error context information"""
+
     error_id: str
     error_type: str
     severity: ErrorSeverity
@@ -58,9 +70,11 @@ class ErrorContext:
     retry_count: int = 0
     max_retries: int = 3
 
+
 @dataclass
 class ReconnectionAttempt:
     """Reconnection attempt tracking"""
+
     attempt_id: str
     connection_id: str
     user_id: str
@@ -68,6 +82,7 @@ class ReconnectionAttempt:
     delay_seconds: float
     success: bool = False
     error_message: Optional[str] = None
+
 
 class CircuitBreaker:
     """Circuit breaker for preventing cascading failures"""
@@ -97,10 +112,9 @@ class CircuitBreaker:
 
     def _should_attempt_reset(self) -> bool:
         """Check if circuit breaker should attempt to reset"""
-        return (
-            self.last_failure_time and
-            datetime.now(dt_timezone.utc) - self.last_failure_time > timedelta(seconds=self.timeout_seconds)
-        )
+        return self.last_failure_time and datetime.now(
+            dt_timezone.utc
+        ) - self.last_failure_time > timedelta(seconds=self.timeout_seconds)
 
     def _on_success(self):
         """Handle successful operation"""
@@ -114,6 +128,7 @@ class CircuitBreaker:
 
         if self.failure_count >= self.failure_threshold:
             self.state = "OPEN"
+
 
 class WebSocketErrorHandler(BaseService):
     """Comprehensive error handling for WebSocket services"""
@@ -159,7 +174,11 @@ class WebSocketErrorHandler(BaseService):
         logger.info("Shutting down WebSocket Error Handler...")
 
         # Cancel background tasks
-        tasks = [self._error_processor_task, self._reconnection_task, self._cleanup_task]
+        tasks = [
+            self._error_processor_task,
+            self._reconnection_task,
+            self._cleanup_task,
+        ]
         for task in tasks:
             if task and not task.done():
                 task.cancel()
@@ -176,9 +195,14 @@ class WebSocketErrorHandler(BaseService):
         self._error_handlers[error_type] = handler
         logger.info(f"Registered error handler for: {error_type}")
 
-    async def handle_websocket_error(self, websocket: WebSocket, error: Exception,
-                                   connection_id: str = None, user_id: str = None,
-                                   organization_id: str = None):
+    async def handle_websocket_error(
+        self,
+        websocket: WebSocket,
+        error: Exception,
+        connection_id: str = None,
+        user_id: str = None,
+        organization_id: str = None,
+    ):
         """Handle WebSocket error with appropriate recovery strategy"""
         try:
             # Create error context
@@ -188,17 +212,19 @@ class WebSocketErrorHandler(BaseService):
                 severity=self._determine_error_severity(error),
                 message=str(error),
                 details={
-                    "websocket_state": websocket.client_state if hasattr(websocket, 'client_state') else "unknown",
+                    "websocket_state": websocket.client_state
+                    if hasattr(websocket, "client_state")
+                    else "unknown",
                     "connection_id": connection_id,
                     "user_id": user_id,
-                    "organization_id": organization_id
+                    "organization_id": organization_id,
                 },
                 timestamp=datetime.now(dt_timezone.utc),
                 connection_id=connection_id,
                 user_id=user_id,
                 organization_id=organization_id,
                 stack_trace=traceback.format_exc() if settings.DEBUG else None,
-                recovery_strategy=self._determine_recovery_strategy(error)
+                recovery_strategy=self._determine_recovery_strategy(error),
             )
 
             # Add to error history
@@ -210,7 +236,9 @@ class WebSocketErrorHandler(BaseService):
             await self._log_error(error_context)
 
             # Check circuit breaker
-            circuit_breaker_key = f"{user_id}:{type(error).__name__}" if user_id else type(error).__name__
+            circuit_breaker_key = (
+                f"{user_id}:{type(error).__name__}" if user_id else type(error).__name__
+            )
             circuit_breaker = self._get_circuit_breaker(circuit_breaker_key)
 
             if circuit_breaker.state == "OPEN":
@@ -222,7 +250,9 @@ class WebSocketErrorHandler(BaseService):
                 await self._schedule_reconnection(error_context)
             elif error_context.recovery_strategy == RecoveryStrategy.RETRY:
                 await self._handle_retry(error_context)
-            elif error_context.recovery_strategy == RecoveryStrategy.GRACEFUL_DEGRADATION:
+            elif (
+                error_context.recovery_strategy == RecoveryStrategy.GRACEFUL_DEGRADATION
+            ):
                 await self._handle_graceful_degradation(error_context)
             elif error_context.recovery_strategy == RecoveryStrategy.FAILFAST:
                 await self._handle_fail_fast(error_context)
@@ -244,12 +274,19 @@ class WebSocketErrorHandler(BaseService):
             # Last resort: close the connection
             if websocket:
                 try:
-                    await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Internal error")
+                    await websocket.close(
+                        code=status.WS_1011_INTERNAL_ERROR, reason="Internal error"
+                    )
                 except:
                     pass
 
-    async def schedule_reconnection(self, connection_id: str, user_id: str,
-                                 organization_id: str, delay_seconds: float = None):
+    async def schedule_reconnection(
+        self,
+        connection_id: str,
+        user_id: str,
+        organization_id: str,
+        delay_seconds: float = None,
+    ):
         """Schedule a reconnection attempt"""
         if delay_seconds is None:
             delay_seconds = self._calculate_reconnection_delay(user_id, connection_id)
@@ -259,7 +296,7 @@ class WebSocketErrorHandler(BaseService):
             connection_id=connection_id,
             user_id=user_id,
             timestamp=datetime.now(dt_timezone.utc),
-            delay_seconds=delay_seconds
+            delay_seconds=delay_seconds,
         )
 
         # Add to queue
@@ -270,7 +307,9 @@ class WebSocketErrorHandler(BaseService):
             self._reconnection_attempts[user_id] = []
         self._reconnection_attempts[user_id].append(reconnection_attempt)
 
-        logger.info(f"Scheduled reconnection for {connection_id} in {delay_seconds:.1f} seconds")
+        logger.info(
+            f"Scheduled reconnection for {connection_id} in {delay_seconds:.1f} seconds"
+        )
 
     async def _process_errors(self):
         """Process errors from the queue"""
@@ -294,8 +333,7 @@ class WebSocketErrorHandler(BaseService):
             try:
                 # Get reconnection attempt from queue
                 reconnection_attempt = await asyncio.wait_for(
-                    self._reconnection_queue.get(),
-                    timeout=1.0
+                    self._reconnection_queue.get(), timeout=1.0
                 )
 
                 # Wait for the delay
@@ -311,14 +349,20 @@ class WebSocketErrorHandler(BaseService):
 
                 # If failed and under retry limit, schedule another attempt
                 if not success:
-                    user_attempts = [a for a in self._reconnection_attempts.get(reconnection_attempt.user_id, [])
-                                   if not a.success]
+                    user_attempts = [
+                        a
+                        for a in self._reconnection_attempts.get(
+                            reconnection_attempt.user_id, []
+                        )
+                        if not a.success
+                    ]
                     if len(user_attempts) < 3:  # Max 3 failed attempts
                         await self.schedule_reconnection(
                             reconnection_attempt.connection_id,
                             reconnection_attempt.user_id,
                             "",  # organization_id not needed for reconnection
-                            reconnection_attempt.delay_seconds * 2  # Exponential backoff
+                            reconnection_attempt.delay_seconds
+                            * 2,  # Exponential backoff
                         )
 
             except asyncio.TimeoutError:
@@ -329,12 +373,16 @@ class WebSocketErrorHandler(BaseService):
                 logger.error(f"Error in reconnection processor: {e}")
                 await asyncio.sleep(5)
 
-    async def _attempt_reconnection(self, reconnection_attempt: ReconnectionAttempt) -> bool:
+    async def _attempt_reconnection(
+        self, reconnection_attempt: ReconnectionAttempt
+    ) -> bool:
         """Attempt to reconnect a WebSocket connection"""
         try:
             # This would need to be implemented based on your specific reconnection logic
             # For now, we'll just log the attempt
-            logger.info(f"Attempting reconnection for {reconnection_attempt.connection_id}")
+            logger.info(
+                f"Attempting reconnection for {reconnection_attempt.connection_id}"
+            )
 
             # In a real implementation, you would:
             # 1. Create a new WebSocket connection
@@ -346,11 +394,15 @@ class WebSocketErrorHandler(BaseService):
             success = random.random() > 0.3
 
             if success:
-                logger.info(f"Successfully reconnected: {reconnection_attempt.connection_id}")
+                logger.info(
+                    f"Successfully reconnected: {reconnection_attempt.connection_id}"
+                )
                 # Notify client of successful reconnection
                 await self._notify_reconnection_success(reconnection_attempt)
             else:
-                logger.warning(f"Reconnection failed: {reconnection_attempt.connection_id}")
+                logger.warning(
+                    f"Reconnection failed: {reconnection_attempt.connection_id}"
+                )
 
             return success
 
@@ -358,7 +410,9 @@ class WebSocketErrorHandler(BaseService):
             logger.error(f"Error during reconnection attempt: {e}")
             return False
 
-    async def _send_error_to_client(self, websocket: WebSocket, error_context: ErrorContext):
+    async def _send_error_to_client(
+        self, websocket: WebSocket, error_context: ErrorContext
+    ):
         """Send error message to WebSocket client"""
         try:
             error_message = WebSocketMessage(
@@ -371,10 +425,10 @@ class WebSocketErrorHandler(BaseService):
                     "recovery_strategy": error_context.recovery_strategy.value,
                     "retry_count": error_context.retry_count,
                     "max_retries": error_context.max_retries,
-                    "timestamp": error_context.timestamp.isoformat()
+                    "timestamp": error_context.timestamp.isoformat(),
                 },
                 timestamp=datetime.now(dt_timezone.utc),
-                priority=Priority.HIGH
+                priority=Priority.HIGH,
             )
 
             await websocket.send_json(asdict(error_message))
@@ -390,7 +444,7 @@ class WebSocketErrorHandler(BaseService):
         await status_update_service.broadcast_system_notification(
             title="Service Temporarily Unavailable",
             message=f"The service is temporarily unavailable due to high error rates. Please try again later.",
-            notification_type="error"
+            notification_type="error",
         )
 
     async def _handle_retry(self, error_context: ErrorContext):
@@ -406,7 +460,9 @@ class WebSocketErrorHandler(BaseService):
 
     async def _handle_graceful_degradation(self, error_context: ErrorContext):
         """Handle graceful degradation recovery strategy"""
-        logger.info(f"Applying graceful degradation for error: {error_context.error_type}")
+        logger.info(
+            f"Applying graceful degradation for error: {error_context.error_type}"
+        )
 
         # Implement degradation logic
         # For example, reduce update frequency, disable non-critical features, etc.
@@ -418,11 +474,12 @@ class WebSocketErrorHandler(BaseService):
         # Close connection immediately
         if error_context.connection_id:
             await connection_manager.disconnect(
-                error_context.connection_id,
-                f"Critical error: {error_context.message}"
+                error_context.connection_id, f"Critical error: {error_context.message}"
             )
 
-    async def _notify_reconnection_success(self, reconnection_attempt: ReconnectionAttempt):
+    async def _notify_reconnection_success(
+        self, reconnection_attempt: ReconnectionAttempt
+    ):
         """Notify client of successful reconnection"""
         try:
             success_message = WebSocketMessage(
@@ -431,9 +488,9 @@ class WebSocketErrorHandler(BaseService):
                     "reconnected": True,
                     "connection_id": reconnection_attempt.connection_id,
                     "attempt_id": reconnection_attempt.attempt_id,
-                    "timestamp": datetime.now(dt_timezone.utc).isoformat()
+                    "timestamp": datetime.now(dt_timezone.utc).isoformat(),
                 },
-                timestamp=datetime.now(dt_timezone.utc)
+                timestamp=datetime.now(dt_timezone.utc),
             )
 
             # This would send to the reconnected WebSocket
@@ -448,15 +505,23 @@ class WebSocketErrorHandler(BaseService):
         error_type = type(error).__name__
 
         # Critical errors
-        if any(keyword in error_message for keyword in ["authentication", "security", "critical"]):
+        if any(
+            keyword in error_message
+            for keyword in ["authentication", "security", "critical"]
+        ):
             return ErrorSeverity.CRITICAL
 
         # High severity errors
-        if any(keyword in error_message for keyword in ["connection", "timeout", "database"]):
+        if any(
+            keyword in error_message
+            for keyword in ["connection", "timeout", "database"]
+        ):
             return ErrorSeverity.HIGH
 
         # Medium severity errors
-        if any(keyword in error_message for keyword in ["parsing", "validation", "format"]):
+        if any(
+            keyword in error_message for keyword in ["parsing", "validation", "format"]
+        ):
             return ErrorSeverity.MEDIUM
 
         # Default to low severity
@@ -468,15 +533,24 @@ class WebSocketErrorHandler(BaseService):
         error_type = type(error).__name__
 
         # Connection errors should trigger reconnection
-        if any(keyword in error_message for keyword in ["connection", "websocket", "network"]):
+        if any(
+            keyword in error_message
+            for keyword in ["connection", "websocket", "network"]
+        ):
             return RecoveryStrategy.RECONNECT
 
         # Temporary errors should trigger retry
-        if any(keyword in error_message for keyword in ["timeout", "temporary", "rate limit"]):
+        if any(
+            keyword in error_message
+            for keyword in ["timeout", "temporary", "rate limit"]
+        ):
             return RecoveryStrategy.RETRY
 
         # Critical errors should fail fast
-        if any(keyword in error_message for keyword in ["critical", "security", "authentication"]):
+        if any(
+            keyword in error_message
+            for keyword in ["critical", "security", "authentication"]
+        ):
             return RecoveryStrategy.FAILFAST
 
         # Default to graceful degradation
@@ -484,10 +558,12 @@ class WebSocketErrorHandler(BaseService):
 
     def _calculate_reconnection_delay(self, user_id: str, connection_id: str) -> float:
         """Calculate reconnection delay with exponential backoff"""
-        user_attempts = len([a for a in self._reconnection_attempts.get(user_id, []) if not a.success])
+        user_attempts = len(
+            [a for a in self._reconnection_attempts.get(user_id, []) if not a.success]
+        )
 
         # Exponential backoff with jitter
-        base_delay = self.reconnection_backoff_base * (2 ** user_attempts)
+        base_delay = self.reconnection_backoff_base * (2**user_attempts)
         delay = min(base_delay, self.reconnection_backoff_max)
 
         # Add jitter to prevent thundering herd
@@ -498,14 +574,14 @@ class WebSocketErrorHandler(BaseService):
 
     def _calculate_retry_delay(self, retry_count: int) -> float:
         """Calculate retry delay"""
-        return min(self.reconnection_backoff_base * (2 ** retry_count), 10.0)
+        return min(self.reconnection_backoff_base * (2**retry_count), 10.0)
 
     def _get_circuit_breaker(self, key: str) -> CircuitBreaker:
         """Get or create circuit breaker for key"""
         if key not in self._circuit_breakers:
             self._circuit_breakers[key] = CircuitBreaker(
                 failure_threshold=self.circuit_breaker_threshold,
-                timeout_seconds=self.circuit_breaker_timeout
+                timeout_seconds=self.circuit_breaker_timeout,
             )
         return self._circuit_breakers[key]
 
@@ -513,8 +589,10 @@ class WebSocketErrorHandler(BaseService):
         """Log error to database and monitoring systems"""
         try:
             # Log error details (database storage disabled to avoid session issues)
-            logger.error(f"WebSocket Error: {error_context.error_type} - {error_context.message}")
-            
+            logger.error(
+                f"WebSocket Error: {error_context.error_type} - {error_context.message}"
+            )
+
             # TODO: Implement proper database logging with dependency injection
             # For now, just log to file/console
 
@@ -529,19 +607,23 @@ class WebSocketErrorHandler(BaseService):
 
             # Check for high error rates
             recent_errors = [
-                error for error in self._error_history
-                if datetime.now(dt_timezone.utc) - error.timestamp < timedelta(minutes=5)
+                error
+                for error in self._error_history
+                if datetime.now(dt_timezone.utc) - error.timestamp
+                < timedelta(minutes=5)
             ]
 
             # High error rate threshold
             if len(recent_errors) > 10:
-                logger.warning(f"High error rate detected: {len(recent_errors)} errors in last 5 minutes")
+                logger.warning(
+                    f"High error rate detected: {len(recent_errors)} errors in last 5 minutes"
+                )
 
                 # Broadcast system alert
                 await status_update_service.broadcast_system_notification(
                     title="High Error Rate Detected",
                     message=f"The system is experiencing a high error rate. Administrators have been notified.",
-                    notification_type="error"
+                    notification_type="error",
                 )
 
         except Exception as e:
@@ -557,14 +639,16 @@ class WebSocketErrorHandler(BaseService):
 
                 # Clean old error history
                 self._error_history = [
-                    error for error in self._error_history
+                    error
+                    for error in self._error_history
                     if error.timestamp > cutoff_time
                 ]
 
                 # Clean old reconnection attempts
                 for user_id in list(self._reconnection_attempts.keys()):
                     self._reconnection_attempts[user_id] = [
-                        attempt for attempt in self._reconnection_attempts[user_id]
+                        attempt
+                        for attempt in self._reconnection_attempts[user_id]
                         if attempt.timestamp > cutoff_time
                     ]
 
@@ -584,15 +668,21 @@ class WebSocketErrorHandler(BaseService):
         self.register_error_handler("TimeoutError", self._handle_timeout_error)
         self.register_error_handler("ValidationError", self._handle_validation_error)
 
-    async def _handle_connection_error(self, error_context: ErrorContext, websocket: WebSocket):
+    async def _handle_connection_error(
+        self, error_context: ErrorContext, websocket: WebSocket
+    ):
         """Handle connection-specific errors"""
         logger.info(f"Handling connection error: {error_context.message}")
 
-    async def _handle_timeout_error(self, error_context: ErrorContext, websocket: WebSocket):
+    async def _handle_timeout_error(
+        self, error_context: ErrorContext, websocket: WebSocket
+    ):
         """Handle timeout errors"""
         logger.info(f"Handling timeout error: {error_context.message}")
 
-    async def _handle_validation_error(self, error_context: ErrorContext, websocket: WebSocket):
+    async def _handle_validation_error(
+        self, error_context: ErrorContext, websocket: WebSocket
+    ):
         """Handle validation errors"""
         logger.info(f"Handling validation error: {error_context.message}")
 
@@ -603,15 +693,18 @@ class WebSocketErrorHandler(BaseService):
                 "total_errors": 0,
                 "error_rate": 0.0,
                 "severity_distribution": {},
-                "recovery_success_rate": 0.0
+                "recovery_success_rate": 0.0,
             }
 
         # Calculate statistics
         total_errors = len(self._error_history)
-        recent_errors = len([
-            error for error in self._error_history
-            if datetime.now(dt_timezone.utc) - error.timestamp < timedelta(hours=1)
-        ])
+        recent_errors = len(
+            [
+                error
+                for error in self._error_history
+                if datetime.now(dt_timezone.utc) - error.timestamp < timedelta(hours=1)
+            ]
+        )
 
         # Severity distribution
         severity_counts = {}
@@ -620,7 +713,9 @@ class WebSocketErrorHandler(BaseService):
             severity_counts[severity] = severity_counts.get(severity, 0) + 1
 
         # Recovery success rate
-        total_reconnection_attempts = sum(len(attempts) for attempts in self._reconnection_attempts.values())
+        total_reconnection_attempts = sum(
+            len(attempts) for attempts in self._reconnection_attempts.values()
+        )
         successful_reconnections = sum(
             len([a for a in attempts if a.success])
             for attempts in self._reconnection_attempts.values()
@@ -628,7 +723,8 @@ class WebSocketErrorHandler(BaseService):
 
         recovery_success_rate = (
             (successful_reconnections / total_reconnection_attempts * 100)
-            if total_reconnection_attempts > 0 else 0.0
+            if total_reconnection_attempts > 0
+            else 0.0
         )
 
         return {
@@ -639,8 +735,10 @@ class WebSocketErrorHandler(BaseService):
             "total_reconnection_attempts": total_reconnection_attempts,
             "successful_reconnections": successful_reconnections,
             "recovery_success_rate": recovery_success_rate,
-            "active_circuit_breakers": len([cb for cb in self._circuit_breakers.values() if cb.state == "OPEN"]),
-            "average_error_resolution_time": self._calculate_average_resolution_time()
+            "active_circuit_breakers": len(
+                [cb for cb in self._circuit_breakers.values() if cb.state == "OPEN"]
+            ),
+            "average_error_resolution_time": self._calculate_average_resolution_time(),
         }
 
     def _calculate_average_resolution_time(self) -> float:
@@ -648,6 +746,7 @@ class WebSocketErrorHandler(BaseService):
         # This would track how long errors take to resolve
         # For now, return a placeholder
         return 30.0  # 30 seconds average
+
 
 # Global error handler instance
 websocket_error_handler = WebSocketErrorHandler()

@@ -4,9 +4,10 @@ Provides database-specific settings and connection management
 """
 
 import os
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 from urllib.parse import urlparse
-from pydantic import field_validator, BaseModel
+
+from pydantic import BaseModel, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -43,7 +44,9 @@ class DatabaseConnectionConfig(BaseModel):
         if self.password:
             return f"postgresql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}"
         else:
-            return f"postgresql://{self.username}@{self.host}:{self.port}/{self.database}"
+            return (
+                f"postgresql://{self.username}@{self.host}:{self.port}/{self.database}"
+            )
 
     @field_validator("port")
     @classmethod
@@ -102,38 +105,41 @@ class AnalyticsDatabaseConfig(BaseModel):
                 "partition_granularity": "weekly",
                 "retention_months": 6,
                 "vacuum_threshold": 0.15,
-                "enable_compression": True
+                "enable_compression": True,
             },
             "analytics_events": {
                 "partition_key": "event_timestamp",
                 "partition_granularity": "daily",
                 "retention_months": 12,
                 "vacuum_threshold": 0.2,
-                "enable_compression": True
+                "enable_compression": True,
             },
             "performance_logs": {
                 "partition_key": "timestamp",
                 "partition_granularity": "weekly",
                 "retention_months": 3,
                 "vacuum_threshold": 0.1,
-                "enable_compression": True
+                "enable_compression": True,
             },
             "search_queries": {
                 "partition_key": "created_at",
                 "partition_granularity": "monthly",
                 "retention_months": 24,
                 "vacuum_threshold": 0.25,
-                "enable_compression": False
-            }
+                "enable_compression": False,
+            },
         }
 
-        return table_settings.get(table_name, {
-            "partition_key": "created_at",
-            "partition_granularity": self.partition_granularity,
-            "retention_months": self.partition_retention_months,
-            "vacuum_threshold": self.vacuum_threshold,
-            "enable_compression": True
-        })
+        return table_settings.get(
+            table_name,
+            {
+                "partition_key": "created_at",
+                "partition_granularity": self.partition_granularity,
+                "retention_months": self.partition_retention_months,
+                "vacuum_threshold": self.vacuum_threshold,
+                "enable_compression": True,
+            },
+        )
 
 
 class CacheDatabaseConfig(BaseModel):
@@ -237,7 +243,9 @@ class DatabaseConfig(BaseSettings):
         """Get analytics database connection URL with schema"""
         base_url = self.primary.connection_url
         if self.analytics.analytics_schema != "public":
-            return f"{base_url}?options=--search_path%3D{self.analytics.analytics_schema}"
+            return (
+                f"{base_url}?options=--search_path%3D{self.analytics.analytics_schema}"
+            )
         return base_url
 
     def get_connection_pool_config(self) -> Dict[str, Any]:
@@ -248,7 +256,7 @@ class DatabaseConfig(BaseSettings):
             "pool_timeout": self.primary.pool_timeout,
             "pool_recycle": self.primary.pool_recycle,
             "pool_pre_ping": True,
-            "echo": False
+            "echo": False,
         }
 
     def get_ssl_config(self) -> Dict[str, Any]:
@@ -276,14 +284,14 @@ class DatabaseConfig(BaseSettings):
             "decode_responses": True,
             "socket_connect_timeout": 5,
             "socket_timeout": 5,
-            "retry_on_timeout": True
+            "retry_on_timeout": True,
         }
 
     def should_enable_read_replicas(self) -> bool:
         """Check if read replicas should be enabled"""
         return (
-            self.analytics.enable_read_replicas and
-            len(self.analytics.replica_hosts) > 0
+            self.analytics.enable_read_replicas
+            and len(self.analytics.replica_hosts) > 0
         )
 
     def get_replica_configs(self) -> list:

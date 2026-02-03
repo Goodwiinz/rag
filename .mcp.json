@@ -2,16 +2,15 @@
   "mcpServers": {
     "serena": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--project", "/Users/goodwiinz/development/RAG_system"]
+      "args": [
+        "--from", "git+https://github.com/oraios/serena",
+        "serena", "start-mcp-server",
+        "--project", "/home/clawdbot/clawd/rag"
+      ]
     },
     "redis": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-redis", "redis://localhost:6379"]
-    },
-    "goodflows": {
-      "command": "npx",
-      "args": ["goodflows-mcp-server", "--project", "/Users/goodwiinz/development/RAG_system"],
-      "cwd": "/Users/goodwiinz/development/Myagent"
     }
   }
 }

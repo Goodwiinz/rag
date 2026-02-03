@@ -5,20 +5,22 @@ Analytics models for metrics and events
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional, Any, Union
-from pydantic import BaseModel, Field, validator, ConfigDict
-from sqlalchemy import (
-    Column, String, DateTime, Boolean, Text, JSON, Integer, ForeignKey,
-    Float, Enum as SQLEnum, Numeric, BigInteger
-)
-from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from typing import Any, Dict, List, Optional, Union
 
-from ..base import BaseModel as SQLBaseModel, GUID
+from pydantic import BaseModel, ConfigDict, Field, validator
+from sqlalchemy import JSON, BigInteger, Boolean, Column, DateTime
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import Float, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import relationship
+
+from ..base import GUID
+from ..base import BaseModel as SQLBaseModel
 
 
 class MetricType(str, Enum):
     """Types of analytics metrics"""
+
     COUNTER = "counter"
     GAUGE = "gauge"
     HISTOGRAM = "histogram"
@@ -33,6 +35,7 @@ class MetricType(str, Enum):
 
 class AggregationType(str, Enum):
     """Types of metric aggregations"""
+
     SUM = "sum"
     AVERAGE = "avg"
     MIN = "min"
@@ -49,6 +52,7 @@ class AggregationType(str, Enum):
 
 class EventType(str, Enum):
     """Types of analytics events"""
+
     PAGE_VIEW = "page_view"
     SEARCH = "search"
     CLICK = "click"
@@ -77,7 +81,9 @@ class AnalyticsEvent(SQLBaseModel):
     # User and session
     user_id = Column(GUID(), ForeignKey("users.id"), nullable=True, index=True)
     session_id = Column(String(255), nullable=True, index=True)
-    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=True, index=True)
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id"), nullable=True, index=True
+    )
 
     # Request context
     request_id = Column(String(255), nullable=True, index=True)
@@ -118,8 +124,12 @@ class AnalyticsMetric(SQLBaseModel):
     calculation_config = Column(JSON, nullable=True)  # How to calculate
 
     # Aggregation settings
-    default_aggregation = Column(SQLEnum(AggregationType), default=AggregationType.SUM, nullable=False)
-    available_aggregations = Column(JSON, nullable=True)  # List of available aggregations
+    default_aggregation = Column(
+        SQLEnum(AggregationType), default=AggregationType.SUM, nullable=False
+    )
+    available_aggregations = Column(
+        JSON, nullable=True
+    )  # List of available aggregations
 
     # Dimensions and filters
     dimensions = Column(JSON, nullable=True)  # Available dimensions
@@ -149,7 +159,9 @@ class AnalyticsKPI(SQLBaseModel):
     description = Column(Text, nullable=True)
 
     # Metric relationship
-    metric_id = Column(GUID(), ForeignKey("analytics_metrics.id"), nullable=False, index=True)
+    metric_id = Column(
+        GUID(), ForeignKey("analytics_metrics.id"), nullable=False, index=True
+    )
 
     # Targets and thresholds
     target_value = Column(Numeric(15, 4), nullable=True)
@@ -179,7 +191,9 @@ class MetricAggregation(SQLBaseModel):
     __tablename__ = "analytics_metric_aggregations"
 
     # Metric identification
-    metric_id = Column(GUID(), ForeignKey("analytics_metrics.id"), nullable=False, index=True)
+    metric_id = Column(
+        GUID(), ForeignKey("analytics_metrics.id"), nullable=False, index=True
+    )
     aggregation_type = Column(SQLEnum(AggregationType), nullable=False, index=True)
 
     # Time window
@@ -187,7 +201,9 @@ class MetricAggregation(SQLBaseModel):
     timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
 
     # Dimensions
-    dimensions_hash = Column(String(64), nullable=False, index=True)  # Hash of dimension values
+    dimensions_hash = Column(
+        String(64), nullable=False, index=True
+    )  # Hash of dimension values
     dimensions = Column(JSON, nullable=True)  # Dimension values
 
     # Aggregated values
@@ -217,7 +233,9 @@ class AnalyticsReport(SQLBaseModel):
 
     # Owner and sharing
     owner_id = Column(GUID(), ForeignKey("users.id"), nullable=False, index=True)
-    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=True, index=True)
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id"), nullable=True, index=True
+    )
 
     # Configuration
     report_config = Column(JSON, nullable=False)  # Report configuration
@@ -240,8 +258,10 @@ class AnalyticsReport(SQLBaseModel):
 
 # Pydantic models for API serialization
 
+
 class TimeSeriesData(BaseModel):
     """Time series data point"""
+
     timestamp: datetime
     value: float
     count: Optional[int] = None
@@ -252,17 +272,31 @@ class TimeSeriesData(BaseModel):
 
 class AnalyticsFilter(BaseModel):
     """Analytics filter configuration"""
+
     field: str
     operator: str  # eq, ne, gt, gte, lt, lte, in, nin, contains, regex
     value: Union[str, int, float, bool, List[Any]]
     case_sensitive: bool = True
 
-    @validator('operator')
+    @validator("operator")
     def validate_operator(cls, v):
         """Validate operator"""
-        valid_operators = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'nin', 'contains', 'regex']
+        valid_operators = [
+            "eq",
+            "ne",
+            "gt",
+            "gte",
+            "lt",
+            "lte",
+            "in",
+            "nin",
+            "contains",
+            "regex",
+        ]
         if v not in valid_operators:
-            raise ValueError(f"Invalid operator: {v}. Must be one of: {valid_operators}")
+            raise ValueError(
+                f"Invalid operator: {v}. Must be one of: {valid_operators}"
+            )
         return v
 
     model_config = ConfigDict(from_attributes=True)
@@ -270,6 +304,7 @@ class AnalyticsFilter(BaseModel):
 
 class MetricCreate(BaseModel):
     """Create metric request model"""
+
     name: str = Field(..., min_length=1, max_length=255)
     display_name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
@@ -290,6 +325,7 @@ class MetricCreate(BaseModel):
 
 class MetricUpdate(BaseModel):
     """Update metric request model"""
+
     display_name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     unit: Optional[str] = None
@@ -309,6 +345,7 @@ class MetricUpdate(BaseModel):
 
 class MetricResponse(BaseModel):
     """Metric response model"""
+
     id: uuid.UUID
     name: str
     display_name: str
@@ -333,6 +370,7 @@ class MetricResponse(BaseModel):
 
 class KPICreate(BaseModel):
     """Create KPI request model"""
+
     name: str = Field(..., min_length=1, max_length=255)
     display_name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
@@ -347,10 +385,10 @@ class KPICreate(BaseModel):
     dimensions: Optional[List[str]] = None
     is_critical: bool = False
 
-    @validator('time_range')
+    @validator("time_range")
     def validate_time_range(cls, v):
         """Validate time range"""
-        valid_ranges = ['1m', '5m', '15m', '30m', '1h', '6h', '12h', '1d', '1w', '1M']
+        valid_ranges = ["1m", "5m", "15m", "30m", "1h", "6h", "12h", "1d", "1w", "1M"]
         if v not in valid_ranges:
             raise ValueError(f"Invalid time range: {v}. Must be one of: {valid_ranges}")
         return v
@@ -360,6 +398,7 @@ class KPICreate(BaseModel):
 
 class KPIResponse(BaseModel):
     """KPI response model"""
+
     id: uuid.UUID
     name: str
     display_name: str
@@ -385,6 +424,7 @@ class KPIResponse(BaseModel):
 
 class EventCreate(BaseModel):
     """Create event request model"""
+
     event_type: EventType
     event_name: str = Field(..., min_length=1, max_length=255)
     event_category: Optional[str] = None
@@ -399,6 +439,7 @@ class EventCreate(BaseModel):
 
 class EventResponse(BaseModel):
     """Event response model"""
+
     id: uuid.UUID
     event_type: EventType
     event_name: str
@@ -416,6 +457,7 @@ class EventResponse(BaseModel):
 
 class MetricQuery(BaseModel):
     """Metric query configuration"""
+
     metric_ids: List[uuid.UUID]
     aggregation: AggregationType = AggregationType.SUM
     time_range: str = "1h"
@@ -426,10 +468,10 @@ class MetricQuery(BaseModel):
     order_by: Optional[str] = None
     limit: Optional[int] = Field(None, ge=1, le=10000)
 
-    @validator('time_range')
+    @validator("time_range")
     def validate_time_range(cls, v):
         """Validate time range"""
-        valid_ranges = ['1m', '5m', '15m', '30m', '1h', '6h', '12h', '1d', '1w', '1M']
+        valid_ranges = ["1m", "5m", "15m", "30m", "1h", "6h", "12h", "1d", "1w", "1M"]
         if v not in valid_ranges:
             raise ValueError(f"Invalid time range: {v}. Must be one of: {valid_ranges}")
         return v
@@ -439,6 +481,7 @@ class MetricQuery(BaseModel):
 
 class MetricQueryResult(BaseModel):
     """Metric query result"""
+
     metric_id: uuid.UUID
     metric_name: str
     aggregation: AggregationType

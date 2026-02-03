@@ -7,15 +7,28 @@ Models for tracking monitoring sessions and correlating metrics/traces.
 import uuid
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, String, Integer, Float, DateTime, Boolean, Text, JSON, Index, ForeignKey
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from src.models.base import BaseModel
 
 
 class SessionType(str, Enum):
     """Session types"""
+
     USER_SESSION = "user_session"
     API_SESSION = "api_session"
     BACKGROUND_JOB = "background_job"
@@ -26,6 +39,7 @@ class SessionType(str, Enum):
 
 class SessionStatus(str, Enum):
     """Session status"""
+
     ACTIVE = "active"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -35,12 +49,15 @@ class SessionStatus(str, Enum):
 
 class MonitoringSession(BaseModel):
     """Monitoring session for correlating telemetry data"""
+
     __tablename__ = "monitoring_sessions"
 
     session_id = Column(String(128), unique=True, nullable=False, index=True)
     parent_session_id = Column(String(128), index=True)  # For nested sessions
     session_type = Column(String(50), nullable=False, index=True)
-    status = Column(String(50), nullable=False, default=SessionStatus.ACTIVE, index=True)
+    status = Column(
+        String(50), nullable=False, default=SessionStatus.ACTIVE, index=True
+    )
 
     # Session timing
     start_time = Column(DateTime(timezone=True), nullable=False, index=True)
@@ -96,25 +113,35 @@ class MonitoringSession(BaseModel):
     metadata = Column(JSONB, default=dict)
 
     # Relationships
-    metrics = relationship("SessionMetric", back_populates="session", cascade="all, delete-orphan")
-    traces = relationship("SessionTrace", back_populates="session", cascade="all, delete-orphan")
+    metrics = relationship(
+        "SessionMetric", back_populates="session", cascade="all, delete-orphan"
+    )
+    traces = relationship(
+        "SessionTrace", back_populates="session", cascade="all, delete-orphan"
+    )
 
     # Indexes
     __table_args__ = (
-        Index('idx_sessions_user_time', 'user_id', 'start_time'),
-        Index('idx_sessions_operation_time', 'operation_name', 'start_time'),
-        Index('idx_sessions_service_time', 'service_name', 'start_time'),
-        Index('idx_sessions_status_time', 'status', 'start_time'),
-        Index('idx_sessions_correlation', 'correlation_id'),
-        Index('idx_sessions_parent', 'parent_session_id'),
+        Index("idx_sessions_user_time", "user_id", "start_time"),
+        Index("idx_sessions_operation_time", "operation_name", "start_time"),
+        Index("idx_sessions_service_time", "service_name", "start_time"),
+        Index("idx_sessions_status_time", "status", "start_time"),
+        Index("idx_sessions_correlation", "correlation_id"),
+        Index("idx_sessions_parent", "parent_session_id"),
     )
 
 
 class SessionMetric(BaseModel):
     """Metrics associated with monitoring sessions"""
+
     __tablename__ = "monitoring_session_metrics"
 
-    session_id = Column(String(128), ForeignKey("monitoring_sessions.session_id"), nullable=False, index=True)
+    session_id = Column(
+        String(128),
+        ForeignKey("monitoring_sessions.session_id"),
+        nullable=False,
+        index=True,
+    )
     timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
     metric_name = Column(String(255), nullable=False, index=True)
     metric_value = Column(Float, nullable=False)
@@ -136,17 +163,23 @@ class SessionMetric(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_session_metrics_session_time', 'session_id', 'timestamp'),
-        Index('idx_session_metrics_name_time', 'metric_name', 'timestamp'),
-        Index('idx_session_metrics_labels', 'labels', postgresql_using='gin'),
+        Index("idx_session_metrics_session_time", "session_id", "timestamp"),
+        Index("idx_session_metrics_name_time", "metric_name", "timestamp"),
+        Index("idx_session_metrics_labels", "labels", postgresql_using="gin"),
     )
 
 
 class SessionTrace(BaseModel):
     """Traces associated with monitoring sessions"""
+
     __tablename__ = "monitoring_session_traces"
 
-    session_id = Column(String(128), ForeignKey("monitoring_sessions.session_id"), nullable=False, index=True)
+    session_id = Column(
+        String(128),
+        ForeignKey("monitoring_sessions.session_id"),
+        nullable=False,
+        index=True,
+    )
     trace_id = Column(String(128), nullable=False, index=True)
     span_id = Column(String(128), nullable=False, index=True)
     parent_span_id = Column(String(128))
@@ -180,9 +213,9 @@ class SessionTrace(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_session_traces_session_time', 'session_id', 'start_time'),
-        Index('idx_session_traces_trace_span', 'trace_id', 'span_id'),
-        Index('idx_session_traces_operation_time', 'operation_name', 'start_time'),
-        Index('idx_session_traces_status_time', 'status', 'start_time'),
-        Index('idx_session_traces_critical', 'critical_path'),
+        Index("idx_session_traces_session_time", "session_id", "start_time"),
+        Index("idx_session_traces_trace_span", "trace_id", "span_id"),
+        Index("idx_session_traces_operation_time", "operation_name", "start_time"),
+        Index("idx_session_traces_status_time", "status", "start_time"),
+        Index("idx_session_traces_critical", "critical_path"),
     )

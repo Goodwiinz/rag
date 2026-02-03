@@ -2,16 +2,17 @@
 Celery tasks for evaluation processing and RAG Triad metrics calculation
 """
 
+import asyncio
+import logging
 import os
 import sys
-import logging
-import asyncio
-from typing import Dict, Any, List
 from datetime import datetime, timedelta
+from typing import Any, Dict, List
+
 from celery import Task
 
 # Add src directory to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from celery import Celery, current_app
 from sqlalchemy import create_engine
@@ -19,12 +20,18 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.config import settings
 from src.core.database import get_db
-from src.models.evaluation import (
-    EvaluationJob, EvaluationMetric, EvaluationDataset, EvaluationStatus, EvaluationType
-)
 from src.models.document import Document
+from src.models.evaluation import (
+    EvaluationDataset,
+    EvaluationJob,
+    EvaluationMetric,
+    EvaluationStatus,
+    EvaluationType,
+)
 from src.services.evaluation.rag_evaluation_service import (
-    rag_evaluation_service, RAGEvaluationInput, EvaluationRequest
+    EvaluationRequest,
+    RAGEvaluationInput,
+    rag_evaluation_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,9 +57,7 @@ class EvaluationTask(Task):
             job_id = args[0]
             db = SessionLocal()
             try:
-                job = db.query(EvaluationJob).filter(
-                    EvaluationJob.id == job_id
-                ).first()
+                job = db.query(EvaluationJob).filter(EvaluationJob.id == job_id).first()
 
                 if job:
                     job.fail_job(str(exc))
@@ -71,17 +76,17 @@ def run_rag_triad_evaluation(self, job_id: str):
     db = SessionLocal()
     try:
         # Get evaluation job
-        job = db.query(EvaluationJob).filter(
-            EvaluationJob.id == job_id
-        ).first()
+        job = db.query(EvaluationJob).filter(EvaluationJob.id == job_id).first()
 
         if not job:
             raise ValueError(f"Evaluation job {job_id} not found")
 
         # Get evaluation dataset
-        dataset = db.query(EvaluationDataset).filter(
-            EvaluationDataset.job_id == job_id
-        ).first()
+        dataset = (
+            db.query(EvaluationDataset)
+            .filter(EvaluationDataset.job_id == job_id)
+            .first()
+        )
 
         if not dataset:
             raise ValueError(f"Evaluation dataset for job {job_id} not found")
@@ -114,11 +119,10 @@ def run_rag_triad_evaluation(self, job_id: str):
                         query=question,
                         generated_answer="",  # Will be generated during evaluation
                         retrieved_context=contexts[i] if i < len(contexts) else [],
-                        reference_answer=reference_answers[i] if i < len(reference_answers) else None,
-                        metadata={
-                            'item_index': i,
-                            'total_items': total_items
-                        }
+                        reference_answer=reference_answers[i]
+                        if i < len(reference_answers)
+                        else None,
+                        metadata={"item_index": i, "total_items": total_items},
                     )
 
                     # If no provided context, perform search
@@ -128,27 +132,30 @@ def run_rag_triad_evaluation(self, job_id: str):
                                 [question],
                                 str(job.organization_id),
                                 str(job.user_id) if job.user_id else "anonymous",
-                                search_type=job.parameters.get('search_type', 'hybrid'),
-                                limit=job.parameters.get('search_limit', 5)
+                                search_type=job.parameters.get("search_type", "hybrid"),
+                                limit=job.parameters.get("search_limit", 5),
                             )
                         )
 
                         if search_results:
-                            evaluation_input.generated_answer = search_results[0].metadata.get('generated_answer', '')
-                            evaluation_input.retrieved_context = search_results[0].metadata.get('retrieved_context', [])
+                            evaluation_input.generated_answer = search_results[
+                                0
+                            ].metadata.get("generated_answer", "")
+                            evaluation_input.retrieved_context = search_results[
+                                0
+                            ].metadata.get("retrieved_context", [])
                     else:
                         # Generate simple answer from context
-                        evaluation_input.generated_answer = rag_evaluation_service._generate_simple_answer(
-                            question, evaluation_input.retrieved_context
+                        evaluation_input.generated_answer = (
+                            rag_evaluation_service._generate_simple_answer(
+                                question, evaluation_input.retrieved_context
+                            )
                         )
 
                     # Calculate RAG Triad metrics
                     metrics = loop.run_until_complete(
                         rag_evaluation_service.run_rag_triad_evaluation(
-                            evaluation_input,
-                            job_id,
-                            str(job.organization_id),
-                            db
+                            evaluation_input, job_id, str(job.organization_id), db
                         )
                     )
 
@@ -163,7 +170,9 @@ def run_rag_triad_evaluation(self, job_id: str):
                     logger.info(f"Processed item {i+1}/{total_items} for job {job_id}")
 
                 except Exception as item_error:
-                    logger.error(f"Error processing item {i} for job {job_id}: {str(item_error)}")
+                    logger.error(
+                        f"Error processing item {i} for job {job_id}: {str(item_error)}"
+                    )
                     continue
 
         finally:
@@ -171,24 +180,31 @@ def run_rag_triad_evaluation(self, job_id: str):
 
         # Calculate overall metrics
         if metrics_results:
-            overall_answer_relevancy = sum(m.answer_relevancy for m in metrics_results) / len(metrics_results)
-            overall_faithfulness = sum(m.faithfulness for m in metrics_results) / len(metrics_results)
-            overall_contextual_relevancy = sum(m.contextual_relevancy for m in metrics_results) / len(metrics_results)
-            overall_score = sum(m.overall_score for m in metrics_results) / len(metrics_results)
+            overall_answer_relevancy = sum(
+                m.answer_relevancy for m in metrics_results
+            ) / len(metrics_results)
+            overall_faithfulness = sum(m.faithfulness for m in metrics_results) / len(
+                metrics_results
+            )
+            overall_contextual_relevancy = sum(
+                m.contextual_relevancy for m in metrics_results
+            ) / len(metrics_results)
+            overall_score = sum(m.overall_score for m in metrics_results) / len(
+                metrics_results
+            )
 
             # Success rate (items with score > 0.5)
             successful_items = sum(1 for m in metrics_results if m.overall_score > 0.5)
             success_rate = (successful_items / len(metrics_results)) * 100
 
             # Complete job
-            job.complete_job(
-                overall_score=overall_score,
-                success_rate=success_rate
-            )
+            job.complete_job(overall_score=overall_score, success_rate=success_rate)
             db.commit()
 
             logger.info(f"RAG Triad evaluation completed for job {job_id}")
-            logger.info(f"Overall score: {overall_score:.3f}, Success rate: {success_rate:.1f}%")
+            logger.info(
+                f"Overall score: {overall_score:.3f}, Success rate: {success_rate:.1f}%"
+            )
 
             return {
                 "status": "completed",
@@ -197,7 +213,7 @@ def run_rag_triad_evaluation(self, job_id: str):
                 "total_items": total_items,
                 "overall_score": overall_score,
                 "success_rate": success_rate,
-                "duration_seconds": job.duration_seconds
+                "duration_seconds": job.duration_seconds,
             }
 
         else:
@@ -230,9 +246,7 @@ def run_batch_evaluation(self, job_id: str, queries: List[str]):
     db = SessionLocal()
     try:
         # Get evaluation job
-        job = db.query(EvaluationJob).filter(
-            EvaluationJob.id == job_id
-        ).first()
+        job = db.query(EvaluationJob).filter(EvaluationJob.id == job_id).first()
 
         if not job:
             raise ValueError(f"Evaluation job {job_id} not found")
@@ -242,7 +256,9 @@ def run_batch_evaluation(self, job_id: str, queries: List[str]):
         job.update_progress(0)
         db.commit()
 
-        logger.info(f"Starting batch evaluation for job {job_id} with {len(queries)} queries")
+        logger.info(
+            f"Starting batch evaluation for job {job_id} with {len(queries)} queries"
+        )
 
         # Create event loop for async operations
         loop = asyncio.new_event_loop()
@@ -255,8 +271,8 @@ def run_batch_evaluation(self, job_id: str, queries: List[str]):
                     queries,
                     str(job.organization_id),
                     str(job.user_id) if job.user_id else "anonymous",
-                    search_type=job.parameters.get('search_type', 'hybrid'),
-                    limit=job.parameters.get('search_limit', 5)
+                    search_type=job.parameters.get("search_type", "hybrid"),
+                    limit=job.parameters.get("search_limit", 5),
                 )
             )
 
@@ -269,29 +285,37 @@ def run_batch_evaluation(self, job_id: str, queries: List[str]):
                         metric_name="Overall RAG Triad Score",
                         value=metrics.overall_score,
                         query=queries[i],
-                        generated_answer=metrics.metadata.get('generated_answer', ''),
-                        retrieved_context=metrics.metadata.get('retrieved_context', []),
+                        generated_answer=metrics.metadata.get("generated_answer", ""),
+                        retrieved_context=metrics.metadata.get("retrieved_context", []),
                         metadata={
-                            'answer_relevancy': metrics.answer_relevancy,
-                            'faithfulness': metrics.faithfulness,
-                            'contextual_relevancy': metrics.contextual_relevancy,
-                            'hallucination_rate': metrics.hallucination_rate,
-                            'response_time_ms': metrics.response_time_ms
-                        }
+                            "answer_relevancy": metrics.answer_relevancy,
+                            "faithfulness": metrics.faithfulness,
+                            "contextual_relevancy": metrics.contextual_relevancy,
+                            "hallucination_rate": metrics.hallucination_rate,
+                            "response_time_ms": metrics.response_time_ms,
+                        },
                     )
 
                     db.add(metric)
 
                 except Exception as metric_error:
-                    logger.error(f"Error saving metric for query {i}: {str(metric_error)}")
+                    logger.error(
+                        f"Error saving metric for query {i}: {str(metric_error)}"
+                    )
                     continue
 
             db.commit()
 
             # Calculate overall metrics
             if metrics_results:
-                overall_score = sum(m.overall_score for m in metrics_results) / len(metrics_results)
-                success_rate = sum(1 for m in metrics_results if m.overall_score > 0.5) / len(metrics_results) * 100
+                overall_score = sum(m.overall_score for m in metrics_results) / len(
+                    metrics_results
+                )
+                success_rate = (
+                    sum(1 for m in metrics_results if m.overall_score > 0.5)
+                    / len(metrics_results)
+                    * 100
+                )
 
                 job.complete_job(overall_score=overall_score, success_rate=success_rate)
                 db.commit()
@@ -302,7 +326,7 @@ def run_batch_evaluation(self, job_id: str, queries: List[str]):
                     "processed_queries": len(metrics_results),
                     "total_queries": len(queries),
                     "overall_score": overall_score,
-                    "success_rate": success_rate
+                    "success_rate": success_rate,
                 }
 
         finally:
@@ -326,8 +350,14 @@ def run_batch_evaluation(self, job_id: str, queries: List[str]):
 
 
 @current_app.task(base=EvaluationTask, bind=True)
-def run_real_time_evaluation(self, query: str, generated_answer: str, retrieved_context: List[str],
-                           reference_answer: str = None, organization_id: str = None):
+def run_real_time_evaluation(
+    self,
+    query: str,
+    generated_answer: str,
+    retrieved_context: List[str],
+    reference_answer: str = None,
+    organization_id: str = None,
+):
     """
     Run real-time evaluation for a single query-answer pair
     """
@@ -337,12 +367,9 @@ def run_real_time_evaluation(self, query: str, generated_answer: str, retrieved_
         job = EvaluationJob(
             name=f"Real-time Evaluation: {query[:50]}...",
             evaluation_type=EvaluationType.REAL_TIME_EVALUATION.value,
-            parameters={
-                'real_time': True,
-                'query': query
-            },
+            parameters={"real_time": True, "query": query},
             dataset_size=1,
-            organization_id=organization_id
+            organization_id=organization_id,
         )
 
         db.add(job)
@@ -357,7 +384,7 @@ def run_real_time_evaluation(self, query: str, generated_answer: str, retrieved_
             generated_answer=generated_answer,
             retrieved_context=retrieved_context,
             reference_answer=reference_answer,
-            metadata={'real_time_evaluation': True}
+            metadata={"real_time_evaluation": True},
         )
 
         # Create event loop for async operations
@@ -368,17 +395,14 @@ def run_real_time_evaluation(self, query: str, generated_answer: str, retrieved_
             # Calculate metrics
             metrics = loop.run_until_complete(
                 rag_evaluation_service.run_rag_triad_evaluation(
-                    evaluation_input,
-                    job.id,
-                    organization_id,
-                    db
+                    evaluation_input, job.id, organization_id, db
                 )
             )
 
             # Complete job
             job.complete_job(
                 overall_score=metrics.overall_score,
-                success_rate=100.0 if metrics.overall_score > 0.5 else 0.0
+                success_rate=100.0 if metrics.overall_score > 0.5 else 0.0,
             )
             db.commit()
 
@@ -391,8 +415,8 @@ def run_real_time_evaluation(self, query: str, generated_answer: str, retrieved_
                     "contextual_relevancy": metrics.contextual_relevancy,
                     "overall_score": metrics.overall_score,
                     "hallucination_rate": metrics.hallucination_rate,
-                    "response_time_ms": metrics.response_time_ms
-                }
+                    "response_time_ms": metrics.response_time_ms,
+                },
             }
 
         finally:
@@ -416,8 +440,14 @@ def run_real_time_evaluation(self, query: str, generated_answer: str, retrieved_
 
 
 @current_app.task(base=EvaluationTask, bind=True)
-def run_comparison_evaluation(self, comparison_name: str, baseline_job_id: str,
-                            comparison_job_id: str, user_id: str, organization_id: str):
+def run_comparison_evaluation(
+    self,
+    comparison_name: str,
+    baseline_job_id: str,
+    comparison_job_id: str,
+    user_id: str,
+    organization_id: str,
+):
     """
     Run comparison between two evaluation jobs
     """
@@ -438,7 +468,7 @@ def run_comparison_evaluation(self, comparison_name: str, baseline_job_id: str,
                     comparison_name,
                     user_id,
                     organization_id,
-                    db
+                    db,
                 )
             )
 
@@ -451,7 +481,7 @@ def run_comparison_evaluation(self, comparison_name: str, baseline_job_id: str,
                 "improvement_percentage": comparison.improvement_percentage,
                 "statistical_significance": comparison.statistical_significance,
                 "baseline_score": comparison.baseline_score,
-                "comparison_score": comparison.comparison_score
+                "comparison_score": comparison.comparison_score,
             }
 
         finally:
@@ -475,10 +505,20 @@ def cleanup_old_evaluations():
         # Delete evaluation jobs older than 90 days
         cutoff_date = datetime.utcnow() - timedelta(days=90)
 
-        old_jobs = db.query(EvaluationJob).filter(
-            EvaluationJob.created_at < cutoff_date,
-            EvaluationJob.status.in_([EvaluationStatus.COMPLETED.value, EvaluationStatus.FAILED.value, EvaluationStatus.CANCELLED.value])
-        ).all()
+        old_jobs = (
+            db.query(EvaluationJob)
+            .filter(
+                EvaluationJob.created_at < cutoff_date,
+                EvaluationJob.status.in_(
+                    [
+                        EvaluationStatus.COMPLETED.value,
+                        EvaluationStatus.FAILED.value,
+                        EvaluationStatus.CANCELLED.value,
+                    ]
+                ),
+            )
+            .all()
+        )
 
         deleted_count = 0
         for job in old_jobs:
@@ -510,9 +550,7 @@ def generate_evaluation_report(job_id: str, report_type: str = "summary"):
     db = SessionLocal()
     try:
         # Get evaluation job
-        job = db.query(EvaluationJob).filter(
-            EvaluationJob.id == job_id
-        ).first()
+        job = db.query(EvaluationJob).filter(EvaluationJob.id == job_id).first()
 
         if not job:
             raise ValueError(f"Evaluation job {job_id} not found")
@@ -523,7 +561,9 @@ def generate_evaluation_report(job_id: str, report_type: str = "summary"):
         logger.info(f"Generating {report_type} report for job {job_id}")
 
         # Get evaluation summary
-        summary = rag_evaluation_service.get_evaluation_summary(job_id, str(job.organization_id), db)
+        summary = rag_evaluation_service.get_evaluation_summary(
+            job_id, str(job.organization_id), db
+        )
 
         # Generate report content
         if report_type == "summary":
@@ -546,11 +586,11 @@ def generate_evaluation_report(job_id: str, report_type: str = "summary"):
                 f"Overall Score: {summary.get('overall_score', 'N/A')}",
                 f"Success Rate: {summary.get('success_rate', 'N/A')}%",
                 f"Total Metrics: {summary.get('total_metrics', 0)}",
-                f"Threshold Violations: {summary.get('threshold_violations', 0)}"
+                f"Threshold Violations: {summary.get('threshold_violations', 0)}",
             ],
             format_type="markdown",
             user_id=str(job.user_id) if job.user_id else None,
-            organization_id=str(job.organization_id)
+            organization_id=str(job.organization_id),
         )
 
         db.add(report)
@@ -562,7 +602,7 @@ def generate_evaluation_report(job_id: str, report_type: str = "summary"):
             "status": "completed",
             "report_id": str(report.id),
             "report_type": report_type,
-            "job_id": job_id
+            "job_id": job_id,
         }
 
     except Exception as e:
@@ -577,8 +617,8 @@ def generate_evaluation_report(job_id: str, report_type: str = "summary"):
 from celery.schedules import crontab
 
 current_app.conf.beat_schedule = {
-    'cleanup-old-evaluations': {
-        'task': 'src.tasks.evaluation_tasks.cleanup_old_evaluations',
-        'schedule': crontab(hour=3, minute=0),  # Run daily at 3 AM
+    "cleanup-old-evaluations": {
+        "task": "src.tasks.evaluation_tasks.cleanup_old_evaluations",
+        "schedule": crontab(hour=3, minute=0),  # Run daily at 3 AM
     },
 }

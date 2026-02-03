@@ -6,38 +6,37 @@ import json
 import logging
 import time
 import uuid
-from typing import List, Dict, Any, Optional, Tuple, Union
-from datetime import datetime
-from neo4j import GraphDatabase, Driver, Session
-from neo4j.exceptions import ServiceUnavailable, SessionExpired
 from contextlib import contextmanager
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+from neo4j import Driver, GraphDatabase, Session
+from neo4j.exceptions import ServiceUnavailable, SessionExpired
+
+from src.core.circuit_breaker import ServiceUnavailableError as CircuitBreakerError
+from src.core.circuit_breaker import get_circuit_breaker
 from src.core.config import settings
-from src.core.circuit_breaker import (
-    get_circuit_breaker,
-    ServiceUnavailableError as CircuitBreakerError,
-)
 from src.models.graph import (
-    Entity,
-    EntityResponse,
-    CreateEntityRequest,
-    UpdateEntityRequest,
-    Relationship,
-    RelationshipResponse,
-    CreateRelationshipRequest,
-    EntityType,
-    RelationshipType,
-    ExtractionMethod,
-    GraphSearchRequest,
-    GraphSearchResponse,
-    GraphPath,
     BatchEntityRequest,
     BatchEntityResponse,
+    CreateEntityRequest,
+    CreateRelationshipRequest,
+    Entity,
+    EntityResponse,
+    EntityType,
+    ExtractionMethod,
     GraphAnalytics,
     GraphHealthStatus,
+    GraphPath,
+    GraphSearchRequest,
+    GraphSearchResponse,
     GraphVisualizationData,
-    GraphVisualizationNode,
     GraphVisualizationEdge,
+    GraphVisualizationNode,
+    Relationship,
+    RelationshipResponse,
+    RelationshipType,
+    UpdateEntityRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -790,6 +789,40 @@ class KnowledgeGraphService:
             logger.error(f"Error retrieving relationships for {entity_id}: {e}")
             return []
 
+    def get_relationship(self, relationship_id: str) -> Optional[RelationshipResponse]:
+        """Get a single relationship by ID"""
+        try:
+            with self.get_session() as session:
+                query = """
+                MATCH (source:Entity)-[r:RELATED_TO {id: $relationship_id}]-(target:Entity)
+                RETURN r, source.id AS source_id, target.id AS target_id
+                """
+
+                result = session.run(query, {"relationship_id": relationship_id})
+                record = result.single()
+
+                if not record:
+                    return None
+
+                r = record["r"]
+                return RelationshipResponse(
+                    id=r["id"],
+                    source_entity_id=record["source_id"],
+                    target_entity_id=record["target_id"],
+                    relationship_type=RelationshipType(r["type"]),
+                    strength=r["strength"],
+                    confidence_score=r["confidence_score"],
+                    context=r.get("context"),
+                    evidence=r.get("evidence", []),
+                    metadata=r.get("metadata", {}),
+                    source_document_id=r.get("source_document_id"),
+                    created_at=r["created_at"],
+                    updated_at=r.get("updated_at"),
+                )
+        except Exception as e:
+            logger.error(f"Error retrieving relationship {relationship_id}: {e}")
+            return None
+
     def delete_relationship(self, relationship_id: str) -> bool:
         """Delete a relationship by ID"""
         try:
@@ -1183,14 +1216,16 @@ class KnowledgeGraphService:
                     avg_degree = 0.0
 
                 # Get connected components
-                components_result = session.run("""
+                components_result = session.run(
+                    """
                 CALL gds.graph.project('tempGraph', 'Entity', 'RELATED_TO')
                 YIELD graphName
                 CALL gds.connectedComponents.stream('tempGraph')
                 YIELD nodeId, componentId
                 WITH componentId, count(*) as size
                 RETURN count(DISTINCT componentId) as components, max(size) as largest_size
-                """).single()
+                """
+                ).single()
 
                 connected_components = (
                     components_result["components"] if components_result else 0
@@ -1198,6 +1233,30 @@ class KnowledgeGraphService:
                 largest_component_size = (
                     components_result["largest_size"] if components_result else 0
                 )
+
+                # Calculate global clustering coefficient using GDS
+                clustering_coefficient = 0.0
+                try:
+                    # Use the existing tempGraph from connected components calculation
+                    clustering_result = session.run(
+                        """
+                        CALL gds.localClusteringCoefficient.stream('tempGraph')
+                        YIELD nodeId, localClusteringCoefficient
+                        WITH localClusteringCoefficient
+                        WHERE localClusteringCoefficient IS NOT NULL
+                        RETURN avg(localClusteringCoefficient) as avgClustering
+                        """
+                    ).single()
+                    if clustering_result and clustering_result["avgClustering"] is not None:
+                        clustering_coefficient = float(clustering_result["avgClustering"])
+                except Exception as cc_error:
+                    logger.warning(f"Could not calculate clustering coefficient: {cc_error}")
+                finally:
+                    # Clean up the temporary graph projection
+                    try:
+                        session.run("CALL gds.graph.drop('tempGraph', false)")
+                    except Exception:
+                        pass
 
                 return GraphAnalytics(
                     total_entities=total_entities,
@@ -1207,7 +1266,7 @@ class KnowledgeGraphService:
                     average_degree=avg_degree,
                     connected_components=connected_components,
                     largest_component_size=largest_component_size,
-                    clustering_coefficient=0.0,  # TODO: Implement clustering coefficient calculation
+                    clustering_coefficient=clustering_coefficient,
                 )
         except Exception as e:
             logger.error(f"Error getting graph analytics: {e}")
@@ -1242,12 +1301,74 @@ class KnowledgeGraphService:
                     "SHOW CONSTRAINTS YIELD type RETURN count(*) as count"
                 ).single()
 
+                # Calculate database size
+                database_size = None
+                try:
+                    size_result = session.run(
+                        """
+                        CALL dbms.database.details($db_name) YIELD sizeOnDisk
+                        RETURN sizeOnDisk
+                        """,
+                        db_name=session._database or "neo4j"
+                    ).single()
+                    if size_result and size_result["sizeOnDisk"]:
+                        database_size = str(size_result["sizeOnDisk"])
+                except Exception:
+                    # Fallback: try to get store sizes from dbms.queryJmx
+                    try:
+                        jmx_result = session.run(
+                            """
+                            CALL dbms.queryJmx('org.neo4j:*')
+                            YIELD name, attributes
+                            WHERE name CONTAINS 'Store sizes'
+                            RETURN attributes
+                            """
+                        ).single()
+                        if jmx_result and jmx_result["attributes"]:
+                            total_size = jmx_result["attributes"].get("TotalStoreSize", {}).get("value", 0)
+                            if total_size:
+                                # Format as human-readable
+                                if total_size >= 1024 * 1024 * 1024:
+                                    database_size = f"{total_size / (1024 * 1024 * 1024):.2f} GB"
+                                elif total_size >= 1024 * 1024:
+                                    database_size = f"{total_size / (1024 * 1024):.2f} MB"
+                                else:
+                                    database_size = f"{total_size / 1024:.2f} KB"
+                    except Exception as size_error:
+                        logger.debug(f"Could not get database size: {size_error}")
+
+                # Calculate uptime
+                uptime = None
+                try:
+                    # Query server start time from JMX
+                    uptime_result = session.run(
+                        """
+                        CALL dbms.queryJmx('java.lang:type=Runtime')
+                        YIELD name, attributes
+                        RETURN attributes.Uptime.value as uptimeMs
+                        """
+                    ).single()
+                    if uptime_result and uptime_result["uptimeMs"]:
+                        uptime_ms = uptime_result["uptimeMs"]
+                        uptime_seconds = uptime_ms // 1000
+                        days = uptime_seconds // 86400
+                        hours = (uptime_seconds % 86400) // 3600
+                        minutes = (uptime_seconds % 3600) // 60
+                        if days > 0:
+                            uptime = f"{days}d {hours}h {minutes}m"
+                        elif hours > 0:
+                            uptime = f"{hours}h {minutes}m"
+                        else:
+                            uptime = f"{minutes}m"
+                except Exception as uptime_error:
+                    logger.debug(f"Could not get uptime: {uptime_error}")
+
                 return GraphHealthStatus(
                     status="healthy",
                     neo4j_version=version_result["version"]
                     if version_result
                     else "unknown",
-                    database_size=None,  # TODO: Implement size calculation
+                    database_size=database_size,
                     node_count=node_count_result["count"] if node_count_result else 0,
                     relationship_count=rel_count_result["count"]
                     if rel_count_result
@@ -1256,7 +1377,7 @@ class KnowledgeGraphService:
                     constraint_count=constraint_result["count"]
                     if constraint_result
                     else 0,
-                    uptime=None,  # TODO: Implement uptime calculation
+                    uptime=uptime,
                     last_error=None,
                     response_time_ms=response_time_ms,
                 )

@@ -1,7 +1,6 @@
-name: Docker Build with Depot
+name: Docker Build
 
 on:
-  # Trigger after test-pipeline succeeds on main/develop
   workflow_run:
     workflows: ["Test Pipeline"]
     types:
@@ -10,7 +9,6 @@ on:
       - main
       - develop
 
-  # Direct triggers for path changes
   push:
     branches: [main, develop]
     paths:
@@ -35,7 +33,6 @@ on:
         type: boolean
         default: false
 
-# Cancel in-progress runs when a new commit is pushed
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -46,7 +43,6 @@ env:
   FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/frontend
 
 jobs:
-  # Skip build if triggered by failed test-pipeline
   check-tests:
     name: Check Test Results
     runs-on: ubuntu-latest
@@ -59,7 +55,6 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           WORKFLOW_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
         run: |
-          # If triggered by workflow_run, check if tests passed
           if [ "$EVENT_NAME" == "workflow_run" ]; then
             if [ "$WORKFLOW_CONCLUSION" != "success" ]; then
               echo "Test pipeline did not succeed, skipping build"
@@ -77,17 +72,18 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write # Required for Depot OIDC authentication
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # For workflow_run, checkout the SHA from the triggering workflow
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Set up Depot CLI
-        uses: depot/setup-action@v1
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
@@ -109,9 +105,8 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push backend image
-        uses: depot/build-push-action@v1
+        uses: docker/build-push-action@v5
         with:
-          project: ${{ secrets.DEPOT_PROJECT_ID }}
           context: .
           file: backend/docker/Dockerfile.prod
           platforms: linux/amd64,linux/arm64
@@ -120,7 +115,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             PYTHON_VERSION=3.11
-          # Note: Depot has built-in caching, no need for external cache config
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   build-frontend:
     name: Build Frontend Image
@@ -130,7 +126,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write # Required for Depot OIDC authentication
 
     steps:
       - name: Checkout repository
@@ -138,8 +133,11 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Set up Depot CLI
-        uses: depot/setup-action@v1
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
@@ -161,16 +159,16 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push frontend image
-        uses: depot/build-push-action@v1
+        uses: docker/build-push-action@v5
         with:
-          project: ${{ secrets.DEPOT_PROJECT_ID }}
           context: .
           file: frontend/Dockerfile.prod
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Note: Depot has built-in caching, no need for external cache config
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   build-all-services:
     name: Build All Services (Bake)
@@ -180,7 +178,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write
 
     steps:
       - name: Checkout repository
@@ -188,8 +185,11 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Set up Depot CLI
-        uses: depot/setup-action@v1
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -198,15 +198,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build all services with Depot Bake
-        uses: depot/bake-action@v1
+      - name: Build all services with Bake
+        uses: docker/bake-action@v4
         with:
-          project: ${{ secrets.DEPOT_PROJECT_ID }}
           files: docker-bake.hcl
           push: true
-          # Note: Depot Bake has built-in caching
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
 
-  # Test images after build (on PRs)
   test-images:
     name: Test Built Images
     runs-on: ubuntu-latest
@@ -217,26 +217,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Depot CLI
-        uses: depot/setup-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build and load backend for testing
-        uses: depot/build-push-action@v1
+        uses: docker/build-push-action@v5
         with:
-          project: ${{ secrets.DEPOT_PROJECT_ID }}
           context: .
           file: backend/docker/Dockerfile.prod
           load: true
           tags: backend:test
+          cache-from: type=gha
 
       - name: Build and load frontend for testing
-        uses: depot/build-push-action@v1
+        uses: docker/build-push-action@v5
         with:
-          project: ${{ secrets.DEPOT_PROJECT_ID }}
           context: .
           file: frontend/Dockerfile.prod
           load: true
           tags: frontend:test
+          cache-from: type=gha
 
       - name: Test backend container starts
         run: |
@@ -247,7 +247,6 @@ jobs:
             -e JWT_SECRET_KEY=test-jwt-secret-key-32chars!! \
             backend:test
 
-          # Wait for container to be ready
           echo "Waiting for backend to start..."
           for i in {1..30}; do
             if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
@@ -271,7 +270,6 @@ jobs:
             -e NEXT_PUBLIC_API_URL=http://localhost:8000 \
             frontend:test
 
-          # Wait for container to be ready
           echo "Waiting for frontend to start..."
           for i in {1..30}; do
             if curl -sf http://localhost:3000/ > /dev/null 2>&1; then
@@ -289,7 +287,6 @@ jobs:
           docker logs frontend-test
           docker stop frontend-test
 
-  # Build summary
   build-summary:
     name: Build Summary
     runs-on: ubuntu-latest

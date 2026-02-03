@@ -13,18 +13,24 @@ Provides comprehensive distributed tracing capabilities including:
 import os
 import time
 import uuid
-from typing import Optional, Dict, Any, Callable
+from contextlib import asynccontextmanager, contextmanager
 from functools import wraps
-from contextlib import contextmanager, asynccontextmanager
+from typing import Any, Callable, Dict, Optional
 
 try:
-    from opentelemetry import trace, baggage, context
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry import baggage, context, trace
     from opentelemetry.exporter.jaeger.thrift import JaegerExporter
     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-    from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION, DEPLOYMENT_ENVIRONMENT
     from opentelemetry.propagators.b3 import B3MultiFormat
+    from opentelemetry.sdk.resources import (
+        DEPLOYMENT_ENVIRONMENT,
+        SERVICE_NAME,
+        SERVICE_VERSION,
+        Resource,
+    )
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
     OPENTELEMETRY_AVAILABLE = True
 except ImportError:
     OPENTELEMETRY_AVAILABLE = False
@@ -33,11 +39,10 @@ except ImportError:
     baggage = None
     context = None
 from opentelemetry.propagators.jaeger import JaegerPropagator
-from opentelemetry.trace import Status, StatusCode, SpanKind
+from opentelemetry.trace import SpanKind, Status, StatusCode
 from opentelemetry.trace.propagation import get_current_span
 
 from .config import config
-
 
 # Global tracer instance
 _tracer = None
@@ -48,21 +53,21 @@ def configure_tracing() -> trace.Tracer:
     global _tracer
 
     # Set up trace provider with resource attributes
-    resource = Resource.create({
-        SERVICE_NAME: config.otel_service_name,
-        SERVICE_VERSION: config.otel_service_version,
-        DEPLOYMENT_ENVIRONMENT: config.otel_environment,
-        "service.instance.id": os.environ.get("HOSTNAME", "unknown"),
-        "service.namespace": "multimodal-rag",
-    })
+    resource = Resource.create(
+        {
+            SERVICE_NAME: config.otel_service_name,
+            SERVICE_VERSION: config.otel_service_version,
+            DEPLOYMENT_ENVIRONMENT: config.otel_environment,
+            "service.instance.id": os.environ.get("HOSTNAME", "unknown"),
+            "service.namespace": "multimodal-rag",
+        }
+    )
 
     # Create tracer provider
     trace_provider = TracerProvider(resource=resource)
 
     # Configure Jaeger exporter
-    jaeger_exporter = JaegerExporter(
-        **config.get_jaeger_config()
-    )
+    jaeger_exporter = JaegerExporter(**config.get_jaeger_config())
 
     # Configure OTLP exporter
     otlp_exporter = OTLPSpanExporter(
@@ -72,14 +77,18 @@ def configure_tracing() -> trace.Tracer:
 
     # Add exporters with batch processing
     trace_provider.add_span_processor(
-        BatchSpanProcessor(jaeger_exporter,
-                          max_export_batch_size=config.otel_max_export_batch_size,
-                          export_timeout_millis=config.otel_batch_timeout)
+        BatchSpanProcessor(
+            jaeger_exporter,
+            max_export_batch_size=config.otel_max_export_batch_size,
+            export_timeout_millis=config.otel_batch_timeout,
+        )
     )
     trace_provider.add_span_processor(
-        BatchSpanProcessor(otlp_exporter,
-                          max_export_batch_size=config.otel_max_export_batch_size,
-                          export_timeout_millis=config.otel_batch_timeout)
+        BatchSpanProcessor(
+            otlp_exporter,
+            max_export_batch_size=config.otel_max_export_batch_size,
+            export_timeout_millis=config.otel_batch_timeout,
+        )
     )
 
     # Set as global tracer provider
@@ -87,6 +96,7 @@ def configure_tracing() -> trace.Tracer:
 
     # Configure propagators
     from opentelemetry import propagators
+
     propagators.set_global_textmap(B3MultiFormat())
 
     # Create and store tracer
@@ -110,7 +120,7 @@ def trace_span(
     name: str,
     kind: SpanKind = SpanKind.INTERNAL,
     attributes: Optional[Dict[str, Any]] = None,
-    status: Optional[Status] = None
+    status: Optional[Status] = None,
 ):
     """Context manager for creating spans"""
     tracer = get_tracer()
@@ -133,7 +143,7 @@ async def async_trace_span(
     name: str,
     kind: SpanKind = SpanKind.INTERNAL,
     attributes: Optional[Dict[str, Any]] = None,
-    status: Optional[Status] = None
+    status: Optional[Status] = None,
 ):
     """Async context manager for creating spans"""
     tracer = get_tracer()
@@ -155,9 +165,10 @@ def trace_function(
     name: Optional[str] = None,
     kind: SpanKind = SpanKind.INTERNAL,
     attributes: Optional[Dict[str, Any]] = None,
-    record_exception: bool = True
+    record_exception: bool = True,
 ):
     """Decorator for tracing function execution"""
+
     def decorator(func: Callable):
         span_name = name or f"{func.__module__}.{func.__name__}"
 
@@ -206,9 +217,10 @@ def trace_async_function(
     name: Optional[str] = None,
     kind: SpanKind = SpanKind.INTERNAL,
     attributes: Optional[Dict[str, Any]] = None,
-    record_exception: bool = True
+    record_exception: bool = True,
 ):
     """Decorator for tracing async function execution"""
+
     def decorator(func: Callable):
         span_name = name or f"{func.__module__}.{func.__name__}"
 

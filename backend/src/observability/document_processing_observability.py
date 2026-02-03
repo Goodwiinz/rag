@@ -4,26 +4,34 @@ Comprehensive monitoring for document processing pipeline with WebSocket status 
 """
 
 import asyncio
-import time
-import uuid
 import json
 import logging
-from typing import Dict, Any, Optional, List, Callable, Union
-from dataclasses import dataclass, field, asdict
-from enum import Enum
-from datetime import datetime, timezone as dt_timezone, timedelta
+import time
+import uuid
 from collections import defaultdict, deque
-import asyncio
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Union
+
 import psutil
 
-from ..monitoring.opentelemetry import otel_manager, trace_context, trace_span
+from src.models.websocket_status import (
+    ConnectionEvent,
+    StatusUpdate,
+    WebSocketConnection,
+)
+
 from ..monitoring.metrics import business_metrics
-from src.models.websocket_status import WebSocketConnection, StatusUpdate, ConnectionEvent
+from ..monitoring.opentelemetry import otel_manager, trace_context, trace_span
 
 logger = logging.getLogger(__name__)
 
+
 class DocumentProcessingStatus(Enum):
     """Document processing status states"""
+
     QUEUED = "queued"
     UPLOADING = "uploading"
     VALIDATING = "validating"
@@ -36,8 +44,10 @@ class DocumentProcessingStatus(Enum):
     CANCELLED = "cancelled"
     RETRYING = "retrying"
 
+
 class ProcessingStage(Enum):
     """Processing pipeline stages"""
+
     UPLOAD = "upload"
     PREPROCESSING = "preprocessing"
     OCR = "ocr"
@@ -48,9 +58,11 @@ class ProcessingStage(Enum):
     QUALITY_CHECK = "quality_check"
     FINALIZATION = "finalization"
 
+
 @dataclass
 class DocumentProcessingMetric:
     """Individual document processing metric"""
+
     document_id: str
     processing_stage: ProcessingStage
     status: DocumentProcessingStatus
@@ -71,9 +83,11 @@ class DocumentProcessingMetric:
     trace_id: Optional[str] = None
     span_id: Optional[str] = None
 
+
 @dataclass
 class WebSocketMetric:
     """WebSocket connection and performance metric"""
+
     connection_id: str
     user_id: Optional[str] = None
     organization_id: Optional[str] = None
@@ -86,9 +100,11 @@ class WebSocketMetric:
     client_info: Dict[str, Any] = field(default_factory=dict)
     server_info: Dict[str, Any] = field(default_factory=dict)
 
+
 @dataclass
 class SystemHealthMetric:
     """System health and resource utilization metric"""
+
     timestamp: float = field(default_factory=time.time)
     cpu_percent: Optional[float] = None
     memory_percent: Optional[float] = None
@@ -103,10 +119,12 @@ class SystemHealthMetric:
     error_rate_1m: Optional[float] = None
     avg_response_time_1m: Optional[float] = None
 
+
 from .prometheus_metrics import PrometheusMetricsCollector
 
 # Global instances
 prometheus_collector = PrometheusMetricsCollector()
+
 
 class DocumentProcessingObservability:
     """Comprehensive observability for document processing pipeline"""
@@ -126,7 +144,9 @@ class DocumentProcessingObservability:
         # Performance aggregations
         self.stage_performance: Dict[str, List[float]] = defaultdict(list)
         self.error_counts: Dict[str, int] = defaultdict(int)
-        self.throughput_history: deque = deque(maxlen=3600)  # 1 hour at 1-second granularity
+        self.throughput_history: deque = deque(
+            maxlen=3600
+        )  # 1 hour at 1-second granularity
 
         # WebSocket connection tracking
         self.websocket_connections: Dict[str, WebSocketMetric] = {}
@@ -135,12 +155,21 @@ class DocumentProcessingObservability:
         self._monitoring_tasks: List[asyncio.Task] = []
         self._shutdown = False
 
-    async def start_document_processing(self, document_id: str, file_size_bytes: int,
-                                      file_type: str, user_id: Optional[str] = None,
-                                      organization_id: Optional[str] = None) -> str:
+    async def start_document_processing(
+        self,
+        document_id: str,
+        file_size_bytes: int,
+        file_type: str,
+        user_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
+    ) -> str:
         """Start tracking document processing"""
         current_time = time.time()
-        trace_id = otel_manager.get_trace_id() if hasattr(otel_manager, 'get_trace_id') else None
+        trace_id = (
+            otel_manager.get_trace_id()
+            if hasattr(otel_manager, "get_trace_id")
+            else None
+        )
 
         metric = DocumentProcessingMetric(
             document_id=document_id,
@@ -153,28 +182,32 @@ class DocumentProcessingObservability:
             metadata={
                 "user_id": user_id,
                 "organization_id": organization_id,
-                "start_timestamp": datetime.utcnow().isoformat()
-            }
+                "start_timestamp": datetime.utcnow().isoformat(),
+            },
         )
 
         self.active_documents[document_id] = metric
-        self.stage_start_times[f"{document_id}_{ProcessingStage.UPLOAD.value}"] = current_time
+        self.stage_start_times[
+            f"{document_id}_{ProcessingStage.UPLOAD.value}"
+        ] = current_time
 
         # Record OpenTelemetry metrics
-        otel_manager.increment_counter("document_processing_started", {
-            "document_id": document_id,
-            "file_type": file_type,
-            "file_size_tier": self._get_file_size_tier(file_size_bytes)
-        })
+        otel_manager.increment_counter(
+            "document_processing_started",
+            {
+                "document_id": document_id,
+                "file_type": file_type,
+                "file_size_tier": self._get_file_size_tier(file_size_bytes),
+            },
+        )
 
         # Record Prometheus metrics
         prometheus_collector.record_document_processing_start(
-            file_type=file_type,
-            user_role="user"  # Default role
+            file_type=file_type, user_role="user"  # Default role
         )
         prometheus_collector.update_processing_queue_metrics(
             queue_size=0,  # Need to get actual queue size if available
-            active_jobs=len(self.active_documents)
+            active_jobs=len(self.active_documents),
         )
 
         # Record business metrics
@@ -182,7 +215,7 @@ class DocumentProcessingObservability:
             file_size_bytes=file_size_bytes,
             duration_seconds=0,  # Will be updated on completion
             entities_extracted=0,  # Will be updated on completion
-            file_type=file_type
+            file_type=file_type,
         )
 
         # Send WebSocket update
@@ -192,18 +225,22 @@ class DocumentProcessingObservability:
                 "document_id": document_id,
                 "file_type": file_type,
                 "status": DocumentProcessingStatus.UPLOADING.value,
-                "progress_percentage": 0.0
+                "progress_percentage": 0.0,
             },
             target_users=[user_id] if user_id else None,
-            target_organizations=[organization_id] if organization_id else None
+            target_organizations=[organization_id] if organization_id else None,
         )
 
         logger.info(f"Started tracking document processing: {document_id}")
         return document_id
 
-    async def update_processing_stage(self, document_id: str, stage: ProcessingStage,
-                                    status: DocumentProcessingStatus,
-                                    additional_data: Optional[Dict[str, Any]] = None):
+    async def update_processing_stage(
+        self,
+        document_id: str,
+        stage: ProcessingStage,
+        status: DocumentProcessingStatus,
+        additional_data: Optional[Dict[str, Any]] = None,
+    ):
         """Update document processing stage"""
         if document_id not in self.active_documents:
             logger.warning(f"Document {document_id} not found in active tracking")
@@ -215,12 +252,16 @@ class DocumentProcessingObservability:
         # Calculate stage duration
         stage_key = f"{document_id}_{stage.value}"
         if stage_key in self.stage_start_times:
-            stage_duration_ms = (current_time - self.stage_start_times[stage_key]) * 1000
+            stage_duration_ms = (
+                current_time - self.stage_start_times[stage_key]
+            ) * 1000
             self.stage_performance[stage.value].append(stage_duration_ms)
 
             # Keep only recent performance data
             if len(self.stage_performance[stage.value]) > 1000:
-                self.stage_performance[stage.value] = self.stage_performance[stage.value][-1000:]
+                self.stage_performance[stage.value] = self.stage_performance[
+                    stage.value
+                ][-1000:]
 
         # Update metric
         metric.processing_stage = stage
@@ -228,7 +269,9 @@ class DocumentProcessingObservability:
         metric.metadata.update(additional_data or {})
 
         # Record OpenTelemetry span
-        with trace_context(f"document_processing_{stage.value}", component="document_processing"):
+        with trace_context(
+            f"document_processing_{stage.value}", component="document_processing"
+        ):
             otel_manager.set_span_attribute("document_id", document_id)
             otel_manager.set_span_attribute("processing_stage", stage.value)
             otel_manager.set_span_attribute("status", status.value)
@@ -238,11 +281,10 @@ class DocumentProcessingObservability:
                     otel_manager.set_span_attribute(f"processing.{key}", value)
 
         # Record metrics
-        otel_manager.increment_counter("document_processing_stage_updates", {
-            "document_id": document_id,
-            "stage": stage.value,
-            "status": status.value
-        })
+        otel_manager.increment_counter(
+            "document_processing_stage_updates",
+            {"document_id": document_id, "stage": stage.value, "status": status.value},
+        )
 
         # Calculate progress percentage
         progress_percentage = self._calculate_progress_percentage(stage)
@@ -255,20 +297,25 @@ class DocumentProcessingObservability:
                 "stage": stage.value,
                 "status": status.value,
                 "progress_percentage": progress_percentage,
-                "additional_data": additional_data
-            }
+                "additional_data": additional_data,
+            },
         )
 
         # Start timing new stage
         self.stage_start_times[f"{document_id}_{stage.value}"] = current_time
 
-        logger.info(f"Updated document {document_id} to stage {stage.value} with status {status.value}")
+        logger.info(
+            f"Updated document {document_id} to stage {stage.value} with status {status.value}"
+        )
 
-    async def complete_document_processing(self, document_id: str,
-                                         entities_extracted: int = 0,
-                                         embedding_count: int = 0,
-                                         pages_count: Optional[int] = None,
-                                         error_message: Optional[str] = None):
+    async def complete_document_processing(
+        self,
+        document_id: str,
+        entities_extracted: int = 0,
+        embedding_count: int = 0,
+        pages_count: Optional[int] = None,
+        error_message: Optional[str] = None,
+    ):
         """Complete document processing tracking"""
         if document_id not in self.active_documents:
             logger.warning(f"Document {document_id} not found in active tracking")
@@ -287,7 +334,9 @@ class DocumentProcessingObservability:
         if error_message:
             metric.status = DocumentProcessingStatus.FAILED
             metric.error_message = error_message
-            self.error_counts[f"document_processing_{metric.processing_stage.value}"] += 1
+            self.error_counts[
+                f"document_processing_{metric.processing_stage.value}"
+            ] += 1
         else:
             metric.status = DocumentProcessingStatus.COMPLETED
 
@@ -296,7 +345,11 @@ class DocumentProcessingObservability:
         del self.active_documents[document_id]
 
         # Clean up stage start times
-        keys_to_remove = [key for key in self.stage_start_times.keys() if key.startswith(f"{document_id}_")]
+        keys_to_remove = [
+            key
+            for key in self.stage_start_times.keys()
+            if key.startswith(f"{document_id}_")
+        ]
         for key in keys_to_remove:
             del self.stage_start_times[key]
 
@@ -305,17 +358,23 @@ class DocumentProcessingObservability:
             "document_id": document_id,
             "file_type": metric.file_type,
             "status": metric.status.value,
-            "file_size_tier": self._get_file_size_tier(metric.file_size_bytes or 0)
+            "file_size_tier": self._get_file_size_tier(metric.file_size_bytes or 0),
         }
 
         if metric.duration_ms:
-            otel_manager.record_metric("document_processing_duration_ms", metric.duration_ms, labels)
+            otel_manager.record_metric(
+                "document_processing_duration_ms", metric.duration_ms, labels
+            )
 
         if entities_extracted > 0:
-            otel_manager.record_metric("document_entities_extracted", entities_extracted, labels)
+            otel_manager.record_metric(
+                "document_entities_extracted", entities_extracted, labels
+            )
 
         if embedding_count > 0:
-            otel_manager.record_metric("document_embeddings_generated", embedding_count, labels)
+            otel_manager.record_metric(
+                "document_embeddings_generated", embedding_count, labels
+            )
 
         # Record Prometheus metrics
         prometheus_collector.record_document_processing_complete(
@@ -325,11 +384,10 @@ class DocumentProcessingObservability:
             user_role="user",
             entities_count=entities_extracted,
             embeddings_count=embedding_count,
-            file_size_bytes=metric.file_size_bytes
+            file_size_bytes=metric.file_size_bytes,
         )
         prometheus_collector.update_processing_queue_metrics(
-            queue_size=0,
-            active_jobs=len(self.active_documents)
+            queue_size=0, active_jobs=len(self.active_documents)
         )
 
         # Update business metrics
@@ -338,16 +396,18 @@ class DocumentProcessingObservability:
                 file_size_bytes=metric.file_size_bytes,
                 duration_seconds=metric.duration_ms / 1000,
                 entities_extracted=entities_extracted,
-                file_type=metric.file_type
+                file_type=metric.file_type,
             )
 
         # Record throughput
-        self.throughput_history.append({
-            "timestamp": current_time,
-            "document_id": document_id,
-            "status": metric.status.value,
-            "duration_ms": metric.duration_ms
-        })
+        self.throughput_history.append(
+            {
+                "timestamp": current_time,
+                "document_id": document_id,
+                "status": metric.status.value,
+                "duration_ms": metric.duration_ms,
+            }
+        )
 
         # Send WebSocket update
         await self._send_websocket_update(
@@ -358,21 +418,27 @@ class DocumentProcessingObservability:
                 "duration_ms": metric.duration_ms,
                 "entities_extracted": entities_extracted,
                 "embedding_count": embedding_count,
-                "error_message": error_message
-            }
+                "error_message": error_message,
+            },
         )
 
-        logger.info(f"Completed tracking document {document_id} with status {metric.status.value}")
+        logger.info(
+            f"Completed tracking document {document_id} with status {metric.status.value}"
+        )
 
-    async def track_websocket_event(self, connection_id: str, event_type: str,
-                                 user_id: Optional[str] = None,
-                                 organization_id: Optional[str] = None,
-                                 latency_ms: Optional[float] = None,
-                                 message_size_bytes: Optional[int] = None,
-                                 processing_time_ms: Optional[float] = None,
-                                 error_type: Optional[str] = None,
-                                 client_info: Optional[Dict[str, Any]] = None,
-                                 server_info: Optional[Dict[str, Any]] = None):
+    async def track_websocket_event(
+        self,
+        connection_id: str,
+        event_type: str,
+        user_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
+        latency_ms: Optional[float] = None,
+        message_size_bytes: Optional[int] = None,
+        processing_time_ms: Optional[float] = None,
+        error_type: Optional[str] = None,
+        client_info: Optional[Dict[str, Any]] = None,
+        server_info: Optional[Dict[str, Any]] = None,
+    ):
         """Track WebSocket connection event"""
         metric = WebSocketMetric(
             connection_id=connection_id,
@@ -384,29 +450,35 @@ class DocumentProcessingObservability:
             processing_time_ms=processing_time_ms,
             error_type=error_type,
             client_info=client_info or {},
-            server_info=server_info or {}
+            server_info=server_info or {},
         )
 
         self.websocket_metrics.append(metric)
         self.websocket_connections[connection_id] = metric
 
         # Record OpenTelemetry metrics
-        otel_manager.increment_counter("websocket_events_total", {
-            "event_type": event_type,
-            "user_id": user_id or "anonymous",
-            "has_error": str(bool(error_type)).lower()
-        })
+        otel_manager.increment_counter(
+            "websocket_events_total",
+            {
+                "event_type": event_type,
+                "user_id": user_id or "anonymous",
+                "has_error": str(bool(error_type)).lower(),
+            },
+        )
 
         if latency_ms is not None:
-            otel_manager.record_metric("websocket_latency_ms", latency_ms, {
-                "event_type": event_type,
-                "user_id": user_id or "anonymous"
-            })
+            otel_manager.record_metric(
+                "websocket_latency_ms",
+                latency_ms,
+                {"event_type": event_type, "user_id": user_id or "anonymous"},
+            )
 
         if message_size_bytes is not None:
-            otel_manager.record_metric("websocket_message_size_bytes", message_size_bytes, {
-                "event_type": event_type
-            })
+            otel_manager.record_metric(
+                "websocket_message_size_bytes",
+                message_size_bytes,
+                {"event_type": event_type},
+            )
 
         # Record Prometheus metrics
         if event_type == "connect":
@@ -419,9 +491,9 @@ class DocumentProcessingObservability:
                 direction="unknown",
                 status="success" if not error_type else "error",
                 duration_seconds=(latency_ms or 0) / 1000,
-                message_size_bytes=message_size_bytes
+                message_size_bytes=message_size_bytes,
             )
-        
+
         if error_type:
             prometheus_collector.record_websocket_error(error_type=error_type)
 
@@ -432,7 +504,7 @@ class DocumentProcessingObservability:
             status_code=200 if not error_type else 500,
             duration_seconds=(latency_ms or 0) / 1000,
             request_size=message_size_bytes or 0,
-            response_size=0
+            response_size=0,
         )
 
     async def collect_system_health_metrics(self):
@@ -441,30 +513,46 @@ class DocumentProcessingObservability:
             # Get system metrics
             cpu_percent = psutil.cpu_percent(interval=1)
             memory = psutil.virtual_memory()
-            disk = psutil.disk_usage('/')
+            disk = psutil.disk_usage("/")
             network = psutil.net_io_counters()
 
             # Get WebSocket connection count
-            active_connections = len([w for w in self.websocket_connections.values()
-                                    if w.timestamp > time.time() - 300])  # Last 5 minutes
+            active_connections = len(
+                [
+                    w
+                    for w in self.websocket_connections.values()
+                    if w.timestamp > time.time() - 300
+                ]
+            )  # Last 5 minutes
 
             # Get processing job counts
             processing_jobs_active = len(self.active_documents)
 
             # Calculate error rate and response time from recent metrics
-            recent_metrics = [m for m in self.document_metrics
-                            if m.end_time and m.end_time > time.time() - 60]  # Last minute
+            recent_metrics = [
+                m
+                for m in self.document_metrics
+                if m.end_time and m.end_time > time.time() - 60
+            ]  # Last minute
 
             error_rate_1m = None
             avg_response_time_1m = None
 
             if recent_metrics:
-                error_count = len([m for m in recent_metrics if m.status == DocumentProcessingStatus.FAILED])
+                error_count = len(
+                    [
+                        m
+                        for m in recent_metrics
+                        if m.status == DocumentProcessingStatus.FAILED
+                    ]
+                )
                 error_rate_1m = (error_count / len(recent_metrics)) * 100
 
                 completed_metrics = [m for m in recent_metrics if m.duration_ms]
                 if completed_metrics:
-                    avg_response_time_1m = sum(m.duration_ms for m in completed_metrics) / len(completed_metrics)
+                    avg_response_time_1m = sum(
+                        m.duration_ms for m in completed_metrics
+                    ) / len(completed_metrics)
 
             metric = SystemHealthMetric(
                 cpu_percent=cpu_percent,
@@ -477,7 +565,7 @@ class DocumentProcessingObservability:
                 active_connections=active_connections,
                 processing_jobs_active=processing_jobs_active,
                 error_rate_1m=error_rate_1m,
-                avg_response_time_1m=avg_response_time_1m
+                avg_response_time_1m=avg_response_time_1m,
             )
 
             self.system_metrics.append(metric)
@@ -485,7 +573,9 @@ class DocumentProcessingObservability:
             # Record OpenTelemetry metrics
             otel_manager.record_metric("system_cpu_percent", cpu_percent)
             otel_manager.record_metric("system_memory_percent", memory.percent)
-            otel_manager.record_metric("system_disk_usage_percent", metric.disk_usage_percent)
+            otel_manager.record_metric(
+                "system_disk_usage_percent", metric.disk_usage_percent
+            )
             otel_manager.record_metric("active_connections", active_connections)
             otel_manager.record_metric("processing_jobs_active", processing_jobs_active)
 
@@ -494,22 +584,21 @@ class DocumentProcessingObservability:
 
             if avg_response_time_1m is not None:
                 otel_manager.record_metric("avg_response_time_1m", avg_response_time_1m)
-            
+
             # Record Prometheus metrics
             # Note: PrometheusMetricsCollector has its own background collection,
             # but we can sync some application-specific metrics here
             prometheus_collector.update_processing_queue_metrics(
-                queue_size=0, 
-                active_jobs=processing_jobs_active
+                queue_size=0, active_jobs=processing_jobs_active
             )
             prometheus_collector.update_documents_count(
-                status="processing",
-                file_type="all",
-                count=processing_jobs_active
+                status="processing", file_type="all", count=processing_jobs_active
             )
 
             # Update business metrics
-            business_metrics.metrics["memory_usage_bytes"].set(memory.total * (memory.percent / 100))
+            business_metrics.metrics["memory_usage_bytes"].set(
+                memory.total * (memory.percent / 100)
+            )
             business_metrics.metrics["cpu_usage_percent"].set(cpu_percent)
             business_metrics.metrics["active_connections_total"].set(active_connections)
 
@@ -528,7 +617,9 @@ class DocumentProcessingObservability:
                 "status": metric.status.value,
                 "duration_seconds": (current_time - metric.start_time),
                 "file_type": metric.file_type,
-                "progress_percentage": self._calculate_progress_percentage(metric.processing_stage)
+                "progress_percentage": self._calculate_progress_percentage(
+                    metric.processing_stage
+                ),
             }
             for metric in self.active_documents.values()
         ]
@@ -541,7 +632,7 @@ class DocumentProcessingObservability:
                 "duration_ms": metric.duration_ms,
                 "file_type": metric.file_type,
                 "entities_extracted": metric.entities_extracted,
-                "completed_at": metric.end_time
+                "completed_at": metric.end_time,
             }
             for metric in self.document_metrics
             if metric.end_time and metric.end_time > current_time - 3600
@@ -556,7 +647,7 @@ class DocumentProcessingObservability:
                     "min_duration_ms": min(durations),
                     "max_duration_ms": max(durations),
                     "p95_duration_ms": sorted(durations)[int(len(durations) * 0.95)],
-                    "count": len(durations)
+                    "count": len(durations),
                 }
 
         # Error rates by stage
@@ -565,7 +656,7 @@ class DocumentProcessingObservability:
         for stage, count in self.error_counts.items():
             error_rates[stage] = {
                 "count": count,
-                "percentage": (count / max(total_errors, 1)) * 100
+                "percentage": (count / max(total_errors, 1)) * 100,
             }
 
         # Current system health
@@ -573,15 +664,21 @@ class DocumentProcessingObservability:
 
         # WebSocket connection health
         recent_websocket_metrics = [
-            metric for metric in self.websocket_metrics
+            metric
+            for metric in self.websocket_metrics
             if metric.timestamp > current_time - 300  # Last 5 minutes
         ]
 
         websocket_health = {
             "total_events": len(recent_websocket_metrics),
-            "avg_latency_ms": sum(m.latency_ms or 0 for m in recent_websocket_metrics) / max(len(recent_websocket_metrics), 1),
-            "error_rate": len([m for m in recent_websocket_metrics if m.error_type]) / max(len(recent_websocket_metrics), 1) * 100,
-            "active_connections": len(set(m.connection_id for m in recent_websocket_metrics))
+            "avg_latency_ms": sum(m.latency_ms or 0 for m in recent_websocket_metrics)
+            / max(len(recent_websocket_metrics), 1),
+            "error_rate": len([m for m in recent_websocket_metrics if m.error_type])
+            / max(len(recent_websocket_metrics), 1)
+            * 100,
+            "active_connections": len(
+                set(m.connection_id for m in recent_websocket_metrics)
+            ),
         }
 
         return {
@@ -590,9 +687,17 @@ class DocumentProcessingObservability:
             "recent_completions": recent_completions,
             "stage_performance": stage_stats,
             "error_rates": error_rates,
-            "system_health": asdict(current_system_health) if current_system_health else None,
+            "system_health": asdict(current_system_health)
+            if current_system_health
+            else None,
             "websocket_health": websocket_health,
-            "throughput_last_hour": len([t for t in self.throughput_history if t["timestamp"] > current_time - 3600])
+            "throughput_last_hour": len(
+                [
+                    t
+                    for t in self.throughput_history
+                    if t["timestamp"] > current_time - 3600
+                ]
+            ),
         }
 
     def _calculate_progress_percentage(self, stage: ProcessingStage) -> float:
@@ -606,7 +711,7 @@ class DocumentProcessingObservability:
             ProcessingStage.VECTOR_EMBEDDING: 80,
             ProcessingStage.GRAPH_INDEXING: 90,
             ProcessingStage.QUALITY_CHECK: 95,
-            ProcessingStage.FINALIZATION: 100
+            ProcessingStage.FINALIZATION: 100,
         }
         return stage_weights.get(stage, 0.0)
 
@@ -621,18 +726,24 @@ class DocumentProcessingObservability:
         else:
             return "xlarge"
 
-    async def _send_websocket_update(self, update_type: str, data: Dict[str, Any],
-                                   target_users: Optional[List[str]] = None,
-                                   target_organizations: Optional[List[str]] = None):
+    async def _send_websocket_update(
+        self,
+        update_type: str,
+        data: Dict[str, Any],
+        target_users: Optional[List[str]] = None,
+        target_organizations: Optional[List[str]] = None,
+    ):
         """Send WebSocket update to connected clients via Redis Pub/Sub"""
         try:
             from ..websocket.redis_integration import get_websocket_redis_manager
-            
+
             redis_manager = get_websocket_redis_manager()
             if not redis_manager or not redis_manager._redis_client:
                 # If redis manager is not initialized (e.g. in tests or standalone scripts),
                 # we just log the update
-                logger.debug(f"Redis manager not available, skipping WebSocket update: {update_type}")
+                logger.debug(
+                    f"Redis manager not available, skipping WebSocket update: {update_type}"
+                )
                 return
 
             # Construct message for document_processing_events channel
@@ -642,7 +753,9 @@ class DocumentProcessingObservability:
                 "data": {
                     "document_id": data.get("document_id"),
                     "user_id": target_users[0] if target_users else None,
-                    "organization_id": target_organizations[0] if target_organizations else None,
+                    "organization_id": target_organizations[0]
+                    if target_organizations
+                    else None,
                     "status": data.get("status"),
                     "metadata": {
                         "update_type": update_type,
@@ -650,14 +763,16 @@ class DocumentProcessingObservability:
                         "stage": data.get("stage"),
                         "additional_data": data.get("additional_data"),
                         "error_message": data.get("error_message"),
-                        "timestamp": datetime.utcnow().isoformat()
-                    }
-                }
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
+                },
             }
 
             # Publish to Redis
             await redis_manager.publish("document_processing_events", event_data)
-            logger.debug(f"Published WebSocket update: {update_type} -> {data.get('document_id')}")
+            logger.debug(
+                f"Published WebSocket update: {update_type} -> {data.get('document_id')}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to send WebSocket update: {e}")
@@ -668,15 +783,11 @@ class DocumentProcessingObservability:
             return  # Already started
 
         # System metrics collection task
-        self._monitoring_tasks.append(
-            asyncio.create_task(self._system_metrics_loop())
-        )
+        self._monitoring_tasks.append(asyncio.create_task(self._system_metrics_loop()))
 
         # Cleanup old metrics task
-        self._monitoring_tasks.append(
-            asyncio.create_task(self._cleanup_metrics_loop())
-        )
-        
+        self._monitoring_tasks.append(asyncio.create_task(self._cleanup_metrics_loop()))
+
         # Start Prometheus metrics server
         try:
             prometheus_collector.start_metrics_server(port=8002)
@@ -723,19 +834,23 @@ class DocumentProcessingObservability:
                 # Clean old WebSocket metrics
                 self.websocket_metrics = deque(
                     [m for m in self.websocket_metrics if m.timestamp > cutoff_time],
-                    maxlen=self.max_metrics_history
+                    maxlen=self.max_metrics_history,
                 )
 
                 # Clean old system metrics
                 self.system_metrics = deque(
                     [m for m in self.system_metrics if m.timestamp > cutoff_time],
-                    maxlen=self.max_metrics_history
+                    maxlen=self.max_metrics_history,
                 )
 
                 # Clean old throughput history
                 self.throughput_history = deque(
-                    [t for t in self.throughput_history if t["timestamp"] > cutoff_time],
-                    maxlen=3600
+                    [
+                        t
+                        for t in self.throughput_history
+                        if t["timestamp"] > cutoff_time
+                    ],
+                    maxlen=3600,
                 )
 
                 await asyncio.sleep(3600)  # Clean every hour
@@ -745,42 +860,62 @@ class DocumentProcessingObservability:
                 logger.error(f"Error in cleanup metrics loop: {e}")
                 await asyncio.sleep(300)  # 5 minute delay on error
 
+
 # Global observability instance
 document_processing_observability = DocumentProcessingObservability()
 
+
 # Convenience functions for easy integration
-async def start_document_tracking(document_id: str, file_size_bytes: int, file_type: str,
-                                user_id: Optional[str] = None,
-                                organization_id: Optional[str] = None) -> str:
+async def start_document_tracking(
+    document_id: str,
+    file_size_bytes: int,
+    file_type: str,
+    user_id: Optional[str] = None,
+    organization_id: Optional[str] = None,
+) -> str:
     """Start tracking document processing"""
     return await document_processing_observability.start_document_processing(
         document_id, file_size_bytes, file_type, user_id, organization_id
     )
 
-async def update_processing_stage(document_id: str, stage: ProcessingStage,
-                                 status: DocumentProcessingStatus,
-                                 additional_data: Optional[Dict[str, Any]] = None):
+
+async def update_processing_stage(
+    document_id: str,
+    stage: ProcessingStage,
+    status: DocumentProcessingStatus,
+    additional_data: Optional[Dict[str, Any]] = None,
+):
     """Update document processing stage"""
     await document_processing_observability.update_processing_stage(
         document_id, stage, status, additional_data
     )
 
-async def complete_document_tracking(document_id: str, entities_extracted: int = 0,
-                                    embedding_count: int = 0, pages_count: Optional[int] = None,
-                                    error_message: Optional[str] = None):
+
+async def complete_document_tracking(
+    document_id: str,
+    entities_extracted: int = 0,
+    embedding_count: int = 0,
+    pages_count: Optional[int] = None,
+    error_message: Optional[str] = None,
+):
     """Complete document processing tracking"""
     await document_processing_observability.complete_document_processing(
         document_id, entities_extracted, embedding_count, pages_count, error_message
     )
 
-async def track_websocket_event(connection_id: str, event_type: str,
-                               user_id: Optional[str] = None,
-                               organization_id: Optional[str] = None,
-                               **kwargs):
+
+async def track_websocket_event(
+    connection_id: str,
+    event_type: str,
+    user_id: Optional[str] = None,
+    organization_id: Optional[str] = None,
+    **kwargs,
+):
     """Track WebSocket event"""
     await document_processing_observability.track_websocket_event(
         connection_id, event_type, user_id, organization_id, **kwargs
     )
+
 
 async def get_dashboard_data() -> Dict[str, Any]:
     """Get real-time dashboard data"""

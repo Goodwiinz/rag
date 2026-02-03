@@ -5,20 +5,22 @@ Dashboard models for analytics dashboards
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional, Any, Union
-from pydantic import BaseModel, Field, validator, ConfigDict
-from sqlalchemy import (
-    Column, String, DateTime, Boolean, Text, JSON, Integer, ForeignKey,
-    Float, Enum as SQLEnum
-)
-from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from typing import Any, Dict, List, Optional, Union
 
-from ..base import BaseModel as SQLBaseModel, GUID
+from pydantic import BaseModel, ConfigDict, Field, validator
+from sqlalchemy import JSON, Boolean, Column, DateTime
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import Float, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import relationship
+
+from ..base import GUID
+from ..base import BaseModel as SQLBaseModel
 
 
 class DashboardWidgetType(str, Enum):
     """Widget types for dashboards"""
+
     CHART = "chart"
     METRIC = "metric"
     TABLE = "table"
@@ -42,6 +44,7 @@ class DashboardWidgetType(str, Enum):
 
 class DashboardTheme(str, Enum):
     """Dashboard themes"""
+
     LIGHT = "light"
     DARK = "dark"
     BLUE = "blue"
@@ -60,11 +63,15 @@ class Dashboard(SQLBaseModel):
     name = Column(String(255), nullable=False, index=True)
     description = Column(Text, nullable=True)
     owner_id = Column(GUID(), ForeignKey("users.id"), nullable=False, index=True)
-    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=True, index=True)
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id"), nullable=True, index=True
+    )
 
     # Layout and configuration
     layout = Column(JSON, nullable=True)  # Grid layout configuration
-    theme = Column(SQLEnum(DashboardTheme), default=DashboardTheme.LIGHT, nullable=False)
+    theme = Column(
+        SQLEnum(DashboardTheme), default=DashboardTheme.LIGHT, nullable=False
+    )
     is_public = Column(Boolean, default=False, nullable=False)
     is_template = Column(Boolean, default=False, nullable=False)
 
@@ -79,8 +86,12 @@ class Dashboard(SQLBaseModel):
     version = Column(String(50), default="1.0.0", nullable=False)
 
     # Relationships
-    widgets = relationship("DashboardWidget", back_populates="dashboard", cascade="all, delete-orphan")
-    permissions = relationship("DashboardPermission", back_populates="dashboard", cascade="all, delete-orphan")
+    widgets = relationship(
+        "DashboardWidget", back_populates="dashboard", cascade="all, delete-orphan"
+    )
+    permissions = relationship(
+        "DashboardPermission", back_populates="dashboard", cascade="all, delete-orphan"
+    )
 
 
 class DashboardWidget(SQLBaseModel):
@@ -88,7 +99,9 @@ class DashboardWidget(SQLBaseModel):
 
     __tablename__ = "analytics_dashboard_widgets"
 
-    dashboard_id = Column(GUID(), ForeignKey("analytics_dashboards.id"), nullable=False, index=True)
+    dashboard_id = Column(
+        GUID(), ForeignKey("analytics_dashboards.id"), nullable=False, index=True
+    )
     widget_type = Column(SQLEnum(DashboardWidgetType), nullable=False)
 
     # Widget properties
@@ -131,9 +144,13 @@ class DashboardLayout(SQLBaseModel):
 
     __tablename__ = "analytics_dashboard_layouts"
 
-    dashboard_id = Column(GUID(), ForeignKey("analytics_dashboards.id"), nullable=False, index=True)
+    dashboard_id = Column(
+        GUID(), ForeignKey("analytics_dashboards.id"), nullable=False, index=True
+    )
     name = Column(String(255), nullable=False)
-    layout_type = Column(String(50), default="grid", nullable=False)  # grid, flex, absolute
+    layout_type = Column(
+        String(50), default="grid", nullable=False
+    )  # grid, flex, absolute
 
     # Layout configuration
     config = Column(JSON, nullable=False)  # Layout configuration
@@ -150,12 +167,16 @@ class DashboardPermission(SQLBaseModel):
 
     __tablename__ = "analytics_dashboard_permissions"
 
-    dashboard_id = Column(GUID(), ForeignKey("analytics_dashboards.id"), nullable=False, index=True)
+    dashboard_id = Column(
+        GUID(), ForeignKey("analytics_dashboards.id"), nullable=False, index=True
+    )
 
     # Permission target
     user_id = Column(GUID(), ForeignKey("users.id"), nullable=True, index=True)
     role_id = Column(GUID(), ForeignKey("permissions.id"), nullable=True, index=True)
-    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=True, index=True)
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id"), nullable=True, index=True
+    )
 
     # Permissions
     can_view = Column(Boolean, default=True, nullable=False)
@@ -170,8 +191,10 @@ class DashboardPermission(SQLBaseModel):
 
 # Pydantic models for API serialization
 
+
 class WidgetConfiguration(BaseModel):
     """Widget configuration model"""
+
     widget_type: DashboardWidgetType
     title: str
     description: Optional[str] = None
@@ -195,6 +218,7 @@ class WidgetConfiguration(BaseModel):
 
 class DashboardCreate(BaseModel):
     """Create dashboard request model"""
+
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     layout: Optional[Dict[str, Any]] = None
@@ -208,10 +232,11 @@ class DashboardCreate(BaseModel):
     category: Optional[str] = None
     widgets: Optional[List[WidgetConfiguration]] = None
 
-    @validator('timezone')
+    @validator("timezone")
     def validate_timezone(cls, v):
         """Validate timezone"""
         import pytz
+
         try:
             pytz.timezone(v)
             return v
@@ -223,6 +248,7 @@ class DashboardCreate(BaseModel):
 
 class DashboardUpdate(BaseModel):
     """Update dashboard request model"""
+
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     layout: Optional[Dict[str, Any]] = None
@@ -234,12 +260,13 @@ class DashboardUpdate(BaseModel):
     tags: Optional[List[str]] = None
     category: Optional[str] = None
 
-    @validator('timezone')
+    @validator("timezone")
     def validate_timezone(cls, v):
         """Validate timezone"""
         if v is None:
             return v
         import pytz
+
         try:
             pytz.timezone(v)
             return v
@@ -251,6 +278,7 @@ class DashboardUpdate(BaseModel):
 
 class DashboardResponse(BaseModel):
     """Dashboard response model"""
+
     id: uuid.UUID
     name: str
     description: Optional[str]
@@ -275,6 +303,7 @@ class DashboardResponse(BaseModel):
 
 class WidgetResponse(BaseModel):
     """Widget response model"""
+
     id: uuid.UUID
     dashboard_id: uuid.UUID
     widget_type: DashboardWidgetType
@@ -302,6 +331,7 @@ class WidgetResponse(BaseModel):
 
 class DashboardWithWidgets(DashboardResponse):
     """Dashboard with widgets included"""
+
     widgets: List[WidgetResponse]
 
     model_config = ConfigDict(from_attributes=True)

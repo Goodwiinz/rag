@@ -5,12 +5,12 @@ Provides circuit breakers, retries, and fault tolerance for A/B testing operatio
 
 import asyncio
 import logging
-import time
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Callable, Union
-from dataclasses import dataclass, field
-from enum import Enum
 import random
+import time
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from src.core.config import settings
 from src.services.cache.analytics_cache import analytics_cache
@@ -20,13 +20,15 @@ logger = logging.getLogger(__name__)
 
 class CircuitState(Enum):
     """Circuit breaker states"""
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Circuit is open, fail fast
+
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Circuit is open, fail fast
     HALF_OPEN = "half_open"  # Testing if service has recovered
 
 
 class RetryStrategy(Enum):
     """Retry strategies"""
+
     EXPONENTIAL_BACKOFF = "exponential_backoff"
     LINEAR_BACKOFF = "linear_backoff"
     FIXED_INTERVAL = "fixed_interval"
@@ -36,16 +38,18 @@ class RetryStrategy(Enum):
 @dataclass
 class CircuitBreakerConfig:
     """Configuration for circuit breaker"""
-    failure_threshold: int = 5          # Number of failures before opening
-    timeout: float = 60.0               # Seconds to wait before trying again
-    success_threshold: int = 3          # Success count to close circuit
-    monitor_period: float = 300.0       # Period to monitor for failures
-    min_calls: int = 10                 # Minimum calls before breaking
+
+    failure_threshold: int = 5  # Number of failures before opening
+    timeout: float = 60.0  # Seconds to wait before trying again
+    success_threshold: int = 3  # Success count to close circuit
+    monitor_period: float = 300.0  # Period to monitor for failures
+    min_calls: int = 10  # Minimum calls before breaking
 
 
 @dataclass
 class RetryConfig:
     """Configuration for retry logic"""
+
     max_attempts: int = 3
     strategy: RetryStrategy = RetryStrategy.EXPONENTIAL_BACKOFF
     base_delay: float = 1.0
@@ -58,6 +62,7 @@ class RetryConfig:
 @dataclass
 class ServiceMetrics:
     """Service performance metrics"""
+
     total_calls: int = 0
     successful_calls: int = 0
     failed_calls: int = 0
@@ -87,7 +92,9 @@ class CircuitBreaker:
             return True
         elif self.state == CircuitState.OPEN:
             # Check if timeout has passed
-            if (datetime.utcnow() - self.last_state_change).total_seconds() > self.config.timeout:
+            if (
+                datetime.utcnow() - self.last_state_change
+            ).total_seconds() > self.config.timeout:
                 self.state = CircuitState.HALF_OPEN
                 self.last_state_change = datetime.utcnow()
                 logger.info(f"Circuit breaker {self.name} moved to HALF_OPEN state")
@@ -111,8 +118,7 @@ class CircuitBreaker:
         else:
             alpha = 0.1  # Exponential moving average factor
             self.metrics.average_response_time = (
-                alpha * response_time +
-                (1 - alpha) * self.metrics.average_response_time
+                alpha * response_time + (1 - alpha) * self.metrics.average_response_time
             )
 
         if self.state == CircuitState.HALF_OPEN:
@@ -134,8 +140,10 @@ class CircuitBreaker:
 
         if self.state == CircuitState.CLOSED:
             self.failure_count += 1
-            if (self.failure_count >= self.config.failure_threshold and
-                self.metrics.total_calls >= self.config.min_calls):
+            if (
+                self.failure_count >= self.config.failure_threshold
+                and self.metrics.total_calls >= self.config.min_calls
+            ):
                 self.state = CircuitState.OPEN
                 self.last_state_change = datetime.utcnow()
                 logger.warning(f"Circuit breaker {self.name} moved to OPEN state")
@@ -154,15 +162,17 @@ class CircuitBreaker:
             "failed_calls": self.metrics.failed_calls,
             "success_rate": (
                 self.metrics.successful_calls / self.metrics.total_calls
-                if self.metrics.total_calls > 0 else 0
+                if self.metrics.total_calls > 0
+                else 0
             ),
             "average_response_time": self.metrics.average_response_time,
             "consecutive_failures": self.metrics.consecutive_failures,
             "last_failure_time": (
                 self.metrics.last_failure_time.isoformat()
-                if self.metrics.last_failure_time else None
+                if self.metrics.last_failure_time
+                else None
             ),
-            "last_state_change": self.last_state_change.isoformat()
+            "last_state_change": self.last_state_change.isoformat(),
         }
 
 
@@ -174,12 +184,7 @@ class RetryHandler:
     def __init__(self, config: RetryConfig):
         self.config = config
 
-    async def execute_with_retry(
-        self,
-        func: Callable,
-        *args,
-        **kwargs
-    ) -> Any:
+    async def execute_with_retry(self, func: Callable, *args, **kwargs) -> Any:
         """
         Execute function with retry logic
         """
@@ -192,7 +197,9 @@ class RetryHandler:
                 last_exception = e
 
                 # Check if this exception type should be retried
-                if not any(isinstance(e, exc_type) for exc_type in self.config.retry_on):
+                if not any(
+                    isinstance(e, exc_type) for exc_type in self.config.retry_on
+                ):
                     raise e
 
                 if attempt < self.config.max_attempts - 1:
@@ -217,7 +224,7 @@ class RetryHandler:
         elif self.config.strategy == RetryStrategy.LINEAR_BACKOFF:
             delay = self.config.base_delay * (attempt + 1)
         elif self.config.strategy == RetryStrategy.EXPONENTIAL_BACKOFF:
-            delay = self.config.base_delay * (self.config.backoff_multiplier ** attempt)
+            delay = self.config.base_delay * (self.config.backoff_multiplier**attempt)
         else:  # IMMEDIATE
             delay = 0
 
@@ -250,11 +257,8 @@ class ResilienceService:
         self.register_circuit_breaker(
             "database",
             CircuitBreakerConfig(
-                failure_threshold=5,
-                timeout=30.0,
-                success_threshold=3,
-                min_calls=5
-            )
+                failure_threshold=5, timeout=30.0, success_threshold=3, min_calls=5
+            ),
         )
         self.register_retry_handler(
             "database",
@@ -262,19 +266,16 @@ class ResilienceService:
                 max_attempts=3,
                 strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
                 base_delay=0.5,
-                max_delay=10.0
-            )
+                max_delay=10.0,
+            ),
         )
 
         # Redis operations
         self.register_circuit_breaker(
             "redis",
             CircuitBreakerConfig(
-                failure_threshold=3,
-                timeout=60.0,
-                success_threshold=2,
-                min_calls=3
-            )
+                failure_threshold=3, timeout=60.0, success_threshold=2, min_calls=3
+            ),
         )
         self.register_retry_handler(
             "redis",
@@ -282,37 +283,31 @@ class ResilienceService:
                 max_attempts=2,
                 strategy=RetryStrategy.LINEAR_BACKOFF,
                 base_delay=1.0,
-                max_delay=5.0
-            )
+                max_delay=5.0,
+            ),
         )
 
         # Statistical analysis
         self.register_circuit_breaker(
             "statistical_analysis",
             CircuitBreakerConfig(
-                failure_threshold=3,
-                timeout=120.0,
-                success_threshold=2,
-                min_calls=2
-            )
+                failure_threshold=3, timeout=120.0, success_threshold=2, min_calls=2
+            ),
         )
         self.register_retry_handler(
             "statistical_analysis",
             RetryConfig(
                 max_attempts=1,  # Don't retry expensive analysis operations
-                strategy=RetryStrategy.IMMEDIATE
-            )
+                strategy=RetryStrategy.IMMEDIATE,
+            ),
         )
 
         # External API calls
         self.register_circuit_breaker(
             "external_api",
             CircuitBreakerConfig(
-                failure_threshold=5,
-                timeout=300.0,
-                success_threshold=3,
-                min_calls=10
-            )
+                failure_threshold=5, timeout=300.0, success_threshold=3, min_calls=10
+            ),
         )
         self.register_retry_handler(
             "external_api",
@@ -320,8 +315,8 @@ class ResilienceService:
                 max_attempts=3,
                 strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
                 base_delay=2.0,
-                max_delay=60.0
-            )
+                max_delay=60.0,
+            ),
         )
 
     def register_circuit_breaker(self, name: str, config: CircuitBreakerConfig):
@@ -341,7 +336,7 @@ class ResilienceService:
         *args,
         use_circuit_breaker: bool = True,
         use_retry: bool = True,
-        **kwargs
+        **kwargs,
     ) -> Any:
         """
         Execute function with resilience patterns
@@ -386,7 +381,9 @@ class ResilienceService:
         """Execute Redis operation with resilience"""
         return await self.execute_with_resilience("redis", func, *args, **kwargs)
 
-    async def execute_statistical_analysis(self, func: Callable, *args, **kwargs) -> Any:
+    async def execute_statistical_analysis(
+        self, func: Callable, *args, **kwargs
+    ) -> Any:
         """Execute statistical analysis with resilience"""
         return await self.execute_with_resilience(
             "statistical_analysis", func, *args, **kwargs
@@ -427,7 +424,7 @@ class ResilienceService:
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),
             "circuit_breakers": {},
-            "overall_health": "healthy"
+            "overall_health": "healthy",
         }
 
         degraded_count = 0
@@ -461,23 +458,27 @@ class ResilienceService:
 
 # Decorator for easy resilience application
 
+
 def with_resilience(
-    service_name: str,
-    use_circuit_breaker: bool = True,
-    use_retry: bool = True
+    service_name: str, use_circuit_breaker: bool = True, use_retry: bool = True
 ):
     """
     Decorator to apply resilience patterns to functions
     """
+
     def decorator(func):
         async def wrapper(*args, **kwargs):
             return await resilience_service.execute_with_resilience(
-                service_name, func, *args,
+                service_name,
+                func,
+                *args,
                 use_circuit_breaker=use_circuit_breaker,
                 use_retry=use_retry,
-                **kwargs
+                **kwargs,
             )
+
         return wrapper
+
     return decorator
 
 
@@ -486,6 +487,7 @@ resilience_service = ResilienceService()
 
 
 # Context manager for circuit breaker operations
+
 
 class CircuitBreakerContext:
     """Context manager for circuit breaker operations"""

@@ -6,42 +6,49 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timezone as dt_timezone, timedelta
-from typing import Dict, List, Optional, Any, Set
-from dataclasses import dataclass, asdict
-from enum import Enum
 from contextlib import asynccontextmanager
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set
 
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, update, delete, func
 from sqlalchemy.orm import selectinload
 
-from src.services.base import BaseService
-from src.services.websocket.websocket_manager import connection_manager, WebSocketMessage, MessageType, Priority
-from src.core.database import get_async_session
 from src.core.config import settings
-from src.models.websocket_status import (
-    StatusUpdate,
-    NotificationTemplate,
-    UpdateType,
-    Priority as UpdatePriority
-)
+from src.core.database import get_async_session
 from src.models.document import Document, ProcessingStatus
-from src.models.processing import ProcessingJob, JobStatus, JobType
 from src.models.organization import Organization
+from src.models.processing import JobStatus, JobType, ProcessingJob
 from src.models.user import User
+from src.models.websocket_status import NotificationTemplate
+from src.models.websocket_status import Priority as UpdatePriority
+from src.models.websocket_status import StatusUpdate, UpdateType
+from src.services.base import BaseService
+from src.services.websocket.websocket_manager import (
+    MessageType,
+    Priority,
+    WebSocketMessage,
+    connection_manager,
+)
 
 logger = logging.getLogger(__name__)
 
+
 class UpdateFrequency(Enum):
     """Status update frequency levels"""
+
     REALTIME = "realtime"  # Every 100-500ms
     FREQUENT = "frequent"  # Every 1-2 seconds
-    NORMAL = "normal"      # Every 5-10 seconds
+    NORMAL = "normal"  # Every 5-10 seconds
     PERIODIC = "periodic"  # Every 30-60 seconds
+
 
 class Channel(Enum):
     """WebSocket notification channels"""
+
     DOCUMENT_PROCESSING = "document_processing"
     JOB_STATUS = "job_status"
     SYSTEM_STATUS = "system_status"
@@ -50,9 +57,11 @@ class Channel(Enum):
     QUALITY_METRICS = "quality_metrics"
     ADMIN_ALERTS = "admin_alerts"
 
+
 @dataclass
 class ProcessingProgress:
     """Processing progress tracking"""
+
     document_id: str
     current_step: str
     total_steps: int
@@ -64,9 +73,11 @@ class ProcessingProgress:
     warnings: List[str]
     errors: List[str]
 
+
 @dataclass
 class SystemStatus:
     """System status information"""
+
     active_jobs: int
     queued_jobs: int
     completed_jobs_today: int
@@ -77,6 +88,7 @@ class SystemStatus:
     storage_usage_gb: float
     active_connections: int
     error_rate_last_hour: float
+
 
 class StatusUpdateService(BaseService):
     """Real-time status update service with intelligent throttling and batching"""
@@ -132,8 +144,12 @@ class StatusUpdateService(BaseService):
         await super().shutdown()
         logger.info("Status Update Service shutdown complete")
 
-    async def subscribe_to_updates(self, connection_id: str, update_types: List[str],
-                                 frequency: UpdateFrequency = UpdateFrequency.NORMAL):
+    async def subscribe_to_updates(
+        self,
+        connection_id: str,
+        update_types: List[str],
+        frequency: UpdateFrequency = UpdateFrequency.NORMAL,
+    ):
         """Subscribe a connection to specific update types"""
         for update_type in update_types:
             if update_type not in self._subscribers:
@@ -143,7 +159,9 @@ class StatusUpdateService(BaseService):
 
         logger.info(f"Connection {connection_id} subscribed to updates: {update_types}")
 
-    async def unsubscribe_from_updates(self, connection_id: str, update_types: List[str] = None):
+    async def unsubscribe_from_updates(
+        self, connection_id: str, update_types: List[str] = None
+    ):
         """Unsubscribe a connection from updates"""
         if update_types is None:
             # Remove from all subscriptions
@@ -157,8 +175,13 @@ class StatusUpdateService(BaseService):
 
         logger.info(f"Connection {connection_id} unsubscribed from updates")
 
-    async def broadcast_document_update(self, document_id: str, status: ProcessingStatus,
-                                     progress: ProcessingProgress = None, error: str = None):
+    async def broadcast_document_update(
+        self,
+        document_id: str,
+        status: ProcessingStatus,
+        progress: ProcessingProgress = None,
+        error: str = None,
+    ):
         """Broadcast document processing status update"""
         try:
             # Get document information
@@ -182,26 +205,32 @@ class StatusUpdateService(BaseService):
                     "filename": document.filename,
                     "document_type": document.document_type.value,
                     "processing_status": status.value,
-                    "processing_started_at": document.processing_started_at.isoformat() if document.processing_started_at else None,
-                    "processing_completed_at": document.processing_completed_at.isoformat() if document.processing_completed_at else None,
+                    "processing_started_at": document.processing_started_at.isoformat()
+                    if document.processing_started_at
+                    else None,
+                    "processing_completed_at": document.processing_completed_at.isoformat()
+                    if document.processing_completed_at
+                    else None,
                     "processing_error": error or document.processing_error,
                     "processing_retry_count": document.processing_retry_count,
-                    "updated_at": datetime.now(dt_timezone.utc).isoformat()
+                    "updated_at": datetime.now(dt_timezone.utc).isoformat(),
                 }
 
                 # Add progress information if available
                 if progress:
-                    update_data.update({
-                        "progress_percentage": progress.progress_percentage,
-                        "current_step": progress.current_step,
-                        "total_steps": progress.total_steps,
-                        "completed_steps": progress.completed_steps,
-                        "current_operation": progress.current_operation,
-                        "estimated_remaining_seconds": progress.estimated_remaining_seconds,
-                        "step_details": progress.step_details,
-                        "warnings": progress.warnings,
-                        "errors": progress.errors
-                    })
+                    update_data.update(
+                        {
+                            "progress_percentage": progress.progress_percentage,
+                            "current_step": progress.current_step,
+                            "total_steps": progress.total_steps,
+                            "completed_steps": progress.completed_steps,
+                            "current_operation": progress.current_operation,
+                            "estimated_remaining_seconds": progress.estimated_remaining_seconds,
+                            "step_details": progress.step_details,
+                            "warnings": progress.warnings,
+                            "errors": progress.errors,
+                        }
+                    )
 
                 # Create WebSocket message
                 message = WebSocketMessage(
@@ -209,16 +238,17 @@ class StatusUpdateService(BaseService):
                     data=update_data,
                     timestamp=datetime.now(dt_timezone.utc),
                     priority=self._get_priority_for_status(status),
-                    target_channels=[Channel.DOCUMENT_PROCESSING.value]
+                    target_channels=[Channel.DOCUMENT_PROCESSING.value],
                 )
 
                 # Add to update queue
-                await self._queue_update("document_processing", document_id, update_data, message)
+                await self._queue_update(
+                    "document_processing", document_id, update_data, message
+                )
 
                 # Broadcast to specific user
                 await connection_manager.broadcast_to_user(
-                    str(document.uploaded_by_user_id),
-                    message
+                    str(document.uploaded_by_user_id), message
                 )
 
                 # Log to database
@@ -228,15 +258,20 @@ class StatusUpdateService(BaseService):
                     message=f"Status updated to {status.value}",
                     update_data=update_data,
                     target_users=[str(document.uploaded_by_user_id)],
-                    target_organizations=[str(document.organization_id)]
+                    target_organizations=[str(document.organization_id)],
                 )
 
         except Exception as e:
             logger.error(f"Error broadcasting document update: {e}")
 
-    async def broadcast_job_update(self, job_id: str, status: JobStatus,
-                                progress: float = None, current_step: str = None,
-                                error: str = None):
+    async def broadcast_job_update(
+        self,
+        job_id: str,
+        status: JobStatus,
+        progress: float = None,
+        current_step: str = None,
+        error: str = None,
+    ):
         """Broadcast job status update"""
         try:
             # Get job information
@@ -268,20 +303,26 @@ class StatusUpdateService(BaseService):
                     "current_step": job.current_step,
                     "total_steps": job.total_steps,
                     "completed_steps": job.completed_steps,
-                    "started_at": job.started_at.isoformat() if job.started_at else None,
-                    "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                    "started_at": job.started_at.isoformat()
+                    if job.started_at
+                    else None,
+                    "completed_at": job.completed_at.isoformat()
+                    if job.completed_at
+                    else None,
                     "duration_seconds": job.duration_seconds,
                     "error_message": error or job.error_message,
                     "retry_count": job.retry_count,
-                    "updated_at": datetime.now(dt_timezone.utc).isoformat()
+                    "updated_at": datetime.now(dt_timezone.utc).isoformat(),
                 }
 
                 # Add document information if available
                 if job.document:
-                    update_data.update({
-                        "document_id": str(job.document.id),
-                        "document_title": job.document.title
-                    })
+                    update_data.update(
+                        {
+                            "document_id": str(job.document.id),
+                            "document_title": job.document.title,
+                        }
+                    )
 
                 # Create WebSocket message
                 message = WebSocketMessage(
@@ -289,7 +330,7 @@ class StatusUpdateService(BaseService):
                     data=update_data,
                     timestamp=datetime.now(dt_timezone.utc),
                     priority=self._get_priority_for_job_status(status),
-                    target_channels=[Channel.JOB_STATUS.value]
+                    target_channels=[Channel.JOB_STATUS.value],
                 )
 
                 # Add to update queue
@@ -298,12 +339,13 @@ class StatusUpdateService(BaseService):
                 # Broadcast to user if job has one
                 if job.created_by_user_id:
                     await connection_manager.broadcast_to_user(
-                        str(job.created_by_user_id),
-                        message
+                        str(job.created_by_user_id), message
                     )
 
                 # Log to database
-                target_users = [str(job.created_by_user_id)] if job.created_by_user_id else []
+                target_users = (
+                    [str(job.created_by_user_id)] if job.created_by_user_id else []
+                )
                 target_orgs = [str(job.organization_id)]
 
                 await self._log_status_update(
@@ -312,17 +354,21 @@ class StatusUpdateService(BaseService):
                     message=f"Status updated to {status.value}",
                     update_data=update_data,
                     target_users=target_users,
-                    target_organizations=target_orgs
+                    target_organizations=target_orgs,
                 )
 
         except Exception as e:
             logger.error(f"Error broadcasting job update: {e}")
 
-    async def broadcast_system_notification(self, title: str, message: str,
-                                         notification_type: str = "info",
-                                         target_users: List[str] = None,
-                                         target_organizations: List[str] = None,
-                                         action_url: str = None):
+    async def broadcast_system_notification(
+        self,
+        title: str,
+        message: str,
+        notification_type: str = "info",
+        target_users: List[str] = None,
+        target_organizations: List[str] = None,
+        action_url: str = None,
+    ):
         """Broadcast system notification"""
         try:
             # Prepare notification data
@@ -332,7 +378,7 @@ class StatusUpdateService(BaseService):
                 "type": notification_type,
                 "timestamp": datetime.now(dt_timezone.utc).isoformat(),
                 "action_url": action_url,
-                "id": str(uuid.uuid4())
+                "id": str(uuid.uuid4()),
             }
 
             # Create WebSocket message
@@ -340,8 +386,10 @@ class StatusUpdateService(BaseService):
                 type=MessageType.SYSTEM_NOTIFICATION,
                 data=notification_data,
                 timestamp=datetime.now(dt_timezone.utc),
-                priority=Priority.HIGH if notification_type in ["error", "warning"] else Priority.NORMAL,
-                target_channels=[Channel.USER_NOTIFICATIONS.value]
+                priority=Priority.HIGH
+                if notification_type in ["error", "warning"]
+                else Priority.NORMAL,
+                target_channels=[Channel.USER_NOTIFICATIONS.value],
             )
 
             # Broadcast to targets
@@ -351,13 +399,14 @@ class StatusUpdateService(BaseService):
 
             if target_organizations:
                 for org_id in target_organizations:
-                    await connection_manager.broadcast_to_organization(org_id, ws_message)
+                    await connection_manager.broadcast_to_organization(
+                        org_id, ws_message
+                    )
 
             # If no specific targets, broadcast to all
             if not target_users and not target_organizations:
                 await connection_manager.broadcast_to_channel(
-                    Channel.USER_NOTIFICATIONS.value,
-                    ws_message
+                    Channel.USER_NOTIFICATIONS.value, ws_message
                 )
 
             # Log to database
@@ -367,7 +416,7 @@ class StatusUpdateService(BaseService):
                 message=message,
                 update_data=notification_data,
                 target_users=target_users or [],
-                target_organizations=target_organizations or []
+                target_organizations=target_organizations or [],
             )
 
         except Exception as e:
@@ -379,29 +428,32 @@ class StatusUpdateService(BaseService):
             async with get_async_session() as session:
                 # Get job statistics
                 current_time = datetime.now(dt_timezone.utc)
-                today_start = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
+                today_start = current_time.replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                )
 
                 # Active jobs
                 active_jobs_result = await session.execute(
-                    select(func.count(ProcessingJob.id))
-                    .where(ProcessingJob.status.in_([JobStatus.RUNNING, JobStatus.QUEUED]))
+                    select(func.count(ProcessingJob.id)).where(
+                        ProcessingJob.status.in_([JobStatus.RUNNING, JobStatus.QUEUED])
+                    )
                 )
                 active_jobs = active_jobs_result.scalar() or 0
 
                 # Queued jobs
                 queued_jobs_result = await session.execute(
-                    select(func.count(ProcessingJob.id))
-                    .where(ProcessingJob.status == JobStatus.QUEUED)
+                    select(func.count(ProcessingJob.id)).where(
+                        ProcessingJob.status == JobStatus.QUEUED
+                    )
                 )
                 queued_jobs = queued_jobs_result.scalar() or 0
 
                 # Today's completed jobs
                 completed_today_result = await session.execute(
-                    select(func.count(ProcessingJob.id))
-                    .where(
+                    select(func.count(ProcessingJob.id)).where(
                         and_(
                             ProcessingJob.status == JobStatus.COMPLETED,
-                            ProcessingJob.completed_at >= today_start
+                            ProcessingJob.completed_at >= today_start,
                         )
                     )
                 )
@@ -409,11 +461,10 @@ class StatusUpdateService(BaseService):
 
                 # Today's failed jobs
                 failed_today_result = await session.execute(
-                    select(func.count(ProcessingJob.id))
-                    .where(
+                    select(func.count(ProcessingJob.id)).where(
                         and_(
                             ProcessingJob.status == JobStatus.FAILED,
-                            ProcessingJob.completed_at >= today_start
+                            ProcessingJob.completed_at >= today_start,
                         )
                     )
                 )
@@ -421,11 +472,10 @@ class StatusUpdateService(BaseService):
 
                 # Average processing time
                 avg_time_result = await session.execute(
-                    select(func.avg(ProcessingJob.duration_seconds))
-                    .where(
+                    select(func.avg(ProcessingJob.duration_seconds)).where(
                         and_(
                             ProcessingJob.status == JobStatus.COMPLETED,
-                            ProcessingJob.completed_at >= today_start
+                            ProcessingJob.completed_at >= today_start,
                         )
                     )
                 )
@@ -444,20 +494,31 @@ class StatusUpdateService(BaseService):
                     memory_usage_percentage=0.0,  # Would need system monitoring
                     storage_usage_gb=0.0,  # Would need storage monitoring
                     active_connections=ws_stats["total_connections"],
-                    error_rate_last_hour=0.0  # Would need error tracking
+                    error_rate_last_hour=0.0,  # Would need error tracking
                 )
 
         except Exception as e:
             logger.error(f"Error getting system status: {e}")
             return SystemStatus(
-                active_jobs=0, queued_jobs=0, completed_jobs_today=0,
-                failed_jobs_today=0, average_processing_time_seconds=0.0,
-                system_load_percentage=0.0, memory_usage_percentage=0.0,
-                storage_usage_gb=0.0, active_connections=0, error_rate_last_hour=0.0
+                active_jobs=0,
+                queued_jobs=0,
+                completed_jobs_today=0,
+                failed_jobs_today=0,
+                average_processing_time_seconds=0.0,
+                system_load_percentage=0.0,
+                memory_usage_percentage=0.0,
+                storage_usage_gb=0.0,
+                active_connections=0,
+                error_rate_last_hour=0.0,
             )
 
-    async def _queue_update(self, update_type: str, entity_id: str,
-                          update_data: Dict[str, Any], message: WebSocketMessage):
+    async def _queue_update(
+        self,
+        update_type: str,
+        entity_id: str,
+        update_data: Dict[str, Any],
+        message: WebSocketMessage,
+    ):
         """Queue an update for processing"""
         try:
             # Check if we should throttle this update
@@ -468,16 +529,18 @@ class StatusUpdateService(BaseService):
             self._update_cache[entity_id] = {
                 "data": update_data,
                 "timestamp": datetime.now(dt_timezone.utc),
-                "message": message
+                "message": message,
             }
 
             # Add to queue for processing
-            await self._update_queue.put({
-                "type": update_type,
-                "entity_id": entity_id,
-                "data": update_data,
-                "message": asdict(message)
-            })
+            await self._update_queue.put(
+                {
+                    "type": update_type,
+                    "entity_id": entity_id,
+                    "data": update_data,
+                    "message": asdict(message),
+                }
+            )
 
         except Exception as e:
             logger.error(f"Error queuing update: {e}")
@@ -487,7 +550,9 @@ class StatusUpdateService(BaseService):
         if entity_id not in self._last_update_time:
             return False
 
-        time_since_last = (datetime.now(dt_timezone.utc) - self._last_update_time[entity_id]).total_seconds()
+        time_since_last = (
+            datetime.now(dt_timezone.utc) - self._last_update_time[entity_id]
+        ).total_seconds()
 
         # Get throttle interval based on frequency (simplified)
         throttle_interval = 1.0  # Default 1 second
@@ -499,10 +564,7 @@ class StatusUpdateService(BaseService):
         while True:
             try:
                 # Get update from queue
-                update = await asyncio.wait_for(
-                    self._update_queue.get(),
-                    timeout=1.0
-                )
+                update = await asyncio.wait_for(self._update_queue.get(), timeout=1.0)
 
                 entity_id = update["entity_id"]
                 self._last_update_time[entity_id] = datetime.now(dt_timezone.utc)
@@ -529,7 +591,10 @@ class StatusUpdateService(BaseService):
 
     async def _broadcast_update_batch(self, update_type: str):
         """Broadcast a batch of updates"""
-        if update_type not in self._batch_updates or not self._batch_updates[update_type]:
+        if (
+            update_type not in self._batch_updates
+            or not self._batch_updates[update_type]
+        ):
             return
 
         batch = self._batch_updates[update_type].copy()
@@ -561,14 +626,14 @@ class StatusUpdateService(BaseService):
                                 "type": msg.type.value,
                                 "data": msg.data,
                                 "timestamp": msg.timestamp.isoformat(),
-                                "priority": msg.priority.value
+                                "priority": msg.priority.value,
                             }
                             for msg in messages
                         ],
-                        "total_updates": len(messages)
+                        "total_updates": len(messages),
                     },
                     timestamp=datetime.now(dt_timezone.utc),
-                    target_channels=[channel]
+                    target_channels=[channel],
                 )
 
                 await connection_manager.broadcast_to_channel(channel, batch_message)
@@ -611,7 +676,9 @@ class StatusUpdateService(BaseService):
                     self._last_update_time.pop(entity_id, None)
 
                 if expired_entities:
-                    logger.info(f"Cleaned up {len(expired_entities)} expired status update cache entries")
+                    logger.info(
+                        f"Cleaned up {len(expired_entities)} expired status update cache entries"
+                    )
 
             except asyncio.CancelledError:
                 break
@@ -635,10 +702,15 @@ class StatusUpdateService(BaseService):
         except Exception as e:
             logger.error(f"Error processing remaining updates: {e}")
 
-    async def _log_status_update(self, update_type: UpdateType, title: str,
-                               message: str, update_data: Dict[str, Any],
-                               target_users: List[str] = None,
-                               target_organizations: List[str] = None):
+    async def _log_status_update(
+        self,
+        update_type: UpdateType,
+        title: str,
+        message: str,
+        update_data: Dict[str, Any],
+        target_users: List[str] = None,
+        target_organizations: List[str] = None,
+    ):
         """Log status update to database"""
         try:
             async with get_async_session() as session:
@@ -650,7 +722,7 @@ class StatusUpdateService(BaseService):
                     update_data=update_data,
                     target_users=target_users,
                     target_organizations=target_organizations,
-                    priority=self._map_priority(update_type)
+                    priority=self._map_priority(update_type),
                 )
 
                 session.add(status_update)
@@ -666,7 +738,7 @@ class StatusUpdateService(BaseService):
             ProcessingStatus.FAILED: Priority.HIGH,
             ProcessingStatus.PROCESSING: Priority.NORMAL,
             ProcessingStatus.PENDING: Priority.LOW,
-            ProcessingStatus.RETRYING: Priority.NORMAL
+            ProcessingStatus.RETRYING: Priority.NORMAL,
         }
         return priority_map.get(status, Priority.NORMAL)
 
@@ -678,7 +750,7 @@ class StatusUpdateService(BaseService):
             JobStatus.RUNNING: Priority.NORMAL,
             JobStatus.QUEUED: Priority.LOW,
             JobStatus.CANCELLED: Priority.NORMAL,
-            JobStatus.RETRYING: Priority.NORMAL
+            JobStatus.RETRYING: Priority.NORMAL,
         }
         return priority_map.get(status, Priority.NORMAL)
 
@@ -688,9 +760,10 @@ class StatusUpdateService(BaseService):
             Priority.CRITICAL: UpdatePriority.CRITICAL,
             Priority.HIGH: UpdatePriority.HIGH,
             Priority.NORMAL: UpdatePriority.NORMAL,
-            Priority.LOW: UpdatePriority.LOW
+            Priority.LOW: UpdatePriority.LOW,
         }
         return priority_map.get(Priority.NORMAL, UpdatePriority.NORMAL)
+
 
 # Global status update service instance
 status_update_service = StatusUpdateService()
