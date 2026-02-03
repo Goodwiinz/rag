@@ -34,14 +34,24 @@ logger = logging.getLogger(__name__)
 class EmbeddingService:
     """Service for generating text embeddings using multiple providers (sentence transformers, Azure OpenAI)"""
 
-    def __init__(self):
+    def __init__(self, lazy: bool = True):
         self.model_name = settings.EMBEDDING_MODEL
         self.model = None
         self.device = "cuda" if (torch and torch.cuda.is_available()) else "cpu"
         self.embedding_dimension = None
         self.embedding_provider = "sentence_transformers"  # default provider
+        self._initialized = False
+        self.use_simple_fallback = False
+        if not lazy:
+            self._ensure_initialized()
+
+    def _ensure_initialized(self):
+        """Lazily initialize the model and Azure availability check"""
+        if self._initialized:
+            return
         self._load_model()
         self._check_azure_availability()
+        self._initialized = True
 
     def _load_model(self):
         """Load the embedding model"""
@@ -214,6 +224,7 @@ class EmbeddingService:
 
     async def generate_embedding(self, request: EmbeddingRequest) -> EmbeddingResponse:
         """Generate embedding for a single text"""
+        self._ensure_initialized()
         start_time = time.time()
 
         try:
@@ -275,6 +286,7 @@ class EmbeddingService:
         self, request: BatchEmbeddingRequest
     ) -> BatchEmbeddingResponse:
         """Generate embeddings for multiple texts"""
+        self._ensure_initialized()
         start_time = time.time()
 
         try:
@@ -368,6 +380,7 @@ class EmbeddingService:
 
     def get_model_info(self) -> Dict[str, Any]:
         """Get information about the current model"""
+        self._ensure_initialized()
         return {
             "model_name": self.model_name,
             "dimension": self.embedding_dimension,
@@ -378,6 +391,7 @@ class EmbeddingService:
 
     def test_embedding_quality(self, test_texts: List[str]) -> Dict[str, Any]:
         """Test embedding quality with sample texts"""
+        self._ensure_initialized()
         try:
             # Generate embeddings for test texts
             request = BatchEmbeddingRequest(texts=test_texts)
@@ -458,6 +472,7 @@ class EmbeddingService:
         overlap: int = 150,
     ) -> List[Dict[str, Any]]:
         """Generate embeddings for a full document by chunking"""
+        self._ensure_initialized()
         try:
             # Chunk the text
             chunks = self.chunk_text(text, chunk_size, overlap)
