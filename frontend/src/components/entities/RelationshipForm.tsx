@@ -24,25 +24,27 @@ interface RelationshipFormProps {
   availableTypes?: string[];
 }
 
+// Complete list matching backend RelationshipType enum
 const DEFAULT_RELATIONSHIP_TYPES = [
   'WORKS_FOR',
-  'LOCATED_IN',
   'KNOWS',
   'RELATED_TO',
+  'LOCATED_IN',
   'PART_OF',
-  'OWNS',
+  'MENTIONED_IN',
+  'APPEARS_WITH',
   'CREATED_BY',
-  'USES',
+  'OWNS',
   'MANAGES',
   'COLLABORATES_WITH',
+  'REPORTS_TO',
   'MEMBER_OF',
-  'FOUND_IN',
-  'EXAMPLE_OF',
-  'CAUSES',
-  'ENABLES',
-  'REQUIRES',
-  'PRECEDES',
-  'FOLLOWS'
+  'ATTENDED',
+  'SPOKE_AT',
+  'PUBLISHED_BY',
+  'CITED',
+  'REFERENCES',
+  'CUSTOM',
 ];
 
 export const RelationshipForm: React.FC<RelationshipFormProps> = ({

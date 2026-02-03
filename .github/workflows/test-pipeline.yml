@@ -43,13 +43,16 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      # v4.2.2 - pinned for security
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        # v3.7.1 - pinned for security
+        uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5
 
       - name: Build lint image
-        uses: docker/build-push-action@v5
+        # v5.4.0 - pinned for security
+        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991
         with:
           context: .
           file: backend/docker/Dockerfile.lint
@@ -76,14 +79,18 @@ jobs:
   lint-frontend:
     name: Lint Frontend
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      # v4.2.2 - pinned for security
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        # v4.1.0 - pinned for security
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -106,16 +113,21 @@ jobs:
     name: Unit Tests
     runs-on: ubuntu-latest
     needs: lint-backend
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      # v4.2.2 - pinned for security
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        # v5.3.0 - pinned for security
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Cache pip dependencies
-        uses: actions/cache@v4
+        # v4.1.2 - pinned for security
+        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt') }}
@@ -146,7 +158,8 @@ jobs:
           DATABASE_URL: "sqlite:///:memory:"
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        # v4.6.0 - pinned for security
+        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24
         with:
           files: coverage.xml
           flags: unit
@@ -159,11 +172,15 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: lint-backend
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      # v4.2.2 - pinned for security
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        # v5.3.0 - pinned for security
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -185,14 +202,18 @@ jobs:
     name: Frontend Tests
     runs-on: ubuntu-latest
     needs: lint-frontend
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      # v4.2.2 - pinned for security
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        # v4.1.0 - pinned for security
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -207,7 +228,8 @@ jobs:
           CI: true
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        # v4.6.0 - pinned for security
+        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24
         with:
           files: frontend/coverage/lcov.info
           flags: frontend
@@ -222,6 +244,8 @@ jobs:
     timeout-minutes: 15
     continue-on-error: true  # Don't block workflow if integration tests fail/timeout
     needs: [unit-tests, frontend-tests]
+    permissions:
+      contents: read
     services:
       postgres:
         image: postgres:15
@@ -248,10 +272,12 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      # v4.2.2 - pinned for security
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        # v5.3.0 - pinned for security
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -275,7 +301,8 @@ jobs:
           REDIS_URL: "redis://localhost:6379/0"
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        # v4.6.0 - pinned for security
+        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24
         with:
           files: coverage.xml
           flags: integration
@@ -289,11 +316,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: unit-tests
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      # v4.2.2 - pinned for security
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        # v5.3.0 - pinned for security
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -315,7 +346,8 @@ jobs:
           DATABASE_URL: "sqlite:///:memory:"
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        # v4.6.0 - pinned for security
+        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24
         with:
           files: coverage.xml
           flags: resilience
@@ -328,6 +360,8 @@ jobs:
     name: API Contract Tests
     runs-on: ubuntu-latest
     needs: [unit-tests, frontend-tests]
+    permissions:
+      contents: read
     services:
       postgres:
         image: postgres:15
@@ -340,10 +374,12 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      # v4.2.2 - pinned for security
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        # v5.3.0 - pinned for security
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -380,6 +416,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: integration-tests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
     services:
       postgres:
         image: postgres:15
@@ -391,10 +429,12 @@ jobs:
           - 5432:5432
 
     steps:
-      - uses: actions/checkout@v4
+      # v4.2.2 - pinned for security
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        # v5.3.0 - pinned for security
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -416,7 +456,8 @@ jobs:
           DATABASE_URL: "postgresql://test:test@localhost:5432/test_db"
 
       - name: Store benchmark results
-        uses: actions/upload-artifact@v4
+        # v4.4.3 - pinned for security
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: benchmark-results
           path: benchmark.json
@@ -429,6 +470,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [unit-tests, integration-tests, resilience-tests, frontend-tests, security-scan, api-contract-tests]
     if: always()
+    permissions:
+      contents: read
     env:
       UNIT_RESULT: ${{ needs.unit-tests.result }}
       INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
