@@ -6,13 +6,13 @@ including performance tuning, indexing strategies, partitioning, and monitoring 
 """
 
 import asyncio
+import json
 import logging
 import time
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from enum import Enum
-import json
+from typing import Any, Dict, List, Optional, Tuple
 
 import asyncpg
 import psycopg2
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 class OptimizationLevel(str, Enum):
     """Optimization levels for different deployment scenarios"""
+
     DEVELOPMENT = "development"
     STAGING = "staging"
     PRODUCTION = "production"
@@ -34,9 +35,11 @@ class OptimizationLevel(str, Enum):
 
 import os
 
+
 @dataclass
 class DatabaseConfig:
     """Database configuration for optimization"""
+
     host: str = os.environ.get("POSTGRES_HOST", "localhost")
     port: int = int(os.environ.get("POSTGRES_PORT", "5432"))
     user: str = os.environ.get("POSTGRES_USER", "raguser")
@@ -52,6 +55,7 @@ class DatabaseConfig:
 @dataclass
 class OptimizationMetrics:
     """Optimization performance metrics"""
+
     query_time_before: float
     query_time_after: float
     improvement_percentage: float
@@ -91,8 +95,8 @@ class PostgreSQLOptimizer:
                 "application_name": "rag_optimizer",
                 "connect_timeout": 10,
                 "command_timeout": 30,
-                "options": "-c default_transaction_isolation=read_committed"
-            }
+                "options": "-c default_transaction_isolation=read_committed",
+            },
         )
 
         self.session_factory = sessionmaker(bind=self.engine)
@@ -101,43 +105,43 @@ class PostgreSQLOptimizer:
     async def apply_production_optimizations(self) -> Dict[str, Any]:
         """Apply all production optimizations"""
         results = {
-            'success': True,
-            'optimizations_applied': [],
-            'errors': [],
-            'metrics': {}
+            "success": True,
+            "optimizations_applied": [],
+            "errors": [],
+            "metrics": {},
         }
 
         try:
             # 1. Configure database parameters
             config_result = await self._configure_database_parameters()
-            results['optimizations_applied'].append(config_result)
+            results["optimizations_applied"].append(config_result)
 
             # 2. Create optimized indexes
             index_result = await self._create_optimized_indexes()
-            results['optimizations_applied'].append(index_result)
+            results["optimizations_applied"].append(index_result)
 
             # 3. Set up partitioning for time-series data
             partition_result = await self._setup_time_series_partitioning()
-            results['optimizations_applied'].append(partition_result)
+            results["optimizations_applied"].append(partition_result)
 
             # 4. Create materialized views for dashboard queries
             materialized_result = await self._create_materialized_views()
-            results['optimizations_applied'].append(materialized_result)
+            results["optimizations_applied"].append(materialized_result)
 
             # 5. Optimize table configurations
             table_opt_result = await self._optimize_table_configurations()
-            results['optimizations_applied'].append(table_opt_result)
+            results["optimizations_applied"].append(table_opt_result)
 
             # 6. Set up vacuum and analyze schedules
             maintenance_result = await self._setup_maintenance_schedules()
-            results['optimizations_applied'].append(maintenance_result)
+            results["optimizations_applied"].append(maintenance_result)
 
             logger.info("All production optimizations applied successfully")
 
         except Exception as e:
             logger.error(f"Error applying optimizations: {e}")
-            results['success'] = False
-            results['errors'].append(str(e))
+            results["success"] = False
+            results["errors"].append(str(e))
 
         return results
 
@@ -151,35 +155,29 @@ class PostgreSQLOptimizer:
                 "ALTER SYSTEM SET effective_cache_size = '1GB'",
                 "ALTER SYSTEM SET work_mem = '4MB'",
                 "ALTER SYSTEM SET maintenance_work_mem = '64MB'",
-
                 # Connection settings
                 "ALTER SYSTEM SET max_connections = 200",
                 "ALTER SYSTEM SET superuser_reserved_connections = 3",
-
                 # WAL settings
                 "ALTER SYSTEM SET wal_buffers = '16MB'",
                 "ALTER SYSTEM SET checkpoint_completion_target = 0.9",
                 "ALTER SYSTEM SET wal_writer_delay = '200ms'",
-
                 # Query planning
                 "ALTER SYSTEM SET random_page_cost = 1.1",
                 "ALTER SYSTEM SET effective_io_concurrency = 200",
-
                 # Logging
                 "ALTER SYSTEM SET log_min_duration_statement = 1000",
                 "ALTER SYSTEM SET log_checkpoints = on",
                 "ALTER SYSTEM SET log_connections = on",
                 "ALTER SYSTEM SET log_disconnections = on",
                 "ALTER SYSTEM SET log_lock_waits = on",
-
                 # Autovacuum tuning
                 "ALTER SYSTEM SET autovacuum = on",
                 "ALTER SYSTEM SET autovacuum_max_workers = 3",
                 "ALTER SYSTEM SET autovacuum_naptime = '1min'",
-
                 # Monitoring
                 "ALTER SYSTEM SET track_activity_query_size = 2048",
-                "ALTER SYSTEM SET pg_stat_statements.track = all"
+                "ALTER SYSTEM SET pg_stat_statements.track = all",
             ]
 
             for config in configurations:
@@ -193,9 +191,9 @@ class PostgreSQLOptimizer:
             await conn.execute("SELECT pg_reload_conf()")
 
             return {
-                'operation': 'configure_parameters',
-                'success': True,
-                'applied_configs': len(configurations)
+                "operation": "configure_parameters",
+                "success": True,
+                "applied_configs": len(configurations),
             }
 
     async def _create_optimized_indexes(self) -> Dict[str, Any]:
@@ -203,157 +201,170 @@ class PostgreSQLOptimizer:
         index_definitions = [
             # Metrics table indexes
             {
-                'table': 'monitoring_metrics',
-                'indexes': [
+                "table": "monitoring_metrics",
+                "indexes": [
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_metrics_definition_time_btree ON monitoring_metrics (definition_id, timestamp DESC)",
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_metrics_source_time_btree ON monitoring_metrics (source, timestamp DESC)",
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_metrics_value_time ON monitoring_metrics (value, timestamp) WHERE value IS NOT NULL",
-                    "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_metrics_composite ON monitoring_metrics (definition_id, source, timestamp DESC)"
-                ]
+                    "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_metrics_composite ON monitoring_metrics (definition_id, source, timestamp DESC)",
+                ],
             },
-
             # Tracing table indexes
             {
-                'table': 'monitoring_traces',
-                'indexes': [
+                "table": "monitoring_traces",
+                "indexes": [
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_traces_service_time_desc ON monitoring_traces (service_name, start_time DESC)",
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_traces_duration ON monitoring_traces (duration_ms) WHERE duration_ms IS NOT NULL",
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_traces_status_time ON monitoring_traces (status, start_time DESC)",
-                    "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_traces_composite ON monitoring_traces (service_name, status, start_time DESC)"
-                ]
+                    "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_traces_composite ON monitoring_traces (service_name, status, start_time DESC)",
+                ],
             },
-
             # Spans table indexes
             {
-                'table': 'monitoring_spans',
-                'indexes': [
+                "table": "monitoring_spans",
+                "indexes": [
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_spans_trace_time ON monitoring_spans (trace_id, start_time DESC)",
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_spans_service_operation ON monitoring_spans (service_name, operation_name)",
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_spans_duration ON monitoring_spans (duration_ms) WHERE duration_ms > 100",
-                    "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_spans_parent ON monitoring_spans (parent_span_id) WHERE parent_span_id IS NOT NULL"
-                ]
+                    "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_spans_parent ON monitoring_spans (parent_span_id) WHERE parent_span_id IS NOT NULL",
+                ],
             },
-
             # Logs table indexes
             {
-                'table': 'monitoring_logs',
-                'indexes': [
+                "table": "monitoring_logs",
+                "indexes": [
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_logs_timestamp_desc ON monitoring_logs (timestamp DESC)",
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_logs_level_time ON monitoring_logs (level, timestamp DESC)",
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_logs_service_time ON monitoring_logs (service_name, timestamp DESC)",
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_logs_error_time ON monitoring_logs (timestamp DESC) WHERE level IN ('ERROR', 'FATAL')",
-                    "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_logs_correlation ON monitoring_logs (correlation_id, timestamp DESC) WHERE correlation_id IS NOT NULL"
-                ]
+                    "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_logs_correlation ON monitoring_logs (correlation_id, timestamp DESC) WHERE correlation_id IS NOT NULL",
+                ],
             },
-
             # Aggregations table indexes
             {
-                'table': 'monitoring_metric_aggregations',
-                'indexes': [
+                "table": "monitoring_metric_aggregations",
+                "indexes": [
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_aggregations_def_time ON monitoring_metric_aggregations (definition_id, time_bucket DESC)",
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_aggregations_type_time ON monitoring_metric_aggregations (aggregation_type, time_bucket DESC)",
-                    "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_aggregations_bucket_size ON monitoring_metric_aggregations (bucket_size_minutes, time_bucket DESC)"
-                ]
-            }
+                    "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_aggregations_bucket_size ON monitoring_metric_aggregations (bucket_size_minutes, time_bucket DESC)",
+                ],
+            },
         ]
 
         created_indexes = []
         async with asyncpg.connect(**self._get_connection_config()) as conn:
             for table_config in index_definitions:
-                for index_sql in table_config['indexes']:
+                for index_sql in table_config["indexes"]:
                     try:
                         await conn.execute(index_sql)
-                        index_name = index_sql.split("IF NOT EXISTS ")[1].split(" ON ")[0]
-                        created_indexes.append({
-                            'table': table_config['table'],
-                            'index': index_name,
-                            'sql': index_sql
-                        })
+                        index_name = index_sql.split("IF NOT EXISTS ")[1].split(" ON ")[
+                            0
+                        ]
+                        created_indexes.append(
+                            {
+                                "table": table_config["table"],
+                                "index": index_name,
+                                "sql": index_sql,
+                            }
+                        )
                         logger.debug(f"Created index: {index_name}")
                     except Exception as e:
-                        logger.warning(f"Failed to create index: {index_sql}, Error: {e}")
+                        logger.warning(
+                            f"Failed to create index: {index_sql}, Error: {e}"
+                        )
 
         return {
-            'operation': 'create_indexes',
-            'success': True,
-            'indexes_created': len(created_indexes),
-            'index_details': created_indexes
+            "operation": "create_indexes",
+            "success": True,
+            "indexes_created": len(created_indexes),
+            "index_details": created_indexes,
         }
 
     async def _setup_time_series_partitioning(self) -> Dict[str, Any]:
         """Set up partitioning for time-series monitoring data"""
         partition_configs = [
             {
-                'table': 'monitoring_metrics',
-                'partition_column': 'timestamp',
-                'partition_type': 'RANGE',
-                'initial_partitions': [
-                    'monitoring_metrics_2024_01 PARTITION OF monitoring_metrics FOR VALUES FROM (\'2024-01-01\') TO (\'2024-02-01\')',
-                    'monitoring_metrics_2024_02 PARTITION OF monitoring_metrics FOR VALUES FROM (\'2024-02-01\') TO (\'2024-03-01\')',
-                    'monitoring_metrics_2024_03 PARTITION OF monitoring_metrics FOR VALUES FROM (\'2024-03-01\') TO (\'2024-04-01\')',
-                    'monitoring_metrics_2024_04 PARTITION OF monitoring_metrics FOR VALUES FROM (\'2024-04-01\') TO (\'2024-05-01\')',
-                    'monitoring_metrics_current PARTITION OF monitoring_metrics FOR VALUES FROM (\'2024-05-01\') TO (\'2025-01-01\')'
-                ]
+                "table": "monitoring_metrics",
+                "partition_column": "timestamp",
+                "partition_type": "RANGE",
+                "initial_partitions": [
+                    "monitoring_metrics_2024_01 PARTITION OF monitoring_metrics FOR VALUES FROM ('2024-01-01') TO ('2024-02-01')",
+                    "monitoring_metrics_2024_02 PARTITION OF monitoring_metrics FOR VALUES FROM ('2024-02-01') TO ('2024-03-01')",
+                    "monitoring_metrics_2024_03 PARTITION OF monitoring_metrics FOR VALUES FROM ('2024-03-01') TO ('2024-04-01')",
+                    "monitoring_metrics_2024_04 PARTITION OF monitoring_metrics FOR VALUES FROM ('2024-04-01') TO ('2024-05-01')",
+                    "monitoring_metrics_current PARTITION OF monitoring_metrics FOR VALUES FROM ('2024-05-01') TO ('2025-01-01')",
+                ],
             },
             {
-                'table': 'monitoring_traces',
-                'partition_column': 'start_time',
-                'partition_type': 'RANGE',
-                'initial_partitions': [
-                    'monitoring_traces_2024_01 PARTITION OF monitoring_traces FOR VALUES FROM (\'2024-01-01\') TO (\'2024-02-01\')',
-                    'monitoring_traces_2024_02 PARTITION OF monitoring_traces FOR VALUES FROM (\'2024-02-01\') TO (\'2024-03-01\')',
-                    'monitoring_traces_current PARTITION OF monitoring_traces FOR VALUES FROM (\'2024-03-01\') TO (\'2025-01-01\')'
-                ]
+                "table": "monitoring_traces",
+                "partition_column": "start_time",
+                "partition_type": "RANGE",
+                "initial_partitions": [
+                    "monitoring_traces_2024_01 PARTITION OF monitoring_traces FOR VALUES FROM ('2024-01-01') TO ('2024-02-01')",
+                    "monitoring_traces_2024_02 PARTITION OF monitoring_traces FOR VALUES FROM ('2024-02-01') TO ('2024-03-01')",
+                    "monitoring_traces_current PARTITION OF monitoring_traces FOR VALUES FROM ('2024-03-01') TO ('2025-01-01')",
+                ],
             },
             {
-                'table': 'monitoring_logs',
-                'partition_column': 'timestamp',
-                'partition_type': 'RANGE',
-                'initial_partitions': [
-                    'monitoring_logs_2024_01 PARTITION OF monitoring_logs FOR VALUES FROM (\'2024-01-01\') TO (\'2024-02-01\')',
-                    'monitoring_logs_current PARTITION OF monitoring_logs FOR VALUES FROM (\'2024-02-01\') TO (\'2025-01-01\')'
-                ]
-            }
+                "table": "monitoring_logs",
+                "partition_column": "timestamp",
+                "partition_type": "RANGE",
+                "initial_partitions": [
+                    "monitoring_logs_2024_01 PARTITION OF monitoring_logs FOR VALUES FROM ('2024-01-01') TO ('2024-02-01')",
+                    "monitoring_logs_current PARTITION OF monitoring_logs FOR VALUES FROM ('2024-02-01') TO ('2025-01-01')",
+                ],
+            },
         ]
 
         partitions_created = []
         async with asyncpg.connect(**self._get_connection_config()) as conn:
             for config in partition_configs:
-                table_name = config['table']
+                table_name = config["table"]
 
                 # Check if table is already partitioned
-                is_partitioned = await conn.fetchval("""
+                is_partitioned = await conn.fetchval(
+                    """
                     SELECT EXISTS (
                         SELECT 1 FROM pg_inherits
                         WHERE inhparent = $1::regclass
                     )
-                """, table_name)
+                """,
+                    table_name,
+                )
 
                 if not is_partitioned:
                     try:
                         # Convert table to partitioned (simplified approach)
-                        await conn.execute(f"""
+                        await conn.execute(
+                            f"""
                             ALTER TABLE {table_name}
                             PARTITION BY RANGE ({config['partition_column']})
-                        """)
+                        """
+                        )
 
                         # Create initial partitions
-                        for partition_sql in config['initial_partitions']:
-                            await conn.execute(f"CREATE TABLE IF NOT EXISTS {partition_sql}")
-                            partitions_created.append(partition_sql.split(' PARTITION OF ')[0])
+                        for partition_sql in config["initial_partitions"]:
+                            await conn.execute(
+                                f"CREATE TABLE IF NOT EXISTS {partition_sql}"
+                            )
+                            partitions_created.append(
+                                partition_sql.split(" PARTITION OF ")[0]
+                            )
 
                         logger.info(f"Set up partitioning for {table_name}")
 
                     except Exception as e:
-                        logger.warning(f"Failed to set up partitioning for {table_name}: {e}")
+                        logger.warning(
+                            f"Failed to set up partitioning for {table_name}: {e}"
+                        )
                 else:
                     logger.info(f"Table {table_name} is already partitioned")
 
         return {
-            'operation': 'setup_partitioning',
-            'success': True,
-            'partitions_created': len(partitions_created),
-            'partition_details': partitions_created
+            "operation": "setup_partitioning",
+            "success": True,
+            "partitions_created": len(partitions_created),
+            "partition_details": partitions_created,
         }
 
     async def _create_materialized_views(self) -> Dict[str, Any]:
@@ -376,7 +387,6 @@ class PostgreSQLOptimizer:
             WHERE m.timestamp >= NOW() - INTERVAL '24 hours'
             GROUP BY 1, 2, 3
             """,
-
             # Recent errors view
             """
             CREATE MATERIALIZED VIEW IF NOT EXISTS recent_errors_summary AS
@@ -392,7 +402,6 @@ class PostgreSQLOptimizer:
             AND l.timestamp >= NOW() - INTERVAL '24 hours'
             GROUP BY 1, 2, 3
             """,
-
             # Performance traces view
             """
             CREATE MATERIALIZED VIEW IF NOT EXISTS performance_traces_summary AS
@@ -408,7 +417,6 @@ class PostgreSQLOptimizer:
             WHERE t.start_time >= NOW() - INTERVAL '24 hours'
             GROUP BY 1, 2, 3
             """,
-
             # System health view
             """
             CREATE MATERIALIZED VIEW IF NOT EXISTS system_health_overview AS
@@ -436,7 +444,7 @@ class PostgreSQLOptimizer:
                 count(CASE WHEN timestamp >= NOW() - INTERVAL '1 hour' THEN 1 END) as recent_records
             FROM monitoring_logs
             WHERE timestamp >= NOW() - INTERVAL '24 hours' AND level = 'ERROR'
-            """
+            """,
         ]
 
         created_views = []
@@ -460,10 +468,10 @@ class PostgreSQLOptimizer:
                     logger.warning(f"Failed to create materialized view: {e}")
 
         return {
-            'operation': 'create_materialized_views',
-            'success': True,
-            'views_created': len(created_views),
-            'view_details': created_views
+            "operation": "create_materialized_views",
+            "success": True,
+            "views_created": len(created_views),
+            "view_details": created_views,
         }
 
     async def _optimize_table_configurations(self) -> Dict[str, Any]:
@@ -474,12 +482,10 @@ class PostgreSQLOptimizer:
             "ALTER TABLE monitoring_traces SET (fillfactor = 90)",
             "ALTER TABLE monitoring_spans SET (fillfactor = 90)",
             "ALTER TABLE monitoring_logs SET (fillfactor = 85)",
-
             # Toast table settings
             "ALTER TABLE monitoring_logs ALTER COLUMN message SET STORAGE EXTENDED",
             "ALTER TABLE monitoring_logs ALTER COLUMN stack_trace SET STORAGE EXTERNAL",
             "ALTER TABLE monitoring_trace_errors ALTER COLUMN stack_trace SET STORAGE EXTERNAL",
-
             # Row level security policies if needed
             # (Add RLS policies here if implementing multi-tenant security)
         ]
@@ -492,13 +498,15 @@ class PostgreSQLOptimizer:
                     applied_optimizations.append(opt_sql)
                     logger.debug(f"Applied table optimization: {opt_sql}")
                 except Exception as e:
-                    logger.warning(f"Failed to apply table optimization: {opt_sql}, Error: {e}")
+                    logger.warning(
+                        f"Failed to apply table optimization: {opt_sql}, Error: {e}"
+                    )
 
         return {
-            'operation': 'optimize_tables',
-            'success': True,
-            'optimizations_applied': len(applied_optimizations),
-            'details': applied_optimizations
+            "operation": "optimize_tables",
+            "success": True,
+            "optimizations_applied": len(applied_optimizations),
+            "details": applied_optimizations,
         }
 
     async def _setup_maintenance_schedules(self) -> Dict[str, Any]:
@@ -516,7 +524,6 @@ class PostgreSQLOptimizer:
             END;
             $$ LANGUAGE plpgsql;
             """,
-
             # Partition maintenance function
             """
             CREATE OR REPLACE FUNCTION create_monthly_partitions()
@@ -540,7 +547,6 @@ class PostgreSQLOptimizer:
             END;
             $$ LANGUAGE plpgsql;
             """,
-
             # Data cleanup function
             """
             CREATE OR REPLACE FUNCTION cleanup_old_monitoring_data(retention_days int DEFAULT 30)
@@ -562,7 +568,7 @@ class PostgreSQLOptimizer:
                 VACUUM ANALYZE monitoring_logs;
             END;
             $$ LANGUAGE plpgsql;
-            """
+            """,
         ]
 
         created_functions = []
@@ -577,10 +583,10 @@ class PostgreSQLOptimizer:
                     logger.warning(f"Failed to create maintenance function: {e}")
 
         return {
-            'operation': 'setup_maintenance',
-            'success': True,
-            'functions_created': len(created_functions),
-            'function_details': created_functions
+            "operation": "setup_maintenance",
+            "success": True,
+            "functions_created": len(created_functions),
+            "function_details": created_functions,
         }
 
     async def analyze_query_performance(self, query: str) -> Dict[str, Any]:
@@ -588,46 +594,51 @@ class PostgreSQLOptimizer:
         async with asyncpg.connect(**self._get_connection_config()) as conn:
             try:
                 # Get query plan
-                plan_result = await conn.fetchval(f"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {query}")
+                plan_result = await conn.fetchval(
+                    f"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {query}"
+                )
                 plan_data = json.loads(plan_result)[0]
 
                 # Extract performance metrics
-                execution_time = plan_data.get('Execution Time', 0)
-                planning_time = plan_data.get('Planning Time', 0)
-                total_cost = plan_data.get('Plan', {}).get('Total Cost', 0)
+                execution_time = plan_data.get("Execution Time", 0)
+                planning_time = plan_data.get("Planning Time", 0)
+                total_cost = plan_data.get("Plan", {}).get("Total Cost", 0)
 
                 # Analyze plan for optimization opportunities
                 suggestions = []
                 if execution_time > 1000:  # > 1 second
                     suggestions.append("Consider adding indexes for filtered columns")
 
-                if 'Seq Scan' in str(plan_data):
-                    suggestions.append("Sequential scan detected - consider adding indexes")
+                if "Seq Scan" in str(plan_data):
+                    suggestions.append(
+                        "Sequential scan detected - consider adding indexes"
+                    )
 
-                if 'Sort' in str(plan_data):
+                if "Sort" in str(plan_data):
                     suggestions.append("Consider adding index for ORDER BY clause")
 
                 return {
-                    'query': query,
-                    'execution_time_ms': execution_time,
-                    'planning_time_ms': planning_time,
-                    'total_cost': total_cost,
-                    'optimization_suggestions': suggestions,
-                    'plan_details': plan_data
+                    "query": query,
+                    "execution_time_ms": execution_time,
+                    "planning_time_ms": planning_time,
+                    "total_cost": total_cost,
+                    "optimization_suggestions": suggestions,
+                    "plan_details": plan_data,
                 }
 
             except Exception as e:
                 return {
-                    'query': query,
-                    'error': str(e),
-                    'optimization_suggestions': ['Query failed to execute']
+                    "query": query,
+                    "error": str(e),
+                    "optimization_suggestions": ["Query failed to execute"],
                 }
 
     async def get_optimization_report(self) -> Dict[str, Any]:
         """Generate comprehensive optimization report"""
         async with asyncpg.connect(**self._get_connection_config()) as conn:
             # Database size and table statistics
-            db_stats = await conn.fetch("""
+            db_stats = await conn.fetch(
+                """
                 SELECT
                     schemaname,
                     tablename,
@@ -642,10 +653,12 @@ class PostgreSQLOptimizer:
                 FROM pg_stat_user_tables
                 WHERE schemaname = 'public'
                 ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC
-            """)
+            """
+            )
 
             # Index usage statistics
-            index_stats = await conn.fetch("""
+            index_stats = await conn.fetch(
+                """
                 SELECT
                     schemaname,
                     tablename,
@@ -657,10 +670,12 @@ class PostgreSQLOptimizer:
                 FROM pg_stat_user_indexes
                 WHERE schemaname = 'public'
                 ORDER BY idx_scan DESC
-            """)
+            """
+            )
 
             # Slow queries
-            slow_queries = await conn.fetch("""
+            slow_queries = await conn.fetch(
+                """
                 SELECT
                     query,
                     calls,
@@ -672,29 +687,30 @@ class PostgreSQLOptimizer:
                 WHERE mean_exec_time > 100
                 ORDER BY mean_exec_time DESC
                 LIMIT 10
-            """)
+            """
+            )
 
             return {
-                'timestamp': datetime.utcnow().isoformat(),
-                'database_stats': [dict(row) for row in db_stats],
-                'index_statistics': [dict(row) for row in index_stats],
-                'slow_queries': [dict(row) for row in slow_queries],
-                'optimization_history': len(self.optimization_history),
-                'configuration': {
-                    'pool_size': self.config.pool_size,
-                    'optimization_level': self.config.optimization_level.value
-                }
+                "timestamp": datetime.utcnow().isoformat(),
+                "database_stats": [dict(row) for row in db_stats],
+                "index_statistics": [dict(row) for row in index_stats],
+                "slow_queries": [dict(row) for row in slow_queries],
+                "optimization_history": len(self.optimization_history),
+                "configuration": {
+                    "pool_size": self.config.pool_size,
+                    "optimization_level": self.config.optimization_level.value,
+                },
             }
 
     def _get_connection_config(self) -> Dict[str, Any]:
         """Get connection configuration for asyncpg"""
         return {
-            'host': self.config.host,
-            'port': self.config.port,
-            'user': self.config.user,
-            'password': self.config.password,
-            'database': self.config.database,
-            'command_timeout': 60
+            "host": self.config.host,
+            "port": self.config.port,
+            "user": self.config.user,
+            "password": self.config.password,
+            "database": self.config.database,
+            "command_timeout": 60,
         }
 
 
@@ -708,7 +724,8 @@ class MigrationManager:
     async def create_migration_tables(self):
         """Create migration tracking tables"""
         async with asyncpg.connect(**self.optimizer._get_connection_config()) as conn:
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS schema_migrations (
                     id SERIAL PRIMARY KEY,
                     migration_name VARCHAR(255) UNIQUE NOT NULL,
@@ -717,9 +734,11 @@ class MigrationManager:
                     description TEXT,
                     checksum VARCHAR(64)
                 )
-            """)
+            """
+            )
 
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS migration_locks (
                     id SERIAL PRIMARY KEY,
                     lock_name VARCHAR(255) UNIQUE NOT NULL,
@@ -727,16 +746,23 @@ class MigrationManager:
                     locked_by VARCHAR(255),
                     expires_at TIMESTAMP WITH TIME ZONE
                 )
-            """)
+            """
+            )
 
-    async def run_migration(self, migration_name: str, sql: str, rollback_sql: str = None, description: str = "") -> bool:
+    async def run_migration(
+        self,
+        migration_name: str,
+        sql: str,
+        rollback_sql: str = None,
+        description: str = "",
+    ) -> bool:
         """Run a single migration with rollback support"""
         async with asyncpg.connect(**self.optimizer._get_connection_config()) as conn:
             try:
                 # Check if migration already applied
                 exists = await conn.fetchval(
                     "SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE migration_name = $1)",
-                    migration_name
+                    migration_name,
                 )
 
                 if exists:
@@ -749,32 +775,42 @@ class MigrationManager:
                     await conn.execute(sql)
 
                     # Record migration
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         INSERT INTO schema_migrations (migration_name, rollback_sql, description, checksum)
                         VALUES ($1, $2, $3, $4)
-                    """, migration_name, rollback_sql, description, migration_name)  # Simple checksum
+                    """,
+                        migration_name,
+                        rollback_sql,
+                        description,
+                        migration_name,
+                    )  # Simple checksum
 
                     logger.info(f"Applied migration: {migration_name}")
 
                     # Record in history
-                    self.migration_history.append({
-                        'migration_name': migration_name,
-                        'applied_at': datetime.utcnow(),
-                        'success': True,
-                        'description': description
-                    })
+                    self.migration_history.append(
+                        {
+                            "migration_name": migration_name,
+                            "applied_at": datetime.utcnow(),
+                            "success": True,
+                            "description": description,
+                        }
+                    )
 
                 return True
 
             except Exception as e:
                 logger.error(f"Failed to apply migration {migration_name}: {e}")
-                self.migration_history.append({
-                    'migration_name': migration_name,
-                    'applied_at': datetime.utcnow(),
-                    'success': False,
-                    'error': str(e),
-                    'description': description
-                })
+                self.migration_history.append(
+                    {
+                        "migration_name": migration_name,
+                        "applied_at": datetime.utcnow(),
+                        "success": False,
+                        "error": str(e),
+                        "description": description,
+                    }
+                )
                 return False
 
     async def rollback_migration(self, migration_name: str) -> bool:
@@ -784,17 +820,22 @@ class MigrationManager:
                 # Get rollback SQL
                 rollback_sql = await conn.fetchval(
                     "SELECT rollback_sql FROM schema_migrations WHERE migration_name = $1",
-                    migration_name
+                    migration_name,
                 )
 
                 if not rollback_sql:
-                    logger.error(f"No rollback SQL found for migration {migration_name}")
+                    logger.error(
+                        f"No rollback SQL found for migration {migration_name}"
+                    )
                     return False
 
                 # Execute rollback
                 async with conn.transaction():
                     await conn.execute(rollback_sql)
-                    await conn.execute("DELETE FROM schema_migrations WHERE migration_name = $1", migration_name)
+                    await conn.execute(
+                        "DELETE FROM schema_migrations WHERE migration_name = $1",
+                        migration_name,
+                    )
 
                 logger.info(f"Rolled back migration: {migration_name}")
                 return True
@@ -806,16 +847,18 @@ class MigrationManager:
     async def get_migration_status(self) -> Dict[str, Any]:
         """Get migration status and history"""
         async with asyncpg.connect(**self.optimizer._get_connection_config()) as conn:
-            migrations = await conn.fetch("""
+            migrations = await conn.fetch(
+                """
                 SELECT migration_name, applied_at, description, checksum
                 FROM schema_migrations
                 ORDER BY applied_at DESC
-            """)
+            """
+            )
 
             return {
-                'applied_migrations': [dict(row) for row in migrations],
-                'total_migrations': len(migrations),
-                'last_migration': migrations[0]['applied_at'] if migrations else None
+                "applied_migrations": [dict(row) for row in migrations],
+                "total_migrations": len(migrations),
+                "last_migration": migrations[0]["applied_at"] if migrations else None,
             }
 
 
@@ -840,5 +883,5 @@ def create_production_config() -> DatabaseConfig:
         max_overflow=100,
         pool_timeout=30,
         pool_recycle=3600,
-        optimization_level=OptimizationLevel.PRODUCTION
+        optimization_level=OptimizationLevel.PRODUCTION,
     )

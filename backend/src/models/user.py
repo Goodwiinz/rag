@@ -2,20 +2,24 @@
 User model and related functionality
 """
 
-from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Integer
-from sqlalchemy.orm import relationship
-from enum import Enum as PyEnum
-import bcrypt
 from datetime import datetime
+from enum import Enum as PyEnum
 
-from .base import BaseModel, GUID
+import bcrypt
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
+
+from .base import GUID, BaseModel
+
 
 class UserRole(PyEnum):
     """User roles"""
+
     ADMIN = "admin"
     CONTENT_MANAGER = "content_manager"
     USER = "user"
     ANALYST = "analyst"
+
 
 class User(BaseModel):
     """User account model"""
@@ -45,13 +49,19 @@ class User(BaseModel):
     search_queries = relationship("SearchQuery", back_populates="user")
 
     # Analytics relationships (using string references to avoid circular imports)
-    sessions = relationship("src.models.user_session.UserSession", back_populates="user")
-    analytics_events = relationship("src.models.analytics_event.AnalyticsEvent", back_populates="user")
+    sessions = relationship(
+        "src.models.user_session.UserSession", back_populates="user"
+    )
+    analytics_events = relationship(
+        "src.models.analytics_event.AnalyticsEvent", back_populates="user"
+    )
     search_sessions = relationship("SearchSession", back_populates="user")
     search_events = relationship("SearchEvent", back_populates="user")
 
     # Encrypted profile relationship
-    encrypted_profile = relationship("EncryptedUserProfile", back_populates="user", uselist=False)
+    encrypted_profile = relationship(
+        "EncryptedUserProfile", back_populates="user", uselist=False
+    )
 
     # Audit relationship
     audit_events = relationship("AuditEvent", back_populates="user")
@@ -70,11 +80,13 @@ class User(BaseModel):
     def set_password(self, password: str):
         """Set user password with secure hashing"""
         from src.core.security import get_password_hash
+
         self.password_hash = get_password_hash(password)
 
     def check_password(self, password: str) -> bool:
         """Check if provided password matches stored hash"""
         from src.core.security import verify_password
+
         return verify_password(password, self.password_hash)
 
     def update_last_login(self):
@@ -88,7 +100,7 @@ class User(BaseModel):
             UserRole.USER: 0,
             UserRole.ANALYST: 1,
             UserRole.CONTENT_MANAGER: 2,
-            UserRole.ADMIN: 3
+            UserRole.ADMIN: 3,
         }
 
         return role_hierarchy.get(self.role, 0) >= role_hierarchy.get(required_role, 0)
@@ -110,10 +122,10 @@ class User(BaseModel):
         data = super().to_dict()
 
         if exclude_sensitive:
-            data.pop('password_hash', None)
+            data.pop("password_hash", None)
 
         # Add computed fields
-        data['full_name'] = self.full_name
-        data['role'] = self.role.value if self.role else None
+        data["full_name"] = self.full_name
+        data["role"] = self.role.value if self.role else None
 
         return data

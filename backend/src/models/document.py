@@ -2,17 +2,30 @@
 Document model for multimodal content storage and management
 """
 
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Enum, ForeignKey, Text, JSON
+from datetime import datetime
+from enum import Enum as PyEnum
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import relationship
-from enum import Enum as PyEnum
-from datetime import datetime
 
-from .base import BaseModel, GUID
+from .base import GUID, BaseModel
 from .utils import StringArray
+
 
 class DocumentType(PyEnum):
     """Document types for different modalities"""
+
     TEXT = "text"
     IMAGE = "image"
     AUDIO = "audio"
@@ -22,13 +35,16 @@ class DocumentType(PyEnum):
     PRESENTATION = "presentation"
     MULTIMODAL = "multimodal"
 
+
 class ProcessingStatus(PyEnum):
     """Processing status for documents"""
+
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
     RETRYING = "retrying"
+
 
 class Document(BaseModel):
     """Document model for multimodal content"""
@@ -49,10 +65,14 @@ class Document(BaseModel):
     document_metadata = Column(JSON, nullable=True)  # Document-specific metadata
 
     # Full-text search
-    search_vector = Column(TSVECTOR, nullable=True)  # PostgreSQL full-text search vector
+    search_vector = Column(
+        TSVECTOR, nullable=True
+    )  # PostgreSQL full-text search vector
 
     # Processing
-    processing_status = Column(Enum(ProcessingStatus), nullable=False, default=ProcessingStatus.PENDING)
+    processing_status = Column(
+        Enum(ProcessingStatus), nullable=False, default=ProcessingStatus.PENDING
+    )
     processing_started_at = Column(DateTime(timezone=True), nullable=True)
     processing_completed_at = Column(DateTime(timezone=True), nullable=True)
     processing_error = Column(Text, nullable=True)
@@ -74,16 +94,34 @@ class Document(BaseModel):
     # Relationships
     organization = relationship("Organization", back_populates="documents")
     uploaded_by_user = relationship("User", back_populates="documents")
-    entities = relationship("Entity", back_populates="document", cascade="all, delete-orphan")
-    processing_jobs = relationship("ProcessingJob", back_populates="document", cascade="all, delete-orphan")
-    search_results = relationship("SearchResult", back_populates="document", cascade="all, delete-orphan")
+    entities = relationship(
+        "Entity", back_populates="document", cascade="all, delete-orphan"
+    )
+    processing_jobs = relationship(
+        "ProcessingJob", back_populates="document", cascade="all, delete-orphan"
+    )
+    search_results = relationship(
+        "SearchResult", back_populates="document", cascade="all, delete-orphan"
+    )
 
     # Enhanced document processing relationships
-    processing_history = relationship("ProcessingHistory", back_populates="document", cascade="all, delete-orphan")
-    versions = relationship("DocumentVersion", back_populates="document", cascade="all, delete-orphan")
-    multimodal_content = relationship("MultimodalContent", back_populates="document", cascade="all, delete-orphan")
-    quality_metrics = relationship("DocumentQualityMetrics", back_populates="document", cascade="all, delete-orphan")
-    access_logs = relationship("DocumentAccessLog", back_populates="document", cascade="all, delete-orphan")
+    processing_history = relationship(
+        "ProcessingHistory", back_populates="document", cascade="all, delete-orphan"
+    )
+    versions = relationship(
+        "DocumentVersion", back_populates="document", cascade="all, delete-orphan"
+    )
+    multimodal_content = relationship(
+        "MultimodalContent", back_populates="document", cascade="all, delete-orphan"
+    )
+    quality_metrics = relationship(
+        "DocumentQualityMetrics",
+        back_populates="document",
+        cascade="all, delete-orphan",
+    )
+    access_logs = relationship(
+        "DocumentAccessLog", back_populates="document", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<Document(title={self.title}, type={self.document_type.value}, status={self.processing_status.value})>"
@@ -105,13 +143,18 @@ class Document(BaseModel):
     def processing_duration_seconds(self) -> float:
         """Get processing duration in seconds"""
         if self.processing_started_at and self.processing_completed_at:
-            return (self.processing_completed_at - self.processing_started_at).total_seconds()
+            return (
+                self.processing_completed_at - self.processing_started_at
+            ).total_seconds()
         return 0.0
 
     @property
     def is_processing_complete(self) -> bool:
         """Check if processing is complete (success or failure)"""
-        return self.processing_status in [ProcessingStatus.COMPLETED, ProcessingStatus.FAILED]
+        return self.processing_status in [
+            ProcessingStatus.COMPLETED,
+            ProcessingStatus.FAILED,
+        ]
 
     @property
     def is_processing_successful(self) -> bool:
@@ -121,10 +164,10 @@ class Document(BaseModel):
     def can_be_searched(self) -> bool:
         """Check if document can be searched"""
         return (
-            self.is_processing_successful and
-            self.is_embedded and
-            self.is_indexed and
-            not self.is_deleted
+            self.is_processing_successful
+            and self.is_embedded
+            and self.is_indexed
+            and not self.is_deleted
         )
 
     def update_processing_status(self, status: ProcessingStatus, error: str = None):
@@ -180,45 +223,49 @@ class Document(BaseModel):
     def get_mapped_status(self) -> str:
         """Get processing status mapped to frontend-compatible values"""
         status_mapping = {
-            'pending': 'queued',
-            'processing': 'processing',
-            'completed': 'indexed',
-            'failed': 'failed',
-            'retrying': 'processing'  # Map retrying to processing
+            "pending": "queued",
+            "processing": "processing",
+            "completed": "indexed",
+            "failed": "failed",
+            "retrying": "processing",  # Map retrying to processing
         }
-        backend_status = self.processing_status.value if self.processing_status else None
-        return status_mapping.get(backend_status, 'queued')
+        backend_status = (
+            self.processing_status.value if self.processing_status else None
+        )
+        return status_mapping.get(backend_status, "queued")
 
     def to_dict(self, include_content: bool = False) -> dict:
         """Convert to dictionary"""
         data = super().to_dict()
 
         # Convert enum values
-        data['document_type'] = self.document_type.value if self.document_type else None
+        data["document_type"] = self.document_type.value if self.document_type else None
 
         # Map processing status to frontend-compatible lowercase values
         status_mapping = {
-            'pending': 'queued',
-            'processing': 'processing',
-            'completed': 'indexed',
-            'failed': 'failed'
+            "pending": "queued",
+            "processing": "processing",
+            "completed": "indexed",
+            "failed": "failed",
         }
-        backend_status = self.processing_status.value if self.processing_status else None
-        data['processing_status'] = status_mapping.get(backend_status, 'queued')
+        backend_status = (
+            self.processing_status.value if self.processing_status else None
+        )
+        data["processing_status"] = status_mapping.get(backend_status, "queued")
 
         # Add computed fields
-        data['file_size_mb'] = self.file_size_mb
-        data['processing_duration_seconds'] = self.processing_duration_seconds
-        data['is_processing_complete'] = self.is_processing_complete
-        data['is_processing_successful'] = self.is_processing_successful
-        data['can_be_searched'] = self.can_be_searched()
+        data["file_size_mb"] = self.file_size_mb
+        data["processing_duration_seconds"] = self.processing_duration_seconds
+        data["is_processing_complete"] = self.is_processing_complete
+        data["is_processing_successful"] = self.is_processing_successful
+        data["can_be_searched"] = self.can_be_searched()
 
         # Include content if requested
         if not include_content:
-            data.pop('content_text', None)
+            data.pop("content_text", None)
 
         # Remove sensitive fields
-        data.pop('file_path', None)
+        data.pop("file_path", None)
 
         return data
 
@@ -226,23 +273,31 @@ class Document(BaseModel):
     def get_documents_by_type(cls, document_type: DocumentType) -> list:
         """Get documents by type"""
         return cls.query.filter(
-            cls.document_type == document_type,
-            cls.is_deleted == False
+            cls.document_type == document_type, cls.is_deleted == False
         ).all()
 
     @classmethod
     def get_processing_queue(cls, limit: int = 50) -> list:
         """Get documents in processing queue"""
-        return cls.query.filter(
-            cls.processing_status == ProcessingStatus.PENDING,
-            cls.is_deleted == False
-        ).order_by(cls.created_at).limit(limit).all()
+        return (
+            cls.query.filter(
+                cls.processing_status == ProcessingStatus.PENDING,
+                cls.is_deleted == False,
+            )
+            .order_by(cls.created_at)
+            .limit(limit)
+            .all()
+        )
 
     @classmethod
     def get_failed_documents(cls, retry_threshold: int = 3) -> list:
         """Get failed documents that haven't exceeded retry threshold"""
-        return cls.query.filter(
-            cls.processing_status == ProcessingStatus.FAILED,
-            cls.processing_retry_count < retry_threshold,
-            cls.is_deleted == False
-        ).order_by(cls.processing_retry_count).all()
+        return (
+            cls.query.filter(
+                cls.processing_status == ProcessingStatus.FAILED,
+                cls.processing_retry_count < retry_threshold,
+                cls.is_deleted == False,
+            )
+            .order_by(cls.processing_retry_count)
+            .all()
+        )

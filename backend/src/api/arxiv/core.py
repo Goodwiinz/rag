@@ -8,22 +8,24 @@ Provides REST API endpoints for:
 - Managing arXiv-specific features
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
-from fastapi.responses import JSONResponse
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
-from pydantic import BaseModel, Field
 import logging
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
-from src.services.arxiv.arxiv_service import ArXivIngestionService
-from src.services.documents.file_service import FileService
-# from src.services.search.search_service import SearchService  # Not used
-from src.core.dependencies import get_current_user
-from src.shared.schemas import UserResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.core.config import get_settings
 from src.core.database import get_db
+
+# from src.services.search.search_service import SearchService  # Not used
+from src.core.dependencies import get_current_user
 from src.models.document import Document, DocumentType, ProcessingStatus
-from sqlalchemy.ext.asyncio import AsyncSession
+from src.services.arxiv.arxiv_service import ArXivIngestionService
+from src.services.documents.file_service import FileService
+from src.shared.schemas import UserResponse
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,9 @@ settings = get_settings()
 # Pydantic models
 class ArXivSearchRequest(BaseModel):
     query: str = Field(..., description="Search query for arXiv papers")
-    max_results: int = Field(100, ge=1, le=1000, description="Maximum number of results")
+    max_results: int = Field(
+        100, ge=1, le=1000, description="Maximum number of results"
+    )
     date_from: Optional[datetime] = Field(None, description="Start date for filtering")
     date_to: Optional[datetime] = Field(None, description="End date for filtering")
     categories: Optional[List[str]] = Field(None, description="Categories to filter by")
@@ -45,7 +49,9 @@ class ArXivSearchRequest(BaseModel):
 class ArXivIngestRequest(BaseModel):
     paper_ids: List[str] = Field(..., description="List of arXiv paper IDs to ingest")
     download_pdfs: bool = Field(True, description="Whether to download PDFs")
-    extract_content: bool = Field(True, description="Whether to extract full text content")
+    extract_content: bool = Field(
+        True, description="Whether to extract full text content"
+    )
     batch_size: int = Field(10, ge=1, le=50, description="Batch size for processing")
 
 
@@ -65,18 +71,22 @@ class ArXivPaperResponse(BaseModel):
 
 
 class EvaluationDatasetRequest(BaseModel):
-    query: str = Field("machine learning", description="Query to find papers for dataset")
+    query: str = Field(
+        "machine learning", description="Query to find papers for dataset"
+    )
     num_papers: int = Field(50, ge=1, le=200, description="Number of papers to include")
     questions_per_paper: int = Field(5, ge=1, le=10, description="Questions per paper")
-    difficulty_levels: List[str] = Field(["easy", "medium", "hard"], description="Difficulty levels")
+    difficulty_levels: List[str] = Field(
+        ["easy", "medium", "hard"], description="Difficulty levels"
+    )
 
 
 # Dependency injection
 async def get_arxiv_service() -> ArXivIngestionService:
     """Get arXiv service instance"""
     config = {
-        'arxiv_download_dir': settings.get('arxiv_download_dir', 'data/arxiv'),
-        'max_concurrent_downloads': settings.get('arxiv_max_downloads', 10)
+        "arxiv_download_dir": settings.get("arxiv_download_dir", "data/arxiv"),
+        "max_concurrent_downloads": settings.get("arxiv_max_downloads", 10),
     }
     return ArXivIngestionService(config)
 
@@ -84,8 +94,7 @@ async def get_arxiv_service() -> ArXivIngestionService:
 # Endpoints
 @router.post("/search", response_model=List[ArXivPaperResponse])
 async def search_arxiv_papers(
-    request: ArXivSearchRequest,
-    current_user: UserResponse = Depends(get_current_user)
+    request: ArXivSearchRequest, current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Search for papers on arXiv
@@ -102,26 +111,32 @@ async def search_arxiv_papers(
                 date_to=request.date_to,
                 categories=request.categories,
                 sort_by=request.sort_by,
-                sort_order=request.sort_order
+                sort_order=request.sort_order,
             )
 
             # Convert to response model
             response = []
             for paper in papers:
-                response.append(ArXivPaperResponse(
-                    id=paper['id'],
-                    title=paper['title'],
-                    authors=paper['authors'],
-                    abstract=paper['abstract'],
-                    published=datetime.fromisoformat(paper['published'].replace('Z', '+00:00')),
-                    updated=datetime.fromisoformat(paper['updated'].replace('Z', '+00:00')),
-                    categories=paper['categories'],
-                    primary_category=paper.get('primary_category'),
-                    comment=paper.get('comment'),
-                    journal_ref=paper.get('journal_ref'),
-                    pdf_url=paper['links'].get('pdf'),
-                    doi=paper['links'].get('doi')
-                ))
+                response.append(
+                    ArXivPaperResponse(
+                        id=paper["id"],
+                        title=paper["title"],
+                        authors=paper["authors"],
+                        abstract=paper["abstract"],
+                        published=datetime.fromisoformat(
+                            paper["published"].replace("Z", "+00:00")
+                        ),
+                        updated=datetime.fromisoformat(
+                            paper["updated"].replace("Z", "+00:00")
+                        ),
+                        categories=paper["categories"],
+                        primary_category=paper.get("primary_category"),
+                        comment=paper.get("comment"),
+                        journal_ref=paper.get("journal_ref"),
+                        pdf_url=paper["links"].get("pdf"),
+                        doi=paper["links"].get("doi"),
+                    )
+                )
 
             return response
 
@@ -133,7 +148,7 @@ async def search_arxiv_papers(
 async def ingest_arxiv_papers(
     request: ArXivIngestRequest,
     background_tasks: BackgroundTasks,
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """
     Ingest arXiv papers into the RAG system
@@ -148,13 +163,13 @@ async def ingest_arxiv_papers(
             user_id=current_user.id,
             download_pdfs=request.download_pdfs,
             extract_content=request.extract_content,
-            batch_size=request.batch_size
+            batch_size=request.batch_size,
         )
 
         return {
             "message": "ArXiv paper ingestion started",
             "paper_count": len(request.paper_ids),
-            "status": "processing"
+            "status": "processing",
         }
 
     except Exception as e:
@@ -165,7 +180,7 @@ async def ingest_arxiv_papers(
 async def create_evaluation_dataset(
     request: EvaluationDatasetRequest,
     background_tasks: BackgroundTasks,
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """
     Create an evaluation dataset from arXiv papers
@@ -183,13 +198,13 @@ async def create_evaluation_dataset(
             num_papers=request.num_papers,
             questions_per_paper=request.questions_per_paper,
             difficulty_levels=request.difficulty_levels,
-            user_id=current_user.id
+            user_id=current_user.id,
         )
 
         return {
             "message": "Evaluation dataset creation started",
             "task_id": task_id,
-            "status": "processing"
+            "status": "processing",
         }
 
     except Exception as e:
@@ -197,9 +212,7 @@ async def create_evaluation_dataset(
 
 
 @router.get("/categories", response_model=Dict[str, Any])
-async def get_arxiv_categories(
-    current_user: UserResponse = Depends(get_current_user)
-):
+async def get_arxiv_categories(current_user: UserResponse = Depends(get_current_user)):
     """
     Get available arXiv categories and their descriptions
     """
@@ -218,8 +231,8 @@ async def get_arxiv_categories(
                 "cs.MM": "Multimedia",
                 "cs.NI": "Networking and Internet Architecture",
                 "cs.RO": "Robotics",
-                "cs.SY": "Systems and Control"
-            }
+                "cs.SY": "Systems and Control",
+            },
         },
         "mathematics": {
             "description": "Mathematics",
@@ -230,8 +243,8 @@ async def get_arxiv_categories(
                 "math.CO": "Combinatorics",
                 "math.NA": "Numerical Analysis",
                 "math.PR": "Probability",
-                "math.ST": "Statistics Theory"
-            }
+                "math.ST": "Statistics Theory",
+            },
         },
         "physics": {
             "description": "Physics",
@@ -240,8 +253,8 @@ async def get_arxiv_categories(
                 "cond-mat": "Condensed Matter",
                 "quant-ph": "Quantum Physics",
                 "physics.app-ph": "Applied Physics",
-                "physics.comp-ph": "Computational Physics"
-            }
+                "physics.comp-ph": "Computational Physics",
+            },
         },
         "quantitative_biology": {
             "description": "Quantitative Biology",
@@ -251,29 +264,30 @@ async def get_arxiv_categories(
                 "q-bio.GN": "Genomics",
                 "q-bio.NC": "Neurons and Cognition",
                 "q-bio.QM": "Quantitative Methods",
-                "q-bio.TO": "Tissues and Organs"
-            }
+                "q-bio.TO": "Tissues and Organs",
+            },
         },
         "statistics": {
             "description": "Statistics",
             "subcategories": {
                 "stat.ML": "Machine Learning",
                 "stat.ME": "Methodology",
-                "stat.TH": "Statistics Theory"
-            }
-        }
+                "stat.TH": "Statistics Theory",
+            },
+        },
     }
 
     return {
         "categories": categories,
-        "total_categories": sum(len(cat["subcategories"]) for cat in categories.values())
+        "total_categories": sum(
+            len(cat["subcategories"]) for cat in categories.values()
+        ),
     }
 
 
 @router.get("/download/{paper_id}")
 async def download_paper(
-    paper_id: str,
-    current_user: UserResponse = Depends(get_current_user)
+    paper_id: str, current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Download PDF for a specific arXiv paper
@@ -288,7 +302,7 @@ async def download_paper(
                     content={
                         "message": "PDF downloaded successfully",
                         "paper_id": paper_id,
-                        "size_bytes": len(pdf_content)
+                        "size_bytes": len(pdf_content),
                     }
                 )
             else:
@@ -302,7 +316,7 @@ async def download_paper(
 async def get_arxiv_statistics(
     query: Optional[str] = Query(None, description="Query to filter papers"),
     days: int = Query(30, ge=1, le=365, description="Number of days to look back"),
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """
     Get statistics about arXiv papers in the system
@@ -321,19 +335,19 @@ async def get_arxiv_statistics(
                 query=search_query,
                 max_results=1000,
                 date_from=date_from,
-                date_to=date_to
+                date_to=date_to,
             )
 
             # Get category statistics
             stats = arxiv_service.get_category_statistics(papers)
 
             # Add additional statistics
-            stats['date_range'] = {
-                'from': date_from.isoformat(),
-                'to': date_to.isoformat(),
-                'days': days
+            stats["date_range"] = {
+                "from": date_from.isoformat(),
+                "to": date_to.isoformat(),
+                "days": days,
             }
-            stats['query'] = query
+            stats["query"] = query
 
             return stats
 
@@ -347,12 +361,13 @@ async def _process_arxiv_ingestion(
     user_id: str,
     download_pdfs: bool,
     extract_content: bool,
-    batch_size: int
+    batch_size: int,
 ):
     """Background task to process arXiv paper ingestion"""
     try:
         # Get database session
         from src.core.database import get_db_session
+
         async for db in get_db_session():
             async with ArXivIngestionService() as arxiv_service:
                 # First, get paper metadata
@@ -360,8 +375,7 @@ async def _process_arxiv_ingestion(
                 for paper_id in paper_ids:
                     # Search for specific paper ID
                     search_results = await arxiv_service.search_papers(
-                        query=f"id:{paper_id}",
-                        max_results=1
+                        query=f"id:{paper_id}", max_results=1
                     )
                     if search_results:
                         papers.extend(search_results)
@@ -372,26 +386,26 @@ async def _process_arxiv_ingestion(
                         papers=papers,
                         download_pdfs=download_pdfs,
                         extract_content=extract_content,
-                        batch_size=batch_size
+                        batch_size=batch_size,
                     )
 
                     # Save documents to database
                     for doc in documents:
                         # Create document instance
                         document = Document(
-                            title=doc.get('title', ''),
-                            filename=doc.get('filename', ''),
-                            file_path=doc.get('file_path', ''),
-                            file_size_bytes=doc.get('file_size_bytes', 0),
-                            mime_type=doc.get('mime_type', 'application/pdf'),
+                            title=doc.get("title", ""),
+                            filename=doc.get("filename", ""),
+                            file_path=doc.get("file_path", ""),
+                            file_size_bytes=doc.get("file_size_bytes", 0),
+                            mime_type=doc.get("mime_type", "application/pdf"),
                             document_type=DocumentType.PDF,
-                            content_text=doc.get('content_text'),
-                            content_summary=doc.get('content_summary'),
-                            document_metadata=doc.get('metadata', {}),
+                            content_text=doc.get("content_text"),
+                            content_summary=doc.get("content_summary"),
+                            document_metadata=doc.get("metadata", {}),
                             processing_status=ProcessingStatus.COMPLETED,
                             uploaded_by_user_id=user_id,
-                            organization_id=doc.get('organization_id', ''),
-                            is_public=doc.get('is_public', False)
+                            organization_id=doc.get("organization_id", ""),
+                            is_public=doc.get("is_public", False),
                         )
                         db.add(document)
 
@@ -407,15 +421,14 @@ async def _create_arxiv_dataset(
     num_papers: int,
     questions_per_paper: int,
     difficulty_levels: List[str],
-    user_id: str
+    user_id: str,
 ):
     """Background task to create evaluation dataset"""
     try:
         async with ArXivIngestionService() as arxiv_service:
             # Search for papers
             papers = await arxiv_service.search_papers(
-                query=query,
-                max_results=num_papers
+                query=query, max_results=num_papers
             )
 
             if papers:
@@ -423,12 +436,14 @@ async def _create_arxiv_dataset(
                 dataset = await arxiv_service.create_evaluation_dataset(
                     papers=papers,
                     num_questions=questions_per_paper,
-                    difficulty_levels=difficulty_levels
+                    difficulty_levels=difficulty_levels,
                 )
 
                 # Store dataset metadata
                 # This could be saved to a database or file system
-                logger.info(f"Created evaluation dataset {task_id} with {len(dataset['test_cases'])} test cases")
+                logger.info(
+                    f"Created evaluation dataset {task_id} with {len(dataset['test_cases'])} test cases"
+                )
 
     except Exception as e:
         logger.error(f"Background dataset creation failed: {e}")

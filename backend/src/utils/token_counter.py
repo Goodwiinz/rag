@@ -80,9 +80,7 @@ def estimate_tokens(text: str) -> int:
 
 
 def count_message_tokens(
-    content: str,
-    role: str = "user",
-    estimate_only: bool = False
+    content: str, role: str = "user", estimate_only: bool = False
 ) -> int:
     """
     Count tokens for a chat message, including role overhead.

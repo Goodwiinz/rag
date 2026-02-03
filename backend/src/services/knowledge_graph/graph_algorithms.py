@@ -5,14 +5,20 @@ Graph algorithms implementation for analytics
 import asyncio
 import logging
 import time
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from neo4j import AsyncSession
 
-from src.services.models.analytics_models import (
-    CentralityResult, GraphPath, PathStep, Community,
-    KeyEntityInsight, BridgeEntityInsight, ClusterInsight
-)
 from src.services.config.analytics_config import config
+from src.services.models.analytics_models import (
+    BridgeEntityInsight,
+    CentralityResult,
+    ClusterInsight,
+    Community,
+    GraphPath,
+    KeyEntityInsight,
+    PathStep,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +34,7 @@ class GraphAlgorithms:
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
         tenant_id: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> Dict[str, Any]:
         """Compute PageRank centrality"""
         start_time = time.time()
@@ -37,13 +43,17 @@ class GraphAlgorithms:
             # Build query based on entity types and tenant
             where_clauses = []
             if entity_types:
-                type_filter = " OR ".join([f"e.type = '{etype}'" for etype in entity_types])
+                type_filter = " OR ".join(
+                    [f"e.type = '{etype}'" for etype in entity_types]
+                )
                 where_clauses.append(f"({type_filter})")
             if tenant_id:
                 where_clauses.append(f"e.tenant_id = '{tenant_id}'")
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-            node_filter = f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            node_filter = (
+                f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            )
 
             query = f"""
             CALL gds.pageRank.stream({{
@@ -74,25 +84,30 @@ class GraphAlgorithms:
             LIMIT $limit
             """
 
-            result = await session.run(query, {
-                "max_iterations": config.PAGERANK_MAX_ITERATIONS,
-                "damping_factor": config.PAGERANK_DAMPING_FACTOR,
-                "tolerance": config.PAGERANK_TOLERANCE,
-                "limit": limit
-            })
+            result = await session.run(
+                query,
+                {
+                    "max_iterations": config.PAGERANK_MAX_ITERATIONS,
+                    "damping_factor": config.PAGERANK_DAMPING_FACTOR,
+                    "tolerance": config.PAGERANK_TOLERANCE,
+                    "limit": limit,
+                },
+            )
 
             centrality_results = []
             rank = 1
 
             async for record in result:
-                centrality_results.append(CentralityResult(
-                    entity_id=record["entity_id"],
-                    entity_name=record["entity_name"],
-                    entity_type=record["entity_type"],
-                    centrality_score=record["pagerank_score"],
-                    rank=rank,
-                    metadata={"algorithm": "pagerank"}
-                ))
+                centrality_results.append(
+                    CentralityResult(
+                        entity_id=record["entity_id"],
+                        entity_name=record["entity_name"],
+                        entity_type=record["entity_type"],
+                        centrality_score=record["pagerank_score"],
+                        rank=rank,
+                        metadata={"algorithm": "pagerank"},
+                    )
+                )
                 rank += 1
 
             computation_time = time.time() - start_time
@@ -100,7 +115,7 @@ class GraphAlgorithms:
             return {
                 "results": [result.dict() for result in centrality_results],
                 "computation_time": computation_time,
-                "node_count": len(centrality_results)
+                "node_count": len(centrality_results),
             }
 
         except Exception as e:
@@ -115,7 +130,7 @@ class GraphAlgorithms:
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
         tenant_id: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> Dict[str, Any]:
         """Compute betweenness centrality"""
         start_time = time.time()
@@ -124,13 +139,17 @@ class GraphAlgorithms:
             # Build query conditions
             where_clauses = []
             if entity_types:
-                type_filter = " OR ".join([f"e.type = '{etype}'" for etype in entity_types])
+                type_filter = " OR ".join(
+                    [f"e.type = '{etype}'" for etype in entity_types]
+                )
                 where_clauses.append(f"({type_filter})")
             if tenant_id:
                 where_clauses.append(f"e.tenant_id = '{tenant_id}'")
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-            node_filter = f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            node_filter = (
+                f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            )
 
             query = f"""
             CALL gds.betweenness.stream({{
@@ -163,14 +182,16 @@ class GraphAlgorithms:
             rank = 1
 
             async for record in result:
-                centrality_results.append(CentralityResult(
-                    entity_id=record["entity_id"],
-                    entity_name=record["entity_name"],
-                    entity_type=record["entity_type"],
-                    centrality_score=record["betweenness_score"],
-                    rank=rank,
-                    metadata={"algorithm": "betweenness"}
-                ))
+                centrality_results.append(
+                    CentralityResult(
+                        entity_id=record["entity_id"],
+                        entity_name=record["entity_name"],
+                        entity_type=record["entity_type"],
+                        centrality_score=record["betweenness_score"],
+                        rank=rank,
+                        metadata={"algorithm": "betweenness"},
+                    )
+                )
                 rank += 1
 
             computation_time = time.time() - start_time
@@ -178,7 +199,7 @@ class GraphAlgorithms:
             return {
                 "results": [result.dict() for result in centrality_results],
                 "computation_time": computation_time,
-                "node_count": len(centrality_results)
+                "node_count": len(centrality_results),
             }
 
         except Exception as e:
@@ -192,7 +213,7 @@ class GraphAlgorithms:
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
         tenant_id: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> Dict[str, Any]:
         """Compute closeness centrality"""
         start_time = time.time()
@@ -201,13 +222,17 @@ class GraphAlgorithms:
             # Build query conditions
             where_clauses = []
             if entity_types:
-                type_filter = " OR ".join([f"e.type = '{etype}'" for etype in entity_types])
+                type_filter = " OR ".join(
+                    [f"e.type = '{etype}'" for etype in entity_types]
+                )
                 where_clauses.append(f"({type_filter})")
             if tenant_id:
                 where_clauses.append(f"e.tenant_id = '{tenant_id}'")
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-            node_filter = f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            node_filter = (
+                f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            )
 
             query = f"""
             CALL gds.closeness.stream({{
@@ -240,14 +265,16 @@ class GraphAlgorithms:
             rank = 1
 
             async for record in result:
-                centrality_results.append(CentralityResult(
-                    entity_id=record["entity_id"],
-                    entity_name=record["entity_name"],
-                    entity_type=record["entity_type"],
-                    centrality_score=record["closeness_score"],
-                    rank=rank,
-                    metadata={"algorithm": "closeness"}
-                ))
+                centrality_results.append(
+                    CentralityResult(
+                        entity_id=record["entity_id"],
+                        entity_name=record["entity_name"],
+                        entity_type=record["entity_type"],
+                        centrality_score=record["closeness_score"],
+                        rank=rank,
+                        metadata={"algorithm": "closeness"},
+                    )
+                )
                 rank += 1
 
             computation_time = time.time() - start_time
@@ -255,7 +282,7 @@ class GraphAlgorithms:
             return {
                 "results": [result.dict() for result in centrality_results],
                 "computation_time": computation_time,
-                "node_count": len(centrality_results)
+                "node_count": len(centrality_results),
             }
 
         except Exception as e:
@@ -269,7 +296,7 @@ class GraphAlgorithms:
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
         tenant_id: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> Dict[str, Any]:
         """Compute degree centrality"""
         start_time = time.time()
@@ -278,13 +305,17 @@ class GraphAlgorithms:
             # Build query conditions
             where_clauses = []
             if entity_types:
-                type_filter = " OR ".join([f"e.type = '{etype}'" for etype in entity_types])
+                type_filter = " OR ".join(
+                    [f"e.type = '{etype}'" for etype in entity_types]
+                )
                 where_clauses.append(f"({type_filter})")
             if tenant_id:
                 where_clauses.append(f"e.tenant_id = '{tenant_id}'")
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-            node_filter = f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            node_filter = (
+                f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            )
 
             query = f"""
             MATCH (e:Entity)
@@ -314,18 +345,22 @@ class GraphAlgorithms:
 
             # Second pass to create results with normalized scores
             for record in all_records:
-                normalized_score = record["degree_score"] / max_degree if max_degree > 0 else 0
-                centrality_results.append(CentralityResult(
-                    entity_id=record["entity_id"],
-                    entity_name=record["entity_name"],
-                    entity_type=record["entity_type"],
-                    centrality_score=normalized_score,
-                    rank=rank,
-                    metadata={
-                        "algorithm": "degree",
-                        "raw_degree": record["degree_score"]
-                    }
-                ))
+                normalized_score = (
+                    record["degree_score"] / max_degree if max_degree > 0 else 0
+                )
+                centrality_results.append(
+                    CentralityResult(
+                        entity_id=record["entity_id"],
+                        entity_name=record["entity_name"],
+                        entity_type=record["entity_type"],
+                        centrality_score=normalized_score,
+                        rank=rank,
+                        metadata={
+                            "algorithm": "degree",
+                            "raw_degree": record["degree_score"],
+                        },
+                    )
+                )
                 rank += 1
 
             computation_time = time.time() - start_time
@@ -333,7 +368,7 @@ class GraphAlgorithms:
             return {
                 "results": [result.dict() for result in centrality_results],
                 "computation_time": computation_time,
-                "node_count": len(centrality_results)
+                "node_count": len(centrality_results),
             }
 
         except Exception as e:
@@ -346,10 +381,12 @@ class GraphAlgorithms:
         entity_types: Optional[List[str]],
         tenant_id: Optional[str],
         limit: int,
-        algorithm: str
+        algorithm: str,
     ) -> Dict[str, Any]:
         """Fallback centrality computation using simple degree"""
-        return await self.compute_degree_centrality(session, entity_types, tenant_id, limit)
+        return await self.compute_degree_centrality(
+            session, entity_types, tenant_id, limit
+        )
 
     async def find_shortest_path_dijkstra(
         self,
@@ -358,7 +395,7 @@ class GraphAlgorithms:
         target_entity_id: str,
         tenant_id: str,
         weight_property: str = "strength",
-        max_paths: int = 10
+        max_paths: int = 10,
     ) -> Dict[str, Any]:
         """Find shortest paths using Dijkstra's algorithm"""
         start_time = time.time()
@@ -392,13 +429,16 @@ class GraphAlgorithms:
             LIMIT $max_paths
             """
 
-            result = await session.run(query, {
-                "source_entity_id": source_entity_id,
-                "target_entity_id": target_entity_id,
-                "tenant_id": tenant_id,
-                "weight_property": weight_property,
-                "max_paths": max_paths
-            })
+            result = await session.run(
+                query,
+                {
+                    "source_entity_id": source_entity_id,
+                    "target_entity_id": target_entity_id,
+                    "tenant_id": tenant_id,
+                    "weight_property": weight_property,
+                    "max_paths": max_paths,
+                },
+            )
 
             paths = []
             async for record in result:
@@ -418,7 +458,7 @@ class GraphAlgorithms:
                             entity_id=node_record["id"],
                             entity_name=node_record["name"],
                             entity_type=node_record["type"],
-                            weight=costs[i] if i < len(costs) else 0.0
+                            weight=costs[i] if i < len(costs) else 0.0,
                         )
                         steps.append(step)
 
@@ -427,7 +467,7 @@ class GraphAlgorithms:
                     steps=steps,
                     total_weight=record["totalCost"],
                     path_length=len(steps),
-                    metadata={"algorithm": "dijkstra"}
+                    metadata={"algorithm": "dijkstra"},
                 )
                 paths.append(path)
 
@@ -436,7 +476,7 @@ class GraphAlgorithms:
             return {
                 "paths": [path.dict() for path in paths],
                 "computation_time": computation_time,
-                "path_count": len(paths)
+                "path_count": len(paths),
             }
 
         except Exception as e:
@@ -452,7 +492,7 @@ class GraphAlgorithms:
         target_entity_id: str,
         tenant_id: str,
         max_depth: int = 5,
-        max_paths: int = 10
+        max_paths: int = 10,
     ) -> Dict[str, Any]:
         """Find shortest paths using BFS"""
         start_time = time.time()
@@ -469,12 +509,16 @@ class GraphAlgorithms:
             LIMIT $max_paths
             """
 
-            result = await session.run(query, {
-                "source_entity_id": source_entity_id,
-                "target_entity_id": target_entity_id,
-                "tenant_id": tenant_id,
-                "max_paths": max_paths
-            })
+            result = await session.run(
+                query,
+                {
+                    "source_entity_id": source_entity_id,
+                    "target_entity_id": target_entity_id,
+                    "tenant_id": tenant_id,
+                    "max_depth": max_depth,
+                    "max_paths": max_paths,
+                },
+            )
 
             paths = []
             path_index = 0
@@ -489,7 +533,7 @@ class GraphAlgorithms:
                         entity_id=node["id"],
                         entity_name=node["name"],
                         entity_type=node["type"],
-                        weight=1.0  # Equal weight for BFS
+                        weight=1.0,  # Equal weight for BFS
                     )
                     steps.append(step)
 
@@ -498,7 +542,7 @@ class GraphAlgorithms:
                     steps=steps,
                     total_weight=len(steps) - 1,
                     path_length=len(steps),
-                    metadata={"algorithm": "bfs"}
+                    metadata={"algorithm": "bfs"},
                 )
                 paths.append(path)
                 path_index += 1
@@ -508,7 +552,7 @@ class GraphAlgorithms:
             return {
                 "paths": [path.dict() for path in paths],
                 "computation_time": computation_time,
-                "path_count": len(paths)
+                "path_count": len(paths),
             }
 
         except Exception as e:
@@ -521,11 +565,16 @@ class GraphAlgorithms:
         source_entity_id: str,
         target_entity_id: str,
         tenant_id: str,
-        max_paths: int
+        max_paths: int,
     ) -> Dict[str, Any]:
         """Fallback path finding using simple Cypher queries"""
         return await self.find_shortest_path_bfs(
-            session, source_entity_id, target_entity_id, tenant_id, max_depth=5, max_paths=max_paths
+            session,
+            source_entity_id,
+            target_entity_id,
+            tenant_id,
+            max_depth=5,
+            max_paths=max_paths,
         )
 
     async def detect_communities_louvain(
@@ -533,7 +582,7 @@ class GraphAlgorithms:
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
         tenant_id: Optional[str] = None,
-        resolution: float = 1.0
+        resolution: float = 1.0,
     ) -> Dict[str, Any]:
         """Detect communities using Louvain algorithm"""
         start_time = time.time()
@@ -542,13 +591,17 @@ class GraphAlgorithms:
             # Build query conditions
             where_clauses = []
             if entity_types:
-                type_filter = " OR ".join([f"e.type = '{etype}'" for etype in entity_types])
+                type_filter = " OR ".join(
+                    [f"e.type = '{etype}'" for etype in entity_types]
+                )
                 where_clauses.append(f"({type_filter})")
             if tenant_id:
                 where_clauses.append(f"e.tenant_id = '{tenant_id}'")
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-            node_filter = f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            node_filter = (
+                f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            )
 
             query = f"""
             CALL gds.louvain.stream({{
@@ -594,7 +647,7 @@ class GraphAlgorithms:
                     entities=record["entities"],
                     modularity_contribution=0.0,  # Would need additional calculation
                     dominant_entity_type=dominant_type,
-                    metadata={"algorithm": "louvain"}
+                    metadata={"algorithm": "louvain"},
                 )
                 communities.append(community)
                 community_count += 1
@@ -605,19 +658,24 @@ class GraphAlgorithms:
                 "communities": [community.dict() for community in communities],
                 "computation_time": computation_time,
                 "community_count": community_count,
-                "modularity_score": total_modularity
+                "modularity_score": total_modularity,
             }
 
         except Exception as e:
             logger.error(f"Error detecting communities with Louvain: {e}")
-            return {"communities": [], "computation_time": 0, "community_count": 0, "modularity_score": 0.0}
+            return {
+                "communities": [],
+                "computation_time": 0,
+                "community_count": 0,
+                "modularity_score": 0.0,
+            }
 
     async def detect_communities_label_propagation(
         self,
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
         tenant_id: Optional[str] = None,
-        max_iterations: int = 100
+        max_iterations: int = 100,
     ) -> Dict[str, Any]:
         """Detect communities using label propagation"""
         start_time = time.time()
@@ -632,14 +690,21 @@ class GraphAlgorithms:
                 "communities": communities,
                 "computation_time": computation_time,
                 "community_count": len(communities),
-                "modularity_score": 0.0
+                "modularity_score": 0.0,
             }
 
         except Exception as e:
             logger.error(f"Error detecting communities with label propagation: {e}")
-            return {"communities": [], "computation_time": 0, "community_count": 0, "modularity_score": 0.0}
+            return {
+                "communities": [],
+                "computation_time": 0,
+                "community_count": 0,
+                "modularity_score": 0.0,
+            }
 
-    async def _get_dominant_entity_type(self, session: AsyncSession, entity_ids: List[str]) -> str:
+    async def _get_dominant_entity_type(
+        self, session: AsyncSession, entity_ids: List[str]
+    ) -> str:
         """Get dominant entity type for a list of entities"""
         try:
             query = """
@@ -660,16 +725,17 @@ class GraphAlgorithms:
 
     # Insights methods
     async def find_key_entities(
-        self,
-        session: AsyncSession,
-        tenant_id: str,
-        limit: int = 10
+        self, session: AsyncSession, tenant_id: str, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Find key entities in the graph"""
         try:
             # Combine multiple centrality measures
-            pagerank_result = await self.compute_pagerank(session, tenant_id=tenant_id, limit=limit)
-            betweenness_result = await self.compute_betweenness_centrality(session, tenant_id=tenant_id, limit=limit)
+            pagerank_result = await self.compute_pagerank(
+                session, tenant_id=tenant_id, limit=limit
+            )
+            betweenness_result = await self.compute_betweenness_centrality(
+                session, tenant_id=tenant_id, limit=limit
+            )
 
             # Combine results to find consensus key entities
             key_entities = []
@@ -684,20 +750,24 @@ class GraphAlgorithms:
                         break
 
                 # Calculate combined importance score
-                importance_score = (pr_result["centrality_score"] + betweenness_score) / 2
+                importance_score = (
+                    pr_result["centrality_score"] + betweenness_score
+                ) / 2
 
-                key_entities.append(KeyEntityInsight(
-                    entity_id=entity_id,
-                    entity_name=pr_result["entity_name"],
-                    entity_type=pr_result["entity_type"],
-                    importance_score=importance_score,
-                    key_metrics={
-                        "pagerank": pr_result["centrality_score"],
-                        "betweenness": betweenness_score,
-                        "rank": pr_result["rank"]
-                    },
-                    reasoning="High centrality scores across multiple metrics"
-                ))
+                key_entities.append(
+                    KeyEntityInsight(
+                        entity_id=entity_id,
+                        entity_name=pr_result["entity_name"],
+                        entity_type=pr_result["entity_type"],
+                        importance_score=importance_score,
+                        key_metrics={
+                            "pagerank": pr_result["centrality_score"],
+                            "betweenness": betweenness_score,
+                            "rank": pr_result["rank"],
+                        },
+                        reasoning="High centrality scores across multiple metrics",
+                    )
+                )
 
             # Sort by importance score
             key_entities.sort(key=lambda x: x.importance_score, reverse=True)
@@ -709,27 +779,28 @@ class GraphAlgorithms:
             return []
 
     async def find_bridge_entities(
-        self,
-        session: AsyncSession,
-        tenant_id: str,
-        limit: int = 10
+        self, session: AsyncSession, tenant_id: str, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Find bridge entities (entities that connect different communities)"""
         try:
             # Use betweenness centrality as proxy for bridge entities
-            betweenness_result = await self.compute_betweenness_centrality(session, tenant_id=tenant_id, limit=limit)
+            betweenness_result = await self.compute_betweenness_centrality(
+                session, tenant_id=tenant_id, limit=limit
+            )
 
             bridge_entities = []
             for result in betweenness_result.get("results", []):
                 if result["centrality_score"] > 0.1:  # Threshold for bridge entities
-                    bridge_entities.append(BridgeEntityInsight(
-                        entity_id=result["entity_id"],
-                        entity_name=result["entity_name"],
-                        entity_type=result["entity_type"],
-                        betweenness_score=result["centrality_score"],
-                        connected_communities=[],  # Would need additional computation
-                        bridge_strength=result["centrality_score"]
-                    ))
+                    bridge_entities.append(
+                        BridgeEntityInsight(
+                            entity_id=result["entity_id"],
+                            entity_name=result["entity_name"],
+                            entity_type=result["entity_type"],
+                            betweenness_score=result["centrality_score"],
+                            connected_communities=[],  # Would need additional computation
+                            bridge_strength=result["centrality_score"],
+                        )
+                    )
 
             return [entity.dict() for entity in bridge_entities]
 
@@ -738,14 +809,14 @@ class GraphAlgorithms:
             return []
 
     async def identify_graph_clusters(
-        self,
-        session: AsyncSession,
-        tenant_id: str
+        self, session: AsyncSession, tenant_id: str
     ) -> List[Dict[str, Any]]:
         """Identify graph clusters"""
         try:
             # Use community detection to identify clusters
-            community_result = await self.detect_communities_louvain(session, tenant_id=tenant_id)
+            community_result = await self.detect_communities_louvain(
+                session, tenant_id=tenant_id
+            )
 
             clusters = []
             for community_data in community_result.get("communities", []):
@@ -758,7 +829,7 @@ class GraphAlgorithms:
                     density=0.0,  # Would need additional computation
                     dominant_entity_types=[community_data["dominant_entity_type"]],
                     key_entities=key_entities,
-                    description=f"Cluster {community_data['community_id']} with {community_data['entity_count']} entities"
+                    description=f"Cluster {community_data['community_id']} with {community_data['entity_count']} entities",
                 )
                 clusters.append(cluster)
 
@@ -769,9 +840,7 @@ class GraphAlgorithms:
             return []
 
     async def detect_graph_anomalies(
-        self,
-        session: AsyncSession,
-        tenant_id: str
+        self, session: AsyncSession, tenant_id: str
     ) -> List[Dict[str, Any]]:
         """Detect graph anomalies"""
         try:
@@ -787,14 +856,16 @@ class GraphAlgorithms:
 
             result = await session.run(query, {"tenant_id": tenant_id})
             async for record in result:
-                anomalies.append(AnomalyInsight(
-                    anomaly_id=f"isolated_{record['entity_id']}",
-                    anomaly_type="isolated_entity",
-                    entities_involved=[record["entity_id"]],
-                    anomaly_score=1.0,
-                    description=f"Entity {record['entity_name']} has no connections",
-                    severity="medium"
-                ))
+                anomalies.append(
+                    AnomalyInsight(
+                        anomaly_id=f"isolated_{record['entity_id']}",
+                        anomaly_type="isolated_entity",
+                        entities_involved=[record["entity_id"]],
+                        anomaly_score=1.0,
+                        description=f"Entity {record['entity_name']} has no connections",
+                        severity="medium",
+                    )
+                )
 
             return [anomaly.dict() for anomaly in anomalies]
 
@@ -803,9 +874,7 @@ class GraphAlgorithms:
             return []
 
     async def analyze_growth_trends(
-        self,
-        session: AsyncSession,
-        tenant_id: str
+        self, session: AsyncSession, tenant_id: str
     ) -> List[Dict[str, Any]]:
         """Analyze growth trends in the graph"""
         try:
@@ -823,26 +892,37 @@ class GraphAlgorithms:
             daily_counts = []
             result = await session.run(query, {"tenant_id": tenant_id})
             async for record in result:
-                daily_counts.append({
-                    "date": record["creation_date"],
-                    "count": record["daily_count"]
-                })
+                daily_counts.append(
+                    {"date": record["creation_date"], "count": record["daily_count"]}
+                )
 
             if len(daily_counts) >= 2:
                 # Calculate simple growth rate
                 recent_count = daily_counts[0]["count"]
                 previous_count = daily_counts[1]["count"]
-                growth_rate = (recent_count - previous_count) / previous_count if previous_count > 0 else 0
+                growth_rate = (
+                    (recent_count - previous_count) / previous_count
+                    if previous_count > 0
+                    else 0
+                )
 
-                trend_direction = "increasing" if growth_rate > 0 else "decreasing" if growth_rate < 0 else "stable"
+                trend_direction = (
+                    "increasing"
+                    if growth_rate > 0
+                    else "decreasing"
+                    if growth_rate < 0
+                    else "stable"
+                )
 
-                trends.append(GrowthTrendInsight(
-                    metric_name="daily_entity_creation",
-                    time_period="last_30_days",
-                    growth_rate=growth_rate,
-                    trend_direction=trend_direction,
-                    key_drivers=["user_activity", "document_processing"]
-                ))
+                trends.append(
+                    GrowthTrendInsight(
+                        metric_name="daily_entity_creation",
+                        time_period="last_30_days",
+                        growth_rate=growth_rate,
+                        trend_direction=trend_direction,
+                        key_drivers=["user_activity", "document_processing"],
+                    )
+                )
 
             return [trend.dict() for trend in trends]
 

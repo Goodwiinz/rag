@@ -13,16 +13,20 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .deepeval_integration import (
+    DeepEvalTestCase,
+    EvaluationFramework,
+    deepeval_integration,
+)
+from .evaluation_runner import EvaluationFrequency, evaluation_runner
+
 # Import evaluation components
-from .success_criteria import success_criteria, QueryType, ModalityType, MetricCategory
-from .test_datasets import test_datasets, DatasetCategory
-from .deepeval_integration import deepeval_integration, EvaluationFramework, DeepEvalTestCase
-from .evaluation_runner import evaluation_runner, EvaluationFrequency
+from .success_criteria import MetricCategory, ModalityType, QueryType, success_criteria
+from .test_datasets import DatasetCategory, test_datasets
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -66,29 +70,44 @@ class RAGEvaluationDemo:
 
         # Show success thresholds
         print("🎯 Success Thresholds:")
-        key_metrics = ["answer_relevancy", "faithfulness", "contextual_relevancy", "hallucination_rate"]
+        key_metrics = [
+            "answer_relevancy",
+            "faithfulness",
+            "contextual_relevancy",
+            "hallucination_rate",
+        ]
         for metric in key_metrics:
             threshold = success_criteria.thresholds[metric]
-            print(f"  • {metric}: {threshold.minimum_threshold:.2f} (min) → {threshold.target_threshold:.2f} (target)")
+            print(
+                f"  • {metric}: {threshold.minimum_threshold:.2f} (min) → {threshold.target_threshold:.2f} (target)"
+            )
             print(f"    {threshold.description}")
 
         # Show query type requirements
         print(f"\n🔍 Supported Query Types: {len(QueryType)}")
         for query_type in QueryType:
-            requirements = success_criteria.get_success_criteria_for_query_type(query_type)
+            requirements = success_criteria.get_success_criteria_for_query_type(
+                query_type
+            )
             print(f"  • {query_type.value}: {requirements.get('description', 'N/A')}")
-            print(f"    Required metrics: {', '.join(requirements.get('success_metrics', []))[:3]}...")
-            print(f"    Minimum threshold: {requirements.get('minimum_threshold', 0.0):.2f}")
+            print(
+                f"    Required metrics: {', '.join(requirements.get('success_metrics', []))[:3]}..."
+            )
+            print(
+                f"    Minimum threshold: {requirements.get('minimum_threshold', 0.0):.2f}"
+            )
 
         # Show modality requirements
         print(f"\n🎨 Supported Modalities: {len(ModalityType)}")
         for modality in ModalityType:
             requirements = success_criteria.modality_requirements[modality]
-            print(f"  • {modality.value}: {len(requirements['supported_formats'])} formats, {len(requirements['processing_capabilities'])} capabilities")
+            print(
+                f"  • {modality.value}: {len(requirements['supported_formats'])} formats, {len(requirements['processing_capabilities'])} capabilities"
+            )
 
         # Export success criteria
         criteria_file = self.output_dir / "success_criteria.json"
-        with open(criteria_file, 'w') as f:
+        with open(criteria_file, "w") as f:
             json.dump(success_criteria.export_success_criteria(), f, indent=2)
         print(f"\n💾 Success criteria exported to: {criteria_file}")
 
@@ -99,7 +118,9 @@ class RAGEvaluationDemo:
 
         # Show dataset overview
         total_datasets = len(test_datasets.datasets)
-        total_test_cases = sum(len(ds.test_cases) for ds in test_datasets.datasets.values())
+        total_test_cases = sum(
+            len(ds.test_cases) for ds in test_datasets.datasets.values()
+        )
         print(f"📊 Dataset Overview:")
         print(f"  • Total datasets: {total_datasets}")
         print(f"  • Total test cases: {total_test_cases}")
@@ -109,11 +130,17 @@ class RAGEvaluationDemo:
         for category in DatasetCategory:
             datasets = test_datasets.get_datasets_by_category(category)
             total_cases = sum(len(ds.test_cases) for ds in datasets)
-            print(f"  • {category.value}: {len(datasets)} datasets, {total_cases} test cases")
+            print(
+                f"  • {category.value}: {len(datasets)} datasets, {total_cases} test cases"
+            )
 
         # Show example test cases
         print(f"\n📝 Example Test Cases:")
-        example_datasets = ["basic_factual_lookup", "enterprise_business_intelligence", "multimodal_cross_modal"]
+        example_datasets = [
+            "basic_factual_lookup",
+            "enterprise_business_intelligence",
+            "multimodal_cross_modal",
+        ]
         for dataset_name in example_datasets:
             dataset = test_datasets.get_dataset(dataset_name)
             if dataset and dataset.test_cases:
@@ -125,7 +152,7 @@ class RAGEvaluationDemo:
 
         # Export dataset configurations
         datasets_file = self.output_dir / "test_datasets.json"
-        with open(datasets_file, 'w') as f:
+        with open(datasets_file, "w") as f:
             json.dump(test_datasets.export_dataset_configs(), f, indent=2)
         print(f"\n💾 Dataset configurations exported to: {datasets_file}")
 
@@ -149,12 +176,12 @@ class RAGEvaluationDemo:
                 actual_output="Microsoft reported revenue of $211.9 billion in 2023.",
                 retrieval_context=[
                     "Microsoft's FY2023 revenue was $211.9 billion, up 7% from previous year.",
-                    "The company showed strong growth in cloud services."
+                    "The company showed strong growth in cloud services.",
                 ],
                 expected_output="Microsoft's 2023 revenue was $211.9 billion.",
                 query_type=QueryType.FACTUAL_LOOKUP,
                 modalities=[ModalityType.TEXT],
-                test_id="demo_001"
+                test_id="demo_001",
             ),
             DeepEvalTestCase(
                 input="How does the performance of Product A compare to Product B?",
@@ -162,13 +189,13 @@ class RAGEvaluationDemo:
                 retrieval_context=[
                     "Product A North America revenue: $45M, Product B: $38M",
                     "Product A Europe revenue: $32M, Product B: $38M",
-                    "Market performance varies significantly by region."
+                    "Market performance varies significantly by region.",
                 ],
                 expected_output="Product A stronger in North America, Product B stronger in Europe.",
                 query_type=QueryType.COMPARISON,
                 modalities=[ModalityType.TEXT],
-                test_id="demo_002"
-            )
+                test_id="demo_002",
+            ),
         ]
 
         # Run evaluation with different frameworks
@@ -184,7 +211,7 @@ class RAGEvaluationDemo:
                     query_type=QueryType.FACTUAL_LOOKUP,
                     framework=framework,
                     organization_id="demo",
-                    user_id="demo_user"
+                    user_id="demo_user",
                 )
 
                 execution_time = time.time() - start_time
@@ -195,8 +222,10 @@ class RAGEvaluationDemo:
                 print(f"    ⚠️  Violations: {len(results.threshold_violations)}")
 
                 # Save detailed results
-                results_file = self.output_dir / f"deepeval_results_{framework.value}.json"
-                with open(results_file, 'w') as f:
+                results_file = (
+                    self.output_dir / f"deepeval_results_{framework.value}.json"
+                )
+                with open(results_file, "w") as f:
                     json.dump(results.__dict__, f, default=str, indent=2)
                 print(f"    💾 Results saved to: {results_file}")
 
@@ -210,12 +239,14 @@ class RAGEvaluationDemo:
                 test_cases=sample_test_cases[:1],  # Use one test case for demo
                 framework=EvaluationFramework.CUSTOM,
                 organization_id="demo",
-                user_id="demo_user"
+                user_id="demo_user",
             )
 
-            report = deepeval_integration.generate_evaluation_report(results, include_recommendations=True)
+            report = deepeval_integration.generate_evaluation_report(
+                results, include_recommendations=True
+            )
             report_file = self.output_dir / "evaluation_report.md"
-            with open(report_file, 'w') as f:
+            with open(report_file, "w") as f:
                 f.write(report)
             print(f"    📝 Report saved to: {report_file}")
             print(f"    📊 Report preview (first 500 chars):")
@@ -250,7 +281,7 @@ class RAGEvaluationDemo:
                 report = await evaluation_runner.run_scheduled_evaluation(
                     schedule_name=demo_schedule,
                     organization_id="demo",
-                    user_id="demo_user"
+                    user_id="demo_user",
                 )
 
                 execution_time = time.time() - start_time
@@ -269,13 +300,15 @@ class RAGEvaluationDemo:
 
                 # Save comprehensive report
                 report_json = self.output_dir / "evaluation_report_full.json"
-                with open(report_json, 'w') as f:
+                with open(report_json, "w") as f:
                     json.dump(report.__dict__, f, default=str, indent=2)
                 print(f"    💾 Full report saved to: {report_json}")
 
                 # Save markdown report
                 report_md = self.output_dir / "evaluation_report_full.md"
-                evaluation_runner.save_report_to_file(report, str(report_md), "markdown")
+                evaluation_runner.save_report_to_file(
+                    report, str(report_md), "markdown"
+                )
                 print(f"    📝 Markdown report saved to: {report_md}")
 
             except Exception as e:
@@ -386,7 +419,7 @@ This demo showcases the complete multimodal Enterprise RAG evaluation system wit
 
         # Save comprehensive report
         report_file = self.output_dir / "demo_comprehensive_report.md"
-        with open(report_file, 'w') as f:
+        with open(report_file, "w") as f:
             f.write(report)
         print(f"📝 Comprehensive report saved to: {report_file}")
 
@@ -398,34 +431,34 @@ This demo showcases the complete multimodal Enterprise RAG evaluation system wit
                     "total_thresholds": total_thresholds,
                     "query_types": len(QueryType),
                     "modalities": len(ModalityType),
-                    "metric_categories": len(MetricCategory)
+                    "metric_categories": len(MetricCategory),
                 },
                 "test_datasets": {
                     "total_datasets": total_datasets,
                     "total_test_cases": total_test_cases,
-                    "categories": len(DatasetCategory)
+                    "categories": len(DatasetCategory),
                 },
                 "evaluation_frameworks": {
                     "deepeval_available": deepeval_integration.is_available,
                     "custom_framework": True,
-                    "hybrid_approach": True
+                    "hybrid_approach": True,
                 },
                 "evaluation_runner": {
                     "total_schedules": total_schedules,
                     "alert_levels": len(evaluation_runner.alert_handlers),
-                    "automated_reporting": True
-                }
+                    "automated_reporting": True,
+                },
             },
             "features_demonstrated": [
                 "evaluation_first_development",
                 "comprehensive_testing",
                 "automated_evaluation",
-                "enterprise_grade_features"
-            ]
+                "enterprise_grade_features",
+            ],
         }
 
         summary_file = self.output_dir / "demo_summary.json"
-        with open(summary_file, 'w') as f:
+        with open(summary_file, "w") as f:
             json.dump(summary, f, indent=2)
         print(f"📊 Demo summary saved to: {summary_file}")
 
@@ -438,7 +471,9 @@ async def main():
 
 if __name__ == "__main__":
     print("🎯 Starting RAG Evaluation System Demo...")
-    print("This demo showcases the complete evaluation framework for multimodal Enterprise RAG systems.")
+    print(
+        "This demo showcases the complete evaluation framework for multimodal Enterprise RAG systems."
+    )
     print()
 
     try:

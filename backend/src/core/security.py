@@ -5,11 +5,12 @@ Security utilities for authentication and authorization
 import os
 import secrets
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Union
-from jose import JWTError, jwt
+from typing import Any, Dict, Optional, Union
+
 import bcrypt  # Changed from passlib
-from fastapi import HTTPException, status, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 from pydantic import BaseModel
 
 from src.core.config import settings
@@ -17,8 +18,10 @@ from src.core.config import settings
 # JWT Bearer scheme
 security = HTTPBearer()
 
+
 class TokenData(BaseModel):
     """Token data model"""
+
     user_id: Optional[str] = None
     email: Optional[str] = None
     organization_id: Optional[str] = None
@@ -26,46 +29,52 @@ class TokenData(BaseModel):
     exp: Optional[datetime] = None
     remember_me: bool = False  # Indicates if session should persist for 30 days
 
+
 class Token(BaseModel):
     """Token response model"""
+
     access_token: str
     token_type: str
     expires_in: int
     user: Dict[str, Any]
 
+
 class TokenRefresh(BaseModel):
     """Token refresh request model"""
+
     refresh_token: str
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash"""
     try:
         # Truncate to 72 chars to avoid bcrypt limit and ensure compatibility
-        plain_bytes = plain_password[:72].encode('utf-8')
-        hash_bytes = hashed_password.encode('utf-8')
+        plain_bytes = plain_password[:72].encode("utf-8")
+        hash_bytes = hashed_password.encode("utf-8")
         return bcrypt.checkpw(plain_bytes, hash_bytes)
     except Exception:
         return False
 
+
 def get_password_hash(password: str) -> str:
     """Generate password hash"""
     # Truncate to 72 chars to avoid bcrypt limit
-    pwd_bytes = password[:72].encode('utf-8')
+    pwd_bytes = password[:72].encode("utf-8")
     salt = bcrypt.gensalt()
-    return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
+    return bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
+
 
 def generate_password_reset_token() -> str:
     """Generate a secure password reset token"""
     return secrets.token_urlsafe(32)
 
+
 def generate_api_key() -> str:
     """Generate a secure API key"""
     return secrets.token_urlsafe(32)
 
-def create_access_token(
-    data: dict,
-    expires_delta: Optional[timedelta] = None
-) -> str:
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create JWT access token"""
     to_encode = data.copy()
 
@@ -76,21 +85,17 @@ def create_access_token(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
 
-    to_encode.update({
-        "exp": expire,
-        "type": "access"  # Add token type for verification
-    })
+    to_encode.update(
+        {"exp": expire, "type": "access"}  # Add token type for verification
+    )
     encoded_jwt = jwt.encode(
-        to_encode,
-        settings.JWT_SECRET_KEY,
-        algorithm=settings.JWT_ALGORITHM
+        to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
     )
     return encoded_jwt
 
+
 def create_refresh_token(
-    data: dict,
-    expires_delta: Optional[timedelta] = None,
-    remember_me: bool = False
+    data: dict, expires_delta: Optional[timedelta] = None, remember_me: bool = False
 ) -> str:
     """Create JWT refresh token
 
@@ -105,30 +110,31 @@ def create_refresh_token(
         expire = datetime.utcnow() + expires_delta
     elif remember_me:
         # Extended session for "Remember Me" - 30 days
-        expire = datetime.utcnow() + timedelta(days=settings.REMEMBER_ME_REFRESH_TOKEN_DAYS)
+        expire = datetime.utcnow() + timedelta(
+            days=settings.REMEMBER_ME_REFRESH_TOKEN_DAYS
+        )
     else:
         # Default refresh token lifetime
         expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
-    to_encode.update({
-        "exp": expire,
-        "type": "refresh",
-        "remember_me": remember_me  # Track if this is an extended session
-    })
+    to_encode.update(
+        {
+            "exp": expire,
+            "type": "refresh",
+            "remember_me": remember_me,  # Track if this is an extended session
+        }
+    )
     encoded_jwt = jwt.encode(
-        to_encode,
-        settings.JWT_SECRET_KEY,
-        algorithm=settings.JWT_ALGORITHM
+        to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
     )
     return encoded_jwt
+
 
 def verify_token(token: str) -> Optional[TokenData]:
     """Verify and decode JWT token"""
     try:
         payload = jwt.decode(
-            token,
-            settings.JWT_SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM]
+            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
         )
         user_id: str = payload.get("sub")  # sub contains the user ID
         email: str = payload.get("email")  # email is a separate field
@@ -144,21 +150,19 @@ def verify_token(token: str) -> Optional[TokenData]:
             email=email,
             organization_id=organization_id,
             role=role,
-            exp=datetime.utcfromtimestamp(exp) if exp else None
+            exp=datetime.utcfromtimestamp(exp) if exp else None,
         )
         return token_data
 
-
     except JWTError:
         return None
+
 
 def verify_refresh_token(token: str) -> Optional[TokenData]:
     """Verify and decode refresh token"""
     try:
         payload = jwt.decode(
-            token,
-            settings.JWT_SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM]
+            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
         )
 
         # Check if it's a refresh token
@@ -177,8 +181,9 @@ def verify_refresh_token(token: str) -> Optional[TokenData]:
     except JWTError:
         return None
 
+
 def get_current_user_token(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> TokenData:
     """Get current user from JWT token"""
     credentials_exception = HTTPException(
@@ -202,6 +207,7 @@ def get_current_user_token(
 
     except Exception:
         raise credentials_exception
+
 
 def check_password_strength(password: str) -> Dict[str, Any]:
     """Check password strength and return recommendations"""
@@ -258,22 +264,28 @@ def check_password_strength(password: str) -> Dict[str, Any]:
         "strength": strength,
         "score": score,
         "issues": issues,
-        "is_valid": len(issues) == 0
+        "is_valid": len(issues) == 0,
     }
+
 
 def generate_secure_random_string(length: int = 32) -> str:
     """Generate a cryptographically secure random string"""
     return secrets.token_urlsafe(length)
 
+
 def hash_sensitive_data(data: str) -> str:
     """Hash sensitive data for storage"""
     import hashlib
+
     return hashlib.sha256(data.encode()).hexdigest()
+
 
 def verify_sensitive_data_hash(data: str, hashed: str) -> bool:
     """Verify sensitive data against its hash"""
     import hashlib
+
     return hashlib.sha256(data.encode()).hexdigest() == hashed
+
 
 class RateLimiter:
     """Simple rate limiter for authentication endpoints"""
@@ -291,7 +303,8 @@ class RateLimiter:
         # Clean old attempts
         if identifier in self.attempts:
             self.attempts[identifier] = [
-                attempt_time for attempt_time in self.attempts[identifier]
+                attempt_time
+                for attempt_time in self.attempts[identifier]
                 if attempt_time > window_start
             ]
         else:
@@ -315,15 +328,17 @@ class RateLimiter:
 
         # Count recent attempts
         recent_attempts = [
-            attempt_time for attempt_time in self.attempts[identifier]
+            attempt_time
+            for attempt_time in self.attempts[identifier]
             if attempt_time > window_start
         ]
 
         return max(0, self.max_attempts - len(recent_attempts))
 
+
 # Global rate limiter instance (will be initialized after settings import)
 # Use higher limits for development to avoid blocking during testing
 auth_rate_limiter = RateLimiter(
     max_attempts=settings.AUTH_RATE_LIMIT_ATTEMPTS,
-    window_minutes=settings.AUTH_RATE_LIMIT_WINDOW_MINUTES
+    window_minutes=settings.AUTH_RATE_LIMIT_WINDOW_MINUTES,
 )

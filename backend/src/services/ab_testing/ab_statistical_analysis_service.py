@@ -8,22 +8,28 @@ import json
 import logging
 import math
 import statistics
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Any, Union
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 from scipy import stats
+from sqlalchemy import and_, asc, desc, func, or_
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func, desc, asc
 
 from src.core.config import settings
 from src.core.database import get_db
 from src.models.ab_testing import (
-    Experiment, Variant, ExperimentMetric, ExperimentAssignment,
-    MetricType, StatisticalTest, ExperimentStatus, SuccessCriterion
+    Experiment,
+    ExperimentAssignment,
+    ExperimentMetric,
+    ExperimentStatus,
+    MetricType,
+    StatisticalTest,
+    SuccessCriterion,
+    Variant,
 )
 from src.services.cache.analytics_cache import analytics_cache
 
@@ -32,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 class SignificanceLevel(Enum):
     """Statistical significance levels"""
+
     VERY_HIGH = 0.001
     HIGH = 0.01
     MEDIUM = 0.05
@@ -41,6 +48,7 @@ class SignificanceLevel(Enum):
 @dataclass
 class StatisticalResult:
     """Result of statistical test"""
+
     test_name: str
     statistic: float
     p_value: float
@@ -56,6 +64,7 @@ class StatisticalResult:
 @dataclass
 class VariantComparison:
     """Comparison between two variants"""
+
     control_variant: str
     treatment_variant: str
     metric_name: str
@@ -70,6 +79,7 @@ class VariantComparison:
 @dataclass
 class ExperimentReport:
     """Comprehensive experiment analysis report"""
+
     experiment_id: str
     experiment_name: str
     analysis_date: datetime
@@ -99,7 +109,7 @@ class StatisticalAnalysisService:
         self,
         experiment_id: str,
         confidence_level: float = 0.95,
-        include_secondary_metrics: bool = True
+        include_secondary_metrics: bool = True,
     ) -> ExperimentReport:
         """
         Perform comprehensive statistical analysis of an experiment
@@ -108,7 +118,9 @@ class StatisticalAnalysisService:
             db = next(get_db())
 
             # Get experiment data
-            experiment = db.query(Experiment).filter(Experiment.id == experiment_id).first()
+            experiment = (
+                db.query(Experiment).filter(Experiment.id == experiment_id).first()
+            )
             if not experiment:
                 raise ValueError(f"Experiment {experiment_id} not found")
 
@@ -133,8 +145,12 @@ class StatisticalAnalysisService:
 
             # Generate overall report
             report = await self._generate_experiment_report(
-                experiment, primary_comparison, secondary_comparisons,
-                metrics_data, confidence_level, db
+                experiment,
+                primary_comparison,
+                secondary_comparisons,
+                metrics_data,
+                confidence_level,
+                db,
             )
 
             # Cache the results
@@ -154,13 +170,16 @@ class StatisticalAnalysisService:
         treatment_data: List[float],
         test_type: StatisticalTest,
         confidence_level: float = 0.95,
-        alternative: str = 'two-sided'
+        alternative: str = "two-sided",
     ) -> StatisticalResult:
         """
         Calculate statistical significance between two groups
         """
         try:
-            if len(control_data) < self._minimum_sample_size or len(treatment_data) < self._minimum_sample_size:
+            if (
+                len(control_data) < self._minimum_sample_size
+                or len(treatment_data) < self._minimum_sample_size
+            ):
                 raise ValueError("Insufficient sample size for statistical test")
 
             # Remove outliers
@@ -169,9 +188,13 @@ class StatisticalAnalysisService:
 
             # Calculate basic statistics
             control_mean = statistics.mean(control_clean)
-            control_std = statistics.stdev(control_clean) if len(control_clean) > 1 else 0
+            control_std = (
+                statistics.stdev(control_clean) if len(control_clean) > 1 else 0
+            )
             treatment_mean = statistics.mean(treatment_clean)
-            treatment_std = statistics.stdev(treatment_clean) if len(treatment_clean) > 1 else 0
+            treatment_std = (
+                statistics.stdev(treatment_clean) if len(treatment_clean) > 1 else 0
+            )
 
             # Perform statistical test based on type
             if test_type == StatisticalTest.Z_TEST:
@@ -210,15 +233,15 @@ class StatisticalAnalysisService:
 
             return StatisticalResult(
                 test_name=test_type.value,
-                statistic=result['statistic'],
-                p_value=result['p_value'],
+                statistic=result["statistic"],
+                p_value=result["p_value"],
                 significance_level=1 - confidence_level,
-                is_significant=result['p_value'] < (1 - confidence_level),
-                confidence_interval=result['confidence_interval'],
+                is_significant=result["p_value"] < (1 - confidence_level),
+                confidence_interval=result["confidence_interval"],
                 effect_size=effect_size,
                 power=power,
                 sample_size=len(control_clean) + len(treatment_clean),
-                interpretation=interpretation
+                interpretation=interpretation,
             )
 
         except Exception as e:
@@ -230,7 +253,7 @@ class StatisticalAnalysisService:
         control: List[float],
         treatment: List[float],
         confidence_level: float,
-        alternative: str
+        alternative: str,
     ) -> Dict[str, Any]:
         """Perform Z-test for large samples"""
         try:
@@ -240,30 +263,35 @@ class StatisticalAnalysisService:
             treatment_std = statistics.stdev(treatment)
 
             n1, n2 = len(control), len(treatment)
-            pooled_std = math.sqrt(((n1 - 1) * control_std**2 + (n2 - 1) * treatment_std**2) / (n1 + n2 - 2))
-            standard_error = pooled_std * math.sqrt(1/n1 + 1/n2)
+            pooled_std = math.sqrt(
+                ((n1 - 1) * control_std**2 + (n2 - 1) * treatment_std**2)
+                / (n1 + n2 - 2)
+            )
+            standard_error = pooled_std * math.sqrt(1 / n1 + 1 / n2)
 
             z_statistic = (treatment_mean - control_mean) / standard_error
 
             # Calculate p-value based on alternative hypothesis
-            if alternative == 'two-sided':
+            if alternative == "two-sided":
                 p_value = 2 * (1 - stats.norm.cdf(abs(z_statistic)))
-            elif alternative == 'greater':
+            elif alternative == "greater":
                 p_value = 1 - stats.norm.cdf(z_statistic)
             else:  # 'less'
                 p_value = stats.norm.cdf(z_statistic)
 
             # Calculate confidence interval
             alpha = 1 - confidence_level
-            z_critical = stats.norm.ppf(1 - alpha/2)
+            z_critical = stats.norm.ppf(1 - alpha / 2)
             margin_of_error = z_critical * standard_error
-            confidence_interval = (treatment_mean - control_mean - margin_of_error,
-                                 treatment_mean - control_mean + margin_of_error)
+            confidence_interval = (
+                treatment_mean - control_mean - margin_of_error,
+                treatment_mean - control_mean + margin_of_error,
+            )
 
             return {
-                'statistic': z_statistic,
-                'p_value': p_value,
-                'confidence_interval': confidence_interval
+                "statistic": z_statistic,
+                "p_value": p_value,
+                "confidence_interval": confidence_interval,
             }
 
         except Exception as e:
@@ -275,16 +303,20 @@ class StatisticalAnalysisService:
         control: List[float],
         treatment: List[float],
         confidence_level: float,
-        alternative: str
+        alternative: str,
     ) -> Dict[str, Any]:
         """Perform Student's t-test"""
         try:
-            if alternative == 'two-sided':
+            if alternative == "two-sided":
                 t_statistic, p_value = stats.ttest_ind(treatment, control)
-            elif alternative == 'greater':
-                t_statistic, p_value = stats.ttest_ind(treatment, control, alternative='greater')
+            elif alternative == "greater":
+                t_statistic, p_value = stats.ttest_ind(
+                    treatment, control, alternative="greater"
+                )
             else:  # 'less'
-                t_statistic, p_value = stats.ttest_ind(treatment, control, alternative='less')
+                t_statistic, p_value = stats.ttest_ind(
+                    treatment, control, alternative="less"
+                )
 
             # Calculate confidence interval for difference in means
             control_mean = statistics.mean(control)
@@ -293,19 +325,24 @@ class StatisticalAnalysisService:
 
             n1, n2 = len(control), len(treatment)
             df = n1 + n2 - 2
-            pooled_std = math.sqrt(((n1 - 1) * statistics.stdev(control)**2 +
-                                   (n2 - 1) * statistics.stdev(treatment)**2) / df)
-            standard_error = pooled_std * math.sqrt(1/n1 + 1/n2)
+            pooled_std = math.sqrt(
+                (
+                    (n1 - 1) * statistics.stdev(control) ** 2
+                    + (n2 - 1) * statistics.stdev(treatment) ** 2
+                )
+                / df
+            )
+            standard_error = pooled_std * math.sqrt(1 / n1 + 1 / n2)
 
             alpha = 1 - confidence_level
-            t_critical = stats.t.ppf(1 - alpha/2, df)
+            t_critical = stats.t.ppf(1 - alpha / 2, df)
             margin_of_error = t_critical * standard_error
             confidence_interval = (diff - margin_of_error, diff + margin_of_error)
 
             return {
-                'statistic': t_statistic,
-                'p_value': p_value,
-                'confidence_interval': confidence_interval
+                "statistic": t_statistic,
+                "p_value": p_value,
+                "confidence_interval": confidence_interval,
             }
 
         except Exception as e:
@@ -317,39 +354,47 @@ class StatisticalAnalysisService:
         control: List[float],
         treatment: List[float],
         confidence_level: float,
-        alternative: str
+        alternative: str,
     ) -> Dict[str, Any]:
         """Perform Welch's t-test for unequal variances"""
         try:
-            if alternative == 'two-sided':
-                t_statistic, p_value = stats.ttest_ind(treatment, control, equal_var=False)
-            elif alternative == 'greater':
-                t_statistic, p_value = stats.ttest_ind(treatment, control, equal_var=False, alternative='greater')
+            if alternative == "two-sided":
+                t_statistic, p_value = stats.ttest_ind(
+                    treatment, control, equal_var=False
+                )
+            elif alternative == "greater":
+                t_statistic, p_value = stats.ttest_ind(
+                    treatment, control, equal_var=False, alternative="greater"
+                )
             else:  # 'less'
-                t_statistic, p_value = stats.ttest_ind(treatment, control, equal_var=False, alternative='less')
+                t_statistic, p_value = stats.ttest_ind(
+                    treatment, control, equal_var=False, alternative="less"
+                )
 
             # Calculate degrees of freedom for Welch's test
             n1, n2 = len(control), len(treatment)
             s1, s2 = statistics.stdev(control), statistics.stdev(treatment)
-            df_numerator = (s1**2/n1 + s2**2/n2)**2
-            df_denominator = (s1**4/(n1**2 * (n1-1))) + (s2**4/(n2**2 * (n2-1)))
+            df_numerator = (s1**2 / n1 + s2**2 / n2) ** 2
+            df_denominator = (s1**4 / (n1**2 * (n1 - 1))) + (
+                s2**4 / (n2**2 * (n2 - 1))
+            )
             df = df_numerator / df_denominator
 
             # Calculate confidence interval
             control_mean = statistics.mean(control)
             treatment_mean = statistics.mean(treatment)
             diff = treatment_mean - control_mean
-            standard_error = math.sqrt(s1**2/n1 + s2**2/n2)
+            standard_error = math.sqrt(s1**2 / n1 + s2**2 / n2)
 
             alpha = 1 - confidence_level
-            t_critical = stats.t.ppf(1 - alpha/2, df)
+            t_critical = stats.t.ppf(1 - alpha / 2, df)
             margin_of_error = t_critical * standard_error
             confidence_interval = (diff - margin_of_error, diff + margin_of_error)
 
             return {
-                'statistic': t_statistic,
-                'p_value': p_value,
-                'confidence_interval': confidence_interval
+                "statistic": t_statistic,
+                "p_value": p_value,
+                "confidence_interval": confidence_interval,
             }
 
         except Exception as e:
@@ -361,16 +406,22 @@ class StatisticalAnalysisService:
         control: List[float],
         treatment: List[float],
         confidence_level: float,
-        alternative: str
+        alternative: str,
     ) -> Dict[str, Any]:
         """Perform Mann-Whitney U test (non-parametric)"""
         try:
-            if alternative == 'two-sided':
-                u_statistic, p_value = stats.mannwhitneyu(treatment, control, alternative='two-sided')
-            elif alternative == 'greater':
-                u_statistic, p_value = stats.mannwhitneyu(treatment, control, alternative='greater')
+            if alternative == "two-sided":
+                u_statistic, p_value = stats.mannwhitneyu(
+                    treatment, control, alternative="two-sided"
+                )
+            elif alternative == "greater":
+                u_statistic, p_value = stats.mannwhitneyu(
+                    treatment, control, alternative="greater"
+                )
             else:  # 'less'
-                u_statistic, p_value = stats.mannwhitneyu(treatment, control, alternative='less')
+                u_statistic, p_value = stats.mannwhitneyu(
+                    treatment, control, alternative="less"
+                )
 
             # For non-parametric test, we'll use the difference in medians
             control_median = statistics.median(control)
@@ -383,9 +434,9 @@ class StatisticalAnalysisService:
             )
 
             return {
-                'statistic': u_statistic,
-                'p_value': p_value,
-                'confidence_interval': confidence_interval
+                "statistic": u_statistic,
+                "p_value": p_value,
+                "confidence_interval": confidence_interval,
             }
 
         except Exception as e:
@@ -393,10 +444,7 @@ class StatisticalAnalysisService:
             raise
 
     async def _perform_chi_square_test(
-        self,
-        control: List[float],
-        treatment: List[float],
-        confidence_level: float
+        self, control: List[float], treatment: List[float], confidence_level: float
     ) -> Dict[str, Any]:
         """Perform Chi-square test for categorical data"""
         try:
@@ -410,10 +458,12 @@ class StatisticalAnalysisService:
             # Create contingency table
             contingency_table = [
                 [sum(control_binary), len(control_binary) - sum(control_binary)],
-                [sum(treatment_binary), len(treatment_binary) - sum(treatment_binary)]
+                [sum(treatment_binary), len(treatment_binary) - sum(treatment_binary)],
             ]
 
-            chi2_statistic, p_value, dof, expected = stats.chi2_contingency(contingency_table)
+            chi2_statistic, p_value, dof, expected = stats.chi2_contingency(
+                contingency_table
+            )
 
             # Calculate confidence interval for difference in proportions
             control_prop = sum(control_binary) / len(control_binary)
@@ -421,19 +471,19 @@ class StatisticalAnalysisService:
             diff = treatment_prop - control_prop
 
             standard_error = math.sqrt(
-                (control_prop * (1 - control_prop) / len(control_binary)) +
-                (treatment_prop * (1 - treatment_prop) / len(treatment_binary))
+                (control_prop * (1 - control_prop) / len(control_binary))
+                + (treatment_prop * (1 - treatment_prop) / len(treatment_binary))
             )
 
             alpha = 1 - confidence_level
-            z_critical = stats.norm.ppf(1 - alpha/2)
+            z_critical = stats.norm.ppf(1 - alpha / 2)
             margin_of_error = z_critical * standard_error
             confidence_interval = (diff - margin_of_error, diff + margin_of_error)
 
             return {
-                'statistic': chi2_statistic,
-                'p_value': p_value,
-                'confidence_interval': confidence_interval
+                "statistic": chi2_statistic,
+                "p_value": p_value,
+                "confidence_interval": confidence_interval,
             }
 
         except Exception as e:
@@ -445,7 +495,7 @@ class StatisticalAnalysisService:
         control: List[float],
         treatment: List[float],
         confidence_level: float,
-        n_bootstrap: int = 1000
+        n_bootstrap: int = 1000,
     ) -> Tuple[float, float]:
         """Calculate confidence interval using bootstrap method"""
         try:
@@ -455,7 +505,9 @@ class StatisticalAnalysisService:
             for _ in range(n_bootstrap):
                 # Bootstrap samples
                 control_sample = np.random.choice(control, size=n_control, replace=True)
-                treatment_sample = np.random.choice(treatment, size=n_treatment, replace=True)
+                treatment_sample = np.random.choice(
+                    treatment, size=n_treatment, replace=True
+                )
 
                 # Calculate difference in means
                 diff = np.mean(treatment_sample) - np.mean(control_sample)
@@ -468,7 +520,7 @@ class StatisticalAnalysisService:
 
             confidence_interval = (
                 np.percentile(bootstrap_diffs, lower_percentile),
-                np.percentile(bootstrap_diffs, upper_percentile)
+                np.percentile(bootstrap_diffs, upper_percentile),
             )
 
             return confidence_interval
@@ -496,7 +548,9 @@ class StatisticalAnalysisService:
             logger.error(f"Error removing outliers: {e}")
             return data
 
-    def _calculate_effect_size(self, control: List[float], treatment: List[float]) -> float:
+    def _calculate_effect_size(
+        self, control: List[float], treatment: List[float]
+    ) -> float:
         """Calculate Cohen's d effect size"""
         try:
             control_mean = statistics.mean(control)
@@ -506,7 +560,10 @@ class StatisticalAnalysisService:
 
             # Pooled standard deviation
             n1, n2 = len(control), len(treatment)
-            pooled_std = math.sqrt(((n1 - 1) * control_std**2 + (n2 - 1) * treatment_std**2) / (n1 + n2 - 2))
+            pooled_std = math.sqrt(
+                ((n1 - 1) * control_std**2 + (n2 - 1) * treatment_std**2)
+                / (n1 + n2 - 2)
+            )
 
             if pooled_std == 0:
                 return 0.0
@@ -519,11 +576,7 @@ class StatisticalAnalysisService:
             return 0.0
 
     def _calculate_statistical_power(
-        self,
-        effect_size: float,
-        n1: int,
-        n2: int,
-        confidence_level: float
+        self, effect_size: float, n1: int, n2: int, confidence_level: float
     ) -> float:
         """Calculate statistical power of the test"""
         try:
@@ -534,7 +587,7 @@ class StatisticalAnalysisService:
             n_avg = (n1 + n2) / 2
 
             # Approximate power calculation
-            z_alpha = stats.norm.ppf(1 - alpha/2)
+            z_alpha = stats.norm.ppf(1 - alpha / 2)
             ncp = effect_size * math.sqrt(n_avg / 2)  # Non-centrality parameter
 
             # Power calculation (simplified)
@@ -547,20 +600,17 @@ class StatisticalAnalysisService:
             return 0.0
 
     def _interpret_results(
-        self,
-        result: Dict[str, Any],
-        effect_size: float,
-        power: float
+        self, result: Dict[str, Any], effect_size: float, power: float
     ) -> str:
         """Generate interpretation of statistical results"""
         try:
-            if result['p_value'] < 0.001:
+            if result["p_value"] < 0.001:
                 significance = "very highly significant"
-            elif result['p_value'] < 0.01:
+            elif result["p_value"] < 0.01:
                 significance = "highly significant"
-            elif result['p_value'] < 0.05:
+            elif result["p_value"] < 0.05:
                 significance = "significant"
-            elif result['p_value'] < 0.1:
+            elif result["p_value"] < 0.1:
                 significance = "marginally significant"
             else:
                 significance = "not significant"
@@ -583,8 +633,12 @@ class StatisticalAnalysisService:
             else:
                 power_desc = "high statistical power"
 
-            interpretation = f"The result is {significance} (p={result['p_value']:.4f}) "
-            interpretation += f"with a {magnitude} effect size (Cohen's d={effect_size:.3f}). "
+            interpretation = (
+                f"The result is {significance} (p={result['p_value']:.4f}) "
+            )
+            interpretation += (
+                f"with a {magnitude} effect size (Cohen's d={effect_size:.3f}). "
+            )
             interpretation += f"The test has {power_desc} ({power:.2f})."
 
             return interpretation
@@ -596,9 +650,11 @@ class StatisticalAnalysisService:
     async def _has_sufficient_data(self, experiment: Experiment, db: Session) -> bool:
         """Check if experiment has sufficient data for analysis"""
         try:
-            total_participants = db.query(ExperimentAssignment).filter(
-                ExperimentAssignment.experiment_id == experiment.id
-            ).count()
+            total_participants = (
+                db.query(ExperimentAssignment)
+                .filter(ExperimentAssignment.experiment_id == experiment.id)
+                .count()
+            )
 
             return total_participants >= experiment.minimum_sample_size
 
@@ -607,33 +663,37 @@ class StatisticalAnalysisService:
             return False
 
     async def _collect_metrics_data(
-        self,
-        experiment: Experiment,
-        db: Session
+        self, experiment: Experiment, db: Session
     ) -> Dict[str, Any]:
         """Collect metrics data for all variants"""
         try:
             metrics_data = {}
 
             for variant in experiment.variants:
-                variant_metrics = db.query(ExperimentMetric).filter(
-                    and_(
-                        ExperimentMetric.experiment_id == experiment.id,
-                        ExperimentMetric.variant_id == variant.id
+                variant_metrics = (
+                    db.query(ExperimentMetric)
+                    .filter(
+                        and_(
+                            ExperimentMetric.experiment_id == experiment.id,
+                            ExperimentMetric.variant_id == variant.id,
+                        )
                     )
-                ).all()
+                    .all()
+                )
 
                 # Group metrics by type
                 metrics_by_type = defaultdict(list)
                 for metric in variant_metrics:
-                    metrics_by_type[metric.metric_type.value].append(metric.metric_value)
+                    metrics_by_type[metric.metric_type.value].append(
+                        metric.metric_value
+                    )
 
                 metrics_data[variant.id] = {
-                    'variant_name': variant.name,
-                    'is_control': variant.is_control,
-                    'metrics': dict(metrics_by_type),
-                    'participant_count': variant.participant_count,
-                    'query_count': variant.query_count
+                    "variant_name": variant.name,
+                    "is_control": variant.is_control,
+                    "metrics": dict(metrics_by_type),
+                    "participant_count": variant.participant_count,
+                    "query_count": variant.query_count,
                 }
 
             return metrics_data
@@ -647,7 +707,7 @@ class StatisticalAnalysisService:
         experiment: Experiment,
         metrics_data: Dict[str, Any],
         confidence_level: float,
-        db: Session
+        db: Session,
     ) -> List[VariantComparison]:
         """Analyze primary metric across variants"""
         try:
@@ -658,7 +718,7 @@ class StatisticalAnalysisService:
             control_data = None
 
             for variant_id, data in metrics_data.items():
-                if data['is_control']:
+                if data["is_control"]:
                     control_variant_id = variant_id
                     control_data = data
                     break
@@ -669,28 +729,32 @@ class StatisticalAnalysisService:
 
             # Compare each treatment variant against control
             for variant_id, data in metrics_data.items():
-                if variant_id == control_variant_id or not data['is_control']:
+                if variant_id == control_variant_id or not data["is_control"]:
                     continue
 
                 # Get primary metric data
                 primary_metric_name = experiment.primary_metric.value
-                control_values = control_data['metrics'].get(primary_metric_name, [])
-                treatment_values = data['metrics'].get(primary_metric_name, [])
+                control_values = control_data["metrics"].get(primary_metric_name, [])
+                treatment_values = data["metrics"].get(primary_metric_name, [])
 
                 if not control_values or not treatment_values:
                     continue
 
                 # Perform statistical test
                 statistical_result = await self.calculate_statistical_significance(
-                    control_values, treatment_values,
-                    experiment.statistical_test, confidence_level
+                    control_values,
+                    treatment_values,
+                    experiment.statistical_test,
+                    confidence_level,
                 )
 
                 # Calculate differences
                 control_mean = statistics.mean(control_values)
                 treatment_mean = statistics.mean(treatment_values)
                 absolute_diff = treatment_mean - control_mean
-                relative_diff = (absolute_diff / control_mean) * 100 if control_mean != 0 else 0
+                relative_diff = (
+                    (absolute_diff / control_mean) * 100 if control_mean != 0 else 0
+                )
 
                 # Generate recommendation
                 recommendation = self._generate_recommendation(
@@ -706,7 +770,7 @@ class StatisticalAnalysisService:
                     absolute_difference=absolute_diff,
                     relative_difference=relative_diff,
                     statistical_result=statistical_result,
-                    recommendation=recommendation
+                    recommendation=recommendation,
                 )
 
                 comparisons.append(comparison)
@@ -722,7 +786,7 @@ class StatisticalAnalysisService:
         experiment: Experiment,
         metrics_data: Dict[str, Any],
         confidence_level: float,
-        db: Session
+        db: Session,
     ) -> List[VariantComparison]:
         """Analyze secondary metrics across variants"""
         # Implementation similar to primary metric analysis
@@ -736,17 +800,25 @@ class StatisticalAnalysisService:
         secondary_comparisons: List[VariantComparison],
         metrics_data: Dict[str, Any],
         confidence_level: float,
-        db: Session
+        db: Session,
     ) -> ExperimentReport:
         """Generate comprehensive experiment report"""
         try:
             # Calculate totals
-            total_participants = sum(data['participant_count'] for data in metrics_data.values())
+            total_participants = sum(
+                data["participant_count"] for data in metrics_data.values()
+            )
             total_variants = len(metrics_data)
-            duration_days = (experiment.end_time - experiment.start_time).days if experiment.end_time else 0
+            duration_days = (
+                (experiment.end_time - experiment.start_time).days
+                if experiment.end_time
+                else 0
+            )
 
             # Generate overall recommendation
-            overall_recommendation = self._generate_overall_recommendation(primary_comparisons)
+            overall_recommendation = self._generate_overall_recommendation(
+                primary_comparisons
+            )
 
             # Calculate business impact
             business_impact = await self._calculate_business_impact(
@@ -754,7 +826,9 @@ class StatisticalAnalysisService:
             )
 
             # Calculate data quality metrics
-            data_quality = await self._calculate_data_quality_metrics(experiment, metrics_data, db)
+            data_quality = await self._calculate_data_quality_metrics(
+                experiment, metrics_data, db
+            )
 
             return ExperimentReport(
                 experiment_id=str(experiment.id),
@@ -769,7 +843,7 @@ class StatisticalAnalysisService:
                 confidence_level=confidence_level,
                 statistical_power=experiment.calculate_statistical_power(),
                 business_impact=business_impact,
-                data_quality_metrics=data_quality
+                data_quality_metrics=data_quality,
             )
 
         except Exception as e:
@@ -777,9 +851,7 @@ class StatisticalAnalysisService:
             raise
 
     def _generate_recommendation(
-        self,
-        statistical_result: StatisticalResult,
-        success_criteria: SuccessCriterion
+        self, statistical_result: StatisticalResult, success_criteria: SuccessCriterion
     ) -> str:
         """Generate recommendation based on statistical results"""
         try:
@@ -804,15 +876,16 @@ class StatisticalAnalysisService:
             return "Unable to generate recommendation due to error."
 
     def _generate_overall_recommendation(
-        self,
-        comparisons: List[VariantComparison]
+        self, comparisons: List[VariantComparison]
     ) -> str:
         """Generate overall experiment recommendation"""
         try:
             if not comparisons:
                 return "Insufficient data for recommendation."
 
-            significant_results = [c for c in comparisons if c.statistical_result.is_significant]
+            significant_results = [
+                c for c in comparisons if c.statistical_result.is_significant
+            ]
 
             if not significant_results:
                 return "No statistically significant results detected. Experiment may need more time or different approach."
@@ -820,7 +893,9 @@ class StatisticalAnalysisService:
             # Find best performing variant
             best_comparison = max(
                 significant_results,
-                key=lambda c: c.relative_difference if c.statistical_result.effect_size > 0 else -abs(c.relative_difference)
+                key=lambda c: c.relative_difference
+                if c.statistical_result.effect_size > 0
+                else -abs(c.relative_difference),
             )
 
             if best_comparison.statistical_result.effect_size > 0:
@@ -836,28 +911,32 @@ class StatisticalAnalysisService:
         self,
         experiment: Experiment,
         comparisons: List[VariantComparison],
-        metrics_data: Dict[str, Any]
+        metrics_data: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Calculate business impact metrics"""
         try:
             impact = {
-                'estimated_annual_impact': 0.0,
-                'confidence_in_estimate': 'medium',
-                'key_drivers': [],
-                'risk_factors': []
+                "estimated_annual_impact": 0.0,
+                "confidence_in_estimate": "medium",
+                "key_drivers": [],
+                "risk_factors": [],
             }
 
             # Simplified business impact calculation
             # In practice, this would use actual business metrics and conversion rates
             for comparison in comparisons:
                 if comparison.statistical_result.is_significant:
-                    annual_impact = comparison.relative_difference * 10000  # Placeholder calculation
-                    impact['estimated_annual_impact'] += annual_impact
-                    impact['key_drivers'].append({
-                        'metric': comparison.metric_name,
-                        'impact': annual_impact,
-                        'confidence': comparison.statistical_result.confidence_level
-                    })
+                    annual_impact = (
+                        comparison.relative_difference * 10000
+                    )  # Placeholder calculation
+                    impact["estimated_annual_impact"] += annual_impact
+                    impact["key_drivers"].append(
+                        {
+                            "metric": comparison.metric_name,
+                            "impact": annual_impact,
+                            "confidence": comparison.statistical_result.confidence_level,
+                        }
+                    )
 
             return impact
 
@@ -866,32 +945,37 @@ class StatisticalAnalysisService:
             return {}
 
     async def _calculate_data_quality_metrics(
-        self,
-        experiment: Experiment,
-        metrics_data: Dict[str, Any],
-        db: Session
+        self, experiment: Experiment, metrics_data: Dict[str, Any], db: Session
     ) -> Dict[str, Any]:
         """Calculate data quality metrics"""
         try:
             quality = {
-                'completeness': 0.0,
-                'consistency': 0.0,
-                'sample_size_adequacy': False,
-                'outlier_percentage': 0.0,
-                'data_freshness_days': 0.0
+                "completeness": 0.0,
+                "consistency": 0.0,
+                "sample_size_adequacy": False,
+                "outlier_percentage": 0.0,
+                "data_freshness_days": 0.0,
             }
 
             # Calculate sample size adequacy
-            total_participants = sum(data['participant_count'] for data in metrics_data.values())
-            quality['sample_size_adequacy'] = total_participants >= experiment.minimum_sample_size
+            total_participants = sum(
+                data["participant_count"] for data in metrics_data.values()
+            )
+            quality["sample_size_adequacy"] = (
+                total_participants >= experiment.minimum_sample_size
+            )
 
             # Calculate data freshness
-            latest_metric = db.query(func.max(ExperimentMetric.timestamp)).filter(
-                ExperimentMetric.experiment_id == experiment.id
-            ).scalar()
+            latest_metric = (
+                db.query(func.max(ExperimentMetric.timestamp))
+                .filter(ExperimentMetric.experiment_id == experiment.id)
+                .scalar()
+            )
 
             if latest_metric:
-                quality['data_freshness_days'] = (datetime.utcnow() - latest_metric).days
+                quality["data_freshness_days"] = (
+                    datetime.utcnow() - latest_metric
+                ).days
 
             return quality
 
@@ -899,50 +983,46 @@ class StatisticalAnalysisService:
             logger.error(f"Error calculating data quality metrics: {e}")
             return {}
 
-    async def _cache_analysis_results(
-        self,
-        cache_key: str,
-        report: ExperimentReport
-    ):
+    async def _cache_analysis_results(self, cache_key: str, report: ExperimentReport):
         """Cache analysis results"""
         try:
             cache_data = {
-                'report': {
-                    'experiment_id': report.experiment_id,
-                    'experiment_name': report.experiment_name,
-                    'analysis_date': report.analysis_date.isoformat(),
-                    'total_participants': report.total_participants,
-                    'total_variants': report.total_variants,
-                    'duration_days': report.duration_days,
-                    'primary_metric': report.primary_metric,
-                    'overall_recommendation': report.overall_recommendation,
-                    'confidence_level': report.confidence_level,
-                    'statistical_power': report.statistical_power,
-                    'business_impact': report.business_impact,
-                    'data_quality_metrics': report.data_quality_metrics
+                "report": {
+                    "experiment_id": report.experiment_id,
+                    "experiment_name": report.experiment_name,
+                    "analysis_date": report.analysis_date.isoformat(),
+                    "total_participants": report.total_participants,
+                    "total_variants": report.total_variants,
+                    "duration_days": report.duration_days,
+                    "primary_metric": report.primary_metric,
+                    "overall_recommendation": report.overall_recommendation,
+                    "confidence_level": report.confidence_level,
+                    "statistical_power": report.statistical_power,
+                    "business_impact": report.business_impact,
+                    "data_quality_metrics": report.data_quality_metrics,
                 },
-                'comparisons': [
+                "comparisons": [
                     {
-                        'control_variant': comp.control_variant,
-                        'treatment_variant': comp.treatment_variant,
-                        'metric_name': comp.metric_name,
-                        'control_mean': comp.control_mean,
-                        'treatment_mean': comp.treatment_mean,
-                        'absolute_difference': comp.absolute_difference,
-                        'relative_difference': comp.relative_difference,
-                        'recommendation': comp.recommendation,
-                        'statistical_result': {
-                            'test_name': comp.statistical_result.test_name,
-                            'statistic': comp.statistical_result.statistic,
-                            'p_value': comp.statistical_result.p_value,
-                            'is_significant': comp.statistical_result.is_significant,
-                            'effect_size': comp.statistical_result.effect_size,
-                            'power': comp.statistical_result.power,
-                            'interpretation': comp.statistical_result.interpretation
-                        }
+                        "control_variant": comp.control_variant,
+                        "treatment_variant": comp.treatment_variant,
+                        "metric_name": comp.metric_name,
+                        "control_mean": comp.control_mean,
+                        "treatment_mean": comp.treatment_mean,
+                        "absolute_difference": comp.absolute_difference,
+                        "relative_difference": comp.relative_difference,
+                        "recommendation": comp.recommendation,
+                        "statistical_result": {
+                            "test_name": comp.statistical_result.test_name,
+                            "statistic": comp.statistical_result.statistic,
+                            "p_value": comp.statistical_result.p_value,
+                            "is_significant": comp.statistical_result.is_significant,
+                            "effect_size": comp.statistical_result.effect_size,
+                            "power": comp.statistical_result.power,
+                            "interpretation": comp.statistical_result.interpretation,
+                        },
                     }
                     for comp in report.comparisons
-                ]
+                ],
             }
 
             await analytics_cache.set(cache_key, cache_data, ttl=self._cache_ttl)

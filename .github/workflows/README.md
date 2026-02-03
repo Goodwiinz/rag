@@ -1,304 +1,181 @@
 # CI/CD Workflows
 
-This directory contains GitHub Actions workflows for automated testing and deployment.
+GitHub Actions workflows for testing, building, and deploying the RAG system.
 
-## 📁 Files Overview
+## 📁 Workflows
 
-### **Currently Active**
-
-| File | Purpose | Status |
-|------|---------|--------|
-| [`ci.yml`](ci.yml) | Main CI/CD pipeline | ✅ **ACTIVE** |
-
-### **Alternative Options**
-
-| File | Purpose | Use When |
+| File | Purpose | Triggers |
 |------|---------|----------|
-| [`ci-improved.yml`](ci-improved.yml) | Stricter version with quality gates | Want to enforce code quality |
-| [`ci-no-docker.yml`](ci-no-docker.yml) | Traditional deployment (no Docker) | Not using Docker |
-| [`deploy-staging.yml`](deploy-staging.yml) | Staging environment deployment | Have a staging server |
+| `test-pipeline.yml` | Lint, test, security scan | Push, PR |
+| `docker-build.yml` | Build & push Docker images | After tests pass |
+| `deploy.yml` | Deploy to DigitalOcean K8s | After build, manual |
 
----
-
-## 🚀 **Current Pipeline (`ci.yml`)**
-
-### What It Does
-
-Runs **4 jobs in parallel** on every push/PR:
+## 🔄 Pipeline Flow
 
 ```
-┌─────────────────────────────────────────────┐
-│  Push to GitHub                             │
-└────────────────┬────────────────────────────┘
-                 │
-        ┌────────┴────────────────────┐
-        │  Triggers CI/CD Pipeline    │
-        └────────┬────────────────────┘
-                 │
-     ┌───────────┴───────────┬────────────┬──────────────┐
-     │                       │            │              │
-┌────▼─────┐       ┌────────▼────┐  ┌───▼──────┐  ┌───▼─────────┐
-│   Lint   │       │    Test     │  │  Docker  │  │  Security   │
-│          │       │             │  │  Build   │  │    Scan     │
-│ • flake8 │       │ • pytest    │  │          │  │             │
-│ • black  │       │ • coverage  │  │ • backend│  │ • safety    │
-│ • isort  │       │ • PostgreSQL│  │ • worker │  │ • bandit    │
-│          │       │ • Redis     │  │          │  │             │
-└──────────┘       └─────────────┘  └──────────┘  └─────────────┘
-     │                    │              │               │
-     └────────────────────┴──────────────┴───────────────┘
-                          │
-                     ✅ All Pass
-                          │
-                    Ready to Merge
-```
-
-### Jobs Breakdown
-
-#### 1. **Lint** (Required)
-- **What**: Code quality checks
-- **Tools**: flake8, black, isort
-- **Time**: ~1-2 minutes
-- **Note**: Currently only warns on formatting issues
-
-#### 2. **Test** (Required)
-- **What**: Unit tests with coverage
-- **Services**: PostgreSQL 14, Redis 7
-- **Time**: ~3-5 minutes
-- **Coverage**: Reports sent to Codecov (optional)
-
-#### 3. **Docker Build** (/// Optional)
-- **What**: Validates Docker images build correctly
-- **Builds**: Backend API + Celery Worker
-- **Time**: ~2-4 minutes
-- **Skip if**: Not using Docker (see `ci-no-docker.yml`)
-
-#### 4. **Security Scan** (Recommended)
-- **What**: Check for vulnerabilities
-- **Tools**: safety (dependencies), bandit (code)
-- **Time**: ~1-2 minutes
-- **Note**: Currently doesn't fail build, just warns
-
----
-
-## 🎯 **Which Workflow Should You Use?**
-
-### Use `ci.yml` (Current) If:
-- ✅ Just getting started
-- ✅ Want basic CI/CD
-- ✅ Using Docker (or might later)
-- ✅ Okay with warnings (not strict enforcement)
-
-### Use `ci-improved.yml` If:
-- ✅ Want strict code quality enforcement
-- ✅ Need coverage thresholds (80% minimum)
-- ✅ Want integration tests
-- ✅ Production-ready quality gates
-
-### Use `ci-no-docker.yml` If:
-- ✅ **NOT** using Docker for deployment
-- ✅ Deploying to traditional VPS
-- ✅ Want simpler, faster builds
-- ✅ Don't need container validation
-
-### Use `deploy-staging.yml` If:
-- ✅ Have a staging environment
-- ✅ Want auto-deployment on `main` branch
-- ✅ Using Docker containers
-- ✅ Need preview environments
-
----
-
-## 🔧 **How to Switch Workflows**
-
-### Option 1: Make `ci-improved.yml` Active
-
-```bash
-# Backup current
-mv .github/workflows/ci.yml .github/workflows/ci-basic.yml.backup
-
-# Activate improved
-mv .github/workflows/ci-improved.yml .github/workflows/ci.yml
-
-# Commit
-git add .github/workflows/
-git commit -m "Switch to improved CI with strict quality gates"
-git push
-```
-
-### Option 2: Skip Docker Builds
-
-```bash
-# Backup current
-mv .github/workflows/ci.yml .github/workflows/ci-with-docker.yml.backup
-
-# Activate no-docker version
-mv .github/workflows/ci-no-docker.yml .github/workflows/ci.yml
-
-git add .github/workflows/
-git commit -m "Switch to traditional deployment (no Docker)"
-git push
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│   Push/PR   │────▶│ Test Pipeline│────▶│ Docker Build│
+└─────────────┘     └──────────────┘     └──────────────┘
+                           │                    │
+                           ▼                    ▼
+                    ┌──────────────┐     ┌─────────────┐
+                    │   Staging    │────▶│ Production  │
+                    │   Deploy     │     │   Deploy    │
+                    └──────────────┘     └─────────────┘
 ```
 
 ---
 
-## 📊 **Understanding the Workflow File**
+## 🧪 Test Pipeline (`test-pipeline.yml`)
 
-All workflows follow this structure:
+Runs on every push and PR. **Must pass before Docker build.**
 
-```yaml
-name: Workflow Name              # What shows in GitHub UI
+### Jobs
 
-on:                              # When to run
-  push:                          # On code push
-    branches: [main, develop]    # Only these branches
-  pull_request:                  # On pull requests
-  workflow_dispatch:             # Manual trigger button
-
-env:                             # Global variables
-  PYTHON_VERSION: '3.11'
-
-jobs:                            # What to run
-  job-name:                      # Unique job ID
-    runs-on: ubuntu-latest       # Runner type
-
-    services:                    # /// Optional: Docker services
-      postgres: ...
-
-    steps:                       # Steps in order
-      - name: Step name
-        uses: action@version     # Or run: command
-```
+| Job | What | Time |
+|-----|------|------|
+| `lint-backend` | Ruff, Black, isort, MyPy | ~2 min |
+| `lint-frontend` | TypeScript, ESLint | ~1 min |
+| `unit-tests` | pytest (8% coverage min) | ~3 min |
+| `security-scan` | Bandit, Safety | ~1 min |
+| `frontend-tests` | Jest | ~2 min |
+| `integration-tests` | Postgres + Redis | ~5 min |
+| `resilience-tests` | Circuit breaker tests | ~2 min |
+| `api-contract-tests` | Schemathesis | ~3 min |
+| `performance-tests` | Benchmarks (main only) | ~5 min |
 
 ---
 
-## 🔍 **Understanding Comments**
+## 🐳 Docker Build (`docker-build.yml`)
 
-### Special Comment Markers
+Builds multi-arch images after tests pass.
 
-- `# Normal comment` - Explanation
-- `/// Comment` - **Optional/Ignorable section**
-  - If you see `///`, that part can be safely removed
-  - Example: `/// This is optional - remove if not needed`
+### What it builds
 
-### Example:
+- `ghcr.io/<repo>/backend:latest`
+- `ghcr.io/<repo>/frontend:latest`
+- Tags: `latest`, branch name, commit SHA
 
-```yaml
-# This step is required
-- name: Run tests
-  run: pytest
+### Features
 
-# /// This step is optional - only for Codecov users
-- name: Upload to Codecov
-  uses: codecov/codecov-action@v4
-```
-
-The `///` marker means: "This is nice to have but not necessary."
+- Multi-platform: `linux/amd64`, `linux/arm64`
+- GHA cache for fast rebuilds
+- Bake action for all services
 
 ---
 
-## 🎓 **Common Customizations**
+## 🚀 Deploy (`deploy.yml`)
 
-### 1. Change Python Version
+Deploys to DigitalOcean Kubernetes using Helm.
 
+### Environments
+
+| Environment | Replicas | Auto-deploy | URL |
+|-------------|----------|-------------|-----|
+| Staging | 1 | On main push | staging.yourdomain.com |
+| Production | 3+ (autoscale) | Manual only | yourdomain.com |
+
+### Usage
+
+**Auto-deploy to staging:**
+```
+Push to main → Tests pass → Docker build → Deploy staging
+```
+
+**Manual deploy to production:**
+```
+Actions → Deploy → Run workflow → Select "production"
+```
+
+### Required Secrets
+
+| Secret | Description |
+|--------|-------------|
+| `DIGITALOCEAN_ACCESS_TOKEN` | DO API token |
+| `GITHUB_TOKEN` | Auto-provided |
+
+### Configuration
+
+Update in `deploy.yml`:
 ```yaml
 env:
-  PYTHON_VERSION: '3.12'  # Change from 3.11 to 3.12
+  CLUSTER_NAME: rag-cluster  # Your DOKS cluster name
 ```
 
-### 2. Add More Branches
-
+Update URLs in environment settings:
 ```yaml
-on:
-  push:
-    branches: [main, develop, staging, feature/*]  # Added staging and feature branches
-```
-
-### 3. Skip Docker Job
-
-```yaml
-# Comment out or delete the entire docker-build job
-# docker-build:
-#   name: Docker Build Test
-#   ...
-```
-
-### 4. Make Linting Strict
-
-```yaml
-# In ci.yml, change this:
-run: black --check src tests || echo "::warning::..."
-
-# To this (fails build if not formatted):
-run: black --check src tests
-```
-
-### 5. Add Code Coverage Threshold
-
-```yaml
-# In test job, change pytest command:
-run: pytest tests/ --cov=src --cov-fail-under=80  # Fails if coverage < 80%
+environment:
+  name: production
+  url: https://yourdomain.com
 ```
 
 ---
 
-## 🚨 **Troubleshooting**
+## 🔧 Setup
 
-### Workflow Fails on First Run
+### 1. Add GitHub Secrets
 
-**Common issues:**
+```bash
+# In GitHub repo → Settings → Secrets → Actions
+DIGITALOCEAN_ACCESS_TOKEN=dop_v1_xxxxx
+```
 
-1. **Missing `requirements.txt`**
-   ```bash
-   # Make sure this file exists:
-   backend/requirements.txt
-   ```
+### 2. Create Kubernetes Namespaces
 
-2. **Tests not found**
-   ```bash
-   # Make sure tests directory exists:
-   backend/tests/
-   ```
+```bash
+doctl kubernetes cluster kubeconfig save rag-cluster
+kubectl create namespace rag-staging
+kubectl create namespace rag-production
+```
 
-3. **Docker build fails**
-   ```bash
-   # Make sure Dockerfiles exist:
-   backend/Dockerfile
-   backend/Dockerfile.worker
-   ```
+### 3. Configure GitHub Environments
 
-### How to View Logs
-
-1. Go to GitHub → Your Repo → **Actions** tab
-2. Click on the failed workflow run
-3. Click on the failed job (red X)
-4. Click on the failed step to see logs
-
-### How to Re-run Failed Jobs
-
-1. Go to the failed workflow run
-2. Click **Re-run failed jobs** button (top right)
+1. Go to Settings → Environments
+2. Create `staging` and `production`
+3. Add protection rules for `production`:
+   - Required reviewers
+   - Wait timer (optional)
 
 ---
 
-## 📚 **Additional Resources**
+## 🔒 Branch Protection
 
-- [CI/CD Best Practices](../../CI_CD_BEST_PRACTICES.md) - Complete best practices guide
-- [Docker Decision Guide](../../DOCKER_OR_NOT.md) - Should you use Docker?
-- [Traditional Deployment](../../DEPLOYMENT_TRADITIONAL.md) - Deploy without Docker
-- [GitHub Actions Docs](https://docs.github.com/en/actions) - Official documentation
+Recommended settings for `main`:
 
----
-
-## 🎯 **Quick Start Checklist**
-
-- [ ] Review `ci.yml` to understand what runs
-- [ ] Check if all jobs pass on your repo
-- [ ] Decide if you need Docker (see DOCKER_OR_NOT.md)
-- [ ] Enable branch protection on `main` (require CI to pass)
-- [ ] Consider upgrading to `ci-improved.yml` for stricter checks
-- [ ] Set up staging deployment if needed
+- ✅ Require status checks: `Test Summary`
+- ✅ Require branches to be up to date
+- ✅ Require pull request reviews
+- ✅ Require conversation resolution
 
 ---
 
-**Questions?** Check the [CI/CD Best Practices](../../CI_CD_BEST_PRACTICES.md) guide or open an issue!
+## 🐛 Troubleshooting
+
+### Tests fail with "No tests found"
+```bash
+# Check test markers exist
+pytest --collect-only -m "unit"
+```
+
+### Docker build times out
+- Check GHA cache is working
+- Consider reducing platforms (remove arm64 if not needed)
+
+### Deploy fails with "cluster not found"
+```bash
+# Verify cluster name
+doctl kubernetes cluster list
+```
+
+### Rollback a bad deploy
+```bash
+helm rollback rag-production -n rag-production
+```
+
+---
+
+## 📚 Related Docs
+
+- [Helm Chart](../../infrastructure/helm/knowledge-graph-analytics/)
+- [Kubernetes Config](../../infrastructure/kubernetes/)
+- [Docker Compose (local)](../../docker-compose.yml)

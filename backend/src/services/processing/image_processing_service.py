@@ -2,22 +2,31 @@
 Image processing and analysis service for multimodal documents (Basic Version)
 """
 
-import os
 import logging
-from typing import Dict, Any
-from pathlib import Path
+import os
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict
 
-from PIL import Image, ImageStat, ExifTags
+from PIL import ExifTags, Image, ImageStat
 
 logger = logging.getLogger(__name__)
+
 
 class ImageProcessingService:
     """Service for processing and analyzing images (Basic Version without OCR dependencies)"""
 
     def __init__(self):
         """Initialize the image processing service"""
-        self.supported_formats = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
+        self.supported_formats = {
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".bmp",
+            ".tiff",
+            ".tif",
+            ".webp",
+        }
         self.max_image_size = (4096, 4096)  # Maximum dimensions for processing
 
     def process_image(self, image_path: str) -> Dict[str, Any]:
@@ -50,23 +59,27 @@ class ImageProcessingService:
 
             # OCR placeholder (would be implemented with proper dependencies)
             ocr_results = {
-                'text': '',
-                'confidence': 0.0,
-                'regions': [],
-                'note': 'OCR not available in this basic version'
+                "text": "",
+                "confidence": 0.0,
+                "regions": [],
+                "note": "OCR not available in this basic version",
             }
 
             results = {
-                'metadata': metadata,
-                'ocr_text': ocr_results['text'],
-                'ocr_confidence': ocr_results['confidence'],
-                'text_regions': ocr_results['regions'],
-                'image_analysis': analysis_results,
-                'color_analysis': color_analysis,
-                'face_analysis': {'face_count': 0, 'faces': [], 'has_faces': False},  # Simplified
-                'quality_score': quality_score,
-                'processing_timestamp': datetime.now().isoformat(),
-                'ocr_available': False
+                "metadata": metadata,
+                "ocr_text": ocr_results["text"],
+                "ocr_confidence": ocr_results["confidence"],
+                "text_regions": ocr_results["regions"],
+                "image_analysis": analysis_results,
+                "color_analysis": color_analysis,
+                "face_analysis": {
+                    "face_count": 0,
+                    "faces": [],
+                    "has_faces": False,
+                },  # Simplified
+                "quality_score": quality_score,
+                "processing_timestamp": datetime.now().isoformat(),
+                "ocr_available": False,
             }
 
             logger.info(f"Successfully processed image: {image_path}")
@@ -82,11 +95,14 @@ class ImageProcessingService:
             image = Image.open(image_path)
 
             # Convert to RGB if necessary
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
+            if image.mode != "RGB":
+                image = image.convert("RGB")
 
             # Resize if too large
-            if image.size[0] > self.max_image_size[0] or image.size[1] > self.max_image_size[1]:
+            if (
+                image.size[0] > self.max_image_size[0]
+                or image.size[1] > self.max_image_size[1]
+            ):
                 image.thumbnail(self.max_image_size, Image.Resampling.LANCZOS)
                 logger.info(f"Resized image to {image.size}")
 
@@ -96,19 +112,21 @@ class ImageProcessingService:
             logger.error(f"Failed to load image {image_path}: {str(e)}")
             raise
 
-    def _extract_image_metadata(self, image_path: str, image: Image.Image) -> Dict[str, Any]:
+    def _extract_image_metadata(
+        self, image_path: str, image: Image.Image
+    ) -> Dict[str, Any]:
         """Extract comprehensive image metadata"""
         metadata = {
-            'file_path': image_path,
-            'file_size': os.path.getsize(image_path),
-            'dimensions': {
-                'width': image.size[0],
-                'height': image.size[1],
-                'channels': len(image.getbands())
+            "file_path": image_path,
+            "file_size": os.path.getsize(image_path),
+            "dimensions": {
+                "width": image.size[0],
+                "height": image.size[1],
+                "channels": len(image.getbands()),
             },
-            'aspect_ratio': image.size[0] / image.size[1],
-            'file_format': Path(image_path).suffix.lower(),
-            'mode': image.mode
+            "aspect_ratio": image.size[0] / image.size[1],
+            "file_format": Path(image_path).suffix.lower(),
+            "mode": image.mode,
         }
 
         try:
@@ -119,7 +137,7 @@ class ImageProcessingService:
                 for tag_id, value in exif_data.items():
                     tag = ExifTags.TAGS.get(tag_id, tag_id)
                     exif_dict[tag] = value
-                metadata['exif'] = exif_dict
+                metadata["exif"] = exif_dict
 
         except Exception as e:
             logger.warning(f"Failed to extract EXIF data: {str(e)}")
@@ -129,10 +147,10 @@ class ImageProcessingService:
     def _analyze_image_content(self, image: Image.Image) -> Dict[str, Any]:
         """Analyze image content and characteristics"""
         analysis = {
-            'brightness': self._calculate_brightness(image),
-            'contrast': self._calculate_contrast(image),
-            'image_type': self._classify_image_type(image),
-            'size_category': self._categorize_size(image)
+            "brightness": self._calculate_brightness(image),
+            "contrast": self._calculate_contrast(image),
+            "image_type": self._classify_image_type(image),
+            "size_category": self._categorize_size(image),
         }
 
         return analysis
@@ -141,8 +159,8 @@ class ImageProcessingService:
         """Calculate average image brightness"""
         try:
             # Convert to grayscale if needed
-            if image.mode != 'L':
-                gray = image.convert('L')
+            if image.mode != "L":
+                gray = image.convert("L")
             else:
                 gray = image
 
@@ -157,8 +175,8 @@ class ImageProcessingService:
         """Calculate image contrast (standard deviation)"""
         try:
             # Convert to grayscale if needed
-            if image.mode != 'L':
-                gray = image.convert('L')
+            if image.mode != "L":
+                gray = image.convert("L")
             else:
                 gray = image
 
@@ -204,8 +222,8 @@ class ImageProcessingService:
         """Extract dominant colors from image (Simplified)"""
         try:
             # Simple color analysis using PIL
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
+            if image.mode != "RGB":
+                image = image.convert("RGB")
 
             # Sample colors from the image
             colors = []
@@ -234,38 +252,48 @@ class ImageProcessingService:
                 color_name = self._get_color_name(dominant_color)
 
                 return {
-                    'dominant_colors': [{
-                        'rgb': dominant_color,
-                        'hex': '#{:02x}{:02x}{:02x}'.format(*dominant_color),
-                        'percentage': 1.0,
-                        'name': color_name
-                    }],
-                    'color_count': 1,
-                    'average_color': {
-                        'rgb': dominant_color,
-                        'hex': '#{:02x}{:02x}{:02x}'.format(*dominant_color),
-                        'name': color_name
+                    "dominant_colors": [
+                        {
+                            "rgb": dominant_color,
+                            "hex": "#{:02x}{:02x}{:02x}".format(*dominant_color),
+                            "percentage": 1.0,
+                            "name": color_name,
+                        }
+                    ],
+                    "color_count": 1,
+                    "average_color": {
+                        "rgb": dominant_color,
+                        "hex": "#{:02x}{:02x}{:02x}".format(*dominant_color),
+                        "name": color_name,
                     },
-                    'color_distribution': {
-                        'warmth': self._calculate_color_warmth(dominant_color),
-                        'brightness_level': sum(dominant_color) / (3 * 255)
-                    }
+                    "color_distribution": {
+                        "warmth": self._calculate_color_warmth(dominant_color),
+                        "brightness_level": sum(dominant_color) / (3 * 255),
+                    },
                 }
             else:
                 return {
-                    'dominant_colors': [],
-                    'color_count': 0,
-                    'average_color': {'rgb': [128, 128, 128], 'hex': '#808080', 'name': 'gray'},
-                    'color_distribution': {'warmth': 0.0, 'brightness_level': 0.5}
+                    "dominant_colors": [],
+                    "color_count": 0,
+                    "average_color": {
+                        "rgb": [128, 128, 128],
+                        "hex": "#808080",
+                        "name": "gray",
+                    },
+                    "color_distribution": {"warmth": 0.0, "brightness_level": 0.5},
                 }
 
         except Exception as e:
             logger.error(f"Color analysis failed: {str(e)}")
             return {
-                'dominant_colors': [],
-                'color_count': 0,
-                'average_color': {'rgb': [128, 128, 128], 'hex': '#808080', 'name': 'gray'},
-                'color_distribution': {'warmth': 0.0, 'brightness_level': 0.5}
+                "dominant_colors": [],
+                "color_count": 0,
+                "average_color": {
+                    "rgb": [128, 128, 128],
+                    "hex": "#808080",
+                    "name": "gray",
+                },
+                "color_distribution": {"warmth": 0.0, "brightness_level": 0.5},
             }
 
     def _get_color_name(self, rgb: tuple) -> str:
@@ -319,14 +347,14 @@ class ImageProcessingService:
         quality_score = 0.5  # Base score
 
         # Brightness factor (prefer well-lit images)
-        brightness = analysis['brightness']
+        brightness = analysis["brightness"]
         if 0.3 <= brightness <= 0.8:
             quality_score += 0.2
         elif brightness < 0.1 or brightness > 0.9:
             quality_score -= 0.2
 
         # Contrast factor
-        contrast = analysis['contrast']
+        contrast = analysis["contrast"]
         if contrast >= 0.1:
             quality_score += 0.1
         else:
@@ -340,9 +368,9 @@ class ImageProcessingService:
             quality_score -= 0.2
 
         # Size category factor
-        if analysis['size_category'] == 'large':
+        if analysis["size_category"] == "large":
             quality_score += 0.1
-        elif analysis['size_category'] == 'tiny':
+        elif analysis["size_category"] == "tiny":
             quality_score -= 0.1
 
         return max(0.0, min(1.0, quality_score))
@@ -353,27 +381,39 @@ class ImageProcessingService:
             summary_parts = []
 
             # Basic information
-            metadata = image_results['metadata']
-            dimensions = metadata['dimensions']
-            summary_parts.append(f"Image dimensions: {dimensions['width']}x{dimensions['height']} pixels")
+            metadata = image_results["metadata"]
+            dimensions = metadata["dimensions"]
+            summary_parts.append(
+                f"Image dimensions: {dimensions['width']}x{dimensions['height']} pixels"
+            )
 
             # Image characteristics
-            analysis = image_results['image_analysis']
-            summary_parts.append(f"Image type: {analysis['image_type']}, size category: {analysis['size_category']}")
-            summary_parts.append(f"Brightness: {analysis['brightness']:.1%}, contrast: {analysis['contrast']:.1%}")
+            analysis = image_results["image_analysis"]
+            summary_parts.append(
+                f"Image type: {analysis['image_type']}, size category: {analysis['size_category']}"
+            )
+            summary_parts.append(
+                f"Brightness: {analysis['brightness']:.1%}, contrast: {analysis['contrast']:.1%}"
+            )
 
             # Color information
-            color_analysis = image_results['color_analysis']
-            if color_analysis['dominant_colors']:
-                top_color = color_analysis['dominant_colors'][0]
-                summary_parts.append(f"Primary color: {top_color['name']} ({top_color['hex']})")
+            color_analysis = image_results["color_analysis"]
+            if color_analysis["dominant_colors"]:
+                top_color = color_analysis["dominant_colors"][0]
+                summary_parts.append(
+                    f"Primary color: {top_color['name']} ({top_color['hex']})"
+                )
 
             # Quality assessment
-            summary_parts.append(f"Overall image quality: {image_results['quality_score']:.1%}")
+            summary_parts.append(
+                f"Overall image quality: {image_results['quality_score']:.1%}"
+            )
 
             # OCR availability
-            if not image_results.get('ocr_available', True):
-                summary_parts.append("Text extraction via OCR is not available in this configuration")
+            if not image_results.get("ocr_available", True):
+                summary_parts.append(
+                    "Text extraction via OCR is not available in this configuration"
+                )
 
             return ". ".join(summary_parts) + "."
 

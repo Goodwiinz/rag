@@ -12,36 +12,36 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func
 from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.core.database import get_db
-from src.services.security.user_management import get_current_user
 from src.models import (
-    User,
+    ChatMessage,
     Collection,
     CollectionDocument,
-    Thread,
     Conversation,
-    Workspace,
+    MessageRole,
     ProjectThread,
     ProjectThreadLinkType,
-    ChatMessage,
-    MessageRole,
-)
-from src.shared.research_schemas import (
-    StartChatFromProjectRequest,
-    StartChatFromProjectResponse,
-    LinkThreadRequest,
-    ProjectThreadResponse,
-    ProjectThreadListResponse,
-    SaveThreadToNoteRequest,
-    NoteCreate,
-    NoteResponse,
+    Thread,
+    User,
+    Workspace,
 )
 from src.schemas.chat import ThreadCreate
+from src.services.security.user_management import get_current_user
+from src.shared.research_schemas import (
+    LinkThreadRequest,
+    NoteCreate,
+    NoteResponse,
+    ProjectThreadListResponse,
+    ProjectThreadResponse,
+    SaveThreadToNoteRequest,
+    StartChatFromProjectRequest,
+    StartChatFromProjectResponse,
+)
 
 logger = get_logger()
 router = APIRouter(prefix="/api/v1/projects", tags=["project-chat-integration"])
@@ -50,6 +50,7 @@ router = APIRouter(prefix="/api/v1/projects", tags=["project-chat-integration"])
 # =========================================================================
 # Helper Functions
 # =========================================================================
+
 
 async def _get_project_with_auth(
     project_id: UUID,
@@ -121,6 +122,7 @@ async def _get_thread_with_auth(
 # =========================================================================
 # Start Chat from Project
 # =========================================================================
+
 
 @router.post("/{project_id}/chat/start", response_model=StartChatFromProjectResponse)
 async def start_chat_from_project(
@@ -248,7 +250,9 @@ async def start_chat_from_project(
         raise
     except Exception as e:
         await db.rollback()
-        logger.error("start_chat_from_project_failed", error=str(e), project_id=str(project_id))
+        logger.error(
+            "start_chat_from_project_failed", error=str(e), project_id=str(project_id)
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to start chat from project: {str(e)}",
@@ -258,6 +262,7 @@ async def start_chat_from_project(
 # =========================================================================
 # Link Existing Thread
 # =========================================================================
+
 
 @router.post("/{project_id}/chat/link", response_model=ProjectThreadResponse)
 async def link_thread_to_project(
@@ -354,6 +359,7 @@ async def link_thread_to_project(
 # List Project Threads
 # =========================================================================
 
+
 @router.get("/{project_id}/chat/threads", response_model=ProjectThreadListResponse)
 async def list_project_threads(
     project_id: UUID,
@@ -423,7 +429,10 @@ async def list_project_threads(
 # Unlink Thread
 # =========================================================================
 
-@router.delete("/{project_id}/chat/threads/{thread_id}", status_code=status.HTTP_204_NO_CONTENT)
+
+@router.delete(
+    "/{project_id}/chat/threads/{thread_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def unlink_thread_from_project(
     project_id: UUID,
     thread_id: UUID,
@@ -484,6 +493,7 @@ async def unlink_thread_from_project(
 # Save Thread to Note
 # =========================================================================
 
+
 @router.post("/{project_id}/chat/save-to-note", response_model=NoteResponse)
 async def save_thread_to_note(
     project_id: UUID,
@@ -531,7 +541,11 @@ async def save_thread_to_note(
         content_parts = [f"# {thread_title}\n"]
 
         # Format date safely
-        date_str = thread.last_message_at.strftime('%Y-%m-%d') if thread.last_message_at else "Unknown date"
+        date_str = (
+            thread.last_message_at.strftime("%Y-%m-%d")
+            if thread.last_message_at
+            else "Unknown date"
+        )
         content_parts.append(f"*Saved from chat thread on {date_str}*\n\n")
 
         for msg in messages:
@@ -575,6 +589,7 @@ async def save_thread_to_note(
 
         # Import here to avoid circular dependency
         from src.api.research.projects import _to_note_response
+
         return _to_note_response(note)
 
     except HTTPException:

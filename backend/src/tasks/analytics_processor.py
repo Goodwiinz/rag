@@ -4,30 +4,31 @@ Handles async processing of heavy analytics computations and data aggregation
 """
 
 import asyncio
-import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Union
-from dataclasses import dataclass
-from enum import Enum
 import json
+import logging
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional, Union
 
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_, case
 
-from src.core.database import get_db
-from src.models.processing import ProcessingJob, JobType, JobStatus, JobPriority
-from src.models.analytics_event import AnalyticsEvent, EventType
-from src.models.user_session import UserSession
-from src.models.performance_log import PerformanceLog, MetricCategory, PerformanceLevel
-from src.models.user import User
-from src.models.organization import Organization
 from src.config.analytics_config import AnalyticsConfig
+from src.core.database import get_db
+from src.models.analytics_event import AnalyticsEvent, EventType
+from src.models.organization import Organization
+from src.models.performance_log import MetricCategory, PerformanceLevel, PerformanceLog
+from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
+from src.models.user import User
+from src.models.user_session import UserSession
 
 logger = logging.getLogger(__name__)
 
 
 class AnalyticsJobType(str, Enum):
     """Analytics-specific job types"""
+
     DATA_AGGREGATION = "data_aggregation"
     DAILY_SUMMARY = "daily_summary"
     WEEKLY_REPORT = "weekly_report"
@@ -43,6 +44,7 @@ class AnalyticsJobType(str, Enum):
 @dataclass
 class AnalyticsJobConfig:
     """Configuration for analytics jobs"""
+
     job_type: AnalyticsJobType
     organization_id: Optional[str] = None
     date_range: Optional[Dict[str, datetime]] = None
@@ -58,19 +60,27 @@ class AnalyticsDataAggregator:
     def __init__(self, db: Session):
         self.db = db
 
-    async def aggregate_daily_metrics(self, organization_id: str, date: datetime) -> Dict[str, Any]:
+    async def aggregate_daily_metrics(
+        self, organization_id: str, date: datetime
+    ) -> Dict[str, Any]:
         """Aggregate daily metrics for an organization"""
         start_date = date.replace(hour=0, minute=0, second=0, microsecond=0)
         end_date = start_date + timedelta(days=1)
 
         # User behavior metrics
-        user_metrics = await self._aggregate_user_metrics(organization_id, start_date, end_date)
+        user_metrics = await self._aggregate_user_metrics(
+            organization_id, start_date, end_date
+        )
 
         # Performance metrics
-        performance_metrics = await self._aggregate_performance_metrics(organization_id, start_date, end_date)
+        performance_metrics = await self._aggregate_performance_metrics(
+            organization_id, start_date, end_date
+        )
 
         # Event metrics
-        event_metrics = await self._aggregate_event_metrics(organization_id, start_date, end_date)
+        event_metrics = await self._aggregate_event_metrics(
+            organization_id, start_date, end_date
+        )
 
         return {
             "date": date.date().isoformat(),
@@ -78,152 +88,234 @@ class AnalyticsDataAggregator:
             "user_metrics": user_metrics,
             "performance_metrics": performance_metrics,
             "event_metrics": event_metrics,
-            "aggregated_at": datetime.utcnow().isoformat()
+            "aggregated_at": datetime.utcnow().isoformat(),
         }
 
-    async def _aggregate_user_metrics(self, org_id: str, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+    async def _aggregate_user_metrics(
+        self, org_id: str, start_date: datetime, end_date: datetime
+    ) -> Dict[str, Any]:
         """Aggregate user behavior metrics"""
         # Active sessions
-        active_sessions = self.db.query(UserSession).filter(
-            and_(
-                UserSession.organization_id == org_id,
-                UserSession.started_at >= start_date,
-                UserSession.started_at < end_date,
-                UserSession.status == 'active'
+        active_sessions = (
+            self.db.query(UserSession)
+            .filter(
+                and_(
+                    UserSession.organization_id == org_id,
+                    UserSession.started_at >= start_date,
+                    UserSession.started_at < end_date,
+                    UserSession.status == "active",
+                )
             )
-        ).count()
+            .count()
+        )
 
         # Average session duration
-        avg_duration = self.db.query(func.avg(UserSession.duration_seconds)).filter(
-            and_(
-                UserSession.organization_id == org_id,
-                UserSession.started_at >= start_date,
-                UserSession.started_at < end_date,
-                UserSession.duration_seconds.isnot(None)
+        avg_duration = (
+            self.db.query(func.avg(UserSession.duration_seconds))
+            .filter(
+                and_(
+                    UserSession.organization_id == org_id,
+                    UserSession.started_at >= start_date,
+                    UserSession.started_at < end_date,
+                    UserSession.duration_seconds.isnot(None),
+                )
             )
-        ).scalar() or 0
+            .scalar()
+            or 0
+        )
 
         # Total searches
-        total_searches = self.db.query(func.sum(UserSession.total_searches)).filter(
-            and_(
-                UserSession.organization_id == org_id,
-                UserSession.started_at >= start_date,
-                UserSession.started_at < end_date
+        total_searches = (
+            self.db.query(func.sum(UserSession.total_searches))
+            .filter(
+                and_(
+                    UserSession.organization_id == org_id,
+                    UserSession.started_at >= start_date,
+                    UserSession.started_at < end_date,
+                )
             )
-        ).scalar() or 0
+            .scalar()
+            or 0
+        )
 
         # Engagement metrics
-        avg_engagement = self.db.query(func.avg(UserSession.engagement_score)).filter(
-            and_(
-                UserSession.organization_id == org_id,
-                UserSession.started_at >= start_date,
-                UserSession.started_at < end_date
+        avg_engagement = (
+            self.db.query(func.avg(UserSession.engagement_score))
+            .filter(
+                and_(
+                    UserSession.organization_id == org_id,
+                    UserSession.started_at >= start_date,
+                    UserSession.started_at < end_date,
+                )
             )
-        ).scalar() or 0
+            .scalar()
+            or 0
+        )
 
         return {
             "active_sessions": active_sessions,
             "avg_session_duration_seconds": float(avg_duration),
             "total_searches": int(total_searches),
-            "avg_engagement_score": float(avg_engagement)
+            "avg_engagement_score": float(avg_engagement),
         }
 
-    async def _aggregate_performance_metrics(self, org_id: str, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+    async def _aggregate_performance_metrics(
+        self, org_id: str, start_date: datetime, end_date: datetime
+    ) -> Dict[str, Any]:
         """Aggregate performance metrics"""
         # Average response time
-        avg_response_time = self.db.query(func.avg(PerformanceLog.response_time_ms)).filter(
-            and_(
-                PerformanceLog.organization_id == org_id,
-                PerformanceLog.timestamp >= start_date,
-                PerformanceLog.timestamp < end_date,
-                PerformanceLog.response_time_ms.isnot(None)
+        avg_response_time = (
+            self.db.query(func.avg(PerformanceLog.response_time_ms))
+            .filter(
+                and_(
+                    PerformanceLog.organization_id == org_id,
+                    PerformanceLog.timestamp >= start_date,
+                    PerformanceLog.timestamp < end_date,
+                    PerformanceLog.response_time_ms.isnot(None),
+                )
             )
-        ).scalar() or 0
+            .scalar()
+            or 0
+        )
 
         # Error rate
-        total_logs = self.db.query(PerformanceLog).filter(
-            and_(
-                PerformanceLog.organization_id == org_id,
-                PerformanceLog.timestamp >= start_date,
-                PerformanceLog.timestamp < end_date
+        total_logs = (
+            self.db.query(PerformanceLog)
+            .filter(
+                and_(
+                    PerformanceLog.organization_id == org_id,
+                    PerformanceLog.timestamp >= start_date,
+                    PerformanceLog.timestamp < end_date,
+                )
             )
-        ).count()
+            .count()
+        )
 
-        error_logs = self.db.query(PerformanceLog).filter(
-            and_(
-                PerformanceLog.organization_id == org_id,
-                PerformanceLog.timestamp >= start_date,
-                PerformanceLog.timestamp < end_date,
-                PerformanceLog.performance_level.in_(['poor', 'critical'])
+        error_logs = (
+            self.db.query(PerformanceLog)
+            .filter(
+                and_(
+                    PerformanceLog.organization_id == org_id,
+                    PerformanceLog.timestamp >= start_date,
+                    PerformanceLog.timestamp < end_date,
+                    PerformanceLog.performance_level.in_(["poor", "critical"]),
+                )
             )
-        ).count()
+            .count()
+        )
 
         error_rate = (error_logs / total_logs * 100) if total_logs > 0 else 0
 
         # System health
-        health_score = self.db.query(func.avg(
-            case([
-                (PerformanceLog.performance_level == PerformanceLevel.EXCELLENT, 100),
-                (PerformanceLog.performance_level == PerformanceLevel.GOOD, 80),
-                (PerformanceLog.performance_level == PerformanceLevel.FAIR, 60),
-                (PerformanceLog.performance_level == PerformanceLevel.POOR, 40),
-                (PerformanceLog.performance_level == PerformanceLevel.CRITICAL, 20)
-            ], else_=50)
-        )).filter(
-            and_(
-                PerformanceLog.organization_id == org_id,
-                PerformanceLog.timestamp >= start_date,
-                PerformanceLog.timestamp < end_date
+        health_score = (
+            self.db.query(
+                func.avg(
+                    case(
+                        [
+                            (
+                                PerformanceLog.performance_level
+                                == PerformanceLevel.EXCELLENT,
+                                100,
+                            ),
+                            (
+                                PerformanceLog.performance_level
+                                == PerformanceLevel.GOOD,
+                                80,
+                            ),
+                            (
+                                PerformanceLog.performance_level
+                                == PerformanceLevel.FAIR,
+                                60,
+                            ),
+                            (
+                                PerformanceLog.performance_level
+                                == PerformanceLevel.POOR,
+                                40,
+                            ),
+                            (
+                                PerformanceLog.performance_level
+                                == PerformanceLevel.CRITICAL,
+                                20,
+                            ),
+                        ],
+                        else_=50,
+                    )
+                )
             )
-        ).scalar() or 50
+            .filter(
+                and_(
+                    PerformanceLog.organization_id == org_id,
+                    PerformanceLog.timestamp >= start_date,
+                    PerformanceLog.timestamp < end_date,
+                )
+            )
+            .scalar()
+            or 50
+        )
 
         return {
             "avg_response_time_ms": float(avg_response_time),
             "error_rate_percentage": float(error_rate),
             "health_score": float(health_score),
-            "total_logs": total_logs
+            "total_logs": total_logs,
         }
 
-    async def _aggregate_event_metrics(self, org_id: str, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+    async def _aggregate_event_metrics(
+        self, org_id: str, start_date: datetime, end_date: datetime
+    ) -> Dict[str, Any]:
         """Aggregate event metrics"""
         from sqlalchemy import case
 
         # Event counts by type
-        event_counts = self.db.query(
-            AnalyticsEvent.event_type,
-            func.count(AnalyticsEvent.id).label('count')
-        ).filter(
-            and_(
-                AnalyticsEvent.organization_id == org_id,
-                AnalyticsEvent.event_timestamp >= start_date,
-                AnalyticsEvent.event_timestamp < end_date
+        event_counts = (
+            self.db.query(
+                AnalyticsEvent.event_type, func.count(AnalyticsEvent.id).label("count")
             )
-        ).group_by(AnalyticsEvent.event_type).all()
+            .filter(
+                and_(
+                    AnalyticsEvent.organization_id == org_id,
+                    AnalyticsEvent.event_timestamp >= start_date,
+                    AnalyticsEvent.event_timestamp < end_date,
+                )
+            )
+            .group_by(AnalyticsEvent.event_type)
+            .all()
+        )
 
         # Search events
-        search_events = self.db.query(AnalyticsEvent).filter(
-            and_(
-                AnalyticsEvent.organization_id == org_id,
-                AnalyticsEvent.event_type == EventType.SEARCH_QUERY,
-                AnalyticsEvent.event_timestamp >= start_date,
-                AnalyticsEvent.event_timestamp < end_date
+        search_events = (
+            self.db.query(AnalyticsEvent)
+            .filter(
+                and_(
+                    AnalyticsEvent.organization_id == org_id,
+                    AnalyticsEvent.event_type == EventType.SEARCH_QUERY,
+                    AnalyticsEvent.event_timestamp >= start_date,
+                    AnalyticsEvent.event_timestamp < end_date,
+                )
             )
-        ).count()
+            .count()
+        )
 
         # Document views
-        doc_views = self.db.query(AnalyticsEvent).filter(
-            and_(
-                AnalyticsEvent.organization_id == org_id,
-                AnalyticsEvent.event_type == EventType.DOCUMENT_VIEW,
-                AnalyticsEvent.event_timestamp >= start_date,
-                AnalyticsEvent.event_timestamp < end_date
+        doc_views = (
+            self.db.query(AnalyticsEvent)
+            .filter(
+                and_(
+                    AnalyticsEvent.organization_id == org_id,
+                    AnalyticsEvent.event_type == EventType.DOCUMENT_VIEW,
+                    AnalyticsEvent.event_timestamp >= start_date,
+                    AnalyticsEvent.event_timestamp < end_date,
+                )
             )
-        ).count()
+            .count()
+        )
 
         return {
-            "event_counts": {event.event_type.value: event.count for event in event_counts},
+            "event_counts": {
+                event.event_type.value: event.count for event in event_counts
+            },
             "search_events": search_events,
-            "document_views": doc_views
+            "document_views": doc_views,
         }
 
 
@@ -303,11 +395,13 @@ class AnalyticsJobProcessor:
         finally:
             db.close()
 
-    async def _process_data_aggregation(self, job: ProcessingJob, db: Session) -> Dict[str, Any]:
+    async def _process_data_aggregation(
+        self, job: ProcessingJob, db: Session
+    ) -> Dict[str, Any]:
         """Process data aggregation job"""
         params = job.parameters or {}
-        organization_id = params.get('organization_id')
-        date_range = params.get('date_range')
+        organization_id = params.get("organization_id")
+        date_range = params.get("date_range")
 
         if not organization_id:
             raise ValueError("Organization ID required for data aggregation")
@@ -319,17 +413,24 @@ class AnalyticsJobProcessor:
 
         # Process aggregation
         if date_range:
-            start_date = datetime.fromisoformat(date_range['start'])
-            end_date = datetime.fromisoformat(date_range['end'])
+            start_date = datetime.fromisoformat(date_range["start"])
+            end_date = datetime.fromisoformat(date_range["end"])
 
             results = []
             current_date = start_date
             while current_date < end_date:
                 job.current_step = f"Processing {current_date.date()}"
-                job.progress_percentage = 25 + (current_date - start_date).days / (end_date - start_date).days * 50
+                job.progress_percentage = (
+                    25
+                    + (current_date - start_date).days
+                    / (end_date - start_date).days
+                    * 50
+                )
                 db.commit()
 
-                daily_result = await self.aggregator.aggregate_daily_metrics(organization_id, current_date)
+                daily_result = await self.aggregator.aggregate_daily_metrics(
+                    organization_id, current_date
+                )
                 results.append(daily_result)
                 current_date += timedelta(days=1)
 
@@ -342,7 +443,9 @@ class AnalyticsJobProcessor:
                 job.progress_percentage = 25 + (i / 7) * 50
                 db.commit()
 
-                daily_result = await self.aggregator.aggregate_daily_metrics(organization_id, date)
+                daily_result = await self.aggregator.aggregate_daily_metrics(
+                    organization_id, date
+                )
                 results.append(daily_result)
 
         job.current_step = "Finalizing aggregation"
@@ -354,20 +457,26 @@ class AnalyticsJobProcessor:
             "organization_id": organization_id,
             "results": results,
             "processed_days": len(results),
-            "completed_at": datetime.utcnow().isoformat()
+            "completed_at": datetime.utcnow().isoformat(),
         }
 
-    async def _process_daily_summary(self, job: ProcessingJob, db: Session) -> Dict[str, Any]:
+    async def _process_daily_summary(
+        self, job: ProcessingJob, db: Session
+    ) -> Dict[str, Any]:
         """Process daily summary job"""
         params = job.parameters or {}
-        organization_id = params.get('organization_id')
-        target_date = datetime.fromisoformat(params.get('target_date', datetime.utcnow().date().isoformat()))
+        organization_id = params.get("organization_id")
+        target_date = datetime.fromisoformat(
+            params.get("target_date", datetime.utcnow().date().isoformat())
+        )
 
         job.current_step = "Generating daily summary"
         job.progress_percentage = 50
         db.commit()
 
-        summary = await self.aggregator.aggregate_daily_metrics(organization_id, target_date)
+        summary = await self.aggregator.aggregate_daily_metrics(
+            organization_id, target_date
+        )
 
         job.current_step = "Daily summary completed"
         job.progress_percentage = 90
@@ -376,14 +485,18 @@ class AnalyticsJobProcessor:
         return {
             "job_type": "daily_summary",
             "summary": summary,
-            "target_date": target_date.date().isoformat()
+            "target_date": target_date.date().isoformat(),
         }
 
-    async def _process_weekly_report(self, job: ProcessingJob, db: Session) -> Dict[str, Any]:
+    async def _process_weekly_report(
+        self, job: ProcessingJob, db: Session
+    ) -> Dict[str, Any]:
         """Process weekly report job"""
         params = job.parameters or {}
-        organization_id = params.get('organization_id')
-        end_date = datetime.fromisoformat(params.get('end_date', datetime.utcnow().date().isoformat()))
+        organization_id = params.get("organization_id")
+        end_date = datetime.fromisoformat(
+            params.get("end_date", datetime.utcnow().date().isoformat())
+        )
         start_date = end_date - timedelta(days=7)
 
         job.current_step = "Generating weekly report"
@@ -396,13 +509,25 @@ class AnalyticsJobProcessor:
             job.progress_percentage = 30 + (i / 7) * 50
             db.commit()
 
-            daily_data = await self.aggregator.aggregate_daily_metrics(organization_id, current_date)
+            daily_data = await self.aggregator.aggregate_daily_metrics(
+                organization_id, current_date
+            )
             weekly_data.append(daily_data)
 
         # Aggregate weekly metrics
-        total_sessions = sum(day["user_metrics"]["active_sessions"] for day in weekly_data)
-        avg_engagement = sum(day["user_metrics"]["avg_engagement_score"] for day in weekly_data) / 7
-        avg_response_time = sum(day["performance_metrics"]["avg_response_time_ms"] for day in weekly_data) / 7
+        total_sessions = sum(
+            day["user_metrics"]["active_sessions"] for day in weekly_data
+        )
+        avg_engagement = (
+            sum(day["user_metrics"]["avg_engagement_score"] for day in weekly_data) / 7
+        )
+        avg_response_time = (
+            sum(
+                day["performance_metrics"]["avg_response_time_ms"]
+                for day in weekly_data
+            )
+            / 7
+        )
 
         job.current_step = "Finalizing weekly report"
         job.progress_percentage = 90
@@ -417,16 +542,18 @@ class AnalyticsJobProcessor:
                 "total_active_sessions": total_sessions,
                 "avg_engagement_score": avg_engagement,
                 "avg_response_time_ms": avg_response_time,
-                "daily_breakdown": weekly_data
-            }
+                "daily_breakdown": weekly_data,
+            },
         }
 
-    async def _process_metric_computation(self, job: ProcessingJob, db: Session) -> Dict[str, Any]:
+    async def _process_metric_computation(
+        self, job: ProcessingJob, db: Session
+    ) -> Dict[str, Any]:
         """Process custom metric computation job"""
         params = job.parameters or {}
-        organization_id = params.get('organization_id')
-        metric_type = params.get('metric_type')
-        computation_config = params.get('config', {})
+        organization_id = params.get("organization_id")
+        metric_type = params.get("metric_type")
+        computation_config = params.get("config", {})
 
         job.current_step = f"Computing {metric_type} metrics"
         job.progress_percentage = 50
@@ -439,7 +566,7 @@ class AnalyticsJobProcessor:
             "metric_type": metric_type,
             "organization_id": organization_id,
             "config": computation_config,
-            "computed_at": datetime.utcnow().isoformat()
+            "computed_at": datetime.utcnow().isoformat(),
         }
 
         job.current_step = "Metric computation completed"
@@ -448,11 +575,13 @@ class AnalyticsJobProcessor:
 
         return result
 
-    async def _process_user_behavior_analysis(self, job: ProcessingJob, db: Session) -> Dict[str, Any]:
+    async def _process_user_behavior_analysis(
+        self, job: ProcessingJob, db: Session
+    ) -> Dict[str, Any]:
         """Process user behavior analysis job"""
         params = job.parameters or {}
-        organization_id = params.get('organization_id')
-        analysis_type = params.get('analysis_type', 'engagement_patterns')
+        organization_id = params.get("organization_id")
+        analysis_type = params.get("analysis_type", "engagement_patterns")
 
         job.current_step = "Analyzing user behavior"
         job.progress_percentage = 50
@@ -463,7 +592,7 @@ class AnalyticsJobProcessor:
             "job_type": "user_behavior_analysis",
             "analysis_type": analysis_type,
             "organization_id": organization_id,
-            "analyzed_at": datetime.utcnow().isoformat()
+            "analyzed_at": datetime.utcnow().isoformat(),
         }
 
         job.current_step = "User behavior analysis completed"
@@ -472,11 +601,13 @@ class AnalyticsJobProcessor:
 
         return result
 
-    async def _process_performance_analysis(self, job: ProcessingJob, db: Session) -> Dict[str, Any]:
+    async def _process_performance_analysis(
+        self, job: ProcessingJob, db: Session
+    ) -> Dict[str, Any]:
         """Process performance analysis job"""
         params = job.parameters or {}
-        organization_id = params.get('organization_id')
-        analysis_period = params.get('period', '24h')
+        organization_id = params.get("organization_id")
+        analysis_period = params.get("period", "24h")
 
         job.current_step = "Analyzing performance metrics"
         job.progress_percentage = 50
@@ -487,7 +618,7 @@ class AnalyticsJobProcessor:
             "job_type": "performance_analysis",
             "analysis_period": analysis_period,
             "organization_id": organization_id,
-            "analyzed_at": datetime.utcnow().isoformat()
+            "analyzed_at": datetime.utcnow().isoformat(),
         }
 
         job.current_step = "Performance analysis completed"
@@ -496,10 +627,12 @@ class AnalyticsJobProcessor:
 
         return result
 
-    async def _process_quality_metrics_update(self, job: ProcessingJob, db: Session) -> Dict[str, Any]:
+    async def _process_quality_metrics_update(
+        self, job: ProcessingJob, db: Session
+    ) -> Dict[str, Any]:
         """Process quality metrics update job"""
         params = job.parameters or {}
-        organization_id = params.get('organization_id')
+        organization_id = params.get("organization_id")
 
         job.current_step = "Updating quality metrics"
         job.progress_percentage = 50
@@ -509,7 +642,7 @@ class AnalyticsJobProcessor:
         result = {
             "job_type": "quality_metrics_update",
             "organization_id": organization_id,
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         job.current_step = "Quality metrics update completed"
@@ -518,10 +651,12 @@ class AnalyticsJobProcessor:
 
         return result
 
-    async def _process_cache_warming(self, job: ProcessingJob, db: Session) -> Dict[str, Any]:
+    async def _process_cache_warming(
+        self, job: ProcessingJob, db: Session
+    ) -> Dict[str, Any]:
         """Process cache warming job"""
         params = job.parameters or {}
-        cache_keys = params.get('cache_keys', [])
+        cache_keys = params.get("cache_keys", [])
 
         job.current_step = "Warming cache"
         job.progress_percentage = 50
@@ -531,7 +666,7 @@ class AnalyticsJobProcessor:
         result = {
             "job_type": "cache_warming",
             "warmed_keys": cache_keys,
-            "warmed_at": datetime.utcnow().isoformat()
+            "warmed_at": datetime.utcnow().isoformat(),
         }
 
         job.current_step = "Cache warming completed"
@@ -540,10 +675,12 @@ class AnalyticsJobProcessor:
 
         return result
 
-    async def _process_data_retention(self, job: ProcessingJob, db: Session) -> Dict[str, Any]:
+    async def _process_data_retention(
+        self, job: ProcessingJob, db: Session
+    ) -> Dict[str, Any]:
         """Process data retention job"""
         params = job.parameters or {}
-        retention_days = params.get('retention_days', 365)
+        retention_days = params.get("retention_days", 365)
 
         job.current_step = "Applying data retention policies"
         job.progress_percentage = 50
@@ -553,7 +690,7 @@ class AnalyticsJobProcessor:
         result = {
             "job_type": "data_retention",
             "retention_days": retention_days,
-            "processed_at": datetime.utcnow().isoformat()
+            "processed_at": datetime.utcnow().isoformat(),
         }
 
         job.current_step = "Data retention completed"
@@ -562,11 +699,13 @@ class AnalyticsJobProcessor:
 
         return result
 
-    async def _process_alert_processing(self, job: ProcessingJob, db: Session) -> Dict[str, Any]:
+    async def _process_alert_processing(
+        self, job: ProcessingJob, db: Session
+    ) -> Dict[str, Any]:
         """Process alert generation job"""
         params = job.parameters or {}
-        organization_id = params.get('organization_id')
-        alert_types = params.get('alert_types', [])
+        organization_id = params.get("organization_id")
+        alert_types = params.get("alert_types", [])
 
         job.current_step = "Processing alerts"
         job.progress_percentage = 50
@@ -577,7 +716,7 @@ class AnalyticsJobProcessor:
             "job_type": "alert_processing",
             "alert_types": alert_types,
             "organization_id": organization_id,
-            "processed_at": datetime.utcnow().isoformat()
+            "processed_at": datetime.utcnow().isoformat(),
         }
 
         job.current_step = "Alert processing completed"
@@ -594,7 +733,9 @@ class AnalyticsJobProcessor:
             # For now, we'll use the existing job_type field as a string
 
             job = ProcessingJob(
-                job_type=JobType(config.job_type.value) if hasattr(JobType, config.job_type.value) else JobType.BATCH_PROCESSING,
+                job_type=JobType(config.job_type.value)
+                if hasattr(JobType, config.job_type.value)
+                else JobType.BATCH_PROCESSING,
                 status=JobStatus.PENDING,
                 priority=config.priority,
                 organization_id=config.organization_id,
@@ -602,15 +743,17 @@ class AnalyticsJobProcessor:
                 max_retries=config.max_retries,
                 config={
                     "timeout_seconds": config.timeout_seconds,
-                    "date_range": config.date_range
-                }
+                    "date_range": config.date_range,
+                },
             )
 
             db.add(job)
             db.commit()
             db.refresh(job)
 
-            logger.info(f"Created analytics job {job.id} of type {config.job_type.value}")
+            logger.info(
+                f"Created analytics job {job.id} of type {config.job_type.value}"
+            )
             return str(job.id)
 
         finally:
@@ -621,7 +764,9 @@ class AnalyticsJobProcessor:
         db = next(get_db())
         try:
             # Get all active organizations
-            organizations = db.query(Organization).filter(Organization.is_active == True).all()
+            organizations = (
+                db.query(Organization).filter(Organization.is_active == True).all()
+            )
 
             for org in organizations:
                 org_id = str(org.id)
@@ -631,7 +776,7 @@ class AnalyticsJobProcessor:
                     job_type=AnalyticsJobType.DAILY_SUMMARY,
                     organization_id=org_id,
                     parameters={"target_date": datetime.utcnow().date().isoformat()},
-                    priority=JobPriority.NORMAL
+                    priority=JobPriority.NORMAL,
                 )
                 self.create_job(daily_config)
 
@@ -641,11 +786,13 @@ class AnalyticsJobProcessor:
                         job_type=AnalyticsJobType.WEEKLY_REPORT,
                         organization_id=org_id,
                         parameters={"end_date": datetime.utcnow().date().isoformat()},
-                        priority=JobPriority.NORMAL
+                        priority=JobPriority.NORMAL,
                     )
                     self.create_job(weekly_config)
 
-            logger.info(f"Scheduled recurring jobs for {len(organizations)} organizations")
+            logger.info(
+                f"Scheduled recurring jobs for {len(organizations)} organizations"
+            )
 
         finally:
             db.close()

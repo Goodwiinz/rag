@@ -15,6 +15,7 @@ class DocumentSortField(str, Enum):
     SECURITY: Only these fields can be used for sorting documents.
     Using an enum prevents SQL injection via arbitrary column names.
     """
+
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
     TITLE = "title"
@@ -30,6 +31,7 @@ class SortOrder(str, Enum):
 
     SECURITY: Restricts sort order to valid SQL directions only.
     """
+
     ASC = "asc"
     DESC = "desc"
 
@@ -38,6 +40,7 @@ class EntitySortField(str, Enum):
     """
     Allowed sort fields for entity queries.
     """
+
     CREATED_AT = "created_at"
     NAME = "name"
     ENTITY_TYPE = "entity_type"
@@ -48,6 +51,7 @@ class JobSortField(str, Enum):
     """
     Allowed sort fields for processing job queries.
     """
+
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
     STATUS = "status"
@@ -60,6 +64,7 @@ class SearchSortField(str, Enum):
     """
     Allowed sort fields for search results.
     """
+
     RELEVANCE = "relevance"
     DATE = "date"
     TITLE = "title"
@@ -69,6 +74,7 @@ class UserSortField(str, Enum):
     """
     Allowed sort fields for user queries.
     """
+
     CREATED_AT = "created_at"
     EMAIL = "email"
     FIRST_NAME = "first_name"
@@ -80,6 +86,7 @@ class OrganizationSortField(str, Enum):
     """
     Allowed sort fields for organization queries.
     """
+
     CREATED_AT = "created_at"
     NAME = "name"
     MEMBER_COUNT = "member_count"

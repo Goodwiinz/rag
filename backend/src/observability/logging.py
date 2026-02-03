@@ -11,28 +11,29 @@ Provides comprehensive logging capabilities including:
 - Performance metric logging
 """
 
-import os
 import json
 import logging
+import os
 import time
 import uuid
-from typing import Dict, Any, Optional
-from datetime import datetime
 from contextlib import contextmanager
 from contextvars import ContextVar
+from datetime import datetime
+from typing import Any, Dict, Optional
 
 import structlog
-from opentelemetry import trace, baggage
+from opentelemetry import baggage, trace
 from opentelemetry.trace import get_current_span
 
 from .config import config
 
-
 # Context variables for correlation
-correlation_id_var: ContextVar[Optional[str]] = ContextVar('correlation_id', default=None)
-user_id_var: ContextVar[Optional[str]] = ContextVar('user_id', default=None)
-tenant_id_var: ContextVar[Optional[str]] = ContextVar('tenant_id', default=None)
-request_id_var: ContextVar[Optional[str]] = ContextVar('request_id', default=None)
+correlation_id_var: ContextVar[Optional[str]] = ContextVar(
+    "correlation_id", default=None
+)
+user_id_var: ContextVar[Optional[str]] = ContextVar("user_id", default=None)
+tenant_id_var: ContextVar[Optional[str]] = ContextVar("tenant_id", default=None)
+request_id_var: ContextVar[Optional[str]] = ContextVar("request_id", default=None)
 
 
 class StructuredFormatter(logging.Formatter):
@@ -82,17 +83,33 @@ class StructuredFormatter(logging.Formatter):
             log_entry["exception"] = {
                 "type": record.exc_info[0].__name__,
                 "message": str(record.exc_info[1]),
-                "stack_trace": self.formatException(record.exc_info)
+                "stack_trace": self.formatException(record.exc_info),
             }
 
         # Add extra fields from record
         for key, value in record.__dict__.items():
             if key not in {
-                'name', 'msg', 'args', 'levelname', 'levelno', 'pathname',
-                'filename', 'module', 'lineno', 'funcName', 'created',
-                'msecs', 'relativeCreated', 'thread', 'threadName',
-                'processName', 'process', 'getMessage', 'exc_info',
-                'exc_text', 'stack_info'
+                "name",
+                "msg",
+                "args",
+                "levelname",
+                "levelno",
+                "pathname",
+                "filename",
+                "module",
+                "lineno",
+                "funcName",
+                "created",
+                "msecs",
+                "relativeCreated",
+                "thread",
+                "threadName",
+                "processName",
+                "process",
+                "getMessage",
+                "exc_info",
+                "exc_text",
+                "stack_info",
             }:
                 log_entry[key] = value
 
@@ -149,7 +166,7 @@ def configure_logging() -> None:
             structlog.processors.format_exc_info,
             structlog.processors.UnicodeDecoder(),
             add_correlation_info,
-            structlog.processors.JSONRenderer()
+            structlog.processors.JSONRenderer(),
         ],
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -202,7 +219,7 @@ def configure_specific_loggers():
         "src.database",
         "src.tasks",
         "src.middleware",
-        "src.observability"
+        "src.observability",
     ]
 
     for logger_name in app_loggers:
@@ -220,7 +237,7 @@ def correlation_context(
     correlation_id: Optional[str] = None,
     user_id: Optional[str] = None,
     tenant_id: Optional[str] = None,
-    request_id: Optional[str] = None
+    request_id: Optional[str] = None,
 ):
     """Context manager for correlation information"""
     # Generate correlation ID if not provided
@@ -255,7 +272,9 @@ def correlation_context(
             request_id_var.reset(token_request)
 
 
-def add_correlation_info(logger, method_name: str, event_dict: Dict[str, Any]) -> Dict[str, Any]:
+def add_correlation_info(
+    logger, method_name: str, event_dict: Dict[str, Any]
+) -> Dict[str, Any]:
     """Add correlation information to structured log events"""
     correlation_id = correlation_id_var.get()
     if correlation_id:
@@ -288,7 +307,7 @@ def log_security_event(
     severity: str,
     message: str,
     details: Optional[Dict[str, Any]] = None,
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
 ):
     """Log security events with structured format"""
     logger = get_logger("security")
@@ -320,7 +339,7 @@ def log_performance_event(
     operation: str,
     duration: float,
     success: bool,
-    details: Optional[Dict[str, Any]] = None
+    details: Optional[Dict[str, Any]] = None,
 ):
     """Log performance events with metrics"""
     logger = get_logger("performance")
@@ -336,9 +355,15 @@ def log_performance_event(
         performance_context.update(details)
 
     if success:
-        logger.info(f"PERFORMANCE: {operation} completed in {duration:.3f}s", **performance_context)
+        logger.info(
+            f"PERFORMANCE: {operation} completed in {duration:.3f}s",
+            **performance_context,
+        )
     else:
-        logger.error(f"PERFORMANCE: {operation} failed after {duration:.3f}s", **performance_context)
+        logger.error(
+            f"PERFORMANCE: {operation} failed after {duration:.3f}s",
+            **performance_context,
+        )
 
 
 def log_business_event(
@@ -347,7 +372,7 @@ def log_business_event(
     entity_id: str,
     action: str,
     details: Optional[Dict[str, Any]] = None,
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
 ):
     """Log business events for analytics"""
     logger = get_logger("business")
@@ -367,13 +392,15 @@ def log_business_event(
     if user_id:
         business_context["user_id"] = user_id
 
-    logger.info(f"BUSINESS_EVENT: {action} on {entity_type} {entity_id}", **business_context)
+    logger.info(
+        f"BUSINESS_EVENT: {action} on {entity_type} {entity_id}", **business_context
+    )
 
 
 def log_error_with_context(
     error: Exception,
     context: Optional[Dict[str, Any]] = None,
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
 ):
     """Log errors with rich context information"""
     logger = get_logger("error")
@@ -391,4 +418,6 @@ def log_error_with_context(
     if user_id:
         error_context["user_id"] = user_id
 
-    logger.error(f"ERROR: {type(error).__name__}: {error}", exc_info=True, **error_context)
+    logger.error(
+        f"ERROR: {type(error).__name__}: {error}", exc_info=True, **error_context
+    )

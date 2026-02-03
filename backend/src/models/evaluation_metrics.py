@@ -3,18 +3,36 @@ Comprehensive Evaluation Metrics model for RAG system performance tracking
 """
 
 import uuid
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Enum, ForeignKey, Text, JSON, Index, Numeric
-from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID, ARRAY
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from enum import Enum as PyEnum
-from datetime import datetime, timedelta, timezone as dt_timezone
-from typing import Optional, List, Dict, Any, Union
+from typing import Any, Dict, List, Optional, Union
 
-from .base import BaseModel, GUID
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import relationship
+
+from .base import GUID, BaseModel
+
 
 class MetricType(PyEnum):
     """Types of evaluation metrics"""
-    RAG_TRIAD = "rag_triad"           # Faithfulness, Answer Relevancy, Context Relevancy
+
+    RAG_TRIAD = "rag_triad"  # Faithfulness, Answer Relevancy, Context Relevancy
     RETRIEVAL_QUALITY = "retrieval_quality"
     GENERATION_QUALITY = "generation_quality"
     PERFORMANCE = "performance"
@@ -22,22 +40,27 @@ class MetricType(PyEnum):
     SYSTEM_HEALTH = "system_health"
     MULTIMODAL_QUALITY = "multimodal_quality"
 
+
 class EvaluationStatus(PyEnum):
     """Status of evaluation runs"""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
 
+
 class MetricLevel(PyEnum):
     """Levels of metrics aggregation"""
-    QUERY = "query"                   # Individual query metrics
-    SESSION = "session"               # Session-level metrics
-    USER = "user"                     # User-level metrics
-    ORGANIZATION = "organization"     # Organization-level metrics
-    SYSTEM = "system"                 # System-wide metrics
-    TIME_WINDOW = "time_window"       # Time-based aggregated metrics
+
+    QUERY = "query"  # Individual query metrics
+    SESSION = "session"  # Session-level metrics
+    USER = "user"  # User-level metrics
+    ORGANIZATION = "organization"  # Organization-level metrics
+    SYSTEM = "system"  # System-wide metrics
+    TIME_WINDOW = "time_window"  # Time-based aggregated metrics
+
 
 class EvaluationRun(BaseModel):
     """Evaluation run for comprehensive system assessment"""
@@ -47,14 +70,24 @@ class EvaluationRun(BaseModel):
     # Run identification
     run_name = Column(String(255), nullable=False, index=True)
     run_description = Column(Text, nullable=True)
-    run_type = Column(String(50), nullable=False, index=True)  # scheduled, manual, triggered, continuous
-    evaluation_framework = Column(String(50), nullable=False, default="deepeval")  # deepeval, custom, etc.
+    run_type = Column(
+        String(50), nullable=False, index=True
+    )  # scheduled, manual, triggered, continuous
+    evaluation_framework = Column(
+        String(50), nullable=False, default="deepeval"
+    )  # deepeval, custom, etc.
 
     # Run scope
-    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=True, index=True)
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id"), nullable=True, index=True
+    )
     user_ids = Column(ARRAY(GUID()), nullable=True)  # Specific users to evaluate
-    document_ids = Column(ARRAY(GUID()), nullable=True)  # Specific documents to evaluate
-    query_batch_id = Column(String(255), nullable=True)  # Batch of queries for evaluation
+    document_ids = Column(
+        ARRAY(GUID()), nullable=True
+    )  # Specific documents to evaluate
+    query_batch_id = Column(
+        String(255), nullable=True
+    )  # Batch of queries for evaluation
 
     # Time window
     evaluation_period_start = Column(DateTime(timezone=True), nullable=True)
@@ -63,12 +96,21 @@ class EvaluationRun(BaseModel):
     sampling_method = Column(String(50), nullable=True)  # random, stratified, recent
 
     # Configuration
-    evaluation_config = Column(JSON, nullable=True)  # Evaluation parameters and settings
+    evaluation_config = Column(
+        JSON, nullable=True
+    )  # Evaluation parameters and settings
     metrics_to_evaluate = Column(JSON, nullable=True)  # List of metrics to compute
-    baseline_run_id = Column(GUID(), ForeignKey("evaluation_runs.id"), nullable=True)  # Comparison baseline
+    baseline_run_id = Column(
+        GUID(), ForeignKey("evaluation_runs.id"), nullable=True
+    )  # Comparison baseline
 
     # Execution status
-    status = Column(Enum(EvaluationStatus), nullable=False, default=EvaluationStatus.PENDING, index=True)
+    status = Column(
+        Enum(EvaluationStatus),
+        nullable=False,
+        default=EvaluationStatus.PENDING,
+        index=True,
+    )
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     duration_seconds = Column(Float, nullable=True)
@@ -95,22 +137,40 @@ class EvaluationRun(BaseModel):
     # Results summary
     overall_score = Column(Float, nullable=True, index=True)
     metrics_summary = Column(JSON, nullable=True)  # Summary of all computed metrics
-    statistical_significance = Column(JSON, nullable=True)  # Statistical analysis of results
+    statistical_significance = Column(
+        JSON, nullable=True
+    )  # Statistical analysis of results
     improvement_over_baseline = Column(JSON, nullable=True)  # Comparison with baseline
 
     # Relationships
     organization = relationship("Organization")
     baseline_run = relationship("EvaluationRun", remote_side=[id])
-    individual_metrics = relationship("MetricMeasurement", back_populates="evaluation_run", cascade="all, delete-orphan")
-    metric_aggregations = relationship("MetricAggregation", back_populates="evaluation_run", cascade="all, delete-orphan")
-    evaluation_artifacts = relationship("EvaluationArtifact", back_populates="evaluation_run", cascade="all, delete-orphan")
+    individual_metrics = relationship(
+        "MetricMeasurement",
+        back_populates="evaluation_run",
+        cascade="all, delete-orphan",
+    )
+    metric_aggregations = relationship(
+        "MetricAggregation",
+        back_populates="evaluation_run",
+        cascade="all, delete-orphan",
+    )
+    evaluation_artifacts = relationship(
+        "EvaluationArtifact",
+        back_populates="evaluation_run",
+        cascade="all, delete-orphan",
+    )
 
     # Indexes
     __table_args__ = (
-        Index('idx_evaluation_runs_org_status', 'organization_id', 'status'),
-        Index('idx_evaluation_runs_period', 'evaluation_period_start', 'evaluation_period_end'),
-        Index('idx_evaluation_runs_score', 'overall_score'),
-        Index('idx_evaluation_runs_created', 'created_at'),
+        Index("idx_evaluation_runs_org_status", "organization_id", "status"),
+        Index(
+            "idx_evaluation_runs_period",
+            "evaluation_period_start",
+            "evaluation_period_end",
+        ),
+        Index("idx_evaluation_runs_score", "overall_score"),
+        Index("idx_evaluation_runs_created", "created_at"),
     )
 
     def __repr__(self):
@@ -146,7 +206,9 @@ class EvaluationRun(BaseModel):
         if self.total_items > 0:
             self.progress_percentage = (processed_items / self.total_items) * 100
 
-    def complete_evaluation(self, overall_score: float, metrics_summary: Dict[str, Any]):
+    def complete_evaluation(
+        self, overall_score: float, metrics_summary: Dict[str, Any]
+    ):
         """Mark evaluation as completed"""
         self.status = EvaluationStatus.COMPLETED
         self.completed_at = datetime.utcnow()
@@ -156,7 +218,9 @@ class EvaluationRun(BaseModel):
 
         # Calculate duration
         if self.started_at:
-            self.duration_seconds = (self.completed_at - self.started_at).total_seconds()
+            self.duration_seconds = (
+                self.completed_at - self.started_at
+            ).total_seconds()
 
     def fail_evaluation(self, error_message: str, error_details: Dict[str, Any] = None):
         """Mark evaluation as failed"""
@@ -168,21 +232,25 @@ class EvaluationRun(BaseModel):
 
         # Calculate duration
         if self.started_at:
-            self.duration_seconds = (self.completed_at - self.started_at).total_seconds()
+            self.duration_seconds = (
+                self.completed_at - self.started_at
+            ).total_seconds()
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
         data = super().to_dict()
 
         # Convert enum values
-        data['status'] = self.status.value if self.status else None
+        data["status"] = self.status.value if self.status else None
 
         # Add computed properties
-        data.update({
-            'is_completed': self.is_completed,
-            'is_running': self.is_running,
-            'success_rate': self.success_rate
-        })
+        data.update(
+            {
+                "is_completed": self.is_completed,
+                "is_running": self.is_running,
+                "success_rate": self.success_rate,
+            }
+        )
 
         return data
 
@@ -193,13 +261,17 @@ class MetricMeasurement(BaseModel):
     __tablename__ = "metric_measurements"
 
     # Measurement identification
-    evaluation_run_id = Column(GUID(), ForeignKey("evaluation_runs.id"), nullable=False, index=True)
+    evaluation_run_id = Column(
+        GUID(), ForeignKey("evaluation_runs.id"), nullable=False, index=True
+    )
     metric_type = Column(Enum(MetricType), nullable=False, index=True)
     metric_name = Column(String(100), nullable=False, index=True)
     metric_level = Column(Enum(MetricLevel), nullable=False, index=True)
 
     # Entity being measured
-    entity_type = Column(String(50), nullable=False, index=True)  # query, document, user, session
+    entity_type = Column(
+        String(50), nullable=False, index=True
+    )  # query, document, user, session
     entity_id = Column(String(255), nullable=False, index=True)
     entity_metadata = Column(JSON, nullable=True)  # Additional entity context
 
@@ -217,12 +289,18 @@ class MetricMeasurement(BaseModel):
     # Measurement metadata
     measurement_method = Column(String(100), nullable=True)  # How metric was computed
     model_used = Column(String(100), nullable=True)  # Model used for evaluation
-    evaluation_timestamp = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    evaluation_timestamp = Column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
     computation_time_ms = Column(Float, nullable=True)
 
     # Detailed breakdown
-    metric_components = Column(JSON, nullable=True)  # Components that make up the metric
-    supporting_evidence = Column(JSON, nullable=True)  # Evidence supporting the measurement
+    metric_components = Column(
+        JSON, nullable=True
+    )  # Components that make up the metric
+    supporting_evidence = Column(
+        JSON, nullable=True
+    )  # Evidence supporting the measurement
     error_analysis = Column(JSON, nullable=True)  # Analysis of errors or issues
 
     # Comparison data
@@ -235,11 +313,11 @@ class MetricMeasurement(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_measurements_run_type', 'evaluation_run_id', 'metric_type'),
-        Index('idx_measurements_entity', 'entity_type', 'entity_id'),
-        Index('idx_measurements_score', 'metric_score'),
-        Index('idx_measurements_threshold', 'meets_threshold'),
-        Index('idx_measurements_timestamp', 'evaluation_timestamp'),
+        Index("idx_measurements_run_type", "evaluation_run_id", "metric_type"),
+        Index("idx_measurements_entity", "entity_type", "entity_id"),
+        Index("idx_measurements_score", "metric_score"),
+        Index("idx_measurements_threshold", "meets_threshold"),
+        Index("idx_measurements_timestamp", "evaluation_timestamp"),
     )
 
     def __repr__(self):
@@ -248,40 +326,37 @@ class MetricMeasurement(BaseModel):
     @property
     def is_high_quality(self) -> bool:
         """Check if measurement meets quality threshold"""
-        return self.meets_threshold or (self.quality_threshold and self.metric_score >= self.quality_threshold)
+        return self.meets_threshold or (
+            self.quality_threshold and self.metric_score >= self.quality_threshold
+        )
 
     @property
     def quality_description(self) -> str:
         """Get quality description based on grade"""
         grade_descriptions = {
-            'A': 'Excellent',
-            'B': 'Good',
-            'C': 'Fair',
-            'D': 'Poor',
-            'F': 'Very Poor'
+            "A": "Excellent",
+            "B": "Good",
+            "C": "Fair",
+            "D": "Poor",
+            "F": "Very Poor",
         }
-        return grade_descriptions.get(self.quality_grade, 'Unknown')
+        return grade_descriptions.get(self.quality_grade, "Unknown")
 
     def calculate_quality_grade(self, score_thresholds: Dict[str, float] = None):
         """Calculate quality grade based on score"""
         if not score_thresholds:
-            score_thresholds = {
-                'A': 0.9,
-                'B': 0.8,
-                'C': 0.7,
-                'D': 0.6
-            }
+            score_thresholds = {"A": 0.9, "B": 0.8, "C": 0.7, "D": 0.6}
 
-        if self.metric_score >= score_thresholds.get('A', 0.9):
-            self.quality_grade = 'A'
-        elif self.metric_score >= score_thresholds.get('B', 0.8):
-            self.quality_grade = 'B'
-        elif self.metric_score >= score_thresholds.get('C', 0.7):
-            self.quality_grade = 'C'
-        elif self.metric_score >= score_thresholds.get('D', 0.6):
-            self.quality_grade = 'D'
+        if self.metric_score >= score_thresholds.get("A", 0.9):
+            self.quality_grade = "A"
+        elif self.metric_score >= score_thresholds.get("B", 0.8):
+            self.quality_grade = "B"
+        elif self.metric_score >= score_thresholds.get("C", 0.7):
+            self.quality_grade = "C"
+        elif self.metric_score >= score_thresholds.get("D", 0.6):
+            self.quality_grade = "D"
         else:
-            self.quality_grade = 'F'
+            self.quality_grade = "F"
 
         # Check if meets threshold
         if self.quality_threshold:
@@ -291,7 +366,9 @@ class MetricMeasurement(BaseModel):
         """Calculate improvement over baseline"""
         if baseline_value is not None and baseline_value != 0:
             self.baseline_value = baseline_value
-            improvement = (float(self.metric_value) - baseline_value) / abs(baseline_value) * 100
+            improvement = (
+                (float(self.metric_value) - baseline_value) / abs(baseline_value) * 100
+            )
             self.improvement_percentage = improvement
 
     def to_dict(self) -> Dict[str, Any]:
@@ -299,22 +376,26 @@ class MetricMeasurement(BaseModel):
         data = super().to_dict()
 
         # Convert enum values
-        data.update({
-            'metric_type': self.metric_type.value if self.metric_type else None,
-            'metric_level': self.metric_level.value if self.metric_level else None
-        })
+        data.update(
+            {
+                "metric_type": self.metric_type.value if self.metric_type else None,
+                "metric_level": self.metric_level.value if self.metric_level else None,
+            }
+        )
 
         # Add computed properties
-        data.update({
-            'is_high_quality': self.is_high_quality,
-            'quality_description': self.quality_description
-        })
+        data.update(
+            {
+                "is_high_quality": self.is_high_quality,
+                "quality_description": self.quality_description,
+            }
+        )
 
         # Convert numeric to float for JSON serialization
-        if 'metric_value' in data and data['metric_value'] is not None:
-            data['metric_value'] = float(data['metric_value'])
-        if 'baseline_value' in data and data['baseline_value'] is not None:
-            data['baseline_value'] = float(data['baseline_value'])
+        if "metric_value" in data and data["metric_value"] is not None:
+            data["metric_value"] = float(data["metric_value"])
+        if "baseline_value" in data and data["baseline_value"] is not None:
+            data["baseline_value"] = float(data["baseline_value"])
 
         return data
 
@@ -325,15 +406,21 @@ class MetricAggregation(BaseModel):
     __tablename__ = "metric_aggregations"
 
     # Aggregation identification
-    evaluation_run_id = Column(GUID(), ForeignKey("evaluation_runs.id"), nullable=True, index=True)
+    evaluation_run_id = Column(
+        GUID(), ForeignKey("evaluation_runs.id"), nullable=True, index=True
+    )
     metric_type = Column(Enum(MetricType), nullable=False, index=True)
     metric_name = Column(String(100), nullable=False, index=True)
     aggregation_level = Column(Enum(MetricLevel), nullable=False, index=True)
 
     # Aggregation scope
-    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=True, index=True)
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id"), nullable=True, index=True
+    )
     user_id = Column(GUID(), ForeignKey("users.id"), nullable=True, index=True)
-    entity_id = Column(String(255), nullable=True, index=True)  # Session ID, document ID, etc.
+    entity_id = Column(
+        String(255), nullable=True, index=True
+    )  # Session ID, document ID, etc.
 
     # Time window
     window_start = Column(DateTime(timezone=True), nullable=False, index=True)
@@ -359,14 +446,18 @@ class MetricAggregation(BaseModel):
     margin_of_error = Column(Float, nullable=True)  # Statistical margin of error
 
     # Distribution analysis
-    distribution_type = Column(String(50), nullable=True)  # normal, skewed, bimodal, etc.
+    distribution_type = Column(
+        String(50), nullable=True
+    )  # normal, skewed, bimodal, etc.
     skewness = Column(Float, nullable=True)
     kurtosis = Column(Float, nullable=True)
     outliers_count = Column(Integer, nullable=False, default=0)
     outliers_percentage = Column(Float, nullable=False, default=0.0)
 
     # Trend analysis
-    trend_direction = Column(String(20), nullable=True)  # improving, declining, stable, volatile
+    trend_direction = Column(
+        String(20), nullable=True
+    )  # improving, declining, stable, volatile
     trend_strength = Column(Float, nullable=True)  # Strength of trend (0-1)
     seasonality_detected = Column(Boolean, default=False, nullable=False)
     change_points = Column(JSON, nullable=True)  # Detected change points in time series
@@ -382,10 +473,15 @@ class MetricAggregation(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_aggregations_level_window', 'aggregation_level', 'window_start', 'window_end'),
-        Index('idx_aggregations_org_metric', 'organization_id', 'metric_name'),
-        Index('idx_aggregations_user_metric', 'user_id', 'metric_name'),
-        Index('idx_aggregations_score', 'avg_score'),
+        Index(
+            "idx_aggregations_level_window",
+            "aggregation_level",
+            "window_start",
+            "window_end",
+        ),
+        Index("idx_aggregations_org_metric", "organization_id", "metric_name"),
+        Index("idx_aggregations_user_metric", "user_id", "metric_name"),
+        Index("idx_aggregations_score", "avg_score"),
     )
 
     def __repr__(self):
@@ -430,7 +526,9 @@ class MetricAggregation(BaseModel):
         x_mean = sum(x_values) / n
         y_mean = sum(historical_data) / n
 
-        numerator = sum((x_values[i] - x_mean) * (historical_data[i] - y_mean) for i in range(n))
+        numerator = sum(
+            (x_values[i] - x_mean) * (historical_data[i] - y_mean) for i in range(n)
+        )
         denominator = sum((x_values[i] - x_mean) ** 2 for i in range(n))
 
         if denominator == 0:
@@ -455,7 +553,7 @@ class MetricAggregation(BaseModel):
         return {
             "direction": trend_direction,
             "strength": trend_strength,
-            "slope": slope
+            "slope": slope,
         }
 
     def to_dict(self) -> Dict[str, Any]:
@@ -463,16 +561,20 @@ class MetricAggregation(BaseModel):
         data = super().to_dict()
 
         # Convert enum values
-        data.update({
-            'metric_type': self.metric_type.value if self.metric_type else None,
-            'metric_level': self.metric_level.value if self.metric_level else None
-        })
+        data.update(
+            {
+                "metric_type": self.metric_type.value if self.metric_type else None,
+                "metric_level": self.metric_level.value if self.metric_level else None,
+            }
+        )
 
         # Add computed properties
-        data.update({
-            'performance_rating': self.performance_rating,
-            'data_quality': self.data_quality
-        })
+        data.update(
+            {
+                "performance_rating": self.performance_rating,
+                "data_quality": self.data_quality,
+            }
+        )
 
         return data
 
@@ -485,7 +587,9 @@ class EvaluationArtifact(BaseModel):
     evaluation_run_id = Column(GUID(), ForeignKey("evaluation_runs.id"), nullable=False)
 
     # Artifact information
-    artifact_type = Column(String(50), nullable=False)  # report, chart, log, data_export, visualization
+    artifact_type = Column(
+        String(50), nullable=False
+    )  # report, chart, log, data_export, visualization
     artifact_name = Column(String(255), nullable=False)
     artifact_description = Column(Text, nullable=True)
 
@@ -501,7 +605,9 @@ class EvaluationArtifact(BaseModel):
     data_schema = Column(JSON, nullable=True)  # Schema of data if applicable
 
     # Generation information
-    generated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    generated_at = Column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
     generator_model = Column(String(100), nullable=True)
     generation_parameters = Column(JSON, nullable=True)
 
@@ -511,7 +617,9 @@ class EvaluationArtifact(BaseModel):
     is_public = Column(Boolean, default=False, nullable=False)
 
     # Relationships
-    evaluation_run = relationship("EvaluationRun", back_populates="evaluation_artifacts")
+    evaluation_run = relationship(
+        "EvaluationRun", back_populates="evaluation_artifacts"
+    )
 
     def record_download(self):
         """Record artifact download"""
@@ -526,8 +634,12 @@ class PerformanceThreshold(BaseModel):
 
     # Threshold identification
     metric_name = Column(String(100), nullable=False, index=True)
-    threshold_type = Column(String(50), nullable=False)  # minimum, maximum, target, warning, critical
-    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=True)  # Organization-specific thresholds
+    threshold_type = Column(
+        String(50), nullable=False
+    )  # minimum, maximum, target, warning, critical
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id"), nullable=True
+    )  # Organization-specific thresholds
 
     # Threshold values
     threshold_value = Column(Float, nullable=False)
@@ -542,7 +654,9 @@ class PerformanceThreshold(BaseModel):
 
     # Auto-remediation
     auto_remediation_enabled = Column(Boolean, default=False, nullable=False)
-    remediation_actions = Column(JSON, nullable=True)  # Actions to take when threshold breached
+    remediation_actions = Column(
+        JSON, nullable=True
+    )  # Actions to take when threshold breached
 
     # Relationships
     organization = relationship("Organization")
@@ -550,12 +664,12 @@ class PerformanceThreshold(BaseModel):
     def check_threshold(self, current_value: float) -> bool:
         """Check if current value breaches threshold"""
         operators = {
-            '<': lambda a, b: a < b,
-            '<=': lambda a, b: a <= b,
-            '>': lambda a, b: a > b,
-            '>=': lambda a, b: a >= b,
-            '==': lambda a, b: a == b,
-            '!=': lambda a, b: a != b
+            "<": lambda a, b: a < b,
+            "<=": lambda a, b: a <= b,
+            ">": lambda a, b: a > b,
+            ">=": lambda a, b: a >= b,
+            "==": lambda a, b: a == b,
+            "!=": lambda a, b: a != b,
         }
 
         operator_func = operators.get(self.threshold_operator)
@@ -566,17 +680,16 @@ class PerformanceThreshold(BaseModel):
     @classmethod
     def get_active_thresholds(cls, organization_id: Optional[uuid.UUID] = None) -> List:
         """Get active performance thresholds"""
-        query = cls.query.filter(
-            cls.alert_enabled == True,
-            cls.is_deleted == False
-        )
+        query = cls.query.filter(cls.alert_enabled == True, cls.is_deleted == False)
 
         if organization_id:
             query = query.filter(
-                (cls.organization_id == organization_id) |
-                (cls.organization_id.is_(None))  # Include global thresholds
+                (cls.organization_id == organization_id)
+                | (cls.organization_id.is_(None))  # Include global thresholds
             )
         else:
-            query = query.filter(cls.organization_id.is_(None))  # Only global thresholds
+            query = query.filter(
+                cls.organization_id.is_(None)
+            )  # Only global thresholds
 
         return query.all()

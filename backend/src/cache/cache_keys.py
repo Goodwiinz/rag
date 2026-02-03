@@ -5,18 +5,18 @@ Provides standardized cache key generation and management
 
 import hashlib
 import json
-from typing import Dict, Any, Optional, List, Union
-from datetime import datetime, timedelta
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Union
 
 
 @dataclass
 class CacheKeyComponents:
     """Components for building cache keys"""
 
-    service: str           # Service name (e.g., 'quality_metrics', 'user_behavior')
-    organization_id: str   # Organization identifier
-    entity_type: str       # Entity type (e.g., 'document', 'user', 'session')
+    service: str  # Service name (e.g., 'quality_metrics', 'user_behavior')
+    organization_id: str  # Organization identifier
+    entity_type: str  # Entity type (e.g., 'document', 'user', 'session')
     entity_id: Optional[str] = None  # Specific entity ID
     filters: Optional[Dict[str, Any]] = None  # Query filters
     time_range: Optional[tuple] = None  # Time range tuple (start, end)
@@ -99,7 +99,7 @@ class CacheKeyBuilder:
         entity_id: Optional[str] = None,
         filters: Optional[Dict[str, Any]] = None,
         time_range: Optional[tuple] = None,
-        parameters: Optional[Dict[str, Any]] = None
+        parameters: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Build a complete cache key"""
 
@@ -109,17 +109,22 @@ class CacheKeyBuilder:
         normalized_params = cls._normalize_filters(parameters) if parameters else {}
 
         # Create hash components for complex data
-        filters_hash = cls._hash_component(normalized_filters) if normalized_filters else "nofilters"
-        time_hash = cls._hash_component(normalized_time_range) if normalized_time_range else "notime"
-        params_hash = cls._hash_component(normalized_params) if normalized_params else "noparams"
+        filters_hash = (
+            cls._hash_component(normalized_filters)
+            if normalized_filters
+            else "nofilters"
+        )
+        time_hash = (
+            cls._hash_component(normalized_time_range)
+            if normalized_time_range
+            else "notime"
+        )
+        params_hash = (
+            cls._hash_component(normalized_params) if normalized_params else "noparams"
+        )
 
         # Build key components
-        components = [
-            prefix,
-            service,
-            entity_type,
-            organization_id
-        ]
+        components = [prefix, service, entity_type, organization_id]
 
         if entity_id:
             components.append(entity_id)
@@ -135,7 +140,7 @@ class CacheKeyBuilder:
         organization_id: str,
         document_id: Optional[str] = None,
         filters: Optional[Dict[str, Any]] = None,
-        time_range: Optional[tuple] = None
+        time_range: Optional[tuple] = None,
     ) -> str:
         """Build cache key for quality metrics"""
         return cls.build_key(
@@ -145,7 +150,7 @@ class CacheKeyBuilder:
             entity_type="document",
             entity_id=document_id,
             filters=filters,
-            time_range=time_range
+            time_range=time_range,
         )
 
     @classmethod
@@ -155,7 +160,7 @@ class CacheKeyBuilder:
         user_id: Optional[str] = None,
         entity_type: str = "session",
         filters: Optional[Dict[str, Any]] = None,
-        time_range: Optional[tuple] = None
+        time_range: Optional[tuple] = None,
     ) -> str:
         """Build cache key for user behavior analytics"""
         return cls.build_key(
@@ -165,7 +170,7 @@ class CacheKeyBuilder:
             entity_type=entity_type,
             entity_id=user_id,
             filters=filters,
-            time_range=time_range
+            time_range=time_range,
         )
 
     @classmethod
@@ -175,7 +180,7 @@ class CacheKeyBuilder:
         component: Optional[str] = None,
         entity_type: str = "system",
         filters: Optional[Dict[str, Any]] = None,
-        time_range: Optional[tuple] = None
+        time_range: Optional[tuple] = None,
     ) -> str:
         """Build cache key for performance metrics"""
         return cls.build_key(
@@ -185,7 +190,7 @@ class CacheKeyBuilder:
             entity_type=entity_type,
             entity_id=component,
             filters=filters,
-            time_range=time_range
+            time_range=time_range,
         )
 
     @classmethod
@@ -194,7 +199,7 @@ class CacheKeyBuilder:
         organization_id: str,
         event_type: Optional[str] = None,
         filters: Optional[Dict[str, Any]] = None,
-        time_range: Optional[tuple] = None
+        time_range: Optional[tuple] = None,
     ) -> str:
         """Build cache key for analytics events"""
         return cls.build_key(
@@ -204,7 +209,7 @@ class CacheKeyBuilder:
             entity_type="event",
             entity_id=event_type,
             filters=filters,
-            time_range=time_range
+            time_range=time_range,
         )
 
     @classmethod
@@ -213,7 +218,7 @@ class CacheKeyBuilder:
         organization_id: str,
         dashboard_type: str,
         filters: Optional[Dict[str, Any]] = None,
-        time_range: Optional[tuple] = None
+        time_range: Optional[tuple] = None,
     ) -> str:
         """Build cache key for dashboard data"""
         return cls.build_key(
@@ -222,7 +227,7 @@ class CacheKeyBuilder:
             organization_id=organization_id,
             entity_type=dashboard_type,
             filters=filters,
-            time_range=time_range
+            time_range=time_range,
         )
 
     @classmethod
@@ -230,7 +235,7 @@ class CacheKeyBuilder:
         cls,
         organization_id: str,
         recommendation_type: Optional[str] = None,
-        filters: Optional[Dict[str, Any]] = None
+        filters: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Build cache key for recommendations"""
         return cls.build_key(
@@ -239,7 +244,7 @@ class CacheKeyBuilder:
             organization_id=organization_id,
             entity_type="recommendation",
             entity_id=recommendation_type,
-            filters=filters
+            filters=filters,
         )
 
     @classmethod
@@ -247,7 +252,7 @@ class CacheKeyBuilder:
         cls,
         organization_id: str,
         job_type: Optional[str] = None,
-        filters: Optional[Dict[str, Any]] = None
+        filters: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Build cache key for background jobs"""
         return cls.build_key(
@@ -256,7 +261,7 @@ class CacheKeyBuilder:
             organization_id=organization_id,
             entity_type="job",
             entity_id=job_type,
-            filters=filters
+            filters=filters,
         )
 
     @classmethod
@@ -265,7 +270,7 @@ class CacheKeyBuilder:
         organization_id: str,
         report_type: str,
         filters: Optional[Dict[str, Any]] = None,
-        time_range: Optional[tuple] = None
+        time_range: Optional[tuple] = None,
     ) -> str:
         """Build cache key for reports"""
         return cls.build_key(
@@ -274,7 +279,7 @@ class CacheKeyBuilder:
             organization_id=organization_id,
             entity_type=report_type,
             filters=filters,
-            time_range=time_range
+            time_range=time_range,
         )
 
 
@@ -340,9 +345,7 @@ class CacheKeyValidator:
             return False
 
         # Check for valid prefixes
-        valid_prefixes = [
-            CacheKeyBuilder.ANALYTICS_PREFIX
-        ]
+        valid_prefixes = [CacheKeyBuilder.ANALYTICS_PREFIX]
 
         if components[0] not in valid_prefixes:
             return False
@@ -352,7 +355,9 @@ class CacheKeyValidator:
     @staticmethod
     def is_analytics_key(key: str) -> bool:
         """Check if key is an analytics cache key"""
-        return key.startswith(f"{CacheKeyBuilder.ANALYTICS_PREFIX}{CacheKeyBuilder.SEPARATOR}")
+        return key.startswith(
+            f"{CacheKeyBuilder.ANALYTICS_PREFIX}{CacheKeyBuilder.SEPARATOR}"
+        )
 
     @staticmethod
     def extract_organization_id(key: str) -> Optional[str]:
@@ -443,7 +448,7 @@ def build_cache_key(cache_type: str, **kwargs) -> str:
         "dashboard": CacheKeyBuilder.build_dashboard_key,
         "recommendations": CacheKeyBuilder.build_recommendations_key,
         "jobs": CacheKeyBuilder.build_job_key,
-        "reports": CacheKeyBuilder.build_report_key
+        "reports": CacheKeyBuilder.build_report_key,
     }
 
     builder = builders.get(cache_type)
@@ -461,7 +466,7 @@ def build_cache_pattern(pattern_type: str, **kwargs) -> str:
         "quality_metrics": CacheKeyPattern.quality_metrics_pattern,
         "user_behavior": CacheKeyPattern.user_behavior_pattern,
         "performance": CacheKeyPattern.performance_pattern,
-        "dashboard": CacheKeyPattern.dashboard_pattern
+        "dashboard": CacheKeyPattern.dashboard_pattern,
     }
 
     pattern_builder = patterns.get(pattern_type)

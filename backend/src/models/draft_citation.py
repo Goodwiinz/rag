@@ -2,10 +2,10 @@
 DraftCitation model for linking drafts to citations (Research Assistant - User Story 5)
 """
 
-from sqlalchemy import Column, ForeignKey, Text, Integer
+from sqlalchemy import Column, ForeignKey, Integer, Text
 from sqlalchemy.orm import relationship
 
-from .base import BaseModel, GUID
+from .base import GUID, BaseModel
 
 
 class DraftCitation(BaseModel):
@@ -26,21 +26,21 @@ class DraftCitation(BaseModel):
         GUID(),
         ForeignKey("generated_drafts.id", ondelete="CASCADE"),
         nullable=False,
-        index=True
+        index=True,
     )
 
     # Citation reference (links to either a document or a citation)
-    citation_index = Column(Integer, nullable=False)  # Order of citation in the draft (1, 2, 3, ...)
+    citation_index = Column(
+        Integer, nullable=False
+    )  # Order of citation in the draft (1, 2, 3, ...)
     document_id = Column(
         GUID(),
         ForeignKey("documents.id", ondelete="SET NULL"),
         nullable=True,
-        index=True
+        index=True,
     )
     citation_id = Column(
-        GUID(),
-        ForeignKey("citations.id", ondelete="SET NULL"),
-        nullable=True
+        GUID(), ForeignKey("citations.id", ondelete="SET NULL"), nullable=True
     )
 
     # Citation content (captured at time of draft generation)
@@ -59,12 +59,12 @@ class DraftCitation(BaseModel):
     def to_dict(self) -> dict:
         """Convert to dictionary"""
         data = super().to_dict()
-        data['draft_id'] = str(self.draft_id)
-        data['citation_index'] = self.citation_index
-        data['document_id'] = str(self.document_id) if self.document_id else None
-        data['citation_id'] = str(self.citation_id) if self.citation_id else None
-        data['snippet'] = self.snippet
-        data['context'] = self.context
+        data["draft_id"] = str(self.draft_id)
+        data["citation_index"] = self.citation_index
+        data["document_id"] = str(self.document_id) if self.document_id else None
+        data["citation_id"] = str(self.citation_id) if self.citation_id else None
+        data["snippet"] = self.snippet
+        data["context"] = self.context
         return data
 
     def to_frontend_format(self) -> dict:
@@ -77,5 +77,5 @@ class DraftCitation(BaseModel):
             "citation_id": str(self.citation_id) if self.citation_id else None,
             "snippet": self.snippet,
             "context": self.context,
-            "created_at": self.created_at.isoformat() if self.created_at else None
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }

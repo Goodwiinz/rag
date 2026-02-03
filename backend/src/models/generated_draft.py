@@ -2,11 +2,11 @@
 GeneratedDraft model for AI-generated literature review drafts (Research Assistant - User Story 5)
 """
 
-from sqlalchemy import Column, String, ForeignKey, Text, Integer, Boolean
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
-from .base import BaseModel, GUID
+from .base import GUID, BaseModel
 
 
 class GeneratedDraft(BaseModel):
@@ -27,7 +27,7 @@ class GeneratedDraft(BaseModel):
         GUID(),
         ForeignKey("collections.id", ondelete="CASCADE"),
         nullable=False,
-        index=True
+        index=True,
     )
 
     # Version information
@@ -35,28 +35,38 @@ class GeneratedDraft(BaseModel):
 
     # Draft content
     title = Column(String(255), nullable=False)
-    content = Column(Text, nullable=False)  # Full markdown content of the literature review
+    content = Column(
+        Text, nullable=False
+    )  # Full markdown content of the literature review
 
     # Metadata
-    themes = Column(JSONB, nullable=False, default=list, server_default="[]")  # Identified themes/topics
+    themes = Column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )  # Identified themes/topics
     word_count = Column(Integer, nullable=True)  # Total word count
     citation_count = Column(Integer, nullable=True)  # Number of citations included
 
     # Generation metadata
-    generation_params = Column(JSONB, nullable=True)  # Parameters used for generation (model, temperature, etc.)
-    generation_time_ms = Column(Integer, nullable=True)  # Time taken to generate (in milliseconds)
+    generation_params = Column(
+        JSONB, nullable=True
+    )  # Parameters used for generation (model, temperature, etc.)
+    generation_time_ms = Column(
+        Integer, nullable=True
+    )  # Time taken to generate (in milliseconds)
 
     # Status
-    is_current = Column(Boolean, nullable=False, default=True, server_default="true", index=True)
+    is_current = Column(
+        Boolean, nullable=False, default=True, server_default="true", index=True
+    )
 
     # Relationships
     project = relationship("Collection", backref="drafts")
-    citations = relationship("DraftCitation", back_populates="draft", cascade="all, delete-orphan")
+    citations = relationship(
+        "DraftCitation", back_populates="draft", cascade="all, delete-orphan"
+    )
 
     # Unique constraint for version per project
-    __table_args__ = (
-        {"schema": None},  # Use default schema
-    )
+    __table_args__ = ({"schema": None},)  # Use default schema
 
     def __repr__(self):
         return f"<GeneratedDraft(project_id={self.project_id}, version={self.version}, title={self.title})>"
@@ -73,17 +83,17 @@ class GeneratedDraft(BaseModel):
     def to_dict(self) -> dict:
         """Convert to dictionary"""
         data = super().to_dict()
-        data['project_id'] = str(self.project_id)
-        data['version'] = self.version
-        data['title'] = self.title
-        data['content'] = self.content
-        data['content_preview'] = self.content_preview
-        data['themes'] = self.themes
-        data['word_count'] = self.word_count
-        data['citation_count'] = self.citation_count
-        data['generation_params'] = self.generation_params
-        data['generation_time_ms'] = self.generation_time_ms
-        data['is_current'] = self.is_current
+        data["project_id"] = str(self.project_id)
+        data["version"] = self.version
+        data["title"] = self.title
+        data["content"] = self.content
+        data["content_preview"] = self.content_preview
+        data["themes"] = self.themes
+        data["word_count"] = self.word_count
+        data["citation_count"] = self.citation_count
+        data["generation_params"] = self.generation_params
+        data["generation_time_ms"] = self.generation_time_ms
+        data["is_current"] = self.is_current
         return data
 
     def to_frontend_format(self) -> dict:
@@ -101,7 +111,7 @@ class GeneratedDraft(BaseModel):
             "generation_params": self.generation_params,
             "generation_time_ms": self.generation_time_ms,
             "is_current": self.is_current,
-            "created_at": self.created_at.isoformat() if self.created_at else None
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
     def mark_as_current(self, session):
@@ -113,8 +123,7 @@ class GeneratedDraft(BaseModel):
         """
         # Unmark all other drafts in the same project as current
         session.query(GeneratedDraft).filter(
-            GeneratedDraft.project_id == self.project_id,
-            GeneratedDraft.id != self.id
+            GeneratedDraft.project_id == self.project_id, GeneratedDraft.id != self.id
         ).update({"is_current": False})
 
         # Mark this draft as current

@@ -2,40 +2,41 @@
 Knowledge Graph API endpoints
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query
-from fastapi.responses import JSONResponse
-from typing import List, Dict, Any, Optional
 import logging
+from typing import Any, Dict, List, Optional
 
-from src.core.dependencies import get_current_user
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
+
 from src.core.database import get_db
-from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
-from src.services.processing.entity_extraction_service import EntityExtractionService
+from src.core.dependencies import get_current_user
+from src.models.document import Document
 from src.models.graph import (
-    Entity,
-    EntityResponse,
-    CreateEntityRequest,
-    UpdateEntityRequest,
-    Relationship,
-    RelationshipResponse,
-    CreateRelationshipRequest,
-    EntityType,
-    RelationshipType,
-    ExtractionMethod,
-    GraphSearchRequest,
-    GraphSearchResponse,
-    GraphPath,
     BatchEntityRequest,
     BatchEntityResponse,
+    CreateEntityRequest,
+    CreateRelationshipRequest,
+    Entity,
+    EntityResponse,
+    EntityType,
+    ExtractionMethod,
     GraphAnalytics,
     GraphHealthStatus,
+    GraphPath,
+    GraphSearchRequest,
+    GraphSearchResponse,
     GraphVisualizationData,
-    GraphVisualizationNode,
     GraphVisualizationEdge,
+    GraphVisualizationNode,
     PaginatedEntitiesResponse,
+    Relationship,
+    RelationshipResponse,
+    RelationshipType,
+    UpdateEntityRequest,
 )
 from src.models.user import User, UserRole
-from src.models.document import Document
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+from src.services.processing.entity_extraction_service import EntityExtractionService
 
 logger = logging.getLogger(__name__)
 
@@ -217,8 +218,20 @@ async def get_relationship(
     relationship_id: str, current_user: User = Depends(get_current_user)
 ):
     """Get a relationship by ID"""
-    # TODO: Implement get_relationship method in service
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    try:
+        relationship = knowledge_graph_service.get_relationship(relationship_id)
+        if not relationship:
+            raise HTTPException(
+                status_code=404, detail=f"Relationship {relationship_id} not found"
+            )
+        return relationship
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting relationship {relationship_id}: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve relationship: {str(e)}"
+        )
 
 
 @router.delete("/relationships/{relationship_id}")
@@ -566,11 +579,13 @@ async def fix_null_entity_types(
     try:
         with knowledge_graph_service.get_session() as session:
             # Count entities with NULL type
-            count_result = session.run("""
+            count_result = session.run(
+                """
                 MATCH (e:Entity)
                 WHERE e.type IS NULL OR e.entity_type IS NULL
                 RETURN count(e) as count
-            """)
+            """
+            )
             count = count_result.single()["count"]
 
             if count == 0:
@@ -578,13 +593,15 @@ async def fix_null_entity_types(
 
             # Fix entities with NULL type or entity_type properties in one query
             # Using COALESCE to avoid double-counting entities with both NULL
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (e:Entity)
                 WHERE e.type IS NULL OR e.entity_type IS NULL
                 SET e.type = COALESCE(e.type, 'OTHER'),
                     e.entity_type = COALESCE(e.entity_type, 'OTHER')
                 RETURN count(e) as updated
-            """)
+            """
+            )
             total_updated = result.single()["updated"]
 
             logger.info(f"Fixed {total_updated} entities with NULL type")

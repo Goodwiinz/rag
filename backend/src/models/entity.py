@@ -3,29 +3,47 @@ Entity model for knowledge graph and extracted entities
 """
 
 import uuid
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Enum, ForeignKey, Text, JSON, Table, text
-from sqlalchemy.orm import relationship
-from enum import Enum as PyEnum
 from datetime import datetime
+from enum import Enum as PyEnum
 from typing import Optional
 
-from .base import BaseModel, GUID
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Text,
+    text,
+)
+from sqlalchemy.orm import relationship
+
+from .base import GUID, BaseModel
 from .utils import StringArray
 
 # Association table for entity relationships
 entity_relationships = Table(
-    'entity_relationships',
+    "entity_relationships",
     BaseModel.metadata,
-    Column('source_entity_id', GUID(), ForeignKey('entities.id'), primary_key=True),
-    Column('target_entity_id', GUID(), ForeignKey('entities.id'), primary_key=True),
-    Column('relationship_type', String(100), nullable=False),
-    Column('confidence', Float, default=1.0, nullable=False),
-    Column('relationship_metadata', JSON, nullable=True),
-    Column('created_at', DateTime(timezone=True), server_default='now()', nullable=False)
+    Column("source_entity_id", GUID(), ForeignKey("entities.id"), primary_key=True),
+    Column("target_entity_id", GUID(), ForeignKey("entities.id"), primary_key=True),
+    Column("relationship_type", String(100), nullable=False),
+    Column("confidence", Float, default=1.0, nullable=False),
+    Column("relationship_metadata", JSON, nullable=True),
+    Column(
+        "created_at", DateTime(timezone=True), server_default="now()", nullable=False
+    ),
 )
+
 
 class EntityType(PyEnum):
     """Entity types for different kinds of extracted entities"""
+
     PERSON = "person"
     ORGANIZATION = "organization"
     LOCATION = "location"
@@ -38,13 +56,16 @@ class EntityType(PyEnum):
     URL = "url"
     CUSTOM = "custom"
 
+
 class ExtractionMethod(PyEnum):
     """Methods used for entity extraction"""
+
     SPACY = "spacy"
     OPENAI = "openai"
     REGEX = "regex"
     MANUAL = "manual"
     GRAPH_EXTRACTION = "graph_extraction"
+
 
 class Entity(BaseModel):
     """Entity model for extracted entities and knowledge graph"""
@@ -86,7 +107,7 @@ class Entity(BaseModel):
         secondary=entity_relationships,
         primaryjoin="Entity.id == entity_relationships.c.source_entity_id",
         secondaryjoin="Entity.id == entity_relationships.c.target_entity_id",
-        backref="related_by"
+        backref="related_by",
     )
 
     def __repr__(self):
@@ -111,7 +132,11 @@ class Entity(BaseModel):
         """Add an alias for the entity"""
         if not self.aliases:
             self.aliases = []
-        if alias not in self.aliases and alias != self.name and alias != self.canonical_name:
+        if (
+            alias not in self.aliases
+            and alias != self.name
+            and alias != self.canonical_name
+        ):
             self.aliases.append(alias)
 
     def remove_alias(self, alias: str):
@@ -131,15 +156,21 @@ class Entity(BaseModel):
             return default
         return self.properties.get(key, default)
 
-    def add_relationship(self, target_entity, relationship_type: str, confidence: float = 1.0, metadata: dict = None):
+    def add_relationship(
+        self,
+        target_entity,
+        relationship_type: str,
+        confidence: float = 1.0,
+        metadata: dict = None,
+    ):
         """Add a relationship to another entity"""
         if target_entity not in self.related_entities:
             self.related_entities.append(target_entity)
             # Add relationship metadata
             if not metadata:
                 metadata = {}
-            metadata['relationship_type'] = relationship_type
-            metadata['confidence'] = confidence
+            metadata["relationship_type"] = relationship_type
+            metadata["confidence"] = confidence
             # Note: In a real implementation, you'd store this in the association table
 
     def remove_relationship(self, target_entity):
@@ -196,20 +227,22 @@ class Entity(BaseModel):
         data = super().to_dict()
 
         # Convert enum values
-        data['entity_type'] = self.entity_type.value if self.entity_type else None
-        data['extraction_method'] = self.extraction_method.value if self.extraction_method else None
+        data["entity_type"] = self.entity_type.value if self.entity_type else None
+        data["extraction_method"] = (
+            self.extraction_method.value if self.extraction_method else None
+        )
 
         # Add computed fields
-        data['display_name'] = self.display_name
-        data['all_names'] = self.all_names
+        data["display_name"] = self.display_name
+        data["all_names"] = self.all_names
 
         # Include relationships if requested
         if include_relationships:
-            data['related_entities'] = [
+            data["related_entities"] = [
                 {
-                    'id': str(entity.id),
-                    'name': entity.display_name,
-                    'type': entity.entity_type.value
+                    "id": str(entity.id),
+                    "name": entity.display_name,
+                    "type": entity.entity_type.value,
                 }
                 for entity in self.related_entities
             ]
@@ -217,23 +250,31 @@ class Entity(BaseModel):
         return data
 
     @classmethod
-    def get_entities_by_type(cls, entity_type: EntityType, organization_id: Optional[uuid.UUID] = None) -> list:
+    def get_entities_by_type(
+        cls, entity_type: EntityType, organization_id: Optional[uuid.UUID] = None
+    ) -> list:
         """Get entities by type"""
         query = cls.query.filter(
-            cls.entity_type == entity_type,
-            cls.is_deleted == False
+            cls.entity_type == entity_type, cls.is_deleted == False
         )
         if organization_id:
             query = query.filter(cls.organization_id == organization_id)
         return query.all()
 
     @classmethod
-    def search_entities(cls, query_text: str, entity_type: EntityType = None, organization_id: Optional[uuid.UUID] = None) -> list:
+    def search_entities(
+        cls,
+        query_text: str,
+        entity_type: EntityType = None,
+        organization_id: Optional[uuid.UUID] = None,
+    ) -> list:
         """Search entities by name or aliases"""
         query = cls.query.filter(
             cls.is_deleted == False,
-            (cls.name.ilike(f'%{query_text}%') |
-             cls.canonical_name.ilike(f'%{query_text}%'))
+            (
+                cls.name.ilike(f"%{query_text}%")
+                | cls.canonical_name.ilike(f"%{query_text}%")
+            ),
         )
 
         if entity_type:
@@ -245,11 +286,12 @@ class Entity(BaseModel):
         return query.all()
 
     @classmethod
-    def get_high_confidence_entities(cls, min_confidence: float = 0.8, organization_id: Optional[uuid.UUID] = None) -> list:
+    def get_high_confidence_entities(
+        cls, min_confidence: float = 0.8, organization_id: Optional[uuid.UUID] = None
+    ) -> list:
         """Get high confidence entities"""
         query = cls.query.filter(
-            cls.confidence >= min_confidence,
-            cls.is_deleted == False
+            cls.confidence >= min_confidence, cls.is_deleted == False
         )
         if organization_id:
             query = query.filter(cls.organization_id == organization_id)
