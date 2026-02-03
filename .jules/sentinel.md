@@ -9,3 +9,11 @@ Also, testing this endpoint proved difficult because the codebase has side effec
 1.  Ensure all sensitive endpoints (login, register, reset password) explicitly call the rate limiter.
 2.  Implement architectural changes to avoid side effects on import (e.g., lazy initialization of clients), facilitating easier unit testing.
 3.  Add integration tests that specifically target rate limiting behavior.
+
+## 2025-02-18 - Missing Rate Limiting on Password Reset
+
+**Vulnerability:** The `/api/v1/auth/reset-password` endpoint lacked rate limiting, similar to the previous login endpoint issue.
+
+**Learning:** Authentication endpoints are inconsistently protected. The `auth_rate_limiter` exists but manual application is error-prone. The integration testing environment is fragile due to circular imports, forcing the use of isolated unit tests that avoid importing `src.main`.
+
+**Prevention:** Consider using a decorator or middleware for rate limiting sensitive auth endpoints to ensure consistent application, rather than manual checks in each controller. Refactor codebase to remove circular dependencies to enable robust integration testing.
