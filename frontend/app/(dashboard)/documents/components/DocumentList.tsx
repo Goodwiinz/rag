@@ -12,9 +12,10 @@ export interface Document {
   id: string;
   title: string;
   filename: string;
-  file_type: string;
-  file_size: number;
-  upload_timestamp: string;
+  file_type?: string;
+  file_size?: number;
+  upload_timestamp?: string;
+  created_at?: string; // Backend field name alternative
   processing_status: string;
   metadata?: {
     entities_count?: number;
@@ -42,15 +43,16 @@ export function DocumentList({
 }: DocumentListProps) {
   const router = useRouter();
   
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
+  const formatFileSize = (bytes?: number): string => {
+    if (!bytes || bytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  const formatDate = (dateString: string): string => {
+  const formatDate = (dateString?: string): string => {
+    if (!dateString) return 'Unknown';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       month: 'short',
@@ -61,7 +63,7 @@ export function DocumentList({
     });
   };
 
-  const getFileTypeIcon = (type: string) => {
+  const getFileTypeIcon = (type?: string) => {
     if (!type) return { icon: <FileText className="w-4 h-4" />, color: '#6b7280' };
     const t = type.toLowerCase();
     if (t.includes('pdf')) return { icon: <FileText className="w-4 h-4" />, color: '#ff4757' };
@@ -188,7 +190,7 @@ export function DocumentList({
 
                 {/* Date (Desktop) */}
                 <div className="hidden md:block w-32 text-[10px] font-mono text-[var(--terminal-text-dim)]">
-                  {formatDate(doc.upload_timestamp)}
+                  {formatDate(doc.upload_timestamp || doc.created_at)}
                 </div>
 
                 {/* Status */}

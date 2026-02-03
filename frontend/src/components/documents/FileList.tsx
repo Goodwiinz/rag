@@ -48,7 +48,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
 }) => {
   const [showActions, setShowActions] = useState(false);
 
-  const getFileIcon = (fileType: string, size: 'sm' | 'md' = 'sm') => {
+  const getFileIcon = (fileType?: string, size: 'sm' | 'md' = 'sm') => {
     const iconClass = size === 'sm' ? "h-4 w-4" : "h-6 w-6";
 
     switch (fileType) {
@@ -88,15 +88,16 @@ const FileListItem: React.FC<FileListItemProps> = ({
     }
   };
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
+  const formatFileSize = (bytes?: number): string => {
+    if (!bytes || bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const formatDate = (dateString: string): string => {
+  const formatDate = (dateString?: string): string => {
+    if (!dateString) return 'Unknown';
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -282,9 +283,11 @@ export const FileList: React.FC<FileListProps> = ({
     onSelectionChange?.([]);
   };
 
-  const sortedDocuments = [...documents].sort((a, b) =>
-    new Date(b.upload_timestamp).getTime() - new Date(a.upload_timestamp).getTime()
-  );
+  const sortedDocuments = [...documents].sort((a, b) => {
+    const dateA = a.upload_timestamp || a.created_at || '';
+    const dateB = b.upload_timestamp || b.created_at || '';
+    return new Date(dateB).getTime() - new Date(dateA).getTime();
+  });
 
   if (isLoading) {
     return (
