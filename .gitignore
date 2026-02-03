@@ -182,3 +182,11 @@ serena_repo/
 
 # Serena Docker config (local paths)
 serena-docker-config/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform/
+.terraform.lock.hcl
+
