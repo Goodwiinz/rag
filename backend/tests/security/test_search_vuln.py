@@ -2,10 +2,12 @@ import sys
 from unittest.mock import MagicMock
 
 # Mock spacy and other heavy dependencies before any imports
+# These are safe to mock globally as they are external libraries often missing or slow
 sys.modules["spacy"] = MagicMock()
 sys.modules["en_core_web_sm"] = MagicMock()
 
 # Mock services that might cause side effects or import errors
+# We mock these specific services but NOT core config
 mock_hybrid_service = MagicMock()
 mock_fulltext_service = MagicMock()
 mock_kg_service = MagicMock()
@@ -25,28 +27,16 @@ sys.modules["src.services.search.vector_search_service"] = mock_vector_service
 # Mock vector service (used by vectors router)
 sys.modules["src.services.search.vector_service"] = MagicMock()
 
-# Mock config to avoid env var validation
-mock_config = MagicMock()
-mock_config.settings = MagicMock()
-# Make sure string fields return strings to satisfy type checks (e.g. httpx.URL)
-mock_config.settings.AZURE_OPENAI_CHAT_ENDPOINT = "https://example.com"
-mock_config.settings.AZURE_OPENAI_EMBEDDING_ENDPOINT = "https://example.com"
-mock_config.settings.AZURE_OPENAI_ENDPOINT = "https://example.com"
-mock_config.settings.AZURE_OPENAI_API_KEY = "fake-key"
-mock_config.settings.AZURE_OPENAI_CHAT_DEPLOYMENT = "fake-deployment"
-mock_config.settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT = "fake-deployment"
-mock_config.settings.OPENAI_API_KEY = "fake-key"
-mock_config.settings.QDRANT_URL = "http://localhost:6333"
-mock_config.settings.NEO4J_URI = "bolt://localhost:7687"
-mock_config.settings.REDIS_URL = "redis://localhost:6379"
-mock_config.settings.APP_NAME = "Test App"
-mock_config.settings.VERSION = "0.0.0"
-mock_config.settings.DEBUG = True
+# DO NOT mock src.core.config here - let it use the real config logic (with env vars from conftest)
+# mock_config = MagicMock() ... sys.modules["src.core.config"] = mock_config  <-- REMOVED
 
-sys.modules["src.core.config"] = mock_config
-
-# Mock database
-sys.modules["src.core.database"] = MagicMock()
+# Mock database to avoid connection attempts during import if any
+# But be careful not to break things that expect specific DB types
+# We only mock the module if it's not already loaded or if we really need to intercept get_db
+# In this case, we'll mock it but ensure get_db exists
+mock_db_module = MagicMock()
+mock_db_module.get_db = MagicMock()
+sys.modules["src.core.database"] = mock_db_module
 
 # Mock processing service to break circular imports
 sys.modules["src.services.processing"] = MagicMock()
