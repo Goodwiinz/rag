@@ -277,7 +277,7 @@ export async function retrieveRAGContext(
   const startTime = performance.now();
 
   try {
-    console.log('[RAG] Calling /search/public/hybrid with query:', query);
+    console.log('[RAG] Calling /search/hybrid with query:', query);
 
     const response = await apiClient.post<{
       query: string;
@@ -293,7 +293,7 @@ export async function retrieveRAGContext(
         relevance_score: number;
         metadata?: Record<string, any>;
       }>;
-    }>('/search/public/hybrid', {
+    }>('/search/hybrid', {
       query,
       limit: maxDocs * 2,
       search_type: 'hybrid',

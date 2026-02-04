@@ -3,7 +3,9 @@ import requests
 import json
 
 def check_paper():
-    url = "http://localhost:8000/api/v1/search/public/hybrid"
+    # Note: Authentication is required for this endpoint.
+    # Please add 'Authorization': 'Bearer <token>' header if running against a secured backend.
+    url = "http://localhost:8000/api/v1/search/hybrid"
     payload = {
         "query": "2512.16875v1 Learning Confidence Ellipsoids",
         "top_n": 5
