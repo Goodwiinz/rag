@@ -105,7 +105,7 @@ class ArXivRAGEvaluator:
 
         try:
             response = requests.post(
-                f"{self.api_base_url}/api/v1/search/public/hybrid",
+                f"{self.api_base_url}/api/v1/search/hybrid",
                 json=search_data,
                 headers=headers,
                 timeout=30
