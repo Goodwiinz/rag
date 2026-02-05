@@ -118,7 +118,7 @@ class DocumentUploadService:
             file_content = await file.read()
 
             # Calculate checksums
-            md5_hash = hashlib.md5(file_content).hexdigest()
+            md5_hash = hashlib.md5(file_content, usedforsecurity=False).hexdigest()
             sha256_hash = hashlib.sha256(file_content).hexdigest()
 
             # Generate file path

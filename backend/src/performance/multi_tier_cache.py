@@ -9,6 +9,8 @@ import gzip
 import hashlib
 import json
 import logging
+import os
+import tempfile
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -89,7 +91,7 @@ class CacheConfig:
     l2_redis_url: str = "redis://localhost:6379"
     l2_default_ttl: int = 300  # 5 minutes
     l3_enable_file_cache: bool = True
-    l3_cache_dir: str = "/tmp/cache"
+    l3_cache_dir: str = os.path.join(tempfile.gettempdir(), "cache")
     l4_cdn_url: Optional[str] = None
     compression_threshold: int = 1024  # Compress entries larger than 1KB
     enable_metrics: bool = True
@@ -990,7 +992,9 @@ def cached_multi_tier(
                 + [str(arg) for arg in args]
                 + [f"{k}:{v}" for k, v in sorted(kwargs.items())]
             )
-            cache_key = hashlib.md5(":".join(key_parts).encode()).hexdigest()
+            cache_key = hashlib.md5(
+                ":".join(key_parts).encode(), usedforsecurity=False
+            ).hexdigest()
 
             # Try to get from cache
             cached_result = await cache_manager.get(cache_key)

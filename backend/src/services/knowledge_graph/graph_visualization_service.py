@@ -6,6 +6,7 @@ Standalone microservice for graph data preparation and layout computation
 import asyncio
 import logging
 import math
+import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -515,7 +516,7 @@ def generate_cache_key(prefix: str, request, tenant_id: str) -> str:
     import hashlib
 
     request_str = str(request.dict()) + str(tenant_id)
-    hash_obj = hashlib.md5(request_str.encode())
+    hash_obj = hashlib.md5(request_str.encode(), usedforsecurity=False)
     return f"{prefix}:{hash_obj.hexdigest()}"
 
 
@@ -800,7 +801,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "graph_visualization_service:app",
-        host="0.0.0.0",
+        host=os.getenv("GRAPH_VISUALIZATION_HOST", "127.0.0.1"),
         port=8010,
         reload=config.DEBUG,
         log_level="info",

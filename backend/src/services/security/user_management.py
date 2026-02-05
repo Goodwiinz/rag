@@ -4,6 +4,7 @@ Handles authentication, authorization, user management, and RBAC
 """
 
 import asyncio
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -64,7 +65,7 @@ USER_SERVICE_CONFIG = {
     "service_name": "user-management",
     "version": "1.0.0",
     "port": 8007,
-    "host": "0.0.0.0",
+    "host": os.getenv("USER_SERVICE_HOST", "127.0.0.1"),
     "password_min_length": 8,
     "max_login_attempts": 5,
     "account_lockout_minutes": 15,

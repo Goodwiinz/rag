@@ -4,6 +4,7 @@ Handles request routing, authentication, rate limiting, and load balancing
 """
 
 import asyncio
+import os
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -59,7 +60,7 @@ API_GATEWAY_CONFIG = {
     "service_name": "api-gateway",
     "version": "1.0.0",
     "port": 8080,
-    "host": "0.0.0.0",
+    "host": os.getenv("API_GATEWAY_HOST", "127.0.0.1"),
 }
 
 # Service registry

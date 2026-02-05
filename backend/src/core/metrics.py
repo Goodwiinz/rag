@@ -40,8 +40,8 @@ def record_request_count(
             _request_counts[key] = 0
         _request_counts[key] += 1
 
-        # Log at debug level for tracking
-        logger.debug(f"Request count recorded: {key} = {_request_counts[key]}")
+        # Log at debug level for tracking without user-provided values
+        logger.debug("Request count recorded: %s", _request_counts[key])
     except Exception as e:
         # Metrics should never break the application
         logger.warning(f"Failed to record request count: {e}")
@@ -72,7 +72,7 @@ def record_request_duration(
         if len(_request_durations[key]) > 1000:
             _request_durations[key] = _request_durations[key][-1000:]
 
-        logger.debug(f"Request duration recorded: {key} = {duration_ms:.2f}ms")
+        logger.debug("Request duration recorded: %.2fms", duration_ms)
     except Exception as e:
         # Metrics should never break the application
         logger.warning(f"Failed to record request duration: {e}")

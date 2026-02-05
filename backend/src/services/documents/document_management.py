@@ -76,7 +76,7 @@ DOCUMENT_SERVICE_CONFIG = {
     "service_name": "document-management",
     "version": "1.0.0",
     "port": 8001,
-    "host": "0.0.0.0",
+    "host": os.getenv("DOCUMENT_SERVICE_HOST", "127.0.0.1"),
     "upload_dir": settings.UPLOAD_DIR,
     "max_file_size_mb": settings.MAX_FILE_SIZE_MB,
     "allowed_mime_types": {

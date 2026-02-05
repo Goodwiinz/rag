@@ -192,7 +192,7 @@ class IndexOptimizer:
         for suggestion in suggestions:
             try:
                 for index_rec in suggestion["suggested_indexes"]:
-                    index_name = f"idx_opt_{hashlib.md5(str(index_rec).encode()).hexdigest()[:8]}"
+                    index_name = f"idx_opt_{hashlib.md5(str(index_rec).encode(), usedforsecurity=False).hexdigest()[:8]}"
 
                     # Generate CREATE INDEX statement
                     columns_str = ", ".join(index_rec["columns"])
@@ -226,7 +226,9 @@ class QueryOptimizer:
         force_refresh: bool = False,
     ) -> List[Dict[str, Any]]:
         """Execute query with full optimization stack"""
-        query_hash = hashlib.md5(f"{query}{str(params or {})}".encode()).hexdigest()
+        query_hash = hashlib.md5(
+            f"{query}{str(params or {})}".encode(), usedforsecurity=False
+        ).hexdigest()
         cache_key = ["optimized_query", query_hash]
 
         # Try cache first (unless force refresh)
@@ -328,7 +330,7 @@ class QueryOptimizer:
                 optimization_suggestions = []
 
             return QueryPlan(
-                query_hash=hashlib.md5(query.encode()).hexdigest(),
+                query_hash=hashlib.md5(query.encode(), usedforsecurity=False).hexdigest(),
                 query_text=query[:200],
                 execution_time_ms=execution_time,
                 rows_examined=rows_examined,
@@ -341,7 +343,7 @@ class QueryOptimizer:
         except Exception as e:
             logger.error(f"Error creating query plan: {e}")
             return QueryPlan(
-                query_hash=hashlib.md5(query.encode()).hexdigest(),
+                query_hash=hashlib.md5(query.encode(), usedforsecurity=False).hexdigest(),
                 query_text=query[:200],
                 execution_time_ms=execution_time,
                 rows_examined=rows_returned,

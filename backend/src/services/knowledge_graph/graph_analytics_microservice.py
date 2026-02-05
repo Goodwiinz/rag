@@ -5,6 +5,7 @@ Standalone microservice for graph algorithms and background processing
 
 import asyncio
 import logging
+import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -586,7 +587,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "graph_analytics_service:app",
-        host="0.0.0.0",
+        host=os.getenv("GRAPH_ANALYTICS_HOST", "127.0.0.1"),
         port=8009,
         reload=config.DEBUG,
         log_level="info",

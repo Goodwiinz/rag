@@ -5,6 +5,7 @@ Handles hybrid search orchestration combining vector, graph, and keyword search 
 
 import asyncio
 import json
+import os
 import time
 import uuid
 from dataclasses import dataclass
@@ -67,7 +68,7 @@ SEARCH_SERVICE_CONFIG = {
     "service_name": "search-service",
     "version": "1.0.0",
     "port": 8002,
-    "host": "0.0.0.0",
+    "host": os.getenv("SEARCH_SERVICE_HOST", "127.0.0.1"),
     "default_search_limit": 10,
     "max_search_limit": 50,
     "rerank_top_k": 20,

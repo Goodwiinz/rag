@@ -11,9 +11,11 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import unquote
 
+bleach = None
 try:
-    import bleach
+    import bleach as _bleach
 
+    bleach = _bleach
     HAS_BLEACH = True
 except ImportError:
     HAS_BLEACH = False
@@ -33,6 +35,8 @@ SQL_INJECTION_PATTERNS = [
     r"(\b(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE)\b)",
     r"(\b(OR|AND)\s+\d+\s*=\s*\d+)",
     r"(\'\s*(OR|AND)\s*\'.*\'\s*=\s*\'.*\')",
+    r"(\'\s*(OR|AND)\s*\'[^']+\'\s*=\s*\'[^']+)",
+    r"(\'\s*1\s*\'\s*=\s*\'\s*1\s*\'?)",
     r"(\;\s*(DROP|DELETE|INSERT|UPDATE))",
     r"(\/\*.*\*\/)",
     r"(--.*$)",
@@ -223,10 +227,10 @@ class SecurityValidator:
             raise AnalyticsValidationError(f"{field_name} must be numeric")
 
         if min_val is not None and value < min_val:
-            raise AnalyticsValidationError(f"{field_name} must be >= {min_val}")
+            raise AnalyticsValidationError(f"{field_name} is below minimum of {min_val}")
 
         if max_val is not None and value > max_val:
-            raise AnalyticsValidationError(f"{field_name} must be <= {max_val}")
+            raise AnalyticsValidationError(f"{field_name} is above maximum of {max_val}")
 
         return value
 
@@ -249,7 +253,7 @@ class SecurityValidator:
         """
         if start_date and end_date:
             if start_date >= end_date:
-                raise AnalyticsValidationError("start_date must be before end_date")
+                raise AnalyticsValidationError("Start time cannot be after end time")
 
             # Check range limit
             max_range = timedelta(days=max_range_days)
@@ -266,13 +270,17 @@ class SecurityValidator:
 
     @staticmethod
     def validate_list_input(
-        value: List[Any], max_items: int = MAX_LIST_ITEMS, field_name: str = "list"
+        value: List[Any],
+        item_type: Optional[type] = None,
+        max_items: int = MAX_LIST_ITEMS,
+        field_name: str = "list",
     ) -> List[Any]:
         """
         Validate list inputs
 
         Args:
             value: List to validate
+            item_type: Optional item type to enforce (e.g. str, int)
             max_items: Maximum number of items allowed
             field_name: Name of the field for error messages
 
@@ -283,11 +291,29 @@ class SecurityValidator:
             raise AnalyticsValidationError(f"{field_name} must be a list")
 
         if len(value) > max_items:
-            raise AnalyticsValidationError(
-                f"{field_name} cannot contain more than {max_items} items"
-            )
+            raise AnalyticsValidationError(f"{field_name} has too many items")
+
+        if item_type is not None:
+            for idx, item in enumerate(value):
+                if not isinstance(item, item_type):
+                    raise AnalyticsValidationError(
+                        f"Item at index {idx} must be of type {item_type.__name__}"
+                    )
 
         return value
+
+    @staticmethod
+    def validate_pagination(limit: int, offset: int) -> tuple[int, int]:
+        """
+        Validate pagination parameters (limit/offset).
+
+        Kept on SecurityValidator for convenience in request handlers and tests.
+        """
+        if not isinstance(limit, int) or limit < 1 or limit > 10000:
+            raise AnalyticsValidationError("Limit must be between 1 and 10000")
+        if not isinstance(offset, int) or offset < 0:
+            raise AnalyticsValidationError("Offset must be >= 0")
+        return limit, offset
 
     @staticmethod
     def validate_dict_input(
@@ -374,7 +400,9 @@ class QueryParameterValidator:
         Returns:
             Validated list of sort fields
         """
-        fields = SecurityValidator.validate_list_input(fields, 10, "sort fields")
+        fields = SecurityValidator.validate_list_input(
+            fields, str, max_items=10, field_name="sort fields"
+        )
 
         for field in fields:
             if field not in allowed_fields:
@@ -396,7 +424,9 @@ class QueryParameterValidator:
         Returns:
             Validated list of group by fields
         """
-        fields = SecurityValidator.validate_list_input(fields, 10, "group by fields")
+        fields = SecurityValidator.validate_list_input(
+            fields, str, max_items=10, field_name="group by fields"
+        )
 
         for field in fields:
             if field not in allowed_fields:
@@ -551,7 +581,9 @@ class AnalyticsInputSanitizer:
             elif isinstance(value, (int, float)):
                 result[clean_key] = value
             elif isinstance(value, list):
-                result[clean_key] = self.security_validator.validate_list_input(value)
+                result[clean_key] = self.security_validator.validate_list_input(
+                    value, item_type=None
+                )
             elif isinstance(value, dict):
                 result[clean_key] = self.security_validator.validate_dict_input(value)
             elif isinstance(value, datetime):
@@ -574,7 +606,7 @@ class AnalyticsInputSanitizer:
         """
         # Sort parameters for consistent key generation
         sorted_params = json.dumps(params, sort_keys=True, default=str)
-        return hashlib.md5(sorted_params.encode()).hexdigest()
+        return hashlib.md5(sorted_params.encode(), usedforsecurity=False).hexdigest()
 
 
 # Global sanitizer instance
