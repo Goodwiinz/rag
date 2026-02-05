@@ -1,0 +1,107 @@
+# =============================================================================
+# DigitalOcean Terraform Variables - Example Configuration
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values
+# NEVER commit terraform.tfvars to version control!
+
+# -----------------------------------------------------------------------------
+# Required: DigitalOcean API Credentials
+# -----------------------------------------------------------------------------
+# Get from: https://cloud.digitalocean.com/account/api/tokens
+do_token = "REDACTED"
+
+# Get from: https://cloud.digitalocean.com/account/api/spaces
+spaces_access_key_id     = "REDACTED"
+spaces_secret_access_key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# -----------------------------------------------------------------------------
+# Project Configuration
+# -----------------------------------------------------------------------------
+project_name = "rag-system"
+environment  = "production"  # development, staging, production
+region       = "nyc3"        # nyc1, nyc3, sfo3, ams3, sgp1, lon1, fra1
+
+# -----------------------------------------------------------------------------
+# Kubernetes Cluster Configuration
+# -----------------------------------------------------------------------------
+kubernetes_version = "1.29.1-do.0"
+
+# Application nodes
+app_node_size = "s-4vcpu-8gb"  # ~$48/month per node
+app_min_nodes = 2
+app_max_nodes = 10
+
+# Database nodes (for Neo4j, Qdrant)
+db_node_size  = "s-4vcpu-8gb"
+db_min_nodes  = 2
+db_max_nodes  = 5
+
+# -----------------------------------------------------------------------------
+# Managed Databases Configuration
+# -----------------------------------------------------------------------------
+# PostgreSQL
+postgres_size       = "db-s-2vcpu-4gb"  # ~$60/month
+postgres_node_count = 2                  # 2 for HA, 1 for cost savings
+database_name       = "multimodal_rag"
+database_user       = "raguser"
+
+# Redis
+redis_size       = "db-s-1vcpu-2gb"  # ~$30/month
+redis_node_count = 2                  # 2 for HA, 1 for cost savings
+
+# -----------------------------------------------------------------------------
+# Container Registry
+# -----------------------------------------------------------------------------
+registry_tier = "basic"  # starter (free), basic ($5), professional ($20)
+
+# -----------------------------------------------------------------------------
+# Domain & SSL Configuration
+# -----------------------------------------------------------------------------
+domain_name       = "example.com"      # Your domain
+manage_dns        = false              # Set true if using DO DNS
+enable_ssl        = true
+letsencrypt_email = "admin@example.com"
+
+# -----------------------------------------------------------------------------
+# Monitoring
+# -----------------------------------------------------------------------------
+enable_monitoring  = true
+grafana_password   = "your-secure-password"  # Change this!
+
+# -----------------------------------------------------------------------------
+# Application Configuration
+# -----------------------------------------------------------------------------
+backend_replicas  = 2
+frontend_replicas = 2
+celery_replicas   = 2
+
+# CORS origins for Spaces bucket
+cors_allowed_origins = [
+  "https://app.example.com",
+  "https://api.example.com"
+]
+
+# =============================================================================
+# Cost Estimation (Monthly, approximate with above defaults)
+# =============================================================================
+#
+# DOKS Control Plane:           $0 (free)
+# App Node Pool (2x s-4vcpu):   ~$96
+# DB Node Pool (2x s-4vcpu):    ~$96
+# Managed PostgreSQL (2 nodes): ~$120
+# Managed Redis (2 nodes):      ~$60
+# Spaces (estimate):            ~$10
+# Container Registry (basic):   ~$5
+# Load Balancer:                ~$12
+# Reserved IP:                  ~$4
+# -----------------------------------
+# Total:                        ~$403/month
+#
+# For cost-optimized setup (no HA):
+# - 1 app node (s-2vcpu-4gb):   ~$24
+# - 1 db node (s-2vcpu-4gb):    ~$24
+# - PostgreSQL (1 node):        ~$30
+# - Redis (1 node):             ~$15
+# - Other costs:                ~$30
+# -----------------------------------
+# Total:                        ~$123/month

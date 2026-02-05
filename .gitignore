@@ -182,3 +182,4 @@ serena_repo/
 
 # Serena Docker config (local paths)
 serena-docker-config/
+infrastructure/digitalocean/terraform/terraform.tfvars

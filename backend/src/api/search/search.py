@@ -612,8 +612,6 @@ async def search_health_check(
         )
 
 
-
-
 # Background task functions
 async def log_search_query(
     user_id: str,

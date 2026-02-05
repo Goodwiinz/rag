@@ -1,0 +1,3925 @@
+{
+  "version": "2.6",
+  "children": [
+    {
+      "type": "frame",
+      "id": "tDgWC",
+      "x": 356,
+      "y": -503,
+      "name": "Navbar",
+      "width": 1440,
+      "height": 143,
+      "fill": "#ffffff00",
+      "stroke": {
+        "align": "inside",
+        "thickness": 1
+      },
+      "layout": "none",
+      "children": [
+        {
+          "type": "text",
+          "id": "jtnjX",
+          "x": 1256,
+          "y": 64,
+          "name": "Start searching ",
+          "fill": "#afafafff",
+          "textGrowth": "fixed-width-height",
+          "width": 136,
+          "height": 18,
+          "content": "Start searching here...",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 11.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "s6KTE",
+          "x": 959,
+          "y": 75,
+          "name": "CEOAssistant",
+          "fill": "#595959ff",
+          "textGrowth": "fixed-width-height",
+          "width": 91,
+          "height": 19,
+          "content": "CEO Assistant",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 12.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "2nqjx",
+          "x": 193,
+          "y": 78,
+          "name": "Dashboard",
+          "fill": "#a5a5a5ff",
+          "textGrowth": "fixed-width-height",
+          "width": 98,
+          "height": 19,
+          "content": "Dashboard",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 17.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "TIipd",
+          "x": 959,
+          "y": 55,
+          "name": "Dwayne Tatum",
+          "fill": "#3e3e3eff",
+          "textGrowth": "fixed-width-height",
+          "width": 110,
+          "height": 20,
+          "content": "Dwayne Tatum",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 13.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "6VO0M",
+          "x": 193,
+          "y": 53,
+          "name": "Financial",
+          "fill": "#303030ff",
+          "textGrowth": "fixed-width-height",
+          "width": 81,
+          "height": 19,
+          "content": "Financial",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 17.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "rectangle",
+          "id": "SWebn",
+          "x": 120,
+          "y": 47,
+          "name": "Image",
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "",
+            "mode": "fill"
+          },
+          "width": 57,
+          "height": 57,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "ellipse",
+          "id": "Iq9xv",
+          "x": 50,
+          "y": 48,
+          "name": "Ellipse 14429",
+          "sweepAngle": 360.00001001791264,
+          "fill": "#ffffffff",
+          "width": 56,
+          "height": 56,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "path",
+          "id": "Mz2Ca",
+          "x": 67,
+          "y": 73,
+          "name": "Vector 2164",
+          "geometry": "M13 0l-13 0m21 6.5l-21 0",
+          "width": 21,
+          "height": 6.5,
+          "stroke": {
+            "align": "center",
+            "thickness": 2,
+            "cap": "round",
+            "fill": "#000000ff"
+          }
+        },
+        {
+          "type": "ellipse",
+          "id": "SfQxu",
+          "x": 816,
+          "y": 47,
+          "name": "Ellipse 14430",
+          "sweepAngle": 360.00001001791264,
+          "width": 56,
+          "height": 56,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#00000026"
+          }
+        },
+        {
+          "type": "ellipse",
+          "id": "ZaeBi",
+          "x": 1185,
+          "y": 47,
+          "name": "Ellipse 14431",
+          "sweepAngle": 360.00001001791264,
+          "width": 56,
+          "height": 56,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#00000026"
+          }
+        },
+        {
+          "type": "path",
+          "id": "eOtAl",
+          "x": 838.75,
+          "y": 70.75,
+          "name": "Vector",
+          "geometry": "M5.25 10.5l0-10.5m5.25 5.25l-10.5 0",
+          "width": 10.5,
+          "height": 10.5,
+          "stroke": {
+            "align": "center",
+            "thickness": 1.5,
+            "join": "round",
+            "cap": "round",
+            "fill": "#000000ff"
+          }
+        },
+        {
+          "type": "path",
+          "id": "LXsDI",
+          "x": 1205.5,
+          "y": 68.5,
+          "name": "Vector",
+          "geometry": "M6.66667 13.33333c3.6819 0 6.66667-2.98477 6.66666-6.66666 0-3.6819-2.98477-6.66667-6.66666-6.66667-3.6819 0-6.66667 2.98477-6.66667 6.66667 0 3.6819 2.98477 6.66667 6.66667 6.66666z",
+          "width": 14.998698234558105,
+          "height": 14.99978256225586,
+          "stroke": {
+            "align": "center",
+            "thickness": 1.6666665077209473,
+            "join": "round",
+            "cap": "round",
+            "fill": "#000000ff"
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "kTE1a",
+      "x": 2527,
+      "y": -899,
+      "name": "Groups",
+      "width": 351,
+      "height": 273,
+      "fill": "#00000000",
+      "stroke": {
+        "align": "inside",
+        "thickness": 1
+      },
+      "layout": "none",
+      "children": [
+        {
+          "type": "rectangle",
+          "cornerRadius": 29,
+          "id": "Yb6uk",
+          "x": 4,
+          "y": 6,
+          "name": "Background",
+          "fill": "#f6f6f6ff",
+          "width": 344,
+          "height": 263
+        },
+        {
+          "type": "text",
+          "id": "Y6zof",
+          "x": 35,
+          "y": 116,
+          "name": "How is your busi",
+          "fill": "#363636ff",
+          "textGrowth": "fixed-width-height",
+          "width": 190,
+          "height": 49,
+          "content": "How is your business\nmanagement going?",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 19,
+          "fontWeight": "normal",
+          "letterSpacing": -0.38
+        },
+        {
+          "type": "text",
+          "id": "qq9Md",
+          "x": 36,
+          "y": 95,
+          "name": "Reviewrating",
+          "fill": "#c2c2c2ff",
+          "textGrowth": "fixed-width-height",
+          "width": 74,
+          "height": 14,
+          "content": "Review rating",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 11,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "ellipse",
+          "id": "egRJl",
+          "x": 36,
+          "y": 42,
+          "name": "Ellipse 14463",
+          "sweepAngle": 360.00001001791264,
+          "fill": "#d3d3d3ff",
+          "width": 6,
+          "height": 6,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "ellipse",
+          "id": "Tvxev",
+          "x": 50,
+          "y": 42,
+          "name": "Ellipse 14464",
+          "sweepAngle": 360.00001001791264,
+          "fill": "#d3d3d3ff",
+          "width": 6,
+          "height": 6,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 100,
+          "id": "H14f8",
+          "x": 63,
+          "y": 42,
+          "name": "Rectangle 1376",
+          "fill": "#191919ff",
+          "width": 18,
+          "height": 6,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "ellipse",
+          "id": "GzZ5g",
+          "x": 276,
+          "y": 26,
+          "name": "Ellipse 14465",
+          "sweepAngle": 360.00001001791264,
+          "fill": "#efefefff",
+          "width": 40,
+          "height": 40,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "path",
+          "id": "RHAFr",
+          "x": 293,
+          "y": 43,
+          "name": "Vector",
+          "geometry": "M0 6l6-6m0 6l-6-6",
+          "width": 6,
+          "height": 6,
+          "stroke": {
+            "align": "center",
+            "thickness": 1,
+            "join": "round",
+            "cap": "round",
+            "fill": "#000000ff"
+          }
+        },
+        {
+          "type": "ellipse",
+          "id": "d6bym",
+          "x": 36,
+          "y": 190,
+          "name": "Ellipse 14466",
+          "sweepAngle": 360.00001001791264,
+          "fill": "#ffffffff",
+          "width": 48,
+          "height": 48,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "ellipse",
+          "id": "ebz7a",
+          "x": 94,
+          "y": 190,
+          "name": "Ellipse 14467",
+          "sweepAngle": 360.00001001791264,
+          "fill": "#ffffffff",
+          "width": 48,
+          "height": 48,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "ellipse",
+          "id": "DPaRq",
+          "x": 152,
+          "y": 190,
+          "name": "Ellipse 14468",
+          "sweepAngle": 360.00001001791264,
+          "fill": "#ffffffff",
+          "width": 48,
+          "height": 48,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "ellipse",
+          "id": "GKpav",
+          "x": 210,
+          "y": 190,
+          "name": "Ellipse 14469",
+          "sweepAngle": 360.00001001791264,
+          "fill": "#ffffffff",
+          "width": 48,
+          "height": 48,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "ellipse",
+          "id": "NzrDg",
+          "x": 268,
+          "y": 190,
+          "name": "Ellipse 14470",
+          "sweepAngle": 360.00001001791264,
+          "fill": "#ffffffff",
+          "width": 48,
+          "height": 48,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "path",
+          "id": "v5zki",
+          "x": 51,
+          "y": 207,
+          "name": "Ellipse 14471",
+          "geometry": "M18 9c0-2.38695-0.94821-4.67613-2.63604-6.36396-1.68783-1.68783-3.97701-2.63604-6.36396-2.63604-2.38695 0-4.67613 0.94821-6.36396 2.63604-1.68783 1.68783-2.63604 3.97701-2.63604 6.36396",
+          "width": 18,
+          "height": 9,
+          "stroke": {
+            "align": "inside",
+            "thickness": 2,
+            "fill": "#000000ff"
+          }
+        },
+        {
+          "type": "path",
+          "id": "RDPaN",
+          "x": 301,
+          "y": 219,
+          "name": "Ellipse 14472",
+          "rotation": 180,
+          "geometry": "M18 9c0-2.38695-0.94821-4.67613-2.63604-6.36396-1.68783-1.68783-3.97701-2.63604-6.36396-2.63604-2.38695 0-4.67613 0.94821-6.36396 2.63604-1.68783 1.68783-2.63604 3.97701-2.63604 6.36396",
+          "width": 18,
+          "height": 9,
+          "stroke": {
+            "align": "inside",
+            "thickness": 2,
+            "fill": "#000000ff"
+          }
+        },
+        {
+          "type": "path",
+          "id": "TB2Eq",
+          "x": 108.099609375,
+          "y": 211,
+          "name": "Ellipse 14473",
+          "geometry": "M19.79899 4.1005c-1.30002-1.30002-2.84337-2.33125-4.54193-3.03481-1.69856-0.70357-3.51906-1.06569-5.35756-1.06569-1.83851 0-3.65901 0.36212-5.35757 1.06569-1.69856 0.70357-3.24191 1.7348-4.54193 3.03482",
+          "width": 19.798992156982422,
+          "height": 4.100508213043213,
+          "stroke": {
+            "align": "inside",
+            "thickness": 2,
+            "fill": "#000000ff"
+          }
+        },
+        {
+          "type": "path",
+          "id": "rDnNz",
+          "x": 243.7989959716797,
+          "y": 216.1005096435547,
+          "name": "Ellipse 14474",
+          "rotation": 180,
+          "geometry": "M19.79899 4.1005c-1.30002-1.30002-2.84337-2.33125-4.54193-3.03481-1.69856-0.70357-3.51906-1.06569-5.35756-1.06569-1.83851 0-3.65901 0.36212-5.35757 1.06569-1.69856 0.70357-3.24191 1.7348-4.54193 3.03482",
+          "width": 19.798992156982422,
+          "height": 4.100508213043213,
+          "stroke": {
+            "align": "inside",
+            "thickness": 2,
+            "fill": "#000000ff"
+          }
+        },
+        {
+          "type": "path",
+          "id": "GDhVa",
+          "x": 167,
+          "y": 213,
+          "name": "Vector 2173",
+          "geometry": "M0 0l17 0",
+          "width": 17,
+          "height": 0,
+          "stroke": {
+            "align": "center",
+            "thickness": 2,
+            "fill": "#000000ff"
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "HwUy8",
+      "x": 2528,
+      "y": -1098,
+      "name": "Groups",
+      "width": 351,
+      "height": 190,
+      "fill": "#00000000",
+      "stroke": {
+        "align": "inside",
+        "thickness": 1
+      },
+      "layout": "none",
+      "children": [
+        {
+          "type": "rectangle",
+          "cornerRadius": 30.87188720703125,
+          "id": "48UWF",
+          "x": 0,
+          "y": 4,
+          "name": "Rectangle 1319",
+          "fill": "#f8f8f8ff",
+          "width": 347,
+          "height": 185.2313232421875,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1.2348754405975342
+          }
+        },
+        {
+          "type": "ellipse",
+          "id": "BIYGk",
+          "x": 20.993518829345703,
+          "y": 23.758161544799805,
+          "name": "Ellipse 14422",
+          "sweepAngle": 360.00001001791264,
+          "fill": "#ffffffff",
+          "width": 41.98576736450195,
+          "height": 41.98576736450195,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1.2348754405975342
+          }
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 123.487548828125,
+          "id": "aKRaB",
+          "x": 237.330078125,
+          "y": 130.896484375,
+          "name": "Rectangle 1320",
+          "width": 86.44127655029297,
+          "height": 33.341636657714844,
+          "stroke": {
+            "align": "inside",
+            "thickness": 2.4697508811950684,
+            "fill": "#ebebebff"
+          }
+        },
+        {
+          "type": "text",
+          "id": "cVN2S",
+          "x": 23.228515625,
+          "y": 121.01806640625,
+          "name": "Main Stocks",
+          "fill": "#000000ff",
+          "content": "Main Stocks",
+          "textAlign": "center",
+          "fontFamily": "PingFang SC",
+          "fontSize": 18.38054084777832,
+          "fontWeight": "500",
+          "letterSpacing": 0.3676108169555664
+        },
+        {
+          "type": "text",
+          "id": "cWtIY",
+          "x": 25.228515625,
+          "y": 149.419921875,
+          "name": "Extended & Limited",
+          "fill": "#000000ff",
+          "content": "Extended & Limited",
+          "textAlign": "center",
+          "fontFamily": "PingFang SC",
+          "fontSize": 9.622028350830078,
+          "fontWeight": "normal",
+          "letterSpacing": 0.19244056701660156
+        },
+        {
+          "type": "text",
+          "id": "whInQ",
+          "x": 214.103515625,
+          "y": 30.40234375,
+          "name": "$ 16,073.49",
+          "fill": "#000000ff",
+          "content": "$ 16,073.49",
+          "textAlign": "center",
+          "fontFamily": "Axiforma",
+          "fontSize": 19.484609603881836,
+          "fontWeight": "normal",
+          "letterSpacing": 0.48711524009704593
+        },
+        {
+          "type": "text",
+          "id": "S5TMY",
+          "x": 253.853515625,
+          "y": 135.83642578125,
+          "name": "+ 9.3%",
+          "fill": "#df5739ff",
+          "content": "+ 9.3%",
+          "textAlign": "center",
+          "fontFamily": "PingFang SC",
+          "fontSize": 15.2820463180542,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "path",
+          "id": "jSJuq",
+          "x": 8.556640625,
+          "y": 67.98876953125,
+          "name": "Vector 2137",
+          "geometry": "M0 19.5631c0 0 3.86724-6.60777 8-7 4.00271-0.37988 4.99919 4.60062 9 5 6.19925 0.61884 7.27421-8.26957 13.5-8.5 8.83482-0.32699 7.70924 16.43998 16.5 15.5 3.13668-0.3354 4.34804-2.87191 7.5-3 6.36998-0.25887 6.14051 10.05214 12.5 10.5 8.70428 0.61299 5.86958-18.28684 14.5-17 3.80906 0.56795 4.70601 4.33883 8.5 5 9.61816 1.67612 5.34099-21.42188 15-20 6.55676 0.96521 5.39694 12.56768 12 12 3.57137-0.30704 4.4948-3.75 8-4.5 11.07124-2.36888 4.33748 26.39262 15.5 24.5 4.22656-0.71662 5.22462-5.18614 9.5-5.5 7.16573-0.52605 6.37784 11.55174 13.5 12.5 10.28754 1.3697 7.33293-22.08334 17.5-20 5.43741 1.11418 5.5078 8.19842 11 9 9.39034 1.37051 5.06918-18.44342 14.5-19.5 11.74753-1.31613 4.30562 29.79769 15.5 26 4.45325-1.51076 4.30331-8.23435 9-8 2.87943 0.14367 3.63077 3.21851 6.5 3.5 5.50333 0.53992 5.10452-8.2888 10.5-9.5 9.90891-2.22439 5.8511 20.13367 16 20.5 3.8338 0.13839 9.5-2.5 9.5-2.5",
+          "width": 337.7384033203125,
+          "height": 50.71430969238281,
+          "stroke": {
+            "align": "center",
+            "thickness": 2.4697508811950684,
+            "cap": "round",
+            "fill": {
+              "type": "gradient",
+              "gradientType": "linear",
+              "enabled": true,
+              "rotation": -450,
+              "size": {
+                "height": 1
+              },
+              "colors": [
+                {
+                  "color": "#df573900",
+                  "position": 0
+                },
+                {
+                  "color": "#df5739ff",
+                  "position": 0.6000000238418579
+                },
+                {
+                  "color": "#df573900",
+                  "position": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "path",
+          "id": "mxJD9",
+          "x": 33.44313049316406,
+          "y": 38.57661437988281,
+          "name": "Vector",
+          "geometry": "M8.54131 9.41591c0 1.10826 0.89842 2.00667 2.00667 2.00667 1.10826 0 2.00667-0.89842 2.00668-2.00667 0-1.10825-0.89842-2.00667-2.00668-2.00667-1.10825 0-2.00667 0.89842-2.00667 2.00667z m4.9391-7.40924c0 1.10825 0.89842 2.00667 2.00668 2.00668 1.10826 0 2.00667-0.89842 2.00667-2.00668 0-1.10825-0.89842-2.00667-2.00667-2.00667-1.10825 0-2.00667 0.89842-2.00668 2.00667z m-8.79894 2.00651c0 1.10825 0.89842 2.00667 2.00668 2.00668 1.10825 0 2.00667-0.89842 2.00667-2.00668 0-1.10825-0.89842-2.00667-2.00667-2.00667-1.10825 0-2.00667 0.89842-2.00668 2.00667z m-4.68147 6.79185c0 1.10825 0.89842 2.00667 2.00667 2.00668 1.10825 0 2.00667-0.89842 2.00668-2.00667 0-1.10825-0.89842-2.00667-2.00668-2.00668-1.10825 0-2.00667 0.89842-2.00667 2.00667z",
+          "width": 17.493759155273438,
+          "height": 12.81170654296875,
+          "stroke": {
+            "align": "center",
+            "thickness": 1.3377817869186401,
+            "join": "round",
+            "cap": "round",
+            "fill": "#000000ff"
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "XH2Gi",
+      "x": 1865,
+      "y": -1007,
+      "name": "Groups",
+      "width": 653,
+      "height": 380,
+      "fill": "#00000000",
+      "stroke": {
+        "align": "inside",
+        "thickness": 1
+      },
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "6LVJB",
+          "x": 432,
+          "y": 132,
+          "name": "Groups",
+          "width": 191,
+          "height": 214,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "id": "49pwZ",
+              "x": 0,
+              "y": -1,
+              "name": "Background",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 191,
+              "height": 219,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "frame",
+              "id": "JIjjl",
+              "x": 23,
+              "y": 147,
+              "name": "Button",
+              "width": 143,
+              "height": 49,
+              "fill": "#00000000",
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              },
+              "layout": "none",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 19.5,
+                  "id": "ISxQf",
+                  "x": 5,
+                  "y": 5,
+                  "name": "Background",
+                  "fill": "#e06348ff",
+                  "width": 134,
+                  "height": 41,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#e8a79bff"
+                  }
+                },
+                {
+                  "type": "text",
+                  "id": "OoioJ",
+                  "x": 50,
+                  "y": 17,
+                  "name": "Enable",
+                  "fill": "#facebaff",
+                  "textGrowth": "fixed-width-height",
+                  "width": 43,
+                  "height": 15,
+                  "content": "Enable",
+                  "textAlignVertical": "middle",
+                  "fontFamily": "PingFang SC",
+                  "fontSize": 11.5,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "oo2aH",
+              "x": 27,
+              "y": 112,
+              "name": "Enable 2-step ve",
+              "fill": "#ccccccff",
+              "textGrowth": "fixed-width-height",
+              "width": 129,
+              "height": 25,
+              "content": "Enable 2-step verification\nto secure your wallet.",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 9.199999809265137,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "z6WnV",
+              "x": 27,
+              "y": 88,
+              "name": "WalletVerificati",
+              "fill": "#474747ff",
+              "textGrowth": "fixed-width-height",
+              "width": 114,
+              "height": 21,
+              "content": "WalletVerification",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 12.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "id": "Jo6H8",
+              "x": 27,
+              "y": 20,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 57,
+              "height": 57,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "LqP0d",
+          "x": 232,
+          "y": 132,
+          "name": "Groups",
+          "width": 191,
+          "height": 213,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": [
+                27,
+                28.5,
+                30,
+                0
+              ],
+              "id": "mTWQz",
+              "x": 3,
+              "y": 4,
+              "name": "Background",
+              "fill": "#fefefdff",
+              "width": 186,
+              "height": 211
+            },
+            {
+              "type": "text",
+              "id": "iFZ2p",
+              "x": 64,
+              "y": 173,
+              "name": "HRmanagement",
+              "fill": "#595959ff",
+              "textGrowth": "fixed-width-height",
+              "width": 92,
+              "height": 16,
+              "content": "HRmanagement",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 10.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "id": "znW66",
+              "x": 20,
+              "y": 167,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 20,
+              "height": 26,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "text",
+              "id": "HAp5m",
+              "x": 64,
+              "y": 130,
+              "name": "Accounting",
+              "fill": "#575757ff",
+              "textGrowth": "fixed-width",
+              "width": 63,
+              "content": "Accounting",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 10.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "id": "irQxV",
+              "x": 20,
+              "y": 124,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 20,
+              "height": 25,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 19.75,
+              "id": "bZYKy",
+              "x": 48,
+              "y": 74,
+              "name": "Background",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 124,
+              "height": 41
+            },
+            {
+              "type": "text",
+              "id": "x7L8B",
+              "x": 64,
+              "y": 87,
+              "name": "Bankloans",
+              "fill": "#585858ff",
+              "textGrowth": "fixed-width",
+              "width": 57,
+              "content": "Bankloans",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 9.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "id": "NnpNm",
+              "x": 20,
+              "y": 84,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 20,
+              "height": 24,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "rectangle",
+              "id": "psg5W",
+              "x": 161,
+              "y": 32,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 3,
+              "height": 13,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "text",
+              "id": "S2GlH",
+              "x": 28,
+              "y": 28,
+              "name": "Businessplans",
+              "fill": "#464646ff",
+              "textGrowth": "fixed-width-height",
+              "width": 95,
+              "height": 20,
+              "content": "Businessplans",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 12.5,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Ndo83",
+          "x": 33,
+          "y": 132,
+          "name": "Groups",
+          "width": 190,
+          "height": 214,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "id": "xzK6I",
+              "x": -1,
+              "y": 1,
+              "name": "Background",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 193,
+              "height": 217,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "rectangle",
+              "id": "XkTRv",
+              "x": 120,
+              "y": 183,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 6,
+              "height": 6,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "rectangle",
+              "id": "1HPgq",
+              "x": 96,
+              "y": 182,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 17,
+              "height": 7,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "rectangle",
+              "id": "n8c7n",
+              "x": 83,
+              "y": 183,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 5,
+              "height": 5,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "rectangle",
+              "id": "PyO1y",
+              "x": 68,
+              "y": 183,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 5,
+              "height": 5,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "rectangle",
+              "id": "xZetq",
+              "x": 29,
+              "y": 89,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 136,
+              "height": 64,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "text",
+              "id": "g11tM",
+              "x": 129,
+              "y": 47,
+              "name": "USD",
+              "fill": "#c3c3c3ff",
+              "textGrowth": "fixed-width",
+              "width": 25,
+              "content": "USD",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 9.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "aB9TD",
+              "x": 52,
+              "y": 35,
+              "name": "43.20",
+              "fill": "#252525ff",
+              "textGrowth": "fixed-width-height",
+              "width": 72,
+              "height": 25,
+              "content": "43.20",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 25,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "id": "4HmlH",
+              "x": 31,
+              "y": 35,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 17,
+              "height": 26,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "JWwcq",
+          "x": 527,
+          "y": 73,
+          "name": "Button",
+          "width": 95,
+          "height": 41,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": [
+                17,
+                16.5,
+                12.75,
+                14.5
+              ],
+              "id": "l72uQ",
+              "x": 5,
+              "y": 5,
+              "name": "Background",
+              "fill": "#f6f6f6ff",
+              "width": 86,
+              "height": 33,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#ebebebff"
+              }
+            },
+            {
+              "type": "rectangle",
+              "id": "iEHMP",
+              "x": 65,
+              "y": 7,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 21,
+              "height": 28,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "rectangle",
+              "id": "KcHtp",
+              "x": 72,
+              "y": 18,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 6,
+              "height": 6,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "text",
+              "id": "22yQb",
+              "x": 20,
+              "y": 15,
+              "name": "Today",
+              "fill": "#5a5a5aff",
+              "textGrowth": "fixed-width",
+              "width": 34,
+              "content": "Today",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 9.5,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "3c1Bz",
+          "x": 429,
+          "y": 73,
+          "name": "Button",
+          "width": 99,
+          "height": 41,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": 14.5,
+              "id": "tBVH2",
+              "x": 4,
+              "y": 5,
+              "name": "Background",
+              "fill": "#f7f7f7fe",
+              "width": 91,
+              "height": 33,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#eaeaeaff"
+              }
+            },
+            {
+              "type": "rectangle",
+              "id": "rtbEy",
+              "x": 70,
+              "y": 11,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 18,
+              "height": 20,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "rectangle",
+              "id": "cASVI",
+              "x": 76,
+              "y": 18,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 6,
+              "height": 6,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "text",
+              "id": "fqtzB",
+              "x": 20,
+              "y": 11,
+              "name": "Insights",
+              "fill": "#606060ff",
+              "textGrowth": "fixed-width-height",
+              "width": 44,
+              "height": 19,
+              "content": "Insights",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 9.5,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "RGZ69",
+          "x": 338,
+          "y": 73,
+          "name": "Button",
+          "width": 91,
+          "height": 42,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": [
+                17.5,
+                17,
+                15,
+                14
+              ],
+              "id": "0xk5p",
+              "x": 6,
+              "y": 5,
+              "name": "Background",
+              "fill": "#f6f6f6ff",
+              "width": 82,
+              "height": 33,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#eaeaeaff"
+              }
+            },
+            {
+              "type": "rectangle",
+              "id": "CFc6M",
+              "x": 68,
+              "y": 18,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 6,
+              "height": 7,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "text",
+              "id": "IUGCt",
+              "x": 21,
+              "y": 14,
+              "name": "Team",
+              "fill": "#5c5c5cff",
+              "textGrowth": "fixed-width-height",
+              "width": 31,
+              "height": 12,
+              "content": "Team",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 9.5,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "qxXgF",
+          "x": 86,
+          "y": 84,
+          "name": "Search in activi",
+          "fill": "#b3b3b3ff",
+          "textGrowth": "fixed-width-height",
+          "width": 127,
+          "height": 18,
+          "content": "Search in activities..",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 11.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "rectangle",
+          "id": "FPP8I",
+          "x": 37,
+          "y": 78,
+          "name": "Image",
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "",
+            "mode": "fill"
+          },
+          "width": 34,
+          "height": 33,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "frame",
+          "id": "oGfmw",
+          "x": 529,
+          "y": 20,
+          "name": "Button",
+          "width": 93,
+          "height": 40,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": 16,
+              "id": "D0Ltb",
+              "x": 3,
+              "y": 4,
+              "name": "Background",
+              "fill": "#fefefeff",
+              "width": 86,
+              "height": 32
+            },
+            {
+              "type": "text",
+              "id": "rHCSM",
+              "x": 41,
+              "y": 14,
+              "name": "Filters",
+              "fill": "#5e5e5eff",
+              "textGrowth": "fixed-width",
+              "width": 32,
+              "content": "Filters",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 8.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "id": "BvTk2",
+              "x": 20,
+              "y": 14,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 13,
+              "height": 13,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "iwhJH",
+          "x": 501,
+          "y": 33,
+          "name": "Image",
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "",
+            "mode": "fill"
+          },
+          "width": 14,
+          "height": 14,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "rectangle",
+          "id": "VmJXr",
+          "x": 448,
+          "y": 24,
+          "name": "Image",
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "",
+            "mode": "fill"
+          },
+          "width": 39,
+          "height": 34,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "text",
+          "id": "UjWeD",
+          "x": 46,
+          "y": 29,
+          "name": "Activity manager",
+          "fill": "#3f3f3fff",
+          "textGrowth": "fixed-width-height",
+          "width": 124,
+          "height": 21,
+          "content": "Activity manager",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 13.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 33,
+          "id": "FnzBM",
+          "x": 7,
+          "y": 5,
+          "name": "Background",
+          "fill": "#f8f8f8ff",
+          "width": 642,
+          "height": 367,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "frame",
+          "id": "LpG8Y",
+          "x": 432,
+          "y": 132,
+          "name": "Groups",
+          "width": 191,
+          "height": 214,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": 29,
+              "id": "zuiHC",
+              "x": 8,
+              "y": 7,
+              "name": "Rectangle 1375",
+              "fill": "#ffffffff",
+              "width": 179,
+              "height": 205,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "frame",
+              "id": "1Zq8f",
+              "x": 23,
+              "y": 147,
+              "name": "Button",
+              "width": 143,
+              "height": 49,
+              "fill": "#00000000",
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              },
+              "layout": "none",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 19.5,
+                  "id": "agF3y",
+                  "x": 5,
+                  "y": 5,
+                  "name": "Background",
+                  "fill": "#e06348ff",
+                  "width": 136,
+                  "height": 41,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1
+                  }
+                },
+                {
+                  "type": "text",
+                  "id": "e54zo",
+                  "x": 52,
+                  "y": 18,
+                  "name": "Enable",
+                  "fill": "#facebaff",
+                  "textGrowth": "fixed-width-height",
+                  "width": 43,
+                  "height": 15,
+                  "content": "Enable",
+                  "textAlignVertical": "middle",
+                  "fontFamily": "PingFang SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "DIjoS",
+              "x": 30,
+              "y": 114,
+              "name": "Enable 2-step ve",
+              "fill": "#ccccccff",
+              "textGrowth": "fixed-width-height",
+              "width": 129,
+              "height": 25,
+              "content": "Enable 2-step verification\nto secure your wallet.",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 10,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "C8Bdt",
+              "x": 31,
+              "y": 88,
+              "name": "WalletVerificati",
+              "fill": "#474747ff",
+              "textGrowth": "fixed-width-height",
+              "width": 114,
+              "height": 21,
+              "content": "Wallet Verification",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "id": "490jt",
+              "x": 27,
+              "y": 20,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 57,
+              "height": 57,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "hpIpZ",
+          "x": 232,
+          "y": 132,
+          "name": "Groups",
+          "width": 191,
+          "height": 213,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": 29,
+              "id": "34FID",
+              "x": 3,
+              "y": 4,
+              "name": "Rectangle 1370",
+              "fill": "#ffffffff",
+              "width": 187,
+              "height": 210,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "path",
+              "id": "7IVBx",
+              "x": 150,
+              "y": 93,
+              "name": "Vector 2170",
+              "geometry": "M0 0l6 0-3 4-3-4z",
+              "fill": "#000000ff",
+              "width": 8,
+              "height": 4,
+              "stroke": {
+                "align": "center",
+                "thickness": 2,
+                "fill": "#000000ff"
+              }
+            },
+            {
+              "type": "text",
+              "id": "XEiQ4",
+              "x": 65,
+              "y": 174,
+              "name": "HRmanagement",
+              "fill": "#595959ff",
+              "textGrowth": "fixed-width-height",
+              "width": 92,
+              "height": 16,
+              "content": "HRmanagement",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "NZAM1",
+              "x": 66,
+              "y": 129,
+              "name": "Accounting",
+              "fill": "#575757ff",
+              "textGrowth": "fixed-width",
+              "width": 73,
+              "content": "Accounting",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "98UHu",
+              "x": 65,
+              "y": 85,
+              "name": "Bankloans",
+              "fill": "#585858ff",
+              "textGrowth": "fixed-width",
+              "width": 64,
+              "content": "Bankloans",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "5Q2vG",
+              "x": 29,
+              "y": 28,
+              "name": "Businessplans",
+              "fill": "#464646ff",
+              "textGrowth": "fixed-width-height",
+              "width": 102,
+              "height": 20,
+              "content": "Business plans",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "mFr6I",
+              "x": 158,
+              "y": 30,
+              "name": "more-vertical",
+              "clip": true,
+              "width": 14.77001953125,
+              "height": 14.77001953125,
+              "fill": {
+                "type": "color",
+                "color": "#ffffffff",
+                "enabled": false
+              },
+              "stroke": {
+                "align": "inside",
+                "thickness": 0.61541748046875
+              },
+              "layout": "none",
+              "children": [
+                {
+                  "type": "path",
+                  "id": "4e0RR",
+                  "x": 6.76959228515625,
+                  "y": 6.76959228515625,
+                  "name": "Vector",
+                  "geometry": "M2 1c0 0.55228-0.44772 1-1 1-0.55228 0-1-0.44772-1-1 0-0.55228 0.44772-1 1-1 0.55228 0 1 0.44772 1 1z",
+                  "width": 1.2308349609375,
+                  "height": 1.2308349609375,
+                  "stroke": {
+                    "align": "center",
+                    "thickness": 1.2308349609375,
+                    "join": "round",
+                    "cap": "round",
+                    "fill": "#000000ff"
+                  }
+                },
+                {
+                  "type": "path",
+                  "id": "CaxjI",
+                  "x": 6.76959228515625,
+                  "y": 2.461669921875,
+                  "name": "Vector",
+                  "geometry": "M2 1c0 0.55228-0.44772 1-1 1-0.55228 0-1-0.44772-1-1 0-0.55228 0.44772-1 1-1 0.55228 0 1 0.44772 1 1z",
+                  "width": 1.2308349609375,
+                  "height": 1.2308349609375,
+                  "stroke": {
+                    "align": "center",
+                    "thickness": 1.2308349609375,
+                    "join": "round",
+                    "cap": "round",
+                    "fill": "#000000ff"
+                  }
+                },
+                {
+                  "type": "path",
+                  "id": "uyVxp",
+                  "x": 6.76959228515625,
+                  "y": 11.0775146484375,
+                  "name": "Vector",
+                  "geometry": "M2 1c0 0.55228-0.44772 1-1 1-0.55228 0-1-0.44772-1-1 0-0.55228 0.44772-1 1-1 0.55228 0 1 0.44772 1 1z",
+                  "width": 1.2308349609375,
+                  "height": 1.2308349609375,
+                  "stroke": {
+                    "align": "center",
+                    "thickness": 1.2308349609375,
+                    "join": "round",
+                    "cap": "round",
+                    "fill": "#000000ff"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 100,
+              "id": "JVXp6",
+              "x": 48,
+              "y": 73,
+              "name": "Rectangle 1371",
+              "width": 126,
+              "height": 42,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#00000026"
+              }
+            },
+            {
+              "type": "path",
+              "id": "1LXUJ",
+              "x": 22.00050163269043,
+              "y": 128.22900390625,
+              "name": "Rectangle 1374",
+              "rotation": 3.1805546814635168e-15,
+              "geometry": "M0 0l32 0 0 32-32 0 0-32z",
+              "fill": "#e16448ff",
+              "width": 18.94972038269043,
+              "height": 18.94972038269043,
+              "stroke": {
+                "align": "inside",
+                "thickness": 0.5921787619590759
+              }
+            },
+            {
+              "type": "path",
+              "id": "phciA",
+              "x": 22.00050163269043,
+              "y": 85,
+              "name": "Vector",
+              "geometry": "M4.68629 27.31371c-6.24839-6.24839-6.24839-16.37903 0-22.62742 6.24839-6.24839 16.37903-6.24839 22.62742 0 6.24839 6.24839 6.24839 16.37903 0 22.62742l-11.31371 11.3137-11.31371-11.3137z m10.31374 8.68629l3 0 0 29-3 0 0-29z",
+              "fill": "#e16448ff",
+              "width": 18.94972038269043,
+              "height": 38.49161911010742,
+              "stroke": {
+                "align": "inside",
+                "thickness": 0.5921787619590759
+              }
+            },
+            {
+              "type": "path",
+              "id": "CJfZe",
+              "x": 40.94972229003906,
+              "y": 191,
+              "name": "Vector",
+              "rotation": 180,
+              "geometry": "M4.68629 27.31371c-6.24839-6.24839-6.24839-16.37903 0-22.62742 6.24839-6.24839 16.37903-6.24839 22.62742 0 6.24839 6.24839 6.24839 16.37903 0 22.62742l-11.31371 11.3137-11.31371-11.3137z m10.31374 8.68629l3 0 0 29-3 0 0-29z",
+              "fill": "#e16448ff",
+              "width": 18.94972038269043,
+              "height": 38.49161911010742,
+              "stroke": {
+                "align": "inside",
+                "thickness": 0.5921787619590759
+              }
+            },
+            {
+              "type": "path",
+              "id": "jFY9e",
+              "x": 27.33057975769043,
+              "y": 132.96630859375,
+              "name": "Vector",
+              "geometry": "M13.5 14l-13.5 0m12-14l0 11.5m-3.5-7.5l0 7.5m-3.5-9.5l0 9.5m-3-4.5l0 4.5",
+              "width": 7.994413375854492,
+              "height": 8.290502548217773,
+              "stroke": {
+                "align": "center",
+                "thickness": 1.1843575239181519,
+                "fill": "#ffffffff"
+              }
+            },
+            {
+              "type": "path",
+              "id": "EuuZn",
+              "x": 27.10987663269043,
+              "y": 89.74560546875,
+              "name": "Vector",
+              "geometry": "M1.00201 6.98613l12.7396 0c0.91952 0 1.35162-1.13652 0.66436-1.7474l-5.04107-4.48096c-1.13666-1.01036-2.84953-1.01036-3.98618 0l-5.04107 4.48096c-0.68726 0.61089-0.25515 1.74741 0.66436 1.7474z m-0.6302 6.00001l14 0 0 3-14 0 0-3z m2-7l1 0 0 8-1 0 0-8z m3 0l1 0 0 8-1 0 0-8z m3 0l1 0 0 8-1 0 0-8z m3 0l1 0 0 8-1 0 0-8z",
+              "fill": "#ffffffff",
+              "width": 8.730859756469727,
+              "height": 9.466650009155273,
+              "stroke": {
+                "align": "inside",
+                "thickness": 0.5921787619590759
+              }
+            },
+            {
+              "type": "path",
+              "id": "5bTum",
+              "x": 30.29151725769043,
+              "y": 180.93310546875,
+              "name": "Vector 2171",
+              "geometry": "M11 5l-11 0c0-1.48106 2.82358-5 5.5-5 2.2 0 5.5 3.33239 5.5 5z",
+              "fill": "#ffffffff",
+              "width": 6.5139665603637695,
+              "height": 2.9608938694000244,
+              "stroke": {
+                "align": "center",
+                "thickness": 0.5921787619590759
+              }
+            },
+            {
+              "type": "path",
+              "id": "pa1vn",
+              "x": 26.14503288269043,
+              "y": 182.1171875,
+              "name": "Vector 2172",
+              "geometry": "M11 5l-11 0c0-1.48106 2.82358-5 5.5-5 2.2 0 5.5 3.33239 5.5 5z",
+              "fill": "#ffffffff",
+              "width": 6.5139665603637695,
+              "height": 1.7765363454818726,
+              "stroke": {
+                "align": "center",
+                "thickness": 0.5921787619590759
+              }
+            },
+            {
+              "type": "ellipse",
+              "id": "Qt4iF",
+              "x": 31.47511100769043,
+              "y": 177.3798828125,
+              "name": "Ellipse 14461",
+              "sweepAngle": 360.00001001791264,
+              "fill": "#ffffffff",
+              "width": 4.145251274108887,
+              "height": 4.145251274108887,
+              "stroke": {
+                "align": "inside",
+                "thickness": 0.5921787619590759
+              }
+            },
+            {
+              "type": "ellipse",
+              "id": "nnlob",
+              "x": 27.33057975769043,
+              "y": 178.564453125,
+              "name": "Ellipse 14462",
+              "sweepAngle": 360.00001001791264,
+              "fill": "#ffffffff",
+              "width": 4.145251274108887,
+              "height": 4.145251274108887,
+              "stroke": {
+                "align": "inside",
+                "thickness": 0.5921787619590759
+              }
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "mJ89k",
+          "x": 33,
+          "y": 132,
+          "name": "Groups",
+          "width": 190,
+          "height": 214,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": 29,
+              "id": "h2cHZ",
+              "x": 5,
+              "y": 2,
+              "name": "Rectangle 1369",
+              "fill": "#ffffffff",
+              "width": 182,
+              "height": 210,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "text",
+              "id": "7PJCK",
+              "x": 131,
+              "y": 47,
+              "name": "USD",
+              "fill": "#c3c3c3ff",
+              "textGrowth": "fixed-width",
+              "width": 25,
+              "content": "USD",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 11,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "hsvAx",
+              "x": 54,
+              "y": 36,
+              "name": "43.20",
+              "fill": "#252525ff",
+              "textGrowth": "fixed-width-height",
+              "width": 72,
+              "height": 25,
+              "content": "43.20",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 26,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "WodmG",
+              "x": 34,
+              "y": 30,
+              "name": "43.20",
+              "fill": "#e8623eff",
+              "content": "$",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 26,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "path",
+              "id": "6tFgZ",
+              "x": 31,
+              "y": 89,
+              "name": "Vector",
+              "geometry": "M0 24c0-1.10457 0.89543-2 2-2 1.10457 0 2 0.89543 2 2l0 12c0 1.10457-0.89543 2-2 2-1.10457 0-2-0.89543-2-2l0-12z m12-3c0-1.10457 0.89543-2 2-2 1.10457 0 2 0.89543 2 2l0 21c0 1.10457-0.89543 2-2 2-1.10457 0-2-0.89543-2-2l0-21z m24-5c0-1.10457 0.89543-2 2-2 1.10457 0 2 0.89543 2 2l0 18c0 1.10457-0.89543 2-2 2-1.10457 0-2-0.89543-2-2l0-18z m24 2c0-1.10457 0.89543-2 2-2 1.10457 0 2 0.89543 2 2l0 44c0 1.10457-0.89543 2-2 2-1.10457 0-2-0.89543-2-2l0-44z m24-7c0-1.10457 0.89543-2 2-2 1.10457 0 2 0.89543 2 2l0 32c0 1.10457-0.89543 2-2 2-1.10457 0-2-0.89543-2-2l0-32z m24 18c0-1.10457 0.89543-2 2-2 1.10457 0 2 0.89543 2 2l0 19c0 1.10457-0.89543 2-2 2-1.10457 0-2-0.89543-2-2l0-19z m24-7c0-1.10457 0.89543-2 2-2 1.10457 0 2 0.89543 2 2l0 16c0 1.10457-0.89543 2-2 2-1.10457 0-2-0.89543-2-2l0-16z m-84 6c0-1.10457 0.89543-2 2-2 1.10457 0 2 0.89543 2 2l0 20c0 1.10457-0.89543 2-2 2-1.10457 0-2-0.89543-2-2l0-20z m48-26c0-1.10457 0.89543-2 2-2 1.10457 0 2 0.89543 2 2l0 52c0 1.10457-0.89543 2-2 2-1.10457 0-2-0.89543-2-2l0-52z m-24 14c0-1.10457 0.89543-2 2-2 1.10457 0 2 0.89543 2 2l0 16c0 1.10457-0.89543 2-2 2-1.10457 0-2-0.89543-2-2l0-16z m48-2c0-1.10457 0.89543-2 2-2 1.10457 0 2 0.89543 2 2l0 32c0 1.10457-0.89543 2-2 2-1.10457 0-2-0.89543-2-2l0-32z m-96-2c0-1.10457 0.89543-2 2-2 1.10457 0 2 0.89543 2 2l0 36c0 1.10457-0.89543 2-2 2-1.10457 0-2-0.89543-2-2l0-36z",
+              "fill": "#e36348ff",
+              "width": 136,
+              "height": 64,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "path",
+              "id": "kB1MN",
+              "x": 70,
+              "y": 182,
+              "name": "Vector",
+              "geometry": "M28 3c0-1.65685 1.34314-3 3-3l11 0c1.65685 0 3 1.34315 3 3 0 1.65685-1.34315 3-3 3l-11 0c-1.65686 0-3-1.34315-3-3z m-22 0c0 1.65685-1.34315 3-3 3-1.65685 0-3-1.34315-3-3 0-1.65685 1.34315-3 3-3 1.65685 0 3 1.34315 3 3z m14 0c0 1.65685-1.34314 3-3 3-1.65686 0-3-1.34315-3-3 0-1.65685 1.34314-3 3-3 1.65686 0 3 1.34315 3 3z m39 0c0 1.65685-1.34315 3-3 3-1.65685 0-3-1.34315-3-3 0-1.65685 1.34315-3 3-3 1.65685 0 3 1.34315 3 3z",
+              "fill": "#d9d9d9ff",
+              "width": 59,
+              "height": 6,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "sFLci",
+          "x": 527,
+          "y": 73,
+          "name": "Button",
+          "width": 95,
+          "height": 41,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": 100,
+              "id": "t58U5",
+              "x": 6,
+              "y": 5,
+              "name": "Background",
+              "width": 88,
+              "height": 33,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#ebebebff"
+              }
+            },
+            {
+              "type": "text",
+              "id": "4sX4k",
+              "x": 23,
+              "y": 14,
+              "name": "Today",
+              "fill": "#5a5a5aff",
+              "textGrowth": "fixed-width",
+              "width": 34,
+              "content": "Today",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 11,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "ellipse",
+              "id": "TUvrC",
+              "x": 65,
+              "y": 12,
+              "name": "Ellipse 14458",
+              "sweepAngle": 360.00001001791264,
+              "fill": "#eeeeeeff",
+              "width": 20,
+              "height": 20,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "frame",
+              "id": "py0hh",
+              "x": 71,
+              "y": 18,
+              "name": "x",
+              "clip": true,
+              "width": 8,
+              "height": 8,
+              "fill": {
+                "type": "color",
+                "color": "#ffffffff",
+                "enabled": false
+              },
+              "stroke": {
+                "align": "inside",
+                "thickness": 0.3333333432674408
+              },
+              "layout": "none",
+              "children": [
+                {
+                  "type": "path",
+                  "id": "I9eCZ",
+                  "x": 2,
+                  "y": 2,
+                  "name": "Vector",
+                  "geometry": "M12 0l-12 12",
+                  "width": 4,
+                  "height": 4,
+                  "stroke": {
+                    "align": "center",
+                    "thickness": 1,
+                    "join": "round",
+                    "cap": "round",
+                    "fill": "#000000ff"
+                  }
+                },
+                {
+                  "type": "path",
+                  "id": "RW5sh",
+                  "x": 2,
+                  "y": 2,
+                  "name": "Vector",
+                  "geometry": "M0 0l12 12",
+                  "width": 4,
+                  "height": 4,
+                  "stroke": {
+                    "align": "center",
+                    "thickness": 1,
+                    "join": "round",
+                    "cap": "round",
+                    "fill": "#000000ff"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "s3Oo5",
+          "x": 429,
+          "y": 73,
+          "name": "Button",
+          "width": 99,
+          "height": 41,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": 100,
+              "id": "SBfCe",
+              "x": 4,
+              "y": 5,
+              "name": "Background",
+              "width": 95,
+              "height": 33,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#eaeaeaff"
+              }
+            },
+            {
+              "type": "text",
+              "id": "DOwoN",
+              "x": 21,
+              "y": 12,
+              "name": "Insights",
+              "fill": "#606060ff",
+              "textGrowth": "fixed-width-height",
+              "width": 44,
+              "height": 19,
+              "content": "Insights",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 11,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "ellipse",
+              "id": "LFZBH",
+              "x": 71,
+              "y": 11,
+              "name": "Ellipse 14457",
+              "sweepAngle": 360.00001001791264,
+              "fill": "#eeeeeeff",
+              "width": 20,
+              "height": 20,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "frame",
+              "id": "Co352",
+              "x": 77,
+              "y": 17,
+              "name": "x",
+              "clip": true,
+              "width": 8,
+              "height": 8,
+              "fill": {
+                "type": "color",
+                "color": "#ffffffff",
+                "enabled": false
+              },
+              "stroke": {
+                "align": "inside",
+                "thickness": 0.3333333432674408
+              },
+              "layout": "none",
+              "children": [
+                {
+                  "type": "path",
+                  "id": "3tGpb",
+                  "x": 2,
+                  "y": 2,
+                  "name": "Vector",
+                  "geometry": "M12 0l-12 12",
+                  "width": 4,
+                  "height": 4,
+                  "stroke": {
+                    "align": "center",
+                    "thickness": 1,
+                    "join": "round",
+                    "cap": "round",
+                    "fill": "#000000ff"
+                  }
+                },
+                {
+                  "type": "path",
+                  "id": "cwpIE",
+                  "x": 2,
+                  "y": 2,
+                  "name": "Vector",
+                  "geometry": "M0 0l12 12",
+                  "width": 4,
+                  "height": 4,
+                  "stroke": {
+                    "align": "center",
+                    "thickness": 1,
+                    "join": "round",
+                    "cap": "round",
+                    "fill": "#000000ff"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "8RcrP",
+          "x": 339,
+          "y": 72,
+          "name": "Button",
+          "width": 91,
+          "height": 42,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": 100,
+              "id": "RuKLa",
+              "x": 6,
+              "y": 5,
+              "name": "Background",
+              "width": 82,
+              "height": 33,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#eaeaeaff"
+              }
+            },
+            {
+              "type": "text",
+              "id": "O2eVk",
+              "x": 23,
+              "y": 16,
+              "name": "Team",
+              "fill": "#5c5c5cff",
+              "textGrowth": "fixed-width-height",
+              "width": 31,
+              "height": 12,
+              "content": "Team",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 11,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "ellipse",
+              "id": "pF2Or",
+              "x": 62,
+              "y": 13,
+              "name": "Ellipse 14455",
+              "sweepAngle": 360.00001001791264,
+              "fill": "#f8f8f8ff",
+              "width": 19,
+              "height": 19,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "ellipse",
+              "id": "FxhmR",
+              "x": 69,
+              "y": 19,
+              "name": "Ellipse 14456",
+              "sweepAngle": 360.00001001791264,
+              "fill": "#e06348ff",
+              "width": 6,
+              "height": 6,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "yOgoc",
+          "x": 87,
+          "y": 84,
+          "name": "Search in activi",
+          "fill": "#b3b3b3ff",
+          "textGrowth": "fixed-width-height",
+          "width": 131,
+          "height": 18,
+          "content": "Search in activities...",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 13,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "AU0a4",
+          "x": 46,
+          "y": 29,
+          "name": "Activity manager",
+          "fill": "#3f3f3fff",
+          "textGrowth": "fixed-width-height",
+          "width": 131,
+          "height": 21,
+          "content": "Activity manager",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 15,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "ellipse",
+          "id": "ZB28N",
+          "x": 39,
+          "y": 77,
+          "name": "Ellipse 14454",
+          "sweepAngle": 360.00001001791264,
+          "width": 34,
+          "height": 34,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#00000026"
+          }
+        },
+        {
+          "type": "path",
+          "id": "PdKZ1",
+          "x": 50,
+          "y": 88,
+          "name": "Vector",
+          "geometry": "M5.33333 10.66667c2.94552 0 5.33333-2.38781 5.33334-5.33334 0-2.94552-2.38781-5.33333-5.33334-5.33333-2.94552 0-5.33333 2.38781-5.33333 5.33333 0 2.94552 2.38781 5.33333 5.33333 5.33334z",
+          "width": 12.000446319580078,
+          "height": 11.999889373779297,
+          "stroke": {
+            "align": "center",
+            "thickness": 1.3333333730697632,
+            "join": "round",
+            "cap": "round",
+            "fill": "#000000ff"
+          }
+        },
+        {
+          "type": "group",
+          "id": "bfukj",
+          "x": 454,
+          "y": 20,
+          "name": "Group 1321318272",
+          "children": [
+            {
+              "type": "frame",
+              "id": "7fjLL",
+              "x": 75,
+              "y": 0,
+              "name": "Button",
+              "width": 93,
+              "height": 40,
+              "fill": "#00000000",
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              },
+              "layout": "none",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 16,
+                  "id": "Y9m0P",
+                  "x": 3,
+                  "y": 4,
+                  "name": "Background",
+                  "fill": "#fefefeff",
+                  "width": 86,
+                  "height": 32
+                },
+                {
+                  "type": "text",
+                  "id": "NtZNk",
+                  "x": 43,
+                  "y": 14,
+                  "name": "Filters",
+                  "fill": "#5e5e5eff",
+                  "textGrowth": "fixed-width",
+                  "width": 37,
+                  "content": "Filters",
+                  "textAlignVertical": "middle",
+                  "fontFamily": "PingFang SC",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "path",
+                  "id": "Kuv53",
+                  "x": 21.25,
+                  "y": 14.875,
+                  "name": "Vector",
+                  "geometry": "M0 0l12.5 0-5 5.9125 0 4.0875-2.5 1.25 0-5.3375-5-5.9125z",
+                  "width": 12.5,
+                  "height": 11.25,
+                  "stroke": {
+                    "align": "center",
+                    "thickness": 1.25,
+                    "join": "round",
+                    "cap": "round",
+                    "fill": "#000000ff"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "ellipse",
+              "id": "3ZApP",
+              "x": 40,
+              "y": 5,
+              "name": "Ellipse 14459",
+              "sweepAngle": 360.00001001791264,
+              "fill": "#ffffffff",
+              "width": 32,
+              "height": 32,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "rectangle",
+              "id": "pbF3O",
+              "x": 49,
+              "y": 13,
+              "name": "Image",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "",
+                "mode": "fill"
+              },
+              "width": 14,
+              "height": 14,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "ellipse",
+              "id": "3rT6g",
+              "x": 0,
+              "y": 5,
+              "name": "Ellipse 14460",
+              "sweepAngle": 360.00001001791264,
+              "fill": "#ffffffff",
+              "width": 32,
+              "height": 32,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "path",
+              "id": "0OpPC",
+              "x": 15.25,
+              "y": 15,
+              "name": "Vector",
+              "geometry": "M0.625 6.5c0.34518 0 0.625-0.27982 0.625-0.625 0-0.34518-0.27982-0.625-0.625-0.625-0.34518 0-0.625 0.27982-0.625 0.625 0 0.34518 0.27982 0.625 0.625 0.625z m0-5.25c0.34518 0 0.625-0.27982 0.625-0.625 0-0.34518-0.27982-0.625-0.625-0.625-0.34518 0-0.625 0.27982-0.625 0.625 0 0.34518 0.27982 0.625 0.625 0.625z m0 10.5c0.34518 0 0.625-0.27982 0.625-0.625 0-0.34518-0.27982-0.625-0.625-0.625-0.34518 0-0.625 0.27982-0.625 0.625 0 0.34518 0.27982 0.625 0.625 0.625z",
+              "fill": "#000000ff",
+              "width": 1.25,
+              "height": 11.75,
+              "stroke": {
+                "align": "center",
+                "thickness": 1.6666666269302368,
+                "join": "round",
+                "cap": "round",
+                "fill": "#000000ff"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "2z9nv",
+      "x": 2378,
+      "y": -1155,
+      "name": "Groups",
+      "width": 141,
+      "height": 141,
+      "fill": "#00000000",
+      "stroke": {
+        "align": "inside",
+        "thickness": 1
+      },
+      "layout": "none",
+      "children": [
+        {
+          "type": "ellipse",
+          "id": "xvlPk",
+          "x": 9,
+          "y": 8,
+          "name": "Ellipse 14446",
+          "sweepAngle": 360.00001001791264,
+          "fill": "#000000ff",
+          "width": 128,
+          "height": 128,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "text",
+          "id": "d2RQ1",
+          "x": 44,
+          "y": 74,
+          "name": "Growth rate",
+          "fill": "#555555ff",
+          "content": "Growth rate",
+          "textAlign": "center",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 10,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "fEbAf",
+          "x": 57,
+          "y": 58,
+          "name": "36%",
+          "fill": "#f9f9f9ff",
+          "textGrowth": "fixed-width-height",
+          "width": 34,
+          "height": 14,
+          "content": "36%",
+          "textAlign": "center",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 15,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "path",
+          "id": "1aWz6",
+          "x": 78.5,
+          "y": 25.5,
+          "name": "Ellipse 14447",
+          "geometry": "M38.5 61c2.71478-7.0082 3.52062-12.4028 2.7487-19.8787-0.77192-7.4759-3.30679-14.66194-7.39629-20.96758-4.0895-6.30563-9.6169-11.55087-16.12796-15.30466-6.51107-3.7538-10.21838-4.46955-17.72445-4.84906",
+          "width": 41.52727508544922,
+          "height": 61,
+          "stroke": {
+            "align": "inside",
+            "thickness": 11,
+            "cap": "round",
+            "fill": "#e16448ff"
+          }
+        },
+        {
+          "type": "path",
+          "id": "IMXtF",
+          "x": 53.13671875,
+          "y": 98.9365234375,
+          "name": "Ellipse 14448",
+          "geometry": "M61.56482 0c-6.50243 9.76449-16.2615 16.90216-27.53718 20.14037-11.27567 3.23821-23.33495 2.36644-34.02764-2.45987",
+          "width": 61.5648193359375,
+          "height": 22.063488006591797,
+          "stroke": {
+            "align": "inside",
+            "thickness": 4,
+            "cap": "round",
+            "fill": "#ffffffff"
+          }
+        },
+        {
+          "type": "path",
+          "id": "v6FBA",
+          "x": 23,
+          "y": 22.8359375,
+          "name": "Ellipse 14449",
+          "geometry": "M40.8943 0c-6.64315 1.23039-12.96804 3.79433-18.59277 7.53702-5.62473 3.74269-10.43261 8.58648-14.13335 14.23891-3.70073 5.65243-6.21754 11.99622-7.39845 18.64835-1.18092 6.65212-1.00145 13.47458 0.52758 20.05541",
+          "width": 40.8942985534668,
+          "height": 60.47969055175781,
+          "stroke": {
+            "align": "inside",
+            "thickness": 4,
+            "cap": "round",
+            "fill": "#3e3e3eff"
+          }
+        },
+        {
+          "type": "path",
+          "id": "61n5T",
+          "x": 27.396484375,
+          "y": 92.50146484375,
+          "name": "Ellipse 14450",
+          "geometry": "M0 0c3.90952 8.69637 10.22405 16.0936 18.19909 21.3195",
+          "width": 18.199085235595703,
+          "height": 21.319496154785156,
+          "stroke": {
+            "align": "inside",
+            "thickness": 3,
+            "cap": "round",
+            "fill": "#828282ff"
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "7TZj4",
+      "x": 2705,
+      "y": -1301,
+      "name": "Groups",
+      "width": 172,
+      "height": 194,
+      "fill": "#00000000",
+      "stroke": {
+        "align": "inside",
+        "thickness": 1
+      },
+      "layout": "none",
+      "children": [
+        {
+          "type": "rectangle",
+          "cornerRadius": 33,
+          "id": "p7xr3",
+          "x": 2,
+          "y": 8,
+          "name": "Rectangle 1368",
+          "fill": "#f8f8f8ff",
+          "width": 167,
+          "height": 183,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "path",
+          "id": "a2A2x",
+          "x": 17.75,
+          "y": 40.5,
+          "name": "Vector",
+          "geometry": "M7.25 134.5l0-134.5m24 134.5l0-134.5m24 134.5l0-134.5m24 134.5l0-134.5m24 134.5l0-134.5m24 134.5l0-134.5m7.25 122.25l-134.5 0m134.5-24l-134.5 0m134.5-24l-134.5 0m134.5-24l-134.5 0m134.5-24l-134.5 0",
+          "width": 134.5,
+          "height": 134.5,
+          "stroke": {
+            "align": "center",
+            "thickness": 1,
+            "fill": {
+              "type": "gradient",
+              "gradientType": "radial",
+              "enabled": true,
+              "rotation": 45,
+              "size": {
+                "width": 0.9999999999999999,
+                "height": 0.9999999999999999
+              },
+              "colors": [
+                {
+                  "color": "#00000026",
+                  "position": 0
+                },
+                {
+                  "color": "#00000000",
+                  "position": 1
+                }
+              ],
+              "center": {
+                "y": 0.49999999999999994
+              }
+            }
+          }
+        },
+        {
+          "type": "path",
+          "id": "EnnVj",
+          "x": 27,
+          "y": 103,
+          "name": "Vector",
+          "geometry": "M0 11.5c0-6.35127 5.14873-11.5 11.5-11.5l30 0c6.35127 0 11.5 5.14873 11.5 11.5 0 6.35127-5.14873 11.5-11.5 11.5l-30 0c-6.35127 0-11.5-5.14873-11.5-11.5z m21.14823 11c3.42222 0 5.5 3.66667 6.11111 5.5 0.61219-1.83333 2.44552-5.5 7.33333-5.5l-13.44444 0z m4.85177 0.5l2 0 0 65-2 0 0-65z",
+          "fill": "#ddddddff",
+          "width": 53,
+          "height": 88,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "path",
+          "id": "e6Wlx",
+          "x": 89,
+          "y": 79,
+          "name": "Vector",
+          "geometry": "M0 11.5c0-6.35127 5.14873-11.5 11.5-11.5l30 0c6.35127 0 11.5 5.14873 11.5 11.5 0 6.35127-5.14873 11.5-11.5 11.5l-30 0c-6.35127 0-11.5-5.14873-11.5-11.5z m21.14823 11c3.42222 0 5.5 3.66667 6.11111 5.5 0.61219-1.83333 2.44552-5.5 7.33333-5.5l-13.44444 0z m4.85177 0.5l2 0 0 89-2 0 0-89z",
+          "fill": "#e16448ff",
+          "width": 53,
+          "height": 112,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "ellipse",
+          "id": "xYJu1",
+          "x": 28,
+          "y": 30,
+          "name": "Ellipse 14453",
+          "sweepAngle": 360.00001001791264,
+          "fill": "#ffffffff",
+          "width": 40,
+          "height": 40,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "path",
+          "id": "NIdOj",
+          "x": 40,
+          "y": 43,
+          "name": "Vector",
+          "geometry": "M13.5 14l-13.5 0m12-14l0 11.5m-3.5-7.5l0 7.5m-3.5-9.5l0 9.5m-3-4.5l0 4.5",
+          "width": 13.5,
+          "height": 14,
+          "stroke": {
+            "align": "center",
+            "thickness": 2,
+            "fill": "#000000ff"
+          }
+        },
+        {
+          "type": "text",
+          "id": "xGD3O",
+          "x": 40,
+          "y": 108,
+          "name": "2022",
+          "fill": "#4c4c4cff",
+          "textGrowth": "fixed-width-height",
+          "width": 28,
+          "height": 12,
+          "content": "2022",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 11,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "kAGqL",
+          "x": 103,
+          "y": 85,
+          "name": "2023",
+          "fill": "#ffffffff",
+          "textGrowth": "fixed-width-height",
+          "width": 28,
+          "height": 12,
+          "content": "2023",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 11,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "h4UpN",
+      "x": 2526,
+      "y": -1301,
+      "name": "Groups",
+      "width": 172,
+      "height": 194,
+      "fill": "#00000000",
+      "stroke": {
+        "align": "inside",
+        "thickness": 1
+      },
+      "layout": "none",
+      "children": [
+        {
+          "type": "rectangle",
+          "cornerRadius": 33,
+          "id": "oTMPv",
+          "x": 2,
+          "y": 8,
+          "name": "Rectangle 1367",
+          "fill": "#f8f8f8ff",
+          "width": 167,
+          "height": 183,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "text",
+          "id": "8HnGY",
+          "x": 29,
+          "y": 105,
+          "name": "109 hours,23minu",
+          "fill": "#676767ff",
+          "textGrowth": "fixed-width-height",
+          "width": 121,
+          "height": 16,
+          "content": "109 hours, 23 minutes",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 11,
+          "fontWeight": "normal",
+          "letterSpacing": -0.32999999999999996
+        },
+        {
+          "type": "text",
+          "id": "Fmbki",
+          "x": 29,
+          "y": 79,
+          "name": "13 Days",
+          "fill": "#000000ff",
+          "textGrowth": "fixed-width-height",
+          "width": 75,
+          "height": 23,
+          "content": "13 Days",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 18.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "path",
+          "id": "VPOGU",
+          "x": 29,
+          "y": 133,
+          "name": "Vector",
+          "geometry": "M10 5c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m0 12c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m12-12c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m0 12c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m12-12c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m0 12c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m12-12c0 2.76142-2.23857 5-5 5-2.76143 0-5-2.23858-5-5 0-2.76142 2.23857-5 5-5 2.76143 0 5 2.23858 5 5z m0 12c0 2.76142-2.23857 5-5 5-2.76143 0-5-2.23858-5-5 0-2.76142 2.23857-5 5-5 2.76143 0 5 2.23858 5 5z m0 12c0 2.76142-2.23857 5-5 5-2.76143 0-5-2.23858-5-5 0-2.76142 2.23857-5 5-5 2.76143 0 5 2.23858 5 5z m-36 0c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m48-24c0 2.76142-2.23857 5-5 5-2.76143 0-5-2.23858-5-5 0-2.76142 2.23857-5 5-5 2.76143 0 5 2.23858 5 5z m0 12c0 2.76142-2.23857 5-5 5-2.76143 0-5-2.23858-5-5 0-2.76142 2.23857-5 5-5 2.76143 0 5 2.23858 5 5z m0 12c0 2.76142-2.23857 5-5 5-2.76143 0-5-2.23858-5-5 0-2.76142 2.23857-5 5-5 2.76143 0 5 2.23858 5 5z m-36 0c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m48-24c0 2.76142-2.23858 5-5 5-2.76143 0-5-2.23858-5-5 0-2.76142 2.23857-5 5-5 2.76142 0 5 2.23858 5 5z m0 12c0 2.76142-2.23858 5-5 5-2.76143 0-5-2.23858-5-5 0-2.76142 2.23857-5 5-5 2.76142 0 5 2.23858 5 5z m0 12c0 2.76142-2.23858 5-5 5-2.76143 0-5-2.23858-5-5 0-2.76142 2.23857-5 5-5 2.76142 0 5 2.23858 5 5z m-36 0c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m48-24c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m0 12c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m0 12c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m12-24c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m0 12c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m0 12c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m12-24c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m0 12c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m0 12c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m12-24c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m0 12c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z m0 12c0 2.76142-2.23858 5-5 5-2.76142 0-5-2.23858-5-5 0-2.76142 2.23858-5 5-5 2.76142 0 5 2.23858 5 5z",
+          "fill": "#e5e5e5ff",
+          "width": 118,
+          "height": 34,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "ellipse",
+          "id": "aR8Qq",
+          "x": 30,
+          "y": 24,
+          "name": "Ellipse 14452",
+          "sweepAngle": 360.00001001791264,
+          "fill": "#ffffffff",
+          "width": 40,
+          "height": 40,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "frame",
+          "id": "1ojgP",
+          "x": 41,
+          "y": 35,
+          "name": "clock",
+          "clip": true,
+          "width": 19,
+          "height": 19,
+          "fill": {
+            "type": "color",
+            "color": "#ffffffff",
+            "enabled": false
+          },
+          "stroke": {
+            "align": "inside",
+            "thickness": 0.7916666269302368
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "path",
+              "id": "pxYWR",
+              "x": 1.5827147960662842,
+              "y": 1.5831787586212158,
+              "name": "Vector",
+              "geometry": "M20 10c0 5.52285-4.47715 10-10 10-5.52285 0-10-4.47715-10-10 0-5.52285 4.47715-10 10-10 5.52285 0 10 4.47715 10 10z",
+              "width": 15.833333015441895,
+              "height": 15.833333015441895,
+              "stroke": {
+                "align": "center",
+                "thickness": 1.5833332538604736,
+                "join": "round",
+                "cap": "round",
+                "fill": "#000000ff"
+              }
+            },
+            {
+              "type": "path",
+              "id": "Fu13n",
+              "x": 9.5,
+              "y": 4.75,
+              "name": "Vector",
+              "geometry": "M0 0l0 6 4 2",
+              "width": 3.1666665077209473,
+              "height": 6.3333330154418945,
+              "stroke": {
+                "align": "center",
+                "thickness": 1.5833332538604736,
+                "join": "round",
+                "cap": "round",
+                "fill": "#000000ff"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "wprZL",
+      "x": 2379,
+      "y": -1302,
+      "name": "Groups",
+      "width": 140,
+      "height": 138,
+      "fill": "#00000000",
+      "stroke": {
+        "align": "inside",
+        "thickness": 1
+      },
+      "layout": "none",
+      "children": [
+        {
+          "type": "ellipse",
+          "id": "iHFNp",
+          "x": 9,
+          "y": 9,
+          "name": "Ellipse 14440",
+          "sweepAngle": 360.00001001791264,
+          "fill": "#f8f8f8ff",
+          "width": 124,
+          "height": 124,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "text",
+          "id": "gAtND",
+          "x": 37,
+          "y": 77,
+          "name": "System Lock",
+          "fill": "#000000ff",
+          "content": "System Lock",
+          "textAlign": "center",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 11,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "group",
+          "id": "V5l0L",
+          "x": 64,
+          "y": 52.125,
+          "name": "Group 1321318271",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": 3,
+              "id": "kHOOw",
+              "x": 0,
+              "y": 4.875,
+              "name": "Rectangle 1364",
+              "fill": "#000000ff",
+              "width": 16,
+              "height": 11,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            },
+            {
+              "type": "path",
+              "id": "ZATyb",
+              "x": 4.5,
+              "y": 0,
+              "name": "Vector 2169",
+              "geometry": "M0 4.87502c0-3.25001 0.70642-4.87496 3.5-4.87496 3 0 3.5 1.62502 3.5 4.87496",
+              "width": 7,
+              "height": 4.875016689300537,
+              "stroke": {
+                "align": "center",
+                "thickness": 2,
+                "fill": "#000000ff"
+              }
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 3,
+              "id": "tEojl",
+              "x": 7,
+              "y": 9.875,
+              "name": "Rectangle 1365",
+              "fill": "#ffffffff",
+              "width": 2,
+              "height": 3,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "TY1M5",
+      "x": 1968,
+      "y": -1300,
+      "name": "Groups",
+      "width": 403,
+      "height": 287,
+      "fill": "#00000000",
+      "stroke": {
+        "align": "inside",
+        "thickness": 1
+      },
+      "layout": "none",
+      "children": [
+        {
+          "type": "rectangle",
+          "cornerRadius": 30,
+          "id": "GAmhb",
+          "x": 3,
+          "y": 7,
+          "name": "Background",
+          "fill": "#fafafaff",
+          "width": 400,
+          "height": 276
+        },
+        {
+          "type": "text",
+          "id": "YwmyU",
+          "x": 293,
+          "y": 234,
+          "name": "View",
+          "fill": "#d29086ff",
+          "textGrowth": "fixed-width-height",
+          "width": 77,
+          "height": 23,
+          "content": "View\non chart mode",
+          "lineHeight": 1.100000023841858,
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 11,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "L0PbX",
+          "x": 50,
+          "y": 236,
+          "name": "8,145.20",
+          "fill": "#3e3e3eff",
+          "textGrowth": "fixed-width",
+          "width": 74,
+          "content": "8,145.20",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 16.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "rectangle",
+          "id": "RQ8OS",
+          "x": 36,
+          "y": 239,
+          "name": "Image",
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "",
+            "mode": "fill"
+          },
+          "width": 11,
+          "height": 16,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "text",
+          "id": "RXade",
+          "x": 34,
+          "y": 215,
+          "name": "Totalpaid",
+          "fill": "#b3b3b3ff",
+          "textGrowth": "fixed-width-height",
+          "width": 53,
+          "height": 14,
+          "content": "Totalpaid",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 9.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "dvPIU",
+          "x": 278,
+          "y": 157,
+          "name": "Button",
+          "width": 97,
+          "height": 42,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": 15.25,
+              "id": "pNb9K",
+              "x": 5,
+              "y": 5,
+              "name": "Background",
+              "fill": "#f8f8f8ff",
+              "width": 88,
+              "height": 33,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#ebebebff"
+              }
+            },
+            {
+              "type": "text",
+              "id": "8auhE",
+              "x": 20,
+              "y": 14,
+              "name": "Weekly",
+              "fill": "#595959ff",
+              "textGrowth": "fixed-width",
+              "width": 45,
+              "content": "Weekly",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 10.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "path",
+              "id": "gGj8D",
+              "x": 69,
+              "y": 20,
+              "name": "Vector 2168",
+              "geometry": "M0 0l6 0-3 4-3-4z",
+              "fill": "#000000ff",
+              "width": 7.5,
+              "height": 5,
+              "stroke": {
+                "align": "center",
+                "thickness": 1
+              }
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 29,
+          "id": "6gNlA",
+          "x": 5,
+          "y": 7,
+          "name": "Background",
+          "fill": "#fefefeff",
+          "width": 397,
+          "height": 134,
+          "stroke": {
+            "align": "inside",
+            "thickness": 2,
+            "fill": "#f9f9f9ff"
+          }
+        },
+        {
+          "type": "text",
+          "id": "qn3QW",
+          "x": 50,
+          "y": 104,
+          "name": "23,194.80",
+          "fill": "#414141ff",
+          "textGrowth": "fixed-width-height",
+          "width": 104,
+          "height": 24,
+          "content": "23,194.80",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 18,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "6lwix",
+          "x": 37,
+          "y": 103,
+          "name": "23,194.80",
+          "fill": "#e16448ff",
+          "textGrowth": "fixed-width",
+          "width": 17,
+          "content": "$",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 18,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "HgxZE",
+          "x": 34,
+          "y": 84,
+          "name": "Total income",
+          "fill": "#c5c5c5ff",
+          "textGrowth": "fixed-width-height",
+          "width": 70,
+          "height": 14,
+          "content": "Total income",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 11,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "erOCH",
+          "x": 277,
+          "y": 24,
+          "name": "Button",
+          "width": 99,
+          "height": 43,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": 15.5,
+              "id": "RnAq4",
+              "x": 6,
+              "y": 6,
+              "name": "Background",
+              "fill": "#fefefeff",
+              "width": 88,
+              "height": 33,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#f2f2f2ff"
+              }
+            },
+            {
+              "type": "text",
+              "id": "xmGWX",
+              "x": 21,
+              "y": 14,
+              "name": "Weekly",
+              "fill": "#5c5c5cff",
+              "textGrowth": "fixed-width-height",
+              "width": 45,
+              "height": 16,
+              "content": "Weekly",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 10.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "path",
+              "id": "V0PtM",
+              "x": 70,
+              "y": 21,
+              "name": "Vector 2167",
+              "geometry": "M0 0l6 0-3 4-3-4z",
+              "fill": "#000000ff",
+              "width": 7.5,
+              "height": 5,
+              "stroke": {
+                "align": "center",
+                "thickness": 1
+              }
+            }
+          ]
+        },
+        {
+          "type": "ellipse",
+          "id": "iAVVO",
+          "x": 34,
+          "y": 25,
+          "name": "Ellipse 14438",
+          "sweepAngle": 360.00001001791264,
+          "fill": "#f8f8f8ff",
+          "width": 42,
+          "height": 42,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "path",
+          "id": "Qw6OZ",
+          "x": 47.5,
+          "y": 38.5,
+          "name": "Vector",
+          "geometry": "M7.5 15c4.14214 0 7.5-3.35786 7.5-7.5 0-4.14214-3.35786-7.5-7.5-7.5-4.14214 0-7.5 3.35786-7.5 7.5 0 4.14214 3.35786 7.5 7.5 7.5z m-1.06201-5.625l1.71875 1.875 1.71875-1.875m-5.5-4.125l2.40625 0c0.36467 0 0.71441 0.15804 0.97227 0.43934 0.25786 0.2813 0.40273 0.66284 0.40273 1.06066l0 4.5",
+          "width": 15,
+          "height": 15,
+          "stroke": {
+            "align": "center",
+            "thickness": 1.5,
+            "join": "round",
+            "cap": "round",
+            "fill": "#000000ff"
+          }
+        },
+        {
+          "type": "ellipse",
+          "id": "fawFl",
+          "x": 34,
+          "y": 201,
+          "name": "Ellipse 14439",
+          "rotation": 180,
+          "flipX": true,
+          "sweepAngle": 360.00001001791264,
+          "fill": "#ffffffff",
+          "width": 42,
+          "height": 42,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "path",
+          "id": "QsyPG",
+          "x": 47.5,
+          "y": 187.5,
+          "name": "Vector",
+          "rotation": 180,
+          "flipX": true,
+          "geometry": "M7.5 15c4.14214 0 7.5-3.35786 7.5-7.5 0-4.14214-3.35786-7.5-7.5-7.5-4.14214 0-7.5 3.35786-7.5 7.5 0 4.14214 3.35786 7.5 7.5 7.5z m-1.06201-5.625l1.71875 1.875 1.71875-1.875m-5.5-4.125l2.40625 0c0.36467 0 0.71441 0.15804 0.97227 0.43934 0.25786 0.2813 0.40273 0.66284 0.40273 1.06066l0 4.5",
+          "width": 15,
+          "height": 15,
+          "stroke": {
+            "align": "center",
+            "thickness": 1.5,
+            "join": "round",
+            "cap": "round",
+            "fill": "#000000ff"
+          }
+        },
+        {
+          "type": "path",
+          "id": "E7m6E",
+          "x": 265,
+          "y": 234,
+          "name": "Subtract",
+          "geometry": "M10 20c5.52285 0 10-4.47715 10-10 0-5.52285-4.47715-10-10-10-5.52285 0-10 4.47715-10 10 0 5.52285 4.47715 10 10 10z m0.875-11.75c0 0.27614 0.22386 0.5 0.5 0.5l1.04289 0-2.35539 2.35539-1.52145-1.52144c-0.19526-0.19526-0.51184-0.19526-0.7071 0l-2.8125 2.8125c-0.19526 0.19526-0.19526 0.51185 0 0.7071 0.19526 0.19526 0.51184 0.19526 0.7071 0l2.45895-2.45894 1.52145 1.52144c0.19526 0.19526 0.51184 0.19526 0.7071 0l2.70895-2.70894 0 1.04289c0 0.27614 0.22386 0.5 0.5 0.5 0.27614 0 0.5-0.22386 0.5-0.5l0-2.25c0-0.27614-0.22386-0.5-0.5-0.5l-2.25 0c-0.27614 0-0.5 0.22386-0.5 0.5z",
+          "fillRule": "evenodd",
+          "fill": "#e16446ff",
+          "width": 20,
+          "height": 20,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "VhQs6",
+      "x": 1555,
+      "y": -1301,
+      "name": "Groups",
+      "width": 404,
+      "height": 284,
+      "fill": "#00000000",
+      "stroke": {
+        "align": "inside",
+        "thickness": 1
+      },
+      "layout": "none",
+      "children": [
+        {
+          "type": "rectangle",
+          "cornerRadius": 33,
+          "id": "LG60L",
+          "x": 1,
+          "y": 7,
+          "name": "Background",
+          "fill": "#fcfcfcff",
+          "width": 400,
+          "height": 275,
+          "stroke": {
+            "align": "inside",
+            "thickness": 2,
+            "fill": "#f6f6f6ff"
+          }
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 32,
+          "id": "P6lU4",
+          "x": 3,
+          "y": 9,
+          "name": "Rectangle 1363",
+          "fill": "#ffffffff",
+          "width": 396,
+          "height": 191,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "text",
+          "id": "ncP0D",
+          "x": 288,
+          "y": 233,
+          "name": "Edit",
+          "fill": "#c7897dff",
+          "textGrowth": "fixed-width-height",
+          "width": 85,
+          "height": 25,
+          "content": "Edit\ncards limitation",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 11,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "rectangle",
+          "id": "tXIKr",
+          "x": 260,
+          "y": 234,
+          "name": "Image",
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "",
+            "mode": "fill"
+          },
+          "width": 21,
+          "height": 21,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "text",
+          "id": "sQhBI",
+          "x": 48,
+          "y": 235,
+          "name": "25.00",
+          "fill": "#373737ff",
+          "textGrowth": "fixed-width",
+          "width": 52,
+          "content": "25.00",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 16.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "EDhR6",
+          "x": 35,
+          "y": 236,
+          "name": "25.00",
+          "fill": "#e36348ff",
+          "content": "$",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 16.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "gDa0y",
+          "x": 33,
+          "y": 214,
+          "name": "Monthly regular ",
+          "fill": "#b4b4b4ff",
+          "textGrowth": "fixed-width-height",
+          "width": 104,
+          "height": 17,
+          "content": "Monthly regular fee",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 9.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "W75W5",
+          "x": 157,
+          "y": 137,
+          "name": "Button",
+          "width": 127,
+          "height": 41,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": 14,
+              "id": "7z5Od",
+              "x": 6,
+              "y": 6,
+              "name": "Background",
+              "fill": "#f6f6f6ff",
+              "width": 116,
+              "height": 31
+            },
+            {
+              "type": "text",
+              "id": "kyoIx",
+              "x": 49,
+              "y": 14,
+              "name": "Send",
+              "fill": "#575757ff",
+              "textGrowth": "fixed-width",
+              "width": 28,
+              "content": "Send",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 8.5,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "H2AJD",
+          "x": 27,
+          "y": 137,
+          "name": "Button",
+          "width": 130,
+          "height": 42,
+          "fill": "#00000000",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": 15,
+              "id": "db9PO",
+              "x": 6,
+              "y": 5,
+              "name": "Background",
+              "fill": "#010101ff",
+              "width": 120,
+              "height": 33,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#8e8e8eff"
+              }
+            },
+            {
+              "type": "text",
+              "id": "KnMZs",
+              "x": 44,
+              "y": 14,
+              "name": "Receive",
+              "fill": "#a2a2a2ff",
+              "textGrowth": "fixed-width",
+              "width": 43,
+              "content": "Receive",
+              "textAlignVertical": "middle",
+              "fontFamily": "PingFang SC",
+              "fontSize": 9.5,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "XR3qF",
+          "x": 33,
+          "y": 109,
+          "name": "****",
+          "fill": "#393939ff",
+          "textGrowth": "fixed-width-height",
+          "width": 85,
+          "height": 12,
+          "content": "****  2719",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 18,
+          "fontWeight": "normal",
+          "letterSpacing": -0.9
+        },
+        {
+          "type": "text",
+          "id": "2COfk",
+          "x": 33,
+          "y": 83,
+          "name": "Linked to main a",
+          "fill": "#c7c7c7ff",
+          "textGrowth": "fixed-width-height",
+          "width": 138,
+          "height": 17,
+          "content": "Linked to main account",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 11,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 16.5,
+          "id": "0LP2d",
+          "x": 249,
+          "y": 30,
+          "name": "Background",
+          "fill": "#fdfdfdff",
+          "width": 120,
+          "height": 33,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#f1f1f1ff"
+          }
+        },
+        {
+          "type": "path",
+          "id": "Gjvdr",
+          "x": 345,
+          "y": 44,
+          "name": "Vector 2166",
+          "geometry": "M0 0l6 0-3 4-3-4z",
+          "fill": "#000000ff",
+          "width": 7.5,
+          "height": 5,
+          "stroke": {
+            "align": "center",
+            "thickness": 1
+          }
+        },
+        {
+          "type": "text",
+          "id": "i8Skg",
+          "x": 266,
+          "y": 39,
+          "name": "Direct Debits",
+          "fill": "#5e5e5eff",
+          "textGrowth": "fixed-width-height",
+          "width": 77,
+          "height": 13,
+          "content": "Direct Debits",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 10.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "VmNZQ",
+          "x": 33,
+          "y": 38,
+          "name": "VISA",
+          "fill": "#242424ff",
+          "textGrowth": "fixed-width-height",
+          "width": 38,
+          "height": 15,
+          "content": "VISA",
+          "textAlignVertical": "middle",
+          "fontFamily": "PingFang SC",
+          "fontSize": 15,
+          "fontWeight": "normal"
+        }
+      ]
+    }
+  ]
+}
