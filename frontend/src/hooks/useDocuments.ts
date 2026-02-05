@@ -66,7 +66,8 @@ function normalizeProcessingStatus(status: string | undefined): DocumentProcessi
     return normalized as DocumentProcessingStatus;
   }
 
-  return normalized as DocumentProcessingStatus;
+  console.warn(`Unknown processing status: ${status}, defaulting to 'queued'`);
+  return 'queued';
 }
 
 // Helper to validate file type

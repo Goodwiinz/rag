@@ -186,9 +186,9 @@ class Neo4jOptimizer:
                 "CALL dbms.setConfigValue('dbms.checkpoint.interval.tx', '100000')",
                 "CALL dbms.setConfigValue('dbms.tx_log.rotation_retention_policy', '100M size')",
                 # Network settings
-                "CALL dbms.setConfigValue('dbms.connectors.default_listen_address', '0.0.0.0')",
-                "CALL dbms.setConfigValue('dbms.connector.bolt.listen_address', '0.0.0.0:7687')",
-                "CALL dbms.setConfigValue('dbms.connector.http.listen_address', '0.0.0.0:7474')",
+                "CALL dbms.setConfigValue('dbms.connectors.default_listen_address', '0.0.0.0')",  # nosec B104
+                "CALL dbms.setConfigValue('dbms.connector.bolt.listen_address', '0.0.0.0:7687')",  # nosec B104
+                "CALL dbms.setConfigValue('dbms.connector.http.listen_address', '0.0.0.0:7474')",  # nosec B104
             ]
 
             for config in memory_configs:

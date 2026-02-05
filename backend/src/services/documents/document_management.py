@@ -76,7 +76,7 @@ DOCUMENT_SERVICE_CONFIG = {
     "service_name": "document-management",
     "version": "1.0.0",
     "port": 8001,
-    "host": "0.0.0.0",
+    "host": "0.0.0.0",  # nosec B104 - containerized deployment
     "upload_dir": settings.UPLOAD_DIR,
     "max_file_size_mb": settings.MAX_FILE_SIZE_MB,
     "allowed_mime_types": {

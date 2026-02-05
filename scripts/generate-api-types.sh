@@ -15,7 +15,7 @@ echo "Generating API types from $BACKEND_URL/openapi.json..."
 mkdir -p "$OUTPUT_DIR"
 
 # Check if backend is running
-if ! curl -s --connect-timeout 5 "$BACKEND_URL/openapi.json" > /dev/null 2>&1; then
+if ! curl -sf --connect-timeout 5 "$BACKEND_URL/openapi.json" > /dev/null 2>&1; then
     echo "Error: Backend is not running at $BACKEND_URL"
     echo "Please start the backend with: docker-compose -f docker-compose.development.yml up backend"
     exit 1

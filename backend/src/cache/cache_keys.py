@@ -48,7 +48,9 @@ class CacheKeyBuilder:
         else:
             component_str = str(component)
 
-        return hashlib.md5(component_str.encode()).hexdigest()
+        return hashlib.md5(
+            component_str.encode(), usedforsecurity=False
+        ).hexdigest()
 
     @staticmethod
     def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:

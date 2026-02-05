@@ -1,10 +1,18 @@
+import importlib.machinery
 import sys
 from unittest.mock import MagicMock
 
 # Mock spacy and other heavy dependencies before any imports
 # These are safe to mock globally as they are external libraries often missing or slow
-sys.modules["spacy"] = MagicMock()
-sys.modules["en_core_web_sm"] = MagicMock()
+spacy_mock = MagicMock()
+spacy_mock.__spec__ = importlib.machinery.ModuleSpec("spacy", loader=None)
+sys.modules["spacy"] = spacy_mock
+
+en_core_mock = MagicMock()
+en_core_mock.__spec__ = importlib.machinery.ModuleSpec(
+    "en_core_web_sm", loader=None
+)
+sys.modules["en_core_web_sm"] = en_core_mock
 
 # Mock services that might cause side effects or import errors
 # We mock these specific services but NOT core config
@@ -26,6 +34,7 @@ sys.modules["src.services.search.vector_search_service"] = mock_vector_service
 
 # Mock vector service (used by vectors router)
 sys.modules["src.services.search.vector_service"] = MagicMock()
+sys.modules["src.api.search.vectors"] = MagicMock()
 
 # DO NOT mock src.core.config here - let it use the real config logic (with env vars from conftest)
 # mock_config = MagicMock() ... sys.modules["src.core.config"] = mock_config  <-- REMOVED

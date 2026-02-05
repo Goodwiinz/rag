@@ -919,7 +919,9 @@ class EnhancedDocumentProcessingService:
                 import hashlib
 
                 for chunk in chunks:
-                    hash_obj = hashlib.md5(chunk.encode())
+                    hash_obj = hashlib.md5(
+                        chunk.encode(), usedforsecurity=False
+                    )
                     embedding = [
                         float(ord(c)) for c in hash_obj.hexdigest()[:384]
                     ]  # 384 dimensions

@@ -834,7 +834,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "knowledge_graph_main:app",
-        host="0.0.0.0",
+        host="0.0.0.0",  # nosec B104 - containerized deployment
         port=8003,
         reload=config.DEBUG,
         log_level="info",

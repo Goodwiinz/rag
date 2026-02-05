@@ -20,8 +20,8 @@ backend:
   replicas: 2
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: latest
-    pullPolicy: Always
+    tag: "2026-02-05" # TODO: set to release or git SHA
+    pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 80
@@ -76,8 +76,8 @@ ui:
   replicas: 2
   image:
     repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: latest
-    pullPolicy: Always
+    tag: "2026-02-05" # TODO: set to release or git SHA
+    pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 80
@@ -119,8 +119,8 @@ celeryWorker:
   replicas: 2
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: latest
-    pullPolicy: Always
+    tag: "2026-02-05" # TODO: set to release or git SHA
+    pullPolicy: IfNotPresent
   command: ["celery", "-A", "src.celery_app", "worker", "-l", "info", "-c", "4"]
   resources:
     requests:
@@ -146,7 +146,8 @@ celeryBeat:
   replicas: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: latest
+    tag: "2026-02-05" # TODO: set to release or git SHA
+    pullPolicy: IfNotPresent
   command: ["celery", "-A", "src.celery_app", "beat", "-l", "info"]
   resources:
     requests:
@@ -352,10 +353,10 @@ networkPolicies:
       - from:
           - namespaceSelector:
               matchLabels:
-                name: rag-system
+                kubernetes.io/metadata.name: rag-system
           - namespaceSelector:
               matchLabels:
-                name: ingress-nginx
+                kubernetes.io/metadata.name: ingress-nginx
         ports:
           - protocol: TCP
             port: 8000
@@ -364,7 +365,7 @@ networkPolicies:
       - from:
           - namespaceSelector:
               matchLabels:
-                name: ingress-nginx
+                kubernetes.io/metadata.name: ingress-nginx
         ports:
           - protocol: TCP
             port: 3000

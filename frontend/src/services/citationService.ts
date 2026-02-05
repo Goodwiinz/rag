@@ -11,8 +11,9 @@ import type {
 } from '@/types/research';
 
 const normalizeCitation = (citation: CitationResponse): CitationResponse => {
-  if (!citation.documentTitle && citation.document_title) {
-    return { ...citation, documentTitle: citation.document_title };
+  const raw = citation as CitationResponse & { document_title?: string };
+  if (!citation.documentTitle && raw.document_title) {
+    return { ...citation, documentTitle: raw.document_title };
   }
   return citation;
 };

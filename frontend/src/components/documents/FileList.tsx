@@ -285,9 +285,18 @@ export const FileList: React.FC<FileListProps> = ({
   };
 
   const sortedDocuments = [...documents].sort((a, b) => {
-    const dateA = a.upload_timestamp ?? a.created_at ?? '';
-    const dateB = b.upload_timestamp ?? b.created_at ?? '';
-    return new Date(dateB).getTime() - new Date(dateA).getTime();
+    const dateA = a.upload_timestamp ?? a.created_at;
+    const dateB = b.upload_timestamp ?? b.created_at;
+    const timeA = dateA ? new Date(dateA).getTime() : 0;
+    const timeB = dateB ? new Date(dateB).getTime() : 0;
+    const safeTimeA = Number.isFinite(timeA) ? timeA : 0;
+    const safeTimeB = Number.isFinite(timeB) ? timeB : 0;
+
+    if (safeTimeB !== safeTimeA) {
+      return safeTimeB - safeTimeA;
+    }
+
+    return (a.id ?? '').localeCompare(b.id ?? '');
   });
 
   if (isLoading) {

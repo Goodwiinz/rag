@@ -44,7 +44,9 @@ class CacheKey:
         time_str = json.dumps(self.time_range) if self.time_range else ""
 
         hash_input = f"{self.prefix}:{self.organization_id}:{self.data_type}:{filter_str}:{time_str}"
-        hash_key = hashlib.md5(hash_input.encode()).hexdigest()
+        hash_key = hashlib.md5(
+            hash_input.encode(), usedforsecurity=False
+        ).hexdigest()
 
         return f"analytics:{self.prefix}:{self.data_type}:{self.organization_id}:{hash_key}"
 
