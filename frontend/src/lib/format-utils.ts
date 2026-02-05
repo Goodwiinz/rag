@@ -47,11 +47,12 @@ export function formatDuration(ms: number): string {
 
 /**
  * Format a file size in bytes to a human-readable string
- * @param bytes - Size in bytes
+ * @param bytes - Size in bytes (can be undefined)
  * @param decimals - Number of decimal places (default: 2)
- * @returns Formatted file size string (e.g., "1.5 MB", "256 KB")
+ * @returns Formatted file size string (e.g., "1.5 MB", "256 KB", or "-" if undefined)
  */
-export function formatFileSize(bytes: number, decimals: number = 2): string {
+export function formatFileSize(bytes: number | undefined | null, decimals: number = 2): string {
+  if (bytes === undefined || bytes === null) return '-';
   if (bytes === 0) return '0 B';
   if (bytes < 0) return '0 B';
 
@@ -74,10 +75,11 @@ export function formatFileSize(bytes: number, decimals: number = 2): string {
 
 /**
  * Format a timestamp to a relative time string
- * @param timestamp - Date, timestamp number (ms), or ISO string
- * @returns Relative time string (e.g., "2 minutes ago", "in 3 hours")
+ * @param timestamp - Date, timestamp number (ms), or ISO string (can be undefined)
+ * @returns Relative time string (e.g., "2 minutes ago", "in 3 hours", or "-" if undefined)
  */
-export function formatRelativeTime(timestamp: Date | number | string): string {
+export function formatRelativeTime(timestamp: Date | number | string | undefined | null): string {
+  if (timestamp === undefined || timestamp === null) return '-';
   const now = Date.now();
   let time: number;
 
