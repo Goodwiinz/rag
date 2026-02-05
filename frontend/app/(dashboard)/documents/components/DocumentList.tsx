@@ -12,9 +12,12 @@ export interface Document {
   id: string;
   title: string;
   filename: string;
-  file_type: string;
-  file_size: number;
-  upload_timestamp: string;
+  file_type?: string;
+  document_type?: string;
+  file_size?: number;
+  file_size_bytes?: number;
+  upload_timestamp?: string;
+  created_at?: string;
   processing_status: string;
   metadata?: {
     entities_count?: number;
@@ -42,7 +45,8 @@ export function DocumentList({
 }: DocumentListProps) {
   const router = useRouter();
   
-  const formatFileSize = (bytes: number): string => {
+  const formatFileSize = (bytes: number | undefined): string => {
+    if (bytes === undefined || bytes === null) return '-';
     if (bytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
@@ -50,7 +54,8 @@ export function DocumentList({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  const formatDate = (dateString: string): string => {
+  const formatDate = (dateString: string | undefined): string => {
+    if (!dateString) return '-';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       month: 'short',
@@ -61,7 +66,7 @@ export function DocumentList({
     });
   };
 
-  const getFileTypeIcon = (type: string) => {
+  const getFileTypeIcon = (type: string | undefined) => {
     if (!type) return { icon: <FileText className="w-4 h-4" />, color: '#6b7280' };
     const t = type.toLowerCase();
     if (t.includes('pdf')) return { icon: <FileText className="w-4 h-4" />, color: '#ff4757' };
@@ -180,15 +185,15 @@ export function DocumentList({
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-[var(--terminal-text-dim)]">
-                    <span className="uppercase tracking-tighter">{doc.file_type || 'Unknown'}</span>
+                    <span className="uppercase tracking-tighter">{doc.file_type ?? doc.document_type ?? 'Unknown'}</span>
                     <span className="w-1 h-1 rounded-full bg-[var(--terminal-border)]" />
-                    <span>{formatFileSize(doc.file_size)}</span>
+                    <span>{formatFileSize(doc.file_size ?? doc.file_size_bytes)}</span>
                   </div>
                 </div>
 
                 {/* Date (Desktop) */}
                 <div className="hidden md:block w-32 text-[10px] font-mono text-[var(--terminal-text-dim)]">
-                  {formatDate(doc.upload_timestamp)}
+                  {formatDate(doc.upload_timestamp ?? doc.created_at)}
                 </div>
 
                 {/* Status */}

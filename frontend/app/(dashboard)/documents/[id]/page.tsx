@@ -148,7 +148,7 @@ export default function DocumentDetailPage() {
           doi: result.doi,
           arxivId: result.arxivId,
           abstract: result.abstract,
-          metadataSource: result.metadataSource || 'auto',
+          metadataSource: (result.metadataSource || 'auto') as 'manual' | 'arxiv' | 'crossref' | 'semantic_scholar' | 'rag' | 'auto',
         });
       }
 

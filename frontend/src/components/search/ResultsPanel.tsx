@@ -270,7 +270,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   const [copiedSource, setCopiedSource] = useState<string | null>(null);
   const [copiedAnswer, setCopiedAnswer] = useState(false);
 
-  const getFileIcon = (fileType: string) => {
+  const getFileIcon = (fileType: string | undefined) => {
     const iconClass = "h-4 w-4";
     switch (fileType) {
       case 'pdf':
