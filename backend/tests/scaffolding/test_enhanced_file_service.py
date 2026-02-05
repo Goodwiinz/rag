@@ -33,7 +33,7 @@ class TestEnhancedFileService:
     @pytest.fixture
     def file_service(self, mock_db):
         """Create EnhancedFileService instance with mocked database"""
-        with patch('src.services.enhanced_file_service.settings'):
+        with patch('src.services.documents.enhanced_file_service.settings'):
             service = EnhancedFileService(mock_db)
             service.upload_dir = Path(tempfile.mkdtemp())
             service.upload_dir.mkdir(parents=True, exist_ok=True)
@@ -275,6 +275,19 @@ class TestEnhancedFileService:
 
             finally:
                 temp_zip.unlink(missing_ok=True)
+
+        @pytest.mark.asyncio
+        async def test_analyze_tar_safety_runs_in_thread(self, file_service):
+            """Test TAR archive safety analysis runs in a thread"""
+            expected = {"is_bomb": False, "total_size": 0}
+            with patch.object(file_service, "_run_in_thread", new=AsyncMock(return_value=expected)) as mock_run:
+                result = await file_service.analyze_tar_safety("/tmp/test.tar")
+
+                mock_run.assert_awaited_once()
+                called_args = mock_run.call_args[0]
+                assert callable(called_args[0])
+                assert called_args[1:] == ("/tmp/test.tar",)
+                assert result == expected
 
     class TestFileIntegrity:
         """Test file integrity verification methods"""

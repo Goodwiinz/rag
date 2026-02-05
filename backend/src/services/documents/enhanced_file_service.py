@@ -3,6 +3,7 @@ Enhanced File Service with advanced validation, security scanning, and storage m
 """
 
 import asyncio
+import functools
 import hashlib
 import logging
 import mimetypes
@@ -439,6 +440,20 @@ class EnhancedFileService:
 
     async def analyze_zip_safety(self, file_path: str) -> Dict[str, Any]:
         """Analyze ZIP file for zip bomb"""
+        return await self._run_in_thread(self._analyze_zip_safety_sync, file_path)
+
+    async def analyze_tar_safety(self, file_path: str) -> Dict[str, Any]:
+        """Analyze TAR file for safety issues"""
+        return await self._run_in_thread(self._analyze_tar_safety_sync, file_path)
+
+    async def _run_in_thread(self, func, *args, **kwargs):
+        to_thread = getattr(asyncio, "to_thread", None)
+        if to_thread is not None:
+            return await to_thread(func, *args, **kwargs)
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, functools.partial(func, *args, **kwargs))
+
+    def _analyze_zip_safety_sync(self, file_path: str) -> Dict[str, Any]:
         try:
             with zipfile.ZipFile(file_path, "r") as zip_file:
                 total_size = 0
@@ -480,8 +495,7 @@ class EnhancedFileService:
             logger.error(f"ZIP analysis failed: {str(e)}")
             return {"is_bomb": False, "error": str(e)}
 
-    async def analyze_tar_safety(self, file_path: str) -> Dict[str, Any]:
-        """Analyze TAR file for safety issues"""
+    def _analyze_tar_safety_sync(self, file_path: str) -> Dict[str, Any]:
         try:
             with tarfile.open(file_path, "r:*") as tar_file:
                 total_size = 0
