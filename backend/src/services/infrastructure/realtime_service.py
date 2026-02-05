@@ -56,7 +56,7 @@ REALTIME_SERVICE_CONFIG = {
     "service_name": "realtime-communications",
     "version": "1.0.0",
     "port": 8008,
-    "host": os.getenv("REALTIME_SERVICE_HOST", "127.0.0.1"),
+    "host": os.getenv("REALTIME_SERVICE_HOST", "0.0.0.0"),
     "max_connections_per_user": 10,
     "connection_timeout_seconds": 300,
     "heartbeat_interval_seconds": 30,

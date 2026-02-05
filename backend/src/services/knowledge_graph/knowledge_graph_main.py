@@ -835,7 +835,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "knowledge_graph_main:app",
-        host=os.getenv("KNOWLEDGE_GRAPH_HOST", "127.0.0.1"),
+        host=os.getenv("KNOWLEDGE_GRAPH_HOST", "0.0.0.0"),
         port=8003,
         reload=config.DEBUG,
         log_level="info",

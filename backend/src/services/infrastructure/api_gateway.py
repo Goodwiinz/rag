@@ -60,7 +60,7 @@ API_GATEWAY_CONFIG = {
     "service_name": "api-gateway",
     "version": "1.0.0",
     "port": 8080,
-    "host": os.getenv("API_GATEWAY_HOST", "127.0.0.1"),
+    "host": os.getenv("API_GATEWAY_HOST", "0.0.0.0"),
 }
 
 # Service registry

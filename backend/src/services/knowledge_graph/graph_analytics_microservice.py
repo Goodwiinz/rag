@@ -587,7 +587,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "graph_analytics_service:app",
-        host=os.getenv("GRAPH_ANALYTICS_HOST", "127.0.0.1"),
+        host=os.getenv("GRAPH_ANALYTICS_HOST", "0.0.0.0"),
         port=8009,
         reload=config.DEBUG,
         log_level="info",

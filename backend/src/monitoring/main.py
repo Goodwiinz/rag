@@ -209,7 +209,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "main:app",
-        host=os.getenv("MONITORING_HOST", "127.0.0.1"),
+        host=os.getenv("MONITORING_HOST", "0.0.0.0"),
         port=port,
         reload=config.debug,
         log_level="info",

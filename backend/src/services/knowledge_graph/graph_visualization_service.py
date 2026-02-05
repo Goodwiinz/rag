@@ -801,7 +801,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "graph_visualization_service:app",
-        host=os.getenv("GRAPH_VISUALIZATION_HOST", "127.0.0.1"),
+        host=os.getenv("GRAPH_VISUALIZATION_HOST", "0.0.0.0"),
         port=8010,
         reload=config.DEBUG,
         log_level="info",
