@@ -92,8 +92,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
     }
   };
 
-  const formatFileSize = (bytes: number | undefined): string => {
-    if (bytes === undefined || bytes === null) return '-';
+  const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
@@ -101,8 +100,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const formatDate = (dateString: string | undefined): string => {
-    if (!dateString) return '-';
+  const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -199,9 +197,9 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
 
               {/* Metadata */}
               <div className="flex items-center space-x-3 text-[10px] text-muted-foreground uppercase tracking-wide">
-                <span>{formatFileSize(document.file_size)}</span>
+                <span>{formatFileSize(document.file_size || 0)}</span>
                 <span>•</span>
-                <span>{formatDate(document.upload_timestamp)}</span>
+                <span>{formatDate(document.upload_timestamp || '')}</span>
                 {getDurationDisplay() && (
                   <>
                     <span>•</span>

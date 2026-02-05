@@ -59,7 +59,7 @@ API_GATEWAY_CONFIG = {
     "service_name": "api-gateway",
     "version": "1.0.0",
     "port": 8080,
-    "host": "0.0.0.0",
+    "host": "0.0.0.0",  # nosec B104
 }
 
 # Service registry

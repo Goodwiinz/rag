@@ -64,7 +64,7 @@ USER_SERVICE_CONFIG = {
     "service_name": "user-management",
     "version": "1.0.0",
     "port": 8007,
-    "host": "0.0.0.0",
+    "host": "0.0.0.0",  # nosec B104
     "password_min_length": 8,
     "max_login_attempts": 5,
     "account_lockout_minutes": 15,

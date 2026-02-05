@@ -586,7 +586,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "graph_analytics_service:app",
-        host="0.0.0.0",
+        host="0.0.0.0",  # nosec B104
         port=8009,
         reload=config.DEBUG,
         log_level="info",

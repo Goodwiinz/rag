@@ -677,32 +677,44 @@ networkPolicies:
   backend:
     ingress:
       - from:
-          - namespaceSelector:
-              matchLabels:
-                name: rag-system
-        ports:
-          - protocol: TCP
-            port: 8000
-          - protocol: TCP
-            port: 8001
+        - namespaceSelector:
+            matchLabels:
+              name: rag-system
+        podSelector: null
+        namespaceSelector:
+          matchLabels:
+            name: rag-system
+      ports:
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 8001
   ui:
     ingress:
       - from:
-          - namespaceSelector:
-              matchLabels:
-                name: rag-system
-        ports:
-          - protocol: TCP
-            port: 8501
+        - namespaceSelector:
+            matchLabels:
+              name: rag-system
+        podSelector: null
+        namespaceSelector:
+          matchLabels:
+            name: rag-system
+      ports:
+        - protocol: TCP
+          port: 8501
   apiServer:
     ingress:
       - from:
-          - namespaceSelector:
-              matchLabels:
-                name: rag-system
-        ports:
-          - protocol: TCP
-            port: 8000
+        - namespaceSelector:
+            matchLabels:
+              name: rag-system
+        podSelector: null
+        namespaceSelector:
+          matchLabels:
+            name: rag-system
+      ports:
+        - protocol: TCP
+          port: 8000
 
 # Resource limits and requests
 resourceLimits:

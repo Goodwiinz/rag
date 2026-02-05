@@ -175,30 +175,22 @@ export interface RealtimeProcessingState {
 
 // WebSocket Message Types
 export interface WebSocketMessage {
-  id?: string;
   type: string;
-  payload: Record<string, unknown>;
-  timestamp?: string;
+  payload: any;
+  timestamp: string;
   documentId?: string;
   jobId?: string;
-  priority?: MessagePriority;
-  target_channels?: Channel[];
 }
 
-export interface DocumentUpdatePayload {
-  documentId: string;
-  filename?: string;
-  progress?: number;
-  currentStage?: ProcessingStage;
-  status?: DocumentProcessingState['status'];
-  error?: string;
-  [key: string]: unknown;
-}
-
-export interface DocumentUpdateMessage extends Omit<WebSocketMessage, 'payload'> {
+export interface DocumentUpdateMessage extends WebSocketMessage {
   type: 'document_update';
-  payload: DocumentUpdatePayload;
-  documentId: string;
+  payload: {
+    documentId: string;
+    progress: number;
+    currentStage: ProcessingStage;
+    status: DocumentProcessingState['status'];
+    error?: string;
+  };
 }
 
 export interface QueueUpdateMessage extends WebSocketMessage {
@@ -214,7 +206,7 @@ export interface SystemMetricsMessage extends WebSocketMessage {
   payload: RealtimeProcessingState['systemMetrics'];
 }
 
-export interface NotificationMessage extends Omit<WebSocketMessage, 'payload'> {
+export interface NotificationMessage extends WebSocketMessage {
   type: 'notification';
   payload: NotificationItem;
 }
@@ -237,7 +229,7 @@ export interface WebSocketConnectionInfo {
   last_heartbeat: string;
   client_ip: string;
   user_agent: string;
-  connection_metadata: Record<string, unknown>;
+  connection_metadata: any;
   subscription_channels: string[];
   is_active: boolean;
   disconnect_reason?: string;
@@ -273,14 +265,6 @@ export enum Channel {
   ADMIN_ALERTS = 'admin_alerts'
 }
 
-// Client info for WebSocket connection
-export interface WebSocketClientInfo {
-  timestamp?: string;
-  userAgent?: string;
-  url?: string;
-  [key: string]: unknown;
-}
-
 // Enhanced Store Interface
 export interface RealtimeStore {
   // WebSocket state
@@ -298,7 +282,7 @@ export interface RealtimeStore {
   config: {
     updateFrequency: UpdateFrequency;
     subscribedChannels: Set<Channel>;
-    messageFilter: Record<string, unknown>;
+    messageFilter: Record<string, any>;
     autoReconnect: boolean;
     reconnectDelay: number;
     maxReconnectAttempts: number;
@@ -308,7 +292,7 @@ export interface RealtimeStore {
   connect: (token: string, options?: {
     channels?: Channel[];
     frequency?: UpdateFrequency;
-    clientInfo?: WebSocketClientInfo;
+    clientInfo?: any;
   }) => Promise<void>;
   disconnect: () => void;
   reconnect: () => void;
@@ -317,7 +301,7 @@ export interface RealtimeStore {
   subscribeToDocument: (documentId: string) => void;
   unsubscribeFromDocument: (documentId: string) => void;
   updateDocumentStatus: (update: DocumentUpdateMessage) => void;
-  sendWebSocketMessage: (message: WebSocketMessage | { type: string; payload: Record<string, unknown> }) => void;
+  sendWebSocketMessage: (message: any) => void;
   clearNotifications: () => void;
   updatePreferences: (preferences: Partial<RealtimeProcessingState['preferences']>) => void;
   updateUI: (ui: Partial<RealtimeProcessingState['ui']>) => void;
@@ -329,8 +313,8 @@ export interface WebSocketClientConfig {
   token: string;
   channels?: Channel[];
   frequency?: UpdateFrequency;
-  messageFilter?: Record<string, unknown>;
-  clientInfo?: WebSocketClientInfo;
+  messageFilter?: Record<string, any>;
+  clientInfo?: any;
   autoReconnect?: boolean;
   reconnectDelay?: number;
   maxReconnectAttempts?: number;
@@ -345,8 +329,8 @@ export interface EnhancedProcessingStage extends ProcessingStage {
   stage_type: string;
   stage_order: number;
   worker_id?: string;
-  stage_metadata?: Record<string, unknown>;
-  error_details?: Record<string, unknown>;
+  stage_metadata?: any;
+  error_details?: any;
   retry_count: number;
   max_retries: number;
   estimated_completion_time?: string;

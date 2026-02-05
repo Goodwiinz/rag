@@ -1,27 +1,29 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { RegisterRequest } from '@/types';
+import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import {
-    ArrowRight,
-    Building2,
-    Database,
-    Eye,
-    EyeOff,
-    Lock,
-    Mail,
-    RefreshCw,
-    Shield,
-    Sparkles,
-    Terminal,
-    User,
-    Zap,
+  ArrowRight,
+  Loader2,
+  Lock,
+  Mail,
+  Terminal,
+  Eye,
+  EyeOff,
+  User,
+  Building2,
+  Shield,
+  CheckCircle2,
+  Sparkles,
+  Database,
+  Zap,
+  RefreshCw,
 } from 'lucide-react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
 
 interface RegisterFormData {
   email: string;
@@ -33,8 +35,8 @@ interface RegisterFormData {
 }
 
 // Terminal Observatory Theme Constants
-const _PHOSPHOR_GREEN = '#00ff9f';
-const _AMBER = '#ffb700';
+const PHOSPHOR_GREEN = '#00ff9f';
+const AMBER = '#ffb700';
 
 export default function RegisterPage() {
   const { register, isAuthenticated, isLoading } = useAuth();

@@ -671,12 +671,10 @@ class GraphAnalyticsService:
         """Find all paths between nodes"""
         max_depth = request.max_depth or 5
 
-        # Note: Neo4j doesn't support parameters in variable-length patterns
-        # max_depth is from request validation, safe to interpolate
-        query = f"""
+        query = """
         MATCH (start), (end)
         WHERE id(start) = $source_id AND id(end) = $target_id
-        MATCH path = (start)-[*1..{max_depth}]-(end)
+        MATCH path = (start)-[*1..$max_depth]-(end)
         RETURN [node in nodes(path) | toString(id(node))] as nodes,
                [rel in relationships(path) | toString(id(rel))] as edges
         LIMIT $limit

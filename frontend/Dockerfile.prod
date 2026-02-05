@@ -56,8 +56,8 @@ WORKDIR /app
 
 # User already created in base stage
 
-# Copy built application (standalone outputs to .next/standalone/app for workdir /app)
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/app ./
+# Copy built application
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 

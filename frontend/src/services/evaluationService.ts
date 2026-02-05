@@ -1,4 +1,5 @@
 import { EvaluationMetrics } from '@/types/evaluation';
+import { PerformanceAnalytics, UsageAnalytics } from '@/types/analytics';
 
 // Types for API requests/responses
 export interface EvaluationDataset {
@@ -472,7 +473,7 @@ export class EvaluationWebSocket {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
-  private listeners: Map<string, Array<(payload: any) => void>> = new Map();
+  private listeners: Map<string, Function[]> = new Map();
 
   constructor(private url: string) {}
 
@@ -527,14 +528,14 @@ export class EvaluationWebSocket {
     }
   }
 
-  subscribe(type: string, listener: (payload: any) => void) {
+  subscribe(type: string, listener: Function) {
     if (!this.listeners.has(type)) {
       this.listeners.set(type, []);
     }
     this.listeners.get(type)!.push(listener);
   }
 
-  unsubscribe(type: string, listener: (payload: any) => void) {
+  unsubscribe(type: string, listener: Function) {
     const listeners = this.listeners.get(type);
     if (listeners) {
       const index = listeners.indexOf(listener);

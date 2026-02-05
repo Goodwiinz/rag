@@ -1,43 +1,43 @@
 'use client';
 
-import { Badge } from '@/components/ui/badge';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { DeleteConfirmDialog } from '@/components/ui/confirm-dialog';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
-import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 import {
-    Archive,
-    Calendar,
-    CheckCircle,
-    CheckSquare,
-    ChevronDown,
-    Filter,
-    Folder,
-    FolderOpen,
-    MessageSquare,
-    Plus,
-    Search,
-    Trash2,
-    X,
-} from 'lucide-react';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
+import { DeleteConfirmDialog } from '@/components/ui/confirm-dialog';
+import { cn } from '@/lib/utils';
 import { VirtualizedConversationList } from './VirtualizedConversationList';
+import {
+  MessageSquare,
+  Plus,
+  Search,
+  Filter,
+  Trash2,
+  Calendar,
+  ChevronDown,
+  X,
+  Folder,
+  FolderOpen,
+  Archive,
+  CheckSquare,
+  CheckCircle,
+} from 'lucide-react';
 
 export interface Conversation {
   id: string;
@@ -141,7 +141,7 @@ export function ConversationSidebar({
 
   // Filter and sort conversations
   const filteredConversations = useMemo(() => {
-    const filtered = conversations.filter(conv => {
+    let filtered = conversations.filter(conv => {
       // Filter by archived status
       if (!showArchived && conv.isArchived) return false;
       if (showArchived && !conv.isArchived) return false;

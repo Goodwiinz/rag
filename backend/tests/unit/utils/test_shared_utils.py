@@ -220,7 +220,6 @@ class TestSanitizeFilename:
 
     def test_filename_only_dangerous_chars(self):
         """Test filename with only dangerous characters"""
-        # 9 chars in dangerous_chars string '<>:"/\\|?*'
         result = sanitize_filename('<>:"/\\|?*')
         assert result == "_" * 9  # All 9 chars replaced with underscore
 
@@ -296,12 +295,12 @@ class TestGetCorrelationId:
         """Test that new ID is generated when none exists"""
         # Mock request object without correlation_id
         mock_request = MagicMock()
-        mock_request.state = MagicMock()
+        del mock_request.state.correlation_id  # Make it raise AttributeError
+        mock_request.state.correlation_id = None  # Reset after delete
 
-        with patch("src.shared.utils.uuid.uuid4") as mock_uuid:
-            mock_uuid.return_value = MagicMock()
-            # Fix lambda to accept any args (self from method call)
-            mock_uuid.return_value.__str__ = lambda *args: "new-uuid-123"
+        with patch('src.shared.utils.uuid.uuid4') as mock_uuid:
+            # Use __str__ magic method mocking
+            mock_uuid.return_value.__str__.return_value = "new-uuid-123"
 
             # When getattr fails, it should generate new UUID
             mock_request.state = MagicMock()
@@ -317,10 +316,8 @@ class TestGetCorrelationId:
         # Create state but without correlation_id attribute
         mock_request.state = MagicMock(spec=[])
         
-        with patch("src.shared.utils.uuid.uuid4") as mock_uuid:
-            mock_uuid.return_value = MagicMock()
-            # Fix lambda to accept any args
-            mock_uuid.return_value.__str__ = lambda *args: "fallback-uuid-456"
+        with patch('src.shared.utils.uuid.uuid4') as mock_uuid:
+            mock_uuid.return_value.__str__.return_value = "fallback-uuid-456"
 
             result = get_correlation_id(mock_request)
             mock_uuid.assert_called_once()

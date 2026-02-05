@@ -5,8 +5,8 @@
  * Includes virtual rendering, lazy loading, and memory management.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import { GraphEdge, GraphNode } from '../../types/graph-api';
+import React, { useCallback, useRef, useEffect, useMemo } from 'react';
+import { GraphNode, GraphEdge } from '../../types/graph-api';
 
 // Extend Performance interface for Chrome's memory API
 interface PerformanceMemory {
@@ -340,7 +340,7 @@ export const graphPerformanceUtils = {
   },
 
   // Lazy loading utility
-  createLazyLoader: <T = any>(items: T[], batchSize: number = 50) => {
+  createLazyLoader: <T extends unknown = any>(items: T[], batchSize: number = 50) => {
     let currentIndex = 0;
 
     return {

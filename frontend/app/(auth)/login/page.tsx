@@ -2,23 +2,11 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
-import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { Lock, Mail, Terminal } from 'lucide-react';
-import dynamic from 'next/dynamic';
+import { ArrowRight, Lock, Mail, Terminal, Eye, EyeOff, Sparkles, Shield, Zap, Database, RefreshCw, Cpu, Network, Activity } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
-
-const Activity = dynamic(() => import('lucide-react').then(mod => mod.Activity), { ssr: false });
-const ArrowRight = dynamic(() => import('lucide-react').then(mod => mod.ArrowRight), { ssr: false });
-const Cpu = dynamic(() => import('lucide-react').then(mod => mod.Cpu), { ssr: false });
-const Database = dynamic(() => import('lucide-react').then(mod => mod.Database), { ssr: false });
-const Eye = dynamic(() => import('lucide-react').then(mod => mod.Eye), { ssr: false });
-const EyeOff = dynamic(() => import('lucide-react').then(mod => mod.EyeOff), { ssr: false });
-const RefreshCw = dynamic(() => import('lucide-react').then(mod => mod.RefreshCw), { ssr: false });
-const Shield = dynamic(() => import('lucide-react').then(mod => mod.Shield), { ssr: false });
-const Sparkles = dynamic(() => import('lucide-react').then(mod => mod.Sparkles), { ssr: false });
-const Zap = dynamic(() => import('lucide-react').then(mod => mod.Zap), { ssr: false });
+import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
 
 interface LoginFormData {
   email: string;
@@ -36,7 +24,7 @@ const SYSTEM_LOGS = [
   "Scanning for unauthorized nodes..."
 ];
 
-export default function LoginPage(): React.JSX.Element | null {
+export default function LoginPage() {
   const { login, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const [formData, setFormData] = useState<LoginFormData>({
@@ -48,7 +36,6 @@ export default function LoginPage(): React.JSX.Element | null {
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [logIndex, setLogIndex] = useState(0);
-  const [enableTilt, setEnableTilt] = useState(false);
 
   // 3D Tilt Logic
   const x = useMotionValue(0);
@@ -60,7 +47,7 @@ export default function LoginPage(): React.JSX.Element | null {
   const springRotateX = useSpring(rotateX, springConfig);
   const springRotateY = useSpring(rotateY, springConfig);
 
-  function handleMouseMove(event: React.MouseEvent<HTMLDivElement>): void {
+  function handleMouseMove(event: React.MouseEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
@@ -68,28 +55,17 @@ export default function LoginPage(): React.JSX.Element | null {
     y.set(event.clientY - centerY);
   }
 
-  function handleMouseLeave(): void {
+  function handleMouseLeave() {
     x.set(0);
     y.set(0);
   }
 
   useEffect(() => {
     setMounted(true);
-    // Defer non-critical animations to improve initial paint
-    const tiltTimer = setTimeout(() => {
-      // Check for reduced motion preference
-      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (!prefersReducedMotion) {
-        setEnableTilt(true);
-      }
-    }, 100);
     const interval = setInterval(() => {
       setLogIndex((prev) => (prev + 1) % SYSTEM_LOGS.length);
     }, 2000);
-    return () => {
-      clearTimeout(tiltTimer);
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -98,7 +74,7 @@ export default function LoginPage(): React.JSX.Element | null {
     }
   }, [isAuthenticated, isLoading, router]);
 
-  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
@@ -113,65 +89,21 @@ export default function LoginPage(): React.JSX.Element | null {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
       ...prev,
       [e.target.name]: e.target.value,
     }));
   };
 
-  const features = React.useMemo(() => [
+  const features = [
     { icon: Sparkles, text: 'Neural Semantic Search' },
     { icon: Database, text: 'Multimodal Stream Processing' },
     { icon: Zap, text: 'Knowledge Graph Synthesis' },
     { icon: Shield, text: 'Zero-Trust Protocol' },
-  ], []);
+  ];
 
-  // SSR-friendly skeleton to improve LCP - render static content while hydrating
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex bg-[var(--terminal-bg)] font-sans">
-        {/* Left Panel - Static Branding (matches final layout) */}
-        <div className="hidden lg:flex lg:w-1/2 relative z-10 flex-col justify-center px-16 lg:px-24 border-r border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30">
-          <div className="flex items-center gap-4 mb-16">
-            <div className="flex items-center justify-center w-16 h-16 rounded-2xl border border-[var(--phosphor-green)]/30 bg-[var(--terminal-elevated)]">
-              <Terminal className="w-8 h-8 text-[var(--phosphor-green)]" />
-            </div>
-            <div>
-              <h1 className="text-4xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter">RAG SYSTEM</h1>
-              <p className="text-[10px] font-mono font-bold text-[var(--phosphor-green)]/70 uppercase tracking-[0.3em]">Terminal Observatory V2.4</p>
-            </div>
-          </div>
-          <h2 className="text-6xl font-mono font-bold text-[var(--terminal-text)] leading-[0.9] mb-8 tracking-tight">
-            NEURAL DATA<br />
-            <span className="text-[var(--phosphor-green)]">SYNTHESIS</span>
-          </h2>
-          <p className="text-sm font-mono text-[var(--terminal-text-muted)] max-w-md leading-relaxed uppercase tracking-wide border-l-2 border-[var(--phosphor-green)]/30 pl-4 py-2">
-            Transforming unstructured streams into actionable intelligence protocols using advanced vector quantization.
-          </p>
-        </div>
-        {/* Right Panel - Loading Form */}
-        <div className="flex-1 flex items-center justify-center px-6 lg:px-8 relative z-10">
-          <div className="w-full max-w-md">
-            <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/90 p-8">
-              <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] mb-4">
-                  <Lock className="w-5 h-5 text-[var(--phosphor-green)]" />
-                </div>
-                <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.2em]">Access Protocol</h2>
-                <p className="text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-wider">Secure Connection Required</p>
-              </div>
-              <div className="space-y-5 animate-pulse">
-                <div className="h-12 rounded-lg bg-[var(--terminal-bg)]" />
-                <div className="h-12 rounded-lg bg-[var(--terminal-bg)]" />
-                <div className="h-12 rounded-lg bg-[var(--phosphor-green)]/20" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (!mounted) return null;
 
   return (
     <div className="min-h-screen flex bg-[var(--terminal-bg)] relative overflow-hidden terminal-scanlines crt-flicker font-sans text-foreground selection:bg-[var(--phosphor-green)] selection:text-[var(--terminal-bg)]">
@@ -287,9 +219,9 @@ export default function LoginPage(): React.JSX.Element | null {
       <div className="flex-1 flex items-center justify-center px-6 lg:px-8 relative z-10">
         <div style={{ perspective: "1000px" }} className="w-full max-w-md">
             <motion.div
-              style={enableTilt ? { rotateX: springRotateX, rotateY: springRotateY, transformStyle: "preserve-3d" } : undefined}
-              onMouseMove={enableTilt ? handleMouseMove : undefined}
-              onMouseLeave={enableTilt ? handleMouseLeave : undefined}
+              style={{ rotateX: springRotateX, rotateY: springRotateY, transformStyle: "preserve-3d" }}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               transition={{ duration: 0.5 }}

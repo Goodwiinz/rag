@@ -457,8 +457,8 @@ body {
    A cosmic terminal aesthetic for LLM Chat
    ============================================ */
 
-/* Import distinctive fonts - Managed by Next.js in layout.tsx */
-/* @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap'); */
+/* Import distinctive fonts */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
 /* Terminal Observatory CSS Variables */
 :root {
@@ -480,9 +480,9 @@ body {
   --amber-gold-glow: rgba(255, 183, 0, 0.15);
 
   --terminal-text: #e0e0e8;
-  --terminal-text-dim: #a1a1aa;
-  --terminal-text-muted: #94a3b8;
-  --terminal-text-subtle: #71717a;
+  --terminal-text-dim: #6a6a7a;
+  --terminal-text-muted: #3a3a4a;
+  --terminal-text-subtle: #4a4a5a;
 
   --terminal-surface-hover: #18181f;
 
@@ -926,7 +926,7 @@ input:-webkit-autofill ~ button svg {
   position: absolute;
   top: -1.2em;
   left: 0;
-  font-family: var(--font-mono), monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
   color: var(--terminal-border);
   white-space: nowrap;
@@ -994,7 +994,7 @@ input:-webkit-autofill ~ button svg {
   background: var(--terminal-elevated);
   border: 1px solid var(--terminal-border);
   color: var(--terminal-text);
-  font-family: var(--font-mono), monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   padding: 8px 16px;
   border-radius: 4px;
@@ -1329,13 +1329,11 @@ input:-webkit-autofill ~ button svg {
 
 .ambient-orb {
   animation: orb-float 20s ease-in-out infinite;
-  will-change: transform;
 }
 
 .ambient-orb-delayed {
   animation: orb-float 25s ease-in-out infinite;
   animation-delay: -10s;
-  will-change: transform;
 }
 
 /* Glass morphism premium */
@@ -1381,7 +1379,6 @@ input:-webkit-autofill ~ button svg {
   );
   animation: scan-beam 4s ease-in-out infinite;
   pointer-events: none;
-  will-change: top, opacity;
 }
 
 /* ============================================
