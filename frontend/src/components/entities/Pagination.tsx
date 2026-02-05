@@ -85,14 +85,20 @@ export const Pagination: React.FC<PaginationProps> = ({
     <div className="flex items-center justify-between px-6 py-3 border-t border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50">
       {/* Left: Page size selector */}
       <div className="flex items-center gap-3">
-        <span className="text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest">
+        <span
+          id="rows-per-page-label"
+          className="text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest"
+        >
           Rows:
         </span>
         <Select
           value={pageSize.toString()}
           onValueChange={(value) => onPageSizeChange(parseInt(value))}
         >
-          <SelectTrigger className="w-20 h-8 bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-xs">
+          <SelectTrigger
+            aria-labelledby="rows-per-page-label"
+            className="w-20 h-8 bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-xs"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
@@ -123,6 +129,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           size="icon"
           onClick={() => onPageChange(1)}
           disabled={!canGoPrevious}
+          aria-label="Go to first page"
           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10 disabled:opacity-30"
         >
           <ChevronsLeft className="h-4 w-4" />
@@ -134,6 +141,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           size="icon"
           onClick={() => onPageChange(currentPage - 1)}
           disabled={!canGoPrevious}
+          aria-label="Go to previous page"
           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10 disabled:opacity-30"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -155,6 +163,8 @@ export const Pagination: React.FC<PaginationProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => onPageChange(page)}
+                aria-label={`Page ${page}`}
+                aria-current={page === currentPage ? 'page' : undefined}
                 className={cn(
                   'h-8 w-8 font-mono text-xs',
                   page === currentPage
@@ -174,6 +184,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           size="icon"
           onClick={() => onPageChange(currentPage + 1)}
           disabled={!canGoNext}
+          aria-label="Go to next page"
           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10 disabled:opacity-30"
         >
           <ChevronRight className="h-4 w-4" />
@@ -185,6 +196,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           size="icon"
           onClick={() => onPageChange(totalPages)}
           disabled={!canGoNext}
+          aria-label="Go to last page"
           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10 disabled:opacity-30"
         >
           <ChevronsRight className="h-4 w-4" />

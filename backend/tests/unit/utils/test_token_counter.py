@@ -4,6 +4,7 @@ Unit tests for token counting utilities
 
 import pytest
 from unittest.mock import patch, MagicMock
+import sys
 
 from src.utils.token_counter import (
     count_tokens,
@@ -23,7 +24,7 @@ class TestCountTokens:
 
     def test_fallback_to_estimation_when_tiktoken_unavailable(self):
         """Test fallback to estimation when tiktoken is not available"""
-        # Patch sys.modules to simulate tiktoken missing
+        # Force ImportError by setting sys.modules entry to None
         with patch.dict("sys.modules", {"tiktoken": None}):
             text = "Hello world"
             result = count_tokens(text)

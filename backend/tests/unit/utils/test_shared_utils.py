@@ -220,6 +220,7 @@ class TestSanitizeFilename:
 
     def test_filename_only_dangerous_chars(self):
         """Test filename with only dangerous characters"""
+        # 9 chars in dangerous_chars string '<>:"/\\|?*'
         result = sanitize_filename('<>:"/\\|?*')
         assert result == "_" * 9  # All 9 chars replaced with underscore
 
@@ -299,7 +300,12 @@ class TestGetCorrelationId:
 
         with patch("src.shared.utils.uuid.uuid4") as mock_uuid:
             mock_uuid.return_value = MagicMock()
-            mock_uuid.return_value.__str__.return_value = "new-uuid-123"
+            # Fix lambda to accept any args (self from method call)
+            mock_uuid.return_value.__str__ = lambda *args: "new-uuid-123"
+
+            # When getattr fails, it should generate new UUID
+            mock_request.state = MagicMock()
+            del mock_request.state.correlation_id
 
             result = get_correlation_id(mock_request)
             mock_uuid.assert_called_once()
@@ -313,7 +319,8 @@ class TestGetCorrelationId:
         
         with patch("src.shared.utils.uuid.uuid4") as mock_uuid:
             mock_uuid.return_value = MagicMock()
-            mock_uuid.return_value.__str__.return_value = "fallback-uuid-456"
+            # Fix lambda to accept any args
+            mock_uuid.return_value.__str__ = lambda *args: "fallback-uuid-456"
 
             result = get_correlation_id(mock_request)
             mock_uuid.assert_called_once()
