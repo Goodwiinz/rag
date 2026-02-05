@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Document, DocumentFilters, APIErrorClass } from '@/types';
+import {
+  Document,
+  DocumentFilters,
+  APIErrorClass,
+  DOCUMENT_PROCESSING_STATUSES,
+  DocumentProcessingStatus
+} from '@/types';
 import { apiClient } from '@/services/apiClient';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -45,21 +51,22 @@ interface DocumentsApiResponse {
   };
 }
 
-// Valid processing status values
-const VALID_PROCESSING_STATUSES = ['queued', 'processing', 'indexed', 'failed'] as const;
-type ValidProcessingStatus = typeof VALID_PROCESSING_STATUSES[number];
-
 // Valid file type values
 const VALID_FILE_TYPES = ['pdf', 'txt', 'jpg', 'png', 'mp3', 'mp4'] as const;
 type ValidFileType = typeof VALID_FILE_TYPES[number];
 
 // Helper to validate processing status
-function normalizeProcessingStatus(status: string | undefined): ValidProcessingStatus {
-  const normalized = status?.toLowerCase();
-  if (normalized && VALID_PROCESSING_STATUSES.includes(normalized as ValidProcessingStatus)) {
-    return normalized as ValidProcessingStatus;
+function normalizeProcessingStatus(status: string | undefined): DocumentProcessingStatus {
+  if (!status) {
+    return 'queued';
   }
-  return 'queued';
+
+  const normalized = status.toLowerCase();
+  if (DOCUMENT_PROCESSING_STATUSES.includes(normalized as DocumentProcessingStatus)) {
+    return normalized as DocumentProcessingStatus;
+  }
+
+  return normalized as DocumentProcessingStatus;
 }
 
 // Helper to validate file type

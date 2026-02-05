@@ -1,7 +1,8 @@
-import { test } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import path from 'path';
 
 test('capture screenshots', async ({ page }) => {
+  const failures: string[] = [];
   const pages = [
     { name: 'dashboard', url: '/dashboard' },
     { name: 'chat', url: '/chat' },
@@ -21,7 +22,11 @@ test('capture screenshots', async ({ page }) => {
       
       await page.screenshot({ path: screenshotPath, fullPage: true });
     } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
       console.error(`Failed to capture ${p.name}:`, e);
+      failures.push(`${p.name}: ${message}`);
     }
   }
+
+  expect(failures, `Screenshot failures:\n${failures.join('\n')}`).toEqual([]);
 });

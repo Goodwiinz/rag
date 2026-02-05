@@ -19,6 +19,11 @@ _request_counts: Dict[str, int] = {}
 _request_durations: Dict[str, list] = {}
 
 
+def _sanitize_log_value(value: str) -> str:
+    """Normalize potentially user-controlled values before logging."""
+    return value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+
+
 def record_request_count(
     endpoint: str,
     method: str = "GET",
@@ -41,10 +46,13 @@ def record_request_count(
         _request_counts[key] += 1
 
         # Log at debug level for tracking
-        logger.debug(f"Request count recorded: {key} = {_request_counts[key]}")
+        safe_key = _sanitize_log_value(key)
+        logger.debug(
+            "Request count recorded: %s = %s", safe_key, _request_counts[key]
+        )
     except Exception as e:
         # Metrics should never break the application
-        logger.warning(f"Failed to record request count: {e}")
+        logger.warning("Failed to record request count: %s", e)
 
 
 def record_request_duration(
@@ -72,10 +80,13 @@ def record_request_duration(
         if len(_request_durations[key]) > 1000:
             _request_durations[key] = _request_durations[key][-1000:]
 
-        logger.debug(f"Request duration recorded: {key} = {duration_ms:.2f}ms")
+        safe_key = _sanitize_log_value(key)
+        logger.debug(
+            "Request duration recorded: %s = %.2fms", safe_key, duration_ms
+        )
     except Exception as e:
         # Metrics should never break the application
-        logger.warning(f"Failed to record request duration: {e}")
+        logger.warning("Failed to record request duration: %s", e)
 
 
 @contextmanager

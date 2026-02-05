@@ -168,6 +168,9 @@ neo4j:
   name: neo4j
   enabled: true
   replicas: 1  # Single node for cost; 3 for HA
+  auth:
+    existingSecret: neo4j-auth
+    secretKey: NEO4J_AUTH
   image:
     repository: neo4j
     tag: "5.15-community"
@@ -184,7 +187,6 @@ neo4j:
       memory: "4Gi"
       cpu: "2000m"
   env:
-    NEO4J_AUTH: "neo4j/changeme"  # UPDATE: Use secret
     NEO4J_PLUGINS: '["apoc"]'
     NEO4J_dbms_memory_pagecache_size: "1G"
     NEO4J_dbms_memory_heap_max__size: "2G"
@@ -327,8 +329,10 @@ grafana:
     enabled: true
     size: "10Gi"
     storageClass: "do-block-storage"
+  adminPasswordSecret:
+    name: grafana-admin-password
+    key: password
   env:
-    GF_SECURITY_ADMIN_PASSWORD: "admin"  # UPDATE: Use secret
     GF_AUTH_ANONYMOUS_ENABLED: "false"
   resources:
     requests:

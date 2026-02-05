@@ -4,8 +4,9 @@
 
 set -e
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_URL="${BACKEND_URL:-http://localhost:8000}"
-OUTPUT_DIR="frontend/src/types/generated"
+OUTPUT_DIR="$ROOT_DIR/frontend/src/types/generated"
 OUTPUT_FILE="$OUTPUT_DIR/api.ts"
 
 echo "Generating API types from $BACKEND_URL/openapi.json..."
@@ -28,8 +29,7 @@ fi
 
 # Generate types using openapi-typescript
 echo "Fetching OpenAPI schema and generating types..."
-cd frontend
-npx openapi-typescript "$BACKEND_URL/openapi.json" -o "../$OUTPUT_FILE"
+npx openapi-typescript "$BACKEND_URL/openapi.json" -o "$OUTPUT_FILE"
 
 echo "Types generated successfully at $OUTPUT_FILE"
 echo ""

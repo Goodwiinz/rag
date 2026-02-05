@@ -74,8 +74,8 @@ class AnalyticsService {
 
     // Initialize gtag
     window.dataLayer = window.dataLayer || [];
-    window.gtag = function gtag(...args: any[]) {
-      window.dataLayer?.push(...args);
+    window.gtag = function gtag(..._args: any[]) {
+      window.dataLayer?.push(arguments);
     };
     window.gtag('js', new Date());
     window.gtag('config', this.config.measurementId, {

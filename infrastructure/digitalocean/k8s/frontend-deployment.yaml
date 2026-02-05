@@ -17,10 +17,19 @@ spec:
         app: rag-frontend
         version: v1.0.0
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: frontend
         image: registry.digitalocean.com/ragsystemregistry/frontend:latest
         imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
         ports:
         - containerPort: 3000
           name: http

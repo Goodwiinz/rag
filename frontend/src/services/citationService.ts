@@ -10,6 +10,16 @@ import type {
   CitationListResponse,
 } from '@/types/research';
 
+const normalizeCitation = (citation: CitationResponse): CitationResponse => {
+  if (!citation.documentTitle && citation.document_title) {
+    return { ...citation, documentTitle: citation.document_title };
+  }
+  return citation;
+};
+
+const normalizeCitationList = (citations: CitationResponse[]): CitationResponse[] =>
+  citations.map(normalizeCitation);
+
 export const citationService = {
   /**
    * Create a new citation from chat message context
@@ -34,14 +44,16 @@ export const citationService = {
     if (data.metadataSource) apiData.metadata_source = data.metadataSource;
     if (data.needsReview !== undefined) apiData.needs_review = data.needsReview;
 
-    return apiClient.post<CitationResponse>('/citations', apiData);
+    const response = await apiClient.post<CitationResponse>('/citations', apiData);
+    return normalizeCitation(response);
   },
 
   /**
    * Get a single citation by ID
    */
   async getCitation(citationId: string): Promise<CitationResponse> {
-    return apiClient.get<CitationResponse>(`/citations/${citationId}`);
+    const response = await apiClient.get<CitationResponse>(`/citations/${citationId}`);
+    return normalizeCitation(response);
   },
 
   /**
@@ -66,9 +78,13 @@ export const citationService = {
     if (params?.skip !== undefined) apiParams.skip = params.skip;
     if (params?.limit !== undefined) apiParams.limit = params.limit;
 
-    return apiClient.get<CitationListResponse>('/citations', {
+    const response = await apiClient.get<CitationListResponse>('/citations', {
       params: apiParams,
     });
+    return {
+      ...response,
+      citations: normalizeCitationList(response.citations),
+    };
   },
 
   /**
@@ -104,10 +120,11 @@ export const citationService = {
     documentId?: string,
     strategy: string = 'auto'
   ): Promise<CitationResponse> {
-    return apiClient.post<CitationResponse>('/citations/extract', {
+    const response = await apiClient.post<CitationResponse>('/citations/extract', {
       document_id: documentId,
       strategy,
     });
+    return normalizeCitation(response);
   },
 
   /**
@@ -125,9 +142,10 @@ export const citationService = {
     if (params.doi) queryParams.doi = params.doi;
     if (params.title) queryParams.title = params.title;
 
-    return apiClient.post<CitationResponse>('/citations/lookup', null, {
+    const response = await apiClient.post<CitationResponse>('/citations/lookup', null, {
       params: queryParams,
     });
+    return normalizeCitation(response);
   },
 
   /**

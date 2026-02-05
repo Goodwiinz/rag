@@ -31,6 +31,7 @@ export interface CitationResponse {
   documentId?: string;
   externalReferenceId?: string;
   documentTitle: string;
+  document_title?: string;
   documentType: string;
   authors?: string[];
   year?: number;

@@ -26,6 +26,9 @@ on:
           - staging
           - production
 
+permissions:
+  contents: read
+
 concurrency:
   group: deploy-do-${{ github.ref }}
   cancel-in-progress: true
@@ -76,7 +79,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install doctl
-        uses: digitalocean/action-doctl@v2
+        uses: digitalocean/action-doctl@135ac0aa0eed4437d547c6f12c364d3006b42824 # v2.5.1
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
@@ -87,7 +90,7 @@ jobs:
           doctl kubernetes cluster kubeconfig save "$CLUSTER"
 
       - name: Install Helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@5119fcb9089d432beecbf79bb2c7915207344b78 # v3
         with:
           version: 'v3.14.0'
 
@@ -107,6 +110,7 @@ jobs:
           JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NEO4J_AUTH: ${{ secrets.NEO4J_AUTH }}
           K8S_NAMESPACE: ${{ env.NAMESPACE }}
         run: |
           # Create namespace if not exists
@@ -119,6 +123,12 @@ jobs:
             --from-literal=JWT_SECRET_KEY="$JWT_SECRET_KEY" \
             --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
             --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # Create Neo4j auth secret
+          kubectl create secret generic neo4j-auth \
+            --namespace="$K8S_NAMESPACE" \
+            --from-literal=NEO4J_AUTH="$NEO4J_AUTH" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Deploy with Helm
@@ -177,7 +187,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install doctl
-        uses: digitalocean/action-doctl@v2
+        uses: digitalocean/action-doctl@135ac0aa0eed4437d547c6f12c364d3006b42824 # v2.5.1
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
@@ -188,7 +198,7 @@ jobs:
           doctl kubernetes cluster kubeconfig save "$CLUSTER"
 
       - name: Install Helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@5119fcb9089d432beecbf79bb2c7915207344b78 # v3
         with:
           version: 'v3.14.0'
 
@@ -207,6 +217,7 @@ jobs:
           JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY_PROD }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NEO4J_AUTH: ${{ secrets.NEO4J_AUTH_PROD }}
           K8S_NAMESPACE: ${{ env.NAMESPACE }}
         run: |
           kubectl create namespace "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
@@ -217,6 +228,11 @@ jobs:
             --from-literal=JWT_SECRET_KEY="$JWT_SECRET_KEY" \
             --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
             --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret generic neo4j-auth \
+            --namespace="$K8S_NAMESPACE" \
+            --from-literal=NEO4J_AUTH="$NEO4J_AUTH" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Pre-deployment backup
@@ -300,7 +316,7 @@ jobs:
 
     steps:
       - name: Clean up old images
-        uses: digitalocean/action-doctl@v2
+        uses: digitalocean/action-doctl@135ac0aa0eed4437d547c6f12c364d3006b42824 # v2.5.1
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 

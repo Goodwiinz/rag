@@ -278,10 +278,9 @@ variable "enable_monitoring" {
 }
 
 variable "grafana_password" {
-  description = "Grafana admin password"
+  description = "Grafana admin password (set via secrets/TF vars)"
   type        = string
   sensitive   = true
-  default     = "admin"  # Change in production!
 }
 
 # -----------------------------------------------------------------------------

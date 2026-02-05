@@ -70,6 +70,7 @@ coverage/
 
 # Dependency directories
 node_modules/
+.terraform/
 
 # Optional npm cache directory
 .npm

@@ -208,6 +208,9 @@ ingestionService:
 neo4j:
   name: neo4j
   replicas: 3
+  auth:
+    existingSecret: ""
+    secretKey: "NEO4J_AUTH"
   image:
     repository: neo4j
     tag: "5.15"

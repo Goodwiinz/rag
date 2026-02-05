@@ -112,8 +112,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
     if (status !== 'default') return status;
     if (!threshold || typeof value !== 'number') return 'default';
 
-    const { value: thresholdValue, type, error_color, warning_color } = threshold;
-    const isWarning = false;
+    const { value: thresholdValue, type, error_color } = threshold;
     let isError = false;
 
     switch (type) {
@@ -132,9 +131,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
     }
 
     if (isError && error_color) return 'error';
-    if (isWarning && warning_color) return 'warning';
     if (isError) return 'error';
-    if (isWarning) return 'warning';
     return 'default';
   };
 

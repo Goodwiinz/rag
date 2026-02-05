@@ -46,21 +46,28 @@ spec:
           name: bolt
         env:
         - name: NEO4J_AUTH
-          value: {{ .Values.neo4j.env.NEO4J_AUTH }}
+          {{- if .Values.neo4j.auth.existingSecret }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.neo4j.auth.existingSecret }}
+              key: {{ .Values.neo4j.auth.secretKey }}
+          {{- else }}
+          value: {{ .Values.neo4j.env.NEO4J_AUTH | quote }}
+          {{- end }}
         - name: NEO4J_PLUGINS
-          value: {{ .Values.neo4j.env.NEO4J_PLUGINS }}
+          value: {{ .Values.neo4j.env.NEO4J_PLUGINS | quote }}
         - name: NEO4J_ACCEPT_LICENSE_AGREEMENT
-          value: {{ .Values.neo4j.env.NEO4J_ACCEPT_LICENSE_AGREEMENT }}
+          value: {{ .Values.neo4j.env.NEO4J_ACCEPT_LICENSE_AGREEMENT | quote }}
         - name: NEO4J_dbms_memory_pagecache_size
-          value: {{ .Values.neo4j.env.NEO4J_dbms_memory_pagecache_size }}
+          value: {{ .Values.neo4j.env.NEO4J_dbms_memory_pagecache_size | quote }}
         - name: NEO4J_dbms_memory_heap_max__size
-          value: {{ .Values.neo4j.env.NEO4J_dbms_memory_heap_max__size }}
+          value: {{ .Values.neo4j.env.NEO4J_dbms_memory_heap_max__size | quote }}
         - name: NEO4J_dbms_default__listen__address
-          value: {{ .Values.neo4j.env.NEO4J_dbms_default__listen__address }}
+          value: {{ .Values.neo4j.env.NEO4J_dbms_default__listen__address | quote }}
         - name: NEO4J_dbms_connector_bolt_advertised__address
-          value: {{ .Values.neo4j.env.NEO4J_dbms_connector_bolt_advertised__address }}
+          value: {{ .Values.neo4j.env.NEO4J_dbms_connector_bolt_advertised__address | quote }}
         - name: NEO4J_dbms_connector_http_advertised__address
-          value: {{ .Values.neo4j.env.NEO4J_dbms_connector_http_advertised__address }}
+          value: {{ .Values.neo4j.env.NEO4J_dbms_connector_http_advertised__address | quote }}
         {{- if .Values.neo4j.persistence.enabled }}
         volumeMounts:
         - name: neo4j-data

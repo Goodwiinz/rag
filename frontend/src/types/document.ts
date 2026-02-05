@@ -1,4 +1,24 @@
 // Document Management Types
+
+export const DOCUMENT_PROCESSING_STATUSES = [
+  'queued',
+  'processing',
+  'indexed',
+  'failed',
+  'pending',
+  'completed',
+  'retrying',
+  'uploaded',
+  'validated',
+  'extracted',
+  'analyzed',
+  'embedded',
+  'processed',
+  'deleted'
+] as const;
+
+export type DocumentProcessingStatus = typeof DOCUMENT_PROCESSING_STATUSES[number];
+
 export interface Document {
   id: string;
   user_id: string;
@@ -12,7 +32,7 @@ export interface Document {
   file_size?: number; // bytes - legacy frontend field
   file_size_bytes?: number; // Backend field name
   file_size_mb?: number; // Backend field name
-  processing_status: 'queued' | 'processing' | 'indexed' | 'failed' | 'pending' | 'completed';
+  processing_status: DocumentProcessingStatus;
   processing_error?: string;
   // Support both frontend naming (upload_timestamp) and backend naming (created_at)
   upload_timestamp?: string; // Legacy frontend field
@@ -75,4 +95,3 @@ export interface UploadProgress {
   estimated_remaining_seconds?: number;
   error_message?: string;
 }
-

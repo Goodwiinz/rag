@@ -136,11 +136,10 @@ jobs:
             --cov=backend/src \
             --cov-report=xml \
             --cov-report=term-missing \
-            --cov-fail-under=15 \
+            --cov-fail-under=50 \
             -n auto \
             -v
-        # Note: Coverage threshold lowered to 8% after excluding integration tests from norecursedirs
-        # to prevent Qdrant connection errors during unit test collection (GOO-151)
+        # Note: Threshold raised as part of CI hardening. Adjust as coverage improves.
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "sqlite:///:memory:"
@@ -390,6 +389,22 @@ jobs:
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Start frontend
+        run: |
+          PORT=3000 npm run start -- --port 3000 &
+          for i in {1..30}; do
+            if curl -sf http://localhost:3000 > /dev/null; then
+              echo "Frontend is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Frontend failed to start" >&2
+          exit 1
 
       - name: Run E2E tests (smoke only)
         run: npx playwright test --grep=@smoke --project=chromium

@@ -385,7 +385,7 @@ export default function DocumentDetailPage() {
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
                               <h4 className="text-sm font-mono font-bold text-white line-clamp-2 mb-2">
-                                {citation.documentTitle || (citation as any).document_title || 'Untitled'}
+                                {citation.documentTitle || citation.document_title || 'Untitled'}
                               </h4>
                               <p className="text-xs font-mono text-gray-400">
                                 {(() => {

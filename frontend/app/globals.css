@@ -457,7 +457,7 @@ body {
    A cosmic terminal aesthetic for LLM Chat
    ============================================ */
 
-/* Import distinctive fonts - Managed by Next.js in layout.tsx */
+/* Import distinctive fonts - Managed by Next.js in frontend/app/layout.tsx */
 /* @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap'); */
 
 /* Terminal Observatory CSS Variables */

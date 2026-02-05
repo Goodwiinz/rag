@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { DOCUMENT_PROCESSING_STATUSES } from './document';
 
 // ============================================================================
 // Common Schemas
@@ -66,7 +67,8 @@ export const LoginResponseSchema = z.object({
 
 export const FileTypeSchema = z.enum(['pdf', 'txt', 'jpg', 'png', 'mp3', 'mp4', 'docx']);
 
-export const ProcessingStatusSchema = z.enum(['queued', 'processing', 'indexed', 'failed']);
+const ProcessingStatusValues = [...DOCUMENT_PROCESSING_STATUSES] as [string, ...string[]];
+export const ProcessingStatusSchema = z.enum(ProcessingStatusValues);
 
 export const DocumentSchema = z.object({
   id: z.string().uuid(),

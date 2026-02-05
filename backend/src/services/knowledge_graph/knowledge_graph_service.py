@@ -147,6 +147,21 @@ class KnowledgeGraphService:
             self.driver = None
             KnowledgeGraphService._driver_instance = None
 
+    @staticmethod
+    def _validated_depth(max_depth: int, min_depth: int = 1, max_allowed: int = 5) -> int:
+        """Validate and coerce traversal depth used in Cypher variable-length patterns."""
+        try:
+            depth = int(max_depth)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("max_depth must be an integer") from exc
+
+        if depth < min_depth or depth > max_allowed:
+            raise ValueError(
+                f"max_depth must be between {min_depth} and {max_allowed}"
+            )
+
+        return depth
+
     @contextmanager
     def get_session(self, database: str = "neo4j") -> Session:
         """Context manager for database sessions with circuit breaker protection"""
@@ -860,7 +875,7 @@ class KnowledgeGraphService:
         try:
             with self.get_session() as session:
                 # Note: Neo4j doesn't support parameters in variable-length patterns
-                # max_depth is validated at API level (1-5), safe to interpolate
+                max_depth = self._validated_depth(max_depth)
                 query = f"""
                 MATCH (start:Entity {{id: $entity_id}})
                 MATCH (start)-[r:RELATED_TO*1..{max_depth}]-(related:Entity)
@@ -918,7 +933,7 @@ class KnowledgeGraphService:
         try:
             with self.get_session() as session:
                 # Note: Neo4j doesn't support parameters in variable-length patterns
-                # max_depth is validated at API level (1-5), safe to interpolate
+                max_depth = self._validated_depth(max_depth)
                 query = f"""
                 MATCH path = (start:Entity {{id: $source_id}})-[:RELATED_TO*1..{max_depth}]-(end:Entity {{id: $target_id}})
                 WHERE all(rel in relationships(path) WHERE rel.strength >= $min_strength)
