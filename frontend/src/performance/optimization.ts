@@ -626,7 +626,7 @@ export function initializePerformanceOptimization(): void {
   }
 }
 
-export default {
+const performanceOptimization = {
   PerformanceMonitor,
   ImageOptimizer,
   CodeSplitOptimizer,
@@ -641,3 +641,5 @@ export default {
   preloadCriticalResources,
   initializePerformanceOptimization
 };
+
+export default performanceOptimization;

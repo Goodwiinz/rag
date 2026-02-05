@@ -120,7 +120,7 @@ export default function DocumentDetailPage() {
     try {
       // Clean up the document title for better search matching
       // Remove underscores, file extensions, and trailing numbers
-      let searchTitle = (document.title || document.filename || '')
+      const searchTitle = (document.title || document.filename || '')
         .replace(/\.pdf$/i, '')
         .replace(/_+/g, ' ')
         .replace(/\s+\d+\s*$/, '')

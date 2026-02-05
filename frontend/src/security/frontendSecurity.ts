@@ -568,10 +568,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Export default security utilities
-export default {
+const frontendSecurity = {
   CSRFManager,
   InputSanitizer,
   SecureStorage,
   CSPManager,
   SecurityLogger,
 };
+
+export default frontendSecurity;

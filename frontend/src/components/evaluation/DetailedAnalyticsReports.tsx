@@ -81,7 +81,7 @@ import {
   Globe,
   Search,
   File,
-  Image,
+  Image as ImageIcon,
   Music,
   Video,
 } from 'lucide-react';
@@ -461,7 +461,7 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
   const getModalityIcon = (modality: string) => {
     switch (modality.toLowerCase()) {
       case 'text': return <FileText className="h-4 w-4" />;
-      case 'image': return <Image className="h-4 w-4" />;
+      case 'image': return <ImageIcon className="h-4 w-4" />;
       case 'audio': return <Music className="h-4 w-4" />;
       case 'video': return <Video className="h-4 w-4" />;
       default: return <File className="h-4 w-4" />;

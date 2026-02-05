@@ -12,7 +12,7 @@ import {
   Clock,
   User,
   Bot,
-  Image,
+  Image as ImageIcon,
   Video,
   Music,
   Filter,
@@ -194,7 +194,7 @@ export function ActivityFeedEnhanced({ className }: ActivityFeedEnhancedProps) {
       case "document":
         return <FileText className="h-3 w-3" />;
       case "image":
-        return <Image className="h-3 w-3" />;
+        return <ImageIcon className="h-3 w-3" />;
       case "video":
         return <Video className="h-3 w-3" />;
       case "audio":

@@ -27,7 +27,7 @@ import {
   Pause,
   Square,
   FileText,
-  Image,
+  Image as ImageIcon,
   Film,
   Music,
   Headphones
@@ -102,7 +102,7 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
       case 'jpg':
       case 'png':
       case 'jpeg':
-        return <Image className="h-4 w-4 text-blue-500" />;
+        return <ImageIcon className="h-4 w-4 text-blue-500" />;
       case 'mp4':
       case 'avi':
       case 'mov':

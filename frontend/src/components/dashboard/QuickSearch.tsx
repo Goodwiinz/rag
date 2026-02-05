@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, FileText, Image, Video, Music, Clock, TrendingUp } from "lucide-react";
+import { Search, FileText, Image as ImageIcon, Video, Music, Clock, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface QuickSearchProps {
@@ -98,7 +98,7 @@ export const QuickSearch: React.FC<QuickSearchProps> = ({ isOpen, onClose }) => 
       case "document":
         return <FileText className="h-4 w-4 text-blue-500" />;
       case "image":
-        return <Image className="h-4 w-4 text-green-500" />;
+        return <ImageIcon className="h-4 w-4 text-green-500" />;
       case "video":
         return <Video className="h-4 w-4 text-purple-500" />;
       case "audio":
