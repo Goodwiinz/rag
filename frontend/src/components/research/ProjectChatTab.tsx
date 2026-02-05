@@ -186,7 +186,7 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => 
                 No Chat Threads Linked
               </h3>
               <p className="text-sm text-gray-400 font-mono mb-4">
-                Start a new chat using this project's documents as context, or link an existing
+                Start a new chat using this project&apos;s documents as context, or link an existing
                 thread.
               </p>
               <div className="flex items-center gap-3 justify-center">

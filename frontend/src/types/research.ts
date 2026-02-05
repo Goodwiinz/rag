@@ -21,7 +21,7 @@ export interface CitationCreate {
   snippet?: string;
   pageNumber?: number;
   score?: number;
-  metadataSource?: 'manual' | 'arxiv' | 'crossref' | 'semantic_scholar' | 'rag' | 'auto';
+  metadataSource?: 'manual' | 'arxiv' | 'crossref' | 'semantic_scholar' | 'rag';
   needsReview?: boolean;
 }
 

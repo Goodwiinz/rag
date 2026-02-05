@@ -5,34 +5,21 @@ export interface Document {
   organization_id: string;
   title: string;
   filename: string;
-  // Support both frontend naming (file_type) and backend naming (document_type)
-  file_type?: 'pdf' | 'txt' | 'jpg' | 'png' | 'mp3' | 'mp4';
-  document_type?: string; // Backend field name
-  // Support both frontend naming (file_size) and backend naming (file_size_bytes)
-  file_size?: number; // bytes - legacy frontend field
-  file_size_bytes?: number; // Backend field name
-  file_size_mb?: number; // Backend field name
-  processing_status: 'queued' | 'processing' | 'indexed' | 'failed' | 'pending' | 'completed';
+  file_type: 'pdf' | 'txt' | 'jpg' | 'png' | 'mp3' | 'mp4';
+  file_size: number; // bytes
+  processing_status: 'queued' | 'processing' | 'indexed' | 'failed';
   processing_error?: string;
-  // Support both frontend naming (upload_timestamp) and backend naming (created_at)
-  upload_timestamp?: string; // Legacy frontend field
-  created_at?: string; // Backend field name
-  updated_at?: string; // Backend field name
-  processing_started_at?: string;
+  upload_timestamp: string;
   processing_completed_at?: string;
   thumbnail_url?: string;
   page_count?: number;
   duration_seconds?: number;
   extracted_text_preview?: string;
-  content_preview?: string; // Backend field name
-  content_summary?: string; // Backend field name
   metadata: Record<string, any>;
   description?: string;
   tags?: string[];
   custom_fields?: Record<string, any>;
   mime_type?: string;
-  is_public?: boolean;
-  uploaded_by_user_id?: string;
 }
 
 export interface DocumentUpload {

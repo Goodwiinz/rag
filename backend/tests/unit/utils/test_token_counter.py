@@ -24,8 +24,8 @@ class TestCountTokens:
 
     def test_fallback_to_estimation_when_tiktoken_unavailable(self):
         """Test fallback to estimation when tiktoken is not available"""
-        # Force ImportError by setting sys.modules entry to None
-        with patch.dict("sys.modules", {"tiktoken": None}):
+        # Patch sys.modules to simulate tiktoken missing
+        with patch.dict('sys.modules', {'tiktoken': None}):
             text = "Hello world"
             result = count_tokens(text)
             expected = estimate_tokens(text)
@@ -39,7 +39,7 @@ class TestCountTokens:
         mock_tiktoken.get_encoding.return_value = mock_encoding
 
         # Patch sys.modules so 'import tiktoken' returns our mock
-        with patch.dict("sys.modules", {"tiktoken": mock_tiktoken}):
+        with patch.dict('sys.modules', {'tiktoken': mock_tiktoken}):
             result = count_tokens("Hello world")
 
             assert result == 5
@@ -53,7 +53,7 @@ class TestCountTokens:
         mock_encoding.encode.return_value = [1, 2, 3]
         mock_tiktoken.get_encoding.return_value = mock_encoding
 
-        with patch.dict("sys.modules", {"tiktoken": mock_tiktoken}):
+        with patch.dict('sys.modules', {'tiktoken': mock_tiktoken}):
             # Test GPT-4 model
             count_tokens("test", model="gpt-4")
             mock_tiktoken.get_encoding.assert_called_with("cl100k_base")
@@ -71,7 +71,7 @@ class TestCountTokens:
         mock_tiktoken = MagicMock()
         mock_tiktoken.get_encoding.side_effect = Exception("Encoding failed")
 
-        with patch.dict("sys.modules", {"tiktoken": mock_tiktoken}):
+        with patch.dict('sys.modules', {'tiktoken': mock_tiktoken}):
             text = "Hello world"
             result = count_tokens(text)
             expected = estimate_tokens(text)

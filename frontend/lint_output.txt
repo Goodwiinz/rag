@@ -1,0 +1,217 @@
+
+> multimodal-rag-frontend@1.0.0 lint /app/frontend
+> next lint
+
+`next lint` is deprecated and will be removed in Next.js 16.
+For new projects, use create-next-app to choose your preferred linter.
+For existing projects, migrate to the ESLint CLI:
+npx @next/codemod@canary next-lint-to-eslint-cli .
+
+
+./app/(dashboard)/chat/layout.tsx
+1752:6  Warning: React Hook useEffect has a missing dependency: 'currentWorkspaceId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/(dashboard)/documents/[id]/page.tsx
+399:29  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+399:47  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+
+./app/(dashboard)/entities/page.tsx
+91:6  Warning: React Hook useEffect has a missing dependency: 'searchParams'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/components/realtime/DocumentProgressVisualizer.tsx
+105:16  Warning: Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+
+./app/not-found.tsx
+21:25  Warning: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+21:46  Warning: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./src/components/chat/ChatSettings.tsx
+380:40  Warning: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+444:48  Warning: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+456:41  Warning: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./src/components/dashboard/ActivityFeedEnhanced.tsx
+197:16  Warning: Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+
+./src/components/dashboard/QuickSearch.tsx
+101:16  Warning: Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+
+./src/components/documents/DocumentCard.tsx
+174:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/components/documents/DocumentLibrary.tsx
+545:66  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+545:91  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+
+./src/components/documents/DocumentPreview.tsx
+189:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/components/documents/DocumentUploader.tsx
+264:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/components/documents/EnhancedDocumentUploadZone.tsx
+576:24  Warning: The ref value 'abortControllers.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'abortControllers.current' to a variable inside the effect, and use that variable in the cleanup function.  react-hooks/exhaustive-deps
+
+./src/components/documents/FileList.tsx
+138:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/components/entities/EntityDetail.tsx
+66:6  Warning: React Hook useEffect has a missing dependency: 'fetchRelationships'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/entities/EntityFilters.tsx
+428:23  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+428:37  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+
+./src/components/entities/EntityForm.tsx
+529:27  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+529:60  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+
+./src/components/entities/EntityGraph.tsx
+304:6  Warning: React Hook useEffect has a missing dependency: 'renderGraph'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+310:6  Warning: React Hook useEffect has a missing dependency: 'renderGraph'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/entities/NeighborhoodExplorer.tsx
+90:6  Warning: React Hook useEffect has a missing dependency: 'fetchNeighborhood'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/evaluation/DetailedAnalyticsReports.tsx
+464:28  Warning: Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+
+./src/components/evaluation/PerformanceAlertingSystem.tsx
+700:6  Warning: React Hook useCallback has a missing dependency: 'onAlertRuleUpdate'. Either include it or remove the dependency array. If 'onAlertRuleUpdate' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./src/components/graph/EntityDetails.tsx
+322:69  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+322:87  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+
+./src/components/graph/EntityDetailsPanel.tsx
+241:17  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+241:31  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+
+./src/components/graph/EntityRelationshipDisplay.tsx
+369:31  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+369:54  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+526:19  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+526:76  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+
+./src/components/graph/EntityTypeFilter.tsx
+238:6  Warning: React Hook useMemo has an unnecessary dependency: 'relationships'. Either exclude it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/graph/GraphAccessibilityProvider.tsx
+309:6  Warning: React Hook useCallback has a missing dependency: 'node'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+370:6  Warning: React Hook useCallback has a missing dependency: 'edge'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/graph/GraphCentralityMetrics.tsx
+289:6  Warning: React Hook useMemo has a missing dependency: 'centralityMetrics'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/graph/GraphExportReporting.tsx
+100:9  Warning: The 'exportFormats' array makes the dependencies of useCallback Hook (at line 374) change on every render. To fix this, wrap the initialization of 'exportFormats' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+164:9  Warning: The 'reportTemplates' array makes the dependencies of useCallback Hook (at line 374) change on every render. To fix this, wrap the initialization of 'reportTemplates' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+
+./src/components/graph/GraphPerformanceOptimizer.tsx
+61:9  Warning: The 'performanceConfig' object makes the dependencies of useMemo Hook (at line 161) change on every render. To fix this, wrap the initialization of 'performanceConfig' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+61:9  Warning: The 'performanceConfig' object makes the dependencies of useMemo Hook (at line 178) change on every render. To fix this, wrap the initialization of 'performanceConfig' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+
+./src/components/graph/KnowledgeGraph.tsx
+442:6  Warning: React Hook useCallback has unnecessary dependencies: 'documentIds' and 'queryId'. Either exclude them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/graph/KnowledgeGraphViewer.tsx
+435:6  Warning: React Hook useEffect has missing dependencies: 'getEdgeColor', 'getEdgeWidth', 'getNodeColor', 'getNodeSize', and 'setupEventHandlers'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/graph/PathFinding.tsx
+567:58  Warning: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+901:73  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+901:96  Warning: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+
+./src/components/hero-agent-card.tsx
+165:53  Error: Comments inside children section of tag should be placed inside braces  react/jsx-no-comment-textnodes
+
+./src/components/optimized/OptimizedDocumentList.tsx
+105:24  Warning: React Hook useCallback received a function whose dependencies are unknown. Pass an inline function instead.  react-hooks/exhaustive-deps
+
+./src/components/preview/MultimodalViewer.tsx
+161:6  Warning: React Hook useEffect has missing dependencies: 'loadAudioDocument', 'loadPDFDocument', 'loadTextDocument', and 'loadVideoDocument'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+527:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/components/processing/DocumentProgressVisualizer.tsx
+477:6  Warning: React Hook useMemo has a missing dependency: 'config.stages'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/realtime/RealtimeProcessingProvider.tsx
+118:6  Warning: React Hook useCallback has missing dependencies: 'handleDocumentUpdate', 'handleNotification', 'handleQueueUpdate', and 'handleSystemMetrics'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/realtime/VirtualizedDocumentList.tsx
+60:6  Warning: React Hook useCallback has a missing dependency: 'data'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+64:6  Warning: React Hook useCallback has a missing dependency: 'data'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+68:6  Warning: React Hook useCallback has a missing dependency: 'data'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+72:6  Warning: React Hook useCallback has a missing dependency: 'data'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+76:6  Warning: React Hook useCallback has a missing dependency: 'data'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+80:6  Warning: React Hook useCallback has a missing dependency: 'data'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+84:6  Warning: React Hook useCallback has a missing dependency: 'data'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/research/LinkThreadModal.tsx
+45:6  Warning: React Hook useEffect has a missing dependency: 'fetchThreads'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/search/QueryProcessor.tsx
+158:6  Warning: React Hook useEffect has a missing dependency: 'defaultConfig'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/search/ThreadMessageSearch.tsx
+218:6  Warning: React Hook useEffect has missing dependencies: 'performSearch' and 'query'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/upload/DocumentUploadWizard.tsx
+133:8  Warning: React Hook useCallback has a missing dependency: 'acceptedTypes'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+160:6  Warning: React Hook useCallback has missing dependencies: 'handleClose' and 'handleStartUpload'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+445:29  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+504:25  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+773:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/hooks/useAuth.tsx
+101:6  Warning: React Hook useEffect has unnecessary dependencies: 'clearAuth' and 'setAuth'. Either exclude them or remove the dependency array. Outer scope values like 'setAuth' aren't valid dependencies because mutating them doesn't re-render the component.  react-hooks/exhaustive-deps
+123:6  Warning: React Hook useEffect has unnecessary dependencies: 'clearAuth' and 'setAuth'. Either exclude them or remove the dependency array. Outer scope values like 'setAuth' aren't valid dependencies because mutating them doesn't re-render the component.  react-hooks/exhaustive-deps
+
+./src/hooks/useDocuments.ts
+260:6  Warning: React Hook useCallback has an unnecessary dependency: 'apiClient'. Either exclude it or remove the dependency array. Outer scope values like 'apiClient' aren't valid dependencies because mutating them doesn't re-render the component.  react-hooks/exhaustive-deps
+357:6  Warning: React Hook useCallback has an unnecessary dependency: 'apiClient'. Either exclude it or remove the dependency array. Outer scope values like 'apiClient' aren't valid dependencies because mutating them doesn't re-render the component.  react-hooks/exhaustive-deps
+452:6  Warning: React Hook useCallback has an unnecessary dependency: 'apiClient'. Either exclude it or remove the dependency array. Outer scope values like 'apiClient' aren't valid dependencies because mutating them doesn't re-render the component.  react-hooks/exhaustive-deps
+
+./src/hooks/useProjectChat.ts
+34:5  Warning: React Hook useMemo has a missing dependency: 'store'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+39:5  Warning: React Hook useMemo has a missing dependency: 'store'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+51:5  Warning: React Hook useMemo has a missing dependency: 'store'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+58:5  Warning: React Hook useCallback has a missing dependency: 'store'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+63:5  Warning: React Hook useCallback has a missing dependency: 'store'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+68:5  Warning: React Hook useCallback has a missing dependency: 'store'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+74:5  Warning: React Hook useCallback has a missing dependency: 'store'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+79:5  Warning: React Hook useCallback has a missing dependency: 'store'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+84:5  Warning: React Hook useCallback has a missing dependency: 'store'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/hooks/useRealtimeProcessing.ts
+291:38  Warning: The ref value 'wsServiceRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'wsServiceRef.current' to a variable inside the effect, and use that variable in the cleanup function.  react-hooks/exhaustive-deps
+
+./src/hooks/useSidebarToggle.ts
+33:6  Warning: React Hook useEffect has a missing dependency: 'toggle'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+47:6  Warning: React Hook useEffect has a missing dependency: 'isCollapsed'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/hooks/useWebSocketConnection.ts
+242:6  Warning: React Hook useCallback has unnecessary dependencies: 'enableHeartbeat' and 'heartbeatInterval'. Either exclude them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/page-components/error/NotFoundPage.tsx
+14:51  Warning: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./src/performance/optimization.ts
+419:15  Warning: The ref value 'monitor.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'monitor.current' to a variable inside the effect, and use that variable in the cleanup function.  react-hooks/exhaustive-deps
+441:5  Warning: React Hook useMemo was passed a dependency list that is not an array literal. This means we can't statically verify whether you've passed the correct dependencies.  react-hooks/exhaustive-deps
+441:5  Warning: React Hook useMemo has missing dependencies: 'callback' and 'delay'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+460:5  Warning: React Hook useMemo was passed a dependency list that is not an array literal. This means we can't statically verify whether you've passed the correct dependencies.  react-hooks/exhaustive-deps
+460:5  Warning: React Hook useMemo has missing dependencies: 'callback' and 'delay'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+629:1  Warning: Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+./src/security/frontendSecurity.ts
+571:1  Warning: Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+./src/services/analytics/websocketService.ts
+586:6  Warning: React Hook useEffect has a missing dependency: 'config'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/utils/performance.ts
+436:17  Warning: React Hook useEffect has a spread element in its dependency array. This means we can't statically verify whether you've passed the correct dependencies.  react-hooks/exhaustive-deps
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+ ELIFECYCLE  Command failed with exit code 1.

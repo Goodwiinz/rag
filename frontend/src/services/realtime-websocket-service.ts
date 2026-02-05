@@ -57,7 +57,7 @@ class RealtimeWebSocketService {
   private connectionStartTime: number = 0;
 
   // Message handlers
-  private messageHandlers = new Map<string, Set<(message: WebSocketMessage) => void>>();
+  private messageHandlers = new Map<string, Set<(message: any) => void>>();
   private documentSubscriptions = new Set<string>();
 
   private constructor() {}
@@ -185,7 +185,7 @@ class RealtimeWebSocketService {
       this.updateMetrics('received', event.data.length);
 
       // Handle latency measurement for pong messages
-      if (message.type === 'pong' && typeof message.payload?.timestamp === 'number') {
+      if (message.type === 'pong' && message.payload?.timestamp) {
         const latency = Date.now() - message.payload.timestamp;
         this.recordLatency(latency);
       }
@@ -209,27 +209,22 @@ class RealtimeWebSocketService {
     }
   }
 
-  private lastCloseCode: number = 0;
-
-  private handleDisconnect(code: number, _reason?: string): void {
+  private handleDisconnect(code: number, reason?: string): void {
     this.metrics.reconnectAttempts++;
-    this.lastCloseCode = code;
 
     // Check if we should attempt reconnection
-    if (this.shouldReconnect(code)) {
+    if (this.shouldReconnect()) {
       this.scheduleReconnect();
     } else {
       console.log('Max reconnection attempts reached');
     }
   }
 
-  private shouldReconnect(code?: number): boolean {
+  private shouldReconnect(): boolean {
     if (!this.config) return false;
 
-    const closeCode = code ?? this.lastCloseCode;
-    const isNormalClose = closeCode === 1000 || closeCode === 1001; // Normal closure
-    const maxAttempts = this.config.maxReconnectAttempts ?? 5;
-    const withinAttempts = this.metrics.reconnectAttempts < maxAttempts;
+    const isNormalClose = code === 1000 || code === 1001; // Normal closure
+    const withinAttempts = this.metrics.reconnectAttempts < this.config.maxReconnectAttempts;
     const autoReconnect = this.config.autoReconnect !== false;
 
     return autoReconnect && !isNormalClose && withinAttempts;
@@ -240,13 +235,7 @@ class RealtimeWebSocketService {
       clearTimeout(this.reconnectTimeout);
     }
 
-    if (!this.config) {
-      console.error('Cannot schedule reconnect without config');
-      return;
-    }
-
-    const baseDelay = this.config.reconnectDelay ?? 5000;
-    const delay = baseDelay * Math.pow(2, this.metrics.reconnectAttempts - 1); // Exponential backoff
+    const delay = this.config.reconnectDelay * Math.pow(2, this.metrics.reconnectAttempts - 1); // Exponential backoff
 
     console.log(`Scheduling reconnection in ${delay}ms (attempt ${this.metrics.reconnectAttempts})`);
     this.callbacks.onReconnect?.();
@@ -419,7 +408,7 @@ class RealtimeWebSocketService {
     }
   }
 
-  public on(messageType: string, handler: (message: WebSocketMessage) => void): () => void {
+  public on(messageType: string, handler: (message: any) => void): () => void {
     if (!this.messageHandlers.has(messageType)) {
       this.messageHandlers.set(messageType, new Set());
     }
@@ -476,7 +465,7 @@ class RealtimeWebSocketService {
       case WebSocket.OPEN:
         return 'connected';
       case WebSocket.CLOSING:
-        return 'disconnected'; // Map closing to disconnected for simpler state
+        return 'disconnecting';
       case WebSocket.CLOSED:
         return 'disconnected';
       default:

@@ -126,8 +126,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     }
   };
 
-  const formatFileSize = (bytes: number | undefined): string => {
-    if (bytes === undefined || bytes === null) return '-';
+  const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
@@ -135,8 +134,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const formatDate = (dateString: string | undefined): string => {
-    if (!dateString) return '-';
+  const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -329,11 +327,11 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                   <div className="space-y-3">
                     <div>
                       <p className="text-sm font-medium text-gray-700">File Size</p>
-                      <p className="text-sm text-gray-500">{formatFileSize(document.file_size)}</p>
+                      <p className="text-sm text-gray-500">{formatFileSize(document.file_size || 0)}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-700">File Type</p>
-                      <p className="text-sm text-gray-500">{(document.file_type ?? document.document_type ?? '-').toUpperCase()}</p>
+                      <p className="text-sm text-gray-500">{document.file_type?.toUpperCase() || 'UNKNOWN'}</p>
                     </div>
                     {getDurationDisplay() && (
                       <div>
@@ -343,7 +341,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                     )}
                     <div>
                       <p className="text-sm font-medium text-gray-700">Uploaded</p>
-                      <p className="text-sm text-gray-500">{formatDate(document.upload_timestamp)}</p>
+                      <p className="text-sm text-gray-500">{formatDate(document.upload_timestamp || '')}</p>
                     </div>
                   </div>
                 </div>

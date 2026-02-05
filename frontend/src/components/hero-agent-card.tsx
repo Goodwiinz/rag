@@ -69,8 +69,8 @@ export function HeroAgentCard({ className }: { className?: string }) {
 
   function handleMouseMove(event: React.MouseEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
+    const centerX = rect.left + rect.width / 2;
     x.set(event.clientX - centerX);
     y.set(event.clientY - centerY);
   }
@@ -162,7 +162,7 @@ export function HeroAgentCard({ className }: { className?: string }) {
                         {currentStep.label}
                       </span>
                       <span className="text-[var(--terminal-text-dim)] text-[9px] opacity-80 font-mono">
-                        PID: {2390 + stepIndex * 45} {/* THREAD_PRIORITY_HIGH */}
+                        PID: {2390 + stepIndex * 45} {'// THREAD_PRIORITY_HIGH'}
                       </span>
                   </div>
                 </div>
@@ -256,5 +256,3 @@ export function HeroAgentCard({ className }: { className?: string }) {
     </div>
   );
 }
-
-

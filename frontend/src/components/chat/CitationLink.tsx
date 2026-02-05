@@ -1,14 +1,16 @@
 'use client';
 
+import { Badge } from '@/components/ui/badge';
 import {
-    HoverCard,
-    HoverCardContent,
-    HoverCardTrigger,
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
 } from '@/components/ui/hover-card';
 import { cn } from '@/lib/utils';
-import { Citation, isNavigableCitation, truncateText } from '@/utils/citationParser';
+import { THEME } from '@/theme/constants';
+import { Citation, getScoreColor, truncateText, isNavigableCitation } from '@/utils/citationParser';
 import { motion } from 'framer-motion';
-import { Archive, BookOpen, ExternalLink, FileText, TrendingUp } from 'lucide-react';
+import { ExternalLink, FileText, TrendingUp, Archive, BookOpen } from 'lucide-react';
 import React from 'react';
 
 interface CitationLinkProps {
@@ -29,7 +31,7 @@ interface CitationLinkProps {
  */
 function cleanContentPreview(content: string): string {
   // Remove common metadata patterns that might be in the content
-  const cleaned = content
+  let cleaned = content
     .replace(/^Title:\s*[^\n]+\n?/i, '')
     .replace(/^Authors?:\s*[^\n]+\n?/i, '')
     .replace(/^Categories?:\s*[^\n]+\n?/i, '')

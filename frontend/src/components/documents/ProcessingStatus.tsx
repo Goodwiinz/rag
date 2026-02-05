@@ -266,8 +266,7 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
       });
     }
 
-    // Mark all steps as completed when document is indexed (regardless of progress prop)
-    if (document.processing_status === 'indexed' || document.processing_status === 'completed') {
+    if (document.processing_status === 'indexed' && progress === 100) {
       setSteps(prevSteps =>
         prevSteps.map(step => ({
           ...step,
@@ -278,11 +277,10 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
     }
   }, [currentStep, progress, error, document.processing_status]);
 
+  const overallProgress = error ? 0 : (progress || getStepProgress(steps));
   const status = document.processing_status;
-  const isCompleted = status === 'indexed' || status === 'completed';
+  const isCompleted = status === 'indexed';
   const hasError = status === 'failed' || error;
-  // If completed, always show 100%; otherwise use progress or step-based calculation
-  const overallProgress = error ? 0 : (isCompleted ? 100 : (progress || getStepProgress(steps)));
 
   const formatTimeRemaining = (seconds?: number): string => {
     if (!seconds) return 'Calculating...';
@@ -300,7 +298,7 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
   const getStatusText = () => {
     if (isCompleted) return 'Processing completed';
     if (hasError) return 'Processing failed';
-    if (status === 'queued' || status === 'pending') return 'Queued for processing';
+    if (status === 'queued') return 'Queued for processing';
     if (status === 'processing') return currentStep || 'Processing...';
     return 'Preparing to process';
   };

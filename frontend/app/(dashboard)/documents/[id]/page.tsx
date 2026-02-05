@@ -118,39 +118,8 @@ export default function DocumentDetailPage() {
     setExtractionError(null);
 
     try {
-      // Clean up the document title for better search matching
-      // Remove underscores, file extensions, and trailing numbers
-      const searchTitle = (document.title || document.filename || '')
-        .replace(/\.pdf$/i, '')
-        .replace(/_+/g, ' ')
-        .replace(/\s+\d+\s*$/, '')
-        .replace(/\(\d+\)\s*$/, '')
-        .trim();
-
-      if (!searchTitle) {
-        setExtractionError('Document has no title to search for');
-        return;
-      }
-
-      console.log('Searching for citation with title:', searchTitle);
-
-      // Lookup citation metadata using the cleaned document title
-      const result = await citationService.lookupCitation({ title: searchTitle });
-
-      // If found, create a citation record linked to this document
-      if (result && result.documentTitle) {
-        await citationService.createCitation({
-          documentId: document.id,
-          documentTitle: result.documentTitle || searchTitle,
-          authors: result.authors,
-          year: result.year,
-          venue: result.venue,
-          doi: result.doi,
-          arxivId: result.arxivId,
-          abstract: result.abstract,
-          metadataSource: (result.metadataSource || 'auto') as 'manual' | 'arxiv' | 'crossref' | 'semantic_scholar' | 'rag' | 'auto',
-        });
-      }
+      // Extract citations using hybrid strategy
+      const result = await citationService.extractCitations(document.id, undefined);
 
       // Fetch all citations for this document
       const allCitations = await citationService.getCitationsForDocument(document.id);
@@ -158,12 +127,7 @@ export default function DocumentDetailPage() {
     } catch (err) {
       console.error('Citation extraction failed:', err);
       if (err instanceof APIErrorClass) {
-        const message = err.error.message || 'Failed to extract citations';
-        if (message.includes('not found')) {
-          setExtractionError('No matching citation found in ArXiv, Semantic Scholar, or CrossRef. The document may not be indexed in these databases.');
-        } else {
-          setExtractionError(message);
-        }
+        setExtractionError(err.error.message || 'Failed to extract citations');
       } else {
         setExtractionError('An unexpected error occurred during extraction');
       }
@@ -181,13 +145,11 @@ export default function DocumentDetailPage() {
     }
   }, [document]);
 
-  const formatFileSize = (bytes: number | undefined | null): string => {
-    if (bytes === undefined || bytes === null || isNaN(bytes)) return 'Unknown';
+  const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    if (i < 0 || i >= sizes.length) return `${bytes} B`;
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
@@ -314,11 +276,10 @@ export default function DocumentDetailPage() {
                 </h2>
                 <button
                   onClick={handleExtractCitations}
-                  disabled={extracting || (document.processing_status !== 'indexed' && document.processing_status !== 'completed')}
-                  title="Search ArXiv, Semantic Scholar, and CrossRef for metadata about this paper"
+                  disabled={extracting || document.processing_status !== 'indexed'}
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all",
-                    extracting || (document.processing_status !== 'indexed' && document.processing_status !== 'completed')
+                    extracting || document.processing_status !== 'indexed'
                       ? "bg-gray-800 text-gray-500 cursor-not-allowed"
                       : "bg-[#00ff9f]/10 border border-[#00ff9f]/30 text-[#00ff9f] hover:bg-[#00ff9f]/20 hover:shadow-[0_0_20px_rgba(0,255,159,0.2)]"
                   )}
@@ -326,12 +287,12 @@ export default function DocumentDetailPage() {
                   {extracting ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      SEARCHING...
+                      EXTRACTING...
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-3.5 h-3.5" />
-                      LOOKUP METADATA
+                      EXTRACT CITATIONS
                     </>
                   )}
                 </button>
@@ -385,20 +346,13 @@ export default function DocumentDetailPage() {
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
                               <h4 className="text-sm font-mono font-bold text-white line-clamp-2 mb-2">
-                                {citation.documentTitle || (citation as any).document_title || 'Untitled'}
+                                {citation.documentTitle || 'Untitled'}
                               </h4>
                               <p className="text-xs font-mono text-gray-400">
-                                {(() => {
-                                  const authors = citation.authors || [];
-                                  // Handle authors that may be objects with 'name' field
-                                  const authorNames = authors.map((a: any) =>
-                                    typeof a === 'string' ? a : (a?.name || a?.full_name || 'Unknown')
-                                  );
-                                  return authorNames.length > 0
-                                    ? authorNames.slice(0, 3).join(', ') +
-                                      (authorNames.length > 3 ? ', et al.' : '')
-                                    : 'Unknown authors';
-                                })()}
+                                {citation.authors && citation.authors.length > 0
+                                  ? citation.authors.slice(0, 3).join(', ') +
+                                    (citation.authors.length > 3 ? ', et al.' : '')
+                                  : 'Unknown authors'}
                                 {citation.year && ` (${citation.year})`}
                               </p>
                               {citation.venue && (
@@ -440,10 +394,9 @@ export default function DocumentDetailPage() {
                 {!extracting && citations.length === 0 && !extractionError && (
                   <div className="text-center py-12">
                     <BookOpen className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                    <p className="font-mono text-sm text-gray-500 mb-2">No citations linked to this document</p>
-                    <p className="font-mono text-xs text-gray-600 max-w-md mx-auto">
-                      Citations are created when this document is referenced in chat responses.
-                      The "Extract Citations" button searches external databases (ArXiv, Semantic Scholar) for metadata about this paper.
+                    <p className="font-mono text-sm text-gray-500 mb-2">No citations extracted yet</p>
+                    <p className="font-mono text-xs text-gray-600">
+                      Click "Extract Citations" to analyze this document
                     </p>
                   </div>
                 )}
@@ -593,19 +546,19 @@ export default function DocumentDetailPage() {
                 </div>
                 <div className="flex justify-between items-center border-b border-[#1a1a28] pb-2">
                   <span className="text-gray-500">Type</span>
-                  <span className="text-[#00ff9f] bg-[#00ff9f]/10 px-2 py-0.5 rounded">{((document as any).document_type || document.file_type || document.mime_type || 'UNKNOWN').toUpperCase()}</span>
+                  <span className="text-[#00ff9f] bg-[#00ff9f]/10 px-2 py-0.5 rounded">{document.file_type?.toUpperCase() || document.mime_type?.toUpperCase() || 'UNKNOWN'}</span>
                 </div>
                 <div className="flex justify-between items-center border-b border-[#1a1a28] pb-2">
                   <span className="text-gray-500">Size</span>
-                  <span className="text-white">{formatFileSize((document as any).file_size_bytes ?? document.file_size)}</span>
+                  <span className="text-white">{formatFileSize(document.file_size)}</span>
                 </div>
                 <div className="flex justify-between items-center border-b border-[#1a1a28] pb-2">
                   <span className="text-gray-500">Uploaded</span>
-                  <span className="text-white">{formatDate((document as any).created_at || document.upload_timestamp)}</span>
+                  <span className="text-white">{formatDate(document.upload_timestamp)}</span>
                 </div>
                  <div className="flex justify-between items-center">
                   <span className="text-gray-500">Last Modified</span>
-                  <span className="text-white">{formatDate((document as any).updated_at || (document as any).created_at || document.upload_timestamp)}</span>
+                  <span className="text-white">{formatDate(document.upload_timestamp)}</span>
                 </div>
               </div>
             </div>

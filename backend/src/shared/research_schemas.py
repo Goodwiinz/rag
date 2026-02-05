@@ -9,7 +9,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, validator
+from pydantic import BaseModel, Field, validator
 
 # ============================================================================
 # Enums
@@ -146,10 +146,9 @@ class CitationResponse(BaseModel):
     createdAt: datetime = Field(..., alias="created_at")
     updatedAt: datetime = Field(..., alias="updated_at")
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        populate_by_name=True,
-    )
+    class Config:
+        from_attributes = True
+        populate_by_name = True
 
 
 class CitationListResponse(BaseModel):

@@ -12,23 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { usePathname } from 'next/navigation';
 import * as React from 'react';
-import dynamic from 'next/dynamic';
-
-const AppSidebar = dynamic(() => import('./AppSidebar').then(mod => mod.AppSidebar), {
-  loading: () => (
-    <aside className="hidden lg:block w-60 border-r border-[#1A1A1A] bg-[#080808] h-full">
-      <div className="h-16 border-b border-[#1A1A1A] px-5 py-4">
-        <div className="h-8 w-32 bg-[#0A0A0A] animate-pulse" />
-      </div>
-      <div className="p-5 space-y-3">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="h-10 bg-[#0A0A0A] animate-pulse" />
-        ))}
-      </div>
-    </aside>
-  ),
-  ssr: false // Sidebar relies heavily on client auth state
-});
+import { AppSidebar } from './AppSidebar';
 
 interface SidebarLayoutProps {
   children: React.ReactNode;
@@ -39,15 +23,13 @@ interface SidebarLayoutProps {
 // Map paths to readable names
 const pathNameMap: Record<string, string> = {
   '': 'Home',
-  'dashboard': 'Overview',
+  'dashboard': 'Dashboard',
   'search': 'Search',
   'llm-chat': 'AI Chat',
   'documents': 'Documents',
   'upload': 'Upload',
   'arxiv': 'ArXiv Papers',
   'analytics': 'Analytics',
-  'entities': 'Entities',
-  'projects': 'Projects',
   'realtime': 'Real-time',
   'settings': 'Settings',
   'team': 'Team',
@@ -57,8 +39,6 @@ const pathNameMap: Record<string, string> = {
   'login': 'Sign In',
   'register': 'Register',
   'chat': 'Chat',
-  'new': 'New',
-  'quality-metrics-demo': 'Quality Metrics',
 };
 
 export function SidebarLayout({ children, showBreadcrumb = true, showHeader = true }: SidebarLayoutProps) {
@@ -81,13 +61,13 @@ export function SidebarLayout({ children, showBreadcrumb = true, showHeader = tr
   return (
     <SidebarProvider defaultOpen={true}>
       <AppSidebar />
-      <SidebarInset className="!bg-[#080808]">
+      <SidebarInset className="!bg-[var(--terminal-bg)]">
         {/* Top Header Bar */}
         {showHeader && (
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-[#1A1A1A] bg-[#080808]/95 backdrop-blur px-4">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/95 backdrop-blur px-4">
           <div className="flex items-center gap-2">
-            <SidebarTrigger className="h-8 w-8 text-[#71717a] hover:text-[#00FF88] hover:bg-[#0A0A0A] border border-transparent hover:border-[#1A1A1A] transition-all duration-200 rounded-md" />
-            <Separator orientation="vertical" className="h-4 bg-[#1A1A1A]" />
+            <SidebarTrigger className="h-7 w-7 text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)]" />
+            <Separator orientation="vertical" className="h-4 bg-[var(--terminal-border)]" />
           </div>
 
           {showBreadcrumb && (
@@ -96,13 +76,13 @@ export function SidebarLayout({ children, showBreadcrumb = true, showHeader = tr
                 {/* Show Dashboard as root, but highlight if we're on dashboard page */}
                 <BreadcrumbItem>
                   {pathname === '/dashboard' ? (
-                    <BreadcrumbPage className="text-[#00FF88]">
+                    <BreadcrumbPage className="text-[var(--phosphor-green)]">
                       Dashboard
                     </BreadcrumbPage>
                   ) : (
                     <BreadcrumbLink
                       href="/dashboard"
-                      className="text-[#71717a] hover:text-[#fafafa] transition-colors"
+                      className="text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
                     >
                       Dashboard
                     </BreadcrumbLink>
@@ -113,16 +93,16 @@ export function SidebarLayout({ children, showBreadcrumb = true, showHeader = tr
                   .filter((item) => item.path !== '/dashboard')
                   .map((item) => (
                   <React.Fragment key={item.path}>
-                    <BreadcrumbSeparator className="text-[#52525b]">/</BreadcrumbSeparator>
+                    <BreadcrumbSeparator className="text-[var(--terminal-text-muted)]">/</BreadcrumbSeparator>
                     <BreadcrumbItem>
                       {item.isLast ? (
-                        <BreadcrumbPage className="text-[#00FF88]">
+                        <BreadcrumbPage className="text-[var(--phosphor-green)]">
                           {item.name}
                         </BreadcrumbPage>
                       ) : (
                         <BreadcrumbLink
                           href={item.path}
-                          className="text-[#71717a] hover:text-[#fafafa] transition-colors"
+                          className="text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
                         >
                           {item.name}
                         </BreadcrumbLink>
@@ -136,7 +116,7 @@ export function SidebarLayout({ children, showBreadcrumb = true, showHeader = tr
 
           {/* Page Title (mobile) */}
           <div className="ml-auto md:hidden">
-            <span className="text-sm font-mono text-[#fafafa]">{currentPage}</span>
+            <span className="text-sm font-mono text-white/80">{currentPage}</span>
           </div>
         </header>
         )}
