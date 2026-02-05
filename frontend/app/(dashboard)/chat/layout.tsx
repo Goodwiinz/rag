@@ -2,19 +2,19 @@
 
 import { ExportDialog } from '@/components/export';
 import {
-    Breadcrumb,
-    BreadcrumbItem,
-    BreadcrumbLink,
-    BreadcrumbList,
-    BreadcrumbPage,
-    BreadcrumbSeparator,
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { DeleteConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -25,42 +25,42 @@ import { useChatStore } from '@/store/chat-store';
 import type { Collection as WorkspaceCollection, Workspace as WorkspaceType } from '@/types/workspace';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-    Activity,
-    Archive,
-    ArrowUp,
-    BookOpen,
-    Check,
-    CheckCircle,
-    CheckSquare,
-    ChevronDown,
-    ChevronRight,
-    Clock,
-    Cpu,
-    Download,
-    ExternalLink,
-    FileText,
-    FolderOpen,
-    Library,
-    Loader2,
-    Menu,
-    MessageSquare,
-    MoreVertical,
-    Pin,
-    Plus,
-    Search,
-    Settings,
-    Share2,
-    Sparkles,
-    Sun,
-    Trash2,
-    Users,
-    X
+  Activity,
+  Archive,
+  ArrowUp,
+  BookOpen,
+  Check,
+  CheckCircle,
+  CheckSquare,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Cpu,
+  Download,
+  ExternalLink,
+  FileText,
+  FolderOpen,
+  Library,
+  Loader2,
+  Menu,
+  MessageSquare,
+  MoreVertical,
+  Pin,
+  Plus,
+  Search,
+  Settings,
+  Share2,
+  Sparkles,
+  Sun,
+  Trash2,
+  Users,
+  X
 } from 'lucide-react';
 import Link from 'next/link';
 import {
-    usePathname,
-    useRouter,
-    useSearchParams
+  usePathname,
+  useRouter,
+  useSearchParams
 } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -197,7 +197,7 @@ function CommandPalette({
                      style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                   {category === 'actions' ? '⚡ Quick Actions' : '🔗 Navigate'}
                 </div>
-                {cmds.map((cmd, idx) => {
+                {cmds.map((cmd, _idx) => {
                   const globalIdx = filteredCommands.indexOf(cmd);
                   return (
                     <button
@@ -300,6 +300,7 @@ function WorkspaceBar({
           <button
             onClick={onToggleSidebar}
             className="p-2 rounded hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] transition-colors lg:hidden"
+            aria-label="Toggle Sidebar"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -517,7 +518,7 @@ function ConversationSidebar({
     }
   };
 
-  const handleBulkSummarize = async () => {
+  const _handleBulkSummarize = async () => {
     setIsBulkOperating(true);
     try {
       await bulkSummarizeThreads();
@@ -973,7 +974,7 @@ function getRelativeTime(timestamp: number): string {
 function ConversationItem({
   conversation,
   isActive,
-  onSelect,
+  onSelect: _onSelect,
   isSelectMode = false,
   isSelected = false,
   onToggleSelection,
@@ -1039,6 +1040,7 @@ function ConversationItem({
             <a
               href={`/chat?thread=${conversation.id}`}
               onClick={handleClick}
+              aria-label={conversation.title || 'View conversation'}
               className={cn(
                 "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300",
                 isActive
@@ -1086,6 +1088,7 @@ function ConversationItem({
               <button
                 className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] transition-all"
                 onClick={(e) => e.stopPropagation()}
+                aria-label="More options"
               >
                 <MoreVertical className="w-4 h-4" />
               </button>
@@ -1326,7 +1329,7 @@ function ContextPanel({
   onClose: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<'context' | 'citations' | 'settings'>('context');
-  const { conversations, currentThreadId, messages } = useChatPersistence();
+  const { conversations, currentThreadId, messages: _messages } = useChatPersistence();
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const lastMessageIdRef = useRef<string | null>(null);
@@ -1531,7 +1534,7 @@ function ContextPanel({
               {relatedResults.length > 0 ? (
                 relatedResults.map((doc, idx) => {
                   const scorePercent = doc.score ? Math.round(doc.score * 100) : 0;
-                  const isExternal = !doc.documentId;
+                  const _isExternal = !doc.documentId;
                   return (
                     <button
                       key={doc.documentId || doc.externalReferenceId || idx}

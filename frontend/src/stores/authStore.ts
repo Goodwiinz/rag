@@ -3,6 +3,11 @@ import { Organization, User } from '@/types';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+// Development-only logging to reduce production overhead
+const debugLog = process.env.NODE_ENV === 'development' 
+  ? (...args: unknown[]) => console.log(...args)
+  : () => {};
+
 // API Response Types
 interface LoginResponse {
   access_token: string;
@@ -83,7 +88,7 @@ export const useAuthStore = create<AuthState>()(
 
       // Initialize auth state from localStorage (for synchronization with useAuth)
       initializeFromStorage: () => {
-        console.log('🔄 AuthStore: Initializing from localStorage');
+        debugLog('🔄 AuthStore: Initializing from localStorage');
 
         try {
           const token = localStorage.getItem('access_token');
@@ -92,7 +97,7 @@ export const useAuthStore = create<AuthState>()(
 
           if (token && userData) {
             const user = JSON.parse(userData);
-            console.log('🔄 AuthStore: Found auth data in localStorage', {
+            debugLog('🔄 AuthStore: Found auth data in localStorage', {
               hasToken: !!token,
               hasUser: !!user,
               userId: user.id,
@@ -122,9 +127,9 @@ export const useAuthStore = create<AuthState>()(
             // Start proactive token refresh if authenticated
             get().startProactiveRefresh();
 
-            console.log('✅ AuthStore: State synchronized with localStorage');
+            debugLog('✅ AuthStore: State synchronized with localStorage');
           } else {
-            console.log('ℹ️ AuthStore: No auth data found in localStorage');
+            debugLog('ℹ️ AuthStore: No auth data found in localStorage');
             set({ isLoading: false });
           }
         } catch (error) {
@@ -165,7 +170,7 @@ export const useAuthStore = create<AuthState>()(
           // Start proactive token refresh
           get().startProactiveRefresh();
 
-          console.log(`🔐 Login successful - Session: ${rememberMe ? '30 days' : '7 days'}`);
+          debugLog(`🔐 Login successful - Session: ${rememberMe ? '30 days' : '7 days'}`);
         } catch (error) {
           set({
             error: error instanceof Error ? error.message : 'Login failed',
@@ -212,7 +217,7 @@ export const useAuthStore = create<AuthState>()(
           refreshExpiresAt: null,
         });
 
-        console.log('🔓 Logged out - Session cleared');
+        debugLog('🔓 Logged out - Session cleared');
       },
 
       refreshToken: async () => {
@@ -250,7 +255,7 @@ export const useAuthStore = create<AuthState>()(
           // Reschedule proactive refresh with new expiration
           get().startProactiveRefresh();
 
-          console.log('🔄 Token refreshed successfully');
+          debugLog('🔄 Token refreshed successfully');
         } catch (error) {
           console.error('❌ Token refresh failed:', error);
           get().logout();
@@ -305,10 +310,10 @@ export const useAuthStore = create<AuthState>()(
         const timeUntilExpiry = tokenExpiresAt - now;
         const refreshIn = Math.max(timeUntilExpiry - REFRESH_BUFFER_MS, 60000); // At least 1 minute
 
-        console.log(`⏰ Proactive refresh scheduled in ${Math.round(refreshIn / 60000)} minutes`);
+        debugLog(`⏰ Proactive refresh scheduled in ${Math.round(refreshIn / 60000)} minutes`);
 
         proactiveRefreshTimer = setTimeout(async () => {
-          console.log('🔄 Proactive token refresh triggered');
+          debugLog('🔄 Proactive token refresh triggered');
           await get().refreshToken();
         }, refreshIn);
       },
@@ -317,7 +322,7 @@ export const useAuthStore = create<AuthState>()(
         if (proactiveRefreshTimer) {
           clearTimeout(proactiveRefreshTimer);
           proactiveRefreshTimer = null;
-          console.log('⏹️ Proactive refresh stopped');
+          debugLog('⏹️ Proactive refresh stopped');
         }
       },
 
@@ -351,11 +356,11 @@ export const useAuthStore = create<AuthState>()(
           const now = Date.now();
           if (state.refreshExpiresAt && state.refreshExpiresAt < now) {
             // Refresh token expired, logout
-            console.log('⚠️ Session expired during offline period');
+            debugLog('⚠️ Session expired during offline period');
             state.logout();
           } else if (state.tokenExpiresAt < now) {
             // Access token expired but refresh token valid - refresh immediately
-            console.log('🔄 Access token expired, refreshing...');
+            debugLog('🔄 Access token expired, refreshing...');
             state.refreshToken();
           } else {
             // Tokens still valid, start proactive refresh

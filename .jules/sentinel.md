@@ -9,7 +9,6 @@ Also, testing this endpoint proved difficult because the codebase has side effec
 1.  Ensure all sensitive endpoints (login, register, reset password) explicitly call the rate limiter.
 2.  Implement architectural changes to avoid side effects on import (e.g., lazy initialization of clients), facilitating easier unit testing.
 3.  Add integration tests that specifically target rate limiting behavior.
-
 ## 2026-02-04 - Unauthenticated Full Database Access via Public Search Endpoint
 
 **Vulnerability:** A "public" endpoint `/api/v1/search/public/hybrid` was exposed for "evaluation purposes". It called `hybrid_search_service.search` with `organization_id=None`. The underlying services (`FullTextSearchService`) interpreted `organization_id=None` as "no filter", effectively returning documents from ALL organizations to unauthenticated users.
