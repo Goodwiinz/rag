@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 # Mock spacy and other dependencies before importing service
 sys.modules["spacy"] = MagicMock()
 sys.modules["en_core_web_sm"] = MagicMock()
-sys.modules["bleach"] = MagicMock()
+# sys.modules["bleach"] = MagicMock()  # Removed to avoid polluting other tests
 sys.modules["tiktoken"] = MagicMock()
 # Mock vector search service to avoid import errors if referenced
 sys.modules["src.services.search.vector_search_service"] = MagicMock()
