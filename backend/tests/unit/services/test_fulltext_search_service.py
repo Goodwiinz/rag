@@ -23,10 +23,12 @@ class TestFullTextSearchService(unittest.TestCase):
 
     @patch("src.services.search.fulltext_search_service.get_db")
     def test_get_search_analytics_query_construction(self, mock_get_db):
-        # Setup mock db
+        # Setup mock db session
         mock_db_session = MagicMock()
-        # get_db is a generator, so we mock it to yield the session
-        mock_get_db.return_value = iter([mock_db_session])
+        mock_db_session.__enter__.return_value = mock_db_session
+
+        # Use side_effect to return a fresh iterator each time (though called once)
+        mock_get_db.side_effect = lambda: iter([mock_db_session])
 
         # Mock result
         mock_row = MagicMock()
@@ -38,21 +40,25 @@ class TestFullTextSearchService(unittest.TestCase):
         mock_result = MagicMock()
         mock_result.first.return_value = mock_row
         mock_db_session.execute.return_value = mock_result
-        mock_db_session.__enter__.return_value = mock_db_session
 
         # Call method
         days = 30
         organization_id = "org-123"
         result = self.service.get_search_analytics(organization_id=organization_id, days=days)
 
+        # Verify get_db called
+        self.assertTrue(mock_get_db.called, "get_db was not called")
+
         # Verify db.execute called
-        self.assertTrue(mock_db_session.execute.called)
+        # We check mock_db_session.execute
+        if not mock_db_session.execute.called:
+            print(f"DEBUG: get_db calls: {mock_get_db.mock_calls}")
+            print(f"DEBUG: session calls: {mock_db_session.mock_calls}")
+
+        self.assertTrue(mock_db_session.execute.called, f"db.execute not called. Session calls: {mock_db_session.mock_calls}")
 
         # Get arguments passed to execute
         args, kwargs = mock_db_session.execute.call_args
-
-        # args[0] should be the SQL string wrapped in text()
-        # args[1] should be parameters dict
 
         query_arg = args[0]
         params_arg = args[1]
@@ -78,8 +84,7 @@ class TestFullTextSearchService(unittest.TestCase):
         diff = abs((expected_cutoff - actual_cutoff).total_seconds())
         self.assertLess(diff, 5)
 
-        # Verify query contains :cutoff_date and not INTERVAL
-        # Note: query_arg is a sqlalchemy.sql.elements.TextClause, need to convert to string
+        # Verify query contains :cutoff_date
         query_str = str(query_arg)
         self.assertIn(":cutoff_date", query_str)
         self.assertNotIn("INTERVAL ':days days'", query_str)

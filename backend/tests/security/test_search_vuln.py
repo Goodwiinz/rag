@@ -1,61 +1,89 @@
 import sys
-from unittest.mock import MagicMock
-
-# Mock spacy and other heavy dependencies before any imports
-# These are safe to mock globally as they are external libraries often missing or slow
-sys.modules["spacy"] = MagicMock()
-sys.modules["en_core_web_sm"] = MagicMock()
-
-# Mock services that might cause side effects or import errors
-# We mock these specific services but NOT core config
-mock_hybrid_service = MagicMock()
-mock_fulltext_service = MagicMock()
-mock_kg_service = MagicMock()
-mock_vector_service = MagicMock()
-
-# Assign the global instances that search.py expects
-mock_hybrid_service.hybrid_search_service = MagicMock()
-mock_fulltext_service.fulltext_search_service = MagicMock()
-mock_kg_service.knowledge_graph_service = MagicMock()
-mock_vector_service.vector_search_service = MagicMock()
-
-sys.modules["src.services.search.hybrid_search_service"] = mock_hybrid_service
-sys.modules["src.services.search.fulltext_search_service"] = mock_fulltext_service
-sys.modules["src.services.knowledge_graph.knowledge_graph_service"] = mock_kg_service
-sys.modules["src.services.search.vector_search_service"] = mock_vector_service
-
-# Mock vector service (used by vectors router)
-sys.modules["src.services.search.vector_service"] = MagicMock()
-
-# DO NOT mock src.core.config here - let it use the real config logic (with env vars from conftest)
-# mock_config = MagicMock() ... sys.modules["src.core.config"] = mock_config  <-- REMOVED
-
-# Mock database to avoid connection attempts during import if any
-# But be careful not to break things that expect specific DB types
-# We only mock the module if it's not already loaded or if we really need to intercept get_db
-# In this case, we'll mock it but ensure get_db exists
-mock_db_module = MagicMock()
-mock_db_module.get_db = MagicMock()
-sys.modules["src.core.database"] = mock_db_module
-
-# Mock processing service to break circular imports
-sys.modules["src.services.processing"] = MagicMock()
-sys.modules["src.services.processing.processing_service"] = MagicMock()
-sys.modules["src.services.processing.entity_extraction_service"] = MagicMock()
-sys.modules["src.services.processing.multimodal_processing_service"] = MagicMock()
-
+from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-# Import the router under test
-from src.api.search.search import router
+@pytest.fixture(scope="module")
+def mock_dependencies():
+    """
+    Mock heavy dependencies and services to isolate the search router.
+    This uses patch.dict to safely mock sys.modules without polluting other tests.
+    """
+    # Create mocks
+    mock_spacy = MagicMock()
+    mock_en_core = MagicMock()
+    mock_hybrid = MagicMock()
+    mock_fulltext = MagicMock()
+    mock_kg = MagicMock()
+    mock_vector = MagicMock()
+    mock_sentence_transformers = MagicMock()
+    mock_transformers = MagicMock()
+    mock_db = MagicMock()
+    mock_processing = MagicMock()
 
-@pytest.fixture
-def isolated_client():
+    # Mock numpy to be safe
+    mock_numpy = MagicMock()
+
+    # Setup specific mocks
+    mock_db.get_db = MagicMock()
+
+    # Create a dictionary of modules to patch
+    # We aggressively mock everything that might trigger complex imports
+    modules_to_patch = {
+        "spacy": mock_spacy,
+        "en_core_web_sm": mock_en_core,
+        "numpy": mock_numpy,
+        "sentence_transformers": mock_sentence_transformers,
+        "transformers": mock_transformers,
+
+        # Services
+        "src.services.search.hybrid_search_service": mock_hybrid,
+        "src.services.search.fulltext_search_service": mock_fulltext,
+        "src.services.knowledge_graph.knowledge_graph_service": mock_kg,
+        "src.services.search.vector_search_service": mock_vector,
+        "src.services.search.vector_service": MagicMock(),
+        "src.services.search.multi_agent_search_service": MagicMock(),
+
+        # Knowledge Graph Package (prevents layout_algorithms -> numpy import)
+        "src.services.knowledge_graph": MagicMock(),
+        "src.services.knowledge_graph.layout_algorithms": MagicMock(),
+
+        # API sub-modules that might be imported by __init__
+        "src.api.search.multi_agent_search": MagicMock(),
+        "src.api.search.knowledge_graph": MagicMock(),
+        "src.api.search.vectors": MagicMock(),
+
+        # Core & Infra
+        "src.core.database": mock_db,
+        "src.services.processing": mock_processing,
+        "src.services.processing.processing_service": MagicMock(),
+        "src.services.processing.entity_extraction_service": MagicMock(),
+        "src.services.processing.multimodal_processing_service": MagicMock(),
+    }
+
+    # Use patch.dict context manager
+    with patch.dict(sys.modules, modules_to_patch):
+        # We must remove the module from sys.modules if it was already loaded
+        # so that it gets re-imported using our mocks
+        if "src.api.search.search" in sys.modules:
+            del sys.modules["src.api.search.search"]
+
+        yield
+
+        # Cleanup: remove the module again so subsequent tests re-import the real one
+        if "src.api.search.search" in sys.modules:
+            del sys.modules["src.api.search.search"]
+
+@pytest.fixture(scope="module")
+def isolated_client(mock_dependencies):
+    """
+    Create a TestClient with the search router, ensuring dependencies are mocked.
+    """
+    # Import inside the fixture where mocks are active
+    from src.api.search.search import router
+
     app = FastAPI()
-    # The router prefix in search.py is "/search"
-    # So if we include it with prefix "/api/v1", the result is "/api/v1/search"
     app.include_router(router, prefix="/api/v1")
     return TestClient(app)
 
@@ -88,10 +116,8 @@ def test_public_health_check_removed(isolated_client):
 @pytest.mark.search
 def test_other_search_endpoint_exists(isolated_client):
     """
-    Verify that normal search endpoints still exist (but might fail due to mocks, which is fine)
+    Verify that normal search endpoints still exist.
     """
-    # The normal endpoint is POST /
-    # Mocks will be returned
     response = isolated_client.post(
         "/api/v1/search/",
         json={
@@ -101,9 +127,5 @@ def test_other_search_endpoint_exists(isolated_client):
         }
     )
 
-    # It should not be 404.
-    # It might be 401 (Unauthorized) because dependencies are not mocked for auth
-    # or 422 (Validation Error)
-    # or 500 (Internal Server Error) if something breaks in the handler
-    # But definitely NOT 404.
+    # It should not be 404
     assert response.status_code != status.HTTP_404_NOT_FOUND
