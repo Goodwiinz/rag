@@ -5,6 +5,11 @@ from unittest.mock import MagicMock
 # These are safe to mock globally as they are external libraries often missing or slow
 sys.modules["spacy"] = MagicMock()
 sys.modules["en_core_web_sm"] = MagicMock()
+sys.modules["sentence_transformers"] = MagicMock()
+
+# Mock embedding service to avoid loading transformers/torch
+sys.modules["src.services.embedding"] = MagicMock()
+sys.modules["src.services.embedding.embedding_service"] = MagicMock()
 
 # Mock services that might cause side effects or import errors
 # We mock these specific services but NOT core config
