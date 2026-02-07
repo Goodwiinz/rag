@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Union
 
 import bcrypt  # Changed from passlib
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -285,6 +285,37 @@ def verify_sensitive_data_hash(data: str, hashed: str) -> bool:
     import hashlib
 
     return hashlib.sha256(data.encode()).hexdigest() == hashed
+
+
+def get_client_ip(request: Request) -> str:
+    """
+    Get client IP address, respecting trusted proxies.
+
+    If the request comes from a trusted proxy, we trust the X-Forwarded-For header.
+    We take the last IP in the list because standard proxies (Nginx, AWS ALB) append
+    the connecting IP to the end of the list.
+
+    WARNING: This assumes the trusted proxy appends the real IP.
+    """
+    client_host = request.client.host if request.client else "unknown"
+
+    trusted_proxies = settings.trusted_proxies_list
+
+    # If explicitly configured to trust specific proxies
+    if trusted_proxies:
+        # Check if immediate peer is trusted (simple exact match or *)
+        is_trusted = "*" in trusted_proxies or client_host in trusted_proxies
+
+        if is_trusted:
+            forwarded_for = request.headers.get("X-Forwarded-For")
+            if forwarded_for:
+                # Split by comma and strip whitespace
+                forwarded_ips = [ip.strip() for ip in forwarded_for.split(",")]
+                # Return the last IP in the list (most recent hop before the trusted proxy)
+                if forwarded_ips:
+                    return forwarded_ips[-1]
+
+    return client_host
 
 
 class RateLimiter:

@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.config import settings
 from src.core.database import get_db
 from src.core.dependencies import get_current_user, is_self_or_admin, require_admin
-from src.core.security import auth_rate_limiter
+from src.core.security import auth_rate_limiter, get_client_ip
 from src.models.user import User, UserRole
 from src.services.security.auth_service import AuthService, get_auth_service
 
@@ -78,7 +78,7 @@ async def register(
 ):
     """Register a new user"""
     # Get client IP for rate limiting
-    client_ip = request.client.host
+    client_ip = get_client_ip(request)
 
     if not auth_rate_limiter.is_allowed(client_ip):
         raise HTTPException(
@@ -119,7 +119,7 @@ async def login(
             - remember_me=False (default): Session persists for 7 days
     """
     # Get client IP for rate limiting
-    client_ip = request.client.host
+    client_ip = get_client_ip(request)
 
     if not auth_rate_limiter.is_allowed(client_ip):
         raise HTTPException(
@@ -237,7 +237,7 @@ async def request_password_reset(
 ):
     """Request password reset"""
     # Get client IP for rate limiting
-    client_ip = request.client.host
+    client_ip = get_client_ip(request)
 
     if not auth_rate_limiter.is_allowed(client_ip):
         raise HTTPException(
