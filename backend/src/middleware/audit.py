@@ -13,8 +13,6 @@ from starlette.background import BackgroundTask
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import StreamingResponse
 
-from src.core.security import get_client_ip
-
 from src.exceptions.analytics_exceptions import PermissionDeniedException
 from src.middleware.multi_tenancy import get_current_tenant_id, get_current_user_id
 from src.services.security.audit_service import (
@@ -167,11 +165,21 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
     def _get_client_ip(self, request: Request) -> Optional[str]:
         """Get client IP address from request"""
-        ip_value = get_client_ip(
-            request.headers,
-            request.client.host if request.client else None,
-        )
-        return None if ip_value == 'unknown' else ip_value
+        # Check for forwarded IP first
+        forwarded_for = request.headers.get("x-forwarded-for")
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
+
+        # Check for real IP
+        real_ip = request.headers.get("x-real-ip")
+        if real_ip:
+            return real_ip
+
+        # Fall back to client IP
+        if hasattr(request, "client") and request.client:
+            return request.client.host
+
+        return None
 
     def _mask_sensitive_headers(self, headers: Dict[str, str]) -> Dict[str, str]:
         """Mask sensitive headers in logs"""

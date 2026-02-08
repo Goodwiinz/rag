@@ -1,46 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  Document,
-  DocumentFilters,
-  APIErrorClass,
-  STATUS_COLORS,
-  ProcessingStatus
-} from '@/types';
+import { Document, DocumentFilters, APIErrorClass } from '@/types';
 import { apiClient } from '@/services/apiClient';
 import { useAuth } from '@/hooks/useAuth';
 
-// Type for the backend document response (before transformation)
-interface BackendDocument {
-  id: string;
-  uploaded_by_user_id?: string;
-  user_id?: string;
-  organization_id?: string;
-  title?: string;
-  filename?: string;
-  document_type?: string;
-  file_type?: string;
-  file_size_bytes?: number;
-  file_size?: number;
-  processing_status?: string;
-  processing_error?: string;
-  created_at?: string;
-  upload_timestamp?: string;
-  processing_completed_at?: string;
-  thumbnail_url?: string;
-  page_count?: number;
-  duration_seconds?: number;
-  extracted_text_preview?: string;
-  metadata?: Record<string, unknown>;
-  document_metadata?: Record<string, unknown>;
-  description?: string;
-  tags?: string[];
-  custom_fields?: Record<string, unknown>;
-  custom_metadata?: Record<string, unknown>;
-}
-
 // Type for the API response from /documents/ endpoint
 interface DocumentsApiResponse {
-  documents: BackendDocument[];
+  documents: any[];
   pagination: {
     page: number;
     page_size: number;
@@ -51,58 +16,28 @@ interface DocumentsApiResponse {
   };
 }
 
-// Valid file type values
-const VALID_FILE_TYPES = ['pdf', 'txt', 'docx', 'jpg', 'png', 'mp3', 'mp4'] as const;
-type ValidFileType = typeof VALID_FILE_TYPES[number];
-
-// Helper to validate processing status
-const DOCUMENT_PROCESSING_STATUSES = Object.keys(STATUS_COLORS) as ProcessingStatus[];
-
-function normalizeProcessingStatus(status: string | undefined): ProcessingStatus {
-  if (!status) {
-    return 'queued';
-  }
-
-  const normalized = status.toLowerCase();
-  if (DOCUMENT_PROCESSING_STATUSES.includes(normalized as ProcessingStatus)) {
-    return normalized as ProcessingStatus;
-  }
-
-  console.warn(`Unknown processing status: ${status}, defaulting to 'queued'`);
-  return 'queued';
-}
-
-// Helper to validate file type
-function normalizeFileType(fileType: string | undefined): ValidFileType {
-  const normalized = fileType?.toLowerCase();
-  if (normalized && VALID_FILE_TYPES.includes(normalized as ValidFileType)) {
-    return normalized as ValidFileType;
-  }
-  return 'pdf'; // Default to PDF if unknown
-}
-
 // Transform backend document response to frontend Document type
-const transformDocument = (backendDoc: BackendDocument): Document => {
+const transformDocument = (backendDoc: any): Document => {
   return {
     id: backendDoc.id,
-    user_id: backendDoc.uploaded_by_user_id || backendDoc.user_id || '',
-    organization_id: backendDoc.organization_id || '',
-    title: backendDoc.title || backendDoc.filename || 'Untitled',
-    filename: backendDoc.filename || 'unknown',
-    file_type: normalizeFileType(backendDoc.document_type || backendDoc.file_type),
-    file_size: backendDoc.file_size_bytes || backendDoc.file_size || 0,
-    processing_status: normalizeProcessingStatus(backendDoc.processing_status),
+    user_id: backendDoc.uploaded_by_user_id || backendDoc.user_id,
+    organization_id: backendDoc.organization_id,
+    title: backendDoc.title,
+    filename: backendDoc.filename,
+    file_type: backendDoc.document_type || backendDoc.file_type,
+    file_size: backendDoc.file_size_bytes || backendDoc.file_size,
+    processing_status: backendDoc.processing_status?.toLowerCase() || 'queued',
     processing_error: backendDoc.processing_error,
-    upload_timestamp: backendDoc.created_at || backendDoc.upload_timestamp || new Date().toISOString(),
+    upload_timestamp: backendDoc.created_at || backendDoc.upload_timestamp,
     processing_completed_at: backendDoc.processing_completed_at,
     thumbnail_url: backendDoc.thumbnail_url,
     page_count: backendDoc.page_count,
     duration_seconds: backendDoc.duration_seconds,
     extracted_text_preview: backendDoc.extracted_text_preview,
-    metadata: (backendDoc.metadata || backendDoc.document_metadata || {}) as Record<string, unknown>,
+    metadata: backendDoc.metadata || backendDoc.document_metadata || {},
     description: backendDoc.description,
     tags: backendDoc.tags,
-    custom_fields: (backendDoc.custom_fields || backendDoc.custom_metadata) as Record<string, unknown> | undefined
+    custom_fields: backendDoc.custom_fields || backendDoc.custom_metadata
   };
 };
 
@@ -203,7 +138,7 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
     });
 
     try {
-      const params: Record<string, string | number> = {
+      const params: Record<string, any> = {
         page: actualPage,
         page_size: actualPageSize,
       };
