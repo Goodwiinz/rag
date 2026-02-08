@@ -210,7 +210,6 @@ class TestSearchInputValidation(SecurityTestCase):
         for payload in malformed_payloads:
             response = security_test_client.client.post(
                 '/search/',
-                headers=authentication_headers['valid_jwt'],
                 content=payload,
                 headers={**authentication_headers['valid_jwt'], 'Content-Type': 'application/json'}
             )
