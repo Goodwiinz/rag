@@ -11,6 +11,7 @@ import logging
 import argparse
 import subprocess
 import asyncio
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -413,6 +414,7 @@ class DisasterRecovery:
     async def _drop_database(self):
         """Drop existing database."""
         try:
+            db_name = self._validated_db_name()
             conn = await asyncpg.connect(
                 host=self.config.get('db_host', 'localhost'),
                 port=self.config.get('db_port', 5432),
@@ -426,10 +428,11 @@ class DisasterRecovery:
                 SELECT pg_terminate_backend(pid)
                 FROM pg_stat_activity
                 WHERE datname = $1
-            """, self.config.get('db_name', 'multimodal_rag'))
+            """, db_name)
 
             # Drop the database
-            await conn.execute(f'DROP DATABASE IF EXISTS {self.config.get("db_name", "multimodal_rag")}')
+            quoted_name = await conn.fetchval("SELECT quote_ident($1)", db_name)
+            await conn.execute("DROP DATABASE IF EXISTS " + quoted_name)
             await conn.close()
             logger.info("Dropped existing database")
         except Exception as e:
@@ -437,6 +440,7 @@ class DisasterRecovery:
 
     async def _create_database(self):
         """Create new database."""
+        db_name = self._validated_db_name()
         conn = await asyncpg.connect(
             host=self.config.get('db_host', 'localhost'),
             port=self.config.get('db_port', 5432),
@@ -445,7 +449,8 @@ class DisasterRecovery:
             database='postgres'
         )
 
-        await conn.execute(f'CREATE DATABASE {self.config.get("db_name", "multimodal_rag")}')
+        quoted_name = await conn.fetchval("SELECT quote_ident($1)", db_name)
+        await conn.execute("CREATE DATABASE " + quoted_name)
         await conn.close()
         logger.info("Created new database")
 
@@ -514,6 +519,15 @@ class DisasterRecovery:
         except Exception as e:
             logger.error(f"Database integrity check failed: {e}")
             return False
+
+    def _validated_db_name(self) -> str:
+        """Validate database name to prevent SQL injection in identifier usage."""
+        db_name = self.config.get('db_name', 'multimodal_rag')
+        if not isinstance(db_name, str):
+            raise ValueError("Database name must be a string")
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", db_name):
+            raise ValueError("Invalid database name")
+        return db_name
 
     async def _clear_neo4j_data(self):
         """Clear all data from Neo4j."""
