@@ -7,6 +7,8 @@ import logging
 import json
 from typing import List, Dict, Any, Optional, Union
 from uuid import uuid4
+from datetime import datetime
+import httpx
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
@@ -290,10 +292,11 @@ class VectorService:
                 else:
                     payload["filter"] = query_filter.dict()
             
-            import requests # Import here to ensure availability
-            response = requests.post(url, json=payload, headers=headers, timeout=10)
-            response.raise_for_status()
-            search_result_json = response.json()
+            # Use async httpx instead of blocking requests
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, json=payload, headers=headers, timeout=10.0)
+                response.raise_for_status()
+                search_result_json = response.json()
             search_results = search_result_json.get("result", [])
 
             # Convert to internal VectorSearchResult objects

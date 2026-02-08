@@ -2,9 +2,9 @@
 Document model for multimodal content storage and management
 """
 
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Enum, ForeignKey, Text, JSON
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Enum, ForeignKey, Text, JSON, Index
 from sqlalchemy.dialects.postgresql import TSVECTOR
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, selectinload, joinedload
 from enum import Enum as PyEnum
 from datetime import datetime
 
