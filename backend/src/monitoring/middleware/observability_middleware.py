@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
 from fastapi import Request, Response
+from src.core.security import get_client_ip
 from fastapi.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
@@ -221,17 +222,10 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
 
     def _get_client_ip(self, request: Request) -> str:
         """Get client IP address"""
-        # Check for forwarded headers
-        forwarded_for = request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
-
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip
-
-        # Fall back to client IP
-        return request.client.host if request.client else "unknown"
+        return get_client_ip(
+            request.headers,
+            request.client.host if request.client else None,
+        )
 
     async def _log_request_start(self, request: Request, context: Dict[str, Any]):
         """Log the start of request processing"""
