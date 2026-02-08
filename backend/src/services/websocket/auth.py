@@ -16,7 +16,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
-from src.core.security import get_client_ip
 from src.core.database import get_async_session
 from src.models.organization import Organization
 from src.models.rbac import Permission, Role, UserRole
@@ -122,9 +121,20 @@ class WebSocketAuthenticator:
 
     def _get_client_ip(self, websocket: WebSocket) -> str:
         """Extract client IP from WebSocket connection"""
-        headers = websocket.headers if hasattr(websocket, 'headers') else None
-        client_host = websocket.client.host if websocket.client else None
-        return get_client_ip(headers, client_host)
+        # Try to get real IP from headers (if behind proxy)
+        client_ip = websocket.client.host if websocket.client else "unknown"
+
+        # Check for proxy headers
+        if hasattr(websocket, "headers"):
+            forwarded_for = websocket.headers.get("X-Forwarded-For")
+            if forwarded_for:
+                client_ip = forwarded_for.split(",")[0].strip()
+            else:
+                real_ip = websocket.headers.get("X-Real-IP")
+                if real_ip:
+                    client_ip = real_ip
+
+        return client_ip
 
     def _check_rate_limit(self, client_ip: str):
         """Check rate limiting for connection attempts"""

@@ -302,6 +302,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
             className="pl-14 pr-32 h-14 text-lg bg-background/50 backdrop-blur-xl shadow-sm hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary border-muted-foreground/20 rounded-2xl transition-all duration-200 placeholder:text-muted-foreground/50"
             disabled={isSearching}
             autoFocus={autoFocus}
+            aria-label="Search query"
           />
 
           {/* Search Actions */}
@@ -317,6 +318,8 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                 hasActiveFilters && "text-primary bg-primary/10 hover:bg-primary/20"
               )}
               title="Filters"
+              aria-label="Toggle filters"
+              aria-expanded={showFilters}
             >
               <FunnelIcon className="h-5 w-5" />
             </Button>
@@ -328,6 +331,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
               type="submit"
               size="icon"
               disabled={!query.trim() || isSearching}
+              aria-label={isSearching ? "Searching..." : "Search"}
               className={cn(
                 "h-9 w-9 rounded-xl transition-all duration-200",
                 query.trim()
@@ -464,25 +468,49 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
             {filters.modalities && filters.modalities.map(m => (
               <Badge key={m} variant="secondary" className="bg-background border-border text-foreground px-2 py-0.5 text-xs font-normal">
                 {m}
-                <button onClick={() => handleFilterChange('modalities', filters.modalities?.filter(i => i !== m))} className="ml-1.5 hover:text-destructive">×</button>
+                <button
+                  onClick={() => handleFilterChange('modalities', filters.modalities?.filter(i => i !== m))}
+                  className="ml-1.5 hover:text-destructive"
+                  aria-label={`Remove ${m} filter`}
+                >
+                  ×
+                </button>
               </Badge>
             ))}
             {filters.file_types && filters.file_types.map(f => (
               <Badge key={f} variant="secondary" className="bg-background border-border text-foreground px-2 py-0.5 text-xs font-normal">
                 .{f}
-                <button onClick={() => toggleQuickFilter('file_type', f)} className="ml-1.5 hover:text-destructive">×</button>
+                <button
+                  onClick={() => toggleQuickFilter('file_type', f)}
+                  className="ml-1.5 hover:text-destructive"
+                  aria-label={`Remove ${f} file type filter`}
+                >
+                  ×
+                </button>
               </Badge>
             ))}
             {filters.date_range && (
               <Badge variant="secondary" className="bg-background border-border text-foreground px-2 py-0.5 text-xs font-normal">
                 Last 7 Days
-                <button onClick={() => toggleQuickFilter('date', 'week')} className="ml-1.5 hover:text-destructive">×</button>
+                <button
+                  onClick={() => toggleQuickFilter('date', 'week')}
+                  className="ml-1.5 hover:text-destructive"
+                  aria-label="Remove date range filter"
+                >
+                  ×
+                </button>
               </Badge>
             )}
             {filters.min_confidence && (
               <Badge variant="secondary" className="bg-background border-border text-foreground px-2 py-0.5 text-xs font-normal">
                 High Confidence
-                <button onClick={() => toggleQuickFilter('confidence', 0.8)} className="ml-1.5 hover:text-destructive">×</button>
+                <button
+                  onClick={() => toggleQuickFilter('confidence', 0.8)}
+                  className="ml-1.5 hover:text-destructive"
+                  aria-label="Remove confidence filter"
+                >
+                  ×
+                </button>
               </Badge>
             )}
           </div>
@@ -510,6 +538,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
               size="sm"
               onClick={() => setShowFilters(false)}
               className="h-8 w-8 p-0"
+              aria-label="Close filters"
             >
               <XMarkIcon className="h-4 w-4" />
             </Button>
@@ -592,6 +621,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                         handleFilterChange('date_range', { ...current, start });
                       }}
                       className="text-sm h-9"
+                      aria-label="Start date"
                     />
                   </div>
                   <div className="space-y-1">
@@ -605,6 +635,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                         handleFilterChange('date_range', { ...current, end });
                       }}
                       className="text-sm h-9"
+                      aria-label="End date"
                     />
                   </div>
                 </div>
@@ -616,14 +647,14 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                   Minimum Confidence
                 </label>
                 <Select
-                  value={filters.min_confidence?.toString() || ''}
-                  onValueChange={(value) => handleFilterChange('min_confidence', value ? parseFloat(value) : undefined)}
+                  value={filters.min_confidence?.toString() || 'any'}
+                  onValueChange={(value) => handleFilterChange('min_confidence', value === 'any' ? undefined : parseFloat(value))}
                 >
-                  <SelectTrigger className="text-sm h-9">
+                  <SelectTrigger className="text-sm h-9" aria-label="Minimum confidence">
                     <SelectValue placeholder="Any confidence" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Any confidence</SelectItem>
+                    <SelectItem value="any">Any confidence</SelectItem>
                     <SelectItem value="0.9">90% and above</SelectItem>
                     <SelectItem value="0.8">80% and above</SelectItem>
                     <SelectItem value="0.7">70% and above</SelectItem>
@@ -639,14 +670,14 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                   Maximum Results
                 </label>
                 <Select
-                  value={filters.max_results?.toString() || ''}
-                  onValueChange={(value) => handleFilterChange('max_results', value ? parseInt(value, 10) : undefined)}
+                  value={filters.max_results?.toString() || 'default'}
+                  onValueChange={(value) => handleFilterChange('max_results', value === 'default' ? undefined : parseInt(value, 10))}
                 >
-                  <SelectTrigger className="text-sm h-9">
+                  <SelectTrigger className="text-sm h-9" aria-label="Maximum results">
                     <SelectValue placeholder="Default" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Default (10)</SelectItem>
+                    <SelectItem value="default">Default (10)</SelectItem>
                     <SelectItem value="5">5 results</SelectItem>
                     <SelectItem value="10">10 results</SelectItem>
                     <SelectItem value="20">20 results</SelectItem>
