@@ -6,13 +6,14 @@ import logging
 import re
 import time
 import uuid
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import and_, func, not_, or_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import select
 
-from src.core.database import get_db
+from src.core.database import get_db_sync as get_db
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.search_schemas import (
     SearchFilter,
@@ -562,6 +563,8 @@ class FullTextSearchService:
             with next(get_db()) as db:
                 # This is a placeholder - would need search query tracking table
                 # For now, return document statistics
+                cutoff_date = datetime.utcnow() - timedelta(days=days)
+
                 stats_query = text(
                     """
                     SELECT
@@ -572,7 +575,7 @@ class FullTextSearchService:
                     FROM documents
                     WHERE is_deleted = false
                         AND processing_status = :completed_status
-                        AND created_at >= NOW() - INTERVAL ':days days'
+                        AND created_at >= :cutoff_date
                 """
                 )
 
@@ -586,7 +589,7 @@ class FullTextSearchService:
                     text(stats_query.compile().string),
                     {
                         "completed_status": ProcessingStatus.COMPLETED.name,
-                        "days": days,
+                        "cutoff_date": cutoff_date,
                         "organization_id": organization_id,
                     },
                 )
