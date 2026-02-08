@@ -2,6 +2,8 @@
 Security utilities for authentication and authorization
 """
 
+import ipaddress
+import logging
 import os
 import secrets
 from datetime import datetime, timedelta
@@ -17,6 +19,9 @@ from src.core.config import settings
 
 # JWT Bearer scheme
 security = HTTPBearer()
+
+logger = logging.getLogger(__name__)
+_warned_trusted_proxies_all = False
 
 
 class TokenData(BaseModel):
@@ -72,6 +77,110 @@ def generate_password_reset_token() -> str:
 def generate_api_key() -> str:
     """Generate a secure API key"""
     return secrets.token_urlsafe(32)
+
+
+
+
+def _get_header_value(headers: Any, name: str) -> Optional[str]:
+    if not headers:
+        return None
+    for key in (name, name.lower(), name.upper(), name.title()):
+        value = headers.get(key)
+        if value:
+            return value
+    return None
+
+
+def _parse_trusted_proxies(value: str) -> list[str]:
+    if not value:
+        return []
+    return [entry.strip() for entry in value.split(",") if entry.strip()]
+
+
+def _warn_if_trusted_proxies_all(value: str) -> None:
+    global _warned_trusted_proxies_all
+    if _warned_trusted_proxies_all:
+        return
+    if value.strip() == "*":
+        logger.warning(
+            "TRUSTED_PROXIES is set to '*', which trusts all proxies and "
+            "can allow client IP spoofing."
+        )
+        _warned_trusted_proxies_all = True
+
+
+def _is_trusted_proxy(ip_value: str, trusted_proxies: list[str]) -> bool:
+    if not trusted_proxies:
+        return False
+    if "*" in trusted_proxies:
+        return True
+
+    try:
+        ip_obj = ipaddress.ip_address(ip_value)
+    except ValueError:
+        return False
+
+    for entry in trusted_proxies:
+        if entry == "*":
+            return True
+        try:
+            if "/" in entry:
+                if ip_obj in ipaddress.ip_network(entry, strict=False):
+                    return True
+            else:
+                if ip_obj == ipaddress.ip_address(entry):
+                    return True
+        except ValueError:
+            continue
+    return False
+
+
+def get_client_ip(headers: Any, client_host: Optional[str] = None) -> str:
+    """Resolve client IP from headers and connection info.
+
+    Walk X-Forwarded-For from right to left and return the first IP that is not
+    in TRUSTED_PROXIES. If all IPs are trusted, return the leftmost entry.
+    """
+    trusted_value = settings.TRUSTED_PROXIES
+    _warn_if_trusted_proxies_all(trusted_value)
+    trusted_proxies = _parse_trusted_proxies(trusted_value)
+
+    if not trusted_proxies or not client_host or not _is_trusted_proxy(
+        client_host, trusted_proxies
+    ):
+        return client_host or "unknown"
+
+    forwarded_for = _get_header_value(headers, "X-Forwarded-For")
+    if forwarded_for:
+        ips: list[str] = []
+        for entry in forwarded_for.split(","):
+            ip_value = entry.strip()
+            if not ip_value:
+                continue
+            try:
+                ip_obj = ipaddress.ip_address(ip_value)
+            except ValueError:
+                continue
+            ips.append(str(ip_obj))
+        if ips:
+            for ip_value in reversed(ips):
+                if not _is_trusted_proxy(ip_value, trusted_proxies):
+                    return ip_value
+
+            return ips[0]
+
+    real_ip = _get_header_value(headers, "X-Real-IP")
+    if real_ip:
+        ip_value = real_ip.strip()
+        try:
+            return str(ipaddress.ip_address(ip_value))
+        except ValueError:
+            pass
+
+    if client_host:
+        return client_host
+
+    return "unknown"
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
