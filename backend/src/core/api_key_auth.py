@@ -101,51 +101,103 @@ def verify_api_key(raw_key: str, key_hash: str) -> bool:
 # Rate limiter for API key endpoints
 api_key_rate_limiter = RateLimiter(max_attempts=1000, window_minutes=60)
 
-class APIKeyAuth:
-    """API Key authentication and rate limiting"""
+
+class RedisRateLimiter:
+    """Redis-based rate limiter for distributed environments"""
     
-    def __init__(self):
-        self.usage_tracking = {}  # Track usage per key for rate limiting
+    def __init__(self, redis_url: str = None):
+        self.redis_url = redis_url or settings.REDIS_URL
+        self._redis: Optional[redis.Redis] = None
+        
+    async def _get_redis(self) -> redis.Redis:
+        """Get or create Redis connection"""
+        if self._redis is None:
+            self._redis = redis.from_url(self.redis_url, decode_responses=True)
+        return self._redis
     
-    def track_usage(self, key_id: str, endpoint: str):
+    async def track_usage(self, key_id: str, endpoint: str):
         """Track API key usage for rate limiting"""
         now = datetime.utcnow()
         hour_key = now.replace(minute=0, second=0, microsecond=0)
         
-        if key_id not in self.usage_tracking:
-            self.usage_tracking[key_id] = {}
+        redis_client = await self._get_redis()
+        redis_key = f"rate_limit:{key_id}:{hour_key.isoformat()}"
         
-        if hour_key not in self.usage_tracking[key_id]:
-            # Clean old entries
-            self.usage_tracking[key_id] = {
-                k: v for k, v in self.usage_tracking[key_id].items() 
-                if k > now - timedelta(hours=1)
-            }
-            self.usage_tracking[key_id][hour_key] = 0
-        
-        self.usage_tracking[key_id][hour_key] += 1
-        
-        logger.info(f"API key usage tracked: key={key_id}, endpoint={endpoint}, hour={hour_key}")
+        try:
+            # Use atomic INCR operation for thread-safe counting
+            current_count = await redis_client.incr(redis_key)
+            
+            # Set TTL of 1 hour only on first increment
+            if current_count == 1:
+                await redis_client.expire(redis_key, 3600)  # 1 hour TTL
+                
+            logger.info(f"API key usage tracked: key={key_id}, endpoint={endpoint}, hour={hour_key}, count={current_count}")
+            
+        except Exception as e:
+            logger.error(f"Failed to track usage in Redis for key {key_id}: {e}")
+            # Fail gracefully - don't block API calls if Redis is down
     
-    def check_rate_limit(self, key_id: str, rate_limit: int) -> bool:
+    async def check_rate_limit(self, key_id: str, rate_limit: int) -> bool:
         """Check if API key is within rate limit"""
-        if key_id not in self.usage_tracking:
+        now = datetime.utcnow()
+        hour_key = now.replace(minute=0, second=0, microsecond=0)
+        
+        redis_client = await self._get_redis()
+        redis_key = f"rate_limit:{key_id}:{hour_key.isoformat()}"
+        
+        try:
+            current_usage = await redis_client.get(redis_key)
+            current_usage = int(current_usage) if current_usage else 0
+            
+            return current_usage < rate_limit
+            
+        except Exception as e:
+            logger.error(f"Failed to check rate limit in Redis for key {key_id}: {e}")
+            # Fail open - allow request if Redis is down to avoid blocking API
             return True
-        
-        now = datetime.utcnow()
-        hour_key = now.replace(minute=0, second=0, microsecond=0)
-        
-        current_usage = self.usage_tracking[key_id].get(hour_key, 0)
-        return current_usage < rate_limit
     
-    def get_current_usage(self, key_id: str) -> int:
+    async def get_current_usage(self, key_id: str) -> int:
         """Get current hour usage for API key"""
-        if key_id not in self.usage_tracking:
-            return 0
-        
         now = datetime.utcnow()
         hour_key = now.replace(minute=0, second=0, microsecond=0)
-        return self.usage_tracking[key_id].get(hour_key, 0)
+        
+        redis_client = await self._get_redis()
+        redis_key = f"rate_limit:{key_id}:{hour_key.isoformat()}"
+        
+        try:
+            current_usage = await redis_client.get(redis_key)
+            return int(current_usage) if current_usage else 0
+            
+        except Exception as e:
+            logger.error(f"Failed to get current usage from Redis for key {key_id}: {e}")
+            return 0
+    
+    async def close(self):
+        """Close Redis connection"""
+        if self._redis:
+            await self._redis.close()
+
+
+# Global Redis rate limiter instance
+redis_rate_limiter = RedisRateLimiter()
+
+class APIKeyAuth:
+    """API Key authentication and rate limiting using Redis"""
+    
+    def __init__(self):
+        self.rate_limiter = redis_rate_limiter
+    
+    async def track_usage(self, key_id: str, endpoint: str):
+        """Track API key usage for rate limiting"""
+        await self.rate_limiter.track_usage(key_id, endpoint)
+    
+    async def check_rate_limit(self, key_id: str, rate_limit: int) -> bool:
+        """Check if API key is within rate limit"""
+        return await self.rate_limiter.check_rate_limit(key_id, rate_limit)
+    
+    async def get_current_usage(self, key_id: str) -> int:
+        """Get current hour usage for API key"""
+        return await self.rate_limiter.get_current_usage(key_id)
 
 # Global API key auth instance
 api_key_auth = APIKeyAuth()
