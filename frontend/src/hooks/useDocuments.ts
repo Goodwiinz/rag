@@ -3,8 +3,8 @@ import {
   Document,
   DocumentFilters,
   APIErrorClass,
-  DOCUMENT_PROCESSING_STATUSES,
-  DocumentProcessingStatus
+  STATUS_COLORS,
+  ProcessingStatus
 } from '@/types';
 import { apiClient } from '@/services/apiClient';
 import { useAuth } from '@/hooks/useAuth';
@@ -56,14 +56,16 @@ const VALID_FILE_TYPES = ['pdf', 'txt', 'docx', 'jpg', 'png', 'mp3', 'mp4'] as c
 type ValidFileType = typeof VALID_FILE_TYPES[number];
 
 // Helper to validate processing status
-function normalizeProcessingStatus(status: string | undefined): DocumentProcessingStatus {
+const DOCUMENT_PROCESSING_STATUSES = Object.keys(STATUS_COLORS) as ProcessingStatus[];
+
+function normalizeProcessingStatus(status: string | undefined): ProcessingStatus {
   if (!status) {
     return 'queued';
   }
 
   const normalized = status.toLowerCase();
-  if (DOCUMENT_PROCESSING_STATUSES.includes(normalized as DocumentProcessingStatus)) {
-    return normalized as DocumentProcessingStatus;
+  if (DOCUMENT_PROCESSING_STATUSES.includes(normalized as ProcessingStatus)) {
+    return normalized as ProcessingStatus;
   }
 
   console.warn(`Unknown processing status: ${status}, defaulting to 'queued'`);

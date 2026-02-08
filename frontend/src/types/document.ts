@@ -5,7 +5,7 @@ export interface Document {
   organization_id: string;
   title: string;
   filename: string;
-  file_type: 'pdf' | 'txt' | 'jpg' | 'png' | 'mp3' | 'mp4';
+  file_type: 'pdf' | 'txt' | 'docx' | 'jpg' | 'png' | 'mp3' | 'mp4';
   file_size: number; // bytes
   processing_status: 'queued' | 'processing' | 'indexed' | 'failed';
   processing_error?: string;
@@ -62,4 +62,3 @@ export interface UploadProgress {
   estimated_remaining_seconds?: number;
   error_message?: string;
 }
-
