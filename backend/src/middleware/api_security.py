@@ -196,10 +196,19 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
         return response
 
     def _get_client_ip(self, request: Request) -> str:
-        return get_client_ip(
-            request.headers,
-            request.client.host if request.client else None,
-        )
+        """Get client IP from request, handling proxies"""
+        # Check for forwarded headers
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            # Get the original IP (first in the list)
+            return forwarded_for.split(",")[0].strip()
+
+        real_ip = request.headers.get("X-Real-IP")
+        if real_ip:
+            return real_ip.strip()
+
+        # Fallback to direct connection IP
+        return request.client.host if request.client else "unknown"
 
     def _is_ip_blocked(self, ip: str) -> bool:
         """Check if IP is in blocked list"""

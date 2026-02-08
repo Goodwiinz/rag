@@ -8,6 +8,7 @@ sys.modules["en_core_web_sm"] = MagicMock()
 sys.modules["sentence_transformers"] = MagicMock()
 sys.modules["transformers"] = MagicMock()
 sys.modules["torch"] = MagicMock()
+sys.modules["tiktoken"] = MagicMock()
 
 # Mock services that might cause side effects or import errors
 # We mock these specific services but NOT core config
