@@ -1,7 +1,7 @@
 """Add performance indexes for N+1 query optimization
 
 Revision ID: perf_indexes_n1
-Revises: 
+Revises: i4k8l9m0n1o2
 Create Date: 2024-02-08 06:30:00
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'perf_indexes_n1'
-down_revision = None  # Replace with latest revision ID
+down_revision = 'i4k8l9m0n1o2'
 branch_labels = None
 depends_on = None
 
