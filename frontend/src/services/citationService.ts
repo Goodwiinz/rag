@@ -10,19 +10,83 @@ import type {
   CitationListResponse,
 } from '@/types/research';
 
+const normalizeCitation = (citation: CitationResponse): CitationResponse => {
+  const raw = citation as CitationResponse & {
+    message_id?: string;
+    document_id?: string;
+    external_reference_id?: string;
+    document_title?: string;
+    document_type?: string;
+    arxiv_id?: string;
+    page_number?: number;
+    metadata_source?: string;
+    needs_review?: boolean;
+    created_at?: string;
+    updated_at?: string;
+  };
+
+  const normalized: CitationResponse = { ...citation };
+
+  if (!citation.messageId && raw.message_id) normalized.messageId = raw.message_id;
+  if (!citation.documentId && raw.document_id) normalized.documentId = raw.document_id;
+  if (!citation.externalReferenceId && raw.external_reference_id) {
+    normalized.externalReferenceId = raw.external_reference_id;
+  }
+  if (!citation.documentTitle && raw.document_title) normalized.documentTitle = raw.document_title;
+  if (!citation.documentType && raw.document_type) normalized.documentType = raw.document_type;
+  if (!citation.arxivId && raw.arxiv_id) normalized.arxivId = raw.arxiv_id;
+  if (citation.pageNumber === undefined && raw.page_number !== undefined) {
+    normalized.pageNumber = raw.page_number;
+  }
+  if (!citation.metadataSource && raw.metadata_source) {
+    normalized.metadataSource = raw.metadata_source;
+  }
+  if (citation.needsReview === undefined && raw.needs_review !== undefined) {
+    normalized.needsReview = raw.needs_review;
+  }
+  if (!citation.createdAt && raw.created_at) normalized.createdAt = raw.created_at;
+  if (!citation.updatedAt && raw.updated_at) normalized.updatedAt = raw.updated_at;
+
+  return normalized;
+};
+
+const normalizeCitationList = (citations: CitationResponse[]): CitationResponse[] =>
+  citations.map(normalizeCitation);
+
 export const citationService = {
   /**
    * Create a new citation from chat message context
    */
   async createCitation(data: CitationCreate): Promise<CitationResponse> {
-    return apiClient.post<CitationResponse>('/citations', data);
+    // Transform camelCase to snake_case for backend API
+    const apiData: Record<string, any> = {};
+    if (data.messageId) apiData.message_id = data.messageId;
+    if (data.documentId) apiData.document_id = data.documentId;
+    if (data.externalReferenceId) apiData.external_reference_id = data.externalReferenceId;
+    if (data.documentTitle) apiData.document_title = data.documentTitle;
+    if (data.documentType) apiData.document_type = data.documentType;
+    if (data.authors) apiData.authors = data.authors;
+    if (data.year) apiData.year = data.year;
+    if (data.venue) apiData.venue = data.venue;
+    if (data.doi) apiData.doi = data.doi;
+    if (data.arxivId) apiData.arxiv_id = data.arxivId;
+    if (data.abstract) apiData.abstract = data.abstract;
+    if (data.snippet) apiData.snippet = data.snippet;
+    if (data.pageNumber) apiData.page_number = data.pageNumber;
+    if (data.score !== undefined) apiData.score = data.score;
+    if (data.metadataSource) apiData.metadata_source = data.metadataSource;
+    if (data.needsReview !== undefined) apiData.needs_review = data.needsReview;
+
+    const response = await apiClient.post<CitationResponse>('/citations', apiData);
+    return normalizeCitation(response);
   },
 
   /**
    * Get a single citation by ID
    */
   async getCitation(citationId: string): Promise<CitationResponse> {
-    return apiClient.get<CitationResponse>(`/citations/${citationId}`);
+    const response = await apiClient.get<CitationResponse>(`/citations/${citationId}`);
+    return normalizeCitation(response);
   },
 
   /**
@@ -37,9 +101,23 @@ export const citationService = {
     skip?: number;
     limit?: number;
   }): Promise<CitationListResponse> {
-    return apiClient.get<CitationListResponse>('/citations', {
-      params,
+    // Transform camelCase params to snake_case for backend API
+    const apiParams: Record<string, any> = {};
+    if (params?.messageId) apiParams.message_id = params.messageId;
+    if (params?.documentId) apiParams.document_id = params.documentId;
+    if (params?.arxivId) apiParams.arxiv_id = params.arxivId;
+    if (params?.doi) apiParams.doi = params.doi;
+    if (params?.needsReview !== undefined) apiParams.needs_review = params.needsReview;
+    if (params?.skip !== undefined) apiParams.skip = params.skip;
+    if (params?.limit !== undefined) apiParams.limit = params.limit;
+
+    const response = await apiClient.get<CitationListResponse>('/citations', {
+      params: apiParams,
     });
+    return {
+      ...response,
+      citations: normalizeCitationList(response.citations),
+    };
   },
 
   /**
@@ -75,10 +153,11 @@ export const citationService = {
     documentId?: string,
     strategy: string = 'auto'
   ): Promise<CitationResponse> {
-    return apiClient.post<CitationResponse>('/citations/extract', {
+    const response = await apiClient.post<CitationResponse>('/citations/extract', {
       document_id: documentId,
       strategy,
     });
+    return normalizeCitation(response);
   },
 
   /**
@@ -90,11 +169,16 @@ export const citationService = {
     doi?: string;
     title?: string;
   }): Promise<CitationResponse> {
-    return apiClient.post<CitationResponse>('/citations/lookup', {
-      arxiv_id: params.arxivId,
-      doi: params.doi,
-      title: params.title,
+    // Backend expects query parameters, not body
+    const queryParams: Record<string, string> = {};
+    if (params.arxivId) queryParams.arxiv_id = params.arxivId;
+    if (params.doi) queryParams.doi = params.doi;
+    if (params.title) queryParams.title = params.title;
+
+    const response = await apiClient.post<CitationResponse>('/citations/lookup', null, {
+      params: queryParams,
     });
+    return normalizeCitation(response);
   },
 
   /**
