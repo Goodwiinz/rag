@@ -141,6 +141,33 @@ class User(BaseModel):
             selectinload(cls.analytics_events)
         ).filter(cls.organization_id == organization_id).all()
 
+    @classmethod
+    def get_with_organization(cls, user_id):
+        """Get user with organization eagerly loaded to avoid N+1 queries"""
+        from sqlalchemy.orm import sessionmaker
+        return cls.query.options(joinedload(cls.organization)).filter(cls.id == user_id).first()
+    
+    @classmethod
+    def get_with_recent_activity(cls, user_id):
+        """Get user with recent activity data eagerly loaded"""
+        from sqlalchemy.orm import sessionmaker
+        return cls.query.options(
+            joinedload(cls.organization),
+            selectinload(cls.search_sessions).options(
+                selectinload("searches")
+            ),
+            selectinload(cls.sessions)
+        ).filter(cls.id == user_id).first()
+    
+    @classmethod
+    def get_org_users_with_details(cls, organization_id):
+        """Get organization users with common relationships loaded to avoid N+1"""
+        return cls.query.options(
+            joinedload(cls.organization),
+            selectinload(cls.search_sessions),
+            selectinload(cls.analytics_events)
+        ).filter(cls.organization_id == organization_id).all()
+
     def to_dict(self, exclude_sensitive: bool = True) -> dict:
         """Convert to dictionary, optionally excluding sensitive data"""
         data = super().to_dict()
