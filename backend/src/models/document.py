@@ -85,8 +85,49 @@ class Document(BaseModel):
     quality_metrics = relationship("DocumentQualityMetrics", back_populates="document", cascade="all, delete-orphan")
     access_logs = relationship("DocumentAccessLog", back_populates="document", cascade="all, delete-orphan")
 
+    # Database indexes for performance optimization  
+    __table_args__ = (
+        Index('idx_document_org_user', 'organization_id', 'uploaded_by_user_id'),
+        Index('idx_document_user_created', 'uploaded_by_user_id', 'created_at'),
+        Index('idx_document_org_status', 'organization_id', 'processing_status'),
+        Index('idx_document_org_type', 'organization_id', 'document_type'),
+        Index('idx_document_status_created', 'processing_status', 'created_at'),
+        Index('idx_document_embedded_indexed', 'is_embedded', 'is_indexed'),
+        Index('idx_document_org_public', 'organization_id', 'is_public'),
+    )
+
     def __repr__(self):
         return f"<Document(title={self.title}, type={self.document_type.value}, status={self.processing_status.value})>"
+
+    @classmethod
+    def get_with_user_and_org(cls, document_id):
+        """Get document with user and organization eagerly loaded"""
+        return cls.query.options(
+            joinedload(cls.uploaded_by_user),
+            joinedload(cls.organization)
+        ).filter(cls.id == document_id).first()
+
+    @classmethod
+    def get_user_documents_with_details(cls, user_id, limit=50):
+        """Get user's documents with organization loaded to avoid N+1"""
+        return cls.query.options(
+            joinedload(cls.organization),
+            selectinload(cls.processing_history)
+        ).filter(
+            cls.uploaded_by_user_id == user_id,
+            cls.is_deleted == False
+        ).order_by(cls.created_at.desc()).limit(limit).all()
+
+    @classmethod
+    def get_org_documents_with_users(cls, organization_id, limit=100):
+        """Get organization documents with users loaded to avoid N+1"""
+        return cls.query.options(
+            joinedload(cls.uploaded_by_user),
+            selectinload(cls.quality_metrics)
+        ).filter(
+            cls.organization_id == organization_id,
+            cls.is_deleted == False
+        ).order_by(cls.created_at.desc()).limit(limit).all()
 
     def get_metadata(self):
         """Get document metadata as dict"""

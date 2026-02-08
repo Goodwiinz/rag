@@ -5,7 +5,7 @@ This module extends the existing quality.py models with T3-specific functionalit
 
 from sqlalchemy import Column, String, Text, Integer, Float, DateTime, Boolean, JSON, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, selectinload, joinedload
 from datetime import datetime
 import uuid
 import enum
@@ -167,7 +167,30 @@ class SearchSession(Base):
         Index('idx_search_sessions_org_user', 'organization_id', 'user_id'),
         Index('idx_search_sessions_start_time', 'start_time'),
         Index('idx_search_sessions_session_id', 'session_id'),
+        # Additional performance indexes
+        Index('idx_search_sessions_user_start', 'user_id', 'start_time'),
+        Index('idx_search_sessions_duration', 'session_duration', 'search_count'),
+        Index('idx_search_sessions_org_start', 'organization_id', 'start_time'),
     )
+
+    @classmethod
+    def get_with_user_and_searches(cls, session_id):
+        """Get session with user and search events eagerly loaded"""
+        return cls.query.options(
+            joinedload(cls.user),
+            joinedload(cls.organization),
+            selectinload(cls.searches)
+        ).filter(cls.id == session_id).first()
+
+    @classmethod
+    def get_user_sessions_with_details(cls, user_id, limit=50):
+        """Get user sessions with search events loaded to avoid N+1"""
+        return cls.query.options(
+            joinedload(cls.organization),
+            selectinload(cls.searches)
+        ).filter(
+            cls.user_id == user_id
+        ).order_by(cls.start_time.desc()).limit(limit).all()
 
 
 class SearchEvent(Base):
@@ -223,6 +246,11 @@ class SearchEvent(Base):
         Index('idx_search_events_session', 'session_id'),
         Index('idx_search_events_query', 'query'),
         Index('idx_search_events_user', 'user_id'),
+        # Additional performance indexes
+        Index('idx_search_events_user_created', 'user_id', 'created_at'),
+        Index('idx_search_events_rating_response', 'user_rating', 'response_time'),
+        Index('idx_search_events_results_clicks', 'results_count', 'clicked_results'),
+        Index('idx_search_events_session_created', 'session_id', 'created_at'),
     )
 
 

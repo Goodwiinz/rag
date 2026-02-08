@@ -2,8 +2,8 @@
 Conversation model for Terminal Observatory thread-centric chat schema
 """
 
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text, Index
+from sqlalchemy.orm import relationship, selectinload, joinedload
 from datetime import datetime
 
 from .base import BaseModel, GUID
@@ -39,8 +39,38 @@ class Conversation(BaseModel):
     created_by = relationship("User", foreign_keys=[created_by_id])
     threads = relationship("Thread", back_populates="conversation", cascade="all, delete-orphan", order_by="Thread.created_at.desc()")
 
+    # Database indexes for performance optimization
+    __table_args__ = (
+        Index('idx_conversation_workspace_activity', 'workspace_id', 'last_activity_at'),
+        Index('idx_conversation_creator_created', 'created_by_id', 'created_at'),
+        Index('idx_conversation_workspace_archived', 'workspace_id', 'is_archived'),
+        Index('idx_conversation_pinned_activity', 'is_pinned', 'last_activity_at'),
+        Index('idx_conversation_title_search', 'title'),
+    )
+
     def __repr__(self):
         return f"<Conversation(title={self.title}, workspace_id={self.workspace_id})>"
+
+    @classmethod
+    def get_with_workspace_and_user(cls, conversation_id):
+        """Get conversation with workspace and creator eagerly loaded"""
+        return cls.query.options(
+            joinedload(cls.workspace),
+            joinedload(cls.created_by)
+        ).filter(cls.id == conversation_id).first()
+
+    @classmethod
+    def get_workspace_conversations_with_details(cls, workspace_id, limit=50):
+        """Get workspace conversations with threads and creator loaded"""
+        return cls.query.options(
+            joinedload(cls.created_by),
+            selectinload(cls.threads).options(
+                joinedload("created_by")
+            )
+        ).filter(
+            cls.workspace_id == workspace_id,
+            cls.is_archived == False
+        ).order_by(cls.last_activity_at.desc()).limit(limit).all()
 
     def update_activity(self):
         """Update last activity timestamp"""
