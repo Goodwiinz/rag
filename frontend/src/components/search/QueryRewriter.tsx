@@ -123,7 +123,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-3">Original Query</h3>
             <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-gray-800 italic">&quot;{rewrite.original_query}&quot;</p>
+              <p className="text-gray-800 italic">"{rewrite.original_query}"</p>
             </div>
           </div>
 
@@ -172,7 +172,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
                   </div>
 
                   <div className="bg-white rounded p-3 border border-gray-200">
-                    <p className="text-gray-800">&quot;{rewrittenQuery.query}&quot;</p>
+                    <p className="text-gray-800">"{rewrittenQuery.query}"</p>
                   </div>
 
                   {expandedQuery === index && (
@@ -549,7 +549,7 @@ export const QueryRewriter: React.FC<QueryRewriterProps> = ({
         <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg">
           <CheckCircleIcon className="h-4 w-4 text-green-600" />
           <span className="text-sm font-medium text-green-800">Applied optimization:</span>
-          <span className="text-sm text-green-700 italic">&quot;{appliedRewrite}&quot;</span>
+          <span className="text-sm text-green-700 italic">"{appliedRewrite}"</span>
           <Button
             variant="ghost"
             size="sm"

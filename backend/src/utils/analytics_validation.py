@@ -590,7 +590,7 @@ class AnalyticsInputSanitizer:
         """
         # Sort parameters for consistent key generation
         sorted_params = json.dumps(params, sort_keys=True, default=str)
-        return hashlib.md5(sorted_params.encode(), usedforsecurity=False).hexdigest()
+        return hashlib.md5(sorted_params.encode()).hexdigest()
 
 
 # Global sanitizer instance

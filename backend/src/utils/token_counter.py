@@ -14,10 +14,11 @@ logger = logging.getLogger(__name__)
 CHARS_PER_TOKEN_ESTIMATE = 3.5
 
 # Try to import tiktoken globally to allow patching in tests
+# We use _tiktoken to avoid naming conflicts and make it clear it's an internal optional dependency
 try:
-    import tiktoken
+    import tiktoken as _tiktoken
 except ImportError:
-    tiktoken = None
+    _tiktoken = None
 
 
 def count_tokens(text: str, model: Optional[str] = None) -> int:
@@ -35,7 +36,7 @@ def count_tokens(text: str, model: Optional[str] = None) -> int:
         return 0
 
     # Try to use tiktoken for accurate counting
-    if tiktoken:
+    if _tiktoken:
         try:
             # Map common model names to encoding
             encoding_name = "cl100k_base"  # Default for GPT-4, Claude-compatible
@@ -47,7 +48,7 @@ def count_tokens(text: str, model: Optional[str] = None) -> int:
                 elif "davinci" in model_lower or "curie" in model_lower:
                     encoding_name = "p50k_base"
 
-            encoding = tiktoken.get_encoding(encoding_name)
+            encoding = _tiktoken.get_encoding(encoding_name)
             return len(encoding.encode(text))
         except Exception as e:
             logger.debug(f"tiktoken encoding failed, using estimation: {e}")

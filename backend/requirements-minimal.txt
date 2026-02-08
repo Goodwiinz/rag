@@ -57,4 +57,3 @@ typer==0.9.0
 # Testing
 pytest-cov==4.1.0
 faker==20.1.0
-bleach

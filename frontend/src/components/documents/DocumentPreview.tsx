@@ -327,11 +327,11 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                   <div className="space-y-3">
                     <div>
                       <p className="text-sm font-medium text-gray-700">File Size</p>
-                      <p className="text-sm text-gray-500">{formatFileSize(document.file_size || 0)}</p>
+                      <p className="text-sm text-gray-500">{formatFileSize(document.file_size)}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-700">File Type</p>
-                      <p className="text-sm text-gray-500">{document.file_type?.toUpperCase() || 'UNKNOWN'}</p>
+                      <p className="text-sm text-gray-500">{document.file_type.toUpperCase()}</p>
                     </div>
                     {getDurationDisplay() && (
                       <div>
@@ -341,7 +341,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                     )}
                     <div>
                       <p className="text-sm font-medium text-gray-700">Uploaded</p>
-                      <p className="text-sm text-gray-500">{formatDate(document.upload_timestamp || '')}</p>
+                      <p className="text-sm text-gray-500">{formatDate(document.upload_timestamp)}</p>
                     </div>
                   </div>
                 </div>

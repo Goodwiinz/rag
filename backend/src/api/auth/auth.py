@@ -231,20 +231,9 @@ async def change_password(
 
 @router.post("/reset-password")
 async def request_password_reset(
-    reset_data: PasswordReset,
-    request: Request,
-    auth_service: AuthService = Depends(get_auth_service),
+    reset_data: PasswordReset, auth_service: AuthService = Depends(get_auth_service)
 ):
     """Request password reset"""
-    # Get client IP for rate limiting
-    client_ip = request.client.host
-
-    if not auth_rate_limiter.is_allowed(client_ip):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many password reset attempts. Please try again later.",
-        )
-
     try:
         reset_token = await auth_service.initiate_password_reset(email=reset_data.email)
 

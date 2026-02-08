@@ -540,15 +540,8 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                 </div>
                 <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (source.document_id) handleDocumentPreview(source);
-                    }}
-                    className={cn(
-                      "p-1.5 rounded text-gray-500 hover:text-white hover:bg-white/5 transition-colors",
-                      !source.document_id && "opacity-50 cursor-not-allowed"
-                    )}
-                    disabled={!source.document_id}
+                    onClick={(e) => { e.stopPropagation(); handleDocumentPreview(source); }}
+                    className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
                     title="Preview"
                   >
                     <EyeIcon className="h-3.5 w-3.5" />

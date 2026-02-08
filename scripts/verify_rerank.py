@@ -4,8 +4,7 @@ import json
 import sys
 
 def verify_reranking():
-    # Note: Authentication is required for this endpoint.
-    url = "http://localhost:8000/api/v1/search/hybrid"
+    url = "http://localhost:8000/api/v1/search/public/hybrid"
     payload = {
         "query": "machine learning models",
         "top_n": 3,

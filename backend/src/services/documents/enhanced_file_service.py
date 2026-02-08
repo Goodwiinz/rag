@@ -88,7 +88,7 @@ class EnhancedFileService:
         self.upload_dir.mkdir(parents=True, exist_ok=True)
 
         # Security scan configuration
-        self.clamd_socket = getattr(settings, "CLAMD_SOCKET", "/tmp/clamd.socket")  # nosec B108
+        self.clamd_socket = getattr(settings, "CLAMD_SOCKET", "/tmp/clamd.socket")
         self.max_scan_size_mb = getattr(settings, "MAX_VIRUS_SCAN_SIZE_MB", 100)
 
         # File validation configuration
@@ -435,11 +435,6 @@ class EnhancedFileService:
 
     async def analyze_zip_safety(self, file_path: str) -> Dict[str, Any]:
         """Analyze ZIP file for zip bomb"""
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._analyze_zip_safety_sync, file_path)
-
-    def _analyze_zip_safety_sync(self, file_path: str) -> Dict[str, Any]:
-        """Synchronous implementation of ZIP safety analysis"""
         try:
             with zipfile.ZipFile(file_path, "r") as zip_file:
                 total_size = 0
@@ -483,11 +478,6 @@ class EnhancedFileService:
 
     async def analyze_tar_safety(self, file_path: str) -> Dict[str, Any]:
         """Analyze TAR file for safety issues"""
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._analyze_tar_safety_sync, file_path)
-
-    def _analyze_tar_safety_sync(self, file_path: str) -> Dict[str, Any]:
-        """Synchronous implementation of TAR safety analysis"""
         try:
             with tarfile.open(file_path, "r:*") as tar_file:
                 total_size = 0

@@ -567,7 +567,7 @@ export function ThreadMessageSearch({
           {/* Empty State */}
           {query.length >= 2 && !isLoading && totalResults === 0 && (
             <div className="text-center py-8 text-gray-500">
-              No results found for &quot;{query}&quot;
+              No results found for "{query}"
             </div>
           )}
           

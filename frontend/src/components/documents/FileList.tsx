@@ -142,7 +142,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
             />
           ) : (
             <div className="h-12 w-12 bg-muted rounded flex items-center justify-center">
-              {getFileIcon(document.file_type || '', 'md')}
+              {getFileIcon(document.file_type, 'md')}
             </div>
           )}
         </div>
@@ -159,7 +159,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
               </p>
 
               <div className="mt-1 flex items-center space-x-4 text-xs text-muted-foreground">
-                <span>{formatFileSize(document.file_size || 0)}</span>
+                <span>{formatFileSize(document.file_size)}</span>
                 <span>•</span>
                 <div className="flex items-center space-x-1">
                   <div
@@ -174,7 +174,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
                 <span>•</span>
                 <span className="flex items-center space-x-1">
                   <CalendarIcon className="h-3 w-3" />
-                  <span>{formatDate(document.upload_timestamp || '')}</span>
+                  <span>{formatDate(document.upload_timestamp)}</span>
                 </span>
               </div>
 
@@ -282,11 +282,9 @@ export const FileList: React.FC<FileListProps> = ({
     onSelectionChange?.([]);
   };
 
-  const sortedDocuments = [...documents].sort((a, b) => {
-    const timeA = a.upload_timestamp ? new Date(a.upload_timestamp).getTime() : 0;
-    const timeB = b.upload_timestamp ? new Date(b.upload_timestamp).getTime() : 0;
-    return timeB - timeA;
-  });
+  const sortedDocuments = [...documents].sort((a, b) =>
+    new Date(b.upload_timestamp).getTime() - new Date(a.upload_timestamp).getTime()
+  );
 
   if (isLoading) {
     return (
