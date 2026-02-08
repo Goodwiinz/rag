@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Union
 
 import bcrypt  # Changed from passlib
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -285,6 +285,38 @@ def verify_sensitive_data_hash(data: str, hashed: str) -> bool:
     import hashlib
 
     return hashlib.sha256(data.encode()).hexdigest() == hashed
+
+
+def get_client_ip(request: Request) -> str:
+    """Get client IP address, respecting X-Forwarded-For if behind trusted proxy"""
+    client_host = request.client.host if request.client else None
+    if not client_host:
+        return "0.0.0.0"
+
+    # If the immediate peer is not trusted, we must return the peer IP
+    # because we cannot trust any headers it sent.
+    if client_host not in settings.trusted_proxies_list:
+        return client_host
+
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if not forwarded_for:
+        return client_host
+
+    # Parse X-Forwarded-For
+    # Format: client, proxy1, proxy2
+    proxies = [ip.strip() for ip in forwarded_for.split(",")]
+
+    # Traverse from right to left (nearest proxy to farthest)
+    for ip in reversed(proxies):
+        # If we trust this IP, keep going left
+        if ip in settings.trusted_proxies_list:
+            continue
+
+        # Found the first untrusted IP - this is the client
+        return ip
+
+    # If all IPs in the chain are trusted, return the left-most one (original client)
+    return proxies[0]
 
 
 class RateLimiter:

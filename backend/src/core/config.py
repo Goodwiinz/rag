@@ -173,6 +173,16 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = 60
     AUTH_RATE_LIMIT_ATTEMPTS: int = 50  # Max auth attempts in window
     AUTH_RATE_LIMIT_WINDOW_MINUTES: int = 15  # Time window for rate limiting
+    TRUSTED_PROXIES: str = ""  # Comma-separated list of trusted proxy IPs
+
+    @property
+    def trusted_proxies_list(self) -> List[str]:
+        """Parse TRUSTED_PROXIES string into a list."""
+        if not self.TRUSTED_PROXIES:
+            return []
+        return [
+            proxy.strip() for proxy in self.TRUSTED_PROXIES.split(",") if proxy.strip()
+        ]
 
     # External APIs
     OPENAI_API_KEY: Optional[str] = None
