@@ -217,13 +217,20 @@ class DatabaseOptimizer:
 
             for table in tables:
                 try:
+                    # Validate table name
+                    allowed_tables = ['documents', 'processing_history', 'document_versions', 'multimodal_content',
+                                    'document_quality_metrics', 'document_access_log', 'processing_jobs']
+                    if table not in allowed_tables:
+                        logger.warning(f"Skipping invalid table: {table}")
+                        continue
+                    
                     # Update table statistics
-                    analyze_query = text(f"ANALYZE {table}")
+                    analyze_query = text("ANALYZE {}".format(table))
                     self.db.execute(analyze_query)
                     results[f"{table}_analyze"] = "completed"
 
                     # Check if table needs vacuum (high bloat)
-                    bloat_query = text(f"""
+                    bloat_query = text("""
                         SELECT
                             schemaname,
                             tablename,
@@ -265,14 +272,14 @@ class DatabaseOptimizer:
                             JOIN pg_class cc ON cc.relname = rs.tablename
                             JOIN pg_namespace nn ON cc.relnamespace = nn.oid AND nn.nspname = rs.schemaname AND nn.nspname <> 'information_schema'
                         ) AS sml
-                        WHERE tbloat > 1.5 AND tablename = '{table}'
+                        WHERE tbloat > 1.5 AND tablename = :table_name
                     """)
 
-                    bloat_result = self.db.execute(bloat_query).fetchone()
+                    bloat_result = self.db.execute(bloat_query, {'table_name': table}).fetchone()
 
                     if bloat_result and bloat_result.tbloat > 1.5:
                         # Run vacuum if significant bloat detected
-                        vacuum_query = text(f"VACUUM ANALYZE {table}")
+                        vacuum_query = text("VACUUM ANALYZE {}".format(table))
                         self.db.execute(vacuum_query)
                         results[f"{table}_vacuum"] = f"completed (bloat: {bloat_result.tbloat})"
                         logger.info(f"Vacuumed table {table} due to bloat: {bloat_result.tbloat}")
