@@ -8,7 +8,7 @@ import json
 import logging
 import asyncio
 import smtplib
-import requests
+import httpx
 from typing import Dict, List, Any, Optional, Callable
 from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict
@@ -657,8 +657,9 @@ class SlackNotifier(NotificationChannel):
                 }]
             }
 
-            response = requests.post(self.webhook_url, json=payload)
-            response.raise_for_status()
+            async with httpx.AsyncClient() as client:
+                response = await client.post(self.webhook_url, json=payload)
+                response.raise_for_status()
 
             logger.info(f"Slack alert sent for {alert.id}")
 
@@ -697,12 +698,13 @@ class PagerDutyNotifier(NotificationChannel):
                 }
             }
 
-            response = requests.post(
-                "https://events.pagerduty.com/v2/enqueue",
-                json=payload,
-                headers={"Content-Type": "application/json"}
-            )
-            response.raise_for_status()
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://events.pagerduty.com/v2/enqueue",
+                    json=payload,
+                    headers={"Content-Type": "application/json"}
+                )
+                response.raise_for_status()
 
             logger.info(f"PagerDuty alert sent for {alert.id}")
 
