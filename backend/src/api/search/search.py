@@ -9,7 +9,7 @@ import logging
 
 from src.core.dependencies import get_current_user
 from src.core.database import get_db
-from src.core.api_key_auth import get_api_key_data, APIKeyData
+from src.core.api_key_auth import get_api_key_data, APIKeyData, APIKeyUsageLog
 from src.services.search.fulltext_search_service import fulltext_search_service
 from src.services.search.hybrid_search_service import hybrid_search_service
 from src.models.search_schemas import (
@@ -627,16 +627,18 @@ async def authenticated_hybrid_search(
         )
 
         # Enhanced logging for API key usage
-        background_tasks.add_task(
-            log_authenticated_search_query,
-            api_key.id,
-            api_key.name,
-            search_request.query,
-            len(result.results),
-            result.search_time_ms,
-            "authenticated_hybrid",
-            request.client.host if request.client else "unknown",
-            request.headers.get("user-agent", "unknown")
+        await log_authenticated_search_query(
+            api_key_id=api_key.id,
+            api_key_name=api_key.name,
+            query=search_request.query,
+            result_count=len(result.results),
+            search_time_ms=result.search_time_ms,
+            search_type="authenticated_hybrid",
+            client_ip=request.client.host if request.client else "unknown",
+            user_agent=request.headers.get("user-agent", "unknown"),
+            background_tasks=background_tasks,
+            endpoint=request.url.path,
+            method=request.method
         )
 
         # Log API access for security audit
@@ -762,6 +764,52 @@ async def log_search_query(
     except Exception as e:
         logger.error(f"Error logging search query: {e}")
 
+async def persist_api_key_usage_log(
+    api_key_id: str,
+    endpoint: str,
+    method: str,
+    client_ip: str,
+    user_agent: str,
+    response_time_ms: float,
+    search_query: str,
+    results_count: int,
+    response_status: int = 200
+):
+    """
+    Persist API key usage to database for audit trail (background task)
+    """
+    try:
+        from src.core.database import SessionLocal
+        
+        db = SessionLocal()
+        try:
+            usage_log = APIKeyUsageLog(
+                api_key_id=api_key_id,
+                endpoint=endpoint,
+                method=method,
+                client_ip=client_ip,
+                user_agent=user_agent[:500] if user_agent else None,  # Limit length
+                response_time_ms=int(response_time_ms),
+                search_query=search_query[:1000] if search_query else None,  # Limit length
+                results_count=results_count,
+                response_status=response_status
+            )
+            
+            db.add(usage_log)
+            db.commit()
+            
+            logger.debug(f"API usage logged to database: key_id={api_key_id}, endpoint={endpoint}")
+            
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to persist API usage log to database: {e}")
+        finally:
+            db.close()
+            
+    except Exception as e:
+        logger.error(f"Error in persist_api_key_usage_log background task: {e}")
+
+
 async def log_authenticated_search_query(
     api_key_id: str,
     api_key_name: str, 
@@ -770,7 +818,10 @@ async def log_authenticated_search_query(
     search_time_ms: float,
     search_type: str,
     client_ip: str,
-    user_agent: str
+    user_agent: str,
+    background_tasks: BackgroundTasks,
+    endpoint: str = "/search/public",
+    method: str = "POST"
 ):
     """
     Log authenticated search query with enhanced security context
@@ -782,8 +833,19 @@ async def log_authenticated_search_query(
                    f"results={result_count}, time={search_time_ms:.2f}ms, "
                    f"type={search_type}, ip={client_ip}, ua='{user_agent[:100]}'")
         
-        # TODO: Store in api_key_usage_log table for audit trail
-        # This would be implemented when the full audit system is built
+        # Store in api_key_usage_log table for audit trail (async background task)
+        background_tasks.add_task(
+            persist_api_key_usage_log,
+            api_key_id=api_key_id,
+            endpoint=endpoint,
+            method=method,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            response_time_ms=search_time_ms,
+            search_query=query,
+            results_count=result_count,
+            response_status=200
+        )
         
     except Exception as e:
         logger.error(f"Error logging authenticated search query: {e}")

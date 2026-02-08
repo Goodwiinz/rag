@@ -9,7 +9,7 @@ import uuid
 
 # revision identifiers
 revision = 'api_keys_security_fix'
-down_revision = 'head'  # Replace with actual latest revision
+down_revision = 'i4k8l9m0n1o2'
 branch_labels = None
 depends_on = None
 
