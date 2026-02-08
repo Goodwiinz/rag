@@ -232,15 +232,22 @@ class PostgreSQLTimeSeriesStore:
                 "user_sessions_ts"
             ]
 
+            # Validate base table names
+            allowed_base_tables = ['analytics_events_ts', 'performance_metrics_ts', 'user_sessions_ts']
+            
             for base_table, partition_table in zip(base_tables, partition_tables):
-                partition_sql = f"""
-                CREATE TABLE IF NOT EXISTS {partition_table}
-                PARTITION OF {base_table}
-                FOR VALUES FROM ('{start_date.isoformat()}') TO ('{end_date.isoformat()}');
-                """
+                if base_table not in allowed_base_tables:
+                    logger.warning(f"Skipping invalid base table: {base_table}")
+                    continue
+                    
+                partition_sql = """
+                CREATE TABLE IF NOT EXISTS {} 
+                PARTITION OF {}
+                FOR VALUES FROM (%s) TO (%s);
+                """.format(partition_table, base_table)
 
                 try:
-                    db.execute(text(partition_sql))
+                    db.execute(text(partition_sql), (start_date.isoformat(), end_date.isoformat()))
                 except Exception as e:
                     logger.warning(f"Failed to create partition {partition_table}: {e}")
 
@@ -588,17 +595,21 @@ class PostgreSQLTimeSeriesStore:
             stats = {}
 
             for table in tables:
+                # Validate table name
+                if table not in ["analytics_events_ts", "performance_metrics_ts", "user_sessions_ts"]:
+                    continue
+                    
                 # Get row count
-                count_sql = f"SELECT COUNT(*) as count FROM {table}"
+                count_sql = "SELECT COUNT(*) as count FROM {}".format(table)
                 count_result = db.execute(text(count_sql)).first()
 
-                # Get table size (approximate)
-                size_sql = f"""
+                # Get table size (approximate) - use parameterized query
+                size_sql = """
                 SELECT
-                    pg_size_pretty(pg_total_relation_size('{table}')) as size,
-                    pg_total_relation_size('{table}') as size_bytes
+                    pg_size_pretty(pg_total_relation_size(:table_name)) as size,
+                    pg_total_relation_size(:table_name) as size_bytes
                 """
-                size_result = db.execute(text(size_sql)).first()
+                size_result = db.execute(text(size_sql), {'table_name': table}).first()
 
                 stats[table] = {
                     "row_count": count_result.count,
@@ -623,7 +634,11 @@ class PostgreSQLTimeSeriesStore:
             tables = ["analytics_events_ts", "performance_metrics_ts", "user_sessions_ts"]
 
             for table in tables:
-                delete_sql = f"DELETE FROM {table} WHERE timestamp < :cutoff_date"
+                # Validate table name
+                if table not in ["analytics_events_ts", "performance_metrics_ts", "user_sessions_ts"]:
+                    continue
+                    
+                delete_sql = "DELETE FROM {} WHERE timestamp < :cutoff_date".format(table)
                 result = db.execute(text(delete_sql), {"cutoff_date": cutoff_date})
                 deleted_count += result.rowcount
 
