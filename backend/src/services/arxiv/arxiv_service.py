@@ -195,9 +195,14 @@ class ArXivIngestionService:
                 if not response_text:
                     raise IngestionError("Empty response from arXiv API")
 
-                # Parse XML response
+                # Parse XML response with external entities disabled to prevent XXE
                 try:
-                    root = ET.fromstring(response_text)
+                    xml_parser = ET.DefusedXMLParser(
+                        forbid_dtd=True,
+                        forbid_entities=True,
+                        forbid_external=True,
+                    )
+                    root = ET.fromstring(response_text, parser=xml_parser)
                 except ET.ParseError as e:
                     logger.error(f"Failed to parse XML: {e}")
                     logger.error(f"Response text: {response_text[:1000]}")
