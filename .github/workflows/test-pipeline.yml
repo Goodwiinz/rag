@@ -126,6 +126,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio pytest-cov pytest-xdist
+          pip install "setuptools>=70.0.0"
           pip install -r backend/requirements.txt
 
       - name: Run unit tests
@@ -258,6 +259,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio pytest-cov
+          pip install "setuptools>=70.0.0"
           pip install -r backend/requirements.txt
 
       - name: Run integration tests
@@ -300,6 +302,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio pytest-cov
+          pip install "setuptools>=70.0.0"
           pip install -r backend/requirements.txt
 
       - name: Run resilience tests
@@ -350,6 +353,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio schemathesis
+          pip install "setuptools>=70.0.0"
           pip install -r backend/requirements.txt
 
       - name: Run contract tests
@@ -401,6 +405,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio pytest-benchmark locust
+          pip install "setuptools>=70.0.0"
           pip install -r backend/requirements.txt
 
       - name: Run performance tests
