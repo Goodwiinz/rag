@@ -22,6 +22,17 @@ interface BulkCreateResult {
   processing_time: number;
 }
 
+const sanitizeCsvCell = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  if (/^[=+\-@]/.test(trimmed)) {
+    return `'${trimmed}`;
+  }
+  return trimmed;
+};
+
 export const BulkOperations: React.FC = () => {
   const { canBulkEdit, isAdmin } = useEntityPermissions();
   const [jsonInput, setJsonInput] = useState('');
@@ -93,22 +104,27 @@ export const BulkOperations: React.FC = () => {
         return;
       }
 
-      const headers = lines[0].split(',').map(h => h.trim());
+      const headers = lines[0].split(',').map(h => sanitizeCsvCell(h));
       const entities = [];
 
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim());
+        const rawValues = lines[i].split(',');
+        const values = rawValues.map(v => sanitizeCsvCell(v));
         const entity: any = {};
         
         headers.forEach((header, index) => {
           entity[header] = values[index];
         });
 
+        const confidenceRaw = rawValues[headers.indexOf('confidence_score')] ?? '';
+        const parsedConfidence = Number.parseFloat(confidenceRaw.trim());
+        const confidenceScore = Number.isFinite(parsedConfidence) ? parsedConfidence : 0.8;
+
         // Convert to proper entity format
         entities.push({
           name: entity.name,
           entity_type: entity.entity_type || entity.type,
-          confidence_score: parseFloat(entity.confidence_score || '0.8'),
+          confidence_score: confidenceScore,
           extraction_method: entity.extraction_method || 'manual',
           metadata: {},
         });
