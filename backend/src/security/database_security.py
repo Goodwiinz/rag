@@ -391,9 +391,14 @@ class DatabaseAuditor:
 
             stored_checksum = result[0]
 
-            # Calculate current checksum
+            # Calculate current checksum - use dynamic SQL with proper validation
+            # Validate table name against whitelist
+            allowed_tables = ['documents', 'users', 'organizations', 'processing_history']
+            if table_name not in allowed_tables:
+                raise ValueError(f"Invalid table name: {table_name}")
+            
             current_data = self.db.execute(
-                text(f"SELECT * FROM {table_name} WHERE id = :id"),
+                text("SELECT * FROM {} WHERE id = :id".format(table_name)),
                 {'id': record_id}
             ).fetchone()
 
@@ -518,6 +523,11 @@ class DatabaseSecurityManager:
 
     def secure_insert(self, table_name: str, data: Dict[str, Any]) -> Any:
         """Secure insert with field encryption and integrity checking"""
+        # Validate table name against whitelist
+        allowed_tables = ['documents', 'users', 'organizations', 'processing_history', 'audit_log', 'data_integrity']
+        if table_name not in allowed_tables:
+            raise ValueError(f"Invalid table name: {table_name}")
+        
         # Encrypt sensitive fields
         encrypted_data = {}
         for field, value in data.items():
@@ -539,7 +549,7 @@ class DatabaseSecurityManager:
         try:
             columns = ', '.join(encrypted_data.keys())
             placeholders = ', '.join([f':{key}' for key in encrypted_data.keys()])
-            query = text(f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})")
+            query = text("INSERT INTO {} ({}) VALUES ({})".format(table_name, columns, placeholders))
 
             result = self.db.execute(query, encrypted_data)
             self.db.commit()
@@ -563,17 +573,34 @@ class DatabaseSecurityManager:
                      columns: List[str] = None) -> List[Dict[str, Any]]:
         """Secure select with access control and audit logging"""
         try:
-            # Build query
-            select_columns = ', '.join(columns) if columns else '*'
-            query = f"SELECT {select_columns} FROM {table_name}"
+            # Validate table name against whitelist
+            allowed_tables = ['documents', 'users', 'organizations', 'processing_history', 'audit_log', 'data_integrity']
+            if table_name not in allowed_tables:
+                raise ValueError(f"Invalid table name: {table_name}")
+            
+            # Validate column names if specified
+            if columns:
+                allowed_columns = ['id', 'name', 'created_at', 'updated_at', 'status', 'email', 'phone', 'content']
+                for col in columns:
+                    if col not in allowed_columns:
+                        raise ValueError(f"Invalid column name: {col}")
+                select_columns = ', '.join(columns)
+            else:
+                select_columns = '*'
+            
+            # Build base query using string formatting for table name (after validation)
+            query = "SELECT {} FROM {}".format(select_columns, table_name)
             params = {}
 
             if filters:
                 where_clauses = []
                 for field, value in filters.items():
+                    # Validate field names
+                    if field not in allowed_columns:
+                        raise ValueError(f"Invalid filter field: {field}")
                     where_clauses.append(f"{field} = :{field}")
                     params[field] = value
-                query += f" WHERE {' AND '.join(where_clauses)}"
+                query += " WHERE {}".format(' AND '.join(where_clauses))
 
             # Analyze query for security
             analysis = self.query_analyzer.analyze_query(query, params)
@@ -594,7 +621,7 @@ class DatabaseSecurityManager:
                 decrypted_results.append(row_dict)
 
             # Audit the operation
-            if 'id' in filters:
+            if filters and 'id' in filters:
                 self.auditor.audit_sensitive_data_access(
                     table_name,
                     str(filters['id']),

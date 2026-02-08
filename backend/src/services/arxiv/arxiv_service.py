@@ -17,7 +17,7 @@ import aiohttp
 import aiofiles
 from pypdf import PdfReader
 from io import BytesIO
-import requests
+import httpx
 
 from typing import Union
 from src.shared.schemas import DocumentMetadata
@@ -71,31 +71,33 @@ class ArXivIngestionService:
         self.download_dir = Path(self.config.get('arxiv_download_dir', 'data/arxiv'))
         self.download_dir.mkdir(parents=True, exist_ok=True)
 
-    def _make_sync_request(self, url: str, params: Dict) -> str:
-        """Make synchronous request using requests"""
-        logger.info(f"Sync request to: {url}")
+    async def _make_async_request(self, url: str, params: Dict) -> str:
+        """Make asynchronous request using httpx"""
+        logger.info(f"Async request to: {url}")
         logger.info(f"Params: {params}")
 
         try:
-            response = requests.get(url, params=params, timeout=60)  # 60 second timeout
-            logger.info(f"Response object: {response}")
-            logger.info(f"Response status: {response.status_code}")
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, params=params, timeout=60.0)  # 60 second timeout
+                logger.info(f"Response object: {response}")
+                logger.info(f"Response status: {response.status_code}")
 
-            response.raise_for_status()
+                response.raise_for_status()
 
-            if response is None:
-                logger.error("Response is None!")
-                raise IngestionError("None response from arXiv API")
+                if response is None:
+                    logger.error("Response is None!")
+                    raise IngestionError("None response from arXiv API")
 
-            logger.info(f"Response text type: {type(response.text)}")
-            logger.info(f"Response length: {len(response.text) if response.text else 0}")
+                response_text = response.text
+                logger.info(f"Response text type: {type(response_text)}")
+                logger.info(f"Response length: {len(response_text) if response_text else 0}")
 
-            return response.text
-        except requests.Timeout:
+                return response_text
+        except httpx.TimeoutException:
             logger.error("Request to arXiv API timed out after 60 seconds")
             raise IngestionError("ArXiv API request timed out")
         except Exception as e:
-            logger.error(f"Error in _make_sync_request: {e}")
+            logger.error(f"Error in _make_async_request: {e}")
             logger.error(f"Exception type: {type(e)}")
             raise
 
@@ -173,15 +175,11 @@ class ArXivIngestionService:
             try:
                 logger.info(f"Making request to arXiv API... (offset={api_offset}, have {len(papers)} papers)")
 
-                # Use requests in a thread executor for simplicity
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    response_text = await asyncio.get_event_loop().run_in_executor(
-                        executor,
-                        self._make_sync_request,
-                        self.ARXIV_API_BASE,
-                        params
-                    )
+                # Use async httpx directly
+                response_text = await self._make_async_request(
+                    self.ARXIV_API_BASE,
+                    params
+                )
 
                 if not response_text:
                     raise IngestionError("Empty response from arXiv API")
