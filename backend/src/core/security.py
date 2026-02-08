@@ -141,14 +141,28 @@ def get_client_ip(headers: Any, client_host: Optional[str] = None) -> str:
     Walk X-Forwarded-For from right to left and return the first IP that is not
     in TRUSTED_PROXIES. If all IPs are trusted, return the leftmost entry.
     """
+    trusted_value = settings.TRUSTED_PROXIES
+    _warn_if_trusted_proxies_all(trusted_value)
+    trusted_proxies = _parse_trusted_proxies(trusted_value)
+
+    if not trusted_proxies or not client_host or not _is_trusted_proxy(
+        client_host, trusted_proxies
+    ):
+        return client_host or "unknown"
+
     forwarded_for = _get_header_value(headers, "X-Forwarded-For")
     if forwarded_for:
-        ips = [ip.strip() for ip in forwarded_for.split(",") if ip.strip()]
+        ips: list[str] = []
+        for entry in forwarded_for.split(","):
+            ip_value = entry.strip()
+            if not ip_value:
+                continue
+            try:
+                ip_obj = ipaddress.ip_address(ip_value)
+            except ValueError:
+                continue
+            ips.append(str(ip_obj))
         if ips:
-            trusted_value = settings.TRUSTED_PROXIES
-            _warn_if_trusted_proxies_all(trusted_value)
-            trusted_proxies = _parse_trusted_proxies(trusted_value)
-
             for ip_value in reversed(ips):
                 if not _is_trusted_proxy(ip_value, trusted_proxies):
                     return ip_value
@@ -157,7 +171,11 @@ def get_client_ip(headers: Any, client_host: Optional[str] = None) -> str:
 
     real_ip = _get_header_value(headers, "X-Real-IP")
     if real_ip:
-        return real_ip.strip()
+        ip_value = real_ip.strip()
+        try:
+            return str(ipaddress.ip_address(ip_value))
+        except ValueError:
+            pass
 
     if client_host:
         return client_host
