@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 from src.core.config import settings
 from src.core.database import engine, Base
 from src.api.auth import auth_router
+from src.api.auth.api_keys import router as api_keys_router
 from src.api.documents import documents_router, files_router, processing_router
 from src.api.search import (
     search_router,
@@ -255,6 +256,7 @@ async def log_requests(request: Request, call_next):
 
 # Include routers
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(api_keys_router, prefix="/api/v1")
 app.include_router(files_router, prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
 app.include_router(processing_router, prefix="/api/v1")

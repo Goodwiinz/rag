@@ -182,3 +182,35 @@ serena_repo/
 
 # Serena Docker config (local paths)
 serena-docker-config/
+
+# Browser revision files (.brv) - Development environment
+*.brv
+*.brv.*
+.brv/
+browser-sessions/
+browser-data/
+browser-temp/
+
+# Playwright and E2E test browser artifacts
+playwright/.brv/
+test-results/*.brv
+test-results/**/*.brv
+playwright-report/*.brv
+e2e/*.brv
+e2e/**/*.brv
+visual-tests/*.brv
+accessibility-tests/*.brv
+performance-tests/*.brv
+
+# Development browser sessions
+dev-browser-data/
+dev-sessions/*.brv
+local-storage-dumps/*.brv
+debug-browser-cache/
+
+# Frontend/E2E specific browser artifacts
+frontend/test-results/**/*.brv
+frontend/playwright-report/**/*.brv
+tests/e2e/**/*.brv
+tests/integration/**/*.brv
+backend/browser-test-cache/
