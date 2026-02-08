@@ -202,6 +202,11 @@ class APIKeyAuth:
 # Global API key auth instance
 api_key_auth = APIKeyAuth()
 
+
+async def cleanup_api_key_auth():
+    """Cleanup function for API key authentication resources"""
+    await redis_rate_limiter.close()
+
 async def get_api_key_data(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(api_key_security),
@@ -247,8 +252,8 @@ async def get_api_key_data(
             )
         
         # Check rate limit
-        if not api_key_auth.check_rate_limit(api_key_record.id, api_key_record.rate_limit_per_hour):
-            current_usage = api_key_auth.get_current_usage(api_key_record.id)
+        if not await api_key_auth.check_rate_limit(api_key_record.id, api_key_record.rate_limit_per_hour):
+            current_usage = await api_key_auth.get_current_usage(api_key_record.id)
             logger.warning(f"Rate limit exceeded for API key {api_key_record.key_prefix}*** (usage: {current_usage}/{api_key_record.rate_limit_per_hour})")
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -257,7 +262,7 @@ async def get_api_key_data(
         
         # Track usage
         endpoint = request.url.path
-        api_key_auth.track_usage(api_key_record.id, endpoint)
+        await api_key_auth.track_usage(api_key_record.id, endpoint)
         
         # Update usage stats in database
         api_key_record.last_used_at = datetime.utcnow()
