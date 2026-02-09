@@ -1,20 +1,29 @@
-name: Fast CI (Larger Hosted Runner)
+name: Fast CI (GitHub-hosted)
 
 on:
   push:
-    branches: [develop, main, feature/*]
+    branches: [develop, main]
   pull_request:
     branches: [develop, main]
   workflow_dispatch:
+    inputs:
+      runner:
+        description: "Runner label (e.g. ubuntu-latest, ubuntu-22.04, or your larger runner label)"
+        required: false
+        type: string
 
 env:
   NPM_CONFIG_CACHE: ${{ runner.temp }}/npm-cache
   PIP_CACHE_DIR: ${{ runner.temp }}/pip-cache
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: Lint (Fast)
-    runs-on: ubuntu-latest-m
+    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +51,7 @@ jobs:
 
   test-backend:
     name: Backend Tests (Fast)
-    runs-on: ubuntu-latest-m
+    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -62,7 +71,7 @@ jobs:
 
   test-frontend:
     name: Frontend Tests (Fast)
-    runs-on: ubuntu-latest-m
+    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -77,11 +86,13 @@ jobs:
 
   summary:
     name: CI Summary
-    runs-on: ubuntu-latest-m
+    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
     needs: [lint, test-backend, test-frontend]
     if: always()
+    env:
+      RUNNER_LABEL: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - name: Summary
         run: |
           echo "## ✅ Fast CI Complete" >> $GITHUB_STEP_SUMMARY
-          echo "All jobs finished on ubuntu-latest-m" >> $GITHUB_STEP_SUMMARY
+          echo "All jobs finished on ${RUNNER_LABEL}" >> $GITHUB_STEP_SUMMARY
