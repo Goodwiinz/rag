@@ -3,13 +3,14 @@ ArXiv Knowledge Graph API endpoints
 """
 
 import logging
-from typing import Dict, List, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends, Query
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from src.core.dependencies import get_current_user
 from src.services.arxiv.arxiv_kg_integration import ArXivKnowledgeGraphIntegration
 from src.services.arxiv.arxiv_service import ArXivIngestionService
-from src.core.dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -33,8 +34,12 @@ class TrendAnalysisRequest(BaseModel):
 class BulkIngestionRequest(BaseModel):
     query: str = Field(..., description="Search query for papers")
     max_results: int = Field(default=100, description="Maximum papers to process")
-    categories: Optional[List[str]] = Field(default=None, description="Filter by categories")
-    create_kg_entries: bool = Field(default=True, description="Create knowledge graph entries")
+    categories: Optional[List[str]] = Field(
+        default=None, description="Filter by categories"
+    )
+    create_kg_entries: bool = Field(
+        default=True, description="Create knowledge graph entries"
+    )
 
 
 # Dependency injection
@@ -44,7 +49,9 @@ async def get_kg_integration():
         return ArXivKnowledgeGraphIntegration()
     except Exception as e:
         logger.error(f"Failed to initialize KG integration: {e}")
-        raise HTTPException(status_code=503, detail="Knowledge graph service unavailable")
+        raise HTTPException(
+            status_code=503, detail="Knowledge graph service unavailable"
+        )
 
 
 async def get_arxiv_service():
@@ -60,7 +67,7 @@ async def get_arxiv_service():
 async def create_paper_subgraph(
     request: KnowledgeGraphRequest,
     current_user: dict = Depends(get_current_user),
-    kg_integration: ArXivKnowledgeGraphIntegration = Depends(get_kg_integration)
+    kg_integration: ArXivKnowledgeGraphIntegration = Depends(get_kg_integration),
 ):
     """
     Create a knowledge graph subgraph for a specific paper
@@ -73,18 +80,17 @@ async def create_paper_subgraph(
         logger.info(f"Creating KG subgraph for paper {request.paper_id}")
 
         result = await kg_integration.create_paper_kg_subgraph(
-            paper_id=request.paper_id,
-            depth=request.depth
+            paper_id=request.paper_id, depth=request.depth
         )
 
-        if 'error' in result:
-            raise HTTPException(status_code=404, detail=result['error'])
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
 
         return {
             "status": "success",
             "paper_id": request.paper_id,
             "depth": request.depth,
-            "subgraph": result
+            "subgraph": result,
         }
 
     except HTTPException:
@@ -98,7 +104,7 @@ async def create_paper_subgraph(
 async def get_author_collaboration_network(
     request: AuthorNetworkRequest,
     current_user: dict = Depends(get_current_user),
-    kg_integration: ArXivKnowledgeGraphIntegration = Depends(get_kg_integration)
+    kg_integration: ArXivKnowledgeGraphIntegration = Depends(get_kg_integration),
 ):
     """
     Build collaboration network for an author
@@ -110,18 +116,17 @@ async def get_author_collaboration_network(
         logger.info(f"Building collaboration network for {request.author_name}")
 
         network = await kg_integration.get_author_collaboration_network(
-            author_name=request.author_name,
-            max_depth=request.max_depth
+            author_name=request.author_name, max_depth=request.max_depth
         )
 
-        if 'error' in network:
-            raise HTTPException(status_code=404, detail=network['error'])
+        if "error" in network:
+            raise HTTPException(status_code=404, detail=network["error"])
 
         return {
             "status": "success",
             "author": request.author_name,
             "max_depth": request.max_depth,
-            "network": network
+            "network": network,
         }
 
     except HTTPException:
@@ -135,7 +140,7 @@ async def get_author_collaboration_network(
 async def analyze_research_trends(
     request: TrendAnalysisRequest,
     current_user: dict = Depends(get_current_user),
-    kg_integration: ArXivKnowledgeGraphIntegration = Depends(get_kg_integration)
+    kg_integration: ArXivKnowledgeGraphIntegration = Depends(get_kg_integration),
 ):
     """
     Analyze trends in a research area
@@ -144,21 +149,22 @@ async def analyze_research_trends(
     to identify trending topics, author collaborations, and citation patterns.
     """
     try:
-        logger.info(f"Analyzing trends for category {request.category} over {request.days} days")
-
-        analysis = await kg_integration.analyze_research_area_trends(
-            category=request.category,
-            days=request.days
+        logger.info(
+            f"Analyzing trends for category {request.category} over {request.days} days"
         )
 
-        if 'error' in analysis:
-            raise HTTPException(status_code=400, detail=analysis['error'])
+        analysis = await kg_integration.analyze_research_area_trends(
+            category=request.category, days=request.days
+        )
+
+        if "error" in analysis:
+            raise HTTPException(status_code=400, detail=analysis["error"])
 
         return {
             "status": "success",
             "category": request.category,
             "period_days": request.days,
-            "analysis": analysis
+            "analysis": analysis,
         }
 
     except HTTPException:
@@ -173,7 +179,7 @@ async def bulk_ingest_with_kg(
     request: BulkIngestionRequest,
     current_user: dict = Depends(get_current_user),
     arxiv_service: ArXivIngestionService = Depends(get_arxiv_service),
-    kg_integration: ArXivKnowledgeGraphIntegration = Depends(get_kg_integration)
+    kg_integration: ArXivKnowledgeGraphIntegration = Depends(get_kg_integration),
 ):
     """
     Bulk ingest arXiv papers with knowledge graph integration
@@ -188,7 +194,7 @@ async def bulk_ingest_with_kg(
         papers = await arxiv_service.search_papers(
             query=request.query,
             max_results=request.max_results,
-            categories=request.categories
+            categories=request.categories,
         )
 
         if not papers:
@@ -196,13 +202,12 @@ async def bulk_ingest_with_kg(
                 "status": "success",
                 "message": "No papers found matching the query",
                 "papers_found": 0,
-                "kg_entries_created": 0
+                "kg_entries_created": 0,
             }
 
         # Ingest papers
         ingested_count = await arxiv_service.ingest_papers(
-            papers=papers,
-            extract_entities=request.create_kg_entries
+            papers=papers, extract_entities=request.create_kg_entries
         )
 
         # Create knowledge graph entries if requested
@@ -213,7 +218,9 @@ async def bulk_ingest_with_kg(
                     await kg_integration.process_paper_kg_integration(paper)
                     kg_entries_count += 1
                 except Exception as e:
-                    logger.warning(f"Failed to process KG for paper {paper.get('id')}: {e}")
+                    logger.warning(
+                        f"Failed to process KG for paper {paper.get('id')}: {e}"
+                    )
 
         return {
             "status": "success",
@@ -221,7 +228,7 @@ async def bulk_ingest_with_kg(
             "papers_found": len(papers),
             "papers_ingested": ingested_count,
             "kg_entries_created": kg_entries_count,
-            "categories_filter": request.categories
+            "categories_filter": request.categories,
         }
 
     except Exception as e:
@@ -234,7 +241,7 @@ async def get_entity_details(
     entity_name: str,
     entity_type: Optional[str] = Query(None, description="Entity type filter"),
     current_user: dict = Depends(get_current_user),
-    kg_integration: ArXivKnowledgeGraphIntegration = Depends(get_kg_integration)
+    kg_integration: ArXivKnowledgeGraphIntegration = Depends(get_kg_integration),
 ):
     """
     Get details about a specific entity in the knowledge graph
@@ -246,21 +253,21 @@ async def get_entity_details(
         logger.info(f"Getting details for entity {entity_name}")
 
         if not kg_integration.kg_service:
-            raise HTTPException(status_code=503, detail="Knowledge graph service unavailable")
+            raise HTTPException(
+                status_code=503, detail="Knowledge graph service unavailable"
+            )
 
         # Get entity from knowledge graph
         entity_details = await kg_integration.kg_service.get_entity_details(
-            entity_name=entity_name,
-            entity_type=entity_type
+            entity_name=entity_name, entity_type=entity_type
         )
 
         if not entity_details:
-            raise HTTPException(status_code=404, detail=f"Entity {entity_name} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Entity {entity_name} not found"
+            )
 
-        return {
-            "status": "success",
-            "entity": entity_details
-        }
+        return {"status": "success", "entity": entity_details}
 
     except HTTPException:
         raise
@@ -275,7 +282,7 @@ async def find_entity_path(
     target: str,
     max_depth: int = Query(default=3, description="Maximum path depth"),
     current_user: dict = Depends(get_current_user),
-    kg_integration: ArXivKnowledgeGraphIntegration = Depends(get_kg_integration)
+    kg_integration: ArXivKnowledgeGraphIntegration = Depends(get_kg_integration),
 ):
     """
     Find shortest path between two entities in the knowledge graph
@@ -287,13 +294,13 @@ async def find_entity_path(
         logger.info(f"Finding path from {source} to {target}")
 
         if not kg_integration.kg_service:
-            raise HTTPException(status_code=503, detail="Knowledge graph service unavailable")
+            raise HTTPException(
+                status_code=503, detail="Knowledge graph service unavailable"
+            )
 
         # Find path in knowledge graph
         path = await kg_integration.kg_service.find_shortest_path(
-            source_entity=source,
-            target_entity=target,
-            max_depth=max_depth
+            source_entity=source, target_entity=target, max_depth=max_depth
         )
 
         if not path:
@@ -302,7 +309,7 @@ async def find_entity_path(
                 "source": source,
                 "target": target,
                 "path_found": False,
-                "message": "No path found within specified depth"
+                "message": "No path found within specified depth",
             }
 
         return {
@@ -311,7 +318,7 @@ async def find_entity_path(
             "target": target,
             "path_found": True,
             "path_length": len(path),
-            "path": path
+            "path": path,
         }
 
     except HTTPException:
@@ -324,7 +331,7 @@ async def find_entity_path(
 @router.get("/stats")
 async def get_knowledge_graph_stats(
     current_user: dict = Depends(get_current_user),
-    kg_integration: ArXivKnowledgeGraphIntegration = Depends(get_kg_integration)
+    kg_integration: ArXivKnowledgeGraphIntegration = Depends(get_kg_integration),
 ):
     """
     Get statistics about the arXiv knowledge graph
@@ -334,7 +341,9 @@ async def get_knowledge_graph_stats(
     """
     try:
         if not kg_integration.kg_service:
-            raise HTTPException(status_code=503, detail="Knowledge graph service unavailable")
+            raise HTTPException(
+                status_code=503, detail="Knowledge graph service unavailable"
+            )
 
         # Get stats from knowledge graph
         stats = await kg_integration.kg_service.get_graph_statistics()
@@ -346,13 +355,10 @@ async def get_knowledge_graph_stats(
             "research_concepts": stats.get("total_entities", {}).get("concept", 0),
             "total_relationships": sum(stats.get("total_relationships", {}).values()),
             "relationship_types": stats.get("total_relationships", {}),
-            "last_updated": stats.get("last_updated")
+            "last_updated": stats.get("last_updated"),
         }
 
-        return {
-            "status": "success",
-            "statistics": arxiv_stats
-        }
+        return {"status": "success", "statistics": arxiv_stats}
 
     except HTTPException:
         raise

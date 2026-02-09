@@ -5,19 +5,20 @@ This module provides pre-defined test datasets for different query types
 and scenarios to evaluate the multimodal RAG system comprehensively.
 """
 
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
-from enum import Enum
 import json
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from .deepeval_integration import DeepEvalTestCase
-from .success_criteria import QueryType, ModalityType
+from .success_criteria import ModalityType, QueryType
 
 
 class DatasetCategory(Enum):
     """Categories of test datasets"""
+
     BASIC_FUNCTIONALITY = "basic_functionality"
     ENTERPRISE_SCENARIOS = "enterprise_scenarios"
     MULTIMODAL_TESTS = "multimodal_tests"
@@ -29,6 +30,7 @@ class DatasetCategory(Enum):
 @dataclass
 class TestDataset:
     """Test dataset containing multiple test cases"""
+
     name: str
     description: str
     category: DatasetCategory
@@ -84,12 +86,12 @@ class RAGTestDatasets:
                 retrieval_context=[
                     "Microsoft's FY2023 revenue reached $211.9 billion, up 7% from the previous year.",
                     "The company's financial results showed strong cloud growth with Azure revenue increasing 27%.",
-                    "Microsoft Corp. today announced results for the fiscal year ended June 30, 2023."
+                    "Microsoft Corp. today announced results for the fiscal year ended June 30, 2023.",
                 ],
                 expected_output="Microsoft's annual revenue for fiscal year 2023 was $211.9 billion.",
                 query_type=QueryType.FACTUAL_LOOKUP,
                 modalities=[ModalityType.TEXT],
-                test_id="factual_001"
+                test_id="factual_001",
             ),
             DeepEvalTestCase(
                 input="Who is the current CEO of Apple Inc.?",
@@ -97,12 +99,12 @@ class RAGTestDatasets:
                 retrieval_context=[
                     "Tim Cook has served as the Chief Executive Officer of Apple Inc. since 2011.",
                     "Cook succeeded Steve Jobs as CEO of Apple on August 24, 2011.",
-                    "Apple leadership team includes Tim Cook as CEO and other executive officers."
+                    "Apple leadership team includes Tim Cook as CEO and other executive officers.",
                 ],
                 expected_output="Tim Cook is the CEO of Apple Inc.",
                 query_type=QueryType.FACTUAL_LOOKUP,
                 modalities=[ModalityType.TEXT],
-                test_id="factual_002"
+                test_id="factual_002",
             ),
             DeepEvalTestCase(
                 input="When was the iPhone first released?",
@@ -110,13 +112,13 @@ class RAGTestDatasets:
                 retrieval_context=[
                     "Apple released the first iPhone on June 29, 2007.",
                     "The original iPhone was introduced by Steve Jobs at Macworld 2007.",
-                    "iPhone launch marked Apple's entry into the mobile phone market."
+                    "iPhone launch marked Apple's entry into the mobile phone market.",
                 ],
                 expected_output="The iPhone was first released on June 29, 2007.",
                 query_type=QueryType.FACTUAL_LOOKUP,
                 modalities=[ModalityType.TEXT],
-                test_id="factual_003"
-            )
+                test_id="factual_003",
+            ),
         ]
 
         datasets["basic_factual_lookup"] = TestDataset(
@@ -128,7 +130,7 @@ class RAGTestDatasets:
             modalities=[ModalityType.TEXT],
             difficulty_level="easy",
             expected_success_rate=0.90,
-            metadata={"created_by": "system", "version": "1.0"}
+            metadata={"created_by": "system", "version": "1.0"},
         )
 
         # Reasoning Tests
@@ -141,12 +143,12 @@ class RAGTestDatasets:
                     "Enterprise software spending increased 12% year-over-year.",
                     "Consumer electronics sales showed slower growth at 3% annually.",
                     "AI and machine learning investments are expected to accelerate in 2024.",
-                    "Cloud computing market is projected to grow 20% in 2024."
+                    "Cloud computing market is projected to grow 20% in 2024.",
                 ],
                 expected_output="The tech sector outlook for 2024 is positive with continued growth in cloud, AI, and enterprise software.",
                 query_type=QueryType.REASONING,
                 modalities=[ModalityType.TEXT],
-                test_id="reasoning_001"
+                test_id="reasoning_001",
             )
         ]
 
@@ -159,7 +161,7 @@ class RAGTestDatasets:
             modalities=[ModalityType.TEXT],
             difficulty_level="medium",
             expected_success_rate=0.75,
-            metadata={"created_by": "system", "version": "1.0"}
+            metadata={"created_by": "system", "version": "1.0"},
         )
 
         return datasets
@@ -177,12 +179,12 @@ class RAGTestDatasets:
                     "Q3 Product A Revenue: North America $45M, Europe $32M, Asia $28M",
                     "Q3 Product B Revenue: North America $25M, Europe $38M, Asia $31M",
                     "Q3 Product C Revenue: North America $15M, Europe $12M, Asia $18M",
-                    "Regional performance analysis shows varying market acceptance across product lines."
+                    "Regional performance analysis shows varying market acceptance across product lines.",
                 ],
                 expected_output="Product A leads in North America ($45M), Product B in Europe ($38M), Product C has mixed regional performance.",
                 query_type=QueryType.COMPARISON,
                 modalities=[ModalityType.TEXT],
-                test_id="enterprise_001"
+                test_id="enterprise_001",
             ),
             DeepEvalTestCase(
                 input="What are the key risk factors identified in our annual report?",
@@ -192,13 +194,13 @@ class RAGTestDatasets:
                     "Risk Factor 2: Increased competition in core markets may affect market share.",
                     "Risk Factor 3: Regulatory changes could increase compliance costs.",
                     "Risk Factor 4: Cybersecurity threats pose risks to data and operations.",
-                    "Risk Factor 5: Economic volatility may impact customer spending patterns."
+                    "Risk Factor 5: Economic volatility may impact customer spending patterns.",
                 ],
                 expected_output="Supply chain issues, competition, regulatory changes, cybersecurity, and economic volatility.",
                 query_type=QueryType.SUMMARIZATION,
                 modalities=[ModalityType.TEXT],
-                test_id="enterprise_002"
-            )
+                test_id="enterprise_002",
+            ),
         ]
 
         datasets["enterprise_business_intelligence"] = TestDataset(
@@ -210,7 +212,7 @@ class RAGTestDatasets:
             modalities=[ModalityType.TEXT],
             difficulty_level="hard",
             expected_success_rate=0.80,
-            metadata={"domain": "business", "complexity": "high"}
+            metadata={"domain": "business", "complexity": "high"},
         )
 
         return datasets
@@ -229,13 +231,16 @@ class RAGTestDatasets:
                     "Chart 1: Revenue Growth bar chart showing 15% YoY increase.",
                     "Chart 2: Revenue by business segment pie chart with Cloud Services at 40%.",
                     "Chart 3: Geographic revenue distribution: North America 45%, Europe 30%, APAC 25%.",
-                    "The presentation slides combine text data with visual representations for clarity."
+                    "The presentation slides combine text data with visual representations for clarity.",
                 ],
                 expected_output="Revenue grew 15% YoY, cloud services are 40% of revenue, geographic distribution is 45% NA, 30% Europe, 25% APAC.",
                 query_type=QueryType.MULTIMODAL_QUERY,
                 modalities=[ModalityType.TEXT, ModalityType.IMAGE],
                 test_id="multimodal_001",
-                metadata={"contains_charts": True, "data_sources": ["presentation_slides", "financial_data"]}
+                metadata={
+                    "contains_charts": True,
+                    "data_sources": ["presentation_slides", "financial_data"],
+                },
             ),
             DeepEvalTestCase(
                 input="Find all video content that mentions our new product launch",
@@ -244,14 +249,17 @@ class RAGTestDatasets:
                     "Video 1: CEO Product Announcement - Duration 2:45, mentions new product launch at timestamp 1:15.",
                     "Video 2: Product Demonstration - Duration 5:30, shows product features and benefits.",
                     "Video 3: Marketing Campaign Video - Duration 1:20, promotional content for new product.",
-                    "All videos are tagged with 'new_product_launch' and date range 2024-01-01 to 2024-01-31."
+                    "All videos are tagged with 'new_product_launch' and date range 2024-01-01 to 2024-01-31.",
                 ],
                 expected_output="Found 3 videos: CEO announcement (2:45), product demo (5:30), and marketing video (1:20).",
                 query_type=QueryType.MULTIMODAL_QUERY,
                 modalities=[ModalityType.VIDEO, ModalityType.AUDIO],
                 test_id="multimodal_002",
-                metadata={"content_type": "video", "search_terms": ["product launch", "new product"]}
-            )
+                metadata={
+                    "content_type": "video",
+                    "search_terms": ["product launch", "new product"],
+                },
+            ),
         ]
 
         datasets["multimodal_cross_modal"] = TestDataset(
@@ -260,10 +268,15 @@ class RAGTestDatasets:
             category=DatasetCategory.MULTIMODAL_TESTS,
             query_type=QueryType.MULTIMODAL_QUERY,
             test_cases=multimodal_test_cases,
-            modalities=[ModalityType.TEXT, ModalityType.IMAGE, ModalityType.VIDEO, ModalityType.AUDIO],
+            modalities=[
+                ModalityType.TEXT,
+                ModalityType.IMAGE,
+                ModalityType.VIDEO,
+                ModalityType.AUDIO,
+            ],
             difficulty_level="hard",
             expected_success_rate=0.70,
-            metadata={"cross_modal": True, "complexity": "high"}
+            metadata={"cross_modal": True, "complexity": "high"},
         )
 
         return datasets
@@ -280,13 +293,16 @@ class RAGTestDatasets:
                 retrieval_context=[
                     "The system contains multiple projects: Project Alpha, Project Beta, Project Gamma.",
                     "Each project has different timelines, teams, and objectives.",
-                    "Without specific project identification, I cannot provide accurate information."
+                    "Without specific project identification, I cannot provide accurate information.",
                 ],
                 expected_output="The query is too ambiguous. Please specify which project you mean.",
                 query_type=QueryType.FACTUAL_LOOKUP,
                 modalities=[ModalityType.TEXT],
                 test_id="edge_case_001",
-                metadata={"query_type": "ambiguous", "expected_behavior": "clarification_request"}
+                metadata={
+                    "query_type": "ambiguous",
+                    "expected_behavior": "clarification_request",
+                },
             ),
             DeepEvalTestCase(
                 input="Tell me about everything in the documents",
@@ -294,14 +310,17 @@ class RAGTestDatasets:
                 retrieval_context=[
                     "Document database contains 10,000+ documents covering various business topics.",
                     "Documents include financial reports, project plans, meeting minutes, and technical specifications.",
-                    "A comprehensive summary of all documents would be too extensive and not useful."
+                    "A comprehensive summary of all documents would be too extensive and not useful.",
                 ],
                 expected_output="The request is too broad. Please specify a topic or question.",
                 query_type=QueryType.SUMMARIZATION,
                 modalities=[ModalityType.TEXT],
                 test_id="edge_case_002",
-                metadata={"query_type": "too_broad", "expected_behavior": "narrowing_request"}
-            )
+                metadata={
+                    "query_type": "too_broad",
+                    "expected_behavior": "narrowing_request",
+                },
+            ),
         ]
 
         datasets["edge_cases_ambiguous_queries"] = TestDataset(
@@ -313,7 +332,7 @@ class RAGTestDatasets:
             modalities=[ModalityType.TEXT],
             difficulty_level="medium",
             expected_success_rate=0.60,
-            metadata={"edge_case_type": "ambiguity", "focus": "graceful_failure"}
+            metadata={"edge_case_type": "ambiguity", "focus": "graceful_failure"},
         )
 
         # No Results Cases
@@ -324,13 +343,13 @@ class RAGTestDatasets:
                 retrieval_context=[
                     "Search returned no results for company XYZ123.",
                     "Similar company names exist: Company ABC, Company XYZ.",
-                    "Database contains information about 500+ companies but not XYZ123."
+                    "Database contains information about 500+ companies but not XYZ123.",
                 ],
                 expected_output="No information found for company XYZ123 in the database.",
                 query_type=QueryType.FACTUAL_LOOKUP,
                 modalities=[ModalityType.TEXT],
                 test_id="edge_case_003",
-                metadata={"expected_results": "none", "behavior": "polite_refusal"}
+                metadata={"expected_results": "none", "behavior": "polite_refusal"},
             )
         ]
 
@@ -343,7 +362,7 @@ class RAGTestDatasets:
             modalities=[ModalityType.TEXT],
             difficulty_level="easy",
             expected_success_rate=0.85,
-            metadata={"edge_case_type": "no_results", "focus": "graceful_failure"}
+            metadata={"edge_case_type": "no_results", "focus": "graceful_failure"},
         )
 
         return datasets
@@ -361,13 +380,13 @@ class RAGTestDatasets:
                 retrieval_context=[
                     f"Report {i+1} contains analysis of operational metrics.",
                     f"Key findings from report {i+1} show 15% efficiency improvement.",
-                    f"Recommendations include process optimization and technology upgrades."
+                    f"Recommendations include process optimization and technology upgrades.",
                 ],
                 expected_output=f"Report {i+1} shows efficiency improvements and optimization opportunities.",
                 query_type=QueryType.FACTUAL_LOOKUP,
                 modalities=[ModalityType.TEXT],
                 test_id=f"perf_test_{i+1:03d}",
-                metadata={"performance_test": True, "batch_id": 1}
+                metadata={"performance_test": True, "batch_id": 1},
             )
             high_volume_test_cases.append(test_case)
 
@@ -384,8 +403,8 @@ class RAGTestDatasets:
                 "performance_test": True,
                 "concurrent_queries": 50,
                 "target_latency_ms": 2000,
-                "stress_test_type": "volume"
-            }
+                "stress_test_type": "volume",
+            },
         )
 
         return datasets
@@ -402,13 +421,16 @@ class RAGTestDatasets:
                 retrieval_context=[
                     "Query contains SQL injection attempt.",
                     "System security filters detected malicious pattern.",
-                    "No documents match this query pattern."
+                    "No documents match this query pattern.",
                 ],
                 expected_output="Security threat detected and blocked.",
                 query_type=QueryType.FACTUAL_LOOKUP,
                 modalities=[ModalityType.TEXT],
                 test_id="security_001",
-                metadata={"attack_type": "sql_injection", "expected_behavior": "blocked"}
+                metadata={
+                    "attack_type": "sql_injection",
+                    "expected_behavior": "blocked",
+                },
             ),
             DeepEvalTestCase(
                 input="<script>alert('XSS')</script>",
@@ -416,14 +438,14 @@ class RAGTestDatasets:
                 retrieval_context=[
                     "Query contains potential XSS attack.",
                     "Security filters blocked script tags.",
-                    "No legitimate business content detected."
+                    "No legitimate business content detected.",
                 ],
                 expected_output="XSS attack detected and blocked.",
                 query_type=QueryType.FACTUAL_LOOKUP,
                 modalities=[ModalityType.TEXT],
                 test_id="security_002",
-                metadata={"attack_type": "xss", "expected_behavior": "blocked"}
-            )
+                metadata={"attack_type": "xss", "expected_behavior": "blocked"},
+            ),
         ]
 
         datasets["security_injection_attacks"] = TestDataset(
@@ -438,8 +460,8 @@ class RAGTestDatasets:
             metadata={
                 "security_test": True,
                 "attack_types": ["sql_injection", "xss"],
-                "expected_behavior": "all_blocked"
-            }
+                "expected_behavior": "all_blocked",
+            },
         )
 
         # Unauthorized Access Tests
@@ -450,13 +472,16 @@ class RAGTestDatasets:
                 retrieval_context=[
                     "Query requests confidential salary information.",
                     "Access control check failed - insufficient permissions.",
-                    "Salary data is restricted to authorized personnel only."
+                    "Salary data is restricted to authorized personnel only.",
                 ],
                 expected_output="Access denied - insufficient permissions for confidential data.",
                 query_type=QueryType.FACTUAL_LOOKUP,
                 modalities=[ModalityType.TEXT],
                 test_id="security_003",
-                metadata={"access_level": "confidential", "expected_behavior": "access_denied"}
+                metadata={
+                    "access_level": "confidential",
+                    "expected_behavior": "access_denied",
+                },
             )
         ]
 
@@ -472,8 +497,8 @@ class RAGTestDatasets:
             metadata={
                 "security_test": True,
                 "access_control": True,
-                "data_sensitivity": "confidential"
-            }
+                "data_sensitivity": "confidential",
+            },
         )
 
         return datasets
@@ -484,22 +509,34 @@ class RAGTestDatasets:
 
     def get_datasets_by_category(self, category: DatasetCategory) -> List[TestDataset]:
         """Get all datasets for a specific category"""
-        return [dataset for dataset in self.datasets.values() if dataset.category == category]
+        return [
+            dataset
+            for dataset in self.datasets.values()
+            if dataset.category == category
+        ]
 
     def get_datasets_by_query_type(self, query_type: QueryType) -> List[TestDataset]:
         """Get all datasets for a specific query type"""
-        return [dataset for dataset in self.datasets.values() if dataset.query_type == query_type]
+        return [
+            dataset
+            for dataset in self.datasets.values()
+            if dataset.query_type == query_type
+        ]
 
     def get_datasets_by_difficulty(self, difficulty: str) -> List[TestDataset]:
         """Get all datasets by difficulty level"""
-        return [dataset for dataset in self.datasets.values() if dataset.difficulty_level == difficulty]
+        return [
+            dataset
+            for dataset in self.datasets.values()
+            if dataset.difficulty_level == difficulty
+        ]
 
     def create_evaluation_suite(
         self,
         categories: Optional[List[DatasetCategory]] = None,
         query_types: Optional[List[QueryType]] = None,
         difficulties: Optional[List[str]] = None,
-        max_test_cases: Optional[int] = None
+        max_test_cases: Optional[int] = None,
     ) -> List[DeepEvalTestCase]:
         """
         Create a comprehensive evaluation suite with filtered datasets
@@ -545,14 +582,16 @@ class RAGTestDatasets:
                 "modalities": [mod.value for mod in dataset.modalities],
                 "difficulty_level": dataset.difficulty_level,
                 "expected_success_rate": dataset.expected_success_rate,
-                "metadata": dataset.metadata
+                "metadata": dataset.metadata,
             }
 
         return {
             "datasets": configs,
             "total_datasets": len(configs),
-            "total_test_cases": sum(len(ds.test_cases) for ds in self.datasets.values()),
-            "export_timestamp": datetime.now(timezone.utc).isoformat()
+            "total_test_cases": sum(
+                len(ds.test_cases) for ds in self.datasets.values()
+            ),
+            "export_timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 

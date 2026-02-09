@@ -47,6 +47,11 @@ describe('ErrorTracker', () => {
     mockLocalStorage.getItem.mockReturnValue(null);
     mockLocalStorage.setItem.mockImplementation(() => {});
     mockLocalStorage.removeItem.mockImplementation(() => {});
+
+    // Clear singleton state before each test
+    errorTracker.clearLogs();
+    errorTracker.clearMetrics();
+    errorTracker.setEnabled(true);
   });
 
   afterAll(() => {

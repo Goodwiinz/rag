@@ -4,24 +4,36 @@ Comprehensive audit logging and security monitoring for database operations
 Implements GDPR compliance and security best practices
 """
 
-import json
 import hashlib
+import json
 import logging
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List
-from enum import Enum
-from sqlalchemy import create_engine, Column, String, Integer, DateTime, Text, Boolean, JSON
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.dialects.postgresql import UUID
 import uuid
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Integer,
+    String,
+    Text,
+    create_engine,
+)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import Session, sessionmaker
 
 from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
 class SecurityEventType(Enum):
     """Security event types"""
+
     # Authentication events
     LOGIN_SUCCESS = "login_success"
     LOGIN_FAILURE = "login_failure"
@@ -71,23 +83,33 @@ class SecurityEventType(Enum):
     SYSTEM_SHUTDOWN = "system_shutdown"
     ERROR_OCCURRED = "error_occurred"
 
+
 class SecuritySeverity(Enum):
     """Security event severity levels"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
 
+
 Base = declarative_base()
+
 
 class SecurityAuditLog(Base):
     """Security audit log model"""
+
     __tablename__ = "security_audit_logs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_type = Column(String(50), nullable=False, index=True)
     severity = Column(String(10), nullable=False, index=True)
-    timestamp = Column(DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc), index=True)
+    timestamp = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.now(timezone.utc),
+        index=True,
+    )
 
     # User information
     user_id = Column(UUID(as_uuid=True), nullable=True, index=True)
@@ -109,12 +131,15 @@ class SecurityAuditLog(Base):
 
     # Additional data
     event_data = Column(JSON, nullable=True)
-    event_metadata = Column(JSON, nullable=True)  # Renamed from 'metadata' to avoid SQLAlchemy reserved name conflict
+    event_metadata = Column(
+        JSON, nullable=True
+    )  # Renamed from 'metadata' to avoid SQLAlchemy reserved name conflict
 
     # Compliance fields
     data_retention_days = Column(Integer, default=2555)  # 7 years default
     gdpr_relevant = Column(Boolean, default=False, index=True)
     compliance_tags = Column(JSON, nullable=True)
+
 
 class SecurityAuditService:
     """Service for managing security audit logs"""
@@ -141,7 +166,7 @@ class SecurityAuditService:
         event_data: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
         gdpr_relevant: bool = False,
-        compliance_tags: Optional[List[str]] = None
+        compliance_tags: Optional[List[str]] = None,
     ):
         """Log a security event to the audit trail"""
         try:
@@ -164,7 +189,7 @@ class SecurityAuditService:
                 event_data=self._sanitize_data(event_data) if event_data else None,
                 metadata=self._sanitize_data(metadata) if metadata else None,
                 gdpr_relevant=gdpr_relevant,
-                compliance_tags=compliance_tags or []
+                compliance_tags=compliance_tags or [],
             )
 
             # Add to database
@@ -188,9 +213,22 @@ class SecurityAuditService:
 
         sanitized = {}
         sensitive_fields = {
-            'password', 'token', 'secret', 'key', 'auth', 'credential',
-            'ssn', 'social_security', 'credit_card', 'cc_number', 'api_key',
-            'private_key', 'certificate', 'cookie', 'session', 'jwt'
+            "password",
+            "token",
+            "secret",
+            "key",
+            "auth",
+            "credential",
+            "ssn",
+            "social_security",
+            "credit_card",
+            "cc_number",
+            "api_key",
+            "private_key",
+            "certificate",
+            "cookie",
+            "session",
+            "jwt",
         }
 
         for key, value in data.items():
@@ -199,9 +237,9 @@ class SecurityAuditService:
             if any(sensitive in key_lower for sensitive in sensitive_fields):
                 # Mask sensitive values
                 if isinstance(value, str) and len(value) > 4:
-                    sanitized[key] = value[:2] + '*' * (len(value) - 4) + value[-2:]
+                    sanitized[key] = value[:2] + "*" * (len(value) - 4) + value[-2:]
                 else:
-                    sanitized[key] = '***'
+                    sanitized[key] = "***"
             else:
                 # For nested dictionaries
                 if isinstance(value, dict):
@@ -215,7 +253,7 @@ class SecurityAuditService:
         self,
         event_type: SecurityEventType,
         severity: SecuritySeverity,
-        audit_log: SecurityAuditLog
+        audit_log: SecurityAuditLog,
     ):
         """Log event to application logger based on severity"""
         log_message = (
@@ -226,13 +264,15 @@ class SecurityAuditService:
         )
 
         log_data = {
-            'event_type': event_type.value,
-            'severity': severity.value,
-            'user_id': str(audit_log.user_id) if audit_log.user_id else None,
-            'ip_address': audit_log.ip_address,
-            'resource_type': audit_log.resource_type,
-            'resource_id': audit_log.resource_id,
-            'organization_id': str(audit_log.organization_id) if audit_log.organization_id else None
+            "event_type": event_type.value,
+            "severity": severity.value,
+            "user_id": str(audit_log.user_id) if audit_log.user_id else None,
+            "ip_address": audit_log.ip_address,
+            "resource_type": audit_log.resource_type,
+            "resource_id": audit_log.resource_id,
+            "organization_id": str(audit_log.organization_id)
+            if audit_log.organization_id
+            else None,
         }
 
         # Log based on severity
@@ -249,7 +289,7 @@ class SecurityAuditService:
         self,
         event_type: SecurityEventType,
         severity: SecuritySeverity,
-        audit_log: SecurityAuditLog
+        audit_log: SecurityAuditLog,
     ):
         """Check if automated security response is needed"""
         # Critical events trigger immediate alerts
@@ -261,7 +301,7 @@ class SecurityAuditService:
             SecurityEventType.BRUTE_FORCE_DETECTED,
             SecurityEventType.INJECTION_ATTEMPT,
             SecurityEventType.MALICIOUS_REQUEST,
-            SecurityEventType.BLOCKED_IP_ACCESS
+            SecurityEventType.BLOCKED_IP_ACCESS,
         ]:
             self._trigger_security_response(audit_log)
 
@@ -275,12 +315,12 @@ class SecurityAuditService:
         logger.critical(
             f"SECURITY ALERT: {alert_type}",
             extra={
-                'alert_type': alert_type,
-                'event_id': str(audit_log.id),
-                'user_id': str(audit_log.user_id),
-                'ip_address': audit_log.ip_address,
-                'timestamp': audit_log.timestamp.isoformat()
-            }
+                "alert_type": alert_type,
+                "event_id": str(audit_log.id),
+                "user_id": str(audit_log.user_id),
+                "ip_address": audit_log.ip_address,
+                "timestamp": audit_log.timestamp.isoformat(),
+            },
         )
 
     def _trigger_security_response(self, audit_log: SecurityAuditLog):
@@ -294,11 +334,11 @@ class SecurityAuditService:
         logger.error(
             f"Automated security response triggered",
             extra={
-                'event_id': str(audit_log.id),
-                'ip_address': audit_log.ip_address,
-                'user_id': str(audit_log.user_id),
-                'action': 'security_response_triggered'
-            }
+                "event_id": str(audit_log.id),
+                "ip_address": audit_log.ip_address,
+                "user_id": str(audit_log.user_id),
+                "action": "security_response_triggered",
+            },
         )
 
     def _check_repeated_failures(self, audit_log: SecurityAuditLog):
@@ -307,120 +347,118 @@ class SecurityAuditService:
             return
 
         # Query for recent failures from same IP
-        recent_failures = self.db.query(SecurityAuditLog).filter(
-            SecurityAuditLog.ip_address == audit_log.ip_address,
-            SecurityAuditLog.event_type.in_([
-                SecurityEventType.LOGIN_FAILURE.value,
-                SecurityEventType.ACCESS_DENIED.value,
-                SecurityEventType.INJECTION_ATTEMPT.value
-            ]),
-            SecurityAuditLog.timestamp > datetime.now(timezone.utc).replace(
-                hour=0, minute=0, second=0, microsecond=0
+        recent_failures = (
+            self.db.query(SecurityAuditLog)
+            .filter(
+                SecurityAuditLog.ip_address == audit_log.ip_address,
+                SecurityAuditLog.event_type.in_(
+                    [
+                        SecurityEventType.LOGIN_FAILURE.value,
+                        SecurityEventType.ACCESS_DENIED.value,
+                        SecurityEventType.INJECTION_ATTEMPT.value,
+                    ]
+                ),
+                SecurityAuditLog.timestamp
+                > datetime.now(timezone.utc).replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                ),
             )
-        ).count()
+            .count()
+        )
 
         # If too many failures, trigger response
         if recent_failures > 10:
-            self._trigger_security_alert(
-                audit_log,
-                "MULTIPLE_SECURITY_FAILURES"
-            )
+            self._trigger_security_alert(audit_log, "MULTIPLE_SECURITY_FAILURES")
 
     def search_audit_logs(
-        self,
-        filters: Dict[str, Any],
-        page: int = 1,
-        limit: int = 100
+        self, filters: Dict[str, Any], page: int = 1, limit: int = 100
     ) -> Dict[str, Any]:
         """Search audit logs with filters"""
         try:
             query = self.db.query(SecurityAuditLog)
 
             # Apply filters
-            if filters.get('event_type'):
+            if filters.get("event_type"):
                 query = query.filter(
-                    SecurityAuditLog.event_type == filters['event_type']
+                    SecurityAuditLog.event_type == filters["event_type"]
                 )
 
-            if filters.get('severity'):
+            if filters.get("severity"):
+                query = query.filter(SecurityAuditLog.severity == filters["severity"])
+
+            if filters.get("user_id"):
+                query = query.filter(SecurityAuditLog.user_id == filters["user_id"])
+
+            if filters.get("organization_id"):
                 query = query.filter(
-                    SecurityAuditLog.severity == filters['severity']
+                    SecurityAuditLog.organization_id == filters["organization_id"]
                 )
 
-            if filters.get('user_id'):
+            if filters.get("ip_address"):
                 query = query.filter(
-                    SecurityAuditLog.user_id == filters['user_id']
+                    SecurityAuditLog.ip_address == filters["ip_address"]
                 )
 
-            if filters.get('organization_id'):
-                query = query.filter(
-                    SecurityAuditLog.organization_id == filters['organization_id']
-                )
+            if filters.get("date_from"):
+                query = query.filter(SecurityAuditLog.timestamp >= filters["date_from"])
 
-            if filters.get('ip_address'):
-                query = query.filter(
-                    SecurityAuditLog.ip_address == filters['ip_address']
-                )
-
-            if filters.get('date_from'):
-                query = query.filter(
-                    SecurityAuditLog.timestamp >= filters['date_from']
-                )
-
-            if filters.get('date_to'):
-                query = query.filter(
-                    SecurityAuditLog.timestamp <= filters['date_to']
-                )
+            if filters.get("date_to"):
+                query = query.filter(SecurityAuditLog.timestamp <= filters["date_to"])
 
             # Count total
             total = query.count()
 
             # Apply pagination
             offset = (page - 1) * limit
-            logs = query.order_by(
-                SecurityAuditLog.timestamp.desc()
-            ).offset(offset).limit(limit).all()
+            logs = (
+                query.order_by(SecurityAuditLog.timestamp.desc())
+                .offset(offset)
+                .limit(limit)
+                .all()
+            )
 
             return {
-                'logs': [self._serialize_log(log) for log in logs],
-                'total': total,
-                'page': page,
-                'limit': limit,
-                'pages': (total + limit - 1) // limit
+                "logs": [self._serialize_log(log) for log in logs],
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "pages": (total + limit - 1) // limit,
             }
 
         except Exception as e:
             logger.error(f"Failed to search audit logs: {e}")
-            return {'logs': [], 'total': 0, 'page': 1, 'limit': limit, 'pages': 0}
+            return {"logs": [], "total": 0, "page": 1, "limit": limit, "pages": 0}
 
     def _serialize_log(self, log: SecurityAuditLog) -> Dict[str, Any]:
         """Serialize audit log for API response"""
         return {
-            'id': str(log.id),
-            'event_type': log.event_type,
-            'severity': log.severity,
-            'timestamp': log.timestamp.isoformat(),
-            'user_id': str(log.user_id) if log.user_id else None,
-            'user_email': log.user_email,
-            'user_role': log.user_role,
-            'organization_id': str(log.organization_id) if log.organization_id else None,
-            'ip_address': log.ip_address,
-            'user_agent': log.user_agent,
-            'resource_id': log.resource_id,
-            'resource_type': log.resource_type,
-            'action': log.action,
-            'outcome': log.outcome,
-            'event_data': log.event_data,
-            'metadata': log.metadata,
-            'gdpr_relevant': log.gdpr_relevant,
-            'compliance_tags': log.compliance_tags
+            "id": str(log.id),
+            "event_type": log.event_type,
+            "severity": log.severity,
+            "timestamp": log.timestamp.isoformat(),
+            "user_id": str(log.user_id) if log.user_id else None,
+            "user_email": log.user_email,
+            "user_role": log.user_role,
+            "organization_id": str(log.organization_id)
+            if log.organization_id
+            else None,
+            "ip_address": log.ip_address,
+            "user_agent": log.user_agent,
+            "resource_id": log.resource_id,
+            "resource_type": log.resource_type,
+            "action": log.action,
+            "outcome": log.outcome,
+            "event_data": log.event_data,
+            "metadata": log.metadata,
+            "gdpr_relevant": log.gdpr_relevant,
+            "compliance_tags": log.compliance_tags,
         }
 
     def get_security_metrics(
         self,
         organization_id: Optional[str] = None,
         date_from: Optional[datetime] = None,
-        date_to: Optional[datetime] = None
+        date_to: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Get security metrics for dashboard"""
         try:
@@ -455,58 +493,57 @@ class SecurityAuditService:
                 severity_counts[severity.value] = count
 
             # Top attacker IPs
-            top_ips = self.db.query(
-                SecurityAuditLog.ip_address,
-                self.db.func.count(SecurityAuditLog.id).label('count')
-            ).filter(
-                SecurityAuditLog.severity.in_(['high', 'critical']),
-                SecurityAuditLog.ip_address.isnot(None)
-            ).group_by(
-                SecurityAuditLog.ip_address
-            ).order_by(
-                self.db.func.count(SecurityAuditLog.id).desc()
-            ).limit(10).all()
+            top_ips = (
+                self.db.query(
+                    SecurityAuditLog.ip_address,
+                    self.db.func.count(SecurityAuditLog.id).label("count"),
+                )
+                .filter(
+                    SecurityAuditLog.severity.in_(["high", "critical"]),
+                    SecurityAuditLog.ip_address.isnot(None),
+                )
+                .group_by(SecurityAuditLog.ip_address)
+                .order_by(self.db.func.count(SecurityAuditLog.id).desc())
+                .limit(10)
+                .all()
+            )
 
             return {
-                'event_counts': event_counts,
-                'severity_counts': severity_counts,
-                'top_attacker_ips': [
-                    {'ip': ip, 'count': count} for ip, count in top_ips
+                "event_counts": event_counts,
+                "severity_counts": severity_counts,
+                "top_attacker_ips": [
+                    {"ip": ip, "count": count} for ip, count in top_ips
                 ],
-                'total_events': query.count()
+                "total_events": query.count(),
             }
 
         except Exception as e:
             logger.error(f"Failed to get security metrics: {e}")
             return {
-                'event_counts': {},
-                'severity_counts': {},
-                'top_attacker_ips': [],
-                'total_events': 0
+                "event_counts": {},
+                "severity_counts": {},
+                "top_attacker_ips": [],
+                "total_events": 0,
             }
 
-    def export_audit_logs(
-        self,
-        filters: Dict[str, Any],
-        format: str = 'json'
-    ) -> bytes:
+    def export_audit_logs(self, filters: Dict[str, Any], format: str = "json") -> bytes:
         """Export audit logs for compliance"""
         try:
             # Get logs
             result = self.search_audit_logs(filters, limit=10000)
-            logs = result['logs']
+            logs = result["logs"]
 
-            if format == 'json':
+            if format == "json":
                 # Convert to JSON
                 export_data = {
-                    'export_timestamp': datetime.now(timezone.utc).isoformat(),
-                    'filters': filters,
-                    'total_records': len(logs),
-                    'logs': logs
+                    "export_timestamp": datetime.now(timezone.utc).isoformat(),
+                    "filters": filters,
+                    "total_records": len(logs),
+                    "logs": logs,
                 }
-                return json.dumps(export_data, indent=2).encode('utf-8')
+                return json.dumps(export_data, indent=2).encode("utf-8")
 
-            elif format == 'csv':
+            elif format == "csv":
                 # Convert to CSV
                 import csv
                 import io
@@ -517,7 +554,7 @@ class SecurityAuditService:
                     writer.writeheader()
                     writer.writerows(logs)
 
-                return output.getvalue().encode('utf-8')
+                return output.getvalue().encode("utf-8")
 
             else:
                 raise ValueError(f"Unsupported export format: {format}")
@@ -535,15 +572,17 @@ class SecurityAuditService:
             ) - timedelta(days=retention_days)
 
             # Delete old logs
-            deleted = self.db.query(SecurityAuditLog).filter(
-                SecurityAuditLog.timestamp < cutoff_date
-            ).delete()
+            deleted = (
+                self.db.query(SecurityAuditLog)
+                .filter(SecurityAuditLog.timestamp < cutoff_date)
+                .delete()
+            )
 
             self.db.commit()
 
             logger.info(
                 f"Cleaned up {deleted} old audit logs",
-                extra={'deleted_count': deleted, 'cutoff_date': cutoff_date}
+                extra={"deleted_count": deleted, "cutoff_date": cutoff_date},
             )
 
             return deleted
@@ -553,11 +592,13 @@ class SecurityAuditService:
             self.db.rollback()
             return 0
 
+
 # Create audit engine for audit logs (separate from main database if configured)
 # Falls back to main DATABASE_URL if AUDIT_DATABASE_URL is not set
-_audit_db_url = getattr(settings, 'AUDIT_DATABASE_URL', None) or settings.DATABASE_URL
+_audit_db_url = getattr(settings, "AUDIT_DATABASE_URL", None) or settings.DATABASE_URL
 audit_engine = create_engine(_audit_db_url)
 AuditSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=audit_engine)
+
 
 def get_audit_service():
     """Get audit service instance"""

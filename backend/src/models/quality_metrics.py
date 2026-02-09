@@ -9,12 +9,30 @@ from sqlalchemy.orm import relationship, selectinload, joinedload
 from datetime import datetime
 import uuid
 import enum
+import uuid
+from datetime import datetime
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import relationship
 
 from .base import Base
 
 
 class MetricType(enum.Enum):
     """Extended metric types for T3 analytics (compatible with existing)"""
+
     RELEVANCY = "relevancy"
     PRECISION = "precision"
     RECALL = "recall"
@@ -29,6 +47,7 @@ class MetricType(enum.Enum):
 
 class AlertSeverity(enum.Enum):
     """Alert severity levels"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -43,25 +62,32 @@ class QualityAlert(Base):
     """
     Alerts for quality threshold violations
     """
+
     __tablename__ = "quality_alerts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     # Alert information
-    metric_id = Column(UUID(as_uuid=True), ForeignKey("quality_metrics.id"), nullable=False)
+    metric_id = Column(
+        UUID(as_uuid=True), ForeignKey("quality_metrics.id"), nullable=False
+    )
     severity = Column(String(20), nullable=False)
     title = Column(String(200), nullable=False)
     message = Column(Text, nullable=False)
 
     # Status tracking
-    status = Column(String(20), default="active", nullable=False)  # active, acknowledged, resolved
+    status = Column(
+        String(20), default="active", nullable=False
+    )  # active, acknowledged, resolved
     acknowledged_at = Column(DateTime, nullable=True)
     acknowledged_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     resolved_at = Column(DateTime, nullable=True)
     resolved_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
     # Context
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
+    )
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -75,8 +101,8 @@ class QualityAlert(Base):
 
     # Indexes
     __table_args__ = (
-        Index('idx_quality_alerts_org_status', 'organization_id', 'status'),
-        Index('idx_quality_alerts_severity', 'severity', 'created_at'),
+        Index("idx_quality_alerts_org_status", "organization_id", "status"),
+        Index("idx_quality_alerts_severity", "severity", "created_at"),
     )
 
 
@@ -84,13 +110,16 @@ class MetricAggregation(Base):
     """
     Pre-aggregated metrics for analytics dashboard performance
     """
+
     __tablename__ = "metric_aggregations"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     # Aggregation information
     metric_type = Column(String(50), nullable=False)
-    aggregation_type = Column(String(20), nullable=False)  # hourly, daily, weekly, monthly
+    aggregation_type = Column(
+        String(20), nullable=False
+    )  # hourly, daily, weekly, monthly
     aggregation_period_start = Column(DateTime, nullable=False)
     aggregation_period_end = Column(DateTime, nullable=False)
 
@@ -103,7 +132,9 @@ class MetricAggregation(Base):
     std_deviation = Column(Float, nullable=True)
 
     # Context
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
+    )
     search_type = Column(String(20), nullable=True)
 
     # Additional data
@@ -118,9 +149,14 @@ class MetricAggregation(Base):
 
     # Indexes for efficient querying
     __table_args__ = (
-        Index('idx_metric_agg_org_type_period', 'organization_id', 'metric_type', 'aggregation_type'),
-        Index('idx_metric_agg_period_start', 'aggregation_period_start'),
-        Index('idx_metric_agg_search_type', 'search_type'),
+        Index(
+            "idx_metric_agg_org_type_period",
+            "organization_id",
+            "metric_type",
+            "aggregation_type",
+        ),
+        Index("idx_metric_agg_period_start", "aggregation_period_start"),
+        Index("idx_metric_agg_search_type", "search_type"),
     )
 
 
@@ -128,6 +164,7 @@ class SearchSession(Base):
     """
     Search session tracking for user behavior analytics
     """
+
     __tablename__ = "search_sessions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -135,7 +172,9 @@ class SearchSession(Base):
     # Session information
     session_id = Column(String(100), nullable=False, unique=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
+    )
 
     # Session tracking
     start_time = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -160,7 +199,9 @@ class SearchSession(Base):
     # Relationships
     user = relationship("User", back_populates="search_sessions")
     organization = relationship("Organization", back_populates="search_sessions")
-    searches = relationship("SearchEvent", back_populates="session", cascade="all, delete-orphan")
+    searches = relationship(
+        "SearchEvent", back_populates="session", cascade="all, delete-orphan"
+    )
 
     # Indexes
     __table_args__ = (
@@ -197,12 +238,15 @@ class SearchEvent(Base):
     """
     Individual search events for detailed analytics
     """
+
     __tablename__ = "search_events"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     # Event identification
-    session_id = Column(UUID(as_uuid=True), ForeignKey("search_sessions.id"), nullable=False)
+    session_id = Column(
+        UUID(as_uuid=True), ForeignKey("search_sessions.id"), nullable=False
+    )
     search_query_id = Column(UUID(as_uuid=True), nullable=True)
 
     # Search details
@@ -224,7 +268,9 @@ class SearchEvent(Base):
 
     # Context
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
+    )
 
     # Technical details
     page_number = Column(Integer, default=1, nullable=False)
@@ -258,6 +304,7 @@ class SystemMetric(Base):
     """
     System performance metrics for monitoring
     """
+
     __tablename__ = "system_metrics"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -272,10 +319,12 @@ class SystemMetric(Base):
     component_instance = Column(String(100), nullable=True)  # for scaling scenarios
 
     # Context
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True
+    )
 
     # Additional data
-    system_metadata = Column('metadata', JSONB, nullable=True)
+    system_metadata = Column("metadata", JSONB, nullable=True)
 
     # Timestamps
     measured_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -286,9 +335,9 @@ class SystemMetric(Base):
 
     # Indexes
     __table_args__ = (
-        Index('idx_system_metrics_component_time', 'component_name', 'measured_at'),
-        Index('idx_system_metrics_name_time', 'metric_name', 'measured_at'),
-        Index('idx_system_metrics_org_time', 'organization_id', 'measured_at'),
+        Index("idx_system_metrics_component_time", "component_name", "measured_at"),
+        Index("idx_system_metrics_name_time", "metric_name", "measured_at"),
+        Index("idx_system_metrics_org_time", "organization_id", "measured_at"),
     )
 
 
@@ -296,6 +345,7 @@ class QualityThreshold(Base):
     """
     Configurable quality thresholds for alerting
     """
+
     __tablename__ = "quality_thresholds"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -312,7 +362,9 @@ class QualityThreshold(Base):
     alert_cooldown_minutes = Column(Integer, default=60, nullable=False)
 
     # Context
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True
+    )
     search_type = Column(String(20), nullable=True)
 
     # Metadata
@@ -329,6 +381,6 @@ class QualityThreshold(Base):
 
     # Indexes
     __table_args__ = (
-        Index('idx_quality_thresholds_org_type', 'organization_id', 'metric_type'),
-        Index('idx_quality_thresholds_enabled', 'is_enabled'),
+        Index("idx_quality_thresholds_org_type", "organization_id", "metric_type"),
+        Index("idx_quality_thresholds_enabled", "is_enabled"),
     )

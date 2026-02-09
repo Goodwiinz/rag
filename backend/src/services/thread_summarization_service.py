@@ -4,17 +4,17 @@ Uses LLM to generate concise summaries for chat threads
 based on the conversation content.
 """
 
-import logging
 import asyncio
-from typing import Optional
+import logging
 from datetime import datetime, timedelta
+from typing import Optional
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
-from ..models.thread import Thread
 from ..models.chat_message import ChatMessage, MessageRole
+from ..models.thread import Thread
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +50,10 @@ class ThreadSummarizationService:
         if self._redis_client is None:
             try:
                 import redis
+
                 self._redis_client = redis.Redis.from_url(
                     settings.REDIS_URL or "redis://localhost:6379/0",
-                    decode_responses=True
+                    decode_responses=True,
                 )
             except Exception as e:
                 logger.warning(f"Failed to connect to Redis: {e}")
@@ -90,14 +91,14 @@ class ThreadSummarizationService:
             try:
                 rate_key = f"thread_summary:{thread_id}:last_generated"
                 self.redis_client.setex(
-                    rate_key,
-                    SUMMARY_RATE_LIMIT_SECONDS,
-                    datetime.utcnow().isoformat()
+                    rate_key, SUMMARY_RATE_LIMIT_SECONDS, datetime.utcnow().isoformat()
                 )
             except Exception as e:
                 logger.warning(f"Failed to set rate limit: {e}")
 
-    def _format_messages_for_prompt(self, messages: list[ChatMessage], max_chars: int = 2000) -> str:
+    def _format_messages_for_prompt(
+        self, messages: list[ChatMessage], max_chars: int = 2000
+    ) -> str:
         """
         Format messages for the summary prompt.
 
@@ -130,10 +131,7 @@ class ThreadSummarizationService:
         return "\n".join(formatted)
 
     async def generate_summary(
-        self,
-        thread_id: UUID,
-        force: bool = False,
-        timeout: float = 10.0
+        self, thread_id: UUID, force: bool = False, timeout: float = 10.0
     ) -> Optional[str]:
         """
         Generate a summary for a thread.
@@ -209,7 +207,9 @@ class ThreadSummarizationService:
         self.db.commit()
         logger.info(f"Updated summary for thread {thread.id}")
 
-    async def _generate_with_openai(self, messages_text: str, timeout: float) -> Optional[str]:
+    async def _generate_with_openai(
+        self, messages_text: str, timeout: float
+    ) -> Optional[str]:
         """Generate summary using OpenAI API."""
         try:
             import openai
@@ -222,17 +222,19 @@ class ThreadSummarizationService:
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are a helpful assistant that creates concise conversation summaries."
+                            "content": "You are a helpful assistant that creates concise conversation summaries.",
                         },
                         {
                             "role": "user",
-                            "content": SUMMARY_GENERATION_PROMPT.format(messages=messages_text)
-                        }
+                            "content": SUMMARY_GENERATION_PROMPT.format(
+                                messages=messages_text
+                            ),
+                        },
                     ],
                     max_tokens=100,
                     temperature=0.3,
                 ),
-                timeout=timeout
+                timeout=timeout,
             )
 
             if not response.choices or not response.choices[0].message.content:
@@ -246,7 +248,9 @@ class ThreadSummarizationService:
             logger.debug("OpenAI package not installed")
             return None
 
-    async def _generate_with_anthropic(self, messages_text: str, timeout: float) -> Optional[str]:
+    async def _generate_with_anthropic(
+        self, messages_text: str, timeout: float
+    ) -> Optional[str]:
         """Generate summary using Anthropic API."""
         try:
             import anthropic
@@ -260,11 +264,13 @@ class ThreadSummarizationService:
                     messages=[
                         {
                             "role": "user",
-                            "content": SUMMARY_GENERATION_PROMPT.format(messages=messages_text)
+                            "content": SUMMARY_GENERATION_PROMPT.format(
+                                messages=messages_text
+                            ),
                         }
                     ],
                 ),
-                timeout=timeout
+                timeout=timeout,
             )
 
             if not response.content or not response.content[0].text:
@@ -281,18 +287,18 @@ class ThreadSummarizationService:
     def _clean_summary(self, summary: str) -> str:
         """Clean and truncate summary."""
         # Remove quotes
-        summary = summary.strip('"\'')
+        summary = summary.strip("\"'")
 
         # Ensure max length
         if len(summary) > MAX_SUMMARY_LENGTH:
             # Try to cut at sentence boundary
-            truncated = summary[:MAX_SUMMARY_LENGTH - 3]
-            last_period = truncated.rfind('.')
+            truncated = summary[: MAX_SUMMARY_LENGTH - 3]
+            last_period = truncated.rfind(".")
             if last_period > MAX_SUMMARY_LENGTH // 2:
-                summary = truncated[:last_period + 1]
+                summary = truncated[: last_period + 1]
             else:
                 # Cut at word boundary
-                last_space = truncated.rfind(' ')
+                last_space = truncated.rfind(" ")
                 if last_space > MAX_SUMMARY_LENGTH // 2:
                     summary = truncated[:last_space] + "..."
                 else:
@@ -322,7 +328,7 @@ class ThreadSummarizationService:
         # Truncate and clean
         topic = first_user_msg[:100].strip()
         if len(first_user_msg) > 100:
-            last_space = topic.rfind(' ')
+            last_space = topic.rfind(" ")
             if last_space > 50:
                 topic = topic[:last_space]
             topic += "..."

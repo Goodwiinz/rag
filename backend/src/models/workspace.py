@@ -2,16 +2,18 @@
 Workspace model for project containers in Terminal Observatory
 """
 
-from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Text
-from sqlalchemy.orm import relationship
-from enum import Enum as PyEnum
 from datetime import datetime
+from enum import Enum as PyEnum
 
-from .base import BaseModel, GUID
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy.orm import relationship
+
+from .base import GUID, BaseModel
 
 
 class WorkspaceRole(PyEnum):
     """Workspace member roles"""
+
     OWNER = "owner"
     ADMIN = "admin"
     EDITOR = "editor"
@@ -45,9 +47,15 @@ class Workspace(BaseModel):
     # Relationships
     owner = relationship("User", foreign_keys=[owner_id])
     organization = relationship("Organization")
-    members = relationship("WorkspaceMember", back_populates="workspace", cascade="all, delete-orphan")
-    conversations = relationship("Conversation", back_populates="workspace", cascade="all, delete-orphan")
-    collections = relationship("Collection", back_populates="workspace", cascade="all, delete-orphan")
+    members = relationship(
+        "WorkspaceMember", back_populates="workspace", cascade="all, delete-orphan"
+    )
+    conversations = relationship(
+        "Conversation", back_populates="workspace", cascade="all, delete-orphan"
+    )
+    collections = relationship(
+        "Collection", back_populates="workspace", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<Workspace(name={self.name}, owner_id={self.owner_id})>"
@@ -80,8 +88,10 @@ class Workspace(BaseModel):
     def to_dict(self) -> dict:
         """Convert to dictionary"""
         data = super().to_dict()
-        data['member_count'] = len(self.members) if self.members else 0
-        data['conversation_count'] = len(self.conversations) if self.conversations else 0
+        data["member_count"] = len(self.members) if self.members else 0
+        data["conversation_count"] = (
+            len(self.conversations) if self.conversations else 0
+        )
         return data
 
 
@@ -94,12 +104,24 @@ class WorkspaceMember(BaseModel):
 
     __tablename__ = "workspace_members"
 
-    workspace_id = Column(GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    role = Column(
-        Enum(WorkspaceRole, values_callable=lambda x: [e.value for e in x], native_enum=True, name='workspacerole'),
+    workspace_id = Column(
+        GUID(),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
         nullable=False,
-        default=WorkspaceRole.VIEWER
+        index=True,
+    )
+    user_id = Column(
+        GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    role = Column(
+        Enum(
+            WorkspaceRole,
+            values_callable=lambda x: [e.value for e in x],
+            native_enum=True,
+            name="workspacerole",
+        ),
+        nullable=False,
+        default=WorkspaceRole.VIEWER,
     )
 
     # Tracking
@@ -117,8 +139,8 @@ class WorkspaceMember(BaseModel):
     def to_dict(self) -> dict:
         """Convert to dictionary"""
         data = super().to_dict()
-        data['role'] = self.role.value if self.role else None
+        data["role"] = self.role.value if self.role else None
         return data
 
     class Meta:
-        unique_together = [('workspace_id', 'user_id')]
+        unique_together = [("workspace_id", "user_id")]

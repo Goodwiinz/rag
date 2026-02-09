@@ -2,44 +2,44 @@
 Multimodal processing pipeline service
 """
 
-import os
-import uuid
-from typing import Dict, Any, List, Optional, Tuple
-from pathlib import Path
 import asyncio
 import logging
+import os
+import uuid
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy.orm import Session
 from celery import Celery
 from fastapi import Depends
+from sqlalchemy.orm import Session
 
 from src.core.config import settings
 from src.core.database import get_db
 from src.models.document import Document, DocumentType, ProcessingStatus
-from src.models.processing import ProcessingJob, JobType, JobStatus, JobPriority
 from src.models.entity import Entity, EntityType, ExtractionMethod
+from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
 from src.services.documents.file_service import FileService
+from src.services.processing.audio_processing_service import AudioProcessingService
 from src.services.processing.entity_extraction_service import EntityExtractionService
 from src.services.processing.image_processing_service import ImageProcessingService
-from src.services.processing.audio_processing_service import AudioProcessingService
 from src.services.processing.video_processing_service import VideoProcessingService
 
 logger = logging.getLogger(__name__)
 
 # Celery configuration
 celery_app = Celery(
-    'rag_processing',
+    "rag_processing",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=['src.tasks.processing_tasks']
+    include=["src.tasks.processing_tasks"],
 )
 
 celery_app.conf.update(
-    task_serializer='json',
-    accept_content=['json'],
-    result_serializer='json',
-    timezone='UTC',
+    task_serializer="json",
+    accept_content=["json"],
+    result_serializer="json",
+    timezone="UTC",
     enable_utc=True,
     task_track_started=True,
     task_time_limit=30 * 60,  # 30 minutes
@@ -47,6 +47,7 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=1000,
 )
+
 
 class ProcessingPipeline:
     """Main processing pipeline for multimodal documents"""
@@ -61,15 +62,19 @@ class ProcessingPipeline:
 
     async def process_document(self, document_id: str, user_id: str) -> ProcessingJob:
         """Start processing for a document"""
-        document = self.db.query(Document).filter(
-            Document.id == document_id,
-            Document.is_deleted == False
-        ).first()
+        document = (
+            self.db.query(Document)
+            .filter(Document.id == document_id, Document.is_deleted == False)
+            .first()
+        )
 
         if not document:
             raise ValueError(f"Document {document_id} not found")
 
-        if document.processing_status not in [ProcessingStatus.PENDING, ProcessingStatus.FAILED]:
+        if document.processing_status not in [
+            ProcessingStatus.PENDING,
+            ProcessingStatus.FAILED,
+        ]:
             raise ValueError(f"Document {document_id} is not in a processable state")
 
         # Create processing job
@@ -83,8 +88,8 @@ class ProcessingPipeline:
             parameters={
                 "document_id": document_id,
                 "document_type": document.document_type.value,
-                "file_path": document.file_path
-            }
+                "file_path": document.file_path,
+            },
         )
 
         self.db.add(job)
@@ -98,9 +103,7 @@ class ProcessingPipeline:
 
     def queue_processing_job(self, job_id: str):
         """Queue a processing job for execution"""
-        job = self.db.query(ProcessingJob).filter(
-            ProcessingJob.id == job_id
-        ).first()
+        job = self.db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
 
         if not job:
             logger.error(f"Job {job_id} not found")
@@ -110,33 +113,25 @@ class ProcessingPipeline:
             # Queue job based on type
             if job.job_type == JobType.DOCUMENT_INGESTION:
                 task = celery_app.send_task(
-                    'process_document_ingestion',
+                    "process_document_ingestion",
                     args=[job_id],
-                    queue='document_processing'
+                    queue="document_processing",
                 )
             elif job.job_type == JobType.TEXT_EXTRACTION:
                 task = celery_app.send_task(
-                    'extract_text_content',
-                    args=[job_id],
-                    queue='text_processing'
+                    "extract_text_content", args=[job_id], queue="text_processing"
                 )
             elif job.job_type == JobType.EMBEDDING_GENERATION:
                 task = celery_app.send_task(
-                    'generate_embeddings',
-                    args=[job_id],
-                    queue='vector_processing'
+                    "generate_embeddings", args=[job_id], queue="vector_processing"
                 )
             elif job.job_type == JobType.ENTITY_EXTRACTION:
                 task = celery_app.send_task(
-                    'extract_entities',
-                    args=[job_id],
-                    queue='entity_processing'
+                    "extract_entities", args=[job_id], queue="entity_processing"
                 )
             elif job.job_type == JobType.GRAPH_INDEXING:
                 task = celery_app.send_task(
-                    'index_in_graph',
-                    args=[job_id],
-                    queue='graph_processing'
+                    "index_in_graph", args=[job_id], queue="graph_processing"
                 )
             else:
                 logger.error(f"Unknown job type: {job.job_type}")
@@ -178,14 +173,18 @@ class ProcessingPipeline:
             summary = await self._generate_text_summary(text) if text else ""
 
             # Assess text quality
-            quality_assessment = self._assess_text_quality(text) if text else {
-                "quality_score": 0.0,
-                "is_readable": False,
-                "language": "unknown",
-                "word_count": 0,
-                "sentence_count": 0,
-                "has_meaningful_content": False
-            }
+            quality_assessment = (
+                self._assess_text_quality(text)
+                if text
+                else {
+                    "quality_score": 0.0,
+                    "is_readable": False,
+                    "language": "unknown",
+                    "word_count": 0,
+                    "sentence_count": 0,
+                    "has_meaningful_content": False,
+                }
+            )
 
             return {
                 "text_content": text,
@@ -195,7 +194,7 @@ class ProcessingPipeline:
                 "quality_score": quality_assessment["quality_score"],
                 "language": quality_assessment["language"],
                 "is_readable": quality_assessment["is_readable"],
-                "has_meaningful_content": quality_assessment["has_meaningful_content"]
+                "has_meaningful_content": quality_assessment["has_meaningful_content"],
             }
 
         except Exception as e:
@@ -205,12 +204,12 @@ class ProcessingPipeline:
     def _extract_text_from_text_file(self, file_path: str) -> str:
         """Extract text from plain text file"""
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 return f.read()
         except UnicodeDecodeError:
             # Try with different encoding
             try:
-                with open(file_path, 'r', encoding='latin-1') as f:
+                with open(file_path, "r", encoding="latin-1") as f:
                     return f.read()
             except (IOError, OSError, UnicodeDecodeError) as e:
                 logger.warning(f"Failed to read text file {file_path}: {e}")
@@ -219,10 +218,11 @@ class ProcessingPipeline:
     def _extract_text_from_pdf(self, file_path: str) -> str:
         """Extract text from PDF file with OCR fallback"""
         try:
+            import io
+
             import fitz  # PyMuPDF
             import pytesseract
             from PIL import Image
-            import io
 
             # First attempt: Extract text directly
             text = []
@@ -246,7 +246,9 @@ class ProcessingPipeline:
                 doc.close()
 
             except Exception as pdf_error:
-                logger.warning(f"Direct PDF extraction failed, trying OCR: {str(pdf_error)}")
+                logger.warning(
+                    f"Direct PDF extraction failed, trying OCR: {str(pdf_error)}"
+                )
                 # Fallback: Convert all pages to images and OCR them
                 doc = fitz.open(file_path)
                 for page_num in range(len(doc)):
@@ -259,12 +261,14 @@ class ProcessingPipeline:
                         text.append(f"[OCR Page {page_num + 1}]\n{ocr_text}")
                 doc.close()
 
-            extracted_text = '\n'.join(text)
+            extracted_text = "\n".join(text)
 
             # Post-process and clean the text
             if extracted_text:
                 extracted_text = self._clean_extracted_text(extracted_text)
-                logger.info(f"Successfully extracted {len(extracted_text)} characters from PDF")
+                logger.info(
+                    f"Successfully extracted {len(extracted_text)} characters from PDF"
+                )
 
             return extracted_text
 
@@ -278,19 +282,23 @@ class ProcessingPipeline:
             import re
 
             # Remove excessive whitespace
-            text = re.sub(r'\s+', ' ', text)
+            text = re.sub(r"\s+", " ", text)
 
             # Remove common PDF artifacts
-            text = re.sub(r'\f', '\n', text)  # Form feeds
-            text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)  # Control characters
+            text = re.sub(r"\f", "\n", text)  # Form feeds
+            text = re.sub(
+                r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]", "", text
+            )  # Control characters
 
             # Fix common OCR errors
-            text = re.sub(r'\|', 'I', text)  # Vertical bars to I
-            text = re.sub(r'1', 'l', text)  # Sometimes 1 is misrecognized as l
+            text = re.sub(r"\|", "I", text)  # Vertical bars to I
+            text = re.sub(r"1", "l", text)  # Sometimes 1 is misrecognized as l
 
             # Normalize line breaks
-            text = re.sub(r'\n\s*\n', '\n\n', text)  # Multiple empty lines to double newline
-            text = re.sub(r'\n{3,}', '\n\n', text)  # More than 2 newlines to 2
+            text = re.sub(
+                r"\n\s*\n", "\n\n", text
+            )  # Multiple empty lines to double newline
+            text = re.sub(r"\n{3,}", "\n\n", text)  # More than 2 newlines to 2
 
             # Strip leading/trailing whitespace
             text = text.strip()
@@ -316,7 +324,7 @@ class ProcessingPipeline:
                     "language_detected": "unknown",
                     "is_readable": False,
                     "has_meaningful_content": False,
-                    "sentence_count": 0
+                    "sentence_count": 0,
                 }
 
             # Basic metrics
@@ -325,7 +333,20 @@ class ProcessingPipeline:
 
             # Check for meaningful content (not just random characters)
             meaningful_words = 0
-            common_words = ['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by']
+            common_words = [
+                "the",
+                "and",
+                "or",
+                "but",
+                "in",
+                "on",
+                "at",
+                "to",
+                "for",
+                "of",
+                "with",
+                "by",
+            ]
             words = text.lower().split()
 
             for word in words:
@@ -333,9 +354,9 @@ class ProcessingPipeline:
                     meaningful_words += 1
 
             # Simple language detection (character patterns)
-            has_english_chars = bool(re.search(r'[a-zA-Z]', text))
-            has_numbers = bool(re.search(r'\d', text))
-            has_punctuation = bool(re.search(r'[.,!?;:]', text))
+            has_english_chars = bool(re.search(r"[a-zA-Z]", text))
+            has_numbers = bool(re.search(r"\d", text))
+            has_punctuation = bool(re.search(r"[.,!?;:]", text))
 
             # Calculate quality score
             quality_score = 0.0
@@ -351,7 +372,9 @@ class ProcessingPipeline:
                 quality_score += 0.1  # Has numbers
 
             # Detect if it's likely English
-            language = "english" if has_english_chars and meaningful_words > 0 else "unknown"
+            language = (
+                "english" if has_english_chars and meaningful_words > 0 else "unknown"
+            )
 
             return {
                 "quality_score": min(1.0, quality_score),
@@ -362,7 +385,7 @@ class ProcessingPipeline:
                 "language_detected": language,  # Keep for backward compatibility
                 "is_readable": meaningful_words > 0,
                 "has_meaningful_content": meaningful_words > 0,
-                "sentence_count": len(text.split('.')) if text else 0
+                "sentence_count": len(text.split(".")) if text else 0,
             }
 
         except Exception as e:
@@ -376,14 +399,15 @@ class ProcessingPipeline:
                 "language_detected": "unknown",
                 "is_readable": False,
                 "has_meaningful_content": False,
-                "sentence_count": 0
+                "sentence_count": 0,
             }
 
     def _extract_text_from_spreadsheet(self, file_path: str) -> str:
         """Extract text from spreadsheet file"""
         try:
             import pandas as pd
-            if file_path.endswith('.csv'):
+
+            if file_path.endswith(".csv"):
                 df = pd.read_csv(file_path)
             else:
                 df = pd.read_excel(file_path)
@@ -396,13 +420,14 @@ class ProcessingPipeline:
         """Extract text from presentation file"""
         try:
             from pptx import Presentation
+
             prs = Presentation(file_path)
             text = []
             for slide in prs.slides:
                 for shape in slide.shapes:
                     if hasattr(shape, "text") and shape.text.strip():
                         text.append(shape.text)
-            return '\n'.join(text)
+            return "\n".join(text)
         except Exception as e:
             logger.error(f"Presentation extraction failed: {str(e)}")
             return ""
@@ -414,16 +439,18 @@ class ProcessingPipeline:
             image_results = self.image_processor.process_image(document.file_path)
 
             # Store image analysis results in document metadata
-            document.add_metadata('image_analysis', image_results['image_analysis'])
-            document.add_metadata('color_analysis', image_results['color_analysis'])
-            document.add_metadata('face_analysis', image_results['face_analysis'])
-            document.add_metadata('image_quality', image_results['quality_score'])
+            document.add_metadata("image_analysis", image_results["image_analysis"])
+            document.add_metadata("color_analysis", image_results["color_analysis"])
+            document.add_metadata("face_analysis", image_results["face_analysis"])
+            document.add_metadata("image_quality", image_results["quality_score"])
 
             # Return extracted text for further processing
-            return image_results['ocr_text']
+            return image_results["ocr_text"]
 
         except Exception as e:
-            logger.error(f"Enhanced image processing failed for document {document.id}: {str(e)}")
+            logger.error(
+                f"Enhanced image processing failed for document {document.id}: {str(e)}"
+            )
             return ""
 
     async def _extract_text_from_audio(self, document: Document) -> str:
@@ -433,19 +460,24 @@ class ProcessingPipeline:
             audio_results = self.audio_processor.process_audio(document.file_path)
 
             # Store audio analysis results in document metadata
-            document.add_metadata('audio_metadata', audio_results['metadata'])
-            document.add_metadata('audio_quality', audio_results['quality_analysis'])
-            document.add_metadata('transcription_info', {
-                'language': audio_results['transcription']['language'],
-                'confidence': audio_results['transcription']['confidence'],
-                'word_count': audio_results['transcription']['word_count']
-            })
+            document.add_metadata("audio_metadata", audio_results["metadata"])
+            document.add_metadata("audio_quality", audio_results["quality_analysis"])
+            document.add_metadata(
+                "transcription_info",
+                {
+                    "language": audio_results["transcription"]["language"],
+                    "confidence": audio_results["transcription"]["confidence"],
+                    "word_count": audio_results["transcription"]["word_count"],
+                },
+            )
 
             # Return extracted text for further processing
-            return audio_results['transcription']['text']
+            return audio_results["transcription"]["text"]
 
         except Exception as e:
-            logger.error(f"Enhanced audio processing failed for document {document.id}: {str(e)}")
+            logger.error(
+                f"Enhanced audio processing failed for document {document.id}: {str(e)}"
+            )
             return ""
 
     async def _extract_text_from_video(self, document: Document) -> str:
@@ -455,35 +487,43 @@ class ProcessingPipeline:
             video_results = self.video_processor.process_video(document.file_path)
 
             # Store video analysis results in document metadata
-            document.add_metadata('video_metadata', video_results['metadata'])
-            document.add_metadata('video_quality', video_results['quality_analysis'])
-            document.add_metadata('video_content', video_results['content_analysis'])
+            document.add_metadata("video_metadata", video_results["metadata"])
+            document.add_metadata("video_quality", video_results["quality_analysis"])
+            document.add_metadata("video_content", video_results["content_analysis"])
 
             # Store audio transcription results if available
-            if video_results.get('audio_transcription'):
-                transcription = video_results['audio_transcription']
-                document.add_metadata('audio_transcription', {
-                    'text': transcription.get('text', ''),
-                    'language': transcription.get('language', 'unknown'),
-                    'confidence': transcription.get('confidence', 0.0),
-                    'word_count': transcription.get('word_count', 0)
-                })
+            if video_results.get("audio_transcription"):
+                transcription = video_results["audio_transcription"]
+                document.add_metadata(
+                    "audio_transcription",
+                    {
+                        "text": transcription.get("text", ""),
+                        "language": transcription.get("language", "unknown"),
+                        "confidence": transcription.get("confidence", 0.0),
+                        "word_count": transcription.get("word_count", 0),
+                    },
+                )
 
             # Store keyframe information if available
-            if video_results.get('keyframes'):
-                document.add_metadata('video_keyframes', {
-                    'count': len(video_results['keyframes']),
-                    'analysis': video_results['keyframes']
-                })
+            if video_results.get("keyframes"):
+                document.add_metadata(
+                    "video_keyframes",
+                    {
+                        "count": len(video_results["keyframes"]),
+                        "analysis": video_results["keyframes"],
+                    },
+                )
 
             # Return extracted audio text for further processing
-            if video_results.get('audio_transcription', {}).get('text'):
-                return video_results['audio_transcription']['text']
+            if video_results.get("audio_transcription", {}).get("text"):
+                return video_results["audio_transcription"]["text"]
 
             return ""
 
         except Exception as e:
-            logger.error(f"Enhanced video processing failed for document {document.id}: {str(e)}")
+            logger.error(
+                f"Enhanced video processing failed for document {document.id}: {str(e)}"
+            )
             return ""
 
     async def _generate_text_summary(self, text: str) -> str:
@@ -495,15 +535,17 @@ class ProcessingPipeline:
                 return text
 
             # Simple extractive summary (first few sentences)
-            sentences = text.split('.')
+            sentences = text.split(".")
             summary_sentences = sentences[:3]  # First 3 sentences
-            return '. '.join(summary_sentences).strip() + '.'
+            return ". ".join(summary_sentences).strip() + "."
 
         except Exception as e:
             logger.error(f"Summary generation failed: {str(e)}")
             return ""
 
-    async def process_entity_extraction(self, document: Document, text: str) -> List[Entity]:
+    async def process_entity_extraction(
+        self, document: Document, text: str
+    ) -> List[Entity]:
         """Extract entities from text using enhanced entity extraction service"""
         try:
             # Use the enhanced entity extraction service
@@ -516,18 +558,27 @@ class ProcessingPipeline:
             return entities
 
         except Exception as e:
-            logger.error(f"Entity extraction failed for document {document.id}: {str(e)}")
+            logger.error(
+                f"Entity extraction failed for document {document.id}: {str(e)}"
+            )
             return []
 
-    
     async def process_embedding_generation(self, document: Document, text: str) -> str:
         """Generate embeddings for document text using Azure OpenAI"""
         try:
-            import numpy as np
             from datetime import datetime
+
+            import numpy as np
+
+            from src.models.vector import (
+                VectorCollectionType,
+                VectorEntry,
+                VectorMetadata,
+            )
+            from src.services.infrastructure.azure_openai_service import (
+                azure_openai_service,
+            )
             from src.services.search.vector_service import vector_service
-            from src.services.infrastructure.azure_openai_service import azure_openai_service
-            from src.models.vector import VectorCollectionType, VectorEntry, VectorMetadata
 
             # Check if Azure OpenAI embedding service is available
             if not azure_openai_service.is_embedding_available():
@@ -537,15 +588,15 @@ class ProcessingPipeline:
             # Split text into chunks (Azure OpenAI has token limits)
             # Split text into chunks (Azure OpenAI has token limits)
             chunk_size = 8000  # characters (roughly ~2000 tokens)
-            overlap = 1600     # 20% overlap
-            
+            overlap = 1600  # 20% overlap
+
             chunks = []
             if len(text) <= chunk_size:
                 chunks = [text]
             else:
                 stride = chunk_size - overlap
                 for i in range(0, len(text), stride):
-                    chunk = text[i:i+chunk_size]
+                    chunk = text[i : i + chunk_size]
                     if chunk.strip():
                         chunks.append(chunk)
 
@@ -556,7 +607,9 @@ class ProcessingPipeline:
                 if chunk.strip():
                     try:
                         # Get embedding from Azure OpenAI
-                        chunk_embeddings = await azure_openai_service.get_embeddings([chunk])
+                        chunk_embeddings = await azure_openai_service.get_embeddings(
+                            [chunk]
+                        )
                         if chunk_embeddings and len(chunk_embeddings) > 0:
                             embeddings.append(chunk_embeddings[0])
                             chunk_texts.append(chunk)
@@ -575,7 +628,7 @@ class ProcessingPipeline:
                     organization_id=str(document.organization_id),
                     content_type=document.document_type.value,
                     source_type="document",
-                    timestamp=datetime.utcnow()
+                    timestamp=datetime.utcnow(),
                 )
 
                 # Create vector entry
@@ -583,17 +636,19 @@ class ProcessingPipeline:
                     id=embedding_id,
                     vector=final_embedding.tolist(),
                     text=text[:1000],  # Store first 1000 chars as preview
-                    metadata=metadata
+                    metadata=metadata,
                 )
 
                 # Store in Qdrant
                 result = vector_service.insert_vectors(
                     collection_type=VectorCollectionType.DOCUMENTS,
-                    vectors=[vector_entry]
+                    vectors=[vector_entry],
                 )
 
                 if result.success:
-                    logger.info(f"Successfully stored embedding for document {document.id} in Qdrant using Azure OpenAI")
+                    logger.info(
+                        f"Successfully stored embedding for document {document.id} in Qdrant using Azure OpenAI"
+                    )
                     return embedding_id
                 else:
                     logger.error(f"Failed to store embedding in Qdrant: {result.error}")
@@ -603,22 +658,25 @@ class ProcessingPipeline:
             return None
 
         except Exception as e:
-            logger.error(f"Embedding generation failed for document {document.id}: {str(e)}")
+            logger.error(
+                f"Embedding generation failed for document {document.id}: {str(e)}"
+            )
             return None
 
     def get_processing_status(self, document_id: str) -> Dict[str, Any]:
         """Get processing status for a document"""
-        document = self.db.query(Document).filter(
-            Document.id == document_id
-        ).first()
+        document = self.db.query(Document).filter(Document.id == document_id).first()
 
         if not document:
             return {"error": "Document not found"}
 
         # Get processing jobs
-        jobs = self.db.query(ProcessingJob).filter(
-            ProcessingJob.document_id == document_id
-        ).order_by(ProcessingJob.created_at.desc()).all()
+        jobs = (
+            self.db.query(ProcessingJob)
+            .filter(ProcessingJob.document_id == document_id)
+            .order_by(ProcessingJob.created_at.desc())
+            .all()
+        )
 
         return {
             "document_id": document_id,
@@ -626,14 +684,14 @@ class ProcessingPipeline:
             "is_embedded": document.is_embedded,
             "is_indexed": document.is_indexed,
             "processing_error": document.processing_error,
-            "jobs": [job.to_dict() for job in jobs]
+            "jobs": [job.to_dict() for job in jobs],
         }
 
     def retry_failed_jobs(self, organization_id: str = None) -> int:
         """Retry failed processing jobs"""
         query = self.db.query(ProcessingJob).filter(
             ProcessingJob.status == JobStatus.FAILED,
-            ProcessingJob.retry_count < ProcessingJob.max_retries
+            ProcessingJob.retry_count < ProcessingJob.max_retries,
         )
 
         if organization_id:
@@ -650,6 +708,7 @@ class ProcessingPipeline:
                 retried_count += 1
 
         return retried_count
+
 
 def get_processing_service(db: Session = Depends(get_db)) -> ProcessingPipeline:
     """Get processing service instance"""

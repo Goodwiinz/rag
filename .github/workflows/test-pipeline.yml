@@ -517,14 +517,13 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests, resilience-tests, frontend-tests, e2e-tests, security-scan, api-contract-tests]
+    needs: [unit-tests, integration-tests, resilience-tests, frontend-tests, security-scan, api-contract-tests]
     if: always()
     env:
       UNIT_RESULT: ${{ needs.unit-tests.result }}
       INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
       RESILIENCE_RESULT: ${{ needs.resilience-tests.result }}
       FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
-      E2E_RESULT: ${{ needs.e2e-tests.result }}
       SECURITY_RESULT: ${{ needs.security-scan.result }}
       CONTRACT_RESULT: ${{ needs.api-contract-tests.result }}
       GH_WORKFLOW: ${{ github.workflow }}
@@ -572,15 +571,6 @@ jobs:
             echo "| Frontend Tests | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Frontend Tests | :x: $FRONTEND_RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # E2E Tests
-          if [ "$E2E_RESULT" == "success" ]; then
-            echo "| E2E Tests | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
-          elif [ "$E2E_RESULT" == "skipped" ]; then
-            echo "| E2E Tests | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| E2E Tests | :x: $E2E_RESULT |" >> $GITHUB_STEP_SUMMARY
           fi
 
           # Security Scan

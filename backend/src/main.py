@@ -2,82 +2,83 @@
 Main FastAPI application for the multimodal RAG system
 """
 
-from fastapi import FastAPI, Request, HTTPException, status
+import logging
+import os
+import time
+from contextlib import asynccontextmanager
+from typing import Optional
+
+import redis  # Added this line
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-from contextlib import asynccontextmanager
-import logging
-import time
-import os
-from typing import Optional
-import redis  # Added this line
 
 # Setup basic logging
 logger = logging.getLogger(__name__)
 
-from src.core.config import settings
-from src.core.database import engine, Base
+from src.api.arxiv import (
+    arxiv_bulk_router,
+    arxiv_change_router,
+    arxiv_extraction_router,
+    arxiv_kg_router,
+    arxiv_llm_bulk_router,
+    arxiv_local_router,
+    arxiv_router,
+)
 from src.api.auth import auth_router
 from src.api.auth.api_keys import router as api_keys_router
 from src.api.documents import documents_router, files_router, processing_router
-from src.api.search import (
-    search_router,
-    search_quality_router,
-    vectors_router,
-    knowledge_graph_router,
-    multi_agent_search_router,
-    multi_agent_search_v2_router,
-)
+from src.api.infrastructure import evaluation_router, workers_router
 from src.api.quality import (
+    performance_dashboard_router,
     quality_metrics_router,
     quality_recommendations_router,
     user_behavior_router,
-    performance_dashboard_router,
 )
-from src.api.infrastructure import workers_router
-from src.api.security import encryption_router, compliance_router, rbac_router
-from src.api.infrastructure import evaluation_router
 from src.api.realtime import (
+    realtime_quality_metrics_router,
+    realtime_status_router,
     websocket_router,
     websocket_v2_router,
-    realtime_status_router,
-    realtime_quality_metrics_router,
-)
-from src.api.arxiv import (
-    arxiv_router,
-    arxiv_kg_router,
-    arxiv_change_router,
-    arxiv_extraction_router,
-    arxiv_local_router,
-    arxiv_bulk_router,
-    arxiv_llm_bulk_router,
 )
 from src.api.research import (
     chat_router,
-    export_router,
     citations_router,
-    projects_router,
     drafts_router,
+    export_router,
     project_chat_router,
+    projects_router,
 )
+from src.api.search import (
+    knowledge_graph_router,
+    multi_agent_search_router,
+    multi_agent_search_v2_router,
+    search_quality_router,
+    search_router,
+    vectors_router,
+)
+from src.api.security import compliance_router, encryption_router, rbac_router
 from src.api.threads import (
+    thread_search_router,
+    threads_router,
     workspaces_router,
     workspaces_standalone_router,
-    threads_router,
-    thread_search_router,
 )
+from src.core.config import settings
+from src.core.database import Base, engine
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
-from src.core.database import engine
+from src.health.endpoints import router as health_router
+
 # from src.services.documents.file_service import redis_client  # Not exported, not needed here
 
 # Configure observability (optional)
 try:
     from src.observability import (
-        configure_tracing,
-        configure_metrics,
         configure_logging,
+        configure_metrics,
+        configure_tracing,
         instrument_app,
         instrument_services,
     )
@@ -324,6 +325,8 @@ app.include_router(
     thread_search_router, prefix="/api/v2"
 )  # Thread and message full-text search
 
+# Include health endpoints
+app.include_router(health_router)  # Comprehensive health check endpoints
 
 # Health check endpoint
 @app.get("/health")

@@ -9,21 +9,25 @@ import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .config.monitoring_config import get_monitoring_config
-from .services.observability_manager import get_observability_manager, ObservabilityManager
-from .middleware.observability_middleware import ObservabilityMiddleware
-from .utils.sentry_integration import init_sentry
 from .api.monitoring_endpoints import router as monitoring_router
 from .api.websocket_handlers import websocket_manager
+from .config.monitoring_config import get_monitoring_config
+from .middleware.observability_middleware import ObservabilityMiddleware
+from .services.observability_manager import (
+    ObservabilityManager,
+    get_observability_manager,
+)
+from .utils.sentry_integration import init_sentry
+from src.core.config import settings
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -75,16 +79,17 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 # Configure CORS
+# SECURITY: Restrict allow_headers to specific values instead of "*"
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=["*"] if settings.DEBUG else ["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
 
 # Add observability middleware
@@ -102,7 +107,7 @@ async def root():
         "service": "RAG System Monitoring Service",
         "version": "1.0.0",
         "status": "running",
-        "timestamp": "2024-01-01T00:00:00Z"
+        "timestamp": "2024-01-01T00:00:00Z",
     }
 
 
@@ -119,18 +124,14 @@ async def health_check():
                 "status": health_status["manager"]["status"],
                 "service": "monitoring",
                 "version": "1.0.0",
-                "checks": health_status
-            }
+                "checks": health_status,
+            },
         )
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return JSONResponse(
             status_code=503,
-            content={
-                "status": "unhealthy",
-                "service": "monitoring",
-                "error": str(e)
-            }
+            content={"status": "unhealthy", "service": "monitoring", "error": str(e)},
         )
 
 
@@ -147,24 +148,20 @@ async def service_info():
         "components": {
             "metrics": {
                 "enabled": config.metrics.custom_metrics_enabled,
-                "prometheus": config.metrics.prometheus_enabled
+                "prometheus": config.metrics.prometheus_enabled,
             },
             "tracing": {
                 "enabled": config.tracing.enabled,
                 "jaeger": config.tracing.jaeger_enabled,
-                "otlp": config.tracing.otlp_enabled
+                "otlp": config.tracing.otlp_enabled,
             },
             "logging": {
                 "enabled": config.logging.structured_logging,
-                "level": config.logging.level
+                "level": config.logging.level,
             },
-            "alerting": {
-                "enabled": config.alerting.enabled
-            },
-            "health_checks": {
-                "enabled": config.health_check.enabled
-            }
-        }
+            "alerting": {"enabled": config.alerting.enabled},
+            "health_checks": {"enabled": config.health_check.enabled},
+        },
     }
 
 
@@ -186,8 +183,8 @@ async def global_exception_handler(request: Request, exc: Exception):
             "error": "Internal Server Error",
             "message": "An unexpected error occurred",
             "request_id": getattr(request.state, "request_id", None),
-            "correlation_id": getattr(request.state, "correlation_id", None)
-        }
+            "correlation_id": getattr(request.state, "correlation_id", None),
+        },
     )
 
 
@@ -211,9 +208,5 @@ if __name__ == "__main__":
     port = int(os.getenv("MONITORING_PORT", 8001))
 
     uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=port,
-        reload=config.debug,
-        log_level="info"
+        "main:app", host="0.0.0.0", port=port, reload=config.debug, log_level="info"
     )

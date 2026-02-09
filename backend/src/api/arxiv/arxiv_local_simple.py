@@ -2,13 +2,14 @@
 Simple ArXiv Local PDF Processing - No Full Content Processing
 """
 
-import os
 import json
 import logging
-from typing import Dict, List, Any, Optional
-from pathlib import Path
+import os
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Depends
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
 
 from src.core.dependencies import get_current_user
 
@@ -20,14 +21,14 @@ ARXIV_DATA_PATH = Path("/Users/goodwiinz/development/RAG_system/data/arxiv")
 
 
 @router.post("/extract-local-features-simple")
-async def extract_features_simple(
-    current_user: dict = Depends(get_current_user)
-):
+async def extract_features_simple(current_user: dict = Depends(get_current_user)):
     """
     Simple PDF feature extraction without processing full content
     """
     try:
-        logger.info(f"Simple PDF extraction request from user {current_user.get('email')}")
+        logger.info(
+            f"Simple PDF extraction request from user {current_user.get('email')}"
+        )
 
         # Get all PDF files
         pdf_files = list(ARXIV_DATA_PATH.glob("*.pdf"))
@@ -46,14 +47,14 @@ async def extract_features_simple(
                 features = {
                     "topics": _extract_topics_from_filename(pdf_file.name),
                     "keyphrases": _extract_keyphrases_from_filename(pdf_file.name),
-                    "summary": f"Paper {paper_id} from ArXiv repository"
+                    "summary": f"Paper {paper_id} from ArXiv repository",
                 }
 
                 extraction_result = {
                     "paper_id": paper_id,
                     "filename": pdf_file.name,
                     "extraction_status": "completed",
-                    "features": features
+                    "features": features,
                 }
                 extraction_results.append(extraction_result)
                 processed_count += 1
@@ -64,12 +65,14 @@ async def extract_features_simple(
 
             except Exception as e:
                 logger.error(f"Failed to process {pdf_file}: {e}")
-                extraction_results.append({
-                    "paper_id": pdf_file.stem,
-                    "filename": pdf_file.name,
-                    "extraction_status": "failed",
-                    "error": str(e)
-                })
+                extraction_results.append(
+                    {
+                        "paper_id": pdf_file.stem,
+                        "filename": pdf_file.name,
+                        "extraction_status": "failed",
+                        "error": str(e),
+                    }
+                )
 
         logger.info(f"Completed processing {processed_count} PDF files")
 
@@ -78,7 +81,7 @@ async def extract_features_simple(
             "message": f"Successfully processed {processed_count} PDF files",
             "total_files_found": len(pdf_files),
             "processed_count": processed_count,
-            "results": extraction_results
+            "results": extraction_results,
         }
 
     except Exception as e:
@@ -108,7 +111,7 @@ def _extract_topics_from_filename(filename: str) -> List[str]:
         "cnn": ["CNN", "Computer Vision"],
         "gan": ["GAN", "Generative Models"],
         "graph": ["Graph Neural Networks", "GNN"],
-        "nlp": ["NLP", "Natural Language Processing"]
+        "nlp": ["NLP", "Natural Language Processing"],
     }
 
     for keyword, topic_list in topic_keywords.items():
@@ -121,15 +124,25 @@ def _extract_topics_from_filename(filename: str) -> List[str]:
 def _extract_keyphrases_from_filename(filename: str) -> List[str]:
     """Extract potential key phrases from filename"""
     import re
-    name = filename.replace('.pdf', '').split('v')[0]
-    parts = re.split(r'[_\-\.]', name)
+
+    name = filename.replace(".pdf", "").split("v")[0]
+    parts = re.split(r"[_\-\.]", name)
 
     keyphrases = []
-    skip_words = {'arxiv', 'paper', 'pdf', 'study', 'analysis', 'approach', 'method', 'system'}
+    skip_words = {
+        "arxiv",
+        "paper",
+        "pdf",
+        "study",
+        "analysis",
+        "approach",
+        "method",
+        "system",
+    }
 
     for part in parts:
         if len(part) > 3 and part.lower() not in skip_words:
-            clean_part = re.sub(r'[^a-zA-Z0-9]', '', part)
+            clean_part = re.sub(r"[^a-zA-Z0-9]", "", part)
             if clean_part:
                 keyphrases.append(clean_part)
 

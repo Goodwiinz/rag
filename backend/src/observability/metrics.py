@@ -11,22 +11,26 @@ Provides comprehensive metrics collection including:
 """
 
 import os
-import time
 import threading
-from typing import Dict, Any, Optional, List
+import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 from opentelemetry import metrics
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.prometheus import PrometheusMetricReader
+from opentelemetry.metrics import Counter, Histogram, ObservableGauge, UpDownCounter
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-from opentelemetry.exporter.prometheus import PrometheusMetricReader
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION, DEPLOYMENT_ENVIRONMENT
-from opentelemetry.metrics import Histogram, Counter, UpDownCounter, ObservableGauge
+from opentelemetry.sdk.resources import (
+    DEPLOYMENT_ENVIRONMENT,
+    SERVICE_NAME,
+    SERVICE_VERSION,
+    Resource,
+)
 
 from .config import config
-
 
 # Global meter and metrics instances
 _meter = None
@@ -36,6 +40,7 @@ _metrics_registry = {}
 @dataclass
 class MetricConfig:
     """Configuration for metric creation"""
+
     name: str
     description: str
     unit: str = ""
@@ -57,9 +62,7 @@ class MetricsRegistry:
         with self._lock:
             if config.name not in self.histograms:
                 self.histograms[config.name] = _meter.create_histogram(
-                    name=config.name,
-                    description=config.description,
-                    unit=config.unit
+                    name=config.name, description=config.description, unit=config.unit
                 )
             return self.histograms[config.name]
 
@@ -68,9 +71,7 @@ class MetricsRegistry:
         with self._lock:
             if config.name not in self.counters:
                 self.counters[config.name] = _meter.create_counter(
-                    name=config.name,
-                    description=config.description,
-                    unit=config.unit
+                    name=config.name, description=config.description, unit=config.unit
                 )
             return self.counters[config.name]
 
@@ -79,9 +80,7 @@ class MetricsRegistry:
         with self._lock:
             if config.name not in self.updown_counters:
                 self.updown_counters[config.name] = _meter.create_up_down_counter(
-                    name=config.name,
-                    description=config.description,
-                    unit=config.unit
+                    name=config.name, description=config.description, unit=config.unit
                 )
             return self.updown_counters[config.name]
 
@@ -93,7 +92,7 @@ class MetricsRegistry:
                     name=config.name,
                     description=config.description,
                     unit=config.unit,
-                    callbacks=[callback]
+                    callbacks=[callback],
                 )
             return self.gauges[config.name]
 
@@ -103,12 +102,14 @@ def configure_metrics() -> metrics.Meter:
     global _meter, _metrics_registry
 
     # Set up resource attributes
-    resource = Resource.create({
-        SERVICE_NAME: config.otel_service_name,
-        SERVICE_VERSION: config.otel_service_version,
-        DEPLOYMENT_ENVIRONMENT: config.otel_environment,
-        "service.instance.id": os.environ.get("HOSTNAME", "unknown"),
-    })
+    resource = Resource.create(
+        {
+            SERVICE_NAME: config.otel_service_name,
+            SERVICE_VERSION: config.otel_service_version,
+            DEPLOYMENT_ENVIRONMENT: config.otel_environment,
+            "service.instance.id": os.environ.get("HOSTNAME", "unknown"),
+        }
+    )
 
     # Configure Prometheus exporter for scraping
     prometheus_reader = PrometheusMetricReader()
@@ -127,8 +128,7 @@ def configure_metrics() -> metrics.Meter:
 
     # Create meter provider
     meter_provider = MeterProvider(
-        resource=resource,
-        metric_readers=[prometheus_reader, periodic_reader]
+        resource=resource, metric_readers=[prometheus_reader, periodic_reader]
     )
 
     # Set as global meter provider
@@ -155,118 +155,130 @@ def initialize_default_metrics():
     """Initialize default application metrics"""
 
     # HTTP Request Metrics
-    create_metrics([
-        MetricConfig(
-            name="http_requests_total",
-            description="Total number of HTTP requests",
-            unit="requests"
-        ),
-        MetricConfig(
-            name="http_request_duration_seconds",
-            description="HTTP request duration in seconds",
-            unit="seconds"
-        ),
-        MetricConfig(
-            name="http_requests_active",
-            description="Number of active HTTP requests",
-            unit="requests"
-        ),
-    ])
+    create_metrics(
+        [
+            MetricConfig(
+                name="http_requests_total",
+                description="Total number of HTTP requests",
+                unit="requests",
+            ),
+            MetricConfig(
+                name="http_request_duration_seconds",
+                description="HTTP request duration in seconds",
+                unit="seconds",
+            ),
+            MetricConfig(
+                name="http_requests_active",
+                description="Number of active HTTP requests",
+                unit="requests",
+            ),
+        ]
+    )
 
     # Database Metrics
-    create_metrics([
-        MetricConfig(
-            name="database_connections_active",
-            description="Number of active database connections",
-            unit="connections"
-        ),
-        MetricConfig(
-            name="database_query_duration_seconds",
-            description="Database query duration in seconds",
-            unit="seconds"
-        ),
-        MetricConfig(
-            name="database_queries_total",
-            description="Total number of database queries",
-            unit="queries"
-        ),
-    ])
+    create_metrics(
+        [
+            MetricConfig(
+                name="database_connections_active",
+                description="Number of active database connections",
+                unit="connections",
+            ),
+            MetricConfig(
+                name="database_query_duration_seconds",
+                description="Database query duration in seconds",
+                unit="seconds",
+            ),
+            MetricConfig(
+                name="database_queries_total",
+                description="Total number of database queries",
+                unit="queries",
+            ),
+        ]
+    )
 
     # Search Performance Metrics
-    create_metrics([
-        MetricConfig(
-            name="search_requests_total",
-            description="Total number of search requests",
-            unit="requests"
-        ),
-        MetricConfig(
-            name="search_duration_seconds",
-            description="Search request duration in seconds",
-            unit="seconds"
-        ),
-        MetricConfig(
-            name="search_results_count",
-            description="Number of search results returned",
-            unit="results"
-        ),
-    ])
+    create_metrics(
+        [
+            MetricConfig(
+                name="search_requests_total",
+                description="Total number of search requests",
+                unit="requests",
+            ),
+            MetricConfig(
+                name="search_duration_seconds",
+                description="Search request duration in seconds",
+                unit="seconds",
+            ),
+            MetricConfig(
+                name="search_results_count",
+                description="Number of search results returned",
+                unit="results",
+            ),
+        ]
+    )
 
     # RAG Quality Metrics
-    create_metrics([
-        MetricConfig(
-            name="rag_answer_relevancy_score",
-            description="RAG answer relevancy score",
-            unit="score"
-        ),
-        MetricConfig(
-            name="rag_faithfulness_score",
-            description="RAG faithfulness score",
-            unit="score"
-        ),
-        MetricConfig(
-            name="rag_contextual_relevancy_score",
-            description="RAG contextual relevancy score",
-            unit="score"
-        ),
-    ])
+    create_metrics(
+        [
+            MetricConfig(
+                name="rag_answer_relevancy_score",
+                description="RAG answer relevancy score",
+                unit="score",
+            ),
+            MetricConfig(
+                name="rag_faithfulness_score",
+                description="RAG faithfulness score",
+                unit="score",
+            ),
+            MetricConfig(
+                name="rag_contextual_relevancy_score",
+                description="RAG contextual relevancy score",
+                unit="score",
+            ),
+        ]
+    )
 
     # File Processing Metrics
-    create_metrics([
-        MetricConfig(
-            name="file_processing_duration_seconds",
-            description="File processing duration in seconds",
-            unit="seconds"
-        ),
-        MetricConfig(
-            name="file_processing_total",
-            description="Total number of files processed",
-            unit="files"
-        ),
-        MetricConfig(
-            name="file_processing_errors_total",
-            description="Total number of file processing errors",
-            unit="errors"
-        ),
-    ])
+    create_metrics(
+        [
+            MetricConfig(
+                name="file_processing_duration_seconds",
+                description="File processing duration in seconds",
+                unit="seconds",
+            ),
+            MetricConfig(
+                name="file_processing_total",
+                description="Total number of files processed",
+                unit="files",
+            ),
+            MetricConfig(
+                name="file_processing_errors_total",
+                description="Total number of file processing errors",
+                unit="errors",
+            ),
+        ]
+    )
 
     # System Resource Metrics
-    create_metrics([
-        MetricConfig(
-            name="system_cpu_usage_percent",
-            description="System CPU usage percentage",
-            unit="percent"
-        ),
-        MetricConfig(
-            name="system_memory_usage_bytes",
-            description="System memory usage in bytes",
-            unit="bytes"
-        ),
-        MetricConfig(
-            name="system_disk_usage_bytes",
-            description="System disk usage in bytes",
-            unit="bytes"
-        ),
-    ])
+    create_metrics(
+        [
+            MetricConfig(
+                name="system_cpu_usage_percent",
+                description="System CPU usage percentage",
+                unit="percent",
+            ),
+            MetricConfig(
+                name="system_memory_usage_bytes",
+                description="System memory usage in bytes",
+                unit="bytes",
+            ),
+            MetricConfig(
+                name="system_disk_usage_bytes",
+                description="System disk usage in bytes",
+                unit="bytes",
+            ),
+        ]
+    )
 
 
 def create_metrics(configs: List[MetricConfig]) -> Dict[str, Any]:
@@ -290,9 +302,7 @@ def create_metrics(configs: List[MetricConfig]) -> Dict[str, Any]:
 
 
 def record_histogram(
-    metric_name: str,
-    value: float,
-    attributes: Optional[Dict[str, str]] = None
+    metric_name: str, value: float, attributes: Optional[Dict[str, str]] = None
 ):
     """Record a histogram metric value"""
     if metric_name in _metrics_registry.histograms:
@@ -304,9 +314,7 @@ def record_histogram(
 
 
 def increment_counter(
-    metric_name: str,
-    value: int = 1,
-    attributes: Optional[Dict[str, str]] = None
+    metric_name: str, value: int = 1, attributes: Optional[Dict[str, str]] = None
 ):
     """Increment a counter metric"""
     if metric_name in _metrics_registry.counters:
@@ -318,9 +326,7 @@ def increment_counter(
 
 
 def increment_updown_counter(
-    metric_name: str,
-    value: int = 1,
-    attributes: Optional[Dict[str, str]] = None
+    metric_name: str, value: int = 1, attributes: Optional[Dict[str, str]] = None
 ):
     """Increment an up-down counter metric"""
     if metric_name in _metrics_registry.updown_counters:
@@ -354,7 +360,9 @@ class PerformanceTracker:
             counter_name = f"{self.operation_name}_total"
             increment_counter(counter_name, attributes=attributes)
 
-    def record_error(self, error_type: str, attributes: Optional[Dict[str, str]] = None):
+    def record_error(
+        self, error_type: str, attributes: Optional[Dict[str, str]] = None
+    ):
         """Record operation error"""
         base_attrs = {"error_type": error_type}
         if attributes:
@@ -384,7 +392,7 @@ def record_rag_metrics(
     answer_relevancy: float,
     faithfulness: float,
     contextual_relevancy: float,
-    attributes: Optional[Dict[str, str]] = None
+    attributes: Optional[Dict[str, str]] = None,
 ):
     """Record RAG quality metrics"""
     base_attrs = attributes or {}
@@ -410,7 +418,7 @@ def record_search_metrics(
     result_count: int,
     duration: float,
     search_type: str,
-    attributes: Optional[Dict[str, str]] = None
+    attributes: Optional[Dict[str, str]] = None,
 ):
     """Record search operation metrics"""
     base_attrs = {
@@ -430,7 +438,7 @@ def record_file_processing_metrics(
     file_size: int,
     duration: float,
     success: bool,
-    attributes: Optional[Dict[str, str]] = None
+    attributes: Optional[Dict[str, str]] = None,
 ):
     """Record file processing metrics"""
     base_attrs = {

@@ -6,28 +6,30 @@ including conversations, messages, analysis results, caching, and user interacti
 """
 
 import uuid
-from datetime import datetime, date
-from enum import Enum
-from typing import Dict, List, Optional, Any, Union
+from datetime import date, datetime
 from decimal import Decimal
+from enum import Enum
+from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, validator, ConfigDict
-from sqlalchemy import (
-    Column, String, DateTime, Boolean, Text, JSON, Integer, ForeignKey,
-    Float, Enum as SQLEnum, Array, BigInteger, DATE
-)
+from pydantic import BaseModel, ConfigDict, Field, validator
+from sqlalchemy import DATE, JSON, Array, BigInteger, Boolean, Column, DateTime
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import Float, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
 
-from ..base import BaseModel as SQLBaseModel, GUID
-
+from ..base import GUID
+from ..base import BaseModel as SQLBaseModel
 
 # ============================================================================
 # ENUMS
 # ============================================================================
 
+
 class ConversationType(str, Enum):
     """Types of conversations supported"""
+
     DOCUMENT_QA = "document_qa"
     GENERAL_INQUIRY = "general_inquiry"
     ANALYSIS_SESSION = "analysis_session"
@@ -38,6 +40,7 @@ class ConversationType(str, Enum):
 
 class ConversationStatus(str, Enum):
     """Status of conversations"""
+
     ACTIVE = "active"
     PAUSED = "paused"
     COMPLETED = "completed"
@@ -47,6 +50,7 @@ class ConversationStatus(str, Enum):
 
 class MessageType(str, Enum):
     """Types of messages in conversations"""
+
     QUESTION = "question"
     ANSWER = "answer"
     CLARIFICATION = "clarification"
@@ -59,6 +63,7 @@ class MessageType(str, Enum):
 
 class SourceType(str, Enum):
     """Source types for messages"""
+
     USER = "user"
     AI_ASSISTANT = "ai_assistant"
     SYSTEM = "system"
@@ -68,6 +73,7 @@ class SourceType(str, Enum):
 
 class ContentType(str, Enum):
     """Content types for messages"""
+
     TEXT = "text"
     MARKDOWN = "markdown"
     HTML = "html"
@@ -75,6 +81,7 @@ class ContentType(str, Enum):
 
 class ParticipantRole(str, Enum):
     """Roles for conversation participants"""
+
     OWNER = "owner"
     MODERATOR = "moderator"
     PARTICIPANT = "participant"
@@ -84,6 +91,7 @@ class ParticipantRole(str, Enum):
 
 class ParticipantStatus(str, Enum):
     """Status of conversation participants"""
+
     ACTIVE = "active"
     INACTIVE = "inactive"
     BANNED = "banned"
@@ -92,6 +100,7 @@ class ParticipantStatus(str, Enum):
 
 class AnalysisType(str, Enum):
     """Types of document analysis"""
+
     CONTENT_SUMMARY = "content_summary"
     KEY_TOPICS = "key_topics"
     SENTIMENT_ANALYSIS = "sentiment_analysis"
@@ -109,6 +118,7 @@ class AnalysisType(str, Enum):
 
 class AnalysisStatus(str, Enum):
     """Status of analysis results"""
+
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -118,6 +128,7 @@ class AnalysisStatus(str, Enum):
 
 class FeedbackType(str, Enum):
     """Types of feedback on analysis results"""
+
     ACCURACY_RATING = "accuracy_rating"
     USEFULNESS_RATING = "usefulness_rating"
     CORRECTION = "correction"
@@ -129,6 +140,7 @@ class FeedbackType(str, Enum):
 
 class QuestionType(str, Enum):
     """Types of questions"""
+
     FACTUAL = "factual"
     ANALYTICAL = "analytical"
     OPINION = "opinion"
@@ -142,6 +154,7 @@ class QuestionType(str, Enum):
 
 class QuestionComplexity(str, Enum):
     """Complexity levels of questions"""
+
     SIMPLE = "simple"
     MEDIUM = "medium"
     COMPLEX = "complex"
@@ -150,6 +163,7 @@ class QuestionComplexity(str, Enum):
 
 class AnswerType(str, Enum):
     """Types of answers"""
+
     TEXT = "text"
     STRUCTURED = "structured"
     LIST = "list"
@@ -160,6 +174,7 @@ class AnswerType(str, Enum):
 
 class VerificationStatus(str, Enum):
     """Verification status of cached answers"""
+
     VERIFIED = "verified"
     PARTIALLY_VERIFIED = "partially_verified"
     UNVERIFIED = "unverified"
@@ -168,6 +183,7 @@ class VerificationStatus(str, Enum):
 
 class CacheStatus(str, Enum):
     """Status of cache entries"""
+
     ACTIVE = "active"
     STALE = "stale"
     EXPIRED = "expired"
@@ -177,6 +193,7 @@ class CacheStatus(str, Enum):
 
 class InvalidationRuleType(str, Enum):
     """Types of cache invalidation rules"""
+
     DOCUMENT_CHANGE = "document_change"
     TIME_BASED = "time_based"
     USAGE_THRESHOLD = "usage_threshold"
@@ -188,6 +205,7 @@ class InvalidationRuleType(str, Enum):
 
 class InvalidationActionType(str, Enum):
     """Actions for cache invalidation"""
+
     EXPIRE = "expire"
     DELETE = "delete"
     REFRESH = "refresh"
@@ -196,6 +214,7 @@ class InvalidationActionType(str, Enum):
 
 class InteractionType(str, Enum):
     """Types of user interactions"""
+
     QUESTION_ASKED = "question_asked"
     ANSWER_VIEWED = "answer_viewed"
     ANSWER_RATED = "answer_rated"
@@ -214,6 +233,7 @@ class InteractionType(str, Enum):
 
 class ClientType(str, Enum):
     """Types of client applications"""
+
     WEB = "web"
     MOBILE = "mobile"
     API = "api"
@@ -223,6 +243,7 @@ class ClientType(str, Enum):
 
 class MetricPeriod(str, Enum):
     """Periods for engagement metrics"""
+
     DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
@@ -232,6 +253,7 @@ class MetricPeriod(str, Enum):
 
 class GapType(str, Enum):
     """Types of knowledge gaps"""
+
     MISSING_INFORMATION = "missing_information"
     OUTDATED_CONTENT = "outdated_content"
     POOR_QUALITY_ANSWERS = "poor_quality_answers"
@@ -242,6 +264,7 @@ class GapType(str, Enum):
 
 class GapStatus(str, Enum):
     """Status of knowledge gaps"""
+
     IDENTIFIED = "identified"
     INVESTIGATING = "investigating"
     ADDRESSING = "addressing"
@@ -251,6 +274,7 @@ class GapStatus(str, Enum):
 
 class ImpactSeverity(str, Enum):
     """Impact severity levels"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -259,6 +283,7 @@ class ImpactSeverity(str, Enum):
 
 class ActivityLevel(str, Enum):
     """Activity level classifications"""
+
     VERY_ACTIVE = "very_active"
     ACTIVE = "active"
     RECENT = "recent"
@@ -269,6 +294,7 @@ class ActivityLevel(str, Enum):
 # SQLALCHEMY MODELS
 # ============================================================================
 
+
 class DocumentConversation(SQLBaseModel):
     """Model for document conversations"""
 
@@ -277,7 +303,9 @@ class DocumentConversation(SQLBaseModel):
     # Basic information
     title = Column(String(500), nullable=False)
     description = Column(Text)
-    conversation_type = Column(SQLEnum(ConversationType), default=ConversationType.DOCUMENT_QA)
+    conversation_type = Column(
+        SQLEnum(ConversationType), default=ConversationType.DOCUMENT_QA
+    )
 
     # Document association
     document_id = Column(GUID(), ForeignKey("documents.id"), nullable=False)
@@ -304,15 +332,25 @@ class DocumentConversation(SQLBaseModel):
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     last_activity_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime(timezone=True))
 
     # Relationships
     document = relationship("Document", back_populates="conversations")
-    messages = relationship("ConversationMessage", back_populates="conversation", cascade="all, delete-orphan")
-    participants = relationship("ConversationParticipant", back_populates="conversation", cascade="all, delete-orphan")
+    messages = relationship(
+        "ConversationMessage",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+    )
+    participants = relationship(
+        "ConversationParticipant",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+    )
     created_by_user = relationship("User")
     organization = relationship("Organization")
 
@@ -323,7 +361,9 @@ class ConversationMessage(SQLBaseModel):
     __tablename__ = "conversation_messages"
 
     # Message identification
-    conversation_id = Column(GUID(), ForeignKey("document_conversations.id"), nullable=False)
+    conversation_id = Column(
+        GUID(), ForeignKey("document_conversations.id"), nullable=False
+    )
     message_sequence = Column(Integer, nullable=False)
 
     # Message content
@@ -366,7 +406,9 @@ class ConversationMessage(SQLBaseModel):
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime(timezone=True))
 
@@ -382,7 +424,9 @@ class ConversationParticipant(SQLBaseModel):
     __tablename__ = "conversation_participants"
 
     # Participant identification
-    conversation_id = Column(GUID(), ForeignKey("document_conversations.id"), nullable=False)
+    conversation_id = Column(
+        GUID(), ForeignKey("document_conversations.id"), nullable=False
+    )
     user_id = Column(GUID(), ForeignKey("users.id"), nullable=False)
 
     # Participant role
@@ -406,7 +450,9 @@ class ConversationParticipant(SQLBaseModel):
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime(timezone=True))
 
@@ -460,7 +506,9 @@ class DocumentAnalysisResult(SQLBaseModel):
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     expires_at = Column(DateTime(timezone=True))
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime(timezone=True))
@@ -468,7 +516,11 @@ class DocumentAnalysisResult(SQLBaseModel):
     # Relationships
     document = relationship("Document", back_populates="analysis_results")
     validated_by_user = relationship("User")
-    feedback = relationship("AnalysisFeedback", back_populates="analysis_result", cascade="all, delete-orphan")
+    feedback = relationship(
+        "AnalysisFeedback",
+        back_populates="analysis_result",
+        cascade="all, delete-orphan",
+    )
     organization = relationship("Organization")
 
 
@@ -478,7 +530,9 @@ class AnalysisFeedback(SQLBaseModel):
     __tablename__ = "analysis_feedback"
 
     # Feedback identification
-    analysis_result_id = Column(GUID(), ForeignKey("document_analysis_results.id"), nullable=False)
+    analysis_result_id = Column(
+        GUID(), ForeignKey("document_analysis_results.id"), nullable=False
+    )
 
     # Feedback provider
     user_id = Column(GUID(), ForeignKey("users.id"))
@@ -505,7 +559,9 @@ class AnalysisFeedback(SQLBaseModel):
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime(timezone=True))
 
@@ -528,7 +584,9 @@ class QACache(SQLBaseModel):
 
     # Question analysis
     question_type = Column(SQLEnum(QuestionType), nullable=False)
-    question_complexity = Column(SQLEnum(QuestionComplexity), default=QuestionComplexity.MEDIUM)
+    question_complexity = Column(
+        SQLEnum(QuestionComplexity), default=QuestionComplexity.MEDIUM
+    )
     question_domain = Column(String(100))
 
     # Context specification
@@ -544,7 +602,9 @@ class QACache(SQLBaseModel):
     # Source and verification
     source_documents = Column(JSONB, default=[])
     source_references = Column(JSONB, default=[])
-    verification_status = Column(SQLEnum(VerificationStatus), default=VerificationStatus.VERIFIED)
+    verification_status = Column(
+        SQLEnum(VerificationStatus), default=VerificationStatus.VERIFIED
+    )
 
     # Performance metrics
     generation_time_ms = Column(Integer)
@@ -576,7 +636,9 @@ class QACache(SQLBaseModel):
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime(timezone=True))
 
@@ -602,7 +664,9 @@ class QACacheInvalidationRule(SQLBaseModel):
     scope_organizations = Column(Array(GUID()), default=[])
 
     # Invalidation actions
-    action_type = Column(SQLEnum(InvalidationActionType), default=InvalidationActionType.EXPIRE)
+    action_type = Column(
+        SQLEnum(InvalidationActionType), default=InvalidationActionType.EXPIRE
+    )
 
     # Rule status
     is_active = Column(Boolean, default=True)
@@ -617,7 +681,9 @@ class QACacheInvalidationRule(SQLBaseModel):
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime(timezone=True))
 
@@ -721,7 +787,9 @@ class UserEngagementMetric(SQLBaseModel):
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime(timezone=True))
 
@@ -765,7 +833,9 @@ class KnowledgeGapAnalysis(SQLBaseModel):
     identified_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     resolved_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime(timezone=True))
 
@@ -778,8 +848,10 @@ class KnowledgeGapAnalysis(SQLBaseModel):
 # PYDANTIC SCHEMAS FOR API SERIALIZATION
 # ============================================================================
 
+
 class DocumentConversationBase(BaseModel):
     """Base schema for document conversations"""
+
     title: str = Field(..., min_length=1, max_length=500)
     description: Optional[str] = None
     conversation_type: ConversationType = ConversationType.DOCUMENT_QA
@@ -790,10 +862,10 @@ class DocumentConversationBase(BaseModel):
     is_public: bool = False
     is_moderated: bool = False
 
-    @validator('language')
+    @validator("language")
     def validate_language(cls, v):
         if len(v) not in [2, 3]:
-            raise ValueError('Language code must be 2 or 3 characters')
+            raise ValueError("Language code must be 2 or 3 characters")
         return v.lower()
 
     model_config = ConfigDict(from_attributes=True)
@@ -801,12 +873,14 @@ class DocumentConversationBase(BaseModel):
 
 class DocumentConversationCreate(DocumentConversationBase):
     """Schema for creating document conversations"""
+
     document_id: uuid.UUID
     participant_ids: Optional[List[uuid.UUID]] = None  # Additional participants to add
 
 
 class DocumentConversationResponse(DocumentConversationBase):
     """Schema for document conversation responses"""
+
     id: uuid.UUID
     document_id: uuid.UUID
     status: ConversationStatus
@@ -824,6 +898,7 @@ class DocumentConversationResponse(DocumentConversationBase):
 
 class ConversationMessageBase(BaseModel):
     """Base schema for conversation messages"""
+
     content: str = Field(..., min_length=1)
     content_type: ContentType = ContentType.TEXT
     message_type: MessageType
@@ -836,11 +911,13 @@ class ConversationMessageBase(BaseModel):
 
 class ConversationMessageCreate(ConversationMessageBase):
     """Schema for creating conversation messages"""
+
     conversation_id: uuid.UUID
 
 
 class ConversationMessageResponse(ConversationMessageBase):
     """Schema for conversation message responses"""
+
     id: uuid.UUID
     conversation_id: uuid.UUID
     message_sequence: int
@@ -869,6 +946,7 @@ class ConversationMessageResponse(ConversationMessageBase):
 
 class ConversationParticipantBase(BaseModel):
     """Base schema for conversation participants"""
+
     role: ParticipantRole = ParticipantRole.PARTICIPANT
     notification_preferences: Dict[str, Any] = {}
     display_preferences: Dict[str, Any] = {}
@@ -878,12 +956,14 @@ class ConversationParticipantBase(BaseModel):
 
 class ConversationParticipantCreate(ConversationParticipantBase):
     """Schema for adding conversation participants"""
+
     conversation_id: uuid.UUID
     user_id: uuid.UUID
 
 
 class ConversationParticipantResponse(ConversationParticipantBase):
     """Schema for conversation participant responses"""
+
     id: uuid.UUID
     conversation_id: uuid.UUID
     user_id: uuid.UUID
@@ -901,6 +981,7 @@ class ConversationParticipantResponse(ConversationParticipantBase):
 
 class DocumentAnalysisResultBase(BaseModel):
     """Base schema for document analysis results"""
+
     analysis_type: AnalysisType
     analysis_version: str = "1.0"
     analysis_scope: Dict[str, Any] = {}
@@ -912,6 +993,7 @@ class DocumentAnalysisResultBase(BaseModel):
 
 class DocumentAnalysisResultCreate(DocumentAnalysisResultBase):
     """Schema for creating document analysis results"""
+
     document_id: uuid.UUID
     results: Dict[str, Any]
     insights: List[Dict[str, Any]] = []
@@ -926,6 +1008,7 @@ class DocumentAnalysisResultCreate(DocumentAnalysisResultBase):
 
 class DocumentAnalysisResultResponse(DocumentAnalysisResultBase):
     """Schema for document analysis result responses"""
+
     id: uuid.UUID
     document_id: uuid.UUID
     results: Dict[str, Any]
@@ -953,6 +1036,7 @@ class DocumentAnalysisResultResponse(DocumentAnalysisResultBase):
 
 class QACacheResponse(BaseModel):
     """Schema for Q&A cache responses"""
+
     id: uuid.UUID
     question_hash: str
     normalized_question: str
@@ -991,6 +1075,7 @@ class QACacheResponse(BaseModel):
 
 class UserQAInteractionResponse(BaseModel):
     """Schema for user Q&A interaction responses"""
+
     id: uuid.UUID
     user_id: Optional[uuid.UUID]
     session_id: Optional[uuid.UUID]
@@ -1021,6 +1106,7 @@ class UserQAInteractionResponse(BaseModel):
 
 class UserEngagementMetricResponse(BaseModel):
     """Schema for user engagement metric responses"""
+
     id: uuid.UUID
     user_id: Optional[uuid.UUID]
     organization_id: uuid.UUID
@@ -1051,6 +1137,7 @@ class UserEngagementMetricResponse(BaseModel):
 
 class ConversationSummaryResponse(BaseModel):
     """Schema for conversation summary responses (from materialized view)"""
+
     id: uuid.UUID
     title: str
     description: Optional[str]
@@ -1077,6 +1164,7 @@ class ConversationSummaryResponse(BaseModel):
 
 class QACachePerformanceResponse(BaseModel):
     """Schema for Q&A cache performance responses"""
+
     organization_id: uuid.UUID
     total_cache_entries: int
     total_hits: int
@@ -1094,6 +1182,7 @@ class QACachePerformanceResponse(BaseModel):
 
 class UserEngagementDashboardResponse(BaseModel):
     """Schema for user engagement dashboard responses"""
+
     organization_id: uuid.UUID
     user_id: uuid.UUID
     email: str
@@ -1116,8 +1205,10 @@ class UserEngagementDashboardResponse(BaseModel):
 # UTILITY CLASSES
 # ============================================================================
 
+
 class QACacheLookupResult(BaseModel):
     """Result from Q&A cache lookup operation"""
+
     cache_hit: bool
     answer: Optional[str]
     confidence: Optional[float]
@@ -1129,6 +1220,7 @@ class QACacheLookupResult(BaseModel):
 
 class ConversationQualityMetrics(BaseModel):
     """Quality metrics for a conversation"""
+
     total_messages: int
     question_count: int
     answer_count: int
@@ -1142,6 +1234,7 @@ class ConversationQualityMetrics(BaseModel):
 
 class KnowledgeGapResult(BaseModel):
     """Result from knowledge gap analysis"""
+
     gap_type: GapType
     gap_title: str
     affected_questions: List[str]

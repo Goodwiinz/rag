@@ -5,41 +5,49 @@ Security-focused implementation using only JSON serialization
 """
 
 import asyncio
-import json
-import hashlib
-import time
 import gzip
-from datetime import datetime, timezone as dt_timezone, timedelta
-from typing import Dict, List, Optional, Any, Union, Callable, Set, Tuple
-from dataclasses import dataclass, field, asdict
-from enum import Enum
-from collections import defaultdict
+import hashlib
+import json
 import logging
-import numpy as np
-from functools import wraps
-import aioredis
+import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
+from enum import Enum
+from functools import wraps
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+
+import aioredis
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class CacheLevel(Enum):
     """Cache hierarchy levels"""
-    L1_MEMORY = "l1_memory"      # In-memory cache (fastest)
-    L2_REDIS = "l2_redis"        # Redis cache (fast)
-    L3_APPLICATION = "l3_app"     # Application-level cache (medium)
-    L4_CDN = "l4_cdn"            # CDN cache (slow but distributed)
+
+    L1_MEMORY = "l1_memory"  # In-memory cache (fastest)
+    L2_REDIS = "l2_redis"  # Redis cache (fast)
+    L3_APPLICATION = "l3_app"  # Application-level cache (medium)
+    L4_CDN = "l4_cdn"  # CDN cache (slow but distributed)
+
 
 class CacheStrategy(Enum):
     """Cache invalidation strategies"""
+
     TTL_BASED = "ttl_based"
     LRU = "lru"
     WRITE_THROUGH = "write_through"
     WRITE_BEHIND = "write_behind"
     REFRESH_AHEAD = "refresh_ahead"
 
+
 @dataclass
 class CacheEntry:
     """Cache entry with metadata"""
+
     key: str
     value: Any
     created_at: datetime
@@ -67,11 +75,15 @@ class CacheEntry:
         # Higher score = higher priority to keep
         age_hours = (datetime.utcnow() - self.created_at).total_seconds() / 3600
         access_frequency = self.access_count / max(1, age_hours)
-        return access_frequency * (1 / max(1, self.size_bytes / 1024))  # Favor small, frequently accessed items
+        return access_frequency * (
+            1 / max(1, self.size_bytes / 1024)
+        )  # Favor small, frequently accessed items
+
 
 @dataclass
 class CacheConfig:
     """Configuration for multi-tier cache"""
+
     l1_max_size: int = 1000  # Max entries in memory cache
     l1_max_memory_mb: int = 100  # Max memory in MB
     l2_redis_url: str = "redis://localhost:6379"
@@ -86,6 +98,7 @@ class CacheConfig:
     cache_warming_enabled: bool = True
     refresh_ahead_threshold: float = 0.8  # Refresh when 80% of TTL elapsed
     max_serialization_depth: int = 10  # Prevent deep recursion in serialization
+
 
 class SafeJSONSerializer:
     """Safe JSON serializer with security constraints"""
@@ -115,10 +128,10 @@ class SafeJSONSerializer:
             return json.dumps(obj, default=str, ensure_ascii=False)
         else:
             # Convert complex objects to safe dictionaries
-            if hasattr(obj, '__dict__'):
+            if hasattr(obj, "__dict__"):
                 safe_dict = {}
                 for key, value in obj.__dict__.items():
-                    if not key.startswith('_'):  # Skip private attributes
+                    if not key.startswith("_"):  # Skip private attributes
                         try:
                             if SafeJSONSerializer.is_safe_type(value):
                                 safe_dict[key] = value
@@ -136,6 +149,7 @@ class SafeJSONSerializer:
         """Safely deserialize JSON data"""
         return json.loads(data)
 
+
 class L1MemoryCache:
     """L1 in-memory cache with LRU eviction and safe serialization"""
 
@@ -146,23 +160,23 @@ class L1MemoryCache:
         self.current_memory_mb = 0
         self.executor = ThreadPoolExecutor(max_workers=2)
         self.stats = {
-            'hits': 0,
-            'misses': 0,
-            'evictions': 0,
-            'sets': 0,
-            'compression_saves': 0,
-            'serialization_errors': 0
+            "hits": 0,
+            "misses": 0,
+            "evictions": 0,
+            "sets": 0,
+            "compression_saves": 0,
+            "serialization_errors": 0,
         }
 
     def _estimate_size(self, value: Any) -> int:
         """Estimate memory size of a value"""
         try:
             if isinstance(value, str):
-                return len(value.encode('utf-8'))
+                return len(value.encode("utf-8"))
             elif isinstance(value, (dict, list)):
-                return len(json.dumps(value, default=str).encode('utf-8'))
+                return len(json.dumps(value, default=str).encode("utf-8"))
             else:
-                return len(str(value).encode('utf-8'))
+                return len(str(value).encode("utf-8"))
         except Exception:
             return 1024  # Default estimate
 
@@ -173,7 +187,7 @@ class L1MemoryCache:
     def _compress_value(self, value: Any) -> Tuple[Any, float]:
         """Compress JSON value and return compressed value with ratio"""
         try:
-            serialized = SafeJSONSerializer.serialize(value).encode('utf-8')
+            serialized = SafeJSONSerializer.serialize(value).encode("utf-8")
             compressed = gzip.compress(serialized)
             ratio = len(compressed) / len(serialized)
 
@@ -191,11 +205,11 @@ class L1MemoryCache:
             if isinstance(value, bytes):
                 try:
                     decompressed = gzip.decompress(value)
-                    return SafeJSONSerializer.deserialize(decompressed.decode('utf-8'))
+                    return SafeJSONSerializer.deserialize(decompressed.decode("utf-8"))
                 except:
                     # Not compressed, try direct deserialization
                     try:
-                        return SafeJSONSerializer.deserialize(value.decode('utf-8'))
+                        return SafeJSONSerializer.deserialize(value.decode("utf-8"))
                     except:
                         return str(value)
             else:
@@ -207,7 +221,7 @@ class L1MemoryCache:
     async def get(self, key: str) -> Optional[Any]:
         """Get value from L1 cache"""
         if key not in self.cache:
-            self.stats['misses'] += 1
+            self.stats["misses"] += 1
             return None
 
         entry = self.cache[key]
@@ -215,28 +229,29 @@ class L1MemoryCache:
         # Check expiration
         if entry.is_expired():
             await self.delete(key)
-            self.stats['misses'] += 1
+            self.stats["misses"] += 1
             return None
 
         # Update access information
         entry.update_access()
         self._update_access_order(key)
 
-        self.stats['hits'] += 1
+        self.stats["hits"] += 1
         return self._decompress_value(entry.value)
 
-    async def set(self, key: str, value: Any, ttl: Optional[int] = None,
-                  tags: Set[str] = None) -> bool:
+    async def set(
+        self, key: str, value: Any, ttl: Optional[int] = None, tags: Set[str] = None
+    ) -> bool:
         """Set value in L1 cache with safe serialization"""
         try:
             # Validate object is serializable
             if not SafeJSONSerializer.is_safe_type(value):
                 # Try to convert complex objects
-                if hasattr(value, '__dict__'):
+                if hasattr(value, "__dict__"):
                     # Convert object to dictionary
                     safe_value = {}
                     for attr in dir(value):
-                        if not attr.startswith('_'):
+                        if not attr.startswith("_"):
                             try:
                                 attr_value = getattr(value, attr)
                                 if SafeJSONSerializer.is_safe_type(attr_value):
@@ -259,7 +274,7 @@ class L1MemoryCache:
             if self._should_compress(value, size):
                 value, compression_ratio = self._compress_value(value)
                 if compression_ratio < 1.0:
-                    self.stats['compression_saves'] += 1
+                    self.stats["compression_saves"] += 1
 
             # Create cache entry
             entry = CacheEntry(
@@ -270,7 +285,7 @@ class L1MemoryCache:
                 ttl=ttl,
                 size_bytes=size,
                 compression_ratio=compression_ratio,
-                tags=tags or set()
+                tags=tags or set(),
             )
 
             # Check memory constraints
@@ -280,13 +295,13 @@ class L1MemoryCache:
             self.cache[key] = entry
             self._update_access_order(key)
             self.current_memory_mb += size / (1024 * 1024)
-            self.stats['sets'] += 1
+            self.stats["sets"] += 1
 
             return True
 
         except Exception as e:
             logger.error(f"Error setting L1 cache entry {key}: {e}")
-            self.stats['serialization_errors'] += 1
+            self.stats["serialization_errors"] += 1
             return False
 
     async def delete(self, key: str) -> bool:
@@ -302,16 +317,20 @@ class L1MemoryCache:
 
     async def _ensure_memory_limit(self, new_entry_size: int):
         """Ensure cache stays within memory limits"""
-        while (len(self.cache) >= self.config.l1_max_size or
-               self.current_memory_mb + new_entry_size / (1024 * 1024) > self.config.l1_max_memory_mb):
-
+        while (
+            len(self.cache) >= self.config.l1_max_size
+            or self.current_memory_mb + new_entry_size / (1024 * 1024)
+            > self.config.l1_max_memory_mb
+        ):
             if not self.cache:
                 break
 
             # Find entry with lowest priority score
-            lowest_key = min(self.cache.keys(), key=lambda k: self.cache[k].get_priority_score())
+            lowest_key = min(
+                self.cache.keys(), key=lambda k: self.cache[k].get_priority_score()
+            )
             await self.delete(lowest_key)
-            self.stats['evictions'] += 1
+            self.stats["evictions"] += 1
 
     def _update_access_order(self, key: str):
         """Update LRU access order"""
@@ -321,17 +340,26 @@ class L1MemoryCache:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics"""
-        total_requests = self.stats['hits'] + self.stats['misses']
-        hit_rate = (self.stats['hits'] / total_requests * 100) if total_requests > 0 else 0
+        total_requests = self.stats["hits"] + self.stats["misses"]
+        hit_rate = (
+            (self.stats["hits"] / total_requests * 100) if total_requests > 0 else 0
+        )
 
         return {
             **self.stats,
-            'hit_rate_percent': hit_rate,
-            'total_entries': len(self.cache),
-            'memory_usage_mb': self.current_memory_mb,
-            'avg_access_count': np.mean([e.access_count for e in self.cache.values()]) if self.cache else 0,
-            'compression_savings': sum(1 - e.compression_ratio for e in self.cache.values() if e.compression_ratio < 1)
+            "hit_rate_percent": hit_rate,
+            "total_entries": len(self.cache),
+            "memory_usage_mb": self.current_memory_mb,
+            "avg_access_count": np.mean([e.access_count for e in self.cache.values()])
+            if self.cache
+            else 0,
+            "compression_savings": sum(
+                1 - e.compression_ratio
+                for e in self.cache.values()
+                if e.compression_ratio < 1
+            ),
         }
+
 
 class L2RedisCache:
     """L2 Redis cache with clustering support and safe serialization"""
@@ -340,11 +368,11 @@ class L2RedisCache:
         self.config = config
         self.redis_client: Optional[aioredis.Redis] = None
         self.stats = {
-            'hits': 0,
-            'misses': 0,
-            'errors': 0,
-            'sets': 0,
-            'connection_failures': 0
+            "hits": 0,
+            "misses": 0,
+            "errors": 0,
+            "sets": 0,
+            "connection_failures": 0,
         }
 
     async def initialize(self):
@@ -358,7 +386,7 @@ class L2RedisCache:
                 socket_timeout=5,
                 retry_on_timeout=True,
                 health_check_interval=30,
-                max_connections=20
+                max_connections=20,
             )
 
             # Test connection
@@ -377,20 +405,20 @@ class L2RedisCache:
         try:
             data = await self.redis_client.get(key)
             if data is None:
-                self.stats['misses'] += 1
+                self.stats["misses"] += 1
                 return None
 
             # Deserialize with compression support
             value = self._deserialize(data)
             if value is not None:
-                self.stats['hits'] += 1
+                self.stats["hits"] += 1
                 return value
             else:
-                self.stats['misses'] += 1
+                self.stats["misses"] += 1
                 return None
 
         except Exception as e:
-            self.stats['errors'] += 1
+            self.stats["errors"] += 1
             logger.error(f"Redis get error for key {key}: {e}")
             return None
 
@@ -403,10 +431,10 @@ class L2RedisCache:
             # Validate object is serializable
             if not SafeJSONSerializer.is_safe_type(value):
                 # Convert to safe format
-                if hasattr(value, '__dict__'):
+                if hasattr(value, "__dict__"):
                     safe_value = {}
                     for attr in dir(value):
-                        if not attr.startswith('_'):
+                        if not attr.startswith("_"):
                             try:
                                 attr_value = getattr(value, attr)
                                 if SafeJSONSerializer.is_safe_type(attr_value):
@@ -424,11 +452,11 @@ class L2RedisCache:
             cache_ttl = ttl or self.config.l2_default_ttl
 
             await self.redis_client.setex(key, cache_ttl, data)
-            self.stats['sets'] += 1
+            self.stats["sets"] += 1
             return True
 
         except Exception as e:
-            self.stats['errors'] += 1
+            self.stats["errors"] += 1
             logger.error(f"Redis set error for key {key}: {e}")
             return False
 
@@ -441,7 +469,7 @@ class L2RedisCache:
             await self.redis_client.delete(key)
             return True
         except Exception as e:
-            self.stats['errors'] += 1
+            self.stats["errors"] += 1
             logger.error(f"Redis delete error for key {key}: {e}")
             return False
 
@@ -457,23 +485,29 @@ class L2RedisCache:
                 return deleted
             return 0
         except Exception as e:
-            self.stats['errors'] += 1
+            self.stats["errors"] += 1
             logger.error(f"Redis pattern delete error: {e}")
             return 0
 
     def _serialize(self, value: Any) -> bytes:
         """Serialize value with compression using safe JSON"""
         try:
-            serialized = SafeJSONSerializer.serialize(value).encode('utf-8')
+            serialized = SafeJSONSerializer.serialize(value).encode("utf-8")
         except Exception as e:
             logger.error(f"Serialization error: {e}")
-            serialized = json.dumps({"error": "Serialization failed", "original": str(value)}).encode('utf-8')
+            serialized = json.dumps(
+                {"error": "Serialization failed", "original": str(value)}
+            ).encode("utf-8")
 
         # Compress if large
         if len(serialized) > self.config.compression_threshold:
             compressed = gzip.compress(serialized)
             # Return with compression marker
-            return b'COMP:' + compressed if len(compressed) < len(serialized) else serialized
+            return (
+                b"COMP:" + compressed
+                if len(compressed) < len(serialized)
+                else serialized
+            )
 
         return serialized
 
@@ -481,12 +515,12 @@ class L2RedisCache:
         """Deserialize value with decompression using safe JSON"""
         try:
             # Check for compression marker
-            if data.startswith(b'COMP:'):
+            if data.startswith(b"COMP:"):
                 data = gzip.decompress(data[5:])  # Remove 'COMP:' marker
 
             # Try safe JSON deserialization
             try:
-                return SafeJSONSerializer.deserialize(data.decode('utf-8'))
+                return SafeJSONSerializer.deserialize(data.decode("utf-8"))
             except (UnicodeDecodeError, json.JSONDecodeError) as e:
                 logger.error(f"JSON deserialization error: {e}")
                 return None
@@ -497,14 +531,17 @@ class L2RedisCache:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics"""
-        total_requests = self.stats['hits'] + self.stats['misses']
-        hit_rate = (self.stats['hits'] / total_requests * 100) if total_requests > 0 else 0
+        total_requests = self.stats["hits"] + self.stats["misses"]
+        hit_rate = (
+            (self.stats["hits"] / total_requests * 100) if total_requests > 0 else 0
+        )
 
         return {
             **self.stats,
-            'hit_rate_percent': hit_rate,
-            'connected': self.redis_client is not None
+            "hit_rate_percent": hit_rate,
+            "connected": self.redis_client is not None,
         }
+
 
 class L3ApplicationCache:
     """L3 Application-level cache with persistence and safe serialization"""
@@ -513,12 +550,12 @@ class L3ApplicationCache:
         self.config = config
         self.cache: Dict[str, CacheEntry] = {}
         self.stats = {
-            'hits': 0,
-            'misses': 0,
-            'sets': 0,
-            'disk_reads': 0,
-            'disk_writes': 0,
-            'serialization_errors': 0
+            "hits": 0,
+            "misses": 0,
+            "sets": 0,
+            "disk_reads": 0,
+            "disk_writes": 0,
+            "serialization_errors": 0,
         }
 
     async def initialize(self):
@@ -530,17 +567,17 @@ class L3ApplicationCache:
     async def get(self, key: str) -> Optional[Any]:
         """Get value from application cache"""
         if key not in self.cache:
-            self.stats['misses'] += 1
+            self.stats["misses"] += 1
             return None
 
         entry = self.cache[key]
         if entry.is_expired():
             await self.delete(key)
-            self.stats['misses'] += 1
+            self.stats["misses"] += 1
             return None
 
         entry.update_access()
-        self.stats['hits'] += 1
+        self.stats["hits"] += 1
         return entry.value
 
     async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
@@ -549,10 +586,10 @@ class L3ApplicationCache:
             # Validate object is serializable
             if not SafeJSONSerializer.is_safe_type(value):
                 # Convert to safe format
-                if hasattr(value, '__dict__'):
+                if hasattr(value, "__dict__"):
                     safe_value = {}
                     for attr in dir(value):
-                        if not attr.startswith('_'):
+                        if not attr.startswith("_"):
                             try:
                                 attr_value = getattr(value, attr)
                                 if SafeJSONSerializer.is_safe_type(attr_value):
@@ -571,11 +608,11 @@ class L3ApplicationCache:
                 created_at=datetime.utcnow(),
                 last_accessed=datetime.utcnow(),
                 ttl=ttl,
-                cache_level=CacheLevel.L3_APPLICATION
+                cache_level=CacheLevel.L3_APPLICATION,
             )
 
             self.cache[key] = entry
-            self.stats['sets'] += 1
+            self.stats["sets"] += 1
 
             # Persist to disk if enabled
             if self.config.l3_enable_file_cache:
@@ -585,7 +622,7 @@ class L3ApplicationCache:
 
         except Exception as e:
             logger.error(f"Error setting L3 cache entry {key}: {e}")
-            self.stats['serialization_errors'] += 1
+            self.stats["serialization_errors"] += 1
             return False
 
     async def delete(self, key: str) -> bool:
@@ -607,14 +644,17 @@ class L3ApplicationCache:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics"""
-        total_requests = self.stats['hits'] + self.stats['misses']
-        hit_rate = (self.stats['hits'] / total_requests * 100) if total_requests > 0 else 0
+        total_requests = self.stats["hits"] + self.stats["misses"]
+        hit_rate = (
+            (self.stats["hits"] / total_requests * 100) if total_requests > 0 else 0
+        )
 
         return {
             **self.stats,
-            'hit_rate_percent': hit_rate,
-            'total_entries': len(self.cache)
+            "hit_rate_percent": hit_rate,
+            "total_entries": len(self.cache),
         }
+
 
 class MultiTierCacheManager:
     """Enterprise-grade multi-tier cache manager with security-first approach"""
@@ -633,12 +673,12 @@ class MultiTierCacheManager:
 
         # Performance metrics
         self.global_stats = {
-            'total_requests': 0,
-            'cache_warms': 0,
-            'refreshes': 0,
-            'multi_tier_hits': 0,  # Hits that required tier fallback
-            'security_violations': 0,  # Count of unsafe object attempts
-            'start_time': datetime.utcnow()
+            "total_requests": 0,
+            "cache_warms": 0,
+            "refreshes": 0,
+            "multi_tier_hits": 0,  # Hits that required tier fallback
+            "security_violations": 0,  # Count of unsafe object attempts
+            "start_time": datetime.utcnow(),
         }
 
         # Tag-based invalidation
@@ -657,7 +697,7 @@ class MultiTierCacheManager:
     async def get(self, key: str, check_all_tiers: bool = True) -> Optional[Any]:
         """Get value from cache with tier fallback and security validation"""
         start_time = time.time()
-        self.global_stats['total_requests'] += 1
+        self.global_stats["total_requests"] += 1
 
         try:
             # Try L1 (memory) cache first
@@ -674,9 +714,9 @@ class MultiTierCacheManager:
                 # Validate before promoting to L1
                 if SafeJSONSerializer.is_safe_type(value):
                     await self.l1_cache.set(key, value)
-                    self.global_stats['multi_tier_hits'] += 1
+                    self.global_stats["multi_tier_hits"] += 1
                 else:
-                    self.global_stats['security_violations'] += 1
+                    self.global_stats["security_violations"] += 1
                 return value
 
             # Try L3 (application) cache
@@ -686,9 +726,9 @@ class MultiTierCacheManager:
                 if SafeJSONSerializer.is_safe_type(value):
                     await self.l2_cache.set(key, value)
                     await self.l1_cache.set(key, value)
-                    self.global_stats['multi_tier_hits'] += 1
+                    self.global_stats["multi_tier_hits"] += 1
                 else:
-                    self.global_stats['security_violations'] += 1
+                    self.global_stats["security_violations"] += 1
                 return value
 
             return None
@@ -697,20 +737,28 @@ class MultiTierCacheManager:
             logger.error(f"Error getting cache key {key}: {e}")
             return None
 
-    async def set(self, key: str, value: Any, ttl: Optional[int] = None,
-                  tags: Set[str] = None, strategy: CacheStrategy = CacheStrategy.WRITE_THROUGH) -> bool:
+    async def set(
+        self,
+        key: str,
+        value: Any,
+        ttl: Optional[int] = None,
+        tags: Set[str] = None,
+        strategy: CacheStrategy = CacheStrategy.WRITE_THROUGH,
+    ) -> bool:
         """Set value in cache with security validation and configurable strategy"""
         try:
             # Security validation - ensure object is safe for caching
             if not SafeJSONSerializer.is_safe_type(value):
-                self.global_stats['security_violations'] += 1
-                logger.warning(f"Unsafe object type detected for key {key}: {type(value)}")
+                self.global_stats["security_violations"] += 1
+                logger.warning(
+                    f"Unsafe object type detected for key {key}: {type(value)}"
+                )
 
                 # Try to convert to safe format
-                if hasattr(value, '__dict__'):
+                if hasattr(value, "__dict__"):
                     safe_value = {}
                     for attr in dir(value):
-                        if not attr.startswith('_'):
+                        if not attr.startswith("_"):
                             try:
                                 attr_value = getattr(value, attr)
                                 if SafeJSONSerializer.is_safe_type(attr_value):
@@ -794,7 +842,7 @@ class MultiTierCacheManager:
                 except Exception as e:
                     logger.error(f"Error warming cache key {key}: {e}")
 
-        self.global_stats['cache_warms'] += warmed_count
+        self.global_stats["cache_warms"] += warmed_count
         return warmed_count
 
     async def _load_and_cache(self, key: str, loader: Callable[[str], Any]):
@@ -806,14 +854,18 @@ class MultiTierCacheManager:
                 if SafeJSONSerializer.is_safe_type(data):
                     await self.set(key, data, strategy=CacheStrategy.WRITE_BEHIND)
                 else:
-                    logger.warning(f"Unsafe data type for cache warming key {key}: {type(data)}")
-                    self.global_stats['security_violations'] += 1
+                    logger.warning(
+                        f"Unsafe data type for cache warming key {key}: {type(data)}"
+                    )
+                    self.global_stats["security_violations"] += 1
         except Exception as e:
             logger.error(f"Error loading data for key {key}: {e}")
         finally:
             self.warming_tasks.pop(key, None)
 
-    async def _background_write(self, key: str, value: Any, ttl: Optional[int], tags: Set[str]):
+    async def _background_write(
+        self, key: str, value: Any, ttl: Optional[int], tags: Set[str]
+    ):
         """Background write for write-behind strategy"""
         try:
             await self.l2_cache.set(key, value, ttl)
@@ -864,37 +916,45 @@ class MultiTierCacheManager:
 
     def get_comprehensive_stats(self) -> Dict[str, Any]:
         """Get comprehensive performance statistics"""
-        uptime = (datetime.utcnow() - self.global_stats['start_time']).total_seconds()
-        requests_per_second = self.global_stats['total_requests'] / max(1, uptime)
+        uptime = (datetime.utcnow() - self.global_stats["start_time"]).total_seconds()
+        requests_per_second = self.global_stats["total_requests"] / max(1, uptime)
 
         # Calculate overall hit rate
-        total_hits = sum([
-            self.l1_cache.stats['hits'],
-            self.l2_cache.stats['hits'],
-            self.l3_cache.stats['hits']
-        ])
-        total_requests = sum([
-            self.l1_cache.stats['hits'] + self.l1_cache.stats['misses'],
-            self.l2_cache.stats['hits'] + self.l2_cache.stats['misses'],
-            self.l3_cache.stats['hits'] + self.l3_cache.stats['misses']
-        ])
-        overall_hit_rate = (total_hits / total_requests * 100) if total_requests > 0 else 0
+        total_hits = sum(
+            [
+                self.l1_cache.stats["hits"],
+                self.l2_cache.stats["hits"],
+                self.l3_cache.stats["hits"],
+            ]
+        )
+        total_requests = sum(
+            [
+                self.l1_cache.stats["hits"] + self.l1_cache.stats["misses"],
+                self.l2_cache.stats["hits"] + self.l2_cache.stats["misses"],
+                self.l3_cache.stats["hits"] + self.l3_cache.stats["misses"],
+            ]
+        )
+        overall_hit_rate = (
+            (total_hits / total_requests * 100) if total_requests > 0 else 0
+        )
 
         return {
-            'global_stats': {
+            "global_stats": {
                 **self.global_stats,
-                'uptime_seconds': uptime,
-                'requests_per_second': requests_per_second,
-                'overall_hit_rate_percent': overall_hit_rate,
-                'security_violation_rate': (
-                    self.global_stats['security_violations'] / max(1, self.global_stats['total_requests']) * 100
-                )
+                "uptime_seconds": uptime,
+                "requests_per_second": requests_per_second,
+                "overall_hit_rate_percent": overall_hit_rate,
+                "security_violation_rate": (
+                    self.global_stats["security_violations"]
+                    / max(1, self.global_stats["total_requests"])
+                    * 100
+                ),
             },
-            'l1_stats': self.l1_cache.get_stats(),
-            'l2_stats': self.l2_cache.get_stats(),
-            'l3_stats': self.l3_cache.get_stats(),
-            'tag_count': len(self.tag_index),
-            'warming_tasks': len(self.warming_tasks)
+            "l1_stats": self.l1_cache.get_stats(),
+            "l2_stats": self.l2_cache.get_stats(),
+            "l3_stats": self.l3_cache.get_stats(),
+            "tag_count": len(self.tag_index),
+            "warming_tasks": len(self.warming_tasks),
         }
 
     async def shutdown(self):
@@ -910,22 +970,26 @@ class MultiTierCacheManager:
         if self.l2_cache.redis_client:
             await self.l2_cache.redis_client.close()
 
+
 # Decorator for easy cache usage with security validation
 def cached_multi_tier(
     cache_manager: MultiTierCacheManager,
     key_prefix: str = "",
     ttl: int = 300,
     tags: Set[str] = None,
-    strategy: CacheStrategy = CacheStrategy.WRITE_THROUGH
+    strategy: CacheStrategy = CacheStrategy.WRITE_THROUGH,
 ):
     """Decorator for automatic multi-tier caching with security validation"""
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             # Generate cache key
-            key_parts = [key_prefix, str(func.__name__)] + [str(arg) for arg in args] + [
-                f"{k}:{v}" for k, v in sorted(kwargs.items())
-            ]
+            key_parts = (
+                [key_prefix, str(func.__name__)]
+                + [str(arg) for arg in args]
+                + [f"{k}:{v}" for k, v in sorted(kwargs.items())]
+            )
             cache_key = hashlib.md5(":".join(key_parts).encode()).hexdigest()
 
             # Try to get from cache
@@ -941,8 +1005,10 @@ def cached_multi_tier(
                 if SafeJSONSerializer.is_safe_type(result):
                     await cache_manager.set(cache_key, result, ttl, tags, strategy)
                 else:
-                    logger.warning(f"Function result not cacheable due to security: {func.__name__}")
-                    cache_manager.global_stats['security_violations'] += 1
+                    logger.warning(
+                        f"Function result not cacheable due to security: {func.__name__}"
+                    )
+                    cache_manager.global_stats["security_violations"] += 1
 
                 return result
 
@@ -951,10 +1017,13 @@ def cached_multi_tier(
                 raise
 
         return wrapper
+
     return decorator
+
 
 # Global cache manager instance
 _multi_tier_cache_manager = None
+
 
 def get_multi_tier_cache_manager(config: CacheConfig = None) -> MultiTierCacheManager:
     """Get or create the global multi-tier cache manager"""

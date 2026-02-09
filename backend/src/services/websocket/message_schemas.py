@@ -3,14 +3,17 @@ WebSocket Message Schemas for Real-Time Document Processing
 Defines standardized message formats for different types of updates
 """
 
-from typing import Dict, List, Optional, Any, Union
-from pydantic import BaseModel, Field, validator
+import uuid
 from datetime import datetime, timezone
 from enum import Enum
-import uuid
+from typing import Any, Dict, List, Optional, Union
+
+from pydantic import BaseModel, Field, validator
+
 
 class MessageType(str, Enum):
     """WebSocket message types"""
+
     # Connection management
     CONNECTED = "connected"
     DISCONNECTED = "disconnected"
@@ -38,8 +41,10 @@ class MessageType(str, Enum):
     BATCH_UPDATE = "batch_update"
     QUEUE_STATUS = "queue_status"
 
+
 class ProcessingStage(str, Enum):
     """Processing pipeline stages"""
+
     QUEUED = "queued"
     INGESTION = "ingestion"
     EXTRACTION = "extraction"
@@ -51,8 +56,10 @@ class ProcessingStage(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
 
+
 class DocumentType(str, Enum):
     """Document types"""
+
     TEXT = "text"
     IMAGE = "image"
     AUDIO = "audio"
@@ -62,36 +69,45 @@ class DocumentType(str, Enum):
     PRESENTATION = "presentation"
     MULTIMODAL = "multimodal"
 
+
 class SeverityLevel(str, Enum):
     """Message severity levels"""
+
     DEBUG = "debug"
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
     CRITICAL = "critical"
 
+
 class PriorityLevel(str, Enum):
     """Message priority levels"""
+
     LOW = "low"
     NORMAL = "normal"
     HIGH = "high"
     CRITICAL = "critical"
     URGENT = "urgent"
 
+
 class BaseMessage(BaseModel):
     """Base WebSocket message structure"""
+
     type: MessageType = Field(..., description="Message type identifier")
-    message_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique message identifier")
+    message_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Unique message identifier",
+    )
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: Optional[datetime] = Field(None, description="Message expiration time")
 
     class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
 
 class MessageMetadata(BaseModel):
     """Message metadata"""
+
     connection_id: Optional[str] = None
     organization_id: Optional[str] = None
     user_id: Optional[str] = None
@@ -100,15 +116,21 @@ class MessageMetadata(BaseModel):
     source_service: Optional[str] = None
     version: str = "1.0"
 
+
 class ConnectionMessage(BaseModel):
     """Connection establishment message"""
+
     type: MessageType = MessageType.CONNECTED
     data: Dict[str, Any] = Field(..., description="Connection data")
 
+
 class DocumentStatusData(BaseModel):
     """Document status update data"""
+
     document_id: str = Field(..., description="Document UUID")
-    processing_status: ProcessingStage = Field(..., description="Current processing status")
+    processing_status: ProcessingStage = Field(
+        ..., description="Current processing status"
+    )
     progress_percentage: Optional[float] = Field(None, ge=0, le=100)
     current_stage: ProcessingStage = Field(..., description="Current processing stage")
     current_step: Optional[str] = Field(None, description="Current step description")
@@ -137,16 +159,20 @@ class DocumentStatusData(BaseModel):
     # Additional metadata
     stage_metadata: Dict[str, Any] = Field(default_factory=dict)
 
+
 class DocumentStatusUpdate(BaseModel):
     """Document status update message"""
+
     type: MessageType = MessageType.DOCUMENT_STATUS_UPDATE
     data: DocumentStatusData
     metadata: Optional[MessageMetadata] = None
     priority: PriorityLevel = PriorityLevel.NORMAL
     severity: SeverityLevel = SeverityLevel.INFO
 
+
 class ProcessingProgressData(BaseModel):
     """Processing progress data"""
+
     job_execution_id: Optional[str] = None
     stage_execution_id: Optional[str] = None
     document_id: str
@@ -173,29 +199,33 @@ class ProcessingProgressData(BaseModel):
     current_quality_score: Optional[float] = Field(None, ge=0, le=1)
     error_rate: Optional[float] = Field(None, ge=0, le=1)
 
-    @validator('estimated_completion', pre=True, always=True)
+    @validator("estimated_completion", pre=True, always=True)
     def calculate_estimated_completion(cls, v, values):
         if v is not None:
             return v
         # Calculate estimated completion if not provided
-        if 'progress_percentage' in values and 'processing_rate' in values:
-            progress = values['progress_percentage']
-            rate = values.get('processing_rate')
+        if "progress_percentage" in values and "processing_rate" in values:
+            progress = values["progress_percentage"]
+            rate = values.get("processing_rate")
             if rate and rate > 0:
-                remaining_items = (100 - progress) / 100 * values.get('total_items', 1)
+                remaining_items = (100 - progress) / 100 * values.get("total_items", 1)
                 estimated_seconds = remaining_items / rate
                 return datetime.now(timezone.utc).timestamp() + estimated_seconds
         return None
 
+
 class ProcessingProgress(BaseModel):
     """Processing progress update message"""
+
     type: MessageType = MessageType.PROCESSING_PROGRESS
     data: ProcessingProgressData
     metadata: Optional[MessageMetadata] = None
     priority: PriorityLevel = PriorityLevel.NORMAL
 
+
 class StageCompletionData(BaseModel):
     """Stage completion data"""
+
     job_execution_id: Optional[str] = None
     stage_execution_id: Optional[str] = None
     document_id: str
@@ -222,15 +252,19 @@ class StageCompletionData(BaseModel):
     warnings: List[str] = Field(default_factory=list)
     errors: List[str] = Field(default_factory=list)
 
+
 class StageComplete(BaseModel):
     """Stage completion message"""
+
     type: MessageType = MessageType.STAGE_COMPLETE
     data: StageCompletionData
     metadata: Optional[MessageMetadata] = None
     priority: PriorityLevel = PriorityLevel.HIGH
 
+
 class QualityMetricsData(BaseModel):
     """Document quality metrics"""
+
     document_id: str
     processing_complete: bool
 
@@ -257,28 +291,34 @@ class QualityMetricsData(BaseModel):
     recommendations: List[Dict[str, Any]] = Field(default_factory=list)
     improvement_suggestions: List[str] = Field(default_factory=list)
 
-    @validator('processing_quality_score', pre=True, always=True)
+    @validator("processing_quality_score", pre=True, always=True)
     def calculate_overall_quality(cls, v, values):
         if v is not None:
             return v
         # Calculate overall quality score from individual metrics
         metrics = [
-            values.get('extraction_accuracy', 0),
-            values.get('transcription_accuracy', 0),
-            values.get('ocr_accuracy', 0),
-            values.get('embedding_quality', 0)
+            values.get("extraction_accuracy", 0),
+            values.get("transcription_accuracy", 0),
+            values.get("ocr_accuracy", 0),
+            values.get("embedding_quality", 0),
         ]
-        return sum(m for m in metrics if m is not None) / len([m for m in metrics if m is not None])
+        return sum(m for m in metrics if m is not None) / len(
+            [m for m in metrics if m is not None]
+        )
+
 
 class QualityMetrics(BaseModel):
     """Quality metrics update message"""
+
     type: MessageType = MessageType.QUALITY_METRICS
     data: QualityMetricsData
     metadata: Optional[MessageMetadata] = None
     priority: PriorityLevel = PriorityLevel.NORMAL
 
+
 class ErrorData(BaseModel):
     """Error occurrence data"""
+
     document_id: Optional[str] = None
     job_execution_id: Optional[str] = None
     stage_execution_id: Optional[str] = None
@@ -309,15 +349,19 @@ class ErrorData(BaseModel):
     related_error_ids: List[str] = Field(default_factory=list)
     caused_by: Optional[str] = None
 
+
 class ErrorOccurred(BaseModel):
     """Error occurrence message"""
+
     type: MessageType = MessageType.ERROR_OCCURRED
     data: ErrorData
     metadata: Optional[MessageMetadata] = None
     priority: PriorityLevel = PriorityLevel.HIGH
 
+
 class SystemNotificationData(BaseModel):
     """System notification data"""
+
     notification_type: str = Field(..., description="Type of notification")
     title: str = Field(..., description="Notification title")
     message: str = Field(..., description="Detailed notification message")
@@ -346,15 +390,19 @@ class SystemNotificationData(BaseModel):
     # Additional metadata
     notification_metadata: Dict[str, Any] = Field(default_factory=dict)
 
+
 class SystemNotification(BaseModel):
     """System notification message"""
+
     type: MessageType = MessageType.SYSTEM_NOTIFICATION
     data: SystemNotificationData
     metadata: Optional[MessageMetadata] = None
     broadcast_all: bool = False
 
+
 class BatchUpdateData(BaseModel):
     """Batch operation update data"""
+
     batch_id: str
     operation_type: str  # upload, delete, reprocess, etc.
 
@@ -373,20 +421,26 @@ class BatchUpdateData(BaseModel):
     success_rate: float = Field(..., ge=0, le=1)
 
     # Sample updates (for large batches)
-    sample_document_updates: List[DocumentStatusData] = Field(default_factory=list, max_items=10)
+    sample_document_updates: List[DocumentStatusData] = Field(
+        default_factory=list, max_items=10
+    )
 
     # Batch metadata
     batch_metadata: Dict[str, Any] = Field(default_factory=dict)
 
+
 class BatchUpdate(BaseModel):
     """Batch operation update message"""
+
     type: MessageType = MessageType.BATCH_UPDATE
     data: BatchUpdateData
     metadata: Optional[MessageMetadata] = None
     priority: PriorityLevel = PriorityLevel.NORMAL
 
+
 class QueueStatusData(BaseModel):
     """Queue status information"""
+
     queue_type: str  # processing, embedding, indexing, etc.
 
     # Queue statistics
@@ -409,12 +463,15 @@ class QueueStatusData(BaseModel):
     # Estimated times
     estimated_processing_time_for_new_items: Optional[int] = None
 
+
 class QueueStatus(BaseModel):
     """Queue status update message"""
+
     type: MessageType = MessageType.QUEUE_STATUS
     data: QueueStatusData
     metadata: Optional[MessageMetadata] = None
     priority: PriorityLevel = PriorityLevel.LOW
+
 
 # Union type for all WebSocket messages
 WebSocketMessage = Union[
@@ -425,8 +482,9 @@ WebSocketMessage = Union[
     ErrorOccurred,
     SystemNotification,
     BatchUpdate,
-    QueueStatus
+    QueueStatus,
 ]
+
 
 class MessageFactory:
     """Factory for creating standardized WebSocket messages"""
@@ -440,7 +498,7 @@ class MessageFactory:
         document_type: DocumentType,
         file_size_bytes: int,
         file_name: str,
-        **kwargs
+        **kwargs,
     ) -> DocumentStatusUpdate:
         """Create document status update message"""
         data = DocumentStatusData(
@@ -451,7 +509,7 @@ class MessageFactory:
             document_type=document_type,
             file_size_bytes=file_size_bytes,
             file_name=file_name,
-            **kwargs
+            **kwargs,
         )
         return DocumentStatusUpdate(data=data)
 
@@ -463,7 +521,7 @@ class MessageFactory:
         progress_percentage: float,
         items_processed: int,
         total_items: int,
-        **kwargs
+        **kwargs,
     ) -> ProcessingProgress:
         """Create processing progress message"""
         data = ProcessingProgressData(
@@ -473,7 +531,7 @@ class MessageFactory:
             progress_percentage=progress_percentage,
             items_processed=items_processed,
             total_items=total_items,
-            **kwargs
+            **kwargs,
         )
         return ProcessingProgress(data=data)
 
@@ -482,28 +540,24 @@ class MessageFactory:
         error_message: str,
         error_type: str,
         severity: SeverityLevel = SeverityLevel.ERROR,
-        **kwargs
+        **kwargs,
     ) -> ErrorOccurred:
         """Create error message"""
         data = ErrorData(
             error_message=error_message,
             error_type=error_type,
             severity=severity,
-            **kwargs
+            **kwargs,
         )
         return ErrorOccurred(data=data)
 
     @staticmethod
     def create_quality_metrics(
-        document_id: str,
-        processing_complete: bool,
-        **metrics
+        document_id: str, processing_complete: bool, **metrics
     ) -> QualityMetrics:
         """Create quality metrics message"""
         data = QualityMetricsData(
-            document_id=document_id,
-            processing_complete=processing_complete,
-            **metrics
+            document_id=document_id, processing_complete=processing_complete, **metrics
         )
         return QualityMetrics(data=data)
 
@@ -513,7 +567,7 @@ class MessageFactory:
         message: str,
         notification_type: str,
         severity: SeverityLevel = SeverityLevel.INFO,
-        **kwargs
+        **kwargs,
     ) -> SystemNotification:
         """Create system notification message"""
         data = SystemNotificationData(
@@ -521,6 +575,6 @@ class MessageFactory:
             message=message,
             notification_type=notification_type,
             severity=severity,
-            **kwargs
+            **kwargs,
         )
         return SystemNotification(data=data)

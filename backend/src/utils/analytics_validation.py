@@ -3,19 +3,21 @@ Analytics validation utilities for input sanitization and security
 Provides comprehensive validation and sanitization functions for analytics data
 """
 
-import re
+import hashlib
 import html
 import json
-import hashlib
+import re
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from urllib.parse import unquote
 
 try:
     import bleach
+
     HAS_BLEACH = True
 except ImportError:
     HAS_BLEACH = False
+    bleach = None  # Define bleach as None if import fails for consistent module attribute access
 
 # Security configurations
 MAX_STRING_LENGTH = 10000
@@ -24,8 +26,8 @@ MAX_LIST_ITEMS = 1000
 MAX_NESTING_DEPTH = 10
 
 # Allowed HTML tags for rich text (if needed)
-ALLOWED_HTML_TAGS = ['b', 'i', 'em', 'strong', 'span', 'br']
-ALLOWED_HTML_ATTRIBUTES = {'span': ['class'], '*': ['title']}
+ALLOWED_HTML_TAGS = ["b", "i", "em", "strong", "span", "br"]
+ALLOWED_HTML_ATTRIBUTES = {"span": ["class"], "*": ["title"]}
 
 # SQL injection patterns
 SQL_INJECTION_PATTERNS = [
@@ -56,8 +58,10 @@ XSS_PATTERNS = [
     r"<meta[^>]*>",
 ]
 
+
 class AnalyticsValidationError(Exception):
     """Custom exception for analytics validation errors"""
+
     pass
 
 
@@ -86,7 +90,9 @@ class SecurityValidator:
         if max_length:
             value = value[:max_length]
         elif len(value) > MAX_STRING_LENGTH:
-            raise AnalyticsValidationError(f"String too long: {len(value)} > {MAX_STRING_LENGTH}")
+            raise AnalyticsValidationError(
+                f"String too long: {len(value)} > {MAX_STRING_LENGTH}"
+            )
 
         # HTML entity decode
         try:
@@ -97,25 +103,25 @@ class SecurityValidator:
 
         # Remove SQL injection patterns
         for pattern in SQL_INJECTION_PATTERNS:
-            value = re.sub(pattern, '', value, flags=re.IGNORECASE | re.MULTILINE)
+            value = re.sub(pattern, "", value, flags=re.IGNORECASE | re.MULTILINE)
 
         # Remove XSS patterns
         for pattern in XSS_PATTERNS:
-            value = re.sub(pattern, '', value, flags=re.IGNORECASE | re.MULTILINE)
+            value = re.sub(pattern, "", value, flags=re.IGNORECASE | re.MULTILINE)
 
         # Remove control characters except newlines and tabs
-        value = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', value)
+        value = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", "", value)
 
         # Normalize whitespace
-        value = re.sub(r'\s+', ' ', value)
+        value = re.sub(r"\s+", " ", value)
 
         # Final security check with bleach if available
-        if HAS_BLEACH:
+        if HAS_BLEACH and bleach:
             value = bleach.clean(
                 value,
                 tags=ALLOWED_HTML_TAGS,
                 attributes=ALLOWED_HTML_ATTRIBUTES,
-                strip=True
+                strip=True,
             )
 
         return value.strip()
@@ -138,7 +144,7 @@ class SecurityValidator:
         value = value.strip()
 
         # Check for valid UUID format (common for IDs)
-        uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        uuid_pattern = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
         if not re.match(uuid_pattern, value, re.IGNORECASE):
             raise AnalyticsValidationError(f"{field_name} must be a valid UUID")
 
@@ -161,11 +167,11 @@ class SecurityValidator:
         value = SecurityValidator.sanitize_string(value, 100).strip()
 
         # Allow only alphanumeric, underscore, dash, dot, forward slash
-        if not re.match(r'^[a-zA-Z0-9_\-\.\/]+$', value):
+        if not re.match(r"^[a-zA-Z0-9_\-\.\/]+$", value):
             raise AnalyticsValidationError("Component name contains invalid characters")
 
         # Prevent directory traversal
-        if '..' in value or value.startswith('/'):
+        if ".." in value or value.startswith("/"):
             raise AnalyticsValidationError("Invalid component name format")
 
         return value
@@ -191,7 +197,7 @@ class SecurityValidator:
             raise AnalyticsValidationError("Search query too short")
 
         # Remove excessive repetition
-        value = re.sub(r'(.)\1{5,}', r'\1', value)
+        value = re.sub(r"(.)\1{5,}", r"\1", value)
 
         return value
 
@@ -200,7 +206,7 @@ class SecurityValidator:
         value: Union[int, float],
         min_val: Optional[Union[int, float]] = None,
         max_val: Optional[Union[int, float]] = None,
-        field_name: str = "value"
+        field_name: str = "value",
     ) -> Union[int, float]:
         """
         Validate numeric values within ranges
@@ -229,7 +235,7 @@ class SecurityValidator:
     def validate_datetime_range(
         start_date: Optional[datetime],
         end_date: Optional[datetime],
-        max_range_days: int = 365
+        max_range_days: int = 365,
     ) -> tuple[Optional[datetime], Optional[datetime]]:
         """
         Validate datetime range queries
@@ -249,7 +255,9 @@ class SecurityValidator:
             # Check range limit
             max_range = timedelta(days=max_range_days)
             if end_date - start_date > max_range:
-                raise AnalyticsValidationError(f"Date range cannot exceed {max_range_days} days")
+                raise AnalyticsValidationError(
+                    f"Date range cannot exceed {max_range_days} days"
+                )
 
             # Don't allow future dates
             if end_date > datetime.utcnow():
@@ -259,9 +267,7 @@ class SecurityValidator:
 
     @staticmethod
     def validate_list_input(
-        value: List[Any],
-        max_items: int = MAX_LIST_ITEMS,
-        field_name: str = "list"
+        value: List[Any], max_items: int = MAX_LIST_ITEMS, field_name: str = "list"
     ) -> List[Any]:
         """
         Validate list inputs
@@ -278,7 +284,9 @@ class SecurityValidator:
             raise AnalyticsValidationError(f"{field_name} must be a list")
 
         if len(value) > max_items:
-            raise AnalyticsValidationError(f"{field_name} cannot contain more than {max_items} items")
+            raise AnalyticsValidationError(
+                f"{field_name} cannot contain more than {max_items} items"
+            )
 
         return value
 
@@ -287,7 +295,7 @@ class SecurityValidator:
         value: Dict[str, Any],
         max_keys: int = MAX_QUERY_PARAMS,
         max_depth: int = MAX_NESTING_DEPTH,
-        field_name: str = "dictionary"
+        field_name: str = "dictionary",
     ) -> Dict[str, Any]:
         """
         Validate dictionary inputs (JSON objects)
@@ -305,12 +313,16 @@ class SecurityValidator:
             raise AnalyticsValidationError(f"{field_name} must be a dictionary")
 
         if len(value) > max_keys:
-            raise AnalyticsValidationError(f"{field_name} cannot contain more than {max_keys} keys")
+            raise AnalyticsValidationError(
+                f"{field_name} cannot contain more than {max_keys} keys"
+            )
 
         # Check nesting depth
         def check_depth(obj, current_depth=0):
             if current_depth > max_depth:
-                raise AnalyticsValidationError(f"{field_name} nesting depth exceeds {max_depth}")
+                raise AnalyticsValidationError(
+                    f"{field_name} nesting depth exceeds {max_depth}"
+                )
 
             if isinstance(obj, dict):
                 for k, v in obj.items():
@@ -323,10 +335,6 @@ class SecurityValidator:
 
         check_depth(value)
         return value
-
-
-class QueryParameterValidator:
-    """Validator for analytics query parameters"""
 
     @staticmethod
     def validate_pagination(limit: int, offset: int) -> tuple[int, int]:
@@ -345,9 +353,30 @@ class QueryParameterValidator:
 
         # Prevent excessive pagination
         if offset > 100000:
-            raise AnalyticsValidationError("Offset too large, please use time-based filtering instead")
+            raise AnalyticsValidationError(
+                "Offset too large, please use time-based filtering instead"
+            )
 
         return limit, offset
+
+
+class QueryParameterValidator:
+    """Validator for analytics query parameters"""
+
+    @staticmethod
+    def validate_pagination(limit: int, offset: int) -> tuple[int, int]:
+        """
+        Validate pagination parameters
+
+        Args:
+            limit: Number of items to return
+            offset: Number of items to skip
+
+        Returns:
+            Tuple of validated (limit, offset)
+        """
+        # Delegate to SecurityValidator for implementation
+        return SecurityValidator.validate_pagination(limit, offset)
 
     @staticmethod
     def validate_sort_fields(fields: List[str], allowed_fields: List[str]) -> List[str]:
@@ -370,7 +399,9 @@ class QueryParameterValidator:
         return fields
 
     @staticmethod
-    def validate_group_by_fields(fields: List[str], allowed_fields: List[str]) -> List[str]:
+    def validate_group_by_fields(
+        fields: List[str], allowed_fields: List[str]
+    ) -> List[str]:
         """
         Validate group by field names
 
@@ -400,11 +431,13 @@ class QueryParameterValidator:
         Returns:
             Validated bucket size
         """
-        allowed_buckets = ['minute', 'hour', 'day', 'week', 'month']
+        allowed_buckets = ["minute", "hour", "day", "week", "month"]
         bucket_size = SecurityValidator.sanitize_string(bucket_size, 10).lower()
 
         if bucket_size not in allowed_buckets:
-            raise AnalyticsValidationError(f"Invalid bucket size: {bucket_size}. Allowed: {allowed_buckets}")
+            raise AnalyticsValidationError(
+                f"Invalid bucket size: {bucket_size}. Allowed: {allowed_buckets}"
+            )
 
         return bucket_size
 
@@ -413,7 +446,9 @@ class DataQualityValidator:
     """Validator for data quality and completeness"""
 
     @staticmethod
-    def calculate_completeness(data: Dict[str, Any], required_fields: List[str]) -> float:
+    def calculate_completeness(
+        data: Dict[str, Any], required_fields: List[str]
+    ) -> float:
         """
         Calculate data completeness percentage
 
@@ -485,7 +520,7 @@ class DataQualityValidator:
             "is_consistent": len(issues) == 0,
             "issues": issues,
             "total_points": len(data_points),
-            "fields_checked": list(all_fields)
+            "fields_checked": list(all_fields),
         }
 
 
@@ -498,9 +533,7 @@ class AnalyticsInputSanitizer:
         self.quality_validator = DataQualityValidator()
 
     def sanitize_query_params(
-        self,
-        params: Dict[str, Any],
-        allowed_fields: Optional[List[str]] = None
+        self, params: Dict[str, Any], allowed_fields: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Sanitize and validate query parameters

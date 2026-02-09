@@ -4,30 +4,29 @@ Conversations API endpoints for Terminal Observatory chat system.
 Provides REST endpoints for workspace and conversation management.
 """
 
-from typing import Optional, List
+from typing import List, Optional
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
 from src.models.user import User
-from src.services.threads.chat_service import ChatService, get_chat_service
-from src.schemas.chat import (
-    # Workspace schemas
+from src.schemas.chat import (  # Workspace schemas; Conversation schemas
+    ConversationCreate,
+    ConversationListResponse,
+    ConversationResponse,
+    ConversationUpdate,
     WorkspaceCreate,
-    WorkspaceUpdate,
-    WorkspaceResponse,
     WorkspaceDetailResponse,
     WorkspaceMemberCreate,
-    WorkspaceMemberUpdate,
     WorkspaceMemberResponse,
-    # Conversation schemas
-    ConversationCreate,
-    ConversationUpdate,
-    ConversationResponse,
-    ConversationListResponse,
+    WorkspaceMemberUpdate,
+    WorkspaceResponse,
+    WorkspaceUpdate,
 )
+from src.services.threads.chat_service import ChatService, get_chat_service
 
 router = APIRouter(prefix="/conversations", tags=["Conversations"])
 
@@ -36,11 +35,14 @@ router = APIRouter(prefix="/conversations", tags=["Conversations"])
 # Workspace Endpoints
 # =============================================================================
 
-@router.post("/workspaces", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/workspaces", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_workspace(
     data: WorkspaceCreate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Create a new workspace.
@@ -61,7 +63,9 @@ async def create_workspace(
         created_at=workspace.created_at,
         updated_at=workspace.updated_at,
         member_count=len(workspace.members),
-        conversation_count=len(workspace.conversations) if workspace.conversations else 0
+        conversation_count=len(workspace.conversations)
+        if workspace.conversations
+        else 0,
     )
 
 
@@ -71,7 +75,7 @@ async def list_workspaces(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     List all workspaces accessible to the current user.
@@ -81,7 +85,7 @@ async def list_workspaces(
         user_id=current_user.id,
         include_archived=include_archived,
         limit=limit,
-        offset=offset
+        offset=offset,
     )
 
     return [
@@ -96,7 +100,7 @@ async def list_workspaces(
             created_at=w.created_at,
             updated_at=w.updated_at,
             member_count=len(w.members) if w.members else 0,
-            conversation_count=len(w.conversations) if w.conversations else 0
+            conversation_count=len(w.conversations) if w.conversations else 0,
         )
         for w in workspaces
     ]
@@ -106,7 +110,7 @@ async def list_workspaces(
 async def get_workspace(
     workspace_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get workspace details by ID.
@@ -117,7 +121,7 @@ async def get_workspace(
     if not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found or access denied"
+            detail="Workspace not found or access denied",
         )
 
     members = [
@@ -131,7 +135,7 @@ async def get_workspace(
             created_at=m.created_at,
             updated_at=m.updated_at,
             user_email=m.user.email if m.user else None,
-            user_name=f"{m.user.first_name} {m.user.last_name}" if m.user else None
+            user_name=f"{m.user.first_name} {m.user.last_name}" if m.user else None,
         )
         for m in workspace.members
     ]
@@ -147,8 +151,10 @@ async def get_workspace(
         created_at=workspace.created_at,
         updated_at=workspace.updated_at,
         member_count=len(workspace.members),
-        conversation_count=len(workspace.conversations) if workspace.conversations else 0,
-        members=members
+        conversation_count=len(workspace.conversations)
+        if workspace.conversations
+        else 0,
+        members=members,
     )
 
 
@@ -157,7 +163,7 @@ async def update_workspace(
     workspace_id: UUID,
     data: WorkspaceUpdate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Update workspace properties.
@@ -170,7 +176,7 @@ async def update_workspace(
     if not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found or insufficient permissions"
+            detail="Workspace not found or insufficient permissions",
         )
 
     return WorkspaceResponse(
@@ -184,7 +190,9 @@ async def update_workspace(
         created_at=workspace.created_at,
         updated_at=workspace.updated_at,
         member_count=len(workspace.members) if workspace.members else 0,
-        conversation_count=len(workspace.conversations) if workspace.conversations else 0
+        conversation_count=len(workspace.conversations)
+        if workspace.conversations
+        else 0,
     )
 
 
@@ -192,7 +200,7 @@ async def update_workspace(
 async def delete_workspace(
     workspace_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Delete a workspace (soft delete).
@@ -205,7 +213,7 @@ async def delete_workspace(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found or insufficient permissions"
+            detail="Workspace not found or insufficient permissions",
         )
 
 
@@ -213,7 +221,7 @@ async def delete_workspace(
 async def get_workspace_stats(
     workspace_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get workspace statistics.
@@ -224,7 +232,7 @@ async def get_workspace_stats(
     if not stats:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found or access denied"
+            detail="Workspace not found or access denied",
         )
 
     return stats
@@ -234,11 +242,14 @@ async def get_workspace_stats(
 # Conversation Endpoints
 # =============================================================================
 
-@router.post("", response_model=ConversationResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "", response_model=ConversationResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_conversation(
     data: ConversationCreate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Create a new conversation in a workspace.
@@ -251,7 +262,7 @@ async def create_conversation(
     if not conversation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found or insufficient permissions"
+            detail="Workspace not found or insufficient permissions",
         )
 
     return ConversationResponse(
@@ -265,19 +276,23 @@ async def create_conversation(
         created_by_id=conversation.created_by_id,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
-        thread_count=conversation.thread_count
+        thread_count=conversation.thread_count,
     )
 
 
 @router.get("", response_model=ConversationListResponse)
 async def list_conversations(
-    workspace_id: UUID = Query(..., description="Workspace ID to list conversations from"),
+    workspace_id: UUID = Query(
+        ..., description="Workspace ID to list conversations from"
+    ),
     include_archived: bool = Query(False, description="Include archived conversations"),
-    search: Optional[str] = Query(None, description="Search query for title/description"),
+    search: Optional[str] = Query(
+        None, description="Search query for title/description"
+    ),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     List conversations in a workspace.
@@ -289,7 +304,7 @@ async def list_conversations(
         include_archived=include_archived,
         search_query=search,
         limit=limit,
-        offset=offset
+        offset=offset,
     )
 
     page = (offset // limit) + 1 if limit > 0 else 1
@@ -308,14 +323,14 @@ async def list_conversations(
                 created_by_id=c.created_by_id,
                 created_at=c.created_at,
                 updated_at=c.updated_at,
-                thread_count=c.thread_count
+                thread_count=c.thread_count,
             )
             for c in conversations
         ],
         total=total,
         page=page,
         limit=limit,
-        has_more=has_more
+        has_more=has_more,
     )
 
 
@@ -323,7 +338,7 @@ async def list_conversations(
 async def get_conversation(
     conversation_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get conversation details by ID.
@@ -334,7 +349,7 @@ async def get_conversation(
     if not conversation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Conversation not found or access denied"
+            detail="Conversation not found or access denied",
         )
 
     return ConversationResponse(
@@ -348,7 +363,7 @@ async def get_conversation(
         created_by_id=conversation.created_by_id,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
-        thread_count=conversation.thread_count
+        thread_count=conversation.thread_count,
     )
 
 
@@ -357,18 +372,20 @@ async def update_conversation(
     conversation_id: UUID,
     data: ConversationUpdate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Update conversation properties.
     """
     service = get_chat_service(db)
-    conversation = await service.update_conversation(conversation_id, data, current_user.id)
+    conversation = await service.update_conversation(
+        conversation_id, data, current_user.id
+    )
 
     if not conversation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Conversation not found or insufficient permissions"
+            detail="Conversation not found or insufficient permissions",
         )
 
     return ConversationResponse(
@@ -382,7 +399,7 @@ async def update_conversation(
         created_by_id=conversation.created_by_id,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
-        thread_count=conversation.thread_count
+        thread_count=conversation.thread_count,
     )
 
 
@@ -390,7 +407,7 @@ async def update_conversation(
 async def delete_conversation(
     conversation_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Delete a conversation (soft delete).
@@ -403,7 +420,7 @@ async def delete_conversation(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Conversation not found or insufficient permissions"
+            detail="Conversation not found or insufficient permissions",
         )
 
 
@@ -411,17 +428,15 @@ async def delete_conversation(
 async def archive_conversation(
     conversation_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Archive a conversation.
     """
     from src.schemas.chat import ConversationUpdate
+
     return await update_conversation(
-        conversation_id,
-        ConversationUpdate(is_archived=True),
-        current_user,
-        db
+        conversation_id, ConversationUpdate(is_archived=True), current_user, db
     )
 
 
@@ -429,17 +444,15 @@ async def archive_conversation(
 async def unarchive_conversation(
     conversation_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Unarchive a conversation.
     """
     from src.schemas.chat import ConversationUpdate
+
     return await update_conversation(
-        conversation_id,
-        ConversationUpdate(is_archived=False),
-        current_user,
-        db
+        conversation_id, ConversationUpdate(is_archived=False), current_user, db
     )
 
 
@@ -447,17 +460,15 @@ async def unarchive_conversation(
 async def pin_conversation(
     conversation_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Pin a conversation to the top of the list.
     """
     from src.schemas.chat import ConversationUpdate
+
     return await update_conversation(
-        conversation_id,
-        ConversationUpdate(is_pinned=True),
-        current_user,
-        db
+        conversation_id, ConversationUpdate(is_pinned=True), current_user, db
     )
 
 
@@ -465,15 +476,13 @@ async def pin_conversation(
 async def unpin_conversation(
     conversation_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Unpin a conversation.
     """
     from src.schemas.chat import ConversationUpdate
+
     return await update_conversation(
-        conversation_id,
-        ConversationUpdate(is_pinned=False),
-        current_user,
-        db
+        conversation_id, ConversationUpdate(is_pinned=False), current_user, db
     )

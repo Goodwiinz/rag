@@ -10,30 +10,31 @@ This service provides high-level encryption operations including:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from uuid import UUID
-from sqlalchemy.orm import Session
+
 from sqlalchemy import and_, or_
+from sqlalchemy.orm import Session
 
 from src.core.encryption import (
-    get_key_manager,
+    DataEncryptionError,
+    EncryptionAlgorithm,
+    EncryptionError,
+    EncryptionKeyType,
+    KeyManagementError,
     get_aes_encryption,
     get_field_encryption,
     get_file_encryption,
-    EncryptionKeyType,
-    EncryptionAlgorithm,
-    EncryptionError,
-    KeyManagementError,
-    DataEncryptionError
+    get_key_manager,
 )
-from src.models.encrypted_user import (
-    EncryptedUserProfile,
-    EncryptedOrganizationProfile,
-    EncryptionAuditLog
-)
-from src.models.user import User
-from src.models.organization import Organization
 from src.models.document import Document
+from src.models.encrypted_user import (
+    EncryptedOrganizationProfile,
+    EncryptedUserProfile,
+    EncryptionAuditLog,
+)
+from src.models.organization import Organization
+from src.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ class EncryptionService:
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
         success: bool = True,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ) -> EncryptionAuditLog:
         """
         Log an encryption operation for audit purposes
@@ -92,7 +93,7 @@ class EncryptionService:
             ip_address=ip_address,
             user_agent=user_agent,
             success=success,
-            error_message=error_message
+            error_message=error_message,
         )
 
         self.db.add(audit_log)
@@ -106,7 +107,7 @@ class EncryptionService:
         profile_data: Dict[str, Any],
         performed_by: UUID,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
     ) -> EncryptedUserProfile:
         """
         Encrypt and store user profile data
@@ -123,9 +124,11 @@ class EncryptionService:
         """
         try:
             # Get or create encrypted profile
-            profile = self.db.query(EncryptedUserProfile).filter(
-                EncryptedUserProfile.user_id == user_id
-            ).first()
+            profile = (
+                self.db.query(EncryptedUserProfile)
+                .filter(EncryptedUserProfile.user_id == user_id)
+                .first()
+            )
 
             if not profile:
                 profile = EncryptedUserProfile(user_id=user_id)
@@ -149,7 +152,7 @@ class EncryptionService:
                 operation_details={"fields_updated": list(profile_data.keys())},
                 ip_address=ip_address,
                 user_agent=user_agent,
-                success=True
+                success=True,
             )
 
             logger.info(f"Successfully encrypted user profile for user {user_id}")
@@ -169,7 +172,7 @@ class EncryptionService:
                 ip_address=ip_address,
                 user_agent=user_agent,
                 success=False,
-                error_message=str(e)
+                error_message=str(e),
             )
 
             raise DataEncryptionError(f"Failed to encrypt user profile: {str(e)}")
@@ -180,7 +183,7 @@ class EncryptionService:
         profile_data: Dict[str, Any],
         performed_by: UUID,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
     ) -> EncryptedOrganizationProfile:
         """
         Encrypt and store organization profile data
@@ -197,9 +200,11 @@ class EncryptionService:
         """
         try:
             # Get or create encrypted profile
-            profile = self.db.query(EncryptedOrganizationProfile).filter(
-                EncryptedOrganizationProfile.organization_id == organization_id
-            ).first()
+            profile = (
+                self.db.query(EncryptedOrganizationProfile)
+                .filter(EncryptedOrganizationProfile.organization_id == organization_id)
+                .first()
+            )
 
             if not profile:
                 profile = EncryptedOrganizationProfile(organization_id=organization_id)
@@ -223,14 +228,18 @@ class EncryptionService:
                 operation_details={"fields_updated": list(profile_data.keys())},
                 ip_address=ip_address,
                 user_agent=user_agent,
-                success=True
+                success=True,
             )
 
-            logger.info(f"Successfully encrypted organization profile for org {organization_id}")
+            logger.info(
+                f"Successfully encrypted organization profile for org {organization_id}"
+            )
             return profile
 
         except Exception as e:
-            logger.error(f"Failed to encrypt organization profile for org {organization_id}: {str(e)}")
+            logger.error(
+                f"Failed to encrypt organization profile for org {organization_id}: {str(e)}"
+            )
             self.db.rollback()
 
             # Log failed encryption
@@ -243,10 +252,12 @@ class EncryptionService:
                 ip_address=ip_address,
                 user_agent=user_agent,
                 success=False,
-                error_message=str(e)
+                error_message=str(e),
             )
 
-            raise DataEncryptionError(f"Failed to encrypt organization profile: {str(e)}")
+            raise DataEncryptionError(
+                f"Failed to encrypt organization profile: {str(e)}"
+            )
 
     def decrypt_user_profile(
         self,
@@ -254,7 +265,7 @@ class EncryptionService:
         requested_by: UUID,
         fields: Optional[List[str]] = None,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Decrypt user profile data
@@ -270,9 +281,11 @@ class EncryptionService:
             Dictionary with decrypted data
         """
         try:
-            profile = self.db.query(EncryptedUserProfile).filter(
-                EncryptedUserProfile.user_id == user_id
-            ).first()
+            profile = (
+                self.db.query(EncryptedUserProfile)
+                .filter(EncryptedUserProfile.user_id == user_id)
+                .first()
+            )
 
             if not profile:
                 return {}
@@ -289,7 +302,7 @@ class EncryptionService:
                 operation_details={"fields_accessed": list(decrypted_data.keys())},
                 ip_address=ip_address,
                 user_agent=user_agent,
-                success=True
+                success=True,
             )
 
             logger.info(f"Successfully decrypted user profile for user {user_id}")
@@ -308,7 +321,7 @@ class EncryptionService:
                 ip_address=ip_address,
                 user_agent=user_agent,
                 success=False,
-                error_message=str(e)
+                error_message=str(e),
             )
 
             raise DataEncryptionError(f"Failed to decrypt user profile: {str(e)}")
@@ -318,7 +331,7 @@ class EncryptionService:
         key_type: str,
         performed_by: UUID,
         organization_id: Optional[UUID] = None,
-        dry_run: bool = False
+        dry_run: bool = False,
     ) -> Dict[str, Any]:
         """
         Rotate encryption keys for specified key type
@@ -340,13 +353,15 @@ class EncryptionService:
 
             if dry_run:
                 # Preview rotation without actually performing it
-                affected_resources = self._count_affected_resources(key_type, organization_id)
+                affected_resources = self._count_affected_resources(
+                    key_type, organization_id
+                )
                 return {
                     "dry_run": True,
                     "key_type": key_type,
                     "current_key_id": active_key.key_id,
                     "affected_resources": affected_resources,
-                    "rotation_needed": True
+                    "rotation_needed": True,
                 }
 
             # Generate new key
@@ -359,31 +374,41 @@ class EncryptionService:
                 "new_key_id": new_key.key_id,
                 "rotated_resources": 0,
                 "failed_resources": 0,
-                "errors": []
+                "errors": [],
             }
 
             # Rotate user profiles if data key
             if key_type == EncryptionKeyType.DATA:
-                self._rotate_user_profiles(active_key.key_id, new_key.key_id, performed_by, rotation_results)
-                self._rotate_organization_profiles(active_key.key_id, new_key.key_id, performed_by, rotation_results)
+                self._rotate_user_profiles(
+                    active_key.key_id, new_key.key_id, performed_by, rotation_results
+                )
+                self._rotate_organization_profiles(
+                    active_key.key_id, new_key.key_id, performed_by, rotation_results
+                )
 
             # Rotate documents if file key
             elif key_type == EncryptionKeyType.FILE:
-                self._rotate_documents(active_key.key_id, new_key.key_id, performed_by, rotation_results)
+                self._rotate_documents(
+                    active_key.key_id, new_key.key_id, performed_by, rotation_results
+                )
 
             # Log key rotation
             self.log_encryption_operation(
                 operation_type="ROTATE_KEY",
                 resource_type="ENCRYPTION_KEY",
-                resource_id=UUID(active_key.key_id.replace('-', '')),  # Convert to valid UUID
+                resource_id=UUID(
+                    active_key.key_id.replace("-", "")
+                ),  # Convert to valid UUID
                 performed_by=performed_by,
                 organization_id=organization_id,
                 key_id=new_key.key_id,
                 operation_details=rotation_results,
-                success=True
+                success=True,
             )
 
-            logger.info(f"Successfully rotated {key_type} encryption key from {active_key.key_id} to {new_key.key_id}")
+            logger.info(
+                f"Successfully rotated {key_type} encryption key from {active_key.key_id} to {new_key.key_id}"
+            )
             return rotation_results
 
         except Exception as e:
@@ -397,12 +422,14 @@ class EncryptionService:
                 performed_by=performed_by,
                 organization_id=organization_id,
                 success=False,
-                error_message=str(e)
+                error_message=str(e),
             )
 
             raise KeyManagementError(f"Failed to rotate encryption key: {str(e)}")
 
-    def _count_affected_resources(self, key_type: str, organization_id: Optional[UUID]) -> Dict[str, int]:
+    def _count_affected_resources(
+        self, key_type: str, organization_id: Optional[UUID]
+    ) -> Dict[str, int]:
         """Count resources that would be affected by key rotation"""
         counts = {}
 
@@ -416,7 +443,9 @@ class EncryptionService:
             # Count organization profiles
             query = self.db.query(EncryptedOrganizationProfile)
             if organization_id:
-                query = query.filter(EncryptedOrganizationProfile.organization_id == organization_id)
+                query = query.filter(
+                    EncryptedOrganizationProfile.organization_id == organization_id
+                )
             counts["organization_profiles"] = query.count()
 
         elif key_type == EncryptionKeyType.FILE:
@@ -433,7 +462,7 @@ class EncryptionService:
         old_key_id: str,
         new_key_id: str,
         performed_by: UUID,
-        results: Dict[str, Any]
+        results: Dict[str, Any],
     ) -> None:
         """Rotate encryption for user profiles"""
         profiles = self.db.query(EncryptedUserProfile).all()
@@ -452,14 +481,16 @@ class EncryptionService:
             except Exception as e:
                 results["failed_resources"] += 1
                 results["errors"].append(f"User profile {profile.user_id}: {str(e)}")
-                logger.error(f"Failed to rotate user profile {profile.user_id}: {str(e)}")
+                logger.error(
+                    f"Failed to rotate user profile {profile.user_id}: {str(e)}"
+                )
 
     def _rotate_organization_profiles(
         self,
         old_key_id: str,
         new_key_id: str,
         performed_by: UUID,
-        results: Dict[str, Any]
+        results: Dict[str, Any],
     ) -> None:
         """Rotate encryption for organization profiles"""
         profiles = self.db.query(EncryptedOrganizationProfile).all()
@@ -477,15 +508,19 @@ class EncryptionService:
 
             except Exception as e:
                 results["failed_resources"] += 1
-                results["errors"].append(f"Organization profile {profile.organization_id}: {str(e)}")
-                logger.error(f"Failed to rotate organization profile {profile.organization_id}: {str(e)}")
+                results["errors"].append(
+                    f"Organization profile {profile.organization_id}: {str(e)}"
+                )
+                logger.error(
+                    f"Failed to rotate organization profile {profile.organization_id}: {str(e)}"
+                )
 
     def _rotate_documents(
         self,
         old_key_id: str,
         new_key_id: str,
         performed_by: UUID,
-        results: Dict[str, Any]
+        results: Dict[str, Any],
     ) -> None:
         """Rotate encryption for documents"""
         # This would require re-encrypting document files
@@ -493,7 +528,9 @@ class EncryptionService:
         logger.info("Document rotation not yet implemented")
         results["notes"] = "Document rotation requires additional implementation"
 
-    def get_encryption_status(self, organization_id: Optional[UUID] = None) -> Dict[str, Any]:
+    def get_encryption_status(
+        self, organization_id: Optional[UUID] = None
+    ) -> Dict[str, Any]:
         """
         Get encryption status and statistics
 
@@ -506,41 +543,55 @@ class EncryptionService:
         status = {
             "key_management": {},
             "encrypted_resources": {},
-            "recent_operations": []
+            "recent_operations": [],
         }
 
         # Get key status
-        for key_type in [EncryptionKeyType.MASTER, EncryptionKeyType.DATA, EncryptionKeyType.FILE]:
+        for key_type in [
+            EncryptionKeyType.MASTER,
+            EncryptionKeyType.DATA,
+            EncryptionKeyType.FILE,
+        ]:
             active_key = self.key_manager.get_active_key(key_type)
             status["key_management"][key_type] = {
                 "active_key_id": active_key.key_id if active_key else None,
                 "key_algorithm": active_key.algorithm if active_key else None,
                 "created_at": active_key.created_at.isoformat() if active_key else None,
-                "expires_at": active_key.expires_at.isoformat() if active_key and active_key.expires_at else None,
-                "is_expired": active_key.is_expired() if active_key else False
+                "expires_at": active_key.expires_at.isoformat()
+                if active_key and active_key.expires_at
+                else None,
+                "is_expired": active_key.is_expired() if active_key else False,
             }
 
         # Count encrypted resources
         if organization_id:
-            user_profiles = self.db.query(EncryptedUserProfile).join(User).filter(
-                User.organization_id == organization_id
-            ).count()
-            org_profiles = self.db.query(EncryptedOrganizationProfile).filter(
-                EncryptedOrganizationProfile.organization_id == organization_id
-            ).count()
+            user_profiles = (
+                self.db.query(EncryptedUserProfile)
+                .join(User)
+                .filter(User.organization_id == organization_id)
+                .count()
+            )
+            org_profiles = (
+                self.db.query(EncryptedOrganizationProfile)
+                .filter(EncryptedOrganizationProfile.organization_id == organization_id)
+                .count()
+            )
         else:
             user_profiles = self.db.query(EncryptedUserProfile).count()
             org_profiles = self.db.query(EncryptedOrganizationProfile).count()
 
         status["encrypted_resources"] = {
             "user_profiles": user_profiles,
-            "organization_profiles": org_profiles
+            "organization_profiles": org_profiles,
         }
 
         # Get recent encryption operations
-        recent_operations = self.db.query(EncryptionAuditLog).order_by(
-            EncryptionAuditLog.created_at.desc()
-        ).limit(10).all()
+        recent_operations = (
+            self.db.query(EncryptionAuditLog)
+            .order_by(EncryptionAuditLog.created_at.desc())
+            .limit(10)
+            .all()
+        )
 
         status["recent_operations"] = [
             {
@@ -549,7 +600,7 @@ class EncryptionService:
                 "resource_id": str(op.resource_id),
                 "success": op.success,
                 "created_at": op.created_at.isoformat(),
-                "error_message": op.error_message
+                "error_message": op.error_message,
             }
             for op in recent_operations
         ]
@@ -571,7 +622,7 @@ class EncryptionService:
             "user_profiles_passed": 0,
             "organization_profiles_tested": 0,
             "organization_profiles_passed": 0,
-            "errors": []
+            "errors": [],
         }
 
         # Test user profiles
@@ -587,32 +638,48 @@ class EncryptionService:
                 results["user_profiles_tested"] += 1
 
         # Test organization profiles
-        org_profiles = self.db.query(EncryptedOrganizationProfile).limit(sample_size).all()
+        org_profiles = (
+            self.db.query(EncryptedOrganizationProfile).limit(sample_size).all()
+        )
         for profile in org_profiles:
             try:
                 # Attempt to decrypt all fields
                 profile.get_decrypted_data()
                 results["organization_profiles_passed"] += 1
             except Exception as e:
-                results["errors"].append(f"Organization profile {profile.organization_id}: {str(e)}")
+                results["errors"].append(
+                    f"Organization profile {profile.organization_id}: {str(e)}"
+                )
             finally:
                 results["organization_profiles_tested"] += 1
 
         # Calculate success rates
         if results["user_profiles_tested"] > 0:
-            results["user_profile_success_rate"] = results["user_profiles_passed"] / results["user_profiles_tested"]
+            results["user_profile_success_rate"] = (
+                results["user_profiles_passed"] / results["user_profiles_tested"]
+            )
         else:
             results["user_profile_success_rate"] = 1.0
 
         if results["organization_profiles_tested"] > 0:
-            results["org_profile_success_rate"] = results["organization_profiles_passed"] / results["organization_profiles_tested"]
+            results["org_profile_success_rate"] = (
+                results["organization_profiles_passed"]
+                / results["organization_profiles_tested"]
+            )
         else:
             results["org_profile_success_rate"] = 1.0
 
         results["overall_success_rate"] = (
-            (results["user_profiles_passed"] + results["organization_profiles_passed"]) /
-            (results["user_profiles_tested"] + results["organization_profiles_tested"])
-            if (results["user_profiles_tested"] + results["organization_profiles_tested"]) > 0
+            (results["user_profiles_passed"] + results["organization_profiles_passed"])
+            / (
+                results["user_profiles_tested"]
+                + results["organization_profiles_tested"]
+            )
+            if (
+                results["user_profiles_tested"]
+                + results["organization_profiles_tested"]
+            )
+            > 0
             else 1.0
         )
 

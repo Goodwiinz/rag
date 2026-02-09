@@ -2,15 +2,17 @@
 Shared schemas for microservices communication
 """
 
-from pydantic import BaseModel, Field, validator
-from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
+
+from pydantic import BaseModel, Field, validator
 
 
 class BaseResponse(BaseModel):
     """Base response model"""
+
     success: bool = True
     message: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
@@ -18,6 +20,7 @@ class BaseResponse(BaseModel):
 
 class ErrorResponse(BaseResponse):
     """Error response model"""
+
     success: bool = False
     error_code: str
     error_type: str
@@ -27,13 +30,17 @@ class ErrorResponse(BaseResponse):
 
 class PaginationRequest(BaseModel):
     """Pagination request parameters"""
+
     page: int = Field(default=1, ge=1, description="Page number (1-based)")
     limit: int = Field(default=20, ge=1, le=100, description="Items per page")
-    offset: Optional[int] = Field(default=None, ge=0, description="Override calculated offset")
+    offset: Optional[int] = Field(
+        default=None, ge=0, description="Override calculated offset"
+    )
 
 
 class PaginationResponse(BaseModel):
     """Pagination response information"""
+
     page: int
     limit: int
     total: int
@@ -44,6 +51,7 @@ class PaginationResponse(BaseModel):
 
 class PaginatedResponse(BaseResponse):
     """Paginated response wrapper"""
+
     data: List[Any]
     pagination: PaginationResponse
 
@@ -51,6 +59,7 @@ class PaginatedResponse(BaseResponse):
 # Document Enums
 class DocumentType(str, Enum):
     """Document types for different modalities"""
+
     TEXT = "text"
     IMAGE = "image"
     AUDIO = "audio"
@@ -63,6 +72,7 @@ class DocumentType(str, Enum):
 
 class ProcessingStatus(str, Enum):
     """Processing status for documents"""
+
     QUEUED = "queued"
     UPLOADING = "uploading"
     EXTRACTING = "extracting"
@@ -76,6 +86,7 @@ class ProcessingStatus(str, Enum):
 
 class SearchType(str, Enum):
     """Search types"""
+
     HYBRID = "hybrid"
     VECTOR = "vector"
     GRAPH = "graph"
@@ -84,6 +95,7 @@ class SearchType(str, Enum):
 
 class QueryIntent(str, Enum):
     """Query intent classification"""
+
     LOOKUP = "lookup"
     REASONING = "reasoning"
     COMPARISON = "comparison"
@@ -93,6 +105,7 @@ class QueryIntent(str, Enum):
 
 class UserRole(str, Enum):
     """User roles"""
+
     ADMIN = "admin"
     CONTENT_MANAGER = "content_manager"
     USER = "user"
@@ -102,6 +115,7 @@ class UserRole(str, Enum):
 
 class NotificationType(str, Enum):
     """Notification types"""
+
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
@@ -112,6 +126,7 @@ class NotificationType(str, Enum):
 # Document Schemas
 class DocumentMetadata(BaseModel):
     """Document metadata"""
+
     title: str
     filename: str
     file_size_bytes: int
@@ -121,15 +136,16 @@ class DocumentMetadata(BaseModel):
     is_public: bool = False
     custom_metadata: Optional[Dict[str, Any]] = {}
 
-    @validator('file_size_bytes')
+    @validator("file_size_bytes")
     def validate_file_size(cls, v):
         if v <= 0:
-            raise ValueError('File size must be positive')
+            raise ValueError("File size must be positive")
         return v
 
 
 class DocumentResponse(BaseModel):
     """Document response model"""
+
     id: UUID
     title: str
     filename: str
@@ -152,6 +168,7 @@ class DocumentResponse(BaseModel):
 
 class DocumentDetailResponse(DocumentResponse):
     """Detailed document response"""
+
     content_text: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = {}
     processing_error: Optional[str] = None
@@ -161,6 +178,7 @@ class DocumentDetailResponse(DocumentResponse):
 
 class ProcessingStatusResponse(BaseModel):
     """Processing status response"""
+
     document_id: UUID
     status: ProcessingStatus
     current_stage: str
@@ -173,6 +191,7 @@ class ProcessingStatusResponse(BaseModel):
 # Search Schemas
 class SearchFilters(BaseModel):
     """Search filters"""
+
     document_types: Optional[List[DocumentType]] = None
     date_range: Optional[Dict[str, datetime]] = None
     tags: Optional[List[str]] = None
@@ -183,6 +202,7 @@ class SearchFilters(BaseModel):
 
 class SearchRequest(BaseModel):
     """Search request"""
+
     query: str = Field(min_length=1, max_length=1000)
     search_type: SearchType = SearchType.HYBRID
     filters: Optional[SearchFilters] = None
@@ -194,6 +214,7 @@ class SearchRequest(BaseModel):
 
 class MatchedContent(BaseModel):
     """Matched content piece"""
+
     content: str
     content_type: str
     relevance_score: float = Field(ge=0, le=1)
@@ -202,6 +223,7 @@ class MatchedContent(BaseModel):
 
 class SearchResult(BaseModel):
     """Single search result"""
+
     document_id: UUID
     title: str
     content_snippet: str
@@ -213,6 +235,7 @@ class SearchResult(BaseModel):
 
 class QueryClassification(BaseModel):
     """Query classification result"""
+
     intent: QueryIntent
     confidence: float = Field(ge=0, le=1)
     entities: List[Dict[str, Any]] = []
@@ -220,6 +243,7 @@ class QueryClassification(BaseModel):
 
 class SearchResponse(BaseModel):
     """Search response"""
+
     query: str
     search_id: UUID
     total_results: int
@@ -231,6 +255,7 @@ class SearchResponse(BaseModel):
 
 class SearchSuggestion(BaseModel):
     """Search suggestion"""
+
     text: str
     type: str = Field(pattern="^(autocomplete|correction|expansion)$")
     score: float = Field(ge=0, le=1)
@@ -239,6 +264,7 @@ class SearchSuggestion(BaseModel):
 # Knowledge Graph Schemas
 class Entity(BaseModel):
     """Entity model"""
+
     id: UUID
     name: str
     type: str
@@ -253,6 +279,7 @@ class Entity(BaseModel):
 
 class EntityDetail(Entity):
     """Detailed entity information"""
+
     description: Optional[str] = None
     aliases: List[str] = []
     attributes: Dict[str, Any] = {}
@@ -262,6 +289,7 @@ class EntityDetail(Entity):
 
 class RelatedEntity(BaseModel):
     """Related entity information"""
+
     entity: Entity
     relationship_type: str
     relationship_strength: float = Field(ge=0, le=1)
@@ -270,6 +298,7 @@ class RelatedEntity(BaseModel):
 
 class GraphNode(BaseModel):
     """Graph node for visualization"""
+
     id: str
     label: str
     type: str
@@ -280,6 +309,7 @@ class GraphNode(BaseModel):
 
 class GraphEdge(BaseModel):
     """Graph edge for visualization"""
+
     source: str
     target: str
     label: str
@@ -289,6 +319,7 @@ class GraphEdge(BaseModel):
 
 class GraphData(BaseModel):
     """Knowledge graph data for visualization"""
+
     nodes: List[GraphNode]
     edges: List[GraphEdge]
     layout: Dict[str, Any] = {}
@@ -298,6 +329,7 @@ class GraphData(BaseModel):
 # Evaluation Schemas
 class RAGTriadMetrics(BaseModel):
     """RAG Triad evaluation metrics"""
+
     answer_relevancy: Dict[str, Any]
     faithfulness: Dict[str, Any]
     contextual_relevancy: Dict[str, Any]
@@ -305,6 +337,7 @@ class RAGTriadMetrics(BaseModel):
 
 class QualityMetrics(BaseModel):
     """Content quality metrics"""
+
     coherence: float = Field(ge=0, le=1)
     completeness: float = Field(ge=0, le=1)
     conciseness: float = Field(ge=0, le=1)
@@ -314,6 +347,7 @@ class QualityMetrics(BaseModel):
 
 class QueryPerformanceMetrics(BaseModel):
     """Query performance metrics"""
+
     total_latency_ms: float
     search_latency_ms: float
     generation_latency_ms: float
@@ -324,6 +358,7 @@ class QueryPerformanceMetrics(BaseModel):
 
 class EvaluationRequest(BaseModel):
     """Evaluation request"""
+
     query_id: Optional[UUID] = None
     question: str
     answer: str
@@ -333,6 +368,7 @@ class EvaluationRequest(BaseModel):
 
 class EvaluationResponse(BaseModel):
     """Evaluation response"""
+
     query_id: Optional[UUID] = None
     evaluation_id: UUID
     rag_triad: RAGTriadMetrics
@@ -343,6 +379,7 @@ class EvaluationResponse(BaseModel):
 
 class BenchmarkRequest(BaseModel):
     """Benchmark request"""
+
     benchmark_type: str = Field(pattern="^(rag_triad|performance|stress|scalability)$")
     test_dataset: str
     parameters: Dict[str, Any] = {}
@@ -351,18 +388,20 @@ class BenchmarkRequest(BaseModel):
 # Processing Pipeline Schemas
 class ProcessingJobRequest(BaseModel):
     """Processing job request"""
+
     document_id: UUID
     processing_options: Dict[str, Any] = {
         "extract_entities": True,
         "generate_embeddings": True,
         "extract_metadata": True,
         "ocr_enabled": True,
-        "transcription_enabled": True
+        "transcription_enabled": True,
     }
 
 
 class ProcessingStage(BaseModel):
     """Processing stage information"""
+
     name: str
     status: ProcessingStatus
     started_at: Optional[datetime] = None
@@ -374,6 +413,7 @@ class ProcessingStage(BaseModel):
 
 class ProcessingJob(BaseModel):
     """Processing job model"""
+
     id: UUID
     document_id: UUID
     status: ProcessingStatus
@@ -390,6 +430,7 @@ class ProcessingJob(BaseModel):
 
 class ProcessingJobDetail(ProcessingJob):
     """Detailed processing job information"""
+
     stages: List[ProcessingStage]
     error_message: Optional[str] = None
     retry_count: int = 0
@@ -400,12 +441,14 @@ class ProcessingJobDetail(ProcessingJob):
 # User Management Schemas
 class LoginRequest(BaseModel):
     """Login request"""
+
     email: str = Field(pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
     password: str = Field(min_length=1)
 
 
 class LoginResponse(BaseModel):
     """Login response"""
+
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
@@ -415,11 +458,13 @@ class LoginResponse(BaseModel):
 
 class TokenRequest(BaseModel):
     """Token refresh request"""
+
     refresh_token: str
 
 
 class TokenResponse(BaseModel):
     """Token response"""
+
     access_token: str
     token_type: str = "bearer"
     expires_in: int
@@ -427,6 +472,7 @@ class TokenResponse(BaseModel):
 
 class CreateUserRequest(BaseModel):
     """Create user request"""
+
     email: str = Field(pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
@@ -437,6 +483,7 @@ class CreateUserRequest(BaseModel):
 
 class UpdateUserRequest(BaseModel):
     """Update user request"""
+
     first_name: Optional[str] = Field(None, min_length=1, max_length=100)
     last_name: Optional[str] = Field(None, min_length=1, max_length=100)
     role: Optional[UserRole] = None
@@ -446,6 +493,7 @@ class UpdateUserRequest(BaseModel):
 
 class UserResponse(BaseModel):
     """User response"""
+
     id: UUID
     email: str
     first_name: str
@@ -462,6 +510,7 @@ class UserResponse(BaseModel):
 
 class UserDetailResponse(UserResponse):
     """Detailed user response"""
+
     storage_quota_mb: int
     storage_used_mb: float
     preferences: Dict[str, Any] = {}
@@ -471,6 +520,7 @@ class UserDetailResponse(UserResponse):
 # Analytics Schemas
 class UsageStatistics(BaseModel):
     """Usage statistics"""
+
     time_range: str
     granularity: str
     metrics: Dict[str, Any]
@@ -479,6 +529,7 @@ class UsageStatistics(BaseModel):
 
 class PerformanceAnalytics(BaseModel):
     """Performance analytics"""
+
     service_name: str
     time_range: str
     metrics: Dict[str, Any]
@@ -487,6 +538,7 @@ class PerformanceAnalytics(BaseModel):
 
 class DashboardWidget(BaseModel):
     """Dashboard widget"""
+
     widget_id: str
     type: str = Field(pattern="^(metric_chart|table|gauge|alert_list)$")
     title: str
@@ -496,6 +548,7 @@ class DashboardWidget(BaseModel):
 
 class DashboardData(BaseModel):
     """Dashboard data"""
+
     dashboard_id: str
     title: str
     widgets: List[DashboardWidget]
@@ -505,6 +558,7 @@ class DashboardData(BaseModel):
 # WebSocket Schemas
 class WebSocketMessage(BaseModel):
     """WebSocket message base"""
+
     type: str
     data: Dict[str, Any]
     timestamp: datetime = Field(default_factory=datetime.utcnow)
@@ -512,6 +566,7 @@ class WebSocketMessage(BaseModel):
 
 class ProcessingStatusUpdate(WebSocketMessage):
     """Processing status update WebSocket message"""
+
     type: str = "processing_status_update"
     data: Dict[str, Any] = {
         "document_id": None,
@@ -520,36 +575,39 @@ class ProcessingStatusUpdate(WebSocketMessage):
         "current_stage": None,
         "progress_percentage": 0,
         "estimated_completion": None,
-        "error_message": None
+        "error_message": None,
     }
 
 
 class SearchProgressUpdate(WebSocketMessage):
     """Search progress update WebSocket message"""
+
     type: str = "search_progress"
     data: Dict[str, Any] = {
         "search_id": None,
         "stage": None,
         "progress_percentage": 0,
-        "intermediate_results": []
+        "intermediate_results": [],
     }
 
 
 class SystemNotification(WebSocketMessage):
     """System notification WebSocket message"""
+
     type: str = "system_notification"
     data: Dict[str, Any] = {
         "notification_id": None,
         "notification_type": None,
         "title": None,
         "message": None,
-        "actions": []
+        "actions": [],
     }
 
 
 # Health Check Schemas
 class HealthCheckResponse(BaseModel):
     """Health check response"""
+
     status: str = Field(pattern="^(healthy|unhealthy|degraded)$")
     version: str
     environment: str
@@ -561,6 +619,7 @@ class HealthCheckResponse(BaseModel):
 # Rate Limiting Schemas
 class RateLimitInfo(BaseModel):
     """Rate limit information"""
+
     limit: int
     remaining: int
     reset_time: datetime
@@ -570,6 +629,7 @@ class RateLimitInfo(BaseModel):
 # Multi-tenant Schemas
 class OrganizationContext(BaseModel):
     """Organization context for requests"""
+
     organization_id: UUID
     user_role: UserRole
     permissions: List[str]
@@ -580,6 +640,7 @@ class OrganizationContext(BaseModel):
 # API Versioning
 class APIVersion(BaseModel):
     """API version information"""
+
     version: str
     deprecated: bool = False
     deprecation_date: Optional[datetime] = None
@@ -590,6 +651,7 @@ class APIVersion(BaseModel):
 # Configuration Schemas
 class ServiceConfig(BaseModel):
     """Service configuration"""
+
     service_name: str
     version: str
     port: int
@@ -602,6 +664,7 @@ class ServiceConfig(BaseModel):
 # Metrics Schemas
 class MetricPoint(BaseModel):
     """Single metric data point"""
+
     timestamp: datetime
     value: float
     labels: Dict[str, str] = {}
@@ -609,6 +672,7 @@ class MetricPoint(BaseModel):
 
 class MetricSeries(BaseModel):
     """Time series metric data"""
+
     name: str
     description: str
     unit: str

@@ -8,10 +8,10 @@ Usage:
     from src.core.ai import AIClient, EmbeddingClient, CompletionResponse
 """
 
-from src.core.ai.protocols import AIClient, EmbeddingClient, CompletionResponse
+from src.core.ai.protocols import AIClient, CompletionResponse, EmbeddingClient
 
 __all__ = [
     "AIClient",
-    "EmbeddingClient", 
+    "EmbeddingClient",
     "CompletionResponse",
 ]

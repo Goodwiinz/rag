@@ -3,18 +3,32 @@ User session model for T3 analytics
 Tracks user sessions for behavior analytics and engagement metrics
 """
 
-from sqlalchemy import Column, String, Text, Integer, Float, DateTime, Boolean, JSON, ForeignKey, Index, Enum
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import relationship
-from datetime import datetime
-import uuid
 import enum
+import uuid
+from datetime import datetime
 
-from .base import BaseModel, GUID
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import relationship
+
+from .base import GUID, BaseModel
 
 
 class SessionStatus(enum.Enum):
     """User session status"""
+
     ACTIVE = "active"
     INACTIVE = "inactive"
     EXPIRED = "expired"
@@ -25,13 +39,16 @@ class UserSession(BaseModel):
     """
     User session tracking for analytics
     """
+
     __tablename__ = "user_sessions"
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
 
     # User and organization
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
+    )
 
     # Session identifiers
     session_id = Column(String(255), unique=True, nullable=False, index=True)
@@ -48,8 +65,12 @@ class UserSession(BaseModel):
     location_city = Column(String(100), nullable=True)
 
     # Session timing
-    started_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
-    last_activity = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    started_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
+    last_activity = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
     ended_at = Column(DateTime(timezone=True), nullable=True)
     duration_seconds = Column(Integer, nullable=True)  # Calculated on session end
 
@@ -77,8 +98,15 @@ class UserSession(BaseModel):
     page_load_time = Column(Float, nullable=True)
 
     # Metadata
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
     is_deleted = Column(Boolean, default=False, nullable=False)
 
     # Relationships
@@ -87,14 +115,16 @@ class UserSession(BaseModel):
 
     # Indexes for performance
     __table_args__ = (
-        Index('idx_user_sessions_user_id', 'user_id'),
-        Index('idx_user_sessions_organization_id', 'organization_id'),
-        Index('idx_user_sessions_session_id', 'session_id'),
-        Index('idx_user_sessions_status', 'status'),
-        Index('idx_user_sessions_started_at', 'started_at'),
-        Index('idx_user_sessions_last_activity', 'last_activity'),
-        Index('idx_user_sessions_user_org', 'user_id', 'organization_id'),
-        Index('idx_user_sessions_active_sessions', 'user_id', 'status', 'last_activity'),
+        Index("idx_user_sessions_user_id", "user_id"),
+        Index("idx_user_sessions_organization_id", "organization_id"),
+        Index("idx_user_sessions_session_id", "session_id"),
+        Index("idx_user_sessions_status", "status"),
+        Index("idx_user_sessions_started_at", "started_at"),
+        Index("idx_user_sessions_last_activity", "last_activity"),
+        Index("idx_user_sessions_user_org", "user_id", "organization_id"),
+        Index(
+            "idx_user_sessions_active_sessions", "user_id", "status", "last_activity"
+        ),
     )
 
     def __repr__(self):
@@ -108,7 +138,9 @@ class UserSession(BaseModel):
         """Check if session has expired based on last activity"""
         if not self.last_activity:
             return True
-        return (datetime.utcnow() - self.last_activity).total_seconds() > (max_age_hours * 3600)
+        return (datetime.utcnow() - self.last_activity).total_seconds() > (
+            max_age_hours * 3600
+        )
 
     def update_activity(self):
         """Update last activity timestamp"""
@@ -119,7 +151,9 @@ class UserSession(BaseModel):
         """End the current session and calculate duration"""
         if self.ended_at is None:
             self.ended_at = datetime.utcnow()
-            self.duration_seconds = int((self.ended_at - self.started_at).total_seconds())
+            self.duration_seconds = int(
+                (self.ended_at - self.started_at).total_seconds()
+            )
             if self.status == SessionStatus.ACTIVE:
                 self.status = SessionStatus.INACTIVE
             self.updated_at = datetime.utcnow()
@@ -168,7 +202,7 @@ class UserSession(BaseModel):
             "query": query,
             "timestamp": datetime.utcnow().isoformat(),
             "results_count": results_count,
-            "response_time": response_time
+            "response_time": response_time,
         }
         self.search_queries.append(search_event)
         self.total_searches = (self.total_searches or 0) + 1
@@ -182,7 +216,7 @@ class UserSession(BaseModel):
         view_event = {
             "document_id": str(document_id),
             "timestamp": datetime.utcnow().isoformat(),
-            "view_duration_seconds": view_duration
+            "view_duration_seconds": view_duration,
         }
         self.viewed_documents.append(view_event)
         self.total_documents_viewed = (self.total_documents_viewed or 0) + 1
@@ -196,7 +230,7 @@ class UserSession(BaseModel):
         download_event = {
             "type": "download",
             "document_id": str(document_id),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
         self.conversion_events.append(download_event)
         self.total_downloads = (self.total_downloads or 0) + 1
@@ -214,5 +248,5 @@ class UserSession(BaseModel):
             "bounce_rate": self.bounce_rate,
             "status": self.status.value,
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "ended_at": self.ended_at.isoformat() if self.ended_at else None
+            "ended_at": self.ended_at.isoformat() if self.ended_at else None,
         }

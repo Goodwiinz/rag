@@ -3,7 +3,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 
 // Load environment variables
-dotenv.config({ path: path.join(__dirname, '../.env.test') });
+dotenv.config({ path: path.join(__dirname, '.env.test') });
 
 export default defineConfig({
   testDir: './tests',
@@ -156,21 +156,12 @@ export default defineConfig({
     },
   ],
 
-  /* Test server configuration */
+  /* Web servers - frontend starts via npm, backend expected to be running */
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  },
-
-  /* Backend server for API tests */
-  webServer: {
-    command: 'npm run start:backend',
-    url: 'http://localhost:8000',
-    reuseExistingServer: !process.env.CI,
+    cwd: '../../frontend',
+    reuseExistingServer: true,
     timeout: 120 * 1000,
     stdout: 'pipe',
     stderr: 'pipe',
@@ -188,51 +179,4 @@ export default defineConfig({
     'Test Date': new Date().toISOString(),
   },
 
-  /* Global error handling */
-  onUnhandledError: (error) => {
-    console.error('Unhandled error in Playwright tests:', error);
-  },
-
-  /* Test hooks */
-  globalSetup: async (config) => {
-    console.log('🚀 Setting up E2E test environment...');
-
-    // Start any required services
-    await setupTestServices();
-
-    // Seed test data
-    await seedTestData();
-
-    console.log('✅ E2E test environment setup complete');
-  },
-
-  globalTeardown: async (config) => {
-    console.log('🧹 Cleaning up E2E test environment...');
-
-    // Clean up test data
-    await cleanupTestData();
-
-    // Stop test services
-    await stopTestServices();
-
-    console.log('✅ E2E test environment cleanup complete');
-  },
 });
-
-/* Helper functions */
-async function setupTestServices() {
-  // Setup any required services for testing
-  // e.g., database seeding, mock services, etc.
-}
-
-async function seedTestData() {
-  // Seed the database with test data
-}
-
-async function cleanupTestData() {
-  // Clean up test data from the database
-}
-
-async function stopTestServices() {
-  // Stop any services started for testing
-}

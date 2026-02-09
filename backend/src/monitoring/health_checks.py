@@ -3,17 +3,18 @@ Health Check System for Knowledge Graph Analytics Dashboard
 Comprehensive health monitoring for applications and dependencies
 """
 
-import os
-import time
 import asyncio
 import logging
-import psutil
-from typing import Dict, Any, List, Optional, Callable, Union
+import os
+import time
 from dataclasses import dataclass, field
-from enum import Enum
 from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Union
+
 import aiohttp
 import asyncpg
+import psutil
 import redis.asyncio as redis
 from elasticsearch import AsyncElasticsearch
 
@@ -23,24 +24,30 @@ from .opentelemetry import otel_manager
 
 logger = get_logger(__name__)
 
+
 class HealthStatus(Enum):
     """Health check status levels"""
+
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
     UNKNOWN = "unknown"
 
+
 class CheckType(Enum):
     """Types of health checks"""
+
     LIVENESS = "liveness"
     READINESS = "readiness"
     DEPENDENCY = "dependency"
     RESOURCE = "resource"
     SECURITY = "security"
 
+
 @dataclass
 class HealthCheckResult:
     """Result of a health check"""
+
     name: str
     status: HealthStatus
     message: str
@@ -52,9 +59,11 @@ class HealthCheckResult:
     threshold: Optional[float] = None
     actual_value: Optional[float] = None
 
+
 @dataclass
 class HealthSummary:
     """Summary of overall system health"""
+
     status: HealthStatus
     total_checks: int
     healthy_checks: int
@@ -65,11 +74,17 @@ class HealthSummary:
     timestamp: datetime = field(default_factory=datetime.utcnow)
     overall_score: float = 0.0
 
+
 class HealthCheck:
     """Base class for health checks"""
 
-    def __init__(self, name: str, check_type: CheckType = CheckType.DEPENDENCY,
-                 timeout: float = 10.0, component: str = ""):
+    def __init__(
+        self,
+        name: str,
+        check_type: CheckType = CheckType.DEPENDENCY,
+        timeout: float = 10.0,
+        component: str = "",
+    ):
         self.name = name
         self.check_type = check_type
         self.timeout = timeout
@@ -97,7 +112,7 @@ class HealthCheck:
                 message=f"Health check timed out after {self.timeout}s",
                 duration_ms=(time.time() - start_time) * 1000,
                 check_type=self.check_type,
-                component=self.component
+                component=self.component,
             )
             self._handle_failure()
         except Exception as e:
@@ -108,7 +123,7 @@ class HealthCheck:
                 duration_ms=(time.time() - start_time) * 1000,
                 check_type=self.check_type,
                 component=self.component,
-                details={"error": str(e), "error_type": type(e).__name__}
+                details={"error": str(e), "error_type": type(e).__name__},
             )
             self._handle_failure()
 
@@ -131,6 +146,7 @@ class HealthCheck:
             return 0.0
         return ((self.check_count - self.failure_count) / self.check_count) * 100
 
+
 class DatabaseHealthCheck(HealthCheck):
     """Database health check"""
 
@@ -150,12 +166,14 @@ class DatabaseHealthCheck(HealthCheck):
             result = await conn.fetchval("SELECT 1")
 
             # Get database stats
-            stats = await conn.fetchrow("""
+            stats = await conn.fetchrow(
+                """
                 SELECT
                     count(*) as total_connections,
                     count(*) FILTER (WHERE state = 'active') as active_connections
                 FROM pg_stat_activity
-            """)
+            """
+            )
 
             await conn.close()
 
@@ -169,7 +187,7 @@ class DatabaseHealthCheck(HealthCheck):
                     duration_ms=duration_ms,
                     check_type=self.check_type,
                     component=self.component,
-                    details={"query_result": result}
+                    details={"query_result": result},
                 )
 
             return HealthCheckResult(
@@ -181,10 +199,10 @@ class DatabaseHealthCheck(HealthCheck):
                 component=self.component,
                 details={
                     "total_connections": stats["total_connections"],
-                    "active_connections": stats["active_connections"]
+                    "active_connections": stats["active_connections"],
                 },
                 actual_value=duration_ms,
-                threshold=1000.0  # 1 second threshold
+                threshold=1000.0,  # 1 second threshold
             )
 
         except Exception as e:
@@ -195,8 +213,9 @@ class DatabaseHealthCheck(HealthCheck):
                 duration_ms=(time.time() - start_time) * 1000,
                 check_type=self.check_type,
                 component=self.component,
-                details={"error": str(e)}
+                details={"error": str(e)},
             )
+
 
 class RedisHealthCheck(HealthCheck):
     """Redis health check"""
@@ -235,7 +254,7 @@ class RedisHealthCheck(HealthCheck):
                     message="Redis set/get operation failed",
                     duration_ms=duration_ms,
                     check_type=self.check_type,
-                    component=self.component
+                    component=self.component,
                 )
 
             return HealthCheckResult(
@@ -248,10 +267,10 @@ class RedisHealthCheck(HealthCheck):
                 details={
                     "used_memory": info.get("used_memory", 0),
                     "connected_clients": info.get("connected_clients", 0),
-                    "total_commands_processed": info.get("total_commands_processed", 0)
+                    "total_commands_processed": info.get("total_commands_processed", 0),
                 },
                 actual_value=duration_ms,
-                threshold=500.0  # 500ms threshold
+                threshold=500.0,  # 500ms threshold
             )
 
         except Exception as e:
@@ -262,8 +281,9 @@ class RedisHealthCheck(HealthCheck):
                 duration_ms=(time.time() - start_time) * 1000,
                 check_type=self.check_type,
                 component=self.component,
-                details={"error": str(e)}
+                details={"error": str(e)},
             )
+
 
 class ElasticsearchHealthCheck(HealthCheck):
     """Elasticsearch health check"""
@@ -311,10 +331,10 @@ class ElasticsearchHealthCheck(HealthCheck):
                     "cluster_status": cluster_status,
                     "number_of_nodes": health.get("number_of_nodes", 0),
                     "active_primary_shards": health.get("active_primary_shards", 0),
-                    "active_shards": health.get("active_shards", 0)
+                    "active_shards": health.get("active_shards", 0),
                 },
                 actual_value=duration_ms,
-                threshold=2000.0  # 2 second threshold
+                threshold=2000.0,  # 2 second threshold
             )
 
         except Exception as e:
@@ -325,15 +345,26 @@ class ElasticsearchHealthCheck(HealthCheck):
                 duration_ms=(time.time() - start_time) * 1000,
                 check_type=self.check_type,
                 component=self.component,
-                details={"error": str(e)}
+                details={"error": str(e)},
             )
+
 
 class HTTPHealthCheck(HealthCheck):
     """HTTP endpoint health check"""
 
-    def __init__(self, url: str, method: str = "GET", expected_status: int = 200,
-                 headers: Optional[Dict[str, str]] = None, **kwargs):
-        super().__init__(f"http_{url.replace('://', '_').replace('/', '_')}", CheckType.DEPENDENCY, **kwargs)
+    def __init__(
+        self,
+        url: str,
+        method: str = "GET",
+        expected_status: int = 200,
+        headers: Optional[Dict[str, str]] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            f"http_{url.replace('://', '_').replace('/', '_')}",
+            CheckType.DEPENDENCY,
+            **kwargs,
+        )
         self.url = url
         self.method = method
         self.expected_status = expected_status
@@ -349,7 +380,7 @@ class HTTPHealthCheck(HealthCheck):
                     self.method,
                     self.url,
                     headers=self.headers,
-                    timeout=aiohttp.ClientTimeout(total=self.timeout)
+                    timeout=aiohttp.ClientTimeout(total=self.timeout),
                 ) as response:
                     content_length = len(await response.read())
 
@@ -375,10 +406,10 @@ class HTTPHealthCheck(HealthCheck):
                         details={
                             "status_code": response.status,
                             "content_length": content_length,
-                            "headers": dict(response.headers)
+                            "headers": dict(response.headers),
                         },
                         actual_value=duration_ms,
-                        threshold=5000.0  # 5 second threshold
+                        threshold=5000.0,  # 5 second threshold
                     )
 
         except Exception as e:
@@ -389,14 +420,20 @@ class HTTPHealthCheck(HealthCheck):
                 duration_ms=(time.time() - start_time) * 1000,
                 check_type=self.check_type,
                 component=self.component,
-                details={"error": str(e)}
+                details={"error": str(e)},
             )
+
 
 class ResourceHealthCheck(HealthCheck):
     """System resource health check"""
 
-    def __init__(self, resource_type: str, warning_threshold: float, critical_threshold: float,
-                 **kwargs):
+    def __init__(
+        self,
+        resource_type: str,
+        warning_threshold: float,
+        critical_threshold: float,
+        **kwargs,
+    ):
         super().__init__(f"resource_{resource_type}", CheckType.RESOURCE, **kwargs)
         self.resource_type = resource_type
         self.warning_threshold = warning_threshold
@@ -415,7 +452,7 @@ class ResourceHealthCheck(HealthCheck):
                 usage_percent = memory.percent
                 message = f"Memory usage: {usage_percent:.1f}% ({memory.used / 1024**3:.1f}GB / {memory.total / 1024**3:.1f}GB)"
             elif self.resource_type == "disk":
-                disk = psutil.disk_usage('/')
+                disk = psutil.disk_usage("/")
                 usage_percent = (disk.used / disk.total) * 100
                 message = f"Disk usage: {usage_percent:.1f}% ({disk.used / 1024**3:.1f}GB / {disk.total / 1024**3:.1f}GB)"
             else:
@@ -441,10 +478,10 @@ class ResourceHealthCheck(HealthCheck):
                 details={
                     "usage_percent": usage_percent,
                     "warning_threshold": self.warning_threshold,
-                    "critical_threshold": self.critical_threshold
+                    "critical_threshold": self.critical_threshold,
                 },
                 actual_value=usage_percent,
-                threshold=self.warning_threshold
+                threshold=self.warning_threshold,
             )
 
         except Exception as e:
@@ -455,8 +492,9 @@ class ResourceHealthCheck(HealthCheck):
                 duration_ms=(time.time() - start_time) * 1000,
                 check_type=self.check_type,
                 component=self.component,
-                details={"error": str(e)}
+                details={"error": str(e)},
             )
+
 
 class CustomHealthCheck(HealthCheck):
     """Custom health check with user-defined function"""
@@ -487,7 +525,9 @@ class CustomHealthCheck(HealthCheck):
             elif isinstance(result, dict):
                 status = HealthStatus(result.get("status", "unknown"))
                 message = result.get("message", "Custom check completed")
-                details = {k: v for k, v in result.items() if k not in ["status", "message"]}
+                details = {
+                    k: v for k, v in result.items() if k not in ["status", "message"]
+                }
             else:
                 status = HealthStatus.HEALTHY
                 message = f"Custom check result: {result}"
@@ -501,7 +541,7 @@ class CustomHealthCheck(HealthCheck):
                 check_type=self.check_type,
                 component=self.component,
                 details=details,
-                actual_value=duration_ms
+                actual_value=duration_ms,
             )
 
         except Exception as e:
@@ -512,8 +552,9 @@ class CustomHealthCheck(HealthCheck):
                 duration_ms=(time.time() - start_time) * 1000,
                 check_type=self.check_type,
                 component=self.component,
-                details={"error": str(e)}
+                details={"error": str(e)},
             )
+
 
 class HealthCheckManager:
     """Manager for health checks"""
@@ -555,7 +596,7 @@ class HealthCheckManager:
                 healthy_checks=0,
                 degraded_checks=0,
                 unhealthy_checks=0,
-                unknown_checks=0
+                unknown_checks=0,
             )
 
         # Run all checks concurrently
@@ -576,7 +617,7 @@ class HealthCheckManager:
                     name="unknown",
                     status=HealthStatus.UNHEALTHY,
                     message=f"Check failed with exception: {str(result)}",
-                    duration_ms=0
+                    duration_ms=0,
                 )
                 check_results.append(error_result)
                 unhealthy_count += 1
@@ -637,7 +678,7 @@ class HealthCheckManager:
             unhealthy_checks=unhealthy_count,
             unknown_checks=unknown_count,
             checks=check_results,
-            overall_score=overall_score
+            overall_score=overall_score,
         )
 
         self.last_summary = summary
@@ -660,8 +701,8 @@ class HealthCheckManager:
                 {
                     "check_name": result.name,
                     "component": result.component,
-                    "check_type": result.check_type.value
-                }
+                    "check_type": result.check_type.value,
+                },
             )
 
     def get_check_statistics(self, name: str) -> Optional[Dict[str, Any]]:
@@ -678,10 +719,16 @@ class HealthCheckManager:
             "failure_count": check.failure_count,
             "consecutive_failures": check.consecutive_failures,
             "availability_percentage": check.get_availability_percentage(),
-            "last_success": check.last_success.isoformat() if check.last_success else None,
-            "last_failure": check.last_failure.isoformat() if check.last_failure else None,
-            "last_check": check.last_check.timestamp.isoformat() if check.last_check else None,
-            "last_status": check.last_check.status.value if check.last_check else None
+            "last_success": check.last_success.isoformat()
+            if check.last_success
+            else None,
+            "last_failure": check.last_failure.isoformat()
+            if check.last_failure
+            else None,
+            "last_check": check.last_check.timestamp.isoformat()
+            if check.last_check
+            else None,
+            "last_status": check.last_check.status.value if check.last_check else None,
         }
 
     def get_all_statistics(self) -> Dict[str, Any]:
@@ -689,18 +736,21 @@ class HealthCheckManager:
         return {
             "total_checks": len(self.checks),
             "check_statistics": {
-                name: self.get_check_statistics(name)
-                for name in self.checks.keys()
+                name: self.get_check_statistics(name) for name in self.checks.keys()
             },
             "last_summary": {
                 "status": self.last_summary.status.value,
                 "overall_score": self.last_summary.overall_score,
-                "timestamp": self.last_summary.timestamp.isoformat()
-            } if self.last_summary else None
+                "timestamp": self.last_summary.timestamp.isoformat(),
+            }
+            if self.last_summary
+            else None,
         }
+
 
 # Global health check manager instance
 health_manager = HealthCheckManager()
+
 
 # Convenience functions
 def setup_default_health_checks():
@@ -723,18 +773,25 @@ def setup_default_health_checks():
 
     # Resource health checks
     health_manager.add_check(ResourceHealthCheck("cpu", 70.0, 90.0, component="system"))
-    health_manager.add_check(ResourceHealthCheck("memory", 80.0, 95.0, component="system"))
-    health_manager.add_check(ResourceHealthCheck("disk", 85.0, 95.0, component="system"))
+    health_manager.add_check(
+        ResourceHealthCheck("memory", 80.0, 95.0, component="system")
+    )
+    health_manager.add_check(
+        ResourceHealthCheck("disk", 85.0, 95.0, component="system")
+    )
+
 
 async def check_health() -> HealthSummary:
     """Check overall system health"""
     return await health_manager.run_all_checks()
 
+
 async def check_component_health(component: str) -> HealthSummary:
     """Check health of specific component"""
     # Filter checks by component
     component_checks = [
-        check for check in health_manager.checks.values()
+        check
+        for check in health_manager.checks.values()
         if check.component == component
     ]
 
@@ -745,7 +802,7 @@ async def check_component_health(component: str) -> HealthSummary:
             healthy_checks=0,
             degraded_checks=0,
             unhealthy_checks=0,
-            unknown_checks=0
+            unknown_checks=0,
         )
 
     # Run component-specific checks
@@ -785,5 +842,5 @@ async def check_component_health(component: str) -> HealthSummary:
         degraded_checks=degraded_count,
         unhealthy_checks=unhealthy_count,
         unknown_checks=unknown_count,
-        checks=check_results
+        checks=check_results,
     )

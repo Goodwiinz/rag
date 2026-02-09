@@ -2,18 +2,31 @@
 Organization model for multi-tenancy
 """
 
-from sqlalchemy import Column, String, Boolean, DateTime, Enum, Integer, Numeric, BigInteger
+from enum import Enum as PyEnum
+
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Integer,
+    Numeric,
+    String,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from enum import Enum as PyEnum
 
 from .base import BaseModel
 
+
 class StorageTier(PyEnum):
     """Storage tiers for organizations"""
+
     FREE = "free"
     PROFESSIONAL = "professional"
     ENTERPRISE = "enterprise"
+
 
 class Organization(BaseModel):
     """Organization model for multi-tenancy"""
@@ -39,12 +52,20 @@ class Organization(BaseModel):
     roles = relationship("Role", back_populates="organization")
 
     # Analytics relationships (using string references to avoid circular imports)
-    user_sessions = relationship("src.models.user_session.UserSession", back_populates="organization")
-    analytics_events = relationship("src.models.analytics_event.AnalyticsEvent", back_populates="organization")
-    performance_logs = relationship("src.models.performance_log.PerformanceLog", back_populates="organization")
+    user_sessions = relationship(
+        "src.models.user_session.UserSession", back_populates="organization"
+    )
+    analytics_events = relationship(
+        "src.models.analytics_event.AnalyticsEvent", back_populates="organization"
+    )
+    performance_logs = relationship(
+        "src.models.performance_log.PerformanceLog", back_populates="organization"
+    )
 
     # Encrypted profile relationship
-    encrypted_profile = relationship("EncryptedOrganizationProfile", back_populates="organization", uselist=False)
+    encrypted_profile = relationship(
+        "EncryptedOrganizationProfile", back_populates="organization", uselist=False
+    )
 
     # Audit relationship
     audit_events = relationship("AuditEvent", back_populates="organization")
@@ -58,12 +79,12 @@ class Organization(BaseModel):
     @property
     def storage_limit_gb(self) -> float:
         """Get storage limit in GB"""
-        return self.storage_limit_bytes / (1024 ** 3)
+        return self.storage_limit_bytes / (1024**3)
 
     @property
     def storage_used_gb(self) -> float:
         """Get storage used in GB"""
-        return self.storage_used_bytes / (1024 ** 3)
+        return self.storage_used_bytes / (1024**3)
 
     @property
     def storage_percentage_used(self) -> float:
@@ -80,14 +101,14 @@ class Organization(BaseModel):
     @property
     def storage_available_gb(self) -> float:
         """Get available storage in GB"""
-        return self.storage_available_bytes / (1024 ** 3)
+        return self.storage_available_bytes / (1024**3)
 
     def can_upload_file(self, file_size_bytes: int) -> bool:
         """Check if organization can upload a file of given size"""
         return (
-            self.is_active and
-            self.storage_available_bytes >= file_size_bytes and
-            file_size_bytes <= self.max_file_size_bytes
+            self.is_active
+            and self.storage_available_bytes >= file_size_bytes
+            and file_size_bytes <= self.max_file_size_bytes
         )
 
     @property
@@ -96,7 +117,7 @@ class Organization(BaseModel):
         tier_limits = {
             StorageTier.FREE: 10 * 1024 * 1024,  # 10MB
             StorageTier.PROFESSIONAL: 100 * 1024 * 1024,  # 100MB
-            StorageTier.ENTERPRISE: 1024 * 1024 * 1024  # 1GB
+            StorageTier.ENTERPRISE: 1024 * 1024 * 1024,  # 1GB
         }
         return tier_limits.get(self.storage_tier, 10 * 1024 * 1024)
 
@@ -120,28 +141,30 @@ class Organization(BaseModel):
             "percentage_used": self.storage_percentage_used,
             "max_file_size_mb": self.max_file_size_mb,
             "at_quota_limit": self.storage_percentage_used >= 100,
-            "near_quota_limit": self.storage_percentage_used >= 90
+            "near_quota_limit": self.storage_percentage_used >= 90,
         }
 
     @classmethod
     def get_default_storage_limit(cls, tier: StorageTier) -> int:
         """Get default storage limit in bytes for a tier"""
         tier_limits = {
-            StorageTier.FREE: 10 * 1024 ** 3,  # 10GB
-            StorageTier.PROFESSIONAL: 100 * 1024 ** 3,  # 100GB
-            StorageTier.ENTERPRISE: 1024 * 1024 ** 3  # 1TB
+            StorageTier.FREE: 10 * 1024**3,  # 10GB
+            StorageTier.PROFESSIONAL: 100 * 1024**3,  # 100GB
+            StorageTier.ENTERPRISE: 1024 * 1024**3,  # 1TB
         }
-        return tier_limits.get(tier, 10 * 1024 ** 3)
+        return tier_limits.get(tier, 10 * 1024**3)
 
     def to_dict(self) -> dict:
         """Convert to dictionary with computed fields"""
         data = super().to_dict()
-        data.update({
-            "storage_tier": self.storage_tier.value,
-            "storage_limit_gb": self.storage_limit_gb,
-            "storage_used_gb": self.storage_used_gb,
-            "storage_available_gb": self.storage_available_gb,
-            "storage_percentage_used": self.storage_percentage_used,
-            "max_file_size_mb": self.max_file_size_mb
-        })
+        data.update(
+            {
+                "storage_tier": self.storage_tier.value,
+                "storage_limit_gb": self.storage_limit_gb,
+                "storage_used_gb": self.storage_used_gb,
+                "storage_available_gb": self.storage_available_gb,
+                "storage_percentage_used": self.storage_percentage_used,
+                "max_file_size_mb": self.max_file_size_mb,
+            }
+        )
         return data

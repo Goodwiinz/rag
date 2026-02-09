@@ -10,15 +10,16 @@ This middleware provides:
 
 import json
 import logging
-from typing import Dict, Any, Optional, List, Callable
-from fastapi import Request, Response, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Any, Callable, Dict, List, Optional
+
+from fastapi import HTTPException, Request, Response
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from ..core.encryption import get_field_encryption, EncryptionError
-from ..services.encryption_service import EncryptionService
 from ..core.database import get_db
+from ..core.encryption import EncryptionError, get_field_encryption
+from ..services.encryption_service import EncryptionService
 
 logger = logging.getLogger(__name__)
 
@@ -40,26 +41,55 @@ class EncryptionMiddleware(BaseHTTPMiddleware):
         encrypt_request_fields: bool = True,
         mask_response_fields: bool = True,
         sensitive_fields: Optional[List[str]] = None,
-        exclude_paths: Optional[List[str]] = None
+        exclude_paths: Optional[List[str]] = None,
     ):
         super().__init__(app)
         self.encrypt_request_fields = encrypt_request_fields
         self.mask_response_fields = mask_response_fields
         self.sensitive_fields = sensitive_fields or [
-            'ssn', 'social_security_number', 'tax_id', 'credit_card',
-            'bank_account', 'password', 'secret', 'token', 'api_key',
-            'email_personal', 'phone_home', 'address', 'birth_date'
+            "ssn",
+            "social_security_number",
+            "tax_id",
+            "credit_card",
+            "bank_account",
+            "password",
+            "secret",
+            "token",
+            "api_key",
+            "email_personal",
+            "phone_home",
+            "address",
+            "birth_date",
         ]
         self.exclude_paths = exclude_paths or [
-            '/health', '/metrics', '/docs', '/openapi.json', '/favicon.ico'
+            "/health",
+            "/metrics",
+            "/docs",
+            "/openapi.json",
+            "/favicon.ico",
         ]
 
         # Field patterns for automatic detection
         self.sensitive_patterns = [
-            'ssn', 'social_security', 'tax_id', 'ein', 'credit_card',
-            'bank_account', 'routing', 'password', 'secret', 'token',
-            'api_key', 'private_key', 'certificate', 'passport',
-            'driver_license', 'birth_date', 'email', 'phone', 'address'
+            "ssn",
+            "social_security",
+            "tax_id",
+            "ein",
+            "credit_card",
+            "bank_account",
+            "routing",
+            "password",
+            "secret",
+            "token",
+            "api_key",
+            "private_key",
+            "certificate",
+            "passport",
+            "driver_license",
+            "birth_date",
+            "email",
+            "phone",
+            "address",
         ]
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
@@ -72,25 +102,31 @@ class EncryptionMiddleware(BaseHTTPMiddleware):
 
         # Store original request for encryption context
         encryption_context = {
-            'request_id': self._generate_request_id(),
-            'user_id': None,
-            'organization_id': None,
-            'ip_address': request.client.host if request.client else None,
-            'user_agent': request.headers.get('user-agent'),
-            'encrypted_fields': [],
-            'masked_fields': []
+            "request_id": self._generate_request_id(),
+            "user_id": None,
+            "organization_id": None,
+            "ip_address": request.client.host if request.client else None,
+            "user_agent": request.headers.get("user-agent"),
+            "encrypted_fields": [],
+            "masked_fields": [],
         }
 
         # Process request encryption if enabled
-        if self.encrypt_request_fields and request.method in ['POST', 'PUT', 'PATCH']:
-            request = await self._process_request_encryption(request, encryption_context)
+        if self.encrypt_request_fields and request.method in ["POST", "PUT", "PATCH"]:
+            request = await self._process_request_encryption(
+                request, encryption_context
+            )
 
         # Process the request
         response = await call_next(request)
 
         # Process response masking if enabled
-        if self.mask_response_fields and response.headers.get('content-type', '').startswith('application/json'):
-            response = await self._process_response_masking(response, encryption_context)
+        if self.mask_response_fields and response.headers.get(
+            "content-type", ""
+        ).startswith("application/json"):
+            response = await self._process_response_masking(
+                response, encryption_context
+            )
 
         # Add security headers
         response = self._add_security_headers(response, encryption_context)
@@ -98,9 +134,7 @@ class EncryptionMiddleware(BaseHTTPMiddleware):
         return response
 
     async def _process_request_encryption(
-        self,
-        request: Request,
-        context: Dict[str, Any]
+        self, request: Request, context: Dict[str, Any]
     ) -> Request:
         """Process and encrypt sensitive fields in request body"""
 
@@ -113,7 +147,7 @@ class EncryptionMiddleware(BaseHTTPMiddleware):
 
             # Parse JSON body
             try:
-                request_data = json.loads(body.decode('utf-8'))
+                request_data = json.loads(body.decode("utf-8"))
             except (json.JSONDecodeError, UnicodeDecodeError):
                 return request  # Not JSON, skip encryption
 
@@ -121,13 +155,15 @@ class EncryptionMiddleware(BaseHTTPMiddleware):
             encrypted_data = self._encrypt_sensitive_fields(request_data, context)
 
             # If data was encrypted, update request body
-            if context['encrypted_fields']:
-                encrypted_body = json.dumps(encrypted_data).encode('utf-8')
+            if context["encrypted_fields"]:
+                encrypted_body = json.dumps(encrypted_data).encode("utf-8")
 
                 # Create new request with encrypted body
                 request._body = encrypted_body
 
-                logger.debug(f"Encrypted {len(context['encrypted_fields'])} fields in request")
+                logger.debug(
+                    f"Encrypted {len(context['encrypted_fields'])} fields in request"
+                )
 
             return request
 
@@ -136,10 +172,7 @@ class EncryptionMiddleware(BaseHTTPMiddleware):
             return request
 
     def _encrypt_sensitive_fields(
-        self,
-        data: Dict[str, Any],
-        context: Dict[str, Any],
-        field_path: str = ""
+        self, data: Dict[str, Any], context: Dict[str, Any], field_path: str = ""
     ) -> Dict[str, Any]:
         """Recursively encrypt sensitive fields in data"""
 
@@ -152,12 +185,16 @@ class EncryptionMiddleware(BaseHTTPMiddleware):
                     try:
                         # Encrypt the field
                         field_encryption = get_field_encryption()
-                        encrypted_value = field_encryption.encrypt_field(value, current_path)
+                        encrypted_value = field_encryption.encrypt_field(
+                            value, current_path
+                        )
                         encrypted_data[key] = encrypted_value
-                        context['encrypted_fields'].append(current_path)
+                        context["encrypted_fields"].append(current_path)
 
                     except EncryptionError as e:
-                        logger.warning(f"Failed to encrypt field {current_path}: {str(e)}")
+                        logger.warning(
+                            f"Failed to encrypt field {current_path}: {str(e)}"
+                        )
                         encrypted_data[key] = value
                 else:
                     # Recursively process nested objects
@@ -180,7 +217,9 @@ class EncryptionMiddleware(BaseHTTPMiddleware):
         """Check if a field should be encrypted"""
 
         # Skip if value is None or already looks encrypted
-        if value is None or (isinstance(value, str) and value.startswith('{"encrypted_data":')):
+        if value is None or (
+            isinstance(value, str) and value.startswith('{"encrypted_data":')
+        ):
             return False
 
         field_lower = field_name.lower()
@@ -198,19 +237,20 @@ class EncryptionMiddleware(BaseHTTPMiddleware):
         # Check if value looks like sensitive data
         if isinstance(value, str):
             # SSN pattern (XXX-XX-XXXX)
-            if len(value) == 11 and value[3] == '-' and value[6] == '-':
+            if len(value) == 11 and value[3] == "-" and value[6] == "-":
                 return True
 
             # Credit card pattern (16 digits, possibly spaced)
-            if all(c.isdigit() or c == ' ' for c in value) and len(value.replace(' ', '')) >= 13:
+            if (
+                all(c.isdigit() or c == " " for c in value)
+                and len(value.replace(" ", "")) >= 13
+            ):
                 return True
 
         return False
 
     async def _process_response_masking(
-        self,
-        response: Response,
-        context: Dict[str, Any]
+        self, response: Response, context: Dict[str, Any]
     ) -> Response:
         """Process and mask sensitive fields in response body"""
 
@@ -224,29 +264,29 @@ class EncryptionMiddleware(BaseHTTPMiddleware):
                 return Response(
                     content=response_body,
                     status_code=response.status_code,
-                    headers=dict(response.headers)
+                    headers=dict(response.headers),
                 )
 
             # Parse JSON response
             try:
-                response_data = json.loads(response_body.decode('utf-8'))
+                response_data = json.loads(response_body.decode("utf-8"))
             except (json.JSONDecodeError, UnicodeDecodeError):
                 return Response(
                     content=response_body,
                     status_code=response.status_code,
-                    headers=dict(response.headers)
+                    headers=dict(response.headers),
                 )
 
             # Mask sensitive fields
             masked_data = self._mask_sensitive_fields(response_data, context)
 
             # Create new response with masked data
-            masked_body = json.dumps(masked_data).encode('utf-8')
+            masked_body = json.dumps(masked_data).encode("utf-8")
 
             return Response(
                 content=masked_body,
                 status_code=response.status_code,
-                headers=dict(response.headers)
+                headers=dict(response.headers),
             )
 
         except Exception as e:
@@ -254,10 +294,7 @@ class EncryptionMiddleware(BaseHTTPMiddleware):
             return response
 
     def _mask_sensitive_fields(
-        self,
-        data: Dict[str, Any],
-        context: Dict[str, Any],
-        field_path: str = ""
+        self, data: Dict[str, Any], context: Dict[str, Any], field_path: str = ""
     ) -> Dict[str, Any]:
         """Recursively mask sensitive fields in response data"""
 
@@ -269,7 +306,7 @@ class EncryptionMiddleware(BaseHTTPMiddleware):
                 if self._should_mask_field(key, current_path, value):
                     masked_value = self._mask_value(value, key)
                     masked_data[key] = masked_value
-                    context['masked_fields'].append(current_path)
+                    context["masked_fields"].append(current_path)
                 else:
                     # Recursively process nested objects
                     masked_data[key] = self._mask_sensitive_fields(
@@ -316,63 +353,70 @@ class EncryptionMiddleware(BaseHTTPMiddleware):
         field_lower = field_name.lower()
 
         # Email masking
-        if 'email' in field_lower and '@' in value:
-            local, domain = value.split('@', 1)
+        if "email" in field_lower and "@" in value:
+            local, domain = value.split("@", 1)
             if len(local) <= 2:
                 return f"{'*' * len(local)}@{domain}"
             return f"{local[0]}{'*' * (len(local) - 2)}{local[-1]}@{domain}"
 
         # Phone masking
-        elif 'phone' in field_lower:
+        elif "phone" in field_lower:
             if len(value) >= 4:
                 return f"{'*' * (len(value) - 4)}{value[-4:]}"
-            return '*' * len(value)
+            return "*" * len(value)
 
         # SSN masking
-        elif 'ssn' in field_lower or 'social_security' in field_lower:
+        elif "ssn" in field_lower or "social_security" in field_lower:
             if len(value) >= 4:
                 return f"***-**-{value[-4:]}"
-            return '*' * len(value)
+            return "*" * len(value)
 
         # Credit card masking
-        elif 'credit_card' in field_lower or 'card' in field_lower:
+        elif "credit_card" in field_lower or "card" in field_lower:
             # Remove non-digits
-            digits = ''.join(c for c in value if c.isdigit())
+            digits = "".join(c for c in value if c.isdigit())
             if len(digits) >= 4:
                 return f"{'*' * (len(digits) - 4)}{digits[-4:]}"
-            return '*' * len(value)
+            return "*" * len(value)
 
         # Default masking
         else:
             if len(value) <= 2:
-                return '*' * len(value)
+                return "*" * len(value)
             return f"{value[0]}{'*' * (len(value) - 2)}{value[-1]}"
 
-    def _add_security_headers(self, response: Response, context: Dict[str, Any]) -> Response:
+    def _add_security_headers(
+        self, response: Response, context: Dict[str, Any]
+    ) -> Response:
         """Add security headers related to encryption"""
 
         # Add custom headers for encryption context
-        response.headers['X-Request-ID'] = context['request_id']
+        response.headers["X-Request-ID"] = context["request_id"]
 
-        if context['encrypted_fields']:
-            response.headers['X-Encrypted-Fields-Count'] = str(len(context['encrypted_fields']))
+        if context["encrypted_fields"]:
+            response.headers["X-Encrypted-Fields-Count"] = str(
+                len(context["encrypted_fields"])
+            )
 
-        if context['masked_fields']:
-            response.headers['X-Masked-Fields-Count'] = str(len(context['masked_fields']))
+        if context["masked_fields"]:
+            response.headers["X-Masked-Fields-Count"] = str(
+                len(context["masked_fields"])
+            )
 
         # Standard security headers
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['X-Frame-Options'] = 'DENY'
-        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
 
         # CSP header for additional security
-        response.headers['Content-Security-Policy'] = "default-src 'self'"
+        response.headers["Content-Security-Policy"] = "default-src 'self'"
 
         return response
 
     def _generate_request_id(self) -> str:
         """Generate unique request ID"""
         import secrets
+
         return secrets.token_hex(16)
 
 
@@ -396,8 +440,8 @@ class EncryptionContextMiddleware(BaseHTTPMiddleware):
         try:
             # This would integrate with your authentication system
             # For now, we'll try to get from headers (simplified)
-            auth_header = request.headers.get('authorization')
-            if auth_header and auth_header.startswith('Bearer '):
+            auth_header = request.headers.get("authorization")
+            if auth_header and auth_header.startswith("Bearer "):
                 # In a real implementation, decode JWT token here
                 # For demo, we'll skip JWT decoding
                 pass
@@ -406,12 +450,12 @@ class EncryptionContextMiddleware(BaseHTTPMiddleware):
 
         # Store encryption context in request state
         request.state.encryption_context = {
-            'user_id': user_id,
-            'organization_id': organization_id,
-            'ip_address': request.client.host if request.client else None,
-            'user_agent': request.headers.get('user-agent'),
-            'request_path': request.url.path,
-            'request_method': request.method
+            "user_id": user_id,
+            "organization_id": organization_id,
+            "ip_address": request.client.host if request.client else None,
+            "user_agent": request.headers.get("user-agent"),
+            "request_path": request.url.path,
+            "request_method": request.method,
         }
 
         # Process request
@@ -422,7 +466,7 @@ class EncryptionContextMiddleware(BaseHTTPMiddleware):
 
 def get_encryption_context(request: Request) -> Dict[str, Any]:
     """Get encryption context from request state"""
-    return getattr(request.state, 'encryption_context', {})
+    return getattr(request.state, "encryption_context", {})
 
 
 # Convenience function for adding encryption middleware
@@ -431,7 +475,7 @@ def add_encryption_middleware(
     encrypt_request_fields: bool = True,
     mask_response_fields: bool = True,
     sensitive_fields: Optional[List[str]] = None,
-    exclude_paths: Optional[List[str]] = None
+    exclude_paths: Optional[List[str]] = None,
 ):
     """Add encryption middleware to FastAPI app"""
 
@@ -444,5 +488,5 @@ def add_encryption_middleware(
         encrypt_request_fields=encrypt_request_fields,
         mask_response_fields=mask_response_fields,
         sensitive_fields=sensitive_fields,
-        exclude_paths=exclude_paths
+        exclude_paths=exclude_paths,
     )

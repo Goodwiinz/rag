@@ -9,44 +9,49 @@ This module provides comprehensive encryption capabilities including:
 - Secure random generation
 """
 
-import os
 import base64
-import secrets
 import hashlib
-from datetime import datetime, timedelta
-from typing import Dict, Optional, Tuple, Any, Union
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import hashes, hmac, padding
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import rsa, padding as asym_padding
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import json
 import logging
+import os
+import secrets
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional, Tuple, Union
+
+from cryptography.fernet import Fernet
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes, hmac, padding, serialization
+from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 logger = logging.getLogger(__name__)
 
 
 class EncryptionError(Exception):
     """Base exception for encryption operations"""
+
     pass
 
 
 class KeyManagementError(EncryptionError):
     """Exception for key management operations"""
+
     pass
 
 
 class DataEncryptionError(EncryptionError):
     """Exception for data encryption operations"""
+
     pass
 
 
 class EncryptionKeyType:
     """Supported encryption key types"""
+
     MASTER = "master"
     DATA = "data"
     FILE = "file"
@@ -55,6 +60,7 @@ class EncryptionKeyType:
 
 class EncryptionAlgorithm:
     """Supported encryption algorithms"""
+
     AES256_GCM = "aes256_gcm"
     FERNET = "fernet"
     RSA_OAEP = "rsa_oaep"
@@ -92,7 +98,7 @@ class KeyDerivation:
         password: str,
         salt: Optional[bytes] = None,
         iterations: int = 100000,
-        key_length: int = 32
+        key_length: int = 32,
     ) -> Tuple[bytes, bytes]:
         """
         Derive encryption key from password using PBKDF2
@@ -114,7 +120,7 @@ class KeyDerivation:
             length=key_length,
             salt=salt,
             iterations=iterations,
-            backend=default_backend()
+            backend=default_backend(),
         )
 
         key = kdf.derive(password.encode())
@@ -125,7 +131,7 @@ class KeyDerivation:
         input_key_material: bytes,
         salt: Optional[bytes] = None,
         info: Optional[bytes] = None,
-        key_length: int = 32
+        key_length: int = 32,
     ) -> bytes:
         """
         Derive key using HKDF
@@ -144,7 +150,7 @@ class KeyDerivation:
             length=key_length,
             salt=salt,
             info=info,
-            backend=default_backend()
+            backend=default_backend(),
         )
 
         return hkdf.derive(input_key_material)
@@ -163,7 +169,7 @@ class EncryptionKey:
         expires_at: Optional[datetime] = None,
         is_active: bool = True,
         version: int = 1,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         self.key_id = key_id
         self.key_type = key_type
@@ -191,7 +197,7 @@ class EncryptionKey:
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "is_active": self.is_active,
             "version": self.version,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
 
@@ -208,7 +214,9 @@ class KeyManager:
         """Initialize master key from environment"""
         master_key_b64 = os.getenv(self.master_key_env_var)
         if not master_key_b64:
-            raise KeyManagementError(f"Master key not found in environment variable {self.master_key_env_var}")
+            raise KeyManagementError(
+                f"Master key not found in environment variable {self.master_key_env_var}"
+            )
 
         try:
             self._master_key = base64.b64decode(master_key_b64.encode())
@@ -222,7 +230,7 @@ class KeyManager:
         key_type: str,
         algorithm: str = EncryptionAlgorithm.AES256_GCM,
         expires_in_days: Optional[int] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> EncryptionKey:
         """
         Generate a new encryption key
@@ -244,14 +252,12 @@ class KeyManager:
             key_data = Fernet.generate_key()
         elif algorithm == EncryptionAlgorithm.RSA_OAEP:
             private_key = rsa.generate_private_key(
-                public_exponent=65537,
-                key_size=2048,
-                backend=default_backend()
+                public_exponent=65537, key_size=2048, backend=default_backend()
             )
             key_data = private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()
+                encryption_algorithm=serialization.NoEncryption(),
             )
         else:
             raise KeyManagementError(f"Unsupported algorithm: {algorithm}")
@@ -267,7 +273,7 @@ class KeyManager:
             algorithm=algorithm,
             created_at=datetime.utcnow(),
             expires_at=expires_at,
-            metadata=metadata
+            metadata=metadata,
         )
 
         self._keys[key_id] = key
@@ -299,7 +305,7 @@ class KeyManager:
             key_type=old_key.key_type,
             algorithm=old_key.algorithm,
             expires_in_days=expires_in_days,
-            metadata=old_key.metadata
+            metadata=old_key.metadata,
         )
 
         # Deactivate old key
@@ -343,7 +349,7 @@ class AESEncryption:
         self,
         data: Union[str, bytes],
         key_id: Optional[str] = None,
-        associated_data: Optional[bytes] = None
+        associated_data: Optional[bytes] = None,
     ) -> Dict[str, Any]:
         """
         Encrypt data using AES-256-GCM
@@ -366,7 +372,7 @@ class AESEncryption:
                 raise DataEncryptionError(f"Key not found: {key_id}")
 
         if isinstance(data, str):
-            data = data.encode('utf-8')
+            data = data.encode("utf-8")
 
         aesgcm = AESGCM(key.key_data)
         nonce = SecureRandomGenerator.generate_bytes(12)
@@ -374,11 +380,13 @@ class AESEncryption:
         encrypted_data = aesgcm.encrypt(nonce, data, associated_data)
 
         return {
-            "encrypted_data": base64.b64encode(encrypted_data).decode('utf-8'),
-            "nonce": base64.b64encode(nonce).decode('utf-8'),
+            "encrypted_data": base64.b64encode(encrypted_data).decode("utf-8"),
+            "nonce": base64.b64encode(nonce).decode("utf-8"),
             "key_id": key.key_id,
             "algorithm": key.algorithm,
-            "associated_data": base64.b64encode(associated_data).decode('utf-8') if associated_data else None
+            "associated_data": base64.b64encode(associated_data).decode("utf-8")
+            if associated_data
+            else None,
         }
 
     def decrypt(self, encrypted_payload: Dict[str, Any]) -> bytes:
@@ -424,17 +432,18 @@ class FieldEncryption:
             value = str(value)
 
         # Use field name as associated data for additional security
-        associated_data = field_name.encode('utf-8')
+        associated_data = field_name.encode("utf-8")
 
         encrypted_payload = self.aes_encryption.encrypt(
-            value,
-            associated_data=associated_data
+            value, associated_data=associated_data
         )
 
         # Store as JSON string in database
         return json.dumps(encrypted_payload)
 
-    def decrypt_field(self, encrypted_value: Optional[str], field_name: str) -> Optional[str]:
+    def decrypt_field(
+        self, encrypted_value: Optional[str], field_name: str
+    ) -> Optional[str]:
         """Decrypt a single field value"""
         if encrypted_value is None:
             return None
@@ -442,7 +451,7 @@ class FieldEncryption:
         try:
             encrypted_payload = json.loads(encrypted_value)
             decrypted_data = self.aes_encryption.decrypt(encrypted_payload)
-            return decrypted_data.decode('utf-8')
+            return decrypted_data.decode("utf-8")
         except Exception as e:
             logger.error(f"Failed to decrypt field {field_name}: {str(e)}")
             raise DataEncryptionError(f"Field decryption failed: {str(e)}")
@@ -456,10 +465,7 @@ class FileEncryption:
         self.aes_encryption = AESEncryption(key_manager)
 
     def encrypt_file(
-        self,
-        file_data: bytes,
-        original_filename: str,
-        key_id: Optional[str] = None
+        self, file_data: bytes, original_filename: str, key_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Encrypt file data
@@ -482,20 +488,20 @@ class FileEncryption:
                 raise DataEncryptionError(f"Key not found: {key_id}")
 
         # Use filename as associated data
-        associated_data = original_filename.encode('utf-8')
+        associated_data = original_filename.encode("utf-8")
 
         encrypted_payload = self.aes_encryption.encrypt(
-            file_data,
-            key_id=key_id,
-            associated_data=associated_data
+            file_data, key_id=key_id, associated_data=associated_data
         )
 
         # Add file-specific metadata
-        encrypted_payload.update({
-            "original_filename": original_filename,
-            "file_size_bytes": len(file_data),
-            "encryption_timestamp": datetime.utcnow().isoformat()
-        })
+        encrypted_payload.update(
+            {
+                "original_filename": original_filename,
+                "file_size_bytes": len(file_data),
+                "encryption_timestamp": datetime.utcnow().isoformat(),
+            }
+        )
 
         return encrypted_payload
 
@@ -533,8 +539,8 @@ class HashUtils:
         if salt is None:
             salt = SecureRandomGenerator.generate_bytes(32)
 
-        pwdhash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
-        return base64.b64encode(pwdhash).decode('utf-8'), salt
+        pwdhash = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000)
+        return base64.b64encode(pwdhash).decode("utf-8"), salt
 
     @staticmethod
     def verify_password(password: str, hashed_password: str, salt: bytes) -> bool:
@@ -553,7 +559,7 @@ class HashUtils:
         return test_hash == hashed_password
 
     @staticmethod
-    def hash_data(data: Union[str, bytes], algorithm: str = 'sha256') -> str:
+    def hash_data(data: Union[str, bytes], algorithm: str = "sha256") -> str:
         """
         Hash data using specified algorithm
 
@@ -565,7 +571,7 @@ class HashUtils:
             Hex-encoded hash
         """
         if isinstance(data, str):
-            data = data.encode('utf-8')
+            data = data.encode("utf-8")
 
         hash_func = getattr(hashlib, algorithm)()
         hash_func.update(data)
@@ -584,7 +590,7 @@ class HashUtils:
             Hex-encoded HMAC signature
         """
         if isinstance(data, str):
-            data = data.encode('utf-8')
+            data = data.encode("utf-8")
 
         h = hmac.HMAC(key, hashes.SHA256())
         h.update(data)
@@ -630,28 +636,36 @@ def initialize_encryption(master_key_env_var: str = "ENCRYPTION_MASTER_KEY") -> 
 def get_key_manager() -> KeyManager:
     """Get global key manager instance"""
     if _key_manager is None:
-        raise EncryptionError("Encryption not initialized. Call initialize_encryption() first.")
+        raise EncryptionError(
+            "Encryption not initialized. Call initialize_encryption() first."
+        )
     return _key_manager
 
 
 def get_aes_encryption() -> AESEncryption:
     """Get global AES encryption instance"""
     if _aes_encryption is None:
-        raise EncryptionError("Encryption not initialized. Call initialize_encryption() first.")
+        raise EncryptionError(
+            "Encryption not initialized. Call initialize_encryption() first."
+        )
     return _aes_encryption
 
 
 def get_field_encryption() -> FieldEncryption:
     """Get global field encryption instance"""
     if _field_encryption is None:
-        raise EncryptionError("Encryption not initialized. Call initialize_encryption() first.")
+        raise EncryptionError(
+            "Encryption not initialized. Call initialize_encryption() first."
+        )
     return _field_encryption
 
 
 def get_file_encryption() -> FileEncryption:
     """Get global file encryption instance"""
     if _file_encryption is None:
-        raise EncryptionError("Encryption not initialized. Call initialize_encryption() first.")
+        raise EncryptionError(
+            "Encryption not initialized. Call initialize_encryption() first."
+        )
     return _file_encryption
 
 
@@ -661,7 +675,9 @@ def encrypt_sensitive_field(value: Any, field_name: str) -> Optional[str]:
     return get_field_encryption().encrypt_field(value, field_name)
 
 
-def decrypt_sensitive_field(encrypted_value: Optional[str], field_name: str) -> Optional[str]:
+def decrypt_sensitive_field(
+    encrypted_value: Optional[str], field_name: str
+) -> Optional[str]:
     """Decrypt a sensitive field value"""
     return get_field_encryption().decrypt_field(encrypted_value, field_name)
 

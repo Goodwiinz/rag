@@ -2,38 +2,42 @@
 Multimodal Processing Service with async pipeline for OCR, transcription, and AI analysis
 """
 
-import os
 import asyncio
-import uuid
+import logging
+import os
 import time
-from typing import Optional, Dict, Any, List, Tuple
+import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 from sqlalchemy.orm import Session
-import logging
 
 # OCR and document processing
 try:
-    import pytesseract
     import fitz  # PyMuPDF
     import pdfplumber
+    import pytesseract
+
     OCR_AVAILABLE = True
 except ImportError:
     OCR_AVAILABLE = False
 
 # Image processing
 try:
-    from PIL import Image
     import cv2
     import numpy as np
+    from PIL import Image
+
     IMAGE_PROCESSING_AVAILABLE = True
 except ImportError:
     IMAGE_PROCESSING_AVAILABLE = False
 
 # Audio processing
 try:
-    import whisper
     import librosa
+    import whisper
+
     AUDIO_PROCESSING_AVAILABLE = True
 except ImportError:
     AUDIO_PROCESSING_AVAILABLE = False
@@ -42,14 +46,16 @@ except ImportError:
 try:
     import cv2
     import ffmpeg
+
     VIDEO_PROCESSING_AVAILABLE = True
 except ImportError:
     VIDEO_PROCESSING_AVAILABLE = False
 
 # AI processing
 try:
-    import openai
     import anthropic
+    import openai
+
     AI_PROCESSING_AVAILABLE = True
 except ImportError:
     AI_PROCESSING_AVAILABLE = False
@@ -59,11 +65,12 @@ from fastapi import Depends
 from src.core.config import settings
 from src.core.database import get_db
 from src.models.document import Document, DocumentType, ProcessingStatus
-from src.models.processing import ProcessingJob, JobType, JobStatus
-from src.services.processing.entity_extraction_service import EntityExtractionService
+from src.models.processing import JobStatus, JobType, ProcessingJob
 from src.services.embedding.embedding_service import EmbeddingService
+from src.services.processing.entity_extraction_service import EntityExtractionService
 
 logger = logging.getLogger(__name__)
+
 
 class ProcessingStep:
     """Represents a processing step in the pipeline"""
@@ -76,6 +83,7 @@ class ProcessingStep:
         self.end_time = None
         self.success = False
         self.error_message = None
+
 
 class MultimodalProcessingService:
     """Service for processing multimodal documents with async pipeline"""
@@ -95,7 +103,9 @@ class MultimodalProcessingService:
             self.openai_client = openai
 
         if settings.ANTHROPIC_API_KEY and AI_PROCESSING_AVAILABLE:
-            self.anthropic_client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+            self.anthropic_client = anthropic.Anthropic(
+                api_key=settings.ANTHROPIC_API_KEY
+            )
 
         # Initialize AI models
         self.whisper_model = None
@@ -110,10 +120,7 @@ class MultimodalProcessingService:
         self.embedding_service = None
 
     async def process_document(
-        self,
-        document: Document,
-        job: ProcessingJob,
-        upload_id: Optional[str] = None
+        self, document: Document, job: ProcessingJob, upload_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Main processing pipeline for multimodal documents
@@ -127,7 +134,7 @@ class MultimodalProcessingService:
             "quality_assessment": {},
             "processing_time": 0,
             "success": False,
-            "errors": []
+            "errors": [],
         }
 
         try:
@@ -186,7 +193,9 @@ class MultimodalProcessingService:
             job.complete_job(
                 result={"processing_results": processing_results},
                 artifacts={"processed_files": self.get_processed_files(document)},
-                metrics={"processing_time_seconds": processing_results["processing_time"]}
+                metrics={
+                    "processing_time_seconds": processing_results["processing_time"]
+                },
             )
             self.db.commit()
 
@@ -204,50 +213,66 @@ class MultimodalProcessingService:
             processing_results["errors"].append(error_msg)
             return processing_results
 
-    def get_processing_pipeline(self, document_type: DocumentType) -> List[ProcessingStep]:
+    def get_processing_pipeline(
+        self, document_type: DocumentType
+    ) -> List[ProcessingStep]:
         """Get processing pipeline based on document type"""
 
         # Common steps for all document types
         common_steps = [
             ProcessingStep("Text Extraction", self.extract_text_content),
             ProcessingStep("Entity Extraction", self.extract_entities),
-            ProcessingStep("Knowledge Graph Storage", self.store_entities_in_knowledge_graph, required=False),
+            ProcessingStep(
+                "Knowledge Graph Storage",
+                self.store_entities_in_knowledge_graph,
+                required=False,
+            ),
             ProcessingStep("Embedding Generation", self.generate_embeddings),
             ProcessingStep("AI Analysis", self.perform_ai_analysis, required=False),
-            ProcessingStep("Quality Assessment", self.assess_quality, required=False)
+            ProcessingStep("Quality Assessment", self.assess_quality, required=False),
         ]
 
         # Document type-specific steps
         if document_type == DocumentType.PDF:
             return [
                 ProcessingStep("PDF Processing", self.process_pdf),
-                ProcessingStep("OCR Extraction", self.extract_text_with_ocr, required=False),
-                *common_steps
+                ProcessingStep(
+                    "OCR Extraction", self.extract_text_with_ocr, required=False
+                ),
+                *common_steps,
             ]
         elif document_type == DocumentType.IMAGE:
             return [
                 ProcessingStep("Image Processing", self.process_image),
-                ProcessingStep("Image OCR", self.extract_text_from_image, required=False),
-                ProcessingStep("Image Analysis", self.analyze_image_content, required=False),
-                *common_steps
+                ProcessingStep(
+                    "Image OCR", self.extract_text_from_image, required=False
+                ),
+                ProcessingStep(
+                    "Image Analysis", self.analyze_image_content, required=False
+                ),
+                *common_steps,
             ]
         elif document_type == DocumentType.AUDIO:
             return [
                 ProcessingStep("Audio Processing", self.process_audio),
                 ProcessingStep("Audio Transcription", self.transcribe_audio),
-                *common_steps
+                *common_steps,
             ]
         elif document_type == DocumentType.VIDEO:
             return [
                 ProcessingStep("Video Processing", self.process_video),
                 ProcessingStep("Frame Extraction", self.extract_video_frames),
-                ProcessingStep("Audio Extraction", self.extract_audio_from_video, required=False),
-                *common_steps
+                ProcessingStep(
+                    "Audio Extraction", self.extract_audio_from_video, required=False
+                ),
+                *common_steps,
             ]
         else:
             return common_steps
 
-    async def process_pdf(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def process_pdf(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Process PDF document"""
         try:
             if not OCR_AVAILABLE:
@@ -258,7 +283,7 @@ class MultimodalProcessingService:
                 "text_content": "",
                 "page_count": 0,
                 "images_extracted": 0,
-                "metadata": {}
+                "metadata": {},
             }
 
             # Extract text using PyMuPDF
@@ -282,7 +307,7 @@ class MultimodalProcessingService:
                     "creator": metadata.get("creator", ""),
                     "producer": metadata.get("producer", ""),
                     "creation_date": metadata.get("creationDate", ""),
-                    "modification_date": metadata.get("modDate", "")
+                    "modification_date": metadata.get("modDate", ""),
                 }
 
                 pdf_document.close()
@@ -293,6 +318,7 @@ class MultimodalProcessingService:
                 # Fallback to pdfplumber
                 try:
                     import pdfplumber
+
                     with pdfplumber.open(file_path) as pdf:
                         text_content = []
                         for page in pdf.pages:
@@ -311,26 +337,24 @@ class MultimodalProcessingService:
             logger.error(f"PDF processing failed: {str(e)}")
             raise
 
-    async def extract_text_with_ocr(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def extract_text_with_ocr(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Extract text from PDF using OCR"""
         try:
             if not OCR_AVAILABLE:
                 return {"error": "OCR not available"}
 
             file_path = document.file_path
-            results = {
-                "ocr_text": "",
-                "confidence_scores": [],
-                "processing_time": 0
-            }
+            results = {"ocr_text": "", "confidence_scores": [], "processing_time": 0}
 
             start_time = time.time()
 
             # Use pytesseract for OCR
             try:
+                import fitz
                 import pytesseract
                 from PIL import Image
-                import fitz
 
                 pdf_document = fitz.open(file_path)
                 ocr_text_pages = []
@@ -339,19 +363,25 @@ class MultimodalProcessingService:
                     page = pdf_document.load_page(page_num)
 
                     # Convert page to image
-                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x zoom for better OCR
+                    pix = page.get_pixmap(
+                        matrix=fitz.Matrix(2, 2)
+                    )  # 2x zoom for better OCR
                     img_data = pix.tobytes("png")
 
                     # Perform OCR
                     image = Image.open(io.BytesIO(img_data))
                     text = pytesseract.image_to_string(image)
-                    confidence = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
+                    confidence = pytesseract.image_to_data(
+                        image, output_type=pytesseract.Output.DICT
+                    )
 
                     ocr_text_pages.append(text)
 
                     # Calculate average confidence
-                    if confidence.get('conf'):
-                        avg_confidence = sum(conf['conf'] for conf in confidence['conf'] if conf > 0) / len([c for c in confidence['conf'] if c > 0])
+                    if confidence.get("conf"):
+                        avg_confidence = sum(
+                            conf["conf"] for conf in confidence["conf"] if conf > 0
+                        ) / len([c for c in confidence["conf"] if c > 0])
                         results["confidence_scores"].append(avg_confidence)
 
                 results["ocr_text"] = "\n".join(ocr_text_pages)
@@ -369,7 +399,9 @@ class MultimodalProcessingService:
             logger.error(f"OCR extraction failed: {str(e)}")
             raise
 
-    async def process_image(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def process_image(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Process image document"""
         try:
             if not IMAGE_PROCESSING_AVAILABLE:
@@ -383,27 +415,30 @@ class MultimodalProcessingService:
                 "mode": "",
                 "size_bytes": 0,
                 "has_transparency": False,
-                "color_analysis": {}
+                "color_analysis": {},
             }
 
             # Analyze image using PIL
             with Image.open(file_path) as img:
-                results.update({
-                    "width": img.width,
-                    "height": img.height,
-                    "format": img.format,
-                    "mode": img.mode,
-                    "has_transparency": img.mode in ('RGBA', 'LA') or 'transparency' in img.info
-                })
+                results.update(
+                    {
+                        "width": img.width,
+                        "height": img.height,
+                        "format": img.format,
+                        "mode": img.mode,
+                        "has_transparency": img.mode in ("RGBA", "LA")
+                        or "transparency" in img.info,
+                    }
+                )
 
                 # Basic color analysis
-                if img.mode == 'RGB':
+                if img.mode == "RGB":
                     # Convert to numpy array for analysis
                     img_array = np.array(img)
                     results["color_analysis"] = {
                         "mean_color": img_array.mean(axis=(0, 1)).tolist(),
                         "brightness": np.mean(img_array),
-                        "contrast": np.std(img_array)
+                        "contrast": np.std(img_array),
                     }
 
             results["size_bytes"] = os.path.getsize(file_path)
@@ -414,7 +449,9 @@ class MultimodalProcessingService:
             logger.error(f"Image processing failed: {str(e)}")
             raise
 
-    async def extract_text_from_image(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def extract_text_from_image(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Extract text from image using OCR"""
         try:
             if not OCR_AVAILABLE:
@@ -424,7 +461,7 @@ class MultimodalProcessingService:
             results = {
                 "extracted_text": "",
                 "confidence_score": 0,
-                "processing_time": 0
+                "processing_time": 0,
             }
 
             start_time = time.time()
@@ -432,17 +469,21 @@ class MultimodalProcessingService:
             # Perform OCR using pytesseract
             with Image.open(file_path) as img:
                 # Preprocess image for better OCR
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
 
                 # Extract text
                 text = pytesseract.image_to_string(img)
 
                 # Get confidence scores
                 try:
-                    data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
-                    confidences = [int(conf) for conf in data['conf'] if int(conf) > 0]
-                    avg_confidence = sum(confidences) / len(confidences) if confidences else 0
+                    data = pytesseract.image_to_data(
+                        img, output_type=pytesseract.Output.DICT
+                    )
+                    confidences = [int(conf) for conf in data["conf"] if int(conf) > 0]
+                    avg_confidence = (
+                        sum(confidences) / len(confidences) if confidences else 0
+                    )
                     results["confidence_score"] = avg_confidence
                 except:
                     results["confidence_score"] = 0
@@ -456,7 +497,9 @@ class MultimodalProcessingService:
             logger.error(f"Image OCR failed: {str(e)}")
             raise
 
-    async def analyze_image_content(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def analyze_image_content(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Analyze image content using AI"""
         try:
             if not self.openai_client:
@@ -467,7 +510,7 @@ class MultimodalProcessingService:
                 "description": "",
                 "objects": [],
                 "scene_analysis": {},
-                "confidence_scores": []
+                "confidence_scores": [],
             }
 
             # This would require vision model integration
@@ -482,7 +525,9 @@ class MultimodalProcessingService:
             logger.error(f"Image analysis failed: {str(e)}")
             raise
 
-    async def process_audio(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def process_audio(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Process audio document"""
         try:
             if not AUDIO_PROCESSING_AVAILABLE:
@@ -495,7 +540,7 @@ class MultimodalProcessingService:
                 "channels": 0,
                 "format": "",
                 "bitrate": 0,
-                "file_size": 0
+                "file_size": 0,
             }
 
             # Analyze audio using librosa
@@ -503,17 +548,20 @@ class MultimodalProcessingService:
                 y, sr = librosa.load(file_path, sr=None)
                 duration = librosa.get_duration(y=y, sr=sr)
 
-                results.update({
-                    "duration": duration,
-                    "sample_rate": sr,
-                    "channels": 1 if y.ndim == 1 else y.shape[0]
-                })
+                results.update(
+                    {
+                        "duration": duration,
+                        "sample_rate": sr,
+                        "channels": 1 if y.ndim == 1 else y.shape[0],
+                    }
+                )
 
             except Exception as e:
                 logger.error(f"Librosa analysis failed: {str(e)}")
 
                 # Fallback basic analysis
                 import mutagen
+
                 try:
                     audio_file = mutagen.File(file_path)
                     if audio_file is not None:
@@ -531,7 +579,9 @@ class MultimodalProcessingService:
             logger.error(f"Audio processing failed: {str(e)}")
             raise
 
-    async def transcribe_audio(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def transcribe_audio(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Transcribe audio using Whisper"""
         try:
             if not self.whisper_model:
@@ -542,7 +592,7 @@ class MultimodalProcessingService:
                 "transcription": "",
                 "language": "",
                 "confidence": 0,
-                "processing_time": 0
+                "processing_time": 0,
             }
 
             start_time = time.time()
@@ -560,7 +610,9 @@ class MultimodalProcessingService:
             logger.error(f"Audio transcription failed: {str(e)}")
             raise
 
-    async def process_video(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def process_video(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Process video document"""
         try:
             if not VIDEO_PROCESSING_AVAILABLE:
@@ -574,7 +626,7 @@ class MultimodalProcessingService:
                 "height": 0,
                 "frames_count": 0,
                 "format": "",
-                "file_size": 0
+                "file_size": 0,
             }
 
             # Analyze video using OpenCV
@@ -586,7 +638,11 @@ class MultimodalProcessingService:
                     results["width"] = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                     results["height"] = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                     results["frames_count"] = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                    results["duration"] = results["frames_count"] / results["fps"] if results["fps"] > 0 else 0
+                    results["duration"] = (
+                        results["frames_count"] / results["fps"]
+                        if results["fps"] > 0
+                        else 0
+                    )
 
                 cap.release()
 
@@ -602,7 +658,9 @@ class MultimodalProcessingService:
             logger.error(f"Video processing failed: {str(e)}")
             raise
 
-    async def extract_video_frames(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def extract_video_frames(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Extract key frames from video"""
         try:
             if not VIDEO_PROCESSING_AVAILABLE:
@@ -612,7 +670,7 @@ class MultimodalProcessingService:
             results = {
                 "extracted_frames": [],
                 "frame_count": 0,
-                "extraction_method": "uniform"
+                "extraction_method": "uniform",
             }
 
             # Create output directory for frames
@@ -631,7 +689,9 @@ class MultimodalProcessingService:
 
                 # Extract 10 frames uniformly distributed
                 frames_to_extract = min(10, total_frames)
-                frame_interval = total_frames // frames_to_extract if frames_to_extract > 0 else 1
+                frame_interval = (
+                    total_frames // frames_to_extract if frames_to_extract > 0 else 1
+                )
 
                 extracted_frames = []
                 for i in range(0, total_frames, frame_interval):
@@ -643,12 +703,14 @@ class MultimodalProcessingService:
                         frame_path = frames_dir / frame_filename
 
                         cv2.imwrite(str(frame_path), frame)
-                        extracted_frames.append({
-                            "frame_number": i,
-                            "timestamp": i / fps if fps > 0 else 0,
-                            "filename": frame_filename,
-                            "path": str(frame_path)
-                        })
+                        extracted_frames.append(
+                            {
+                                "frame_number": i,
+                                "timestamp": i / fps if fps > 0 else 0,
+                                "filename": frame_filename,
+                                "path": str(frame_path),
+                            }
+                        )
 
                         if len(extracted_frames) >= frames_to_extract:
                             break
@@ -668,15 +730,13 @@ class MultimodalProcessingService:
             logger.error(f"Video frame extraction failed: {str(e)}")
             raise
 
-    async def extract_audio_from_video(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def extract_audio_from_video(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Extract audio from video"""
         try:
             file_path = document.file_path
-            results = {
-                "audio_extracted": False,
-                "audio_path": "",
-                "audio_duration": 0
-            }
+            results = {"audio_extracted": False, "audio_path": "", "audio_duration": 0}
 
             # Extract audio using ffmpeg-python
             try:
@@ -685,10 +745,8 @@ class MultimodalProcessingService:
                 audio_path = self.processed_dir / f"{document.id}_audio.wav"
 
                 (
-                    ffmpeg
-                    .input(file_path)
-                    .audio
-                    .output(str(audio_path))
+                    ffmpeg.input(file_path)
+                    .audio.output(str(audio_path))
                     .overwrite_output()
                     .run(capture_stdout=True, capture_stderr=True)
                 )
@@ -700,6 +758,7 @@ class MultimodalProcessingService:
                     # Get audio duration
                     try:
                         import librosa
+
                         y, sr = librosa.load(str(audio_path), sr=None)
                         results["audio_duration"] = librosa.get_duration(y=y, sr=sr)
                     except:
@@ -715,7 +774,9 @@ class MultimodalProcessingService:
             logger.error(f"Video audio extraction failed: {str(e)}")
             raise
 
-    async def extract_text_content(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def extract_text_content(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Extract text content from document"""
         try:
             results = {
@@ -723,11 +784,12 @@ class MultimodalProcessingService:
                 "extraction_method": "",
                 "confidence": 0,
                 "word_count": 0,
-                "character_count": 0
+                "character_count": 0,
             }
 
             # Use existing file_service for text extraction
             from src.services.documents.file_service import FileService
+
             file_service = FileService(self.db)
 
             text_content = file_service.extract_text_content(document)
@@ -743,7 +805,9 @@ class MultimodalProcessingService:
             logger.error(f"Text extraction failed: {str(e)}")
             raise
 
-    async def extract_entities(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def extract_entities(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Extract entities from document text"""
         try:
             if not self.entity_service:
@@ -757,7 +821,7 @@ class MultimodalProcessingService:
                 "entities": [],
                 "entity_count": 0,
                 "extraction_method": "spacy",
-                "processing_time": 0
+                "processing_time": 0,
             }
 
             start_time = time.time()
@@ -766,7 +830,7 @@ class MultimodalProcessingService:
             entities = await self.entity_service.extract_entities_from_text(
                 text_content,
                 document_id=document.id,
-                organization_id=document.organization_id
+                organization_id=document.organization_id,
             )
 
             results["entities"] = [
@@ -775,7 +839,7 @@ class MultimodalProcessingService:
                     "label": entity.entity_type.value,
                     "confidence": entity.confidence_score,
                     "start": entity.metadata.get("start", 0) if entity.metadata else 0,
-                    "end": entity.metadata.get("end", 0) if entity.metadata else 0
+                    "end": entity.metadata.get("end", 0) if entity.metadata else 0,
                 }
                 for entity in entities
             ]
@@ -789,23 +853,37 @@ class MultimodalProcessingService:
             logger.error(f"Entity extraction failed: {str(e)}")
             raise
 
-    async def store_entities_in_knowledge_graph(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def store_entities_in_knowledge_graph(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Store extracted entities and relationships in the knowledge graph"""
         try:
-            from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
-            from src.models.graph import CreateEntityRequest, CreateRelationshipRequest, EntityType as GraphEntityType, ExtractionMethod as GraphExtractionMethod, RelationshipType as GraphRelationshipType
-            from src.services.processing.entity_extraction_service import EntityExtractionService as SpacyEntityService
             import spacy
+
+            from src.models.graph import CreateEntityRequest, CreateRelationshipRequest
+            from src.models.graph import EntityType as GraphEntityType
+            from src.models.graph import ExtractionMethod as GraphExtractionMethod
+            from src.models.graph import RelationshipType as GraphRelationshipType
+            from src.services.knowledge_graph.knowledge_graph_service import (
+                knowledge_graph_service,
+            )
+            from src.services.processing.entity_extraction_service import (
+                EntityExtractionService as SpacyEntityService,
+            )
 
             text_content = document.content_text or ""
             if not text_content:
-                return {"entities_stored": 0, "relationships_stored": 0, "reason": "No text content"}
+                return {
+                    "entities_stored": 0,
+                    "relationships_stored": 0,
+                    "reason": "No text content",
+                }
 
             results = {
                 "entities_stored": 0,
                 "relationships_stored": 0,
                 "processing_time": 0,
-                "errors": []
+                "errors": [],
             }
 
             start_time = time.time()
@@ -823,7 +901,7 @@ class MultimodalProcessingService:
                 return {
                     **results,
                     "processing_time": time.time() - start_time,
-                    "reason": "No entities extracted"
+                    "reason": "No entities extracted",
                 }
 
             # Store entities in knowledge graph
@@ -833,23 +911,31 @@ class MultimodalProcessingService:
             for entity in entities:
                 try:
                     # Map entity types
-                    entity_type_str = entity.entity_type.value if hasattr(entity.entity_type, 'value') else str(entity.entity_type)
+                    entity_type_str = (
+                        entity.entity_type.value
+                        if hasattr(entity.entity_type, "value")
+                        else str(entity.entity_type)
+                    )
 
                     # Get confidence score - handle different attribute names
                     confidence = 0.8
-                    if hasattr(entity, 'confidence_score'):
+                    if hasattr(entity, "confidence_score"):
                         confidence = entity.confidence_score
-                    elif hasattr(entity, 'confidence'):
+                    elif hasattr(entity, "confidence"):
                         confidence = entity.confidence
-                    elif hasattr(entity, 'relevance_score'):
+                    elif hasattr(entity, "relevance_score"):
                         confidence = entity.relevance_score
 
                     # Get context
                     context = None
-                    if hasattr(entity, 'context') and entity.context:
+                    if hasattr(entity, "context") and entity.context:
                         context = entity.context
-                    elif hasattr(entity, 'properties') and entity.properties and 'context_window' in entity.properties:
-                        context = entity.properties['context_window']
+                    elif (
+                        hasattr(entity, "properties")
+                        and entity.properties
+                        and "context_window" in entity.properties
+                    ):
+                        context = entity.properties["context_window"]
                     else:
                         context = text_content[:200]
 
@@ -864,9 +950,9 @@ class MultimodalProcessingService:
                             "document_id": str(document.id),
                             "document_title": document.title,
                             "extraction_date": datetime.utcnow().isoformat(),
-                            "source": "document_processing"
+                            "source": "document_processing",
                         },
-                        source_document_id=str(document.id)
+                        source_document_id=str(document.id),
                     )
 
                     # Store in knowledge graph
@@ -875,7 +961,9 @@ class MultimodalProcessingService:
                     local_entity_map[entity.name.lower()] = (entity, graph_entity.id)
                     results["entities_stored"] += 1
 
-                    logger.info(f"Stored entity in knowledge graph: {entity.name} ({entity_type_str})")
+                    logger.info(
+                        f"Stored entity in knowledge graph: {entity.name} ({entity_type_str})"
+                    )
 
                 except Exception as e:
                     error_msg = f"Failed to store entity {entity.name}: {str(e)}"
@@ -884,15 +972,19 @@ class MultimodalProcessingService:
 
             # Extract and store relationships
             try:
-                relationships = entity_service._extract_relationships(spacy_doc, entities)
+                relationships = entity_service._extract_relationships(
+                    spacy_doc, entities
+                )
 
-                logger.info(f"Extracted {len(relationships)} relationships from document")
+                logger.info(
+                    f"Extracted {len(relationships)} relationships from document"
+                )
 
                 for rel in relationships:
                     try:
-                        source_entity = rel.get('source_entity')
-                        target_entity = rel.get('target_entity')
-                        relationship_type = rel.get('relationship_type', 'related_to')
+                        source_entity = rel.get("source_entity")
+                        target_entity = rel.get("target_entity")
+                        relationship_type = rel.get("relationship_type", "related_to")
 
                         # Get graph IDs for source and target entities
                         source_graph_id = entity_map.get(source_entity.id)
@@ -903,20 +995,19 @@ class MultimodalProcessingService:
 
                         # Map relationship type to GraphRelationshipType
                         relationship_type_mapping = {
-                            'works_for': GraphRelationshipType.WORKS_FOR,
-                            'located_in': GraphRelationshipType.LOCATED_IN,
-                            'part_of': GraphRelationshipType.PART_OF,
-                            'related_to': GraphRelationshipType.RELATED_TO,
-                            'owns': GraphRelationshipType.OWNS,
-                            'created_by': GraphRelationshipType.CREATED_BY,
-                            'manages': GraphRelationshipType.MANAGES,
-                            'knows': GraphRelationshipType.KNOWS,
-                            'collaborates_with': GraphRelationshipType.COLLABORATES_WITH
+                            "works_for": GraphRelationshipType.WORKS_FOR,
+                            "located_in": GraphRelationshipType.LOCATED_IN,
+                            "part_of": GraphRelationshipType.PART_OF,
+                            "related_to": GraphRelationshipType.RELATED_TO,
+                            "owns": GraphRelationshipType.OWNS,
+                            "created_by": GraphRelationshipType.CREATED_BY,
+                            "manages": GraphRelationshipType.MANAGES,
+                            "knows": GraphRelationshipType.KNOWS,
+                            "collaborates_with": GraphRelationshipType.COLLABORATES_WITH,
                         }
 
                         graph_rel_type = relationship_type_mapping.get(
-                            relationship_type.lower(),
-                            GraphRelationshipType.RELATED_TO
+                            relationship_type.lower(), GraphRelationshipType.RELATED_TO
                         )
 
                         # Create relationship request
@@ -924,23 +1015,27 @@ class MultimodalProcessingService:
                             source_entity_id=source_graph_id,
                             target_entity_id=target_graph_id,
                             relationship_type=graph_rel_type,
-                            confidence_score=rel.get('confidence', 0.7),
-                            context=rel.get('evidence', ''),
-                            evidence=[rel.get('evidence', '')] if rel.get('evidence') else [],
+                            confidence_score=rel.get("confidence", 0.7),
+                            context=rel.get("evidence", ""),
+                            evidence=[rel.get("evidence", "")]
+                            if rel.get("evidence")
+                            else [],
                             metadata={
                                 "document_id": str(document.id),
-                                "pattern_matched": rel.get('pattern_matched', ''),
+                                "pattern_matched": rel.get("pattern_matched", ""),
                                 "extraction_date": datetime.utcnow().isoformat(),
-                                "source": "document_processing"
+                                "source": "document_processing",
                             },
-                            source_document_id=str(document.id)
+                            source_document_id=str(document.id),
                         )
 
                         # Store relationship in knowledge graph
                         knowledge_graph_service.create_relationship(rel_request)
                         results["relationships_stored"] += 1
 
-                        logger.info(f"Stored relationship: {source_entity.name} --[{graph_rel_type.value}]--> {target_entity.name}")
+                        logger.info(
+                            f"Stored relationship: {source_entity.name} --[{graph_rel_type.value}]--> {target_entity.name}"
+                        )
 
                     except Exception as e:
                         error_msg = f"Failed to store relationship: {str(e)}"
@@ -954,7 +1049,9 @@ class MultimodalProcessingService:
 
             results["processing_time"] = time.time() - start_time
 
-            logger.info(f"Stored {results['entities_stored']} entities and {results['relationships_stored']} relationships in knowledge graph for document {document.id}")
+            logger.info(
+                f"Stored {results['entities_stored']} entities and {results['relationships_stored']} relationships in knowledge graph for document {document.id}"
+            )
 
             return results
 
@@ -964,10 +1061,12 @@ class MultimodalProcessingService:
                 "entities_stored": 0,
                 "relationships_stored": 0,
                 "processing_time": 0,
-                "errors": [str(e)]
+                "errors": [str(e)],
             }
 
-    async def generate_embeddings(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def generate_embeddings(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Generate embeddings for document"""
         try:
             if not self.embedding_service:
@@ -981,7 +1080,7 @@ class MultimodalProcessingService:
                 "embedding_generated": False,
                 "embedding_id": None,
                 "vector_dimension": 0,
-                "processing_time": 0
+                "processing_time": 0,
             }
 
             start_time = time.time()
@@ -990,16 +1089,20 @@ class MultimodalProcessingService:
             embedding_id = await self.embedding_service.generate_and_store_embedding(
                 text=text_content,
                 document_id=document.id,
-                organization_id=document.organization_id
+                organization_id=document.organization_id,
             )
 
             if embedding_id:
-                results.update({
-                    "embedding_generated": True,
-                    "embedding_id": embedding_id,
-                    "vector_dimension": getattr(settings, 'EMBEDDING_DIMENSION', 384),
-                    "processing_time": time.time() - start_time
-                })
+                results.update(
+                    {
+                        "embedding_generated": True,
+                        "embedding_id": embedding_id,
+                        "vector_dimension": getattr(
+                            settings, "EMBEDDING_DIMENSION", 384
+                        ),
+                        "processing_time": time.time() - start_time,
+                    }
+                )
 
                 # Update document
                 document.embedding_id = embedding_id
@@ -1012,11 +1115,16 @@ class MultimodalProcessingService:
             logger.error(f"Embedding generation failed: {str(e)}")
             raise
 
-    async def perform_ai_analysis(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def perform_ai_analysis(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Perform AI analysis on document"""
         try:
             if not (self.openai_client or self.anthropic_client):
-                return {"analysis_performed": False, "reason": "AI clients not available"}
+                return {
+                    "analysis_performed": False,
+                    "reason": "AI clients not available",
+                }
 
             text_content = document.content_text or ""
             if not text_content:
@@ -1028,7 +1136,7 @@ class MultimodalProcessingService:
                 "key_topics": [],
                 "sentiment": {},
                 "insights": [],
-                "processing_time": 0
+                "processing_time": 0,
             }
 
             start_time = time.time()
@@ -1041,15 +1149,15 @@ class MultimodalProcessingService:
                         messages=[
                             {
                                 "role": "system",
-                                "content": "Analyze the following document and provide a summary, key topics, sentiment, and insights."
+                                "content": "Analyze the following document and provide a summary, key topics, sentiment, and insights.",
                             },
                             {
                                 "role": "user",
-                                "content": text_content[:4000]  # Limit text length
-                            }
+                                "content": text_content[:4000],  # Limit text length
+                            },
                         ],
                         max_tokens=500,
-                        temperature=0.3
+                        temperature=0.3,
                     )
 
                     analysis_text = response.choices[0].message.content
@@ -1069,15 +1177,21 @@ class MultimodalProcessingService:
             logger.error(f"AI analysis failed: {str(e)}")
             raise
 
-    async def assess_quality(self, document: Document, job: ProcessingJob) -> Dict[str, Any]:
+    async def assess_quality(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
         """Assess document quality"""
         try:
-            from src.services.documents.document_quality_service import DocumentQualityService
+            from src.services.documents.document_quality_service import (
+                DocumentQualityService,
+            )
 
-            if not hasattr(self, 'quality_service'):
+            if not hasattr(self, "quality_service"):
                 self.quality_service = DocumentQualityService(self.db)
 
-            results = await self.quality_service.comprehensive_quality_assessment(document)
+            results = await self.quality_service.comprehensive_quality_assessment(
+                document
+            )
             results["quality_assessment_performed"] = True
 
             return results
@@ -1087,14 +1201,18 @@ class MultimodalProcessingService:
             return {
                 "quality_assessment_performed": False,
                 "error": str(e),
-                "overall_score": 0.0
+                "overall_score": 0.0,
             }
 
-    async def update_document_with_results(self, document: Document, results: Dict[str, Any]):
+    async def update_document_with_results(
+        self, document: Document, results: Dict[str, Any]
+    ):
         """Update document with processing results"""
         try:
             # Update text content
-            if "text_extraction" in results and results["text_extraction"].get("text_content"):
+            if "text_extraction" in results and results["text_extraction"].get(
+                "text_content"
+            ):
                 document.content_text = results["text_extraction"]["text_content"]
 
             # Update processing status
@@ -1138,7 +1256,9 @@ class MultimodalProcessingService:
 
         return processed_files
 
-    def estimate_processing_time(self, document_type: DocumentType, file_size_bytes: int) -> int:
+    def estimate_processing_time(
+        self, document_type: DocumentType, file_size_bytes: int
+    ) -> int:
         """Estimate processing time in seconds"""
         base_times = {
             DocumentType.TEXT: 5,
@@ -1148,7 +1268,7 @@ class MultimodalProcessingService:
             DocumentType.VIDEO: 120,
             DocumentType.SPREADSHEET: 10,
             DocumentType.PRESENTATION: 20,
-            DocumentType.MULTIMODAL: 45
+            DocumentType.MULTIMODAL: 45,
         }
 
         base_time = base_times.get(document_type, 30)
@@ -1160,7 +1280,10 @@ class MultimodalProcessingService:
         estimated_time = int(base_time * size_factor)
         return min(estimated_time, 600)  # Cap at 10 minutes
 
+
 # Dependency injection
-def get_multimodal_processing_service(db: Session = Depends(get_db)) -> MultimodalProcessingService:
+def get_multimodal_processing_service(
+    db: Session = Depends(get_db),
+) -> MultimodalProcessingService:
     """Get multimodal processing service instance"""
     return MultimodalProcessingService(db)

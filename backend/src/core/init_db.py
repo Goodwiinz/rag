@@ -2,22 +2,25 @@
 Database initialization and setup utilities
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Add src directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
+import logging
+
 from sqlalchemy import create_engine
+
 from src.core.config import settings
 from src.core.database import Base, get_db
 from src.models import *
 from src.models.organization import Organization, StorageTier
 from src.models.user import User, UserRole
-import logging
 
 logger = logging.getLogger(__name__)
+
 
 def create_database():
     """Create all database tables"""
@@ -33,6 +36,7 @@ def create_database():
         logger.error(f"Failed to create database tables: {e}")
         return False
 
+
 def create_default_organization():
     """Create default organization if it doesn't exist"""
     from src.core.database import SessionLocal
@@ -40,14 +44,20 @@ def create_default_organization():
     db = SessionLocal()
     try:
         # Check if default organization exists
-        default_org = db.query(Organization).filter(Organization.name == "Default Organization").first()
+        default_org = (
+            db.query(Organization)
+            .filter(Organization.name == "Default Organization")
+            .first()
+        )
 
         if not default_org:
             default_org = Organization(
                 name="Default Organization",
                 storage_tier=StorageTier.FREE,
-                storage_limit_bytes=Organization.get_default_storage_limit(StorageTier.FREE),
-                is_active=True
+                storage_limit_bytes=Organization.get_default_storage_limit(
+                    StorageTier.FREE
+                ),
+                is_active=True,
             )
             db.add(default_org)
             db.commit()
@@ -63,6 +73,7 @@ def create_default_organization():
         return None
     finally:
         db.close()
+
 
 def create_admin_user(organization_id):
     """Create admin user if it doesn't exist"""
@@ -80,7 +91,7 @@ def create_admin_user(organization_id):
                 last_name="Administrator",
                 role=UserRole.ADMIN,
                 organization_id=organization_id,
-                is_active=True
+                is_active=True,
             )
             admin_user.set_password("admin123")  # Change this in production!
             db.add(admin_user)
@@ -97,6 +108,7 @@ def create_admin_user(organization_id):
         return None
     finally:
         db.close()
+
 
 def initialize_database():
     """Initialize the database with default data"""
@@ -118,6 +130,7 @@ def initialize_database():
 
     logger.info("Database initialization completed successfully!")
     return True
+
 
 def reset_database():
     """Reset database by dropping and recreating all tables"""
@@ -141,6 +154,7 @@ def reset_database():
         logger.error(f"Failed to reset database: {e}")
         return False
 
+
 def check_database_health():
     """Check database connection and health"""
     try:
@@ -153,12 +167,14 @@ def check_database_health():
         logger.error(f"Database health check failed: {e}")
         return False
 
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Database management utility")
-    parser.add_argument("action", choices=["init", "reset", "health"],
-                       help="Action to perform")
+    parser.add_argument(
+        "action", choices=["init", "reset", "health"], help="Action to perform"
+    )
 
     args = parser.parse_args()
 

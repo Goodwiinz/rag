@@ -3,23 +3,24 @@ Search Quality Evaluation API endpoints
 """
 
 import logging
-from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from datetime import datetime, timedelta
 
-from src.core.dependencies import get_current_user
-from src.models.user import User
 from src.core.database import get_db
+from src.core.dependencies import get_current_user
 from src.models.search_schemas import SearchQuery, SearchResponse, SearchType
+from src.models.user import User
+from src.services.search.hybrid_search_service import hybrid_search_service
 from src.services.search.search_quality_service import (
-    search_quality_service,
     QualityMetric,
     QualityMetricType,
-    SearchEvaluation
+    SearchEvaluation,
+    search_quality_service,
 )
-from src.services.search.hybrid_search_service import hybrid_search_service
 
 logger = logging.getLogger(__name__)
 
@@ -28,27 +29,39 @@ router = APIRouter(prefix="/search-quality", tags=["search-quality"])
 
 class SearchEvaluationRequest(BaseModel):
     """Request for search evaluation"""
+
     search_query: SearchQuery
     search_response: SearchResponse
-    ground_truth_docs: Optional[List[str]] = Field(None, description="List of relevant document IDs for recall calculation")
+    ground_truth_docs: Optional[List[str]] = Field(
+        None, description="List of relevant document IDs for recall calculation"
+    )
 
 
 class UserFeedbackRequest(BaseModel):
     """Request for user feedback submission"""
+
     query_id: str = Field(..., description="Query identifier")
     rating: int = Field(..., ge=1, le=5, description="User rating (1-5)")
     feedback_text: Optional[str] = Field(None, description="Optional feedback text")
-    document_id: Optional[str] = Field(None, description="Document ID if feedback is specific to a result")
+    document_id: Optional[str] = Field(
+        None, description="Document ID if feedback is specific to a result"
+    )
 
 
 class BenchmarkRequest(BaseModel):
     """Request for search quality benchmark"""
-    test_queries: List[str] = Field(..., min_items=1, max_items=50, description="Test queries for benchmarking")
-    search_types: Optional[List[SearchType]] = Field(None, description="Search types to test (defaults to all)")
+
+    test_queries: List[str] = Field(
+        ..., min_items=1, max_items=50, description="Test queries for benchmarking"
+    )
+    search_types: Optional[List[SearchType]] = Field(
+        None, description="Search types to test (defaults to all)"
+    )
 
 
 class QualityAnalyticsResponse(BaseModel):
     """Response for quality analytics"""
+
     period_days: int
     organization_id: str
     search_type: str
@@ -61,6 +74,7 @@ class QualityAnalyticsResponse(BaseModel):
 
 class SearchEvaluationResponse(BaseModel):
     """Response for search evaluation"""
+
     query_id: str
     query: str
     search_type: SearchType
@@ -74,6 +88,7 @@ class SearchEvaluationResponse(BaseModel):
 
 class BenchmarkResponse(BaseModel):
     """Response for benchmark results"""
+
     benchmark_id: str
     test_queries: List[str]
     results: Dict[str, Dict[str, SearchEvaluationResponse]]
@@ -85,7 +100,7 @@ class BenchmarkResponse(BaseModel):
 async def evaluate_search_quality(
     request: SearchEvaluationRequest,
     current_user: User = Depends(get_current_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Evaluate the quality of a search response using multiple metrics
@@ -99,46 +114,53 @@ async def evaluate_search_quality(
             search_response=request.search_response,
             user_id=str(current_user.id),
             organization_id=str(current_user.organization_id),
-            ground_truth_docs=request.ground_truth_docs
+            ground_truth_docs=request.ground_truth_docs,
         )
 
         # Convert results to dict for JSON serialization
         results_data = []
         for result in evaluation.results:
-            results_data.append({
-                "document_id": result.document_id,
-                "title": result.title,
-                "document_type": result.document_type.value,
-                "content_preview": result.content_preview,
-                "relevance_score": result.relevance_score,
-                "score_breakdown": result.score_breakdown,
-                "source_type": result.source_type.value,
-                "highlights": result.highlights,
-                "metadata": result.metadata
-            })
+            results_data.append(
+                {
+                    "document_id": result.document_id,
+                    "title": result.title,
+                    "document_type": result.document_type.value,
+                    "content_preview": result.content_preview,
+                    "relevance_score": result.relevance_score,
+                    "score_breakdown": result.score_breakdown,
+                    "source_type": result.source_type.value,
+                    "highlights": result.highlights,
+                    "metadata": result.metadata,
+                }
+            )
 
         return SearchEvaluationResponse(
             query_id=evaluation.query_id,
             query=evaluation.query,
             search_type=evaluation.search_type,
             results=results_data,
-            metrics={metric_type.value: value for metric_type, value in evaluation.metrics.items()},
+            metrics={
+                metric_type.value: value
+                for metric_type, value in evaluation.metrics.items()
+            },
             overall_score=evaluation.overall_score,
             evaluation_time_ms=evaluation.evaluation_time_ms,
             timestamp=evaluation.timestamp,
-            recommendations=evaluation.recommendations
+            recommendations=evaluation.recommendations,
         )
 
     except Exception as e:
         logger.error(f"Error evaluating search quality: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to evaluate search quality: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to evaluate search quality: {str(e)}"
+        )
 
 
 @router.post("/feedback")
 async def submit_user_feedback(
     request: UserFeedbackRequest,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Submit user feedback for search results
@@ -152,33 +174,39 @@ async def submit_user_feedback(
             user_id=str(current_user.id),
             rating=request.rating,
             feedback_text=request.feedback_text,
-            document_id=request.document_id
+            document_id=request.document_id,
         )
 
         # Log feedback for analytics
         background_tasks.add_task(
             logger.info,
             f"User feedback received: query_id={request.query_id}, user_id={current_user.id}, "
-            f"rating={request.rating}, document_id={request.document_id}"
+            f"rating={request.rating}, document_id={request.document_id}",
         )
 
         return {
             "message": "Feedback recorded successfully",
             "metric_id": f"{metric.metric_type.value}_{metric.timestamp.isoformat()}",
             "normalized_score": metric.value,
-            "original_rating": request.rating
+            "original_rating": request.rating,
         }
 
     except Exception as e:
         logger.error(f"Error recording user feedback: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to record feedback: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to record feedback: {str(e)}"
+        )
 
 
 @router.get("/analytics", response_model=QualityAnalyticsResponse)
 async def get_quality_analytics(
-    days: int = Query(default=30, ge=1, le=365, description="Number of days for analytics"),
-    search_type: Optional[SearchType] = Query(None, description="Filter by search type"),
-    current_user: User = Depends(get_current_user)
+    days: int = Query(
+        default=30, ge=1, le=365, description="Number of days for analytics"
+    ),
+    search_type: Optional[SearchType] = Query(
+        None, description="Filter by search type"
+    ),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get quality analytics for the organization
@@ -190,11 +218,11 @@ async def get_quality_analytics(
         analytics = search_quality_service.get_quality_analytics(
             organization_id=str(current_user.organization_id),
             days=days,
-            search_type=search_type
+            search_type=search_type,
         )
 
-        if 'error' in analytics:
-            raise HTTPException(status_code=500, detail=analytics['error'])
+        if "error" in analytics:
+            raise HTTPException(status_code=500, detail=analytics["error"])
 
         return QualityAnalyticsResponse(**analytics)
 
@@ -202,14 +230,16 @@ async def get_quality_analytics(
         raise
     except Exception as e:
         logger.error(f"Error getting quality analytics: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve analytics: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve analytics: {str(e)}"
+        )
 
 
 @router.post("/benchmark", response_model=BenchmarkResponse)
 async def run_quality_benchmark(
     request: BenchmarkRequest,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Run comprehensive quality benchmark on test queries
@@ -220,13 +250,15 @@ async def run_quality_benchmark(
     try:
         # Validate request size
         if len(request.test_queries) > 50:
-            raise HTTPException(status_code=400, detail="Maximum 50 test queries allowed per benchmark")
+            raise HTTPException(
+                status_code=400, detail="Maximum 50 test queries allowed per benchmark"
+            )
 
         # Run benchmark
         benchmark_results = search_quality_service.run_quality_benchmark(
             test_queries=request.test_queries,
             search_types=request.search_types,
-            organization_id=str(current_user.organization_id)
+            organization_id=str(current_user.organization_id),
         )
 
         # Convert results for JSON serialization
@@ -236,28 +268,33 @@ async def run_quality_benchmark(
             for search_type, evaluation in query_results.items():
                 results_data = []
                 for result in evaluation.results:
-                    results_data.append({
-                        "document_id": result.document_id,
-                        "title": result.title,
-                        "document_type": result.document_type.value,
-                        "content_preview": result.content_preview,
-                        "relevance_score": result.relevance_score,
-                        "score_breakdown": result.score_breakdown,
-                        "source_type": result.source_type.value,
-                        "highlights": result.highlights,
-                        "metadata": result.metadata
-                    })
+                    results_data.append(
+                        {
+                            "document_id": result.document_id,
+                            "title": result.title,
+                            "document_type": result.document_type.value,
+                            "content_preview": result.content_preview,
+                            "relevance_score": result.relevance_score,
+                            "score_breakdown": result.score_breakdown,
+                            "source_type": result.source_type.value,
+                            "highlights": result.highlights,
+                            "metadata": result.metadata,
+                        }
+                    )
 
                 serialized_results[query][search_type] = SearchEvaluationResponse(
                     query_id=evaluation.query_id,
                     query=evaluation.query,
                     search_type=evaluation.search_type,
                     results=results_data,
-                    metrics={metric_type.value: value for metric_type, value in evaluation.metrics.items()},
+                    metrics={
+                        metric_type.value: value
+                        for metric_type, value in evaluation.metrics.items()
+                    },
                     overall_score=evaluation.overall_score,
                     evaluation_time_ms=evaluation.evaluation_time_ms,
                     timestamp=evaluation.timestamp,
-                    recommendations=evaluation.recommendations
+                    recommendations=evaluation.recommendations,
                 )
 
         # Generate summary statistics
@@ -269,7 +306,7 @@ async def run_quality_benchmark(
         background_tasks.add_task(
             logger.info,
             f"Benchmark completed: benchmark_id={benchmark_id}, user_id={current_user.id}, "
-            f"queries={len(request.test_queries)}, search_types={len(request.search_types) if request.search_types else 3}"
+            f"queries={len(request.test_queries)}, search_types={len(request.search_types) if request.search_types else 3}",
         )
 
         return BenchmarkResponse(
@@ -277,14 +314,16 @@ async def run_quality_benchmark(
             test_queries=request.test_queries,
             results=serialized_results,
             summary=summary,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error running quality benchmark: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to run benchmark: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to run benchmark: {str(e)}"
+        )
 
 
 @router.get("/metrics/types")
@@ -299,9 +338,11 @@ async def get_quality_metric_types():
         "metric_types": [
             {
                 "type": metric_type.value,
-                "name": metric_type.value.replace('_', ' ').title(),
+                "name": metric_type.value.replace("_", " ").title(),
                 "description": _get_metric_description(metric_type),
-                "threshold": search_quality_service.metric_thresholds.get(metric_type, 0.5)
+                "threshold": search_quality_service.metric_thresholds.get(
+                    metric_type, 0.5
+                ),
             }
             for metric_type in QualityMetricType
         ]
@@ -320,7 +361,7 @@ async def health_check():
         test_metrics = {
             QualityMetricType.RELEVANCY: 0.8,
             QualityMetricType.PRECISION: 0.7,
-            QualityMetricType.RESPONSE_TIME: 1.2
+            QualityMetricType.RESPONSE_TIME: 1.2,
         }
 
         overall_score = search_quality_service._calculate_overall_score(test_metrics)
@@ -332,7 +373,7 @@ async def health_check():
             "timestamp": datetime.utcnow().isoformat(),
             "test_score": overall_score,
             "test_recommendations": len(recommendations),
-            "available_metrics": len(QualityMetricType)
+            "available_metrics": len(QualityMetricType),
         }
 
     except Exception as e:
@@ -343,12 +384,14 @@ async def health_check():
                 "status": "unhealthy",
                 "service": "search_quality_evaluation",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
-            }
+                "timestamp": datetime.utcnow().isoformat(),
+            },
         )
 
 
-def _generate_benchmark_summary(results: Dict[str, Dict[str, SearchEvaluationResponse]]) -> Dict[str, Any]:
+def _generate_benchmark_summary(
+    results: Dict[str, Dict[str, SearchEvaluationResponse]]
+) -> Dict[str, Any]:
     """Generate summary statistics for benchmark results"""
     summary = {
         "total_queries": len(results),
@@ -356,7 +399,7 @@ def _generate_benchmark_summary(results: Dict[str, Dict[str, SearchEvaluationRes
         "average_scores": {},
         "best_performing": {},
         "improvement_areas": [],
-        "metric_averages": {}
+        "metric_averages": {},
     }
 
     all_scores = {}
@@ -388,23 +431,27 @@ def _generate_benchmark_summary(results: Dict[str, Dict[str, SearchEvaluationRes
         best_type = max(summary["average_scores"], key=summary["average_scores"].get)
         summary["best_performing"] = {
             "search_type": best_type,
-            "average_score": summary["average_scores"][best_type]
+            "average_score": summary["average_scores"][best_type],
         }
 
     # Calculate metric averages
     for metric_name, metric_data in all_metrics.items():
         summary["metric_averages"][metric_name] = {}
         for search_type, values in metric_data.items():
-            summary["metric_averages"][metric_name][search_type] = sum(values) / len(values)
+            summary["metric_averages"][metric_name][search_type] = sum(values) / len(
+                values
+            )
 
     # Identify improvement areas
     for search_type, avg_score in summary["average_scores"].items():
         if avg_score < 0.7:
-            summary["improvement_areas"].append({
-                "search_type": search_type,
-                "average_score": avg_score,
-                "recommendation": f"Consider optimizing {search_type} search performance"
-            })
+            summary["improvement_areas"].append(
+                {
+                    "search_type": search_type,
+                    "average_score": avg_score,
+                    "recommendation": f"Consider optimizing {search_type} search performance",
+                }
+            )
 
     summary["search_types"] = list(summary["search_types"])
     return summary
@@ -421,6 +468,6 @@ def _get_metric_description(metric_type: QualityMetricType) -> str:
         QualityMetricType.RESULT_DIVERSITY: "Variety and diversity of search results",
         QualityMetricType.FACTUAL_ACCURACY: "Accuracy of factual information in results",
         QualityMetricType.CONTEXTUAL_PRECISION: "Precision considering query context",
-        QualityMetricType.USER_SATISFACTION: "User satisfaction ratings and feedback"
+        QualityMetricType.USER_SATISFACTION: "User satisfaction ratings and feedback",
     }
     return descriptions.get(metric_type, "Quality metric for search evaluation")

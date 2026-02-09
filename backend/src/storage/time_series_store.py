@@ -3,18 +3,19 @@ Time-series database integration for RAG Analytics
 Provides optimized storage and querying for time-series analytics data
 """
 
-import json
 import asyncio
-from typing import Dict, List, Any, Optional, Union, Tuple
-from datetime import datetime, timedelta
-from dataclasses import dataclass, asdict
-from enum import Enum
+import json
 import logging
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 try:
     import influxdb_client
     from influxdb_client import InfluxDBClient, Point
     from influxdb_client.client.write_api import SYNCHRONOUS
+
     INFLUXDB_AVAILABLE = True
 except ImportError:
     INFLUXDB_AVAILABLE = False
@@ -24,26 +25,28 @@ except ImportError:
 try:
     import psycopg2
     from psycopg2.extras import execute_values
+
     PSYCOPG2_AVAILABLE = True
 except ImportError:
     PSYCOPG2_AVAILABLE = False
     psycopg2 = None
 
-from sqlalchemy import text, and_, or_, func
+from sqlalchemy import and_, func, or_, text
 from sqlalchemy.orm import Session
 
 from src.config.analytics_config import get_analytics_config
 from src.core.database import get_db
-from src.models.analytics_event import AnalyticsEvent
-from src.models.user_session import UserSession
-from src.models.performance_log import PerformanceLog
 from src.exceptions.analytics_exceptions import AnalyticsServiceException
+from src.models.analytics_event import AnalyticsEvent
+from src.models.performance_log import PerformanceLog
+from src.models.user_session import UserSession
 
 logger = logging.getLogger(__name__)
 
 
 class TimeSeriesBackend(str, Enum):
     """Supported time-series database backends"""
+
     INFLUXDB = "influxdb"
     POSTGRESQL = "postgresql"
     HYBRID = "hybrid"
@@ -51,6 +54,7 @@ class TimeSeriesBackend(str, Enum):
 
 class MetricType(str, Enum):
     """Time-series metric types"""
+
     COUNTER = "counter"
     GAUGE = "gauge"
     HISTOGRAM = "histogram"
@@ -60,6 +64,7 @@ class MetricType(str, Enum):
 @dataclass
 class TimeSeriesPoint:
     """Individual time-series data point"""
+
     measurement: str
     timestamp: datetime
     value: Union[float, int, str, bool]
@@ -74,6 +79,7 @@ class TimeSeriesPoint:
 @dataclass
 class TimeSeriesQuery:
     """Time-series query specification"""
+
     measurement: str
     start_time: datetime
     end_time: datetime
@@ -181,17 +187,15 @@ class PostgreSQLTimeSeriesStore:
             "CREATE INDEX IF NOT EXISTS idx_analytics_events_ts_org_time ON analytics_events_ts (organization_id, timestamp DESC)",
             "CREATE INDEX IF NOT EXISTS idx_analytics_events_ts_type_time ON analytics_events_ts (event_type, timestamp DESC)",
             "CREATE INDEX IF NOT EXISTS idx_analytics_events_ts_tags ON analytics_events_ts USING GIN (tags)",
-
             # Performance metrics indexes
             "CREATE INDEX IF NOT EXISTS idx_performance_metrics_ts_org_time ON performance_metrics_ts (organization_id, timestamp DESC)",
             "CREATE INDEX IF NOT EXISTS idx_performance_metrics_ts_comp_time ON performance_metrics_ts (component, timestamp DESC)",
             "CREATE INDEX IF NOT EXISTS idx_performance_metrics_ts_metric_time ON performance_metrics_ts (metric_name, timestamp DESC)",
             "CREATE INDEX IF NOT EXISTS idx_performance_metrics_ts_tags ON performance_metrics_ts USING GIN (tags)",
-
             # User sessions indexes
             "CREATE INDEX IF NOT EXISTS idx_user_sessions_ts_org_time ON user_sessions_ts (organization_id, timestamp DESC)",
             "CREATE INDEX IF NOT EXISTS idx_user_sessions_ts_user_time ON user_sessions_ts (user_id, timestamp DESC)",
-            "CREATE INDEX IF NOT EXISTS idx_user_sessions_ts_engagement ON user_sessions_ts (engagement_score, timestamp DESC)"
+            "CREATE INDEX IF NOT EXISTS idx_user_sessions_ts_engagement ON user_sessions_ts (engagement_score, timestamp DESC)",
         ]
 
         try:
@@ -212,7 +216,7 @@ class PostgreSQLTimeSeriesStore:
         current_date = datetime.utcnow()
 
         for i in range(3):
-            partition_date = current_date.replace(day=1) + timedelta(days=32*i)
+            partition_date = current_date.replace(day=1) + timedelta(days=32 * i)
             partition_date = partition_date.replace(day=1)
             partition_name = partition_date.strftime("%Y_%m")
             start_date = partition_date
@@ -223,13 +227,13 @@ class PostgreSQLTimeSeriesStore:
             partition_tables = [
                 f"analytics_events_ts_{partition_name}",
                 f"performance_metrics_ts_{partition_name}",
-                f"user_sessions_ts_{partition_name}"
+                f"user_sessions_ts_{partition_name}",
             ]
 
             base_tables = [
                 "analytics_events_ts",
                 "performance_metrics_ts",
-                "user_sessions_ts"
+                "user_sessions_ts",
             ]
 
             # Validate base table names
@@ -273,7 +277,7 @@ class PostgreSQLTimeSeriesStore:
 
         except Exception as e:
             logger.error(f"Failed to write time-series point: {e}")
-            if 'db' in locals():
+            if "db" in locals():
                 db.rollback()
                 db.close()
             return False
@@ -286,15 +290,20 @@ class PostgreSQLTimeSeriesStore:
         ) VALUES (:org_id, :event_type, :event_name, :timestamp, :value, :tags, :fields)
         """
 
-        db.execute(text(sql), {
-            "org_id": point.tags.get("organization_id"),
-            "event_type": point.tags.get("event_type"),
-            "event_name": point.measurement,
-            "timestamp": point.timestamp,
-            "value": float(point.value) if isinstance(point.value, (int, float)) else None,
-            "tags": json.dumps(point.tags),
-            "fields": json.dumps(point.fields)
-        })
+        db.execute(
+            text(sql),
+            {
+                "org_id": point.tags.get("organization_id"),
+                "event_type": point.tags.get("event_type"),
+                "event_name": point.measurement,
+                "timestamp": point.timestamp,
+                "value": float(point.value)
+                if isinstance(point.value, (int, float))
+                else None,
+                "tags": json.dumps(point.tags),
+                "fields": json.dumps(point.fields),
+            },
+        )
 
     async def _write_performance_metric(self, db: Session, point: TimeSeriesPoint):
         """Write performance metric to time-series table"""
@@ -304,17 +313,20 @@ class PostgreSQLTimeSeriesStore:
         ) VALUES (:org_id, :metric_name, :metric_type, :component, :timestamp, :value, :unit, :tags, :metadata)
         """
 
-        db.execute(text(sql), {
-            "org_id": point.tags.get("organization_id"),
-            "metric_name": point.measurement,
-            "metric_type": point.tags.get("metric_type", "gauge"),
-            "component": point.tags.get("component", "unknown"),
-            "timestamp": point.timestamp,
-            "value": float(point.value),
-            "unit": point.tags.get("unit"),
-            "tags": json.dumps(point.tags),
-            "metadata": json.dumps(point.fields)
-        })
+        db.execute(
+            text(sql),
+            {
+                "org_id": point.tags.get("organization_id"),
+                "metric_name": point.measurement,
+                "metric_type": point.tags.get("metric_type", "gauge"),
+                "component": point.tags.get("component", "unknown"),
+                "timestamp": point.timestamp,
+                "value": float(point.value),
+                "unit": point.tags.get("unit"),
+                "tags": json.dumps(point.tags),
+                "metadata": json.dumps(point.fields),
+            },
+        )
 
     async def _write_user_session(self, db: Session, point: TimeSeriesPoint):
         """Write user session data to time-series table"""
@@ -325,17 +337,20 @@ class PostgreSQLTimeSeriesStore:
         ) VALUES (:org_id, :user_id, :timestamp, :duration, :engagement, :page_views, :searches, :downloads, :tags)
         """
 
-        db.execute(text(sql), {
-            "org_id": point.tags.get("organization_id"),
-            "user_id": point.tags.get("user_id"),
-            "timestamp": point.timestamp,
-            "duration": point.fields.get("session_duration"),
-            "engagement": point.value,
-            "page_views": point.fields.get("page_views", 0),
-            "searches": point.fields.get("searches", 0),
-            "downloads": point.fields.get("downloads", 0),
-            "tags": json.dumps(point.tags)
-        })
+        db.execute(
+            text(sql),
+            {
+                "org_id": point.tags.get("organization_id"),
+                "user_id": point.tags.get("user_id"),
+                "timestamp": point.timestamp,
+                "duration": point.fields.get("session_duration"),
+                "engagement": point.value,
+                "page_views": point.fields.get("page_views", 0),
+                "searches": point.fields.get("searches", 0),
+                "downloads": point.fields.get("downloads", 0),
+                "tags": json.dumps(point.tags),
+            },
+        )
 
     async def write_points(self, points: List[TimeSeriesPoint]) -> int:
         """Write multiple time-series points"""
@@ -365,10 +380,12 @@ class PostgreSQLTimeSeriesStore:
             logger.error(f"Failed to query time-series data: {e}")
             return []
         finally:
-            if 'db' in locals():
+            if "db" in locals():
                 db.close()
 
-    async def _query_analytics_events(self, db: Session, query: TimeSeriesQuery) -> List[Dict[str, Any]]:
+    async def _query_analytics_events(
+        self, db: Session, query: TimeSeriesQuery
+    ) -> List[Dict[str, Any]]:
         """Query analytics events from time-series table"""
         sql = """
         SELECT
@@ -387,7 +404,7 @@ class PostgreSQLTimeSeriesStore:
         params = {
             "org_id": query.tags.get("organization_id") if query.tags else None,
             "start_time": query.start_time,
-            "end_time": query.end_time
+            "end_time": query.end_time,
         }
 
         # Add tag filters
@@ -430,12 +447,14 @@ class PostgreSQLTimeSeriesStore:
                 "value": row.value,
                 "tags": json.loads(row.tags) if row.tags else {},
                 "fields": json.loads(row.fields) if row.fields else {},
-                "count": row.count
+                "count": row.count,
             }
             for row in rows
         ]
 
-    async def _query_performance_metrics(self, db: Session, query: TimeSeriesQuery) -> List[Dict[str, Any]]:
+    async def _query_performance_metrics(
+        self, db: Session, query: TimeSeriesQuery
+    ) -> List[Dict[str, Any]]:
         """Query performance metrics from time-series table"""
         sql = """
         SELECT
@@ -459,7 +478,7 @@ class PostgreSQLTimeSeriesStore:
         params = {
             "org_id": query.tags.get("organization_id") if query.tags else None,
             "start_time": query.start_time,
-            "end_time": query.end_time
+            "end_time": query.end_time,
         }
 
         # Add tag filters
@@ -507,12 +526,14 @@ class PostgreSQLTimeSeriesStore:
                 "avg_value": float(row.avg_value) if row.avg_value else None,
                 "min_value": float(row.min_value) if row.min_value else None,
                 "max_value": float(row.max_value) if row.max_value else None,
-                "count": row.count
+                "count": row.count,
             }
             for row in rows
         ]
 
-    async def _query_user_sessions(self, db: Session, query: TimeSeriesQuery) -> List[Dict[str, Any]]:
+    async def _query_user_sessions(
+        self, db: Session, query: TimeSeriesQuery
+    ) -> List[Dict[str, Any]]:
         """Query user sessions from time-series table"""
         sql = """
         SELECT
@@ -534,7 +555,7 @@ class PostgreSQLTimeSeriesStore:
         params = {
             "org_id": query.tags.get("organization_id") if query.tags else None,
             "start_time": query.start_time,
-            "end_time": query.end_time
+            "end_time": query.end_time,
         }
 
         # Add tag filters
@@ -579,8 +600,10 @@ class PostgreSQLTimeSeriesStore:
                 "searches": row.searches,
                 "downloads": row.downloads,
                 "tags": json.loads(row.tags) if row.tags else {},
-                "avg_engagement": float(row.avg_engagement) if row.avg_engagement else None,
-                "session_count": row.session_count
+                "avg_engagement": float(row.avg_engagement)
+                if row.avg_engagement
+                else None,
+                "session_count": row.session_count,
             }
             for row in rows
         ]
@@ -591,7 +614,11 @@ class PostgreSQLTimeSeriesStore:
             db = next(get_db())
 
             # Get table sizes
-            tables = ["analytics_events_ts", "performance_metrics_ts", "user_sessions_ts"]
+            tables = [
+                "analytics_events_ts",
+                "performance_metrics_ts",
+                "user_sessions_ts",
+            ]
             stats = {}
 
             for table in tables:
@@ -614,7 +641,7 @@ class PostgreSQLTimeSeriesStore:
                 stats[table] = {
                     "row_count": count_result.count,
                     "size_pretty": size_result.size,
-                    "size_bytes": size_result.size_bytes
+                    "size_bytes": size_result.size_bytes,
                 }
 
             db.close()
@@ -631,7 +658,11 @@ class PostgreSQLTimeSeriesStore:
             cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
 
             deleted_count = 0
-            tables = ["analytics_events_ts", "performance_metrics_ts", "user_sessions_ts"]
+            tables = [
+                "analytics_events_ts",
+                "performance_metrics_ts",
+                "user_sessions_ts",
+            ]
 
             for table in tables:
                 # Validate table name
@@ -650,7 +681,7 @@ class PostgreSQLTimeSeriesStore:
 
         except Exception as e:
             logger.error(f"Failed to cleanup old data: {e}")
-            if 'db' in locals():
+            if "db" in locals():
                 db.rollback()
                 db.close()
             return 0
@@ -670,21 +701,21 @@ class InfluxDBTimeSeriesStore:
             raise AnalyticsServiceException(
                 "influxdb",
                 "InfluxDB client not available",
-                "Install influxdb-client package"
+                "Install influxdb-client package",
             )
 
         if not self.config.time_series_db_url:
             raise AnalyticsServiceException(
                 "influxdb",
                 "InfluxDB URL not configured",
-                "Set TIME_SERIES_DB_URL in configuration"
+                "Set TIME_SERIES_DB_URL in configuration",
             )
 
         try:
             self.client = InfluxDBClient(
                 url=self.config.time_series_db_url,
                 token="your-token",  # Should be configured
-                org="your-org"       # Should be configured
+                org="your-org",  # Should be configured
             )
 
             # Test connection
@@ -773,11 +804,11 @@ class InfluxDBTimeSeriesStore:
             query_api = self.client.query_api()
 
             # Build Flux query
-            flux_query = f'''
+            flux_query = f"""
             from(bucket: "analytics")
                 |> range(start: {query_spec.start_time.isoformat()}, stop: {query_spec.end_time.isoformat()})
                 |> filter(fn: (r) => r._measurement == "{query_spec.measurement}")
-            '''
+            """
 
             # Add tag filters
             if query_spec.tags:
@@ -786,21 +817,29 @@ class InfluxDBTimeSeriesStore:
 
             # Add field filters
             if query_spec.fields:
-                fields_filter = " or ".join([f'r._field == "{field}"' for field in query_spec.fields])
-                flux_query += f'|> filter(fn: (r) => {fields_filter})\n'
+                fields_filter = " or ".join(
+                    [f'r._field == "{field}"' for field in query_spec.fields]
+                )
+                flux_query += f"|> filter(fn: (r) => {fields_filter})\n"
 
             # Add aggregation
             if query_spec.aggregation:
                 if query_spec.aggregation == "hour":
-                    flux_query += '|> aggregateWindow(every: 1h, fn: mean, createEmpty: false)\n'
+                    flux_query += (
+                        "|> aggregateWindow(every: 1h, fn: mean, createEmpty: false)\n"
+                    )
                 elif query_spec.aggregation == "day":
-                    flux_query += '|> aggregateWindow(every: 1d, fn: mean, createEmpty: false)\n'
+                    flux_query += (
+                        "|> aggregateWindow(every: 1d, fn: mean, createEmpty: false)\n"
+                    )
                 elif query_spec.aggregation == "week":
-                    flux_query += '|> aggregateWindow(every: 1w, fn: mean, createEmpty: false)\n'
+                    flux_query += (
+                        "|> aggregateWindow(every: 1w, fn: mean, createEmpty: false)\n"
+                    )
 
             # Add limit
             if query_spec.limit:
-                flux_query += f'|> limit(n: {query_spec.limit})\n'
+                flux_query += f"|> limit(n: {query_spec.limit})\n"
 
             # Execute query
             result = query_api.query(flux_query)
@@ -809,13 +848,15 @@ class InfluxDBTimeSeriesStore:
             data = []
             for table in result:
                 for record in table.records:
-                    data.append({
-                        "timestamp": record.get_time().isoformat(),
-                        "measurement": record.get_measurement(),
-                        "field": record.get_field(),
-                        "value": record.get_value(),
-                        "tags": record.values
-                    })
+                    data.append(
+                        {
+                            "timestamp": record.get_time().isoformat(),
+                            "measurement": record.get_measurement(),
+                            "field": record.get_field(),
+                            "value": record.get_value(),
+                            "tags": record.values,
+                        }
+                    )
 
             return data
 
@@ -841,7 +882,9 @@ class HybridTimeSeriesStore:
             # Try to initialize InfluxDB (optional)
             try:
                 await self.influxdb_store.initialize()
-                logger.info("Hybrid store initialized with both PostgreSQL and InfluxDB")
+                logger.info(
+                    "Hybrid store initialized with both PostgreSQL and InfluxDB"
+                )
             except Exception as e:
                 logger.warning(f"InfluxDB not available, using PostgreSQL only: {e}")
 
@@ -887,7 +930,9 @@ class TimeSeriesStoreManager:
 
     def __init__(self):
         self.config = get_analytics_config()
-        self.store: Union[PostgreSQLTimeSeriesStore, InfluxDBTimeSeriesStore, HybridTimeSeriesStore] = None
+        self.store: Union[
+            PostgreSQLTimeSeriesStore, InfluxDBTimeSeriesStore, HybridTimeSeriesStore
+        ] = None
         self._initialized = False
 
     async def initialize(self):
@@ -895,7 +940,9 @@ class TimeSeriesStoreManager:
         if self._initialized:
             return
 
-        backend = getattr(self.config, 'time_series_backend', TimeSeriesBackend.POSTGRESQL)
+        backend = getattr(
+            self.config, "time_series_backend", TimeSeriesBackend.POSTGRESQL
+        )
 
         try:
             if backend == TimeSeriesBackend.INFLUXDB:
@@ -905,7 +952,9 @@ class TimeSeriesStoreManager:
             elif backend == TimeSeriesBackend.HYBRID:
                 self.store = HybridTimeSeriesStore()
             else:
-                logger.warning(f"Unknown time-series backend: {backend}, using PostgreSQL")
+                logger.warning(
+                    f"Unknown time-series backend: {backend}, using PostgreSQL"
+                )
                 self.store = PostgreSQLTimeSeriesStore()
 
             await self.store.initialize()
@@ -932,13 +981,13 @@ class TimeSeriesStoreManager:
             tags={
                 "organization_id": str(event.organization_id),
                 "event_type": event.event_type,
-                "source": event.source or "api"
+                "source": event.source or "api",
             },
             fields={
                 "event_id": str(event.id),
                 "event_data": event.event_data or {},
-                "severity": event.severity.value if event.severity else "low"
-            }
+                "severity": event.severity.value if event.severity else "low",
+            },
         )
 
         return await self.store.write_point(point)
@@ -956,7 +1005,7 @@ class TimeSeriesStoreManager:
                 "organization_id": str(metric.organization_id),
                 "component": metric.component,
                 "host": metric.host,
-                "environment": metric.environment
+                "environment": metric.environment,
             },
             fields={
                 "metric_id": str(metric.id),
@@ -965,8 +1014,8 @@ class TimeSeriesStoreManager:
                 "performance_level": metric.performance_level.value,
                 "threshold": metric.threshold or {},
                 "tags": metric.tags or [],
-                "metadata": metric.event_metadata or {}
-            }
+                "metadata": metric.event_metadata or {},
+            },
         )
 
         return await self.store.write_point(point)
@@ -984,7 +1033,7 @@ class TimeSeriesStoreManager:
                 "organization_id": str(session.organization_id),
                 "user_id": str(session.user_id),
                 "device_type": session.device_type,
-                "browser": session.browser
+                "browser": session.browser,
             },
             fields={
                 "session_id": str(session.id),
@@ -993,8 +1042,8 @@ class TimeSeriesStoreManager:
                 "searches": session.total_searches,
                 "downloads": session.total_downloads,
                 "bounce_type": session.bounce_type,
-                "engagement_score": session.engagement_score
-            }
+                "engagement_score": session.engagement_score,
+            },
         )
 
         return await self.store.write_point(point)
@@ -1006,7 +1055,7 @@ class TimeSeriesStoreManager:
         end_time: datetime,
         event_type: Optional[str] = None,
         aggregation: Optional[str] = None,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """Query analytics events from time-series store"""
         if not self._initialized:
@@ -1022,7 +1071,7 @@ class TimeSeriesStoreManager:
             end_time=end_time,
             tags=tags,
             aggregation=aggregation,
-            limit=limit
+            limit=limit,
         )
 
         return await self.store.query(query_spec)
@@ -1034,7 +1083,7 @@ class TimeSeriesStoreManager:
         end_time: datetime,
         component: Optional[str] = None,
         aggregation: Optional[str] = None,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """Query performance metrics from time-series store"""
         if not self._initialized:
@@ -1050,7 +1099,7 @@ class TimeSeriesStoreManager:
             end_time=end_time,
             tags=tags,
             aggregation=aggregation,
-            limit=limit
+            limit=limit,
         )
 
         return await self.store.query(query_spec)
@@ -1061,7 +1110,7 @@ class TimeSeriesStoreManager:
         start_time: datetime,
         end_time: datetime,
         aggregation: Optional[str] = None,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """Query user sessions from time-series store"""
         if not self._initialized:
@@ -1073,7 +1122,7 @@ class TimeSeriesStoreManager:
             end_time=end_time,
             tags={"organization_id": organization_id},
             aggregation=aggregation,
-            limit=limit
+            limit=limit,
         )
 
         return await self.store.query(query_spec)
@@ -1083,7 +1132,7 @@ class TimeSeriesStoreManager:
         if not self._initialized:
             await self.initialize()
 
-        if hasattr(self.store, 'get_storage_stats'):
+        if hasattr(self.store, "get_storage_stats"):
             return await self.store.get_storage_stats()
         else:
             return {"message": "Storage stats not available for this backend"}
@@ -1093,9 +1142,11 @@ class TimeSeriesStoreManager:
         if not self._initialized:
             await self.initialize()
 
-        retention_days = retention_days or self.config.retention.analytics_events_retention_days
+        retention_days = (
+            retention_days or self.config.retention.analytics_events_retention_days
+        )
 
-        if hasattr(self.store, 'cleanup_old_data'):
+        if hasattr(self.store, "cleanup_old_data"):
             return await self.store.cleanup_old_data(retention_days)
         else:
             logger.warning("Data cleanup not available for this backend")
