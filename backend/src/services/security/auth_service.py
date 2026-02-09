@@ -45,6 +45,11 @@ class RegistrationError(Exception):
     pass
 
 
+# Constant for timing attack mitigation
+# Valid bcrypt hash for "secret"
+DUMMY_PASSWORD_HASH = "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
+
+
 class AuthService:
     """Authentication service for user management"""
 
@@ -77,7 +82,13 @@ class AuthService:
         result = await self.db.execute(stmt)
         user = result.scalar_one_or_none()
 
-        if not user or not verify_password(password, user.password_hash):
+        # Use dummy hash if user not found to prevent timing attacks
+        password_hash = user.password_hash if user else DUMMY_PASSWORD_HASH
+
+        # Always verify password (takes ~same time)
+        is_password_valid = verify_password(password, password_hash)
+
+        if not user or not is_password_valid:
             raise AuthenticationError("Invalid email or password")
 
         # Update last login
