@@ -1,6 +1,8 @@
 name: Test Self-Hosted Runner
 
 on:
+  push:
+    branches: [feature/project-chat-integration]
   workflow_dispatch:
 
 jobs:
