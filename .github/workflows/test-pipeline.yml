@@ -114,7 +114,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio pytest-cov pytest-xdist
-          pip install -r backend/requirements.txt
+          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
 
       - name: Run unit tests
         run: |
@@ -246,7 +246,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio pytest-cov
-          pip install -r backend/requirements.txt
+          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
 
       - name: Run integration tests
         run: |
@@ -288,7 +288,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio pytest-cov
-          pip install -r backend/requirements.txt
+          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
 
       - name: Run resilience tests
         run: |
@@ -338,7 +338,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio schemathesis
-          pip install -r backend/requirements.txt
+          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
 
       - name: Run contract tests
         run: |
@@ -491,7 +491,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio pytest-benchmark locust
-          pip install -r backend/requirements.txt
+          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
 
       - name: Run performance tests
         run: |
