@@ -33,6 +33,8 @@ import {
   Download,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   MoreHorizontal,
   Eye,
   Edit,
@@ -222,6 +224,7 @@ export function AnalyticsTable<T extends Record<string, any>>({
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder={search.placeholder || 'Search...'}
+                aria-label="Search"
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
                 className="pl-10"
@@ -355,7 +358,7 @@ export function AnalyticsTable<T extends Record<string, any>>({
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="More actions">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -417,8 +420,9 @@ export function AnalyticsTable<T extends Record<string, any>>({
                   onClick={() => pagination.onPageChange(pagination.page - 1)}
                   disabled={pagination.page === 1}
                   className="h-8 w-8 p-0"
+                  aria-label="Previous page"
                 >
-                  <ChevronUp className="h-4 w-4 rotate-270" />
+                  <ChevronLeft className="h-4 w-4" />
                 </Button>
 
                 <span className="text-sm px-2">
@@ -433,8 +437,9 @@ export function AnalyticsTable<T extends Record<string, any>>({
                     pagination.page === Math.ceil(pagination.total / pagination.pageSize)
                   }
                   className="h-8 w-8 p-0"
+                  aria-label="Next page"
                 >
-                  <ChevronDown className="h-4 w-4 rotate-90" />
+                  <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
             </div>

@@ -53,7 +53,7 @@ class SmartCache:
     def _generate_key(self, key_parts: List[Any]) -> str:
         """Generate consistent cache key from key parts"""
         key_str = ":".join(str(part) for part in key_parts)
-        key_hash = hashlib.md5(key_str.encode(), usedforsecurity=False).hexdigest()
+        key_hash = hashlib.md5(key_str.encode()).hexdigest()
         return f"{self.config.key_prefix}:{key_hash}"
 
     def _serialize_value(self, value: Any) -> bytes:

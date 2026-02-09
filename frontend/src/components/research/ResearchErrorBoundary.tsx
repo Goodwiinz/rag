@@ -6,7 +6,6 @@
  */
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import Link from 'next/link';
 import { AlertCircle, RefreshCw, Home } from 'lucide-react';
 
 interface Props {
@@ -62,13 +61,13 @@ export class ResearchErrorBoundary extends Component<Props, State> {
               <RefreshCw className="h-4 w-4" />
               Try Again
             </button>
-            <Link
+            <a
               href="/projects"
               className="inline-flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] text-gray-400 border border-[#333] rounded font-mono text-sm hover:border-[#555] transition-colors"
             >
               <Home className="h-4 w-4" />
               Back to Projects
-            </Link>
+            </a>
           </div>
         </div>
       );

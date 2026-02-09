@@ -4,7 +4,6 @@ Unit tests for token counting utilities
 
 import pytest
 from unittest.mock import patch, MagicMock
-import sys
 
 from src.utils.token_counter import (
     count_tokens,
@@ -24,58 +23,55 @@ class TestCountTokens:
 
     def test_fallback_to_estimation_when_tiktoken_unavailable(self):
         """Test fallback to estimation when tiktoken is not available"""
-        # Patch sys.modules to simulate tiktoken missing
-        with patch.dict('sys.modules', {'tiktoken': None}):
-            text = "Hello world"
-            result = count_tokens(text)
-            expected = estimate_tokens(text)
-            assert result == expected
+        # Patch the internal _tiktoken variable
+        with patch('src.utils.token_counter._tiktoken', None):
+            with patch('builtins.__import__', side_effect=ImportError("No module named 'tiktoken'")):
+                text = "Hello world"
+                result = count_tokens(text)
+                expected = estimate_tokens(text)
+                assert result == expected
 
-    def test_uses_tiktoken_when_available(self):
+    @patch('src.utils.token_counter._tiktoken')
+    def test_uses_tiktoken_when_available(self, mock_tiktoken):
         """Test that tiktoken is used when available"""
-        mock_tiktoken = MagicMock()
         mock_encoding = MagicMock()
         mock_encoding.encode.return_value = [1, 2, 3, 4, 5]  # 5 tokens
         mock_tiktoken.get_encoding.return_value = mock_encoding
 
-        # Patch sys.modules so 'import tiktoken' returns our mock
-        with patch.dict('sys.modules', {'tiktoken': mock_tiktoken}):
-            result = count_tokens("Hello world")
+        result = count_tokens("Hello world")
 
-            assert result == 5
-            mock_tiktoken.get_encoding.assert_called_once_with("cl100k_base")
-            mock_encoding.encode.assert_called_once_with("Hello world")
+        assert result == 5
+        mock_tiktoken.get_encoding.assert_called_once_with("cl100k_base")
+        mock_encoding.encode.assert_called_once_with("Hello world")
 
-    def test_model_specific_encoding(self):
+    @patch('src.utils.token_counter._tiktoken')
+    def test_model_specific_encoding(self, mock_tiktoken):
         """Test that model-specific encodings are selected correctly"""
-        mock_tiktoken = MagicMock()
         mock_encoding = MagicMock()
         mock_encoding.encode.return_value = [1, 2, 3]
         mock_tiktoken.get_encoding.return_value = mock_encoding
 
-        with patch.dict('sys.modules', {'tiktoken': mock_tiktoken}):
-            # Test GPT-4 model
-            count_tokens("test", model="gpt-4")
-            mock_tiktoken.get_encoding.assert_called_with("cl100k_base")
+        # Test GPT-4 model
+        count_tokens("test", model="gpt-4")
+        mock_tiktoken.get_encoding.assert_called_with("cl100k_base")
 
-            # Test GPT-3.5 model
-            count_tokens("test", model="gpt-3.5-turbo")
-            mock_tiktoken.get_encoding.assert_called_with("cl100k_base")
+        # Test GPT-3.5 model
+        count_tokens("test", model="gpt-3.5-turbo")
+        mock_tiktoken.get_encoding.assert_called_with("cl100k_base")
 
-            # Test older model
-            count_tokens("test", model="text-davinci-003")
-            mock_tiktoken.get_encoding.assert_called_with("p50k_base")
+        # Test older model
+        count_tokens("test", model="text-davinci-003")
+        mock_tiktoken.get_encoding.assert_called_with("p50k_base")
 
-    def test_handles_tiktoken_encoding_errors(self):
+    @patch('src.utils.token_counter._tiktoken')
+    def test_handles_tiktoken_encoding_errors(self, mock_tiktoken):
         """Test fallback when tiktoken encoding fails"""
-        mock_tiktoken = MagicMock()
         mock_tiktoken.get_encoding.side_effect = Exception("Encoding failed")
 
-        with patch.dict('sys.modules', {'tiktoken': mock_tiktoken}):
-            text = "Hello world"
-            result = count_tokens(text)
-            expected = estimate_tokens(text)
-            assert result == expected
+        text = "Hello world"
+        result = count_tokens(text)
+        expected = estimate_tokens(text)
+        assert result == expected
 
 
 class TestEstimateTokens:

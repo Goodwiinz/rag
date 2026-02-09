@@ -10,8 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4, UUID
 
 from fastapi import HTTPException
-# Remove dependency on actual AsyncSession for mocking to avoid spec issues
-# from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
     User,
@@ -114,8 +113,7 @@ def mock_project_thread(mock_project, mock_thread, mock_user):
 @pytest.fixture
 def mock_db():
     """Create a mock async database session"""
-    # Don't use spec=AsyncSession as it causes issues with AsyncMock in some environments
-    db = AsyncMock()
+    db = AsyncMock(spec=AsyncSession)
     db.execute = AsyncMock()
     db.add = MagicMock()
     db.flush = AsyncMock()

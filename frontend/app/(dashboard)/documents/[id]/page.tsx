@@ -119,7 +119,7 @@ export default function DocumentDetailPage() {
 
     try {
       // Extract citations using hybrid strategy
-      const result = await citationService.extractCitations(document.id, undefined);
+      const result = await citationService.extractCitations(document.id, 'auto');
 
       // Fetch all citations for this document
       const allCitations = await citationService.getCitationsForDocument(document.id);
