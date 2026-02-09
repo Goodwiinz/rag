@@ -292,9 +292,9 @@ class VectorService:
                 else:
                     payload["filter"] = query_filter.dict()
             
-            # Use async httpx instead of blocking requests
-            async with httpx.AsyncClient() as client:
-                response = await client.post(url, json=payload, headers=headers, timeout=10.0)
+            # Keep this path synchronous to match the service method contract.
+            with httpx.Client(timeout=10.0) as client:
+                response = client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
                 search_result_json = response.json()
             search_results = search_result_json.get("result", [])
