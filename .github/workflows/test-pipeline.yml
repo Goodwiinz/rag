@@ -23,15 +23,20 @@ on:
       - '.github/PULL_REQUEST_TEMPLATE/**'
       - 'LICENSE'
       - '.gitignore'
+  workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
   PYTHON_VERSION: "3.11"
   NODE_VERSION: "20"
   DOCKER_BUILDKIT: "0"
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   # ==========================================================================
@@ -218,7 +223,7 @@ jobs:
           POSTGRES_PASSWORD: test
           POSTGRES_DB: test_db
         ports:
-          - 5432:5432
+          - 5432/tcp
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -228,7 +233,7 @@ jobs:
       redis:
         image: redis:7
         ports:
-          - 6379:6379
+          - 6379/tcp
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -259,8 +264,8 @@ jobs:
             -v || exit_code=$?; if [ "$exit_code" = "5" ]; then echo "No integration tests found - skipping"; exit 0; else exit $exit_code; fi
         env:
           ENVIRONMENT: testing
-          DATABASE_URL: "postgresql://test:test@localhost:5432/test_db"
-          REDIS_URL: "redis://localhost:6379/0"
+          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports[5432] }}/test_db"
+          REDIS_URL: "redis://localhost:${{ job.services.redis.ports[6379] }}/0"
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -324,7 +329,7 @@ jobs:
           POSTGRES_PASSWORD: test
           POSTGRES_DB: test_db
         ports:
-          - 5432:5432
+          - 5432/tcp
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
@@ -347,7 +352,7 @@ jobs:
             -v
         env:
           ENVIRONMENT: testing
-          DATABASE_URL: "postgresql://test:test@localhost:5432/test_db"
+          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports[5432] }}/test_db"
         continue-on-error: true  # Allow failures during development
 
   # ==========================================================================
@@ -478,7 +483,7 @@ jobs:
           POSTGRES_PASSWORD: test
           POSTGRES_DB: test_db
         ports:
-          - 5432:5432
+          - 5432/tcp
 
     steps:
       - uses: actions/checkout@v4
@@ -503,7 +508,7 @@ jobs:
             -v
         env:
           ENVIRONMENT: testing
-          DATABASE_URL: "postgresql://test:test@localhost:5432/test_db"
+          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports[5432] }}/test_db"
 
       - name: Store benchmark results
         uses: actions/upload-artifact@v4
