@@ -12,6 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from src.core.database import get_db
+from src.core.dependencies import get_current_user
 from src.core.api_key_auth import get_api_key_data, APIKeyData, APIKeyUsageLog
 from src.services.search.fulltext_search_service import fulltext_search_service
 from src.services.search.hybrid_search_service import hybrid_search_service
