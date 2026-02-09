@@ -14,6 +14,7 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
+import { enableMapSet } from 'immer';
 
 // Mock workspace service
 const mockWorkspaceService = {
@@ -200,6 +201,7 @@ describe('Chat Store Bulk Operations', () => {
   let store: ReturnType<typeof createTestStore>;
 
   beforeEach(() => {
+    enableMapSet();
     store = createTestStore();
     jest.clearAllMocks();
   });

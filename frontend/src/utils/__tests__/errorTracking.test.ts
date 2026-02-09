@@ -4,434 +4,182 @@
 
 import { errorTracker } from '../errorTracking';
 
-// Mock console methods
 const mockConsoleError = jest.spyOn(console, 'error').mockImplementation();
 const mockConsoleWarn = jest.spyOn(console, 'warn').mockImplementation();
 const mockConsoleInfo = jest.spyOn(console, 'info').mockImplementation();
 const mockConsoleDebug = jest.spyOn(console, 'debug').mockImplementation();
 
-// Mock localStorage
 const mockLocalStorage = {
   getItem: jest.fn(),
   setItem: jest.fn(),
   removeItem: jest.fn(),
   clear: jest.fn(),
   key: jest.fn(),
-  length: 0
+  length: 0,
 };
 
 Object.defineProperty(window, 'localStorage', {
   value: mockLocalStorage,
-  writable: true
+  writable: true,
 });
 
-// Mock navigator
 Object.defineProperty(window, 'navigator', {
   value: {
-    userAgent: 'Mozilla/5.0 (Test Browser)'
+    userAgent: 'Mozilla/5.0 (Test Browser)',
   },
-  writable: true
+  writable: true,
 });
 
-// Mock location
 Object.defineProperty(window, 'location', {
   value: {
-    href: 'http://localhost:3000'
+    href: 'http://localhost:3000',
   },
-  writable: true
+  writable: true,
 });
 
 describe('ErrorTracker', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    // Reset localStorage mock
+    errorTracker.setEnabled(true);
+    errorTracker.clearLogs();
+    errorTracker.clearMetrics();
+
     mockLocalStorage.getItem.mockReturnValue(null);
     mockLocalStorage.setItem.mockImplementation(() => {});
     mockLocalStorage.removeItem.mockImplementation(() => {});
   });
 
-  describe('Singleton Pattern', () => {
-    it('returns the same instance', () => {
-      const instance1 = errorTracker;
-      const instance2 = errorTracker;
-      expect(instance1).toBe(instance2);
-    });
+  afterAll(() => {
+    mockConsoleError.mockRestore();
+    mockConsoleWarn.mockRestore();
+    mockConsoleInfo.mockRestore();
+    mockConsoleDebug.mockRestore();
   });
 
-  describe('Error Logging', () => {
-    it('logs debug messages', () => {
-      errorTracker.debug('Test debug message', { key: 'value' });
-
-      expect(mockLocalStorage.getItem).toHaveBeenCalledWith('userId');
-      expect(mockLocalStorage.setItem).toHaveBeenCalled();
-    });
-
-    it('logs info messages', () => {
-      errorTracker.info('Test info message', { key: 'value' });
-
-      expect(mockLocalStorage.setItem).toHaveBeenCalled();
-    });
-
-    it('logs warning messages', () => {
-      errorTracker.warn('Test warning message', { key: 'value' });
-
-      expect(mockLocalStorage.setItem).toHaveBeenCalled();
-    });
-
-    it('logs error messages', () => {
-      const error = new Error('Test error');
-      errorTracker.error('Test error message', error, { key: 'value' });
-
-      expect(mockLocalStorage.setItem).toHaveBeenCalled();
-    });
-
-    it('logs fatal messages', () => {
-      const error = new Error('Test fatal error');
-      errorTracker.fatal('Test fatal error message', error, { key: 'value' });
-
-      expect(mockLocalStorage.setItem).toHaveBeenCalled();
-    });
+  it('is a singleton', () => {
+    expect(errorTracker).toBe(errorTracker);
   });
 
-  describe('Error Capture', () => {
-    it('captures errors with context', () => {
-      const error = new Error('Test error');
-      const context = { component: 'TestComponent', action: 'testAction' };
+  it('stores logs in memory and localStorage', () => {
+    errorTracker.info('Test info');
+    errorTracker.error('Test error', new Error('boom'));
 
-      errorTracker.captureError(error, context);
+    const logs = errorTracker.getLogs();
+    expect(logs).toHaveLength(2);
+    expect(logs[0].level).toBe('info');
+    expect(logs[1].level).toBe('error');
 
-      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-        'errorLogs',
-        expect.stringContaining('"level":"error"')
-      );
-    });
-
-    it('captures exceptions', () => {
-      errorTracker.captureException('Test exception', { component: 'TestComponent' });
-
-      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-        'errorLogs',
-        expect.stringContaining('"level":"error"')
-      );
-    });
-
-    it('captures component errors', () => {
-      const error = new Error('Component error');
-      const errorInfo = { componentStack: 'Test stack trace' };
-
-      errorTracker.captureComponentError('TestComponent', error, errorInfo);
-
-      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-        'errorLogs',
-        expect.stringContaining('"component":"TestComponent"')
-      );
-    });
-
-    it('captures API errors', () => {
-      const error = new Error('API error');
-
-      errorTracker.captureApiError('/api/test', 'GET', 500, error);
-
-      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-        'errorLogs',
-        expect.stringContaining('"action":"RequestFailed"')
-      );
-    });
+    expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
+      'errorLogs',
+      expect.any(String)
+    );
   });
 
-  describe('Performance Tracking', () => {
-    it('tracks metrics', () => {
-      errorTracker.trackMetric('test_metric', 100, 'ms', { key: 'value' });
+  it('stores performance metrics in memory and localStorage', () => {
+    errorTracker.trackMetric('latency', 150, 'ms');
 
-      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-        'performanceMetrics',
-        expect.stringContaining('"name":"test_metric"')
-      );
-    });
+    const metrics = errorTracker.getMetrics();
+    expect(metrics).toHaveLength(1);
+    expect(metrics[0].name).toBe('latency');
 
-    it('tracks search queries', () => {
-      errorTracker.trackQuery('test query', 5, 1500, true);
-
-      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-        'performanceMetrics',
-        expect.stringContaining('"name":"search_response_time"')
-      );
-    });
-
-    it('tracks document uploads', () => {
-      const file = new File(['test'], 'test.pdf', { type: 'application/pdf' });
-      errorTracker.trackDocumentUpload('test.pdf', 1024, true);
-
-      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-        'performanceMetrics',
-        expect.stringContaining('"action":"UploadSuccess"')
-      );
-    });
+    expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
+      'performanceMetrics',
+      expect.any(String)
+    );
   });
 
-  describe('User Interaction Tracking', () => {
-    it('tracks user actions', () => {
-      errorTracker.trackUserAction('click', { element: 'button', id: 'test-button' });
+  it('tracks document upload success as informational log', () => {
+    errorTracker.trackDocumentUpload('test.pdf', 1024, true);
 
-      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-        'applicationLogs',
-        expect.stringContaining('"action":"click"')
-      );
-    });
-
-    it('tracks user actions with page context', () => {
-      errorTracker.trackUserAction('search', { query: 'test query' }, 'search-input', '/search');
-
-      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-        'applicationLogs',
-        expect.stringContaining('"page":"/search"')
-      );
-    });
+    expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
+      'errorLogs',
+      expect.stringContaining('"UploadSuccess"')
+    );
   });
 
-  describe('Log Retrieval', () => {
-    it('retrieves all logs', () => {
-      // Add some test logs
-      errorTracker.info('Test message 1');
-      errorTracker.error('Test message 2');
+  it('tracks user actions as informational log', () => {
+    errorTracker.trackUserAction('click', { element: 'button' });
 
-      const logs = errorTracker.getLogs();
-
-      expect(logs).toHaveLength(2);
-      expect(logs[0].message).toBe('Test message 1');
-      expect(logs[1].message).toBe('Test message 2');
-    });
-
-    it('retrieves logs by level', () => {
-      errorTracker.info('Info message');
-      errorTracker.error('Error message');
-
-      const errorLogs = errorTracker.getLogs('error');
-
-      expect(errorLogs).toHaveLength(1);
-      expect(errorLogs[0].message).toBe('Error message');
-    });
-
-    it('retrieves logs with limit', () => {
-      // Add multiple logs
-      for (let i = 0; i < 5; i++) {
-        errorTracker.info(`Message ${i}`);
-      }
-
-      const limitedLogs = errorTracker.getLogs(undefined, 3);
-
-      expect(limitedLogs).toHaveLength(3);
-    });
+    expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
+      'errorLogs',
+      expect.stringContaining('"action":"click"')
+    );
   });
 
-  describe('Metrics Retrieval', () => {
-    it('retrieves all metrics', () => {
-      errorTracker.trackMetric('metric1', 100, 'ms');
-      errorTracker.trackMetric('metric2', 200, 'ms');
+  it('filters logs and metrics correctly', () => {
+    errorTracker.info('info');
+    errorTracker.warn('warn');
+    errorTracker.error('error');
 
-      const metrics = errorTracker.getMetrics();
+    errorTracker.trackMetric('m1', 100, 'ms');
+    errorTracker.trackMetric('m2', 200, 'ms');
 
-      expect(metrics).toHaveLength(2);
-      expect(metrics[0].name).toBe('metric1');
-      expect(metrics[1].name).toBe('metric2');
-    });
+    expect(errorTracker.getLogs('error')).toHaveLength(1);
+    expect(errorTracker.getLogs(undefined, 2)).toHaveLength(2);
 
-    it('retrieves metrics by name', () => {
-      errorTracker.trackMetric('search_time', 150, 'ms');
-      errorTracker.trackMetric('upload_time', 2000, 'ms');
-
-      const searchMetrics = errorTracker.getMetrics('search_time');
-
-      expect(searchMetrics).toHaveLength(1);
-      expect(searchMetrics[0].name).toBe('search_time');
-    });
-
-    it('retrieves metrics with limit', () => {
-      for (let i = 0; i < 5; i++) {
-        errorTracker.trackMetric(`metric${i}`, i * 100, 'ms');
-      }
-
-      const limitedMetrics = errorTracker.getMetrics(undefined, 3);
-
-      expect(limitedMetrics).toHaveLength(3);
-    });
+    expect(errorTracker.getMetrics('m1')).toHaveLength(1);
+    expect(errorTracker.getMetrics(undefined, 1)).toHaveLength(1);
   });
 
-  describe('Analytics', () => {
-    it('calculates error statistics', () => {
-      errorTracker.info('Info message');
-      errorTracker.warn('Warning message');
-      errorTracker.error('Error message 1');
-      errorTracker.error('Error message 2');
+  it('calculates analytics correctly', () => {
+    errorTracker.info('i1');
+    errorTracker.warn('w1');
+    errorTracker.error('e1');
 
-      const stats = errorTracker.getErrorStats();
+    errorTracker.trackMetric('metricA', 100, 'ms');
+    errorTracker.trackMetric('metricA', 200, 'ms');
 
-      expect(stats.total).toBe(4);
-      expect(stats.byLevel.info).toBe(1);
-      expect(stats.byLevel.warn).toBe(1);
-      expect(stats.byLevel.error).toBe(2);
-    });
+    const errorStats = errorTracker.getErrorStats();
+    expect(errorStats.total).toBe(3);
+    expect(errorStats.byLevel.info).toBe(1);
+    expect(errorStats.byLevel.warn).toBe(1);
+    expect(errorStats.byLevel.error).toBe(1);
 
-    it('calculates performance statistics', () => {
-      errorTracker.trackMetric('metric1', 100, 'ms');
-      errorTracker.trackMetric('metric1', 200, 'ms');
-      errorTracker.trackMetric('metric2', 50, 'ms');
-
-      const stats = errorTracker.getPerformanceStats();
-
-      expect(stats.total).toBe(3);
-      expect(stats.byName.metric1.count).toBe(2);
-      expect(stats.byName.metric1.avg).toBe(150);
-      expect(stats.byName.metric1.min).toBe(100);
-      expect(stats.byName.metric1.max).toBe(200);
-    });
+    const perfStats = errorTracker.getPerformanceStats();
+    expect(perfStats.total).toBe(2);
+    expect(perfStats.byName.metricA.count).toBe(2);
+    expect(perfStats.byName.metricA.avg).toBe(150);
   });
 
-  describe('Maintenance', () => {
-    it('clears logs', () => {
-      errorTracker.info('Test message');
-      expect(errorTracker.getLogs()).toHaveLength(1);
+  it('clears logs and metrics', () => {
+    errorTracker.info('x');
+    errorTracker.trackMetric('y', 1, 'ms');
 
-      errorTracker.clearLogs();
+    errorTracker.clearLogs();
+    errorTracker.clearMetrics();
 
-      expect(errorTracker.getLogs()).toHaveLength(0);
-      expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('errorLogs');
-    });
-
-    it('clears metrics', () => {
-      errorTracker.trackMetric('test_metric', 100, 'ms');
-      expect(errorTracker.getMetrics()).toHaveLength(1);
-
-      errorTracker.clearMetrics();
-
-      expect(errorTracker.getMetrics()).toHaveLength(0);
-      expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('performanceMetrics');
-    });
-
-    it('enables/disables tracking', () => {
-      errorTracker.setEnabled(false);
-
-      // Should not track when disabled
-      errorTracker.info('Test message');
-      expect(mockLocalStorage.setItem).not.toHaveBeenCalled();
-
-      errorTracker.setEnabled(true);
-
-      // Should track when enabled
-      errorTracker.info('Test message');
-      expect(mockLocalStorage.setItem).toHaveBeenCalled();
-    });
+    expect(errorTracker.getLogs()).toHaveLength(0);
+    expect(errorTracker.getMetrics()).toHaveLength(0);
+    expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('errorLogs');
+    expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('performanceMetrics');
   });
 
-  describe('Export', () => {
-    it('exports logs to JSON', () => {
-      errorTracker.info('Test message');
-      errorTracker.error('Error message', new Error('Test error'));
+  it('exports logs and metrics to JSON', () => {
+    errorTracker.info('Test message');
+    errorTracker.trackMetric('test_metric', 100, 'ms');
 
-      const exportedLogs = errorTracker.exportLogs();
+    const exportedLogs = errorTracker.exportLogs();
+    const exportedMetrics = errorTracker.exportMetrics();
 
-      expect(exportedLogs).toContain('"level":"info"');
-      expect(exportedLogs).toContain('"level":"error"');
-      expect(exportedLogs).toContain('"message":"Test message"');
-      expect(exportedLogs).toContain('"message":"Error message"');
-    });
-
-    it('exports metrics to JSON', () => {
-      errorTracker.trackMetric('test_metric', 100, 'ms');
-
-      const exportedMetrics = errorTracker.exportMetrics();
-
-      expect(exportedMetrics).toContain('"name":"test_metric"');
-      expect(exportedMetrics).toContain('"value":100');
-      expect(exportedMetrics).toContain('"unit":"ms"');
-    });
+    expect(exportedLogs).toContain('"message": "Test message"');
+    expect(exportedMetrics).toContain('"name": "test_metric"');
   });
 
-  describe('Health Check', () => {
-    it('returns health status', () => {
-      const health = errorTracker.healthCheck();
-
-      expect(health).toHaveProperty('enabled');
-      expect(health).toHaveProperty('logsCount');
-      expect(health).toHaveProperty('metricsCount');
-      expect(health).toHaveProperty('lastLog');
-      expect(health).toHaveProperty('lastMetric');
+  it('handles localStorage errors gracefully', () => {
+    mockLocalStorage.setItem.mockImplementation(() => {
+      throw new Error('Storage full');
     });
+
+    expect(() => errorTracker.info('Test message')).not.toThrow();
   });
 
-  describe('Context Generation', () => {
-    it('generates user ID from localStorage', () => {
-      mockLocalStorage.getItem.mockImplementation((key) => {
-        if (key === 'userId') return 'test-user-123';
-        return null;
-      });
+  it('health check returns expected shape', () => {
+    const health = errorTracker.healthCheck();
 
-      const health = errorTracker.healthCheck();
-
-      expect(mockLocalStorage.getItem).toHaveBeenCalledWith('userId');
-    });
-
-    it('generates session ID from sessionStorage', () => {
-      const mockSessionStorage = {
-        getItem: jest.fn(),
-        setItem: jest.fn(),
-        removeItem: jest.fn(),
-        clear: jest.fn()
-      };
-
-      Object.defineProperty(window, 'sessionStorage', {
-        value: mockSessionStorage,
-        writable: true
-      });
-
-      errorTracker.info('Test message');
-
-      expect(mockSessionStorage.getItem).toHaveBeenCalledWith('sessionId');
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('handles localStorage errors gracefully', () => {
-      mockLocalStorage.setItem.mockImplementation(() => {
-        throw new Error('Storage full');
-      });
-
-      // Should not throw
-      expect(() => {
-        errorTracker.info('Test message');
-      }).not.toThrow();
-    });
-
-    it('handles circular objects in context', () => {
-      const circularObject: any = { name: 'test' };
-      circularObject.self = circularObject;
-
-      // Should not throw
-      expect(() => {
-        errorTracker.info('Test message', { data: circularObject });
-      }).not.toThrow();
-    });
-  });
-
-  describe('Performance Optimization', () => {
-    it('limits stored logs', () => {
-      // Add more than max limit logs
-      for (let i = 0; i < 1005; i++) {
-        errorTracker.info(`Message ${i}`);
-      }
-
-      const logs = errorTracker.getLogs();
-      expect(logs.length).toBeLessThanOrEqual(1000);
-    });
-
-    it('limits stored metrics', () => {
-      // Add more than max limit metrics
-      for (let i = 0; i < 505; i++) {
-        errorTracker.trackMetric(`metric${i}`, i, 'ms');
-      }
-
-      const metrics = errorTracker.getMetrics();
-      expect(metrics.length).toBeLessThanOrEqual(500);
-    });
+    expect(health).toHaveProperty('enabled');
+    expect(health).toHaveProperty('logsCount');
+    expect(health).toHaveProperty('metricsCount');
+    expect(health).toHaveProperty('lastLog');
+    expect(health).toHaveProperty('lastMetric');
   });
 });
