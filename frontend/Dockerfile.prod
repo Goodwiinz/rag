@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Multi-stage production Dockerfile for React Frontend
 # Optimized for production with caching and security
-# Optimized for remote builds with BuildKit cache mounts
+# Optimized for remote builds
 
 # Stage 1: Base image for node
 FROM node:18-alpine AS base
@@ -25,9 +25,9 @@ COPY frontend/package.json ./
 # Copy lock file if it exists (supports npm, pnpm, or yarn)
 COPY frontend/package-lock.jso[n] frontend/pnpm-lock.yam[l] frontend/yarn.loc[k] ./
 
-# Install dependencies with cache mount for faster rebuilds
+# Install dependencies
 # Use npm ci if lock file exists, otherwise npm install
-RUN --mount=type=cache,target=/root/.npm \
+RUN \
     if [ -f package-lock.json ]; then \
       npm ci; \
     elif [ -f pnpm-lock.yaml ]; then \
