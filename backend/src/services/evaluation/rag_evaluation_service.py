@@ -37,7 +37,6 @@ from src.models.search_schemas import (
     SearchType,
 )
 from src.services.knowledge_graph import knowledge_graph_service
-from src.services.quality.quality_metrics_service import quality_metrics_service
 from src.services.search.hybrid_search_service import hybrid_search_service
 from src.services.search.vector_search_service import vector_search_service
 
