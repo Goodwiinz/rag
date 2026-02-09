@@ -1,4 +1,4 @@
-name: Fast CI (Self-Hosted)
+name: Fast CI (Larger Hosted Runner)
 
 on:
   push:
@@ -8,13 +8,13 @@ on:
   workflow_dispatch:
 
 env:
-  NPM_CONFIG_CACHE: /home/clawdbot/runner-cache/npm
-  PIP_CACHE_DIR: /home/clawdbot/runner-cache/pip
+  NPM_CONFIG_CACHE: ${{ runner.temp }}/npm-cache
+  PIP_CACHE_DIR: ${{ runner.temp }}/pip-cache
 
 jobs:
   lint:
     name: Lint (Fast)
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest-m
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +42,7 @@ jobs:
 
   test-backend:
     name: Backend Tests (Fast)
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest-m
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -62,7 +62,7 @@ jobs:
 
   test-frontend:
     name: Frontend Tests (Fast)
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest-m
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -77,11 +77,11 @@ jobs:
 
   summary:
     name: CI Summary
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest-m
     needs: [lint, test-backend, test-frontend]
     if: always()
     steps:
       - name: Summary
         run: |
           echo "## ✅ Fast CI Complete" >> $GITHUB_STEP_SUMMARY
-          echo "All jobs finished on self-hosted runner" >> $GITHUB_STEP_SUMMARY
+          echo "All jobs finished on ubuntu-latest-m" >> $GITHUB_STEP_SUMMARY
