@@ -19,7 +19,6 @@ from src.core.database import get_db
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.entity import Entity, EntityType, ExtractionMethod
 from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
-from src.services.documents.file_service import FileService
 from src.services.processing.audio_processing_service import AudioProcessingService
 from src.services.processing.entity_extraction_service import EntityExtractionService
 from src.services.processing.image_processing_service import ImageProcessingService
@@ -53,6 +52,9 @@ class ProcessingPipeline:
     """Main processing pipeline for multimodal documents"""
 
     def __init__(self, db: Session):
+        # Import lazily to avoid circular import through src.services.documents.__init__
+        from src.services.documents.file_service import FileService
+
         self.db = db
         self.file_service = FileService(db)
         self.entity_extractor = EntityExtractionService()
