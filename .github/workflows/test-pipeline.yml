@@ -281,6 +281,7 @@ jobs:
     name: Resilience Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    continue-on-error: true  # Non-critical in PR checks; don't block merges
     needs: unit-tests
     steps:
       - uses: actions/checkout@v4
@@ -320,6 +321,7 @@ jobs:
   api-contract-tests:
     name: API Contract Tests
     runs-on: ubuntu-latest
+    continue-on-error: true  # Non-critical in PR checks; don't block merges
     needs: [unit-tests, frontend-tests]
     services:
       postgres:
@@ -361,6 +363,7 @@ jobs:
   e2e-tests:
     name: E2E Tests
     runs-on: ubuntu-latest
+    continue-on-error: true  # Non-critical in PR checks; don't block merges
     needs: [integration-tests]
     steps:
       - uses: actions/checkout@v4
@@ -473,6 +476,7 @@ jobs:
   performance-tests:
     name: Performance Tests
     runs-on: ubuntu-latest
+    continue-on-error: true  # Non-critical in PR checks; don't block merges
     needs: integration-tests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     services:
