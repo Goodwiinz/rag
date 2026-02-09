@@ -10,7 +10,15 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from xml.etree.ElementTree import Element  # For type hints only
+
+import aiofiles
+import aiohttp
 import httpx
+from defusedxml import ElementTree as ET
+from pypdf import PdfReader
 
 from src.models.document import DocumentType, ProcessingStatus
 from src.services.infrastructure.azure_openai_service import azure_openai_service
