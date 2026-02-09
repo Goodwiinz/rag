@@ -49,7 +49,11 @@ class VectorService:
         self.client = None
         self.url = settings.QDRANT_URL
         self.api_key = settings.QDRANT_API_KEY
-        self._connect()
+        try:
+            self._connect()
+        except Exception as e:
+            # Keep startup resilient when external vector DB is unavailable.
+            logger.warning(f"Qdrant unavailable during startup; will retry lazily: {e}")
 
     def _connect(self):
         """Connect to Qdrant database"""
@@ -67,13 +71,20 @@ class VectorService:
 
         except Exception as e:
             logger.error(f"Failed to connect to Qdrant: {e}")
+            self.client = None
             raise
+
+    def _ensure_connected(self):
+        """Ensure client exists, attempting reconnect on demand."""
+        if self.client is None:
+            self._connect()
 
     def create_collection(self, config: CollectionConfig) -> VectorOperationResult:
         """Create a new vector collection"""
         start_time = time.time()
 
         try:
+            self._ensure_connected()
             # Check if collection already exists
             try:
                 existing = self.client.get_collection(config.name)
@@ -146,6 +157,7 @@ class VectorService:
         collection_name = collection_type.value
 
         try:
+            self._ensure_connected()
             self.client.get_collection(collection_name)
             logger.debug(f"Collection {collection_name} already exists")
         except (ValueError, KeyError, Exception):
@@ -170,6 +182,7 @@ class VectorService:
         start_time = time.time()
 
         try:
+            self._ensure_connected()
             # Ensure collection exists
             if vectors:
                 self.ensure_collection_exists(collection_type, len(vectors[0].vector))
@@ -355,6 +368,7 @@ class VectorService:
         start_time = time.time()
 
         try:
+            self._ensure_connected()
             collection_name = collection_type.value
 
             # Delete vectors
@@ -385,6 +399,7 @@ class VectorService:
     def get_collection_stats(self, collection_type: VectorCollectionType) -> Optional[CollectionStats]:
         """Get statistics for a collection"""
         try:
+            self._ensure_connected()
             collection_name = collection_type.value
             collection_info = self.client.get_collection(collection_name)
 
@@ -406,6 +421,7 @@ class VectorService:
     def get_health_status(self) -> VectorHealthStatus:
         """Get overall health status of vector database"""
         try:
+            self._ensure_connected()
             # Test basic connection
             collections = self.client.get_collections()
 
@@ -448,6 +464,7 @@ class VectorService:
         start_time = time.time()
 
         try:
+            self._ensure_connected()
             collection_name = collection_type.value
 
             # Delete and recreate collection
@@ -488,6 +505,7 @@ class VectorService:
         start_time = time.time()
 
         try:
+            self._ensure_connected()
             collection_name = collection_type.value if hasattr(collection_type, "value") else str(collection_type)
 
             # Delete collection

@@ -54,11 +54,28 @@ try:
 except ImportError:
     np = None
 
-# AI/ML libraries
-import spacy
-from sentence_transformers import SentenceTransformer
-import openai
-from transformers import pipeline, AutoTokenizer, AutoModelForTokenClassification
+# AI/ML libraries (optional dependencies)
+try:
+    import spacy
+except ImportError:
+    spacy = None
+
+try:
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    SentenceTransformer = None
+
+try:
+    import openai
+except ImportError:
+    openai = None
+
+try:
+    from transformers import pipeline, AutoTokenizer, AutoModelForTokenClassification
+except ImportError:
+    pipeline = None
+    AutoTokenizer = None
+    AutoModelForTokenClassification = None
 
 # Database and storage
 from sqlalchemy.orm import Session
@@ -107,11 +124,17 @@ class MultimodalProcessor:
     def _load_models(self):
         """Load ML models on initialization"""
         try:
-            # Load spaCy model for entity extraction
-            self.nlp = spacy.load("en_core_web_sm")
+            # Load spaCy model for entity extraction when available.
+            if spacy is not None:
+                self.nlp = spacy.load("en_core_web_sm")
+            else:
+                logger.warning("spaCy is not installed; using fallback text processing")
 
-            # Load sentence transformer for embeddings
-            self.sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
+            # Load sentence transformer for embeddings when available.
+            if SentenceTransformer is not None:
+                self.sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
+            else:
+                logger.warning("sentence-transformers is not installed; embeddings disabled")
 
             logger.info("ML models loaded successfully")
         except Exception as e:
@@ -354,6 +377,9 @@ class EntityExtractor:
     def _load_model(self):
         """Load spaCy model"""
         try:
+            if spacy is None:
+                logger.warning("spaCy is not installed; entity extraction will use fallback mode")
+                return
             self.nlp = spacy.load("en_core_web_sm")
         except Exception as e:
             logger.error(f"Failed to load spaCy model: {e}")

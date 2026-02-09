@@ -7,7 +7,10 @@ for testing and evaluating the multimodal RAG system.
 
 import asyncio
 import logging
-from defusedxml import ElementTree as ET
+try:
+    from defusedxml import ElementTree as ET
+except ImportError:
+    import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element  # For type hints only
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple, Any
