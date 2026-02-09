@@ -39,7 +39,7 @@ jobs:
   # ==========================================================================
   lint-backend:
     name: Lint Backend
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     steps:
       - uses: actions/checkout@v4
 
@@ -63,7 +63,7 @@ jobs:
 
   lint-frontend:
     name: Lint Frontend
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     defaults:
       run:
         working-directory: frontend
@@ -92,7 +92,7 @@ jobs:
   # ==========================================================================
   unit-tests:
     name: Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     needs: lint-backend
     steps:
       - uses: actions/checkout@v4
@@ -145,7 +145,7 @@ jobs:
   # ==========================================================================
   security-scan:
     name: Security Scan
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     needs: lint-backend
     steps:
       - uses: actions/checkout@v4
@@ -171,7 +171,7 @@ jobs:
   # ==========================================================================
   frontend-tests:
     name: Frontend Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     needs: lint-frontend
     defaults:
       run:
@@ -206,7 +206,7 @@ jobs:
   # ==========================================================================
   integration-tests:
     name: Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     timeout-minutes: 15
     continue-on-error: true  # Don't block workflow if integration tests fail/timeout
     needs: [unit-tests, frontend-tests]
@@ -274,7 +274,7 @@ jobs:
   # ==========================================================================
   resilience-tests:
     name: Resilience Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     timeout-minutes: 10
     needs: unit-tests
     steps:
@@ -314,7 +314,7 @@ jobs:
   # ==========================================================================
   api-contract-tests:
     name: API Contract Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     needs: [unit-tests, frontend-tests]
     services:
       postgres:
@@ -355,7 +355,7 @@ jobs:
   # ==========================================================================
   e2e-tests:
     name: E2E Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     needs: [integration-tests]
     steps:
       - uses: actions/checkout@v4
@@ -467,7 +467,7 @@ jobs:
   # ==========================================================================
   performance-tests:
     name: Performance Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     needs: integration-tests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     services:
@@ -516,7 +516,7 @@ jobs:
   # ==========================================================================
   test-summary:
     name: Test Summary
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     needs: [unit-tests, integration-tests, resilience-tests, frontend-tests, security-scan, api-contract-tests]
     if: always()
     env:
