@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Multi-stage production Dockerfile for React Frontend
 # Optimized for production with caching and security
-# Optimized for Depot remote builds with BuildKit cache mounts
+# Optimized for remote builds with BuildKit cache mounts
 
 # Stage 1: Base image for node
 FROM node:18-alpine AS base
