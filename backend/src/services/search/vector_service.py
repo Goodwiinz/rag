@@ -66,8 +66,9 @@ class VectorService:
             )
 
         except Exception as e:
-            logger.error(f"Failed to connect to Qdrant: {e}")
-            raise
+            # Keep service importable in environments without a live Qdrant instance
+            # (for example unit-test CI), and let per-operation methods handle failures.
+            logger.warning(f"Failed to verify Qdrant connectivity: {e}")
 
     def create_collection(self, config: CollectionConfig) -> VectorOperationResult:
         """Create a new vector collection"""
