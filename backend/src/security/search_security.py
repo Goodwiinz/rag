@@ -223,9 +223,9 @@ class SearchQuerySanitizer:
         violations = cls._detect_injection_patterns(query)
         for violation in violations:
             if violation['severity'] == 'high':
-                score += 30
+                score += 50
             elif violation['severity'] == 'medium':
-                score += 15
+                score += 20
         
         # Check for encoding abuse
         if '\\x' in query or '\\u' in query or '%' in query:
@@ -246,6 +246,20 @@ class SearchSnippetSanitizer:
     
     # Pattern to match HTML tags
     HTML_TAG_PATTERN = re.compile(r'<\s*/?(\w+)[^>]*>', re.I)
+    UNSAFE_CONTAINER_PATTERN = re.compile(
+        r'<\s*(script|style|iframe|object|embed|svg|body)[^>]*>.*?<\s*/\s*\1\s*>',
+        re.I | re.S,
+    )
+    UNSAFE_OPEN_TAG_PATTERN = re.compile(
+        r'<\s*(script|style|iframe|object|embed|svg|body)[^>]*?/?>',
+        re.I,
+    )
+    EVENT_HANDLER_PATTERN = re.compile(
+        r'on\w+\s*=\s*(".*?"|\'.*?\'|[^\s>]+)',
+        re.I | re.S,
+    )
+    PROTOCOL_PATTERN = re.compile(r'(javascript|vbscript|data)\s*:', re.I)
+    ALERT_CALL_PATTERN = re.compile(r'alert\s*\([^)]*\)', re.I)
     
     @classmethod
     def sanitize(cls, snippet: str, preserve_highlights: bool = True) -> str:
@@ -266,6 +280,14 @@ class SearchSnippetSanitizer:
             # Strip all HTML
             return html.escape(re.sub(r'<[^>]+>', '', snippet))
         
+        # Remove unsafe containers and obvious JS payloads before any escaping.
+        cleaned = cls.UNSAFE_CONTAINER_PATTERN.sub('', snippet)
+        cleaned = cls.UNSAFE_OPEN_TAG_PATTERN.sub('', cleaned)
+        cleaned = cls.EVENT_HANDLER_PATTERN.sub('', cleaned)
+        cleaned = cls.PROTOCOL_PATTERN.sub('', cleaned)
+        cleaned = cls.ALERT_CALL_PATTERN.sub('', cleaned)
+        cleaned = re.sub(r'(?i)\b(alert|javascript)\b', '', cleaned)
+
         # Remove unsafe tags while keeping safe ones
         def replace_tag(match):
             tag_name = match.group(1).lower()
@@ -274,39 +296,29 @@ class SearchSnippetSanitizer:
             else:
                 return ''
         
-        cleaned = cls.HTML_TAG_PATTERN.sub(replace_tag, snippet)
+        cleaned = cls.HTML_TAG_PATTERN.sub(replace_tag, cleaned)
         
         # Escape any remaining dangerous content
         # But preserve our safe tags
         safe_tag_placeholder = {}
         for i, tag in enumerate(cls.SAFE_TAGS):
-            placeholder = f"__SAFE_TAG_{i}__"
-            safe_tag_placeholder[f"<{tag}>"] = placeholder
-            safe_tag_placeholder[f"</{tag}>"] = f"__{placeholder}_CLOSE__"
-            cleaned = cleaned.replace(f"<{tag}>", placeholder)
-            cleaned = cleaned.replace(f"</{tag}>", f"__{placeholder}_CLOSE__")
+            open_placeholder = f"__SAFE_TAG_OPEN_{i}__"
+            close_placeholder = f"__SAFE_TAG_CLOSE_{i}__"
+            safe_tag_placeholder[f"<{tag}>"] = open_placeholder
+            safe_tag_placeholder[f"</{tag}>"] = close_placeholder
+            cleaned = cleaned.replace(f"<{tag}>", open_placeholder)
+            cleaned = cleaned.replace(f"</{tag}>", close_placeholder)
         
         # Escape remaining content
         cleaned = html.escape(cleaned)
         
         # Restore safe tags
         for original, placeholder in safe_tag_placeholder.items():
-            if "_CLOSE__" in placeholder:
-                restored = original
-            else:
-                restored = original
-            cleaned = cleaned.replace(
-                html.escape(placeholder),
-                original if "_CLOSE__" not in placeholder else original
-            )
+            cleaned = cleaned.replace(html.escape(placeholder), original)
         
-        # Simpler approach - just escape and restore safe tags
-        result = html.escape(snippet)
-        for tag in cls.SAFE_TAGS:
-            result = result.replace(html.escape(f"<{tag}>"), f"<{tag}>")
-            result = result.replace(html.escape(f"</{tag}>"), f"</{tag}>")
-        
-        return result
+        # Remove any lingering escaped tag fragments from unsafe markup.
+        cleaned = re.sub(r'&lt;/?[^&]+?&gt;', '', cleaned)
+        return cleaned
     
     @classmethod
     def strip_all_html(cls, text: str) -> str:
