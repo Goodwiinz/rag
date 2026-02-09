@@ -297,7 +297,7 @@ class SearchSnippetSanitizer:
                 restored = original
             cleaned = cleaned.replace(
                 html.escape(placeholder),
-                original if not "_CLOSE__" in placeholder else original
+                original if "_CLOSE__" not in placeholder else original
             )
         
         # Simpler approach - just escape and restore safe tags
@@ -501,13 +501,13 @@ def mask_sensitive_data(data: Dict[str, Any], sensitive_fields: List[str]) -> Di
     """Mask sensitive fields in data dictionary"""
     masked = data.copy()
     
-    for field in sensitive_fields:
-        if field in masked and masked[field]:
-            value = str(masked[field])
+    for sensitive_field in sensitive_fields:
+        if sensitive_field in masked and masked[sensitive_field]:
+            value = str(masked[sensitive_field])
             if len(value) > 4:
-                masked[field] = value[:2] + '*' * (len(value) - 4) + value[-2:]
+                masked[sensitive_field] = value[:2] + '*' * (len(value) - 4) + value[-2:]
             else:
-                masked[field] = '*' * len(value)
+                masked[sensitive_field] = '*' * len(value)
     
     return masked
 
