@@ -197,9 +197,9 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
 
               {/* Metadata */}
               <div className="flex items-center space-x-3 text-[10px] text-muted-foreground uppercase tracking-wide">
-                <span>{formatFileSize(document.file_size || 0)}</span>
+                <span>{formatFileSize(document.file_size)}</span>
                 <span>•</span>
-                <span>{formatDate(document.upload_timestamp || '')}</span>
+                <span>{formatDate(document.upload_timestamp)}</span>
                 {getDurationDisplay() && (
                   <>
                     <span>•</span>

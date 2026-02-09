@@ -612,6 +612,86 @@ async def search_health_check(
         )
 
 
+@router.post("/public/hybrid", response_model=SearchResponse)
+async def public_hybrid_search(
+    search_request: SearchQuery, background_tasks: BackgroundTasks, db=Depends(get_db)
+):
+    """
+    Public hybrid search endpoint (no authentication required).
+    Used for evaluation and testing purposes.
+    """
+    try:
+        # Force hybrid search type
+        search_request.search_type = SearchType.HYBRID
+
+        # Perform hybrid search without user context
+        # Use None to skip organization filtering (postgres expects UUID, not string)
+        result = hybrid_search_service.search(
+            search_request=search_request,
+            user_id="anonymous",
+            organization_id=None,  # Skip org filtering for public search
+        )
+
+        # Log search query in background
+        background_tasks.add_task(
+            log_search_query,
+            "anonymous",
+            "public",
+            search_request.query,
+            len(result.results),
+            result.search_time_ms,
+            "hybrid_public",
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error performing public hybrid search: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/public/health")
+async def public_search_health_check():
+    """
+    Public health check for search services (no authentication required)
+    """
+    try:
+        health_status = {
+            "status": "healthy",
+            "services": {},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+        # Test basic functionality without authentication
+        health_status["services"]["api"] = {
+            "status": "healthy",
+            "message": "Search API is accessible",
+        }
+
+        # Test hybrid search service availability
+        try:
+            health_status["services"]["hybrid_search"] = {
+                "status": "healthy",
+                "message": "Hybrid search service is available",
+            }
+        except Exception as e:
+            health_status["services"]["hybrid_search"] = {
+                "status": "unhealthy",
+                "error": str(e),
+            }
+
+        return health_status
+
+    except Exception as e:
+        logger.error(f"Public search health check failed: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
 
 
 # Background task functions

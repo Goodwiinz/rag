@@ -312,8 +312,7 @@ class ExperimentAssignmentService:
         """Uniform random variant selection"""
         # Use consistent hash for the same user
         hash_input = f"{context.user_id}_{context.session_id or 'no_session'}"
-        # Upgrade to SHA256 for better security and collision resistance
-        hash_value = int(hashlib.sha256(hash_input.encode()).hexdigest(), 16)
+        hash_value = int(hashlib.md5(hash_input.encode()).hexdigest(), 16)
         index = hash_value % len(variants)
         return variants[index]
 
@@ -329,8 +328,7 @@ class ExperimentAssignmentService:
 
         # Use consistent hash with weights
         hash_input = f"{context.user_id}_{context.session_id or 'no_session'}"
-        # Upgrade to SHA256 for better security and collision resistance
-        hash_value = int(hashlib.sha256(hash_input.encode()).hexdigest(), 16)
+        hash_value = int(hashlib.md5(hash_input.encode()).hexdigest(), 16)
         random_value = (hash_value % 1000) / 1000.0  # Normalize to [0, 1)
 
         cumulative_weight = 0
@@ -544,8 +542,7 @@ class ExperimentAssignmentService:
             "organization_id": context.organization_id,
         }
         cache_string = json.dumps(cache_data, sort_keys=True)
-        # Upgrade to SHA256 for better security and collision resistance
-        return f"ab_assignment:{hashlib.sha256(cache_string.encode()).hexdigest()}"
+        return f"ab_assignment:{hashlib.md5(cache_string.encode()).hexdigest()}"
 
     async def _get_cached_assignment(self, cache_key: str) -> Optional[Dict[str, Any]]:
         """Get cached assignment"""

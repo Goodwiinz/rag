@@ -17,7 +17,7 @@ export const DashboardPage: React.FC = () => {
             Multimodal Enterprise RAG System
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Upload documents to extract entities, build knowledge graphs, and enable intelligent search across your organization&apos;s knowledge base
+            Upload documents to extract entities, build knowledge graphs, and enable intelligent search across your organization's knowledge base
           </p>
         </div>
 

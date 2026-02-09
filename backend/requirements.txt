@@ -91,6 +91,7 @@ python-magic==0.4.27
 email-validator==2.1.0
 sse-starlette==1.6.1
 kagglehub[hf-datasets]>=0.3.0
+setuptools>=70.0.0  # Required for openai-whisper build
 
 # Research Assistant - Citation Management
 pybtex==0.24.0

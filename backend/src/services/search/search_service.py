@@ -67,7 +67,7 @@ SEARCH_SERVICE_CONFIG = {
     "service_name": "search-service",
     "version": "1.0.0",
     "port": 8002,
-    "host": "0.0.0.0",  # nosec B104
+    "host": "0.0.0.0",
     "default_search_limit": 10,
     "max_search_limit": 50,
     "rerank_top_k": 20,

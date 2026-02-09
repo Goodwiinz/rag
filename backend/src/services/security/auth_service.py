@@ -26,11 +26,6 @@ from src.models.organization import Organization, StorageTier
 from src.models.search import SearchQuery
 from src.models.user import User, UserRole
 
-# Pre-calculated dummy password hash for timing attack protection
-# Ensures that invalid user checks take roughly the same time as valid user checks
-# Generated with bcrypt cost 12
-DUMMY_PASSWORD_HASH = "$2b$12$lUouH43LSTRXeBhV5vRtgeKeTJexParUQTmK5mT/No.yVCwiPX0um"
-
 
 class AuthenticationError(Exception):
     """Authentication related errors"""
@@ -82,12 +77,7 @@ class AuthService:
         result = await self.db.execute(stmt)
         user = result.scalar_one_or_none()
 
-        # Always verify password to prevent timing attacks
-        # Use dummy hash when user doesn't exist to maintain constant time
-        password_hash = user.password_hash if user else DUMMY_PASSWORD_HASH
-        password_valid = verify_password(password, password_hash)
-
-        if not user or not password_valid:
+        if not user or not verify_password(password, user.password_hash):
             raise AuthenticationError("Invalid email or password")
 
         # Update last login

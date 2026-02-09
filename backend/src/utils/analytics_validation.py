@@ -17,6 +17,7 @@ try:
     HAS_BLEACH = True
 except ImportError:
     HAS_BLEACH = False
+    bleach = None  # Define bleach as None if import fails for consistent module attribute access
 
 # Security configurations
 MAX_STRING_LENGTH = 10000
@@ -115,7 +116,7 @@ class SecurityValidator:
         value = re.sub(r"\s+", " ", value)
 
         # Final security check with bleach if available
-        if HAS_BLEACH:
+        if HAS_BLEACH and bleach:
             value = bleach.clean(
                 value,
                 tags=ALLOWED_HTML_TAGS,
@@ -335,10 +336,6 @@ class SecurityValidator:
         check_depth(value)
         return value
 
-
-class QueryParameterValidator:
-    """Validator for analytics query parameters"""
-
     @staticmethod
     def validate_pagination(limit: int, offset: int) -> tuple[int, int]:
         """
@@ -361,6 +358,25 @@ class QueryParameterValidator:
             )
 
         return limit, offset
+
+
+class QueryParameterValidator:
+    """Validator for analytics query parameters"""
+
+    @staticmethod
+    def validate_pagination(limit: int, offset: int) -> tuple[int, int]:
+        """
+        Validate pagination parameters
+
+        Args:
+            limit: Number of items to return
+            offset: Number of items to skip
+
+        Returns:
+            Tuple of validated (limit, offset)
+        """
+        # Delegate to SecurityValidator for implementation
+        return SecurityValidator.validate_pagination(limit, offset)
 
     @staticmethod
     def validate_sort_fields(fields: List[str], allowed_fields: List[str]) -> List[str]:
@@ -574,7 +590,7 @@ class AnalyticsInputSanitizer:
         """
         # Sort parameters for consistent key generation
         sorted_params = json.dumps(params, sort_keys=True, default=str)
-        return hashlib.md5(sorted_params.encode(), usedforsecurity=False).hexdigest()
+        return hashlib.md5(sorted_params.encode()).hexdigest()
 
 
 # Global sanitizer instance
