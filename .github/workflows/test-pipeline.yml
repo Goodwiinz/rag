@@ -276,7 +276,7 @@ jobs:
 
       - name: Run integration tests
         run: |
-          pytest backend/tests/ \
+          pytest backend/tests/integration/ \
             -c backend/pytest.ini \
             -m "integration" \
             --cov=backend/src \
