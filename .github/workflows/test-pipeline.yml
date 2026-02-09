@@ -127,6 +127,7 @@ jobs:
         run: |
           pip install pytest pytest-asyncio pytest-cov pytest-xdist
           pip install "setuptools>=70.0.0"
+          pip install --no-build-isolation openai-whisper==20231117
           pip install -r backend/requirements.txt
 
       - name: Run unit tests
@@ -260,6 +261,7 @@ jobs:
         run: |
           pip install pytest pytest-asyncio pytest-cov
           pip install "setuptools>=70.0.0"
+          pip install --no-build-isolation openai-whisper==20231117
           pip install -r backend/requirements.txt
 
       - name: Run integration tests
@@ -303,6 +305,7 @@ jobs:
         run: |
           pip install pytest pytest-asyncio pytest-cov
           pip install "setuptools>=70.0.0"
+          pip install --no-build-isolation openai-whisper==20231117
           pip install -r backend/requirements.txt
 
       - name: Run resilience tests
@@ -354,6 +357,7 @@ jobs:
         run: |
           pip install pytest pytest-asyncio schemathesis
           pip install "setuptools>=70.0.0"
+          pip install --no-build-isolation openai-whisper==20231117
           pip install -r backend/requirements.txt
 
       - name: Run contract tests
@@ -406,6 +410,7 @@ jobs:
         run: |
           pip install pytest pytest-asyncio pytest-benchmark locust
           pip install "setuptools>=70.0.0"
+          pip install --no-build-isolation openai-whisper==20231117
           pip install -r backend/requirements.txt
 
       - name: Run performance tests
