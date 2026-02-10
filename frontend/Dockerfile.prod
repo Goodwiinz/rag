@@ -19,22 +19,12 @@ RUN addgroup -g 1001 -S nodejs && \
 # Stage 2: Install dependencies
 FROM base AS deps
 
-# Copy package.json first (lock file may not exist)
+# Copy package.json first
 COPY frontend/package.json ./
 
-# Copy lock file if it exists (supports npm, pnpm, or yarn)
-COPY frontend/package-lock.jso[n] frontend/pnpm-lock.yam[l] frontend/yarn.loc[k] ./
-
-# Install dependencies
-# Use npm ci if lock file exists, otherwise npm install
-RUN \
-    if [ -f package-lock.json ]; then \
-      npm ci; \
-    elif [ -f pnpm-lock.yaml ]; then \
-      pnpm install --frozen-lockfile; \
-    else \
-      npm install && npm cache clean --force; \
-    fi
+# Install dependencies (no lockfile in this monorepo setup)
+# This will generate a lockfile during install
+RUN npm install && npm cache clean --force
 
 # Stage 3: Build application
 FROM base AS builder
