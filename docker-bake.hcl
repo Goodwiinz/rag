@@ -17,7 +17,7 @@ variable "PYTHON_VERSION" {
 }
 
 variable "NODE_VERSION" {
-  default = "18"
+  default = "20"
 }
 
 # Default group - builds all production services

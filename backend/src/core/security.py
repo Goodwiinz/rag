@@ -295,32 +295,34 @@ class RateLimiter:
         self.window_minutes = window_minutes
         self.attempts = {}  # Simple in-memory storage
 
-    def is_allowed(self, identifier: str) -> bool:
+    def is_allowed(self, identifier: str, prefix: str = "") -> bool:
         """Check if identifier is allowed to make an attempt"""
+        key = f"{prefix}:{identifier}" if prefix else identifier
         now = datetime.utcnow()
         window_start = now - timedelta(minutes=self.window_minutes)
 
         # Clean old attempts
-        if identifier in self.attempts:
-            self.attempts[identifier] = [
+        if key in self.attempts:
+            self.attempts[key] = [
                 attempt_time
-                for attempt_time in self.attempts[identifier]
+                for attempt_time in self.attempts[key]
                 if attempt_time > window_start
             ]
         else:
-            self.attempts[identifier] = []
+            self.attempts[key] = []
 
         # Check if under limit
-        if len(self.attempts[identifier]) >= self.max_attempts:
+        if len(self.attempts[key]) >= self.max_attempts:
             return False
 
         # Record this attempt
-        self.attempts[identifier].append(now)
+        self.attempts[key].append(now)
         return True
 
-    def get_remaining_attempts(self, identifier: str) -> int:
+    def get_remaining_attempts(self, identifier: str, prefix: str = "") -> int:
         """Get remaining attempts for identifier"""
-        if identifier not in self.attempts:
+        key = f"{prefix}:{identifier}" if prefix else identifier
+        if key not in self.attempts:
             return self.max_attempts
 
         now = datetime.utcnow()
@@ -329,7 +331,7 @@ class RateLimiter:
         # Count recent attempts
         recent_attempts = [
             attempt_time
-            for attempt_time in self.attempts[identifier]
+            for attempt_time in self.attempts[key]
             if attempt_time > window_start
         ]
 

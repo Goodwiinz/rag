@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.config import settings
 from src.core.database import get_db
 from src.core.security import (
-    auth_rate_limiter,
     check_password_strength,
     create_access_token,
     create_refresh_token,
@@ -45,6 +44,11 @@ class RegistrationError(Exception):
     pass
 
 
+# Constant for timing attack mitigation
+# Valid bcrypt hash for "secret"
+DUMMY_PASSWORD_HASH = "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
+
+
 class AuthService:
     """Authentication service for user management"""
 
@@ -52,13 +56,10 @@ class AuthService:
         self.db = db
 
     async def authenticate_user(self, email: str, password: str) -> Optional[User]:
-        """Authenticate user with email and password"""
-        # Check rate limiting
-        if not auth_rate_limiter.is_allowed(email):
-            raise AuthenticationError(
-                "Too many login attempts. Please try again later."
-            )
+        """Authenticate user with email and password.
 
+        Note: Rate limiting is handled at the endpoint layer (dual IP + email check).
+        """
         # Eager load organization relationship
         from sqlalchemy.orm import selectinload
 
@@ -77,7 +78,13 @@ class AuthService:
         result = await self.db.execute(stmt)
         user = result.scalar_one_or_none()
 
-        if not user or not verify_password(password, user.password_hash):
+        # Use dummy hash if user not found to prevent timing attacks
+        password_hash = user.password_hash if user else DUMMY_PASSWORD_HASH
+
+        # Always verify password (takes ~same time)
+        is_password_valid = verify_password(password, password_hash)
+
+        if not user or not is_password_valid:
             raise AuthenticationError("Invalid email or password")
 
         # Update last login

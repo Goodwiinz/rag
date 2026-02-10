@@ -78,7 +78,7 @@ async def register(
 ):
     """Register a new user"""
     # Get client IP for rate limiting
-    client_ip = request.client.host
+    client_ip = request.client.host if request.client else "unknown"
 
     if not auth_rate_limiter.is_allowed(client_ip):
         raise HTTPException(
@@ -118,13 +118,19 @@ async def login(
             - remember_me=True: Session persists for 30 days
             - remember_me=False (default): Session persists for 7 days
     """
-    # Get client IP for rate limiting
-    client_ip = request.client.host
+    # Dual-layer rate limiting: IP + email
+    client_ip = request.client.host if request.client else "unknown"
 
-    if not auth_rate_limiter.is_allowed(client_ip):
+    if not auth_rate_limiter.is_allowed(client_ip, prefix="ip"):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many login attempts. Please try again later."
+            detail="Too many login attempts from this IP. Please try again later."
+        )
+
+    if not auth_rate_limiter.is_allowed(user_credentials.email, prefix="email"):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts for this account. Please try again later."
         )
 
     try:
@@ -231,9 +237,20 @@ async def change_password(
 
 @router.post("/reset-password")
 async def request_password_reset(
-    reset_data: PasswordReset, auth_service: AuthService = Depends(get_auth_service)
+    reset_data: PasswordReset,
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service),
 ):
     """Request password reset"""
+    # Get client IP for rate limiting
+    client_ip = request.client.host if request.client else "unknown"
+
+    if not auth_rate_limiter.is_allowed(client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many password reset attempts. Please try again later.",
+        )
+
     try:
         reset_token = await auth_service.initiate_password_reset(email=reset_data.email)
 

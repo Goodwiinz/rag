@@ -29,7 +29,8 @@ sys.path.insert(0, str(tests_dir.parent))  # Add parent of tests for 'tests.mock
 
 # Set test environment variables before importing application code
 os.environ.setdefault("ENVIRONMENT", "testing")
-os.environ.setdefault("DEBUG", "true")
+# Force DEBUG in tests so TrustedHostMiddleware is not enabled for TestClient host.
+os.environ["DEBUG"] = "true"
 os.environ.setdefault("LOG_LEVEL", "WARNING")
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
@@ -495,10 +496,20 @@ def test_app():
 @pytest.fixture
 def test_client(test_app):
     """Create synchronous test client for FastAPI application."""
+    from contextlib import asynccontextmanager
     from fastapi.testclient import TestClient
 
-    with TestClient(test_app) as client:
-        yield client
+    @asynccontextmanager
+    async def _no_lifespan(_app):
+        yield
+
+    original_lifespan = test_app.router.lifespan_context
+    test_app.router.lifespan_context = _no_lifespan
+    try:
+        with TestClient(test_app) as client:
+            yield client
+    finally:
+        test_app.router.lifespan_context = original_lifespan
 
 
 @pytest.fixture

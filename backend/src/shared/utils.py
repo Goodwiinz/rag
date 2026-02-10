@@ -41,7 +41,10 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
 
 def get_correlation_id(request: Request) -> str:
     """Get correlation ID from request"""
-    return getattr(request.state, "correlation_id", str(uuid.uuid4()))
+    correlation_id = getattr(request.state, "correlation_id", None)
+    if correlation_id:
+        return str(correlation_id)
+    return str(uuid.uuid4())
 
 
 def hash_string(text: str, algorithm: str = "sha256") -> str:
@@ -519,8 +522,10 @@ def sanitize_filename(filename: str) -> str:
     """Sanitize filename for storage"""
     import re
 
+    # Replace path separators one-for-one to preserve character count.
+    filename = re.sub(r"[/\\]", "_", filename)
     # Remove or replace dangerous characters
-    filename = re.sub(r'[<>:"/\\|?*]', "_", filename)
+    filename = re.sub(r'[<>:"|?*]', "_", filename)
     # Remove control characters
     filename = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", filename)
     # Limit length

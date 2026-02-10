@@ -16,6 +16,7 @@ try:
 
     HAS_BLEACH = True
 except ImportError:
+    bleach = None
     HAS_BLEACH = False
     bleach = None  # Define bleach as None if import fails for consistent module attribute access
 
@@ -40,6 +41,8 @@ SQL_INJECTION_PATTERNS = [
     r"(\b(WAITFOR|DELAY)\s+)",
     r"(\b(BENCHMARK|SLEEP)\s*\()",
     r"(\b(USER|VERSION|DATABASE)\s*\()",
+    r"(\'\s*OR\s*\'[^']+\'\s*=\s*\'[^']+\')",
+    r"(\'\s*OR\s*\'?\w+\'?\s*=\s*\'?\w+\'?)",
 ]
 
 # XSS patterns
@@ -267,13 +270,17 @@ class SecurityValidator:
 
     @staticmethod
     def validate_list_input(
-        value: List[Any], max_items: int = MAX_LIST_ITEMS, field_name: str = "list"
+        value: List[Any],
+        item_type_or_max_items: Any = None,
+        max_items: int = MAX_LIST_ITEMS,
+        field_name: str = "list",
     ) -> List[Any]:
         """
         Validate list inputs
 
         Args:
             value: List to validate
+            item_type_or_max_items: Expected item type OR max items (legacy)
             max_items: Maximum number of items allowed
             field_name: Name of the field for error messages
 
@@ -283,12 +290,56 @@ class SecurityValidator:
         if not isinstance(value, list):
             raise AnalyticsValidationError(f"{field_name} must be a list")
 
+        # Backward-compatible calling conventions:
+        # validate_list_input(items, str) -> enforce item type
+        # validate_list_input(items, 10, "name") -> enforce max items
+        item_type = None
+        if isinstance(item_type_or_max_items, type):
+            item_type = item_type_or_max_items
+        elif isinstance(item_type_or_max_items, int):
+            max_items = item_type_or_max_items
+        elif item_type_or_max_items is not None:
+            raise AnalyticsValidationError(
+                f"{field_name} validator configuration is invalid"
+            )
+
         if len(value) > max_items:
             raise AnalyticsValidationError(
                 f"{field_name} cannot contain more than {max_items} items"
             )
 
+        if item_type is not None:
+            for idx, item in enumerate(value):
+                if not isinstance(item, item_type):
+                    raise AnalyticsValidationError(
+                        f"Item at index {idx} is not of type {item_type.__name__}"
+                    )
+
         return value
+
+    @staticmethod
+    def validate_pagination(limit: int, offset: int) -> tuple[int, int]:
+        """
+        Validate pagination parameters.
+        """
+        if not isinstance(limit, int):
+            raise AnalyticsValidationError("limit must be an integer")
+        if limit < 1:
+            raise AnalyticsValidationError("limit must be >= 1")
+        if limit > 10000:
+            raise AnalyticsValidationError("limit must be <= 10000")
+
+        if not isinstance(offset, int):
+            raise AnalyticsValidationError("offset must be an integer")
+        if offset < 0:
+            raise AnalyticsValidationError("offset must be >= 0")
+
+        if offset > 100000:
+            raise AnalyticsValidationError(
+                "Offset too large, please use time-based filtering instead"
+            )
+
+        return limit, offset
 
     @staticmethod
     def validate_dict_input(
@@ -590,7 +641,8 @@ class AnalyticsInputSanitizer:
         """
         # Sort parameters for consistent key generation
         sorted_params = json.dumps(params, sort_keys=True, default=str)
-        return hashlib.md5(sorted_params.encode()).hexdigest()
+        # Use MD5 for non-security cache key generation (usedforsecurity=False)
+        return hashlib.md5(sorted_params.encode(), usedforsecurity=False).hexdigest()
 
 
 # Global sanitizer instance

@@ -4,7 +4,7 @@
 # Optimized for remote builds
 
 # Stage 1: Base image for node
-FROM node:18-alpine AS base
+FROM node:20-alpine AS base
 
 # Install pnpm if needed
 RUN npm install -g pnpm
