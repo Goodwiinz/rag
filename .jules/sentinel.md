@@ -33,3 +33,14 @@ Also, testing this endpoint proved difficult because the codebase has side effec
 **Learning:** Authentication endpoints are inconsistently protected. The `auth_rate_limiter` exists but manual application is error-prone. The integration testing environment is fragile due to circular imports, forcing the use of isolated unit tests that avoid importing `src.main`.
 
 **Prevention:** Consider using a decorator or middleware for rate-limiting sensitive auth endpoints to ensure consistent application, rather than manual checks in each controller. Refactor codebase to remove circular dependencies to enable robust integration testing.
+
+## 2024-05-23 - Critical Authorization Bypass in API Key Search
+
+**Vulnerability:** API keys created by administrators were not scoped to their organization. When performing a search via `authenticated_hybrid_search`, the `organization_id` was explicitly set to `None`, bypassing the organization filter in `fulltext_search_service`. This allowed any API key holder to search across ALL organizations (IDOR / Multi-tenancy Isolation Failure).
+
+**Learning:** Explicitly passing `None` as a filter value (`organization_id=None`) must be carefully reviewed. In this codebase, `None` often means "no filter" (i.e., "all data"), which is dangerous in a multi-tenant system. API keys were assumed to be "global" or controlled by some other permission mechanism that didn't exist.
+
+**Prevention:**
+1.  Always associate API keys with an `organization_id` upon creation.
+2.  Enforce organization scoping at the API entry point by extracting the organization ID from the authenticated credential (token or API key).
+3.  Avoid "superuser" defaults (like `organization_id=None`) in business logic services unless explicitly intended for system admin features.

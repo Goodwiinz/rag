@@ -51,7 +51,8 @@ async def create_api_key(
             description=api_key_create.description,
             created_by=f"{current_user.email} ({current_user.id})",
             expires_at=expires_at,
-            allowed_endpoints=str(api_key_create.allowed_endpoints) if api_key_create.allowed_endpoints else None
+            allowed_endpoints=str(api_key_create.allowed_endpoints) if api_key_create.allowed_endpoints else None,
+            organization_id=str(current_user.organization_id) if current_user.organization_id else None
         )
         
         db.add(new_api_key)
@@ -66,7 +67,8 @@ async def create_api_key(
             api_key=raw_key,  # Only shown during creation
             key_prefix=key_prefix,
             rate_limit_per_hour=new_api_key.rate_limit_per_hour,
-            expires_at=expires_at
+            expires_at=expires_at,
+            organization_id=new_api_key.organization_id
         )
         
     except Exception as e:
@@ -111,7 +113,8 @@ async def list_api_keys(
                 is_active=key.is_active,
                 rate_limit_per_hour=key.rate_limit_per_hour,
                 last_used_at=key.last_used_at,
-                usage_count=key.usage_count
+                usage_count=key.usage_count,
+                organization_id=key.organization_id
             ) for key in api_keys
         ]
         
@@ -142,7 +145,8 @@ async def get_api_key(
             is_active=api_key.is_active,
             rate_limit_per_hour=api_key.rate_limit_per_hour,
             last_used_at=api_key.last_used_at,
-            usage_count=api_key.usage_count
+            usage_count=api_key.usage_count,
+            organization_id=api_key.organization_id
         )
         
     except HTTPException:
@@ -194,7 +198,8 @@ async def update_api_key(
                 is_active=api_key.is_active,
                 rate_limit_per_hour=api_key.rate_limit_per_hour,
                 last_used_at=api_key.last_used_at,
-                usage_count=api_key.usage_count
+                usage_count=api_key.usage_count,
+                organization_id=api_key.organization_id
             )
         }
         
@@ -329,7 +334,8 @@ async def regenerate_api_key(
             api_key=raw_key,  # Only shown during regeneration
             key_prefix=key_prefix,
             rate_limit_per_hour=api_key.rate_limit_per_hour,
-            expires_at=api_key.expires_at
+            expires_at=api_key.expires_at,
+            organization_id=api_key.organization_id
         )
         
     except HTTPException:

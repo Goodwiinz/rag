@@ -640,11 +640,11 @@ async def authenticated_hybrid_search(
         search_request.search_type = SearchType.HYBRID
 
         # Perform hybrid search with API key context
-        # Use specific organization_id from API key or None for cross-org search based on key permissions
+        # Use specific organization_id from API key if available to enforce data isolation
         result = hybrid_search_service.search(
             search_request=search_request,
             user_id=f"api_key:{api_key.id}",
-            organization_id=None  # API keys can access across organizations (controlled by key permissions)
+            organization_id=api_key.organization_id
         )
 
         # Enhanced logging for API key usage
