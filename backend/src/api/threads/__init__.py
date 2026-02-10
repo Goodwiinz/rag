@@ -15,6 +15,9 @@ from .threads import (
     check_bulk_archive_rate_limit,
     check_bulk_summarize_rate_limit,
     check_bulk_delete_rate_limit,
+    get_chat_service,
+    get_current_user,
+    thread_event_service,
 )
 from .thread_search import router as thread_search_router
 from .conversations import router as conversations_router
@@ -30,4 +33,7 @@ __all__ = [
     "check_bulk_archive_rate_limit",
     "check_bulk_summarize_rate_limit",
     "check_bulk_delete_rate_limit",
+    "get_chat_service",
+    "get_current_user",
+    "thread_event_service",
 ]
