@@ -3,19 +3,22 @@ ArXiv Local PDF Processing API endpoints
 For processing PDF files stored locally in the data/arxiv directory
 """
 
-import os
 import logging
+import os
 import uuid
-from typing import Dict, List, Any, Optional
-from pathlib import Path
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks, Body
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from src.services.processing.multimodal_processing_service import MultimodalProcessingService
-from src.services.processing.entity_extraction_service import EntityExtractionService
 from src.core.dependencies import get_current_user
+from src.services.processing.entity_extraction_service import EntityExtractionService
+from src.services.processing.multimodal_processing_service import (
+    MultimodalProcessingService,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -29,13 +32,21 @@ logger.info(f"Using ArXiv data path: {ARXIV_DATA_PATH}")
 
 
 class LocalExtractionRequest(BaseModel):
-    paper_ids: Optional[List[str]] = Field(None, description="List of paper IDs to process (if None, process all)")
-    extract_entities: bool = Field(default=True, description="Extract entities and relationships")
+    paper_ids: Optional[List[str]] = Field(
+        None, description="List of paper IDs to process (if None, process all)"
+    )
+    extract_entities: bool = Field(
+        default=True, description="Extract entities and relationships"
+    )
     extract_topics: bool = Field(default=True, description="Extract topics and themes")
     extract_keyphrases: bool = Field(default=True, description="Extract key phrases")
     extract_summaries: bool = Field(default=True, description="Generate summaries")
-    process_full_content: bool = Field(default=True, description="Process full PDF content (not just metadata)")
-    update_knowledge_graph: bool = Field(default=True, description="Update knowledge graph with extracted information")
+    process_full_content: bool = Field(
+        default=True, description="Process full PDF content (not just metadata)"
+    )
+    update_knowledge_graph: bool = Field(
+        default=True, description="Update knowledge graph with extracted information"
+    )
 
 
 class LocalExtractionResponse(BaseModel):
@@ -51,7 +62,7 @@ async def list_local_papers(
     limit: int = Query(default=50, description="Maximum number of papers to return"),
     offset: int = Query(default=0, description="Offset for pagination"),
     search: Optional[str] = Query(None, description="Search term to filter papers"),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     List ArXiv papers stored locally in the data/arxiv directory
@@ -69,7 +80,7 @@ async def list_local_papers(
 
         # Apply pagination
         total_count = len(pdf_files)
-        pdf_files = pdf_files[offset:offset + limit]
+        pdf_files = pdf_files[offset : offset + limit]
 
         papers = []
         for pdf_file in pdf_files:
@@ -79,20 +90,18 @@ async def list_local_papers(
             # Get file info
             stat = pdf_file.stat()
 
-            papers.append({
-                "paper_id": paper_id,
-                "filename": pdf_file.name,
-                "file_path": str(pdf_file),
-                "file_size": stat.st_size,
-                "modified_date": stat.st_mtime,
-                "download_date": stat.st_mtime  # Same as modified for our use case
-            })
+            papers.append(
+                {
+                    "paper_id": paper_id,
+                    "filename": pdf_file.name,
+                    "file_path": str(pdf_file),
+                    "file_size": stat.st_size,
+                    "modified_date": stat.st_mtime,
+                    "download_date": stat.st_mtime,  # Same as modified for our use case
+                }
+            )
 
-        return {
-            "status": "success",
-            "total_count": total_count,
-            "papers": papers
-        }
+        return {"status": "success", "total_count": total_count, "papers": papers}
 
     except Exception as e:
         logger.error(f"Failed to list local papers: {e}")
@@ -103,7 +112,7 @@ async def list_local_papers(
 async def extract_features_from_local_pdfs(
     request: LocalExtractionRequest,
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Extract features from locally stored ArXiv PDF files
@@ -120,7 +129,9 @@ async def extract_features_from_local_pdfs(
 
         # Filter by paper IDs if specified
         if request.paper_ids:
-            pdf_files = [f for f in pdf_files if any(pid in f.name for pid in request.paper_ids)]
+            pdf_files = [
+                f for f in pdf_files if any(pid in f.name for pid in request.paper_ids)
+            ]
 
         if not pdf_files:
             logger.warning("No PDF files found matching the criteria!")
@@ -129,7 +140,7 @@ async def extract_features_from_local_pdfs(
                 message="No PDF files found matching the criteria",
                 total_files_found=0,
                 processed_count=0,
-                results=[]
+                results=[],
             )
 
         # Process PDF files
@@ -147,7 +158,7 @@ async def extract_features_from_local_pdfs(
                     "filename": pdf_file.name,
                     "file_path": str(pdf_file),
                     "extraction_status": "processing",
-                    "features": {}
+                    "features": {},
                 }
 
                 # Process PDF with direct PyMuPDF extraction (more reliable than multimodal service)
@@ -156,55 +167,80 @@ async def extract_features_from_local_pdfs(
                     try:
                         # Use PyMuPDF (fitz) directly for PDF extraction
                         import fitz  # PyMuPDF
-                        
+
                         pdf_document = fitz.open(str(pdf_file))
-                        
+
                         # Extract text from all pages
                         text_content = []
                         for page_num in range(len(pdf_document)):
                             page = pdf_document.load_page(page_num)
                             text_content.append(page.get_text())
-                        
+
                         extracted_text = "\n".join(text_content)
-                        
+
                         # Extract metadata
                         metadata = pdf_document.metadata
                         pdf_metadata = {
-                            "title": metadata.get("title", "") if metadata.get("title") else "",
-                            "author": metadata.get("author", "") if metadata.get("author") else "",
-                            "subject": metadata.get("subject", "") if metadata.get("subject") else "",
-                            "creator": metadata.get("creator", "") if metadata.get("creator") else "",
-                            "producer": metadata.get("producer", "") if metadata.get("producer") else "",
-                            "creation_date": metadata.get("creationDate", "") if metadata.get("creationDate") else "",
-                            "modification_date": metadata.get("modDate", "") if metadata.get("modDate") else "",
-                            "page_count": len(pdf_document)
+                            "title": metadata.get("title", "")
+                            if metadata.get("title")
+                            else "",
+                            "author": metadata.get("author", "")
+                            if metadata.get("author")
+                            else "",
+                            "subject": metadata.get("subject", "")
+                            if metadata.get("subject")
+                            else "",
+                            "creator": metadata.get("creator", "")
+                            if metadata.get("creator")
+                            else "",
+                            "producer": metadata.get("producer", "")
+                            if metadata.get("producer")
+                            else "",
+                            "creation_date": metadata.get("creationDate", "")
+                            if metadata.get("creationDate")
+                            else "",
+                            "modification_date": metadata.get("modDate", "")
+                            if metadata.get("modDate")
+                            else "",
+                            "page_count": len(pdf_document),
                         }
-                        
+
                         pdf_document.close()
-                        
+
                         extraction_result["features"]["extracted_text"] = extracted_text
                         extraction_result["features"]["metadata"] = pdf_metadata
 
                         # Log extraction details
-                        logger.info(f"Successfully extracted {len(extracted_text)} characters from {pdf_file.name}")
-                        logger.info(f"PDF metadata - Title: {pdf_metadata.get('title', 'N/A')}, Pages: {pdf_metadata.get('page_count', 0)}")
+                        logger.info(
+                            f"Successfully extracted {len(extracted_text)} characters from {pdf_file.name}"
+                        )
+                        logger.info(
+                            f"PDF metadata - Title: {pdf_metadata.get('title', 'N/A')}, Pages: {pdf_metadata.get('page_count', 0)}"
+                        )
 
                         # Check if we got meaningful text
                         if len(extracted_text) < 100:
-                            logger.warning(f"Extracted text seems too short ({len(extracted_text)} chars) for {pdf_file.name}")
-                            
+                            logger.warning(
+                                f"Extracted text seems too short ({len(extracted_text)} chars) for {pdf_file.name}"
+                            )
+
                     except ImportError:
-                        logger.error("PyMuPDF (fitz) not available - install with: pip install PyMuPDF")
+                        logger.error(
+                            "PyMuPDF (fitz) not available - install with: pip install PyMuPDF"
+                        )
                         extraction_result["features"]["extracted_text"] = ""
                         extraction_result["features"]["metadata"] = {}
                     except Exception as e:
                         logger.error(f"Failed to extract PDF content: {e}")
                         import traceback
+
                         logger.error(traceback.format_exc())
                         extraction_result["features"]["extracted_text"] = ""
                         extraction_result["features"]["metadata"] = {}
                 else:
-                    logger.warning(f"Full content processing disabled for {pdf_file.name}")
+                    logger.warning(
+                        f"Full content processing disabled for {pdf_file.name}"
+                    )
 
                 # Get extracted text once
                 extracted_text = extraction_result["features"].get("extracted_text", "")
@@ -231,12 +267,14 @@ async def extract_features_from_local_pdfs(
                 if request.extract_summaries:
                     if extracted_text:
                         # Use first paragraph or first 500 characters as summary
-                        summary = extracted_text[:500] + "..." if len(extracted_text) > 500 else extracted_text
+                        summary = (
+                            extracted_text[:500] + "..."
+                            if len(extracted_text) > 500
+                            else extracted_text
+                        )
                     else:
                         summary = f"Summary of paper {paper_id}: This paper appears to be from the ArXiv repository."
                     extraction_result["features"]["summary"] = summary
-
-
 
                 extraction_result["extraction_status"] = "completed"
                 extraction_results.append(extraction_result)
@@ -244,15 +282,19 @@ async def extract_features_from_local_pdfs(
 
             except Exception as e:
                 logger.error(f"Failed to process {pdf_file}: {e}")
-                extraction_results.append({
-                    "paper_id": pdf_file.stem,
-                    "filename": pdf_file.name,
-                    "extraction_status": "failed",
-                    "error": str(e)
-                })
+                extraction_results.append(
+                    {
+                        "paper_id": pdf_file.stem,
+                        "filename": pdf_file.name,
+                        "extraction_status": "failed",
+                        "error": str(e),
+                    }
+                )
 
         if request.update_knowledge_graph and processed_count > 0:
-            logger.info(f"Scheduling knowledge graph update for {processed_count} papers")
+            logger.info(
+                f"Scheduling knowledge graph update for {processed_count} papers"
+            )
             # Create background tasks for each result to process independently
             for result in extraction_results:
                 background_tasks.add_task(_post_process_extraction, result, request)
@@ -262,16 +304,17 @@ async def extract_features_from_local_pdfs(
             message=f"Successfully processed {processed_count} files",
             total_files_found=len(pdf_files),
             processed_count=processed_count,
-            results=extraction_results
+            results=extraction_results,
         )
 
     except Exception as e:
         logger.error(f"Error in local PDF extraction: {e}")
         import traceback
+
         logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to extract features from local PDFs: {str(e)}"
+            detail=f"Failed to extract features from local PDFs: {str(e)}",
         )
 
 
@@ -279,16 +322,17 @@ async def extract_features_from_local_pdfs(
 # Max workers = 5 allows parallel KG updates while preventing resource exhaustion
 KG_UPDATE_EXECUTOR = ThreadPoolExecutor(max_workers=5)
 
+
 async def _post_process_extraction(result, request):
     """
     Handle async post-processing steps (embeddings, KG update)
     """
-    paper_id = result.get('paper_id', 'unknown')
+    paper_id = result.get("paper_id", "unknown")
     logger.info(f"Starting post-processing for paper: {paper_id}")
 
     try:
         extracted_text = result["features"].get("extracted_text", "")
-        
+
         # 1. Generate Embeddings (Async)
         if extracted_text and len(extracted_text) > 100:
             try:
@@ -296,44 +340,60 @@ async def _post_process_extraction(result, request):
 
                 embedding_service = EmbeddingService()
                 # Set provider to Azure OpenAI if available
-                if hasattr(embedding_service, 'embedding_provider') and embedding_service.embedding_provider == "azure_openai":
+                if (
+                    hasattr(embedding_service, "embedding_provider")
+                    and embedding_service.embedding_provider == "azure_openai"
+                ):
                     logger.info("Using Azure OpenAI for embeddings")
-                    embedding = await embedding_service.generate_embedding_azure(extracted_text[:2000])
+                    embedding = await embedding_service.generate_embedding_azure(
+                        extracted_text[:2000]
+                    )
                 else:
                     # Fall back to default embedding method
                     from src.models.vector import EmbeddingRequest
+
                     embedding_request = EmbeddingRequest(
                         text=extracted_text[:2000],
-                        model="sentence-transformers/all-MiniLM-L6-v2"
+                        model="sentence-transformers/all-MiniLM-L6-v2",
                     )
-                    embedding = await embedding_service.generate_embedding(embedding_request)
+                    embedding = await embedding_service.generate_embedding(
+                        embedding_request
+                    )
 
                 result["features"]["embedding"] = embedding
-                logger.info(f"Generated embedding with {len(embedding.embedding) if hasattr(embedding, 'embedding') else 'unknown'} dimensions")
+                logger.info(
+                    f"Generated embedding with {len(embedding.embedding) if hasattr(embedding, 'embedding') else 'unknown'} dimensions"
+                )
             except Exception as e:
                 logger.error(f"Error generating embedding: {e}")
 
         # 2. Extract Topics (Async)
         if request.extract_topics and extracted_text:
-             pass
+            pass
 
         # 3. Update Knowledge Graph (Sync wrapper in ThreadPool)
         if request.update_knowledge_graph:
             import asyncio
+
             loop = asyncio.get_event_loop()
 
             # Run the synchronous KG update in the global executor
             try:
-                logger.info(f"Submitting KG update for {result.get('paper_id', 'unknown')} to executor")
+                logger.info(
+                    f"Submitting KG update for {result.get('paper_id', 'unknown')} to executor"
+                )
                 await loop.run_in_executor(
                     KG_UPDATE_EXECUTOR,
                     _update_knowledge_graph_with_local_extractions_sync,
-                    result
+                    result,
                 )
-                logger.info(f"KG update task submitted for {result.get('paper_id', 'unknown')}")
+                logger.info(
+                    f"KG update task submitted for {result.get('paper_id', 'unknown')}"
+                )
             except Exception as e:
                 logger.error(f"Failed to update knowledge graph: {e}")
                 import traceback
+
                 logger.error(traceback.format_exc())
 
     except Exception as e:
@@ -345,27 +405,31 @@ def _update_knowledge_graph_with_local_extractions_sync(result: Dict[str, Any]):
     Synchronous wrapper for knowledge graph updates
     """
     try:
-        from src.services.knowledge_graph.knowledge_graph_service import KnowledgeGraphService
         from src.models.graph import CreateEntityRequest, EntityType, ExtractionMethod
-        
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            KnowledgeGraphService,
+        )
+
         kg_service = KnowledgeGraphService()
-        
+
         # Extract metadata
         features = result.get("features", {})
         metadata = features.get("metadata", {})
         paper_id = result.get("paper_id", "")
         filename = result.get("filename", "")
-        
+
         # Helper to safely get string values
         def get_safe_str(val):
             return str(val) if val else ""
-            
+
         # Create Paper Entity
         paper_title = get_safe_str(metadata.get("title", ""))
-        
+
         paper_entity_request = CreateEntityRequest(
             entity_type=EntityType.DOCUMENT,
-            name=paper_title if paper_title and paper_title != "pdf" else f"ArXiv Paper: {paper_id}",
+            name=paper_title
+            if paper_title and paper_title != "pdf"
+            else f"ArXiv Paper: {paper_id}",
             confidence_score=0.9,
             extraction_method=ExtractionMethod.SPACY_NER,
             metadata={
@@ -379,13 +443,15 @@ def _update_knowledge_graph_with_local_extractions_sync(result: Dict[str, Any]):
                 "topics": features.get("topics", []),
                 "keyphrases": features.get("keyphrases", []),
                 "summary": features.get("summary", ""),
-                "extracted_at": datetime.now().isoformat()
-            }
+                "extracted_at": datetime.now().isoformat(),
+            },
         )
-        
+
         logger.info(f"Creating paper entity for {paper_id}...")
         paper_entity = kg_service.create_entity(paper_entity_request)
-        logger.info(f"Created/Updated paper entity: {paper_entity.id if paper_entity else 'None'}")
+        logger.info(
+            f"Created/Updated paper entity: {paper_entity.id if paper_entity else 'None'}"
+        )
 
         if not paper_entity:
             logger.warning(f"Failed to create paper entity for {paper_id}")
@@ -394,33 +460,36 @@ def _update_knowledge_graph_with_local_extractions_sync(result: Dict[str, Any]):
         # Add topics as entities and create relationships
         topics = features.get("topics", [])
         for topic in topics:
-            if not topic: continue
-            
+            if not topic:
+                continue
+
             try:
                 # Create or get topic entity
                 topic_entity_request = CreateEntityRequest(
-                    entity_type=EntityType.CONCEPT, 
+                    entity_type=EntityType.CONCEPT,
                     name=topic,
                     confidence_score=0.8,
                     extraction_method=ExtractionMethod.SPACY_NER,
-                    metadata={
-                        "source": "arxiv_extraction",
-                        "paper_id": paper_id
-                    }
+                    metadata={"source": "arxiv_extraction", "paper_id": paper_id},
                 )
                 topic_entity = kg_service.create_entity(topic_entity_request)
-                
+
                 # Create relationship: PAPER -> HAS_TOPIC -> TOPIC
                 if topic_entity:
-                    from src.models.graph import CreateRelationshipRequest, RelationshipType
+                    from src.models.graph import (
+                        CreateRelationshipRequest,
+                        RelationshipType,
+                    )
 
-                    logger.info(f"Creating relationship between paper {paper_entity.id} and topic {topic_entity.id}")
+                    logger.info(
+                        f"Creating relationship between paper {paper_entity.id} and topic {topic_entity.id}"
+                    )
                     rel_request = CreateRelationshipRequest(
                         source_entity_id=paper_entity.id,
                         target_entity_id=topic_entity.id,
                         relationship_type=RelationshipType.RELATED_TO,
                         confidence_score=0.85,
-                        metadata={"type": "topic_extraction"}
+                        metadata={"type": "topic_extraction"},
                     )
                     relationship = kg_service.create_relationship(rel_request)
                     if relationship:
@@ -435,10 +504,9 @@ def _update_knowledge_graph_with_local_extractions_sync(result: Dict[str, Any]):
         logger.error(f"Error in knowledge graph update: {e}")
         raise
 
+
 @router.get("/local-stats")
-async def get_local_papers_stats(
-    current_user: dict = Depends(get_current_user)
-):
+async def get_local_papers_stats(current_user: dict = Depends(get_current_user)):
     """
     Get statistics about locally stored ArXiv papers
     """
@@ -450,14 +518,10 @@ async def get_local_papers_stats(
         total_size = sum(f.stat().st_size for f in pdf_files)
 
         # Group by date ranges
-        date_groups = {
-            "last_24h": 0,
-            "last_week": 0,
-            "last_month": 0,
-            "older": 0
-        }
+        date_groups = {"last_24h": 0, "last_week": 0, "last_month": 0, "older": 0}
 
         import time
+
         now = time.time()
         day_ago = now - 86400
         week_ago = now - 604800
@@ -479,9 +543,11 @@ async def get_local_papers_stats(
             "statistics": {
                 "total_files": total_files,
                 "total_size_mb": round(total_size / (1024 * 1024), 2),
-                "average_size_mb": round((total_size / total_files) / (1024 * 1024), 2) if total_files > 0 else 0,
-                "date_distribution": date_groups
-            }
+                "average_size_mb": round((total_size / total_files) / (1024 * 1024), 2)
+                if total_files > 0
+                else 0,
+                "date_distribution": date_groups,
+            },
         }
 
     except Exception as e:
@@ -491,10 +557,12 @@ async def get_local_papers_stats(
 
 @router.post("/process-batch")
 async def process_batch_local_papers(
-    batch_size: int = Query(default=10, description="Number of papers to process in this batch"),
+    batch_size: int = Query(
+        default=10, description="Number of papers to process in this batch"
+    ),
     offset: int = Query(default=0, description="Starting offset"),
     request: dict = Body({}),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Process a batch of local papers for feature extraction
@@ -509,26 +577,23 @@ async def process_batch_local_papers(
         pdf_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
 
         # Apply offset and limit
-        batch_files = pdf_files[offset:offset + batch_size]
+        batch_files = pdf_files[offset : offset + batch_size]
 
         if not batch_files:
             return {
                 "status": "success",
                 "message": "No more papers to process",
                 "processed": 0,
-                "offset": offset
+                "offset": offset,
             }
 
         # Process the batch
         extraction_request = LocalExtractionRequest(
-            paper_ids=[f.stem for f in batch_files],
-            **extraction_options
+            paper_ids=[f.stem for f in batch_files], **extraction_options
         )
 
         result = await extract_features_from_local_pdfs(
-            request=extraction_request,
-            background_tasks=None,
-            current_user=current_user
+            request=extraction_request, background_tasks=None, current_user=current_user
         )
 
         return {
@@ -537,7 +602,7 @@ async def process_batch_local_papers(
             "processed": result.processed_count,
             "offset": offset + batch_size,
             "has_more": offset + batch_size < len(pdf_files),
-            "results": result.results
+            "results": result.results,
         }
 
     except Exception as e:
@@ -549,23 +614,24 @@ async def process_batch_local_papers(
 async def _extract_topics_from_text(text: str) -> List[str]:
     """Extract topics from text using simple keyword matching"""
     import re
+
     topics = set()
     text_lower = text.lower()
 
     # Academic topic keywords
     topic_patterns = {
-        'machine learning': r'\bmachine learning\b|\bml\b|\bneural network\b|\bdeep learning\b',
-        'computer vision': r'\bcomputer vision\b|\bcv\b|\bimage recognition\b|\bobject detection\b',
-        'natural language processing': r'\bnatural language processing\b|\bnlp\b|\btext analysis\b',
-        'quantum computing': r'\bquantum computer\b|\bquantum computing\b|\bquantum algorithm\b',
-        'robotics': r'\brobotic\b|\brobotics\b|\bautonomous\b',
-        'algorithms': r'\balgorithm\b|\boptimization\b|\bcomplexity\b',
-        'databases': r'\bdatabase\b|\bdata management\b|\bsql\b|\bnosql\b',
-        'security': r'\bcryptography\b|\bsecurity\b|\bprivacy\b|\bencryption\b',
-        'graph theory': r'\bgraph\b|\bnetwork\b|\bnode\b|\bedge\b',
-        'statistics': r'\bstatistic\b|\bprobability\b|\bbayesian\b',
-        'bioinformatics': r'\bbioinformatic\b|\bgenomics\b|\bdna\b|\bprotein\b',
-        'distributed systems': r'\bdistributed\b|\bscalable\b|\bparallel\b'
+        "machine learning": r"\bmachine learning\b|\bml\b|\bneural network\b|\bdeep learning\b",
+        "computer vision": r"\bcomputer vision\b|\bcv\b|\bimage recognition\b|\bobject detection\b",
+        "natural language processing": r"\bnatural language processing\b|\bnlp\b|\btext analysis\b",
+        "quantum computing": r"\bquantum computer\b|\bquantum computing\b|\bquantum algorithm\b",
+        "robotics": r"\brobotic\b|\brobotics\b|\bautonomous\b",
+        "algorithms": r"\balgorithm\b|\boptimization\b|\bcomplexity\b",
+        "databases": r"\bdatabase\b|\bdata management\b|\bsql\b|\bnosql\b",
+        "security": r"\bcryptography\b|\bsecurity\b|\bprivacy\b|\bencryption\b",
+        "graph theory": r"\bgraph\b|\bnetwork\b|\bnode\b|\bedge\b",
+        "statistics": r"\bstatistic\b|\bprobability\b|\bbayesian\b",
+        "bioinformatics": r"\bbioinformatic\b|\bgenomics\b|\bdna\b|\bprotein\b",
+        "distributed systems": r"\bdistributed\b|\bscalable\b|\bparallel\b",
     }
 
     for topic, pattern in topic_patterns.items():
@@ -574,21 +640,53 @@ async def _extract_topics_from_text(text: str) -> List[str]:
 
     return list(topics)
 
+
 async def _extract_keyphrases_from_text(text: str) -> List[str]:
     """Extract key phrases from text using simple n-gram analysis"""
     import re
     from collections import Counter
 
     # Clean and tokenize text
-    words = re.findall(r'\b[a-zA-Z]{4,}\b', text.lower())
+    words = re.findall(r"\b[a-zA-Z]{4,}\b", text.lower())
 
     # Common academic words to filter out
     stop_words = {
-        'that', 'this', 'with', 'from', 'they', 'have', 'been', 'than', 'were',
-        'their', 'what', 'when', 'where', 'will', 'about', 'would', 'could',
-        'should', 'these', 'those', 'through', 'between', 'after', 'before',
-        'however', 'therefore', 'because', 'although', 'though', 'thus',
-        'hence', 'thereby', 'therein', 'thereof', 'hereto', 'herewith'
+        "that",
+        "this",
+        "with",
+        "from",
+        "they",
+        "have",
+        "been",
+        "than",
+        "were",
+        "their",
+        "what",
+        "when",
+        "where",
+        "will",
+        "about",
+        "would",
+        "could",
+        "should",
+        "these",
+        "those",
+        "through",
+        "between",
+        "after",
+        "before",
+        "however",
+        "therefore",
+        "because",
+        "although",
+        "though",
+        "thus",
+        "hence",
+        "thereby",
+        "therein",
+        "thereof",
+        "hereto",
+        "herewith",
     }
 
     # Filter stop words
@@ -598,7 +696,7 @@ async def _extract_keyphrases_from_text(text: str) -> List[str]:
     word_freq = Counter(words)
 
     # Extract common bigrams and trigrams
-    words_text = ' '.join(words)
+    words_text = " ".join(words)
     bigrams = []
     for i in range(len(words) - 1):
         bigram = f"{words[i]} {words[i+1]}"
@@ -614,18 +712,19 @@ async def _extract_keyphrases_from_text(text: str) -> List[str]:
 
     return keyphrases[:15]  # Return up to 15 key phrases
 
+
 def _extract_title_from_text(text: str) -> str:
     """Extract title from the beginning of text content"""
     import re
 
     # Get first few lines
-    lines = text.split('\n')[:10]
+    lines = text.split("\n")[:10]
 
     # Look for a title-like line (usually the first significant line)
     for line in lines:
         line = line.strip()
         # Skip empty lines and page numbers
-        if not line or re.match(r'^\d+$', line):
+        if not line or re.match(r"^\d+$", line):
             continue
 
         # Skip lines that are too long (might be paragraphs)
@@ -633,13 +732,13 @@ def _extract_title_from_text(text: str) -> str:
             continue
 
         # Skip lines with common non-title patterns
-        skip_patterns = ['abstract', 'introduction', '1.', 'page', 'arxiv:', 'http']
+        skip_patterns = ["abstract", "introduction", "1.", "page", "arxiv:", "http"]
         if any(pattern in line.lower() for pattern in skip_patterns):
             continue
 
         # This could be a title
         # Clean up common PDF artifacts
-        title = re.sub(r'\s+', ' ', line)
+        title = re.sub(r"\s+", " ", line)
         title = title.strip()
 
         # Return if it looks reasonable
@@ -650,9 +749,10 @@ def _extract_title_from_text(text: str) -> str:
     for line in lines:
         line = line.strip()
         if line and len(line) > 10 and len(line) < 150:
-            return re.sub(r'\s+', ' ', line)
+            return re.sub(r"\s+", " ", line)
 
     return ""
+
 
 async def _extract_topics_from_filename(filename: str) -> List[str]:
     """Extract topics from filename based on common patterns"""
@@ -677,7 +777,7 @@ async def _extract_topics_from_filename(filename: str) -> List[str]:
         "cnn": ["CNN", "Computer Vision"],
         "gan": ["GAN", "Generative Models"],
         "graph": ["Graph Neural Networks", "GNN"],
-        "nlp": ["NLP", "Natural Language Processing"]
+        "nlp": ["NLP", "Natural Language Processing"],
     }
 
     for keyword, topic_list in topic_keywords.items():
@@ -690,33 +790,55 @@ async def _extract_topics_from_filename(filename: str) -> List[str]:
 def _extract_keyphrases_from_filename(filename: str) -> List[str]:
     """Extract potential key phrases from filename"""
     # Remove file extension and version
-    name = filename.replace('.pdf', '').split('v')[0]
+    name = filename.replace(".pdf", "").split("v")[0]
 
     # Split by common separators
     import re
-    parts = re.split(r'[_\-\.]', name)
+
+    parts = re.split(r"[_\-\.]", name)
 
     # Filter out common non-informative parts
     keyphrases = []
-    skip_words = {'arxiv', 'paper', 'pdf', 'study', 'analysis', 'approach', 'method', 'system'}
+    skip_words = {
+        "arxiv",
+        "paper",
+        "pdf",
+        "study",
+        "analysis",
+        "approach",
+        "method",
+        "system",
+    }
 
     for part in parts:
         if len(part) > 3 and part.lower() not in skip_words:
             # Clean up the part
-            clean_part = re.sub(r'[^a-zA-Z0-9]', '', part)
+            clean_part = re.sub(r"[^a-zA-Z0-9]", "", part)
             if clean_part:
                 keyphrases.append(clean_part)
 
     return keyphrases[:10]  # Return up to 10 key phrases
 
 
-async def _update_knowledge_graph_with_local_extractions(extraction_results: List[Dict[str, Any]]):
+async def _update_knowledge_graph_with_local_extractions(
+    extraction_results: List[Dict[str, Any]]
+):
     """Background task to update knowledge graph with extracted features from local papers"""
     try:
-        from src.services.knowledge_graph.knowledge_graph_service import KnowledgeGraphService
-        from src.models.graph import CreateEntityRequest, CreateRelationshipRequest, EntityType, RelationshipType, ExtractionMethod
+        from src.models.graph import (
+            CreateEntityRequest,
+            CreateRelationshipRequest,
+            EntityType,
+            ExtractionMethod,
+            RelationshipType,
+        )
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            KnowledgeGraphService,
+        )
 
-        logger.info(f"Updating knowledge graph with {len(extraction_results)} local paper extractions")
+        logger.info(
+            f"Updating knowledge graph with {len(extraction_results)} local paper extractions"
+        )
 
         kg_service = KnowledgeGraphService()
         kg_service._connect()
@@ -728,7 +850,9 @@ async def _update_knowledge_graph_with_local_extractions(extraction_results: Lis
                     features = result.get("features", {})
                     filename = result.get("filename", "")
 
-                    logger.info(f"Processing KG updates for {paper_id}: {list(features.keys())}")
+                    logger.info(
+                        f"Processing KG updates for {paper_id}: {list(features.keys())}"
+                    )
 
                     # Extract title from PDF metadata or text
                     pdf_metadata = features.get("metadata", {})
@@ -747,7 +871,9 @@ async def _update_knowledge_graph_with_local_extractions(extraction_results: Lis
                     # Create a paper entity in the knowledge graph
                     paper_entity_request = CreateEntityRequest(
                         entity_type=EntityType.DOCUMENT,  # Use DOCUMENT for papers
-                        name=paper_title if paper_title and paper_title != "pdf" else f"ArXiv Paper: {paper_id}",
+                        name=paper_title
+                        if paper_title and paper_title != "pdf"
+                        else f"ArXiv Paper: {paper_id}",
                         confidence_score=0.9,
                         extraction_method=ExtractionMethod.SPACY_NER,
                         metadata={
@@ -761,11 +887,13 @@ async def _update_knowledge_graph_with_local_extractions(extraction_results: Lis
                             "topics": features.get("topics", []),
                             "keyphrases": features.get("keyphrases", []),
                             "summary": features.get("summary", ""),
-                            "extracted_at": datetime.now().isoformat()
-                        }
+                            "extracted_at": datetime.now().isoformat(),
+                        },
                     )
                     paper_entity = kg_service.create_entity(paper_entity_request)
-                    logger.info(f"Created Paper Entity: {paper_entity.id if paper_entity else 'None'}. Type: {paper_entity_request.entity_type}")
+                    logger.info(
+                        f"Created Paper Entity: {paper_entity.id if paper_entity else 'None'}. Type: {paper_entity_request.entity_type}"
+                    )
 
                     # Add topics as entities and create relationships
                     topics = features.get("topics", [])
@@ -781,8 +909,8 @@ async def _update_knowledge_graph_with_local_extractions(extraction_results: Lis
                                 "paper_id": paper_id,
                                 "filename": filename,
                                 "entity_type": "topic",
-                                "extracted_at": datetime.now().isoformat()
-                            }
+                                "extracted_at": datetime.now().isoformat(),
+                            },
                         )
                         topic_entity = kg_service.create_entity(topic_entity_request)
 
@@ -791,10 +919,12 @@ async def _update_knowledge_graph_with_local_extractions(extraction_results: Lis
                             source_entity_id=paper_entity.id,
                             target_entity_id=topic_entity.id,
                             relationship_type=RelationshipType.RELATED_TO,
-                            context="Topic extracted from ArXiv paper"
+                            context="Topic extracted from ArXiv paper",
                         )
                         kg_service.create_relationship(relationship_request)
-                        logger.info(f"Created relationship Paper->Topic: {paper_entity.id} -> {topic_entity.id}")
+                        logger.info(
+                            f"Created relationship Paper->Topic: {paper_entity.id} -> {topic_entity.id}"
+                        )
 
                     # Add keyphrases as entities
                     keyphrases = features.get("keyphrases", [])
@@ -809,26 +939,33 @@ async def _update_knowledge_graph_with_local_extractions(extraction_results: Lis
                                 "paper_id": paper_id,
                                 "filename": filename,
                                 "phrase_type": "keyphrase",
-                                "extracted_at": datetime.now().isoformat()
-                            }
+                                "extracted_at": datetime.now().isoformat(),
+                            },
                         )
-                        keyphrase_entity = kg_service.create_entity(keyphrase_entity_request)
+                        keyphrase_entity = kg_service.create_entity(
+                            keyphrase_entity_request
+                        )
 
                         # Create relationship between paper and keyphrase
                         relationship_request = CreateRelationshipRequest(
                             source_entity_id=paper_entity.id,
                             target_entity_id=keyphrase_entity.id,
                             relationship_type=RelationshipType.MENTIONED_IN,
-                            context="Keyphrase extracted from ArXiv paper"
+                            context="Keyphrase extracted from ArXiv paper",
                         )
                         kg_service.create_relationship(relationship_request)
-                        logger.info(f"Created relationship Paper->Keyphrase: {paper_entity.id} -> {keyphrase_entity.id}")
+                        logger.info(
+                            f"Created relationship Paper->Keyphrase: {paper_entity.id} -> {keyphrase_entity.id}"
+                        )
         finally:
             kg_service.close()
 
-            logger.info(f"Successfully updated knowledge graph for {len(extraction_results)} local papers")
+            logger.info(
+                f"Successfully updated knowledge graph for {len(extraction_results)} local papers"
+            )
 
     except Exception as e:
         logger.error(f"Failed to update knowledge graph: {e}")
         import traceback
+
         logger.error(traceback.format_exc())

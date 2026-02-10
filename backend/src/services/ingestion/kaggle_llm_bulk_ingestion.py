@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 class LLMIngestionProgress(TypedDict):
     """Progress information for LLM bulk ingestion"""
+
     current_batch: int
     total_batches: int
     processed: int
@@ -65,7 +66,7 @@ class KaggleLLMBulkIngestionService:
         max_papers: int = 1000,
         enable_embeddings: bool = True,
         enable_entity_extraction: bool = True,
-        enable_relationship_extraction: bool = True
+        enable_relationship_extraction: bool = True,
     ):
         """
         Initialize the LLM bulk ingestion service.
@@ -93,7 +94,7 @@ class KaggleLLMBulkIngestionService:
             "relationships_extracted": 0,
             "embeddings_generated": 0,
             "llm_calls": 0,
-            "llm_cost_estimate": 0.0
+            "llm_cost_estimate": 0.0,
         }
 
         # Lazy-loaded services
@@ -116,14 +117,17 @@ class KaggleLLMBulkIngestionService:
                 auth=(neo4j_user, neo4j_password),
                 max_connection_lifetime=300,
                 max_connection_pool_size=50,
-                connection_acquisition_timeout=30
+                connection_acquisition_timeout=30,
             )
         return self._neo4j_driver
 
     async def _get_azure_service(self):
         """Lazy load Azure OpenAI service"""
         if self._azure_service is None:
-            from src.services.infrastructure.azure_openai_service import azure_openai_service
+            from src.services.infrastructure.azure_openai_service import (
+                azure_openai_service,
+            )
+
             self._azure_service = azure_openai_service
         return self._azure_service
 
@@ -131,6 +135,7 @@ class KaggleLLMBulkIngestionService:
         """Lazy load embedding service"""
         if self._embedding_service is None:
             from src.services.embedding.embedding_service import embedding_service
+
             self._embedding_service = embedding_service
         return self._embedding_service
 
@@ -138,6 +143,7 @@ class KaggleLLMBulkIngestionService:
         """Lazy load vector service"""
         if self._vector_service is None:
             from src.services.search.vector_service import vector_service
+
             self._vector_service = vector_service
         return self._vector_service
 
@@ -169,7 +175,9 @@ class KaggleLLMBulkIngestionService:
         azure_service = await self._get_azure_service()
 
         if not azure_service.is_chat_available():
-            logger.warning("Azure OpenAI chat not available, skipping entity extraction")
+            logger.warning(
+                "Azure OpenAI chat not available, skipping entity extraction"
+            )
             return []
 
         prompt = """Extract key technical entities from the following academic paper abstract.
@@ -203,7 +211,7 @@ Response (JSON array only):"""
             response = await azure_service.chat_completion(
                 messages=[{"role": "user", "content": prompt.format(text=text[:2000])}],
                 max_tokens=1000,
-                temperature=0.1
+                temperature=0.1,
             )
 
             self.stats["llm_calls"] += 1
@@ -226,9 +234,7 @@ Response (JSON array only):"""
             return []
 
     async def _extract_relationships_with_llm(
-        self,
-        text: str,
-        entities: List[Dict[str, Any]]
+        self, text: str, entities: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
         Extract relationships between entities using Azure OpenAI LLM.
@@ -267,12 +273,16 @@ Response (JSON array only):"""
 
         try:
             response = await azure_service.chat_completion(
-                messages=[{"role": "user", "content": prompt.format(
-                    entities=", ".join(entity_names),
-                    text=text[:1500]
-                )}],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt.format(
+                            entities=", ".join(entity_names), text=text[:1500]
+                        ),
+                    }
+                ],
                 max_tokens=800,
-                temperature=0.1
+                temperature=0.1,
             )
 
             self.stats["llm_calls"] += 1
@@ -301,7 +311,9 @@ Response (JSON array only):"""
             result = await embedding_service.generate_batch_embeddings_azure(texts)
 
             if result.embeddings:
-                self.stats["embeddings_generated"] += len([e for e in result.embeddings if e])
+                self.stats["embeddings_generated"] += len(
+                    [e for e in result.embeddings if e]
+                )
                 return result.embeddings
             return []
 
@@ -310,18 +322,19 @@ Response (JSON array only):"""
             return []
 
     async def _store_in_qdrant(
-        self,
-        paper_id: str,
-        text: str,
-        embedding: List[float],
-        metadata: Dict[str, Any]
+        self, paper_id: str, text: str, embedding: List[float], metadata: Dict[str, Any]
     ):
         """Store embedding in Qdrant vector database"""
         vector_service = await self._get_vector_service()
 
         try:
-            from src.models.vector import VectorEntry, VectorMetadata, VectorCollectionType
             import uuid
+
+            from src.models.vector import (
+                VectorCollectionType,
+                VectorEntry,
+                VectorMetadata,
+            )
 
             # Create vector metadata
             vector_metadata = VectorMetadata(
@@ -330,7 +343,7 @@ Response (JSON array only):"""
                 content_type="text",
                 source_type="arxiv_paper",
                 timestamp=datetime.utcnow(),
-                additional_data=metadata
+                additional_data=metadata,
             )
 
             # Create vector entry
@@ -340,13 +353,13 @@ Response (JSON array only):"""
                 vector=embedding,
                 text=text[:1000],  # Truncate for storage
                 metadata=vector_metadata,
-                collection=VectorCollectionType.DOCUMENT_CHUNKS
+                collection=VectorCollectionType.DOCUMENT_CHUNKS,
             )
 
             # Insert into Qdrant
             result = vector_service.insert_vectors(
                 collection_type=VectorCollectionType.DOCUMENT_CHUNKS,
-                vectors=[vector_entry]
+                vectors=[vector_entry],
             )
 
             return result.success
@@ -356,9 +369,7 @@ Response (JSON array only):"""
             return False
 
     async def _process_paper_with_llm(
-        self,
-        session,
-        paper: Dict[str, Any]
+        self, session, paper: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Process a single paper with full LLM extraction.
@@ -379,12 +390,13 @@ Response (JSON array only):"""
             "success": False,
             "entities": [],
             "relationships": [],
-            "embedding_stored": False
+            "embedding_stored": False,
         }
 
         try:
             # 1. Create base document node in Neo4j
-            await session.run("""
+            await session.run(
+                """
                 MERGE (d:DOCUMENT {id: $id})
                 SET d.title = $title,
                     d.abstract = $abstract,
@@ -393,13 +405,15 @@ Response (JSON array only):"""
                     d.source = 'kaggle_arxiv',
                     d.extraction_type = 'llm',
                     d.processed_at = datetime()
-            """, {
-                "id": paper_id,
-                "title": title[:500],
-                "abstract": abstract[:2000],
-                "category": categories.split()[0] if categories else "",
-                "authors": authors[:500]
-            })
+            """,
+                {
+                    "id": paper_id,
+                    "title": title[:500],
+                    "abstract": abstract[:2000],
+                    "category": categories.split()[0] if categories else "",
+                    "authors": authors[:500],
+                },
+            )
 
             # 2. Extract entities via LLM
             entities = []
@@ -414,22 +428,27 @@ Response (JSON array only):"""
                     confidence = entity.get("confidence", 0.8)
 
                     if entity_name:
-                        await session.run(f"""
+                        await session.run(
+                            f"""
                             MERGE (e:Entity:{entity_type} {{name: $name}})
                             SET e.confidence = $confidence, e.type = $entity_type
                             WITH e
                             MATCH (d:DOCUMENT {{id: $paper_id}})
                             MERGE (d)-[:MENTIONS {{confidence: $confidence}}]->(e)
-                        """, {
-                            "name": entity_name,
-                            "confidence": confidence,
-                            "paper_id": paper_id,
-                            "entity_type": entity_type
-                        })
+                        """,
+                            {
+                                "name": entity_name,
+                                "confidence": confidence,
+                                "paper_id": paper_id,
+                                "entity_type": entity_type,
+                            },
+                        )
 
             # 3. Extract relationships via LLM
             if self.enable_relationship_extraction and entities:
-                relationships = await self._extract_relationships_with_llm(text, entities)
+                relationships = await self._extract_relationships_with_llm(
+                    text, entities
+                )
                 result["relationships"] = relationships
 
                 # Store relationships in Neo4j
@@ -440,18 +459,21 @@ Response (JSON array only):"""
                     confidence = rel.get("confidence", 0.7)
 
                     if source and target:
-                        await session.run(f"""
+                        await session.run(
+                            f"""
                             MATCH (s:Entity {{name: $source}})
                             MATCH (t:Entity {{name: $target}})
                             MERGE (s)-[r:{rel_type}]->(t)
                             SET r.confidence = $confidence,
                                 r.source_paper = $paper_id
-                        """, {
-                            "source": source,
-                            "target": target,
-                            "confidence": confidence,
-                            "paper_id": paper_id
-                        })
+                        """,
+                            {
+                                "source": source,
+                                "target": target,
+                                "confidence": confidence,
+                                "paper_id": paper_id,
+                            },
+                        )
 
             # 4. Generate and store embedding
             if self.enable_embeddings and text:
@@ -464,8 +486,8 @@ Response (JSON array only):"""
                         metadata={
                             "title": title,
                             "category": categories.split()[0] if categories else "",
-                            "source": "arxiv_kaggle"
-                        }
+                            "source": "arxiv_kaggle",
+                        },
                     )
                     result["embedding_stored"] = stored
 
@@ -478,10 +500,7 @@ Response (JSON array only):"""
             return result
 
     async def _process_batch_with_llm(
-        self,
-        session,
-        papers: List[Dict[str, Any]],
-        batch_num: int
+        self, session, papers: List[Dict[str, Any]], batch_num: int
     ) -> Dict[str, int]:
         """Process a batch of papers with LLM extraction"""
         stats = {"ingested": 0, "failed": 0, "skipped": 0}
@@ -492,7 +511,7 @@ Response (JSON array only):"""
             # Check if already processed
             result = await session.run(
                 "MATCH (d:DOCUMENT {id: $id}) WHERE d.extraction_type = 'llm' RETURN d",
-                {"id": paper_id}
+                {"id": paper_id},
             )
             if await result.single():
                 stats["skipped"] += 1
@@ -515,7 +534,7 @@ Response (JSON array only):"""
         self,
         categories: Optional[List[str]] = None,
         resume: bool = True,
-        progress_callback: Optional[Callable[[LLMIngestionProgress], None]] = None
+        progress_callback: Optional[Callable[[LLMIngestionProgress], None]] = None,
     ) -> Dict[str, Any]:
         """
         Run bulk ingestion with LLM extraction.
@@ -538,11 +557,16 @@ Response (JSON array only):"""
 
         start_batch = self.state.get("last_batch", 0)
 
-        logger.info(f"Starting LLM bulk ingestion (max={self.max_papers}, batch={self.batch_size})")
-        logger.info(f"Features: entities={self.enable_entity_extraction}, relationships={self.enable_relationship_extraction}, embeddings={self.enable_embeddings}")
+        logger.info(
+            f"Starting LLM bulk ingestion (max={self.max_papers}, batch={self.batch_size})"
+        )
+        logger.info(
+            f"Features: entities={self.enable_entity_extraction}, relationships={self.enable_relationship_extraction}, embeddings={self.enable_embeddings}"
+        )
 
         # Load Kaggle dataset
         import kagglehub
+
         dataset_path = kagglehub.dataset_download("Cornell-University/arxiv")
         json_file = Path(dataset_path) / "arxiv-metadata-oai-snapshot.json"
 
@@ -552,12 +576,7 @@ Response (JSON array only):"""
         # Connect to Neo4j
         driver = await self._get_neo4j_driver()
 
-        total_stats = {
-            "processed": 0,
-            "ingested": 0,
-            "failed": 0,
-            "skipped": 0
-        }
+        total_stats = {"processed": 0, "ingested": 0, "failed": 0, "skipped": 0}
 
         papers_buffer = []
         batch_count = 0
@@ -566,8 +585,12 @@ Response (JSON array only):"""
         try:
             async with driver.session() as session:
                 # Ensure indexes exist
-                await session.run("CREATE INDEX IF NOT EXISTS FOR (d:DOCUMENT) ON (d.id)")
-                await session.run("CREATE INDEX IF NOT EXISTS FOR (e:Entity) ON (e.name)")
+                await session.run(
+                    "CREATE INDEX IF NOT EXISTS FOR (d:DOCUMENT) ON (d.id)"
+                )
+                await session.run(
+                    "CREATE INDEX IF NOT EXISTS FOR (e:Entity) ON (e.name)"
+                )
 
                 with open(json_file, "r") as f:
                     for line in f:
@@ -610,8 +633,16 @@ Response (JSON array only):"""
                             # Progress callback
                             if progress_callback:
                                 elapsed = time.time() - start_time
-                                pps = total_stats["processed"] / elapsed if elapsed > 0 else 0
-                                eta = (self.max_papers - total_stats["processed"]) / pps if pps > 0 else 0
+                                pps = (
+                                    total_stats["processed"] / elapsed
+                                    if elapsed > 0
+                                    else 0
+                                )
+                                eta = (
+                                    (self.max_papers - total_stats["processed"]) / pps
+                                    if pps > 0
+                                    else 0
+                                )
 
                                 progress = LLMIngestionProgress(
                                     current_batch=batch_count,
@@ -622,12 +653,19 @@ Response (JSON array only):"""
                                     failed=total_stats["failed"],
                                     skipped=total_stats["skipped"],
                                     entities_extracted=self.stats["entities_extracted"],
-                                    relationships_extracted=self.stats["relationships_extracted"],
-                                    embeddings_generated=self.stats["embeddings_generated"],
-                                    progress_percent=(total_stats["processed"] / self.max_papers) * 100,
+                                    relationships_extracted=self.stats[
+                                        "relationships_extracted"
+                                    ],
+                                    embeddings_generated=self.stats[
+                                        "embeddings_generated"
+                                    ],
+                                    progress_percent=(
+                                        total_stats["processed"] / self.max_papers
+                                    )
+                                    * 100,
                                     papers_per_second=pps,
                                     eta_seconds=eta,
-                                    llm_cost_estimate=self.stats["llm_cost_estimate"]
+                                    llm_cost_estimate=self.stats["llm_cost_estimate"],
                                 )
                                 progress_callback(progress)
 
@@ -662,5 +700,7 @@ Response (JSON array only):"""
             "llm_calls": self.stats["llm_calls"],
             "estimated_cost_usd": self.stats["llm_cost_estimate"],
             "elapsed_seconds": elapsed_time,
-            "papers_per_second": total_stats["processed"] / elapsed_time if elapsed_time > 0 else 0
+            "papers_per_second": total_stats["processed"] / elapsed_time
+            if elapsed_time > 0
+            else 0,
         }

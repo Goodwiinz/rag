@@ -431,9 +431,19 @@ class RedisPoolMonitor:
         try:
             pool = self.redis.connection_pool
 
-            created = pool._created_connections if hasattr(pool, "_created_connections") else 0
-            available = len(pool._available_connections) if hasattr(pool, "_available_connections") else 0
-            in_use = pool._in_use_connections if hasattr(pool, "_in_use_connections") else 0
+            created = (
+                pool._created_connections
+                if hasattr(pool, "_created_connections")
+                else 0
+            )
+            available = (
+                len(pool._available_connections)
+                if hasattr(pool, "_available_connections")
+                else 0
+            )
+            in_use = (
+                pool._in_use_connections if hasattr(pool, "_in_use_connections") else 0
+            )
             max_conn = pool.max_connections if hasattr(pool, "max_connections") else 10
 
             utilization = in_use / max_conn if max_conn > 0 else 0.0

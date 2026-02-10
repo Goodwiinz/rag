@@ -5,38 +5,59 @@ Handles authentication, authorization, user management, and RBAC
 
 import asyncio
 import uuid
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any
-from jose import jwt
-# from passlib.context import CryptContext  # Removed
-import redis.asyncio as redis
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, status, Depends, Query, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func, desc
 import httpx
 
-from src.shared.schemas import (
-    BaseResponse, ErrorResponse, LoginRequest, LoginResponse, TokenRequest,
-    TokenResponse, CreateUserRequest, UpdateUserRequest, UserResponse,
-    UserDetailResponse, UserRole, HealthCheckResponse, OrganizationContext
-)
+# from passlib.context import CryptContext  # Removed
+import redis.asyncio as redis
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import jwt
+from sqlalchemy import and_, desc, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.core.config import settings
+from src.core.database import get_db
+from src.core.security import get_password_hash, verify_password  # Imported
+from src.models.organization import Organization, StorageTier
+from src.models.user import User
+from src.models.user import UserRole as UserRoleEnum
 from src.shared.exceptions import (
-    BaseCustomException, ValidationError, AuthenticationError,
-    AuthorizationError, NotFoundError, ConflictError, handle_exceptions
+    AuthenticationError,
+    AuthorizationError,
+    BaseCustomException,
+    ConflictError,
+    NotFoundError,
+    ValidationError,
+    handle_exceptions,
+)
+from src.shared.schemas import (
+    BaseResponse,
+    CreateUserRequest,
+    ErrorResponse,
+    HealthCheckResponse,
+    LoginRequest,
+    LoginResponse,
+    OrganizationContext,
+    TokenRequest,
+    TokenResponse,
+    UpdateUserRequest,
+    UserDetailResponse,
+    UserResponse,
+    UserRole,
 )
 from src.shared.utils import (
-    CorrelationIdMiddleware, EventLogger, HealthChecker, MetricsCollector,
-    RateLimiter, retry_async, generate_cache_key
+    CorrelationIdMiddleware,
+    EventLogger,
+    HealthChecker,
+    MetricsCollector,
+    RateLimiter,
+    generate_cache_key,
+    retry_async,
 )
-from src.core.database import get_db
-from src.core.config import settings
-from src.core.security import verify_password, get_password_hash  # Imported
-from src.models.user import User, UserRole as UserRoleEnum
-from src.models.organization import Organization, StorageTier
-
 
 # Configuration
 USER_SERVICE_CONFIG = {
@@ -105,7 +126,9 @@ class AuthService:
         errors = []
 
         if len(password) < USER_SERVICE_CONFIG["password_min_length"]:
-            errors.append(f"Password must be at least {USER_SERVICE_CONFIG['password_min_length']} characters long")
+            errors.append(
+                f"Password must be at least {USER_SERVICE_CONFIG['password_min_length']} characters long"
+            )
 
         if not any(c.isupper() for c in password):
             errors.append("Password must contain at least one uppercase letter")
@@ -124,9 +147,7 @@ class AuthService:
         return len(errors) == 0, errors
 
     async def create_access_token(
-        self,
-        data: Dict[str, Any],
-        expires_delta: Optional[timedelta] = None
+        self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None
     ) -> str:
         """Create JWT access token"""
         to_encode = data.copy()
@@ -134,24 +155,22 @@ class AuthService:
         if expires_delta:
             expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.now(timezone.utc) + timedelta(minutes=self.access_token_expire_minutes)
+            expire = datetime.now(timezone.utc) + timedelta(
+                minutes=self.access_token_expire_minutes
+            )
 
-        to_encode.update({
-            "exp": expire,
-            "iat": datetime.now(timezone.utc),
-            "type": "access"
-        })
+        to_encode.update(
+            {"exp": expire, "iat": datetime.now(timezone.utc), "type": "access"}
+        )
 
         encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
         return encoded_jwt
 
-    async def create_refresh_token(
-        self,
-        user_id: str,
-        organization_id: str
-    ) -> str:
+    async def create_refresh_token(self, user_id: str, organization_id: str) -> str:
         """Create JWT refresh token"""
-        expire = datetime.now(timezone.utc) + timedelta(days=self.refresh_token_expire_days)
+        expire = datetime.now(timezone.utc) + timedelta(
+            days=self.refresh_token_expire_days
+        )
 
         to_encode = {
             "sub": user_id,
@@ -159,7 +178,7 @@ class AuthService:
             "exp": expire,
             "iat": datetime.now(timezone.utc),
             "type": "refresh",
-            "jti": str(uuid.uuid4())  # Unique identifier for refresh token
+            "jti": str(uuid.uuid4()),  # Unique identifier for refresh token
         }
 
         encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
@@ -168,12 +187,14 @@ class AuthService:
         await cache.setex(
             f"refresh_token:{to_encode['jti']}",
             timedelta(days=self.refresh_token_expire_days).total_seconds(),
-            str(user_id)
+            str(user_id),
         )
 
         return encoded_jwt
 
-    async def verify_token(self, token: str, token_type: str = "access") -> Dict[str, Any]:
+    async def verify_token(
+        self, token: str, token_type: str = "access"
+    ) -> Dict[str, Any]:
         """Verify and decode JWT token"""
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
@@ -270,32 +291,29 @@ class RBACService:
                 "read:analytics:all",
                 "write:analytics:all",
                 "read:system:all",
-                "manage:system:all"
+                "manage:system:all",
             ],
             UserRole.CONTENT_MANAGER: [
                 "read:documents:all",
                 "write:documents:all",
                 "delete:documents:all",
                 "read:analytics:all",
-                "write:analytics:all"
+                "write:analytics:all",
             ],
             UserRole.USER: [
                 "read:documents:own",
                 "write:documents:own",
                 "delete:documents:own",
                 "read:search",
-                "read:analytics:own"
+                "read:analytics:own",
             ],
             UserRole.ANALYST: [
                 "read:documents:all",
                 "read:search:all",
                 "read:analytics:all",
-                "write:analytics:all"
+                "write:analytics:all",
             ],
-            UserRole.VIEWER: [
-                "read:documents:public",
-                "read:search:public"
-            ]
+            UserRole.VIEWER: ["read:documents:public", "read:search:public"],
         }
 
     def get_permissions(self, role: UserRole) -> List[str]:
@@ -307,12 +325,16 @@ class RBACService:
         permissions = self.get_permissions(user_role)
         return required_permission in permissions
 
-    def has_any_permission(self, user_role: UserRole, required_permissions: List[str]) -> bool:
+    def has_any_permission(
+        self, user_role: UserRole, required_permissions: List[str]
+    ) -> bool:
         """Check if user role has any of the required permissions"""
         permissions = self.get_permissions(user_role)
         return any(perm in permissions for perm in required_permissions)
 
-    def has_all_permissions(self, user_role: UserRole, required_permissions: List[str]) -> bool:
+    def has_all_permissions(
+        self, user_role: UserRole, required_permissions: List[str]
+    ) -> bool:
         """Check if user role has all required permissions"""
         permissions = self.get_permissions(user_role)
         return all(perm in permissions for perm in required_permissions)
@@ -324,7 +346,7 @@ rbac_service = RBACService()
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> User:
     """Get current authenticated user"""
     if not credentials:
@@ -340,12 +362,7 @@ async def get_current_user(
 
     # Get user from database
     result = await db.execute(
-        select(User).where(
-            and_(
-                User.id == uuid.UUID(user_id),
-                User.is_active == True
-            )
-        )
+        select(User).where(and_(User.id == uuid.UUID(user_id), User.is_active == True))
     )
     user = result.scalar_one_or_none()
 
@@ -355,7 +372,9 @@ async def get_current_user(
     return user
 
 
-async def get_user_context(current_user: User = Depends(get_current_user)) -> OrganizationContext:
+async def get_user_context(
+    current_user: User = Depends(get_current_user),
+) -> OrganizationContext:
     """Get user organization context"""
     # Get storage quota and usage
     storage_quota_mb = 5120  # Default 5GB
@@ -380,35 +399,36 @@ async def get_user_context(current_user: User = Depends(get_current_user)) -> Or
         user_role=UserRole(current_user.role.value),
         permissions=rbac_service.get_permissions(UserRole(current_user.role.value)),
         storage_quota_mb=storage_quota_mb,
-        storage_used_mb=storage_used_mb
+        storage_used_mb=storage_used_mb,
     )
 
 
 def require_permission(permission: str):
     """Decorator to require specific permission"""
+
     def permission_dependency(
-        user_context: OrganizationContext = Depends(get_user_context)
+        user_context: OrganizationContext = Depends(get_user_context),
     ):
         if not rbac_service.has_permission(user_context.user_role, permission):
             raise AuthorizationError(
-                message="Insufficient permissions",
-                required_permission=permission
+                message="Insufficient permissions", required_permission=permission
             )
         return user_context
+
     return permission_dependency
 
 
 def require_role(required_role: UserRole):
     """Decorator to require specific role"""
-    def role_dependency(
-        current_user: User = Depends(get_current_user)
-    ):
+
+    def role_dependency(current_user: User = Depends(get_current_user)):
         user_role = UserRole(current_user.role.value)
         if not rbac_service.has_permission(user_role, f"role:{required_role.value}"):
             raise AuthorizationError(
                 message=f"Requires {required_role.value} role or higher"
             )
         return current_user
+
     return role_dependency
 
 
@@ -417,12 +437,16 @@ async def startup_event():
     """Initialize service on startup"""
     await event_logger.log_event(
         event_type="service_startup",
-        event_data={"version": USER_SERVICE_CONFIG["version"]}
+        event_data={"version": USER_SERVICE_CONFIG["version"]},
     )
 
     # Add health checks
-    health_checker.add_check("database", lambda: True)  # Would check actual DB connection
-    health_checker.add_check("redis", lambda: True)    # Would check actual Redis connection
+    health_checker.add_check(
+        "database", lambda: True
+    )  # Would check actual DB connection
+    health_checker.add_check(
+        "redis", lambda: True
+    )  # Would check actual Redis connection
 
 
 @app.post("/auth/login", response_model=LoginResponse)
@@ -430,7 +454,7 @@ async def startup_event():
 async def login(
     request: LoginRequest,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """User login"""
     identifier = request.email.lower()
@@ -440,41 +464,35 @@ async def login(
     if not can_login:
         raise AuthenticationError(
             message=f"Account temporarily locked due to too many failed attempts. Try again later.",
-            details={"attempts": attempts}
+            details={"attempts": attempts},
         )
 
     # Check rate limiting for endpoint
     is_allowed, rate_info = await rate_limiter.is_allowed(
-        key="login_attempts",
-        limit=5,
-        window=300,  # 5 minutes
-        identifier=identifier
+        key="login_attempts", limit=5, window=300, identifier=identifier  # 5 minutes
     )
 
     if not is_allowed:
         raise AuthenticationError(
             message="Too many login attempts. Please try again later.",
-            details={"retry_after": rate_info["retry_after"]}
+            details={"retry_after": rate_info["retry_after"]},
         )
 
     # Find user
     result = await db.execute(
-        select(User).where(
-            and_(
-                User.email == identifier,
-                User.is_active == True
-            )
-        )
+        select(User).where(and_(User.email == identifier, User.is_active == True))
     )
     user = result.scalar_one_or_none()
 
-    if not user or not auth_service.verify_password(request.password, user.password_hash):
+    if not user or not auth_service.verify_password(
+        request.password, user.password_hash
+    ):
         # Record failed attempt
         await auth_service.record_login_attempt(identifier, False)
 
         await event_logger.log_event(
             event_type="login_failed",
-            event_data={"identifier": identifier, "reason": "invalid_credentials"}
+            event_data={"identifier": identifier, "reason": "invalid_credentials"},
         )
 
         raise AuthenticationError("Invalid email or password")
@@ -487,17 +505,18 @@ async def login(
     await db.commit()
 
     # Create tokens
-    access_token = await auth_service.create_access_token({
-        "sub": str(user.id),
-        "email": user.email,
-        "role": user.role.value,
-        "organization_id": str(user.organization_id),
-        "permissions": rbac_service.get_permissions(UserRole(user.role.value))
-    })
+    access_token = await auth_service.create_access_token(
+        {
+            "sub": str(user.id),
+            "email": user.email,
+            "role": user.role.value,
+            "organization_id": str(user.organization_id),
+            "permissions": rbac_service.get_permissions(UserRole(user.role.value)),
+        }
+    )
 
     refresh_token = await auth_service.create_refresh_token(
-        str(user.id),
-        str(user.organization_id)
+        str(user.id), str(user.organization_id)
     )
 
     # Log successful login
@@ -506,10 +525,10 @@ async def login(
         event_data={
             "user_id": str(user.id),
             "email": user.email,
-            "organization_id": str(user.organization_id)
+            "organization_id": str(user.organization_id),
         },
         user_id=str(user.id),
-        organization_id=str(user.organization_id)
+        organization_id=str(user.organization_id),
     )
 
     # Record metrics
@@ -529,8 +548,8 @@ async def login(
             "organization_id": str(user.organization_id),
             "is_active": user.is_active,
             "created_at": user.created_at,
-            "last_login": user.last_login
-        }
+            "last_login": user.last_login,
+        },
     )
 
 
@@ -550,21 +569,18 @@ async def refresh_token(request: TokenRequest):
             raise AuthenticationError("Invalid refresh token")
 
         # Create new access token
-        access_token = await auth_service.create_access_token({
-            "sub": user_id,
-            "organization_id": organization_id,
-            "type": "access"
-        })
+        access_token = await auth_service.create_access_token(
+            {"sub": user_id, "organization_id": organization_id, "type": "access"}
+        )
 
         await event_logger.log_event(
-            event_type="token_refreshed",
-            event_data={"user_id": user_id}
+            event_type="token_refreshed", event_data={"user_id": user_id}
         )
 
         return TokenResponse(
             access_token=access_token,
             token_type="bearer",
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         )
 
     except Exception as e:
@@ -575,8 +591,7 @@ async def refresh_token(request: TokenRequest):
 @app.post("/auth/logout")
 @handle_exceptions
 async def logout(
-    background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_user)
+    background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user)
 ):
     """User logout"""
     # Revoke all user tokens in background
@@ -586,20 +601,17 @@ async def logout(
         event_type="logout",
         event_data={"user_id": str(current_user.id)},
         user_id=str(current_user.id),
-        organization_id=str(current_user.organization_id)
+        organization_id=str(current_user.organization_id),
     )
 
-    return BaseResponse(
-        success=True,
-        message="Logged out successfully"
-    )
+    return BaseResponse(success=True, message="Logged out successfully")
 
 
 @app.get("/users/me", response_model=UserDetailResponse)
 @handle_exceptions
 async def get_current_user_info(
     current_user: User = Depends(get_current_user),
-    user_context: OrganizationContext = Depends(get_user_context)
+    user_context: OrganizationContext = Depends(get_user_context),
 ):
     """Get current user information"""
     return UserDetailResponse(
@@ -615,7 +627,7 @@ async def get_current_user_info(
         storage_quota_mb=user_context.storage_quota_mb,
         storage_used_mb=user_context.storage_used_mb,
         preferences={},  # Would load from database
-        permissions=user_context.permissions
+        permissions=user_context.permissions,
     )
 
 
@@ -627,15 +639,12 @@ async def list_users(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(require_permission("read:users:all")),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """List users (admin only)"""
     # Build query
     query = select(User).where(
-        and_(
-            User.organization_id == organization_id,
-            User.is_deleted == False
-        )
+        and_(User.organization_id == organization_id, User.is_deleted == False)
     )
 
     if role:
@@ -658,7 +667,7 @@ async def list_users(
             organization_id=user.organization_id,
             is_active=user.is_active,
             created_at=user.created_at,
-            last_login=user.last_login
+            last_login=user.last_login,
         )
         for user in users
     ]
@@ -669,7 +678,7 @@ async def list_users(
 async def create_user(
     request: CreateUserRequest,
     current_user: User = Depends(require_permission("manage:users:all")),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Create new user (admin only)"""
     # Validate email uniqueness
@@ -682,7 +691,9 @@ async def create_user(
     # Validate password strength
     is_valid, errors = auth_service.validate_password_strength(request.password)
     if not is_valid:
-        raise ValidationError("Password does not meet security requirements", details={"errors": errors})
+        raise ValidationError(
+            "Password does not meet security requirements", details={"errors": errors}
+        )
 
     # Create user
     user = User(
@@ -691,7 +702,7 @@ async def create_user(
         last_name=request.last_name,
         role=UserRoleEnum(request.role.value),
         organization_id=request.organization_id,
-        is_active=True
+        is_active=True,
     )
     user.set_password(request.password)
 
@@ -703,10 +714,10 @@ async def create_user(
         event_data={
             "new_user_id": str(user.id),
             "email": user.email,
-            "role": user.role.value
+            "role": user.role.value,
         },
         user_id=str(current_user.id),
-        organization_id=str(current_user.organization_id)
+        organization_id=str(current_user.organization_id),
     )
 
     metrics.increment_counter("users_created", labels={"role": user.role.value})
@@ -720,7 +731,7 @@ async def create_user(
         organization_id=user.organization_id,
         is_active=user.is_active,
         created_at=user.created_at,
-        last_login=user.last_login
+        last_login=user.last_login,
     )
 
 
@@ -730,23 +741,25 @@ async def update_user(
     user_id: uuid.UUID,
     request: UpdateUserRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Update user"""
     # Check permissions
     if str(current_user.id) != str(user_id):
         # Updating another user requires admin permissions
-        if not rbac_service.has_permission(UserRole(current_user.role.value), "manage:users:all"):
+        if not rbac_service.has_permission(
+            UserRole(current_user.role.value), "manage:users:all"
+        ):
             raise AuthorizationError("Cannot update other users")
 
     # Get user to update
-    result = await db.execute(
-        select(User).where(User.id == user_id)
-    )
+    result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
     if not user:
-        raise NotFoundError("User not found", resource_type="user", resource_id=str(user_id))
+        raise NotFoundError(
+            "User not found", resource_type="user", resource_id=str(user_id)
+        )
 
     # Update fields
     if request.first_name is not None:
@@ -757,13 +770,17 @@ async def update_user(
 
     if request.role is not None:
         # Only admins can change roles
-        if not rbac_service.has_permission(UserRole(current_user.role.value), "manage:users:all"):
+        if not rbac_service.has_permission(
+            UserRole(current_user.role.value), "manage:users:all"
+        ):
             raise AuthorizationError("Cannot change user role")
         user.role = UserRoleEnum(request.role.value)
 
     if request.is_active is not None:
         # Only admins can deactivate users
-        if not rbac_service.has_permission(UserRole(current_user.role.value), "manage:users:all"):
+        if not rbac_service.has_permission(
+            UserRole(current_user.role.value), "manage:users:all"
+        ):
             raise AuthorizationError("Cannot change user active status")
         user.is_active = request.is_active
 
@@ -777,10 +794,10 @@ async def update_user(
         event_type="user_updated",
         event_data={
             "updated_user_id": str(user_id),
-            "updated_fields": request.dict(exclude_unset=True)
+            "updated_fields": request.dict(exclude_unset=True),
         },
         user_id=str(current_user.id),
-        organization_id=str(current_user.organization_id)
+        organization_id=str(current_user.organization_id),
     )
 
     return UserResponse(
@@ -792,7 +809,7 @@ async def update_user(
         organization_id=user.organization_id,
         is_active=user.is_active,
         created_at=user.created_at,
-        last_login=user.last_login
+        last_login=user.last_login,
     )
 
 
@@ -801,7 +818,7 @@ async def update_user(
 async def delete_user(
     user_id: uuid.UUID,
     current_user: User = Depends(require_permission("manage:users:all")),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Delete user (soft delete, admin only)"""
     # Prevent self-deletion
@@ -809,13 +826,13 @@ async def delete_user(
         raise ValidationError("Cannot delete your own account")
 
     # Get user
-    result = await db.execute(
-        select(User).where(User.id == user_id)
-    )
+    result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
     if not user:
-        raise NotFoundError("User not found", resource_type="user", resource_id=str(user_id))
+        raise NotFoundError(
+            "User not found", resource_type="user", resource_id=str(user_id)
+        )
 
     # Soft delete
     user.soft_delete()
@@ -826,30 +843,24 @@ async def delete_user(
 
     await event_logger.log_event(
         event_type="user_deleted",
-        event_data={
-            "deleted_user_id": str(user_id),
-            "email": user.email
-        },
+        event_data={"deleted_user_id": str(user_id), "email": user.email},
         user_id=str(current_user.id),
-        organization_id=str(current_user.organization_id)
+        organization_id=str(current_user.organization_id),
     )
 
-    return BaseResponse(
-        success=True,
-        message="User deleted successfully"
-    )
+    return BaseResponse(success=True, message="User deleted successfully")
 
 
 @app.get("/auth/permissions")
 @handle_exceptions
 async def get_user_permissions(
-    user_context: OrganizationContext = Depends(get_user_context)
+    user_context: OrganizationContext = Depends(get_user_context),
 ):
     """Get current user permissions"""
     return {
         "role": user_context.user_role.value,
         "permissions": user_context.permissions,
-        "organization_id": str(user_context.organization_id)
+        "organization_id": str(user_context.organization_id),
     }
 
 
@@ -864,7 +875,7 @@ async def health_check():
         environment=settings.ENVIRONMENT,
         timestamp=datetime.now(timezone.utc),
         services=health_data["checks"],
-        uptime_seconds=0  # Would track actual uptime
+        uptime_seconds=0,  # Would track actual uptime
     )
 
 
@@ -872,10 +883,7 @@ async def health_check():
 async def shutdown_event():
     """Cleanup on shutdown"""
     await cache.close()
-    await event_logger.log_event(
-        event_type="service_shutdown",
-        event_data={}
-    )
+    await event_logger.log_event(event_type="service_shutdown", event_data={})
 
 
 if __name__ == "__main__":
@@ -885,5 +893,5 @@ if __name__ == "__main__":
         "src.services.user_management:app",
         host=USER_SERVICE_CONFIG["host"],
         port=USER_SERVICE_CONFIG["port"],
-        log_level=settings.LOG_LEVEL.lower()
+        log_level=settings.LOG_LEVEL.lower(),
     )

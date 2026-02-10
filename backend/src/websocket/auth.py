@@ -6,20 +6,23 @@ Supports token validation, session management, and security policies
 import json
 import logging
 import time
-from typing import Optional, Dict, Any, Tuple
-from datetime import datetime, timedelta
-from fastapi import WebSocket, HTTPException, WebSocketDisconnect, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError, ExpiredSignatureError
-from redis.asyncio import Redis
-import redis.asyncio as redis
 import uuid
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional, Tuple
+
+import redis.asyncio as redis
+from fastapi import HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import ExpiredSignatureError, JWTError, jwt
+from redis.asyncio import Redis
+
+from src.models.organization import Organization
+from src.models.user import User
 
 from ..core.config import settings
-from src.models.user import User
-from src.models.organization import Organization
 
 logger = logging.getLogger(__name__)
+
 
 class WebSocketAuthenticator:
     """
@@ -32,7 +35,7 @@ class WebSocketAuthenticator:
         session_ttl: int = 3600,  # 1 hour
         refresh_threshold: int = 300,  # 5 minutes before expiry
         max_concurrent_sessions: int = 10,
-        rate_limit_per_minute: int = 60
+        rate_limit_per_minute: int = 60,
     ):
         self.redis_url = redis_url
         self.session_ttl = session_ttl
@@ -44,11 +47,11 @@ class WebSocketAuthenticator:
 
         # Security policies
         self.security_policies = {
-            'require_https': not settings.DEBUG,
-            'allow_origin_refresh': True,
-            'strict_user_agent_validation': False,
-            'ip_binding': True,  # Bind session to IP address
-            'concurrent_session_limit': True
+            "require_https": not settings.DEBUG,
+            "allow_origin_refresh": True,
+            "strict_user_agent_validation": False,
+            "ip_binding": True,  # Bind session to IP address
+            "concurrent_session_limit": True,
         }
 
     async def initialize(self):
@@ -72,7 +75,7 @@ class WebSocketAuthenticator:
         token: Optional[str] = None,
         organization_id: Optional[str] = None,
         user_agent: Optional[str] = None,
-        client_ip: Optional[str] = None
+        client_ip: Optional[str] = None,
     ) -> Tuple[User, str, str]:
         """
         Authenticate WebSocket connection and return user with session ID
@@ -93,39 +96,56 @@ class WebSocketAuthenticator:
         try:
             # Validate required parameters
             if not token:
-                await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Missing authentication token")
+                await websocket.close(
+                    code=status.WS_1008_POLICY_VIOLATION,
+                    reason="Missing authentication token",
+                )
                 raise WebSocketDisconnect(code=status.WS_1008_POLICY_VIOLATION)
 
             # Parse and validate JWT token
             user_info = await self._validate_jwt_token(token)
             if not user_info:
-                await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired token")
+                await websocket.close(
+                    code=status.WS_1008_POLICY_VIOLATION,
+                    reason="Invalid or expired token",
+                )
                 raise WebSocketDisconnect(code=status.WS_1008_POLICY_VIOLATION)
 
-            user_id = user_info['sub']
-            user_email = user_info.get('email')
+            user_id = user_info["sub"]
+            user_email = user_info.get("email")
 
             # Get user from database
             user = await self._get_user(user_id)
             if not user or not user.is_active:
-                await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="User not found or inactive")
+                await websocket.close(
+                    code=status.WS_1008_POLICY_VIOLATION,
+                    reason="User not found or inactive",
+                )
                 raise WebSocketDisconnect(code=status.WS_1008_POLICY_VIOLATION)
 
             # Validate organization access
             org_id = organization_id or str(user.organization_id)
             organization = await self._validate_organization_access(user, org_id)
             if not organization:
-                await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid organization access")
+                await websocket.close(
+                    code=status.WS_1008_POLICY_VIOLATION,
+                    reason="Invalid organization access",
+                )
                 raise WebSocketDisconnect(code=status.WS_1008_POLICY_VIOLATION)
 
             # Check rate limiting
             if not await self._check_rate_limit(user_id):
-                await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Rate limit exceeded")
+                await websocket.close(
+                    code=status.WS_1008_POLICY_VIOLATION, reason="Rate limit exceeded"
+                )
                 raise WebSocketDisconnect(code=status.WS_1008_POLICY_VIOLATION)
 
             # Check concurrent sessions
             if not await self._check_concurrent_sessions(user_id):
-                await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Maximum concurrent sessions exceeded")
+                await websocket.close(
+                    code=status.WS_1008_POLICY_VIOLATION,
+                    reason="Maximum concurrent sessions exceeded",
+                )
                 raise WebSocketDisconnect(code=status.WS_1008_POLICY_VIOLATION)
 
             # Create session
@@ -134,17 +154,21 @@ class WebSocketAuthenticator:
                 organization_id=org_id,
                 token=token,
                 user_agent=user_agent,
-                client_ip=client_ip
+                client_ip=client_ip,
             )
 
-            logger.info(f"WebSocket authenticated: user={user_id}, session={session_id}, org={org_id}")
+            logger.info(
+                f"WebSocket authenticated: user={user_id}, session={session_id}, org={org_id}"
+            )
             return user, session_id, org_id
 
         except WebSocketDisconnect:
             raise
         except Exception as e:
             logger.error(f"WebSocket authentication error: {e}")
-            await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Authentication error")
+            await websocket.close(
+                code=status.WS_1011_INTERNAL_ERROR, reason="Authentication error"
+            )
             raise WebSocketDisconnect(code=status.WS_1011_INTERNAL_ERROR)
 
     async def refresh_session(self, session_id: str) -> Optional[str]:
@@ -165,17 +189,21 @@ class WebSocketAuthenticator:
                 return None
 
             # Check if refresh is needed
-            expiry_time = datetime.fromisoformat(session_data.get('expires_at'))
-            if datetime.utcnow() > (expiry_time - timedelta(seconds=self.refresh_threshold)):
+            expiry_time = datetime.fromisoformat(session_data.get("expires_at"))
+            if datetime.utcnow() > (
+                expiry_time - timedelta(seconds=self.refresh_threshold)
+            ):
                 # Generate new token
-                user_id = session_data.get('user_id')
-                organization_id = session_data.get('organization_id')
+                user_id = session_data.get("user_id")
+                organization_id = session_data.get("organization_id")
 
                 new_token = await self._generate_refresh_token(user_id, organization_id)
 
                 # Update session with new token
-                await self._redis_client.hset(session_key, 'token', new_token)
-                await self._redis_client.hset(session_key, 'refreshed_at', datetime.utcnow().isoformat())
+                await self._redis_client.hset(session_key, "token", new_token)
+                await self._redis_client.hset(
+                    session_key, "refreshed_at", datetime.utcnow().isoformat()
+                )
 
                 logger.info(f"Session refreshed: {session_id}")
                 return new_token
@@ -201,7 +229,9 @@ class WebSocketAuthenticator:
             await self._redis_client.delete(session_key)
 
             # Log session invalidation
-            logger.info(f"Session invalidated: {session_id}, reason: {reason}, user: {session_data.get('user_id')}")
+            logger.info(
+                f"Session invalidated: {session_id}, reason: {reason}, user: {session_data.get('user_id')}"
+            )
 
         except Exception as e:
             logger.error(f"Error invalidating session {session_id}: {e}")
@@ -219,15 +249,15 @@ class WebSocketAuthenticator:
                 return None
 
             return {
-                'session_id': session_id,
-                'user_id': session_data.get('user_id'),
-                'organization_id': session_data.get('organization_id'),
-                'created_at': session_data.get('created_at'),
-                'last_activity': session_data.get('last_activity'),
-                'expires_at': session_data.get('expires_at'),
-                'client_ip': session_data.get('client_ip'),
-                'user_agent': session_data.get('user_agent'),
-                'is_active': True
+                "session_id": session_id,
+                "user_id": session_data.get("user_id"),
+                "organization_id": session_data.get("organization_id"),
+                "created_at": session_data.get("created_at"),
+                "last_activity": session_data.get("last_activity"),
+                "expires_at": session_data.get("expires_at"),
+                "client_ip": session_data.get("client_ip"),
+                "user_agent": session_data.get("user_agent"),
+                "is_active": True,
             }
 
         except Exception as e:
@@ -241,7 +271,9 @@ class WebSocketAuthenticator:
                 return
 
             session_key = f"ws:session:{session_id}"
-            await self._redis_client.hset(session_key, 'last_activity', datetime.utcnow().isoformat())
+            await self._redis_client.hset(
+                session_key, "last_activity", datetime.utcnow().isoformat()
+            )
 
         except Exception as e:
             logger.error(f"Error updating session activity for {session_id}: {e}")
@@ -259,7 +291,7 @@ class WebSocketAuthenticator:
             expired_count = 0
 
             for key in keys:
-                expires_at_str = await self._redis_client.hget(key, 'expires_at')
+                expires_at_str = await self._redis_client.hget(key, "expires_at")
                 if expires_at_str:
                     expires_at = datetime.fromisoformat(expires_at_str)
                     if now > expires_at:
@@ -281,20 +313,16 @@ class WebSocketAuthenticator:
                 token,
                 settings.JWT_SECRET_KEY,
                 algorithms=[settings.JWT_ALGORITHM],
-                options={
-                    'verify_aud': False,
-                    'verify_iss': False,
-                    'verify_sub': True
-                }
+                options={"verify_aud": False, "verify_iss": False, "verify_sub": True},
             )
 
             # Check required claims
-            user_id = payload.get('sub')
+            user_id = payload.get("sub")
             if not user_id:
                 return None
 
             # Check expiration
-            exp = payload.get('exp')
+            exp = payload.get("exp")
             if exp and time.time() > exp:
                 return None
 
@@ -319,7 +347,7 @@ class WebSocketAuthenticator:
             async with get_db_session() as session:
                 result = await session.execute(
                     "SELECT * FROM users WHERE id = :user_id AND is_deleted = false",
-                    {'user_id': user_id}
+                    {"user_id": user_id},
                 )
                 user_data = result.fetchone()
 
@@ -331,7 +359,9 @@ class WebSocketAuthenticator:
             logger.error(f"Error getting user {user_id}: {e}")
             return None
 
-    async def _validate_organization_access(self, user: User, organization_id: str) -> Optional[Organization]:
+    async def _validate_organization_access(
+        self, user: User, organization_id: str
+    ) -> Optional[Organization]:
         """Validate user has access to organization"""
         try:
             # Import here to avoid circular imports
@@ -346,7 +376,7 @@ class WebSocketAuthenticator:
                     AND (o.is_public = true OR uor.user_id = :user_id)
                     AND o.is_deleted = false
                     """,
-                    {'org_id': organization_id, 'user_id': str(user.id)}
+                    {"org_id": organization_id, "user_id": str(user.id)},
                 )
                 org_data = result.fetchone()
 
@@ -379,7 +409,7 @@ class WebSocketAuthenticator:
 
     async def _check_concurrent_sessions(self, user_id: str) -> bool:
         """Check if user has exceeded concurrent session limit"""
-        if not self.security_policies['concurrent_session_limit']:
+        if not self.security_policies["concurrent_session_limit"]:
             return True
 
         try:
@@ -391,7 +421,7 @@ class WebSocketAuthenticator:
 
             user_sessions = 0
             for key in keys:
-                session_user_id = await self._redis_client.hget(key, 'user_id')
+                session_user_id = await self._redis_client.hget(key, "user_id")
                 if session_user_id == user_id:
                     user_sessions += 1
 
@@ -407,7 +437,7 @@ class WebSocketAuthenticator:
         organization_id: str,
         token: str,
         user_agent: Optional[str] = None,
-        client_ip: Optional[str] = None
+        client_ip: Optional[str] = None,
     ) -> str:
         """Create a new WebSocket session"""
         try:
@@ -421,16 +451,16 @@ class WebSocketAuthenticator:
             expires_at = now + timedelta(seconds=self.session_ttl)
 
             session_data = {
-                'session_id': session_id,
-                'user_id': user_id,
-                'organization_id': organization_id,
-                'token': token,
-                'user_agent': user_agent or 'Unknown',
-                'client_ip': client_ip or 'Unknown',
-                'created_at': now.isoformat(),
-                'last_activity': now.isoformat(),
-                'expires_at': expires_at.isoformat(),
-                'refreshed_at': now.isoformat()
+                "session_id": session_id,
+                "user_id": user_id,
+                "organization_id": organization_id,
+                "token": token,
+                "user_agent": user_agent or "Unknown",
+                "client_ip": client_ip or "Unknown",
+                "created_at": now.isoformat(),
+                "last_activity": now.isoformat(),
+                "expires_at": expires_at.isoformat(),
+                "refreshed_at": now.isoformat(),
             }
 
             await self._redis_client.hset(session_key, mapping=session_data)
@@ -449,26 +479,26 @@ class WebSocketAuthenticator:
             expires_at = now + timedelta(seconds=self.session_ttl)
 
             payload = {
-                'sub': user_id,
-                'organization_id': organization_id,
-                'iat': now,
-                'exp': expires_at,
-                'type': 'websocket_refresh',
-                'jti': str(uuid.uuid4())
+                "sub": user_id,
+                "organization_id": organization_id,
+                "iat": now,
+                "exp": expires_at,
+                "type": "websocket_refresh",
+                "jti": str(uuid.uuid4()),
             }
 
             return jwt.encode(
-                payload,
-                settings.JWT_SECRET_KEY,
-                algorithm=settings.JWT_ALGORITHM
+                payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
             )
 
         except Exception as e:
             logger.error(f"Error generating refresh token: {e}")
             return ""
 
+
 # Global authenticator instance
 _websocket_authenticator: Optional[WebSocketAuthenticator] = None
+
 
 def get_websocket_authenticator() -> WebSocketAuthenticator:
     """Get or create the global WebSocket authenticator instance"""
@@ -477,9 +507,13 @@ def get_websocket_authenticator() -> WebSocketAuthenticator:
         _websocket_authenticator = WebSocketAuthenticator()
     return _websocket_authenticator
 
+
 # Authentication decorator for WebSocket endpoints
 
-async def websocket_auth_required(websocket: WebSocket, **kwargs) -> Tuple[User, str, str]:
+
+async def websocket_auth_required(
+    websocket: WebSocket, **kwargs
+) -> Tuple[User, str, str]:
     """
     WebSocket authentication decorator
 
@@ -489,19 +523,19 @@ async def websocket_auth_required(websocket: WebSocket, **kwargs) -> Tuple[User,
     authenticator = get_websocket_authenticator()
 
     # Extract token from query parameters
-    token = kwargs.get('token')
-    organization_id = kwargs.get('organization_id')
+    token = kwargs.get("token")
+    organization_id = kwargs.get("organization_id")
 
     # Get client information
     client = websocket.client
     client_ip = client.host if client else None
     headers = websocket.headers
-    user_agent = headers.get('user-agent') if headers else None
+    user_agent = headers.get("user-agent") if headers else None
 
     return await authenticator.authenticate_websocket(
         websocket=websocket,
         token=token,
         organization_id=organization_id,
         user_agent=user_agent,
-        client_ip=client_ip
+        client_ip=client_ip,
     )

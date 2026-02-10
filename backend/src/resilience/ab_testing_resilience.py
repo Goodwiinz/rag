@@ -7,52 +7,55 @@ to ensure high availability and graceful degradation under failure conditions.
 """
 
 import asyncio
-import time
-import logging
 import concurrent.futures
-from abc import ABC, abstractmethod
-from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Any, Optional, Callable, Union, TypeVar, Generic
-from dataclasses import dataclass, field
-from enum import Enum
+import logging
 import random
-from functools import wraps
 import statistics
+import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from enum import Enum
+from functools import wraps
+from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union
 
 from ..core.config import settings
 
-
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 # ============================================================================
 # CIRCUIT BREAKER IMPLEMENTATION
 # ============================================================================
 
+
 class CircuitState(Enum):
     """Circuit breaker states"""
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Circuit is open, calls fail fast
+
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Circuit is open, calls fail fast
     HALF_OPEN = "half_open"  # Testing if service has recovered
 
 
 @dataclass
 class CircuitBreakerConfig:
     """Configuration for circuit breaker"""
-    failure_threshold: int = 5          # Number of failures before opening
-    recovery_timeout: float = 60.0      # Seconds to wait before trying again
+
+    failure_threshold: int = 5  # Number of failures before opening
+    recovery_timeout: float = 60.0  # Seconds to wait before trying again
     expected_exception: tuple = (Exception,)  # Exception types to track
-    success_threshold: int = 3          # Successes needed to close circuit
-    monitoring_period: float = 300.0    # Period to monitor for failure rate
-    failure_rate_threshold: float = 0.5 # Failure rate threshold (50%)
-    minimum_requests: int = 10          # Minimum requests before rate calculation
+    success_threshold: int = 3  # Successes needed to close circuit
+    monitoring_period: float = 300.0  # Period to monitor for failure rate
+    failure_rate_threshold: float = 0.5  # Failure rate threshold (50%)
+    minimum_requests: int = 10  # Minimum requests before rate calculation
 
 
 @dataclass
 class CircuitBreakerMetrics:
     """Metrics for circuit breaker"""
+
     total_requests: int = 0
     failed_requests: int = 0
     successful_requests: int = 0
@@ -78,6 +81,7 @@ class CircuitBreaker:
 
     def __call__(self, func: Callable) -> Callable:
         """Decorator to apply circuit breaker to a function"""
+
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             return await self.call_async(func, *args, **kwargs)
@@ -106,7 +110,9 @@ class CircuitBreaker:
             raise e
         finally:
             execution_time = time.time() - start_time
-            logger.debug(f"Circuit breaker '{self.name}' execution time: {execution_time:.3f}s")
+            logger.debug(
+                f"Circuit breaker '{self.name}' execution time: {execution_time:.3f}s"
+            )
 
     def call_sync(self, func: Callable, *args, **kwargs) -> T:
         """Execute sync function with circuit breaker protection"""
@@ -123,7 +129,9 @@ class CircuitBreaker:
             raise e
         finally:
             execution_time = time.time() - start_time
-            logger.debug(f"Circuit breaker '{self.name}' execution time: {execution_time:.3f}s")
+            logger.debug(
+                f"Circuit breaker '{self.name}' execution time: {execution_time:.3f}s"
+            )
 
     def can_execute(self) -> bool:
         """Check if circuit breaker allows execution"""
@@ -131,7 +139,9 @@ class CircuitBreaker:
             return True
         elif self.state == CircuitState.OPEN:
             # Check if recovery timeout has passed
-            if (datetime.now(timezone.utc) - self.last_state_change).total_seconds() >= self.config.recovery_timeout:
+            if (
+                datetime.now(timezone.utc) - self.last_state_change
+            ).total_seconds() >= self.config.recovery_timeout:
                 self.state = CircuitState.HALF_OPEN
                 self.half_open_successes = 0
                 logger.info(f"Circuit breaker '{self.name}' transitioned to HALF_OPEN")
@@ -148,8 +158,12 @@ class CircuitBreaker:
         self.request_history.append(datetime.now(timezone.utc))
 
         # Clean old request history
-        cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=self.config.monitoring_period)
-        self.request_history = [req_time for req_time in self.request_history if req_time > cutoff_time]
+        cutoff_time = datetime.now(timezone.utc) - timedelta(
+            seconds=self.config.monitoring_period
+        )
+        self.request_history = [
+            req_time for req_time in self.request_history if req_time > cutoff_time
+        ]
 
         if self.state == CircuitState.HALF_OPEN:
             self.half_open_successes += 1
@@ -164,8 +178,12 @@ class CircuitBreaker:
         self.request_history.append(datetime.now(timezone.utc))
 
         # Clean old request history
-        cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=self.config.monitoring_period)
-        self.request_history = [req_time for req_time in self.request_history if req_time > cutoff_time]
+        cutoff_time = datetime.now(timezone.utc) - timedelta(
+            seconds=self.config.monitoring_period
+        )
+        self.request_history = [
+            req_time for req_time in self.request_history if req_time > cutoff_time
+        ]
 
         if self.state == CircuitState.HALF_OPEN:
             self.open_circuit()
@@ -188,7 +206,9 @@ class CircuitBreaker:
             self.state = CircuitState.OPEN
             self.last_state_change = datetime.now(timezone.utc)
             self.metrics.circuit_open_count += 1
-            logger.warning(f"Circuit breaker '{self.name}' opened due to high failure rate")
+            logger.warning(
+                f"Circuit breaker '{self.name}' opened due to high failure rate"
+            )
 
     def close_circuit(self):
         """Close the circuit"""
@@ -215,37 +235,48 @@ class CircuitBreaker:
             "failed_requests": self.metrics.failed_requests,
             "successful_requests": self.metrics.successful_requests,
             "failure_rate": failure_rate,
-            "last_failure_time": self.metrics.last_failure_time.isoformat() if self.metrics.last_failure_time else None,
-            "last_success_time": self.metrics.last_success_time.isoformat() if self.metrics.last_success_time else None,
+            "last_failure_time": self.metrics.last_failure_time.isoformat()
+            if self.metrics.last_failure_time
+            else None,
+            "last_success_time": self.metrics.last_success_time.isoformat()
+            if self.metrics.last_success_time
+            else None,
             "circuit_open_count": self.metrics.circuit_open_count,
             "circuit_close_count": self.metrics.circuit_close_count,
-            "time_since_state_change": (datetime.now(timezone.utc) - self.last_state_change).total_seconds(),
-            "request_history_count": len(self.request_history)
+            "time_since_state_change": (
+                datetime.now(timezone.utc) - self.last_state_change
+            ).total_seconds(),
+            "request_history_count": len(self.request_history),
         }
 
 
 class ResilienceException(Exception):
     """Base exception for all resilience pattern failures"""
+
     pass
 
 
 class CircuitBreakerOpenException(ResilienceException):
     """Exception raised when circuit breaker is open"""
+
     pass
 
 
 class RetryExhaustedException(ResilienceException):
     """Exception raised when retry mechanism exhausts all attempts"""
+
     pass
 
 
 class BulkheadFullException(ResilienceException):
     """Exception raised when bulkhead is full"""
+
     pass
 
 
 class FallbackExecutionException(ResilienceException):
     """Exception raised when fallback strategy execution fails"""
+
     pass
 
 
@@ -253,15 +284,19 @@ class FallbackExecutionException(ResilienceException):
 # RETRY MECHANISM
 # ============================================================================
 
+
 @dataclass
 class RetryConfig:
     """Configuration for retry mechanism"""
+
     max_attempts: int = 3
-    base_delay: float = 1.0          # Base delay in seconds
-    max_delay: float = 60.0          # Maximum delay in seconds
-    exponential_base: float = 2.0    # Exponential backoff base
-    jitter: bool = True              # Add randomness to delay
-    retry_on: List[type] = field(default_factory=lambda: [Exception])  # Exceptions to retry on
+    base_delay: float = 1.0  # Base delay in seconds
+    max_delay: float = 60.0  # Maximum delay in seconds
+    exponential_base: float = 2.0  # Exponential backoff base
+    jitter: bool = True  # Add randomness to delay
+    retry_on: List[type] = field(
+        default_factory=lambda: [Exception]
+    )  # Exceptions to retry on
 
 
 class RetryStrategy(ABC):
@@ -337,6 +372,7 @@ class RetryMechanism:
 
     def __call__(self, func: Callable) -> Callable:
         """Decorator to apply retry mechanism to a function"""
+
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             return await self.execute_async(func, *args, **kwargs)
@@ -361,15 +397,23 @@ class RetryMechanism:
                 last_exception = e
 
                 # Check if we should retry on this exception
-                if not any(isinstance(e, retry_type) for retry_type in self.config.retry_on):
+                if not any(
+                    isinstance(e, retry_type) for retry_type in self.config.retry_on
+                ):
                     raise e
 
                 if attempt == self.config.max_attempts:
-                    logger.error(f"Retry mechanism '{self.name}' exhausted after {attempt} attempts: {str(e)}")
-                    raise RetryExhaustedException(f"Retry mechanism '{self.name}' exhausted after {attempt} attempts") from e
+                    logger.error(
+                        f"Retry mechanism '{self.name}' exhausted after {attempt} attempts: {str(e)}"
+                    )
+                    raise RetryExhaustedException(
+                        f"Retry mechanism '{self.name}' exhausted after {attempt} attempts"
+                    ) from e
 
                 delay = self.strategy.get_delay(attempt)
-                logger.warning(f"Retry mechanism '{self.name}' attempt {attempt} failed, retrying in {delay:.2f}s: {str(e)}")
+                logger.warning(
+                    f"Retry mechanism '{self.name}' attempt {attempt} failed, retrying in {delay:.2f}s: {str(e)}"
+                )
                 await asyncio.sleep(delay)
 
         raise last_exception
@@ -385,15 +429,21 @@ class RetryMechanism:
                 last_exception = e
 
                 # Check if we should retry on this exception
-                if not any(isinstance(e, retry_type) for retry_type in self.config.retry_on):
+                if not any(
+                    isinstance(e, retry_type) for retry_type in self.config.retry_on
+                ):
                     raise e
 
                 if attempt == self.config.max_attempts:
-                    logger.error(f"Retry mechanism '{self.name}' exhausted after {attempt} attempts")
+                    logger.error(
+                        f"Retry mechanism '{self.name}' exhausted after {attempt} attempts"
+                    )
                     raise e
 
                 delay = self.strategy.get_delay(attempt)
-                logger.warning(f"Retry mechanism '{self.name}' attempt {attempt} failed, retrying in {delay:.2f}s: {str(e)}")
+                logger.warning(
+                    f"Retry mechanism '{self.name}' attempt {attempt} failed, retrying in {delay:.2f}s: {str(e)}"
+                )
                 time.sleep(delay)
 
         raise last_exception
@@ -402,6 +452,7 @@ class RetryMechanism:
 # ============================================================================
 # FALLBACK MECHANISM
 # ============================================================================
+
 
 class FallbackStrategy(ABC):
     """Abstract base class for fallback strategies"""
@@ -416,7 +467,9 @@ class DefaultFallbackStrategy(FallbackStrategy):
     """Default fallback that raises an exception"""
 
     async def execute(self, original_func: Callable, *args, **kwargs) -> Any:
-        raise FallbackExecutionException(f"Primary function {original_func.__name__} failed and no fallback available")
+        raise FallbackExecutionException(
+            f"Primary function {original_func.__name__} failed and no fallback available"
+        )
 
 
 class CacheFallbackStrategy(FallbackStrategy):
@@ -468,6 +521,7 @@ class FallbackFunctionStrategy(FallbackStrategy):
 @dataclass
 class FallbackConfig:
     """Configuration for fallback mechanism"""
+
     enabled: bool = True
     timeout: float = 5.0  # Timeout for primary function before using fallback
 
@@ -482,6 +536,7 @@ class FallbackMechanism:
 
     def __call__(self, func: Callable) -> Callable:
         """Decorator to apply fallback mechanism to a function"""
+
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             return await self.execute_async(func, *args, **kwargs)
@@ -502,9 +557,13 @@ class FallbackMechanism:
 
         try:
             # Try primary function with timeout
-            return await asyncio.wait_for(func(*args, **kwargs), timeout=self.config.timeout)
+            return await asyncio.wait_for(
+                func(*args, **kwargs), timeout=self.config.timeout
+            )
         except Exception as e:
-            logger.warning(f"Primary function {func.__name__} failed: {str(e)}, using fallback")
+            logger.warning(
+                f"Primary function {func.__name__} failed: {str(e)}, using fallback"
+            )
             return await self.strategy.execute(func, *args, **kwargs)
 
     def execute_sync(self, func: Callable, *args, **kwargs) -> Any:
@@ -515,7 +574,9 @@ class FallbackMechanism:
         try:
             return func(*args, **kwargs)
         except Exception as e:
-            logger.warning(f"Primary function {func.__name__} failed: {str(e)}, using fallback")
+            logger.warning(
+                f"Primary function {func.__name__} failed: {str(e)}, using fallback"
+            )
             # Run fallback safely in new event loop to maintain async interface
             try:
                 # Try to get current loop and create new one if needed
@@ -525,7 +586,9 @@ class FallbackMechanism:
                     # Create a new future and run the fallback in the background
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(
-                            lambda: asyncio.run(self.strategy.execute(func, *args, **kwargs))
+                            lambda: asyncio.run(
+                                self.strategy.execute(func, *args, **kwargs)
+                            )
                         )
                         return future.result(timeout=self.config.timeout)
                 except RuntimeError:
@@ -533,21 +596,23 @@ class FallbackMechanism:
                     return asyncio.run(self.strategy.execute(func, *args, **kwargs))
             except Exception as fallback_error:
                 logger.error(f"Fallback execution failed: {str(fallback_error)}")
-                raise FallbackExecutionException(f"Both primary and fallback failed for {func.__name__}") from e
+                raise FallbackExecutionException(
+                    f"Both primary and fallback failed for {func.__name__}"
+                ) from e
 
 
 # ============================================================================
 # BULKHEAD PATTERN
 # ============================================================================
 
+
 @dataclass
 class BulkheadConfig:
     """Configuration for bulkhead pattern"""
-    max_concurrent: int = 10         # Maximum concurrent executions
-    max_queue_size: int = 100        # Maximum queue size
-    timeout: float = 30.0            # Timeout for queue wait
 
-
+    max_concurrent: int = 10  # Maximum concurrent executions
+    max_queue_size: int = 100  # Maximum queue size
+    timeout: float = 30.0  # Timeout for queue wait
 
 
 class Bulkhead:
@@ -563,14 +628,16 @@ class Bulkhead:
             "total_requests": 0,
             "rejected_requests": 0,
             "active_tasks": 0,
-            "queue_size": 0
+            "queue_size": 0,
         }
 
     def __call__(self, func: Callable) -> Callable:
         """Decorator to apply bulkhead to a function"""
+
         @wraps(func)
         async def wrapper(*args, **kwargs):
             return await self.execute(func, *args, **kwargs)
+
         return wrapper
 
     async def execute(self, func: Callable, *args, **kwargs) -> T:
@@ -582,10 +649,7 @@ class Bulkhead:
             await asyncio.wait_for(self.semaphore.acquire(), timeout=0.1)
         except asyncio.TimeoutError:
             # Add to queue if immediate acquisition failed
-            await asyncio.wait_for(
-                self.queue.put(None),
-                timeout=self.config.timeout
-            )
+            await asyncio.wait_for(self.queue.put(None), timeout=self.config.timeout)
             await self.semaphore.acquire()
 
         except asyncio.TimeoutError:
@@ -602,7 +666,9 @@ class Bulkhead:
                 # Fallback if current_task is None (shouldn't happen but be defensive)
                 task_id = id(f"fallback_{len(self.active_tasks)}")
                 self.active_tasks.add(task_id)
-                logger.warning(f"Current task was None in bulkhead '{self.name}', using fallback task ID")
+                logger.warning(
+                    f"Current task was None in bulkhead '{self.name}', using fallback task ID"
+                )
         except Exception as e:
             # Fallback if there's an error getting current task
             task_id = id(f"fallback_{len(self.active_tasks)}")
@@ -636,9 +702,11 @@ class Bulkhead:
 # COMPREHENSIVE RESILIENCE MANAGER
 # ============================================================================
 
+
 @dataclass
 class ResilienceConfig:
     """Complete resilience configuration"""
+
     circuit_breaker: Optional[CircuitBreakerConfig] = None
     retry: Optional[RetryConfig] = None
     fallback: Optional[FallbackConfig] = None
@@ -654,21 +722,25 @@ class ResilienceManager:
         self.fallback_mechanisms: Dict[str, FallbackMechanism] = {}
         self.bulkheads: Dict[str, Bulkhead] = {}
 
-    def create_circuit_breaker(self, name: str, config: CircuitBreakerConfig) -> CircuitBreaker:
+    def create_circuit_breaker(
+        self, name: str, config: CircuitBreakerConfig
+    ) -> CircuitBreaker:
         """Create a circuit breaker"""
         circuit_breaker = CircuitBreaker(name, config)
         self.circuit_breakers[name] = circuit_breaker
         return circuit_breaker
 
-    def create_retry_mechanism(self, name: str, config: RetryConfig,
-                             strategy: RetryStrategy = None) -> RetryMechanism:
+    def create_retry_mechanism(
+        self, name: str, config: RetryConfig, strategy: RetryStrategy = None
+    ) -> RetryMechanism:
         """Create a retry mechanism"""
         retry_mechanism = RetryMechanism(name, config, strategy)
         self.retry_mechanisms[name] = retry_mechanism
         return retry_mechanism
 
-    def create_fallback_mechanism(self, name: str, config: FallbackConfig,
-                                strategy: FallbackStrategy) -> FallbackMechanism:
+    def create_fallback_mechanism(
+        self, name: str, config: FallbackConfig, strategy: FallbackStrategy
+    ) -> FallbackMechanism:
         """Create a fallback mechanism"""
         fallback_mechanism = FallbackMechanism(name, config, strategy)
         self.fallback_mechanisms[name] = fallback_mechanism
@@ -682,6 +754,7 @@ class ResilienceManager:
 
     def apply_resilience(self, name: str, config: ResilienceConfig) -> Callable:
         """Apply comprehensive resilience patterns to a function"""
+
         def decorator(func: Callable) -> Callable:
             decorated_func = func
 
@@ -692,18 +765,24 @@ class ResilienceManager:
 
             # Apply circuit breaker
             if config.circuit_breaker:
-                circuit_breaker = self.create_circuit_breaker(f"{name}_circuit_breaker", config.circuit_breaker)
+                circuit_breaker = self.create_circuit_breaker(
+                    f"{name}_circuit_breaker", config.circuit_breaker
+                )
                 decorated_func = circuit_breaker(decorated_func)
 
             # Apply retry mechanism
             if config.retry:
-                retry_mechanism = self.create_retry_mechanism(f"{name}_retry", config.retry)
+                retry_mechanism = self.create_retry_mechanism(
+                    f"{name}_retry", config.retry
+                )
                 decorated_func = retry_mechanism(decorated_func)
 
             # Apply fallback (innermost layer)
             if config.fallback:
                 fallback_strategy = DefaultValueFallbackStrategy(None)
-                fallback_mechanism = self.create_fallback_mechanism(f"{name}_fallback", config.fallback, fallback_strategy)
+                fallback_mechanism = self.create_fallback_mechanism(
+                    f"{name}_fallback", config.fallback, fallback_strategy
+                )
                 decorated_func = fallback_mechanism(decorated_func)
 
             return decorated_func
@@ -715,7 +794,7 @@ class ResilienceManager:
         metrics = {
             "circuit_breakers": {},
             "bulkheads": {},
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         for name, circuit_breaker in self.circuit_breakers.items():
@@ -728,11 +807,7 @@ class ResilienceManager:
 
     async def health_check(self) -> Dict[str, Any]:
         """Perform health check on all resilience components"""
-        health_status = {
-            "status": "healthy",
-            "components": {},
-            "issues": []
-        }
+        health_status = {"status": "healthy", "components": {}, "issues": []}
 
         # Check circuit breakers
         for name, circuit_breaker in self.circuit_breakers.items():
@@ -740,19 +815,33 @@ class ResilienceManager:
             if cb_metrics["state"] == "open":
                 health_status["status"] = "degraded"
                 health_status["issues"].append(f"Circuit breaker '{name}' is open")
-                health_status["components"][name] = {"status": "unhealthy", "metrics": cb_metrics}
+                health_status["components"][name] = {
+                    "status": "unhealthy",
+                    "metrics": cb_metrics,
+                }
             else:
-                health_status["components"][name] = {"status": "healthy", "metrics": cb_metrics}
+                health_status["components"][name] = {
+                    "status": "healthy",
+                    "metrics": cb_metrics,
+                }
 
         # Check bulkheads
         for name, bulkhead in self.bulkheads.items():
             metrics = bulkhead.get_metrics()
             if metrics["rejected_requests"] > 0:
                 health_status["status"] = "degraded"
-                health_status["issues"].append(f"Bulkhead '{name}' has rejected requests")
-                health_status["components"][f"bulkhead_{name}"] = {"status": "degraded", "metrics": metrics}
+                health_status["issues"].append(
+                    f"Bulkhead '{name}' has rejected requests"
+                )
+                health_status["components"][f"bulkhead_{name}"] = {
+                    "status": "degraded",
+                    "metrics": metrics,
+                }
             else:
-                health_status["components"][f"bulkhead_{name}"] = {"status": "healthy", "metrics": metrics}
+                health_status["components"][f"bulkhead_{name}"] = {
+                    "status": "healthy",
+                    "metrics": metrics,
+                }
 
         return health_status
 
@@ -760,6 +849,7 @@ class ResilienceManager:
 # ============================================================================
 # PRECONFIGURED RESILIENCE FOR A/B TESTING COMPONENTS
 # ============================================================================
+
 
 def create_ab_testing_resilience_manager() -> ResilienceManager:
     """Create resilience manager with preconfigured components for A/B testing"""
@@ -772,33 +862,25 @@ def create_ab_testing_resilience_manager() -> ResilienceManager:
             failure_threshold=5,
             recovery_timeout=30.0,
             expected_exception=Exception,
-            failure_rate_threshold=0.3
-        )
+            failure_rate_threshold=0.3,
+        ),
     )
 
     manager.create_retry_mechanism(
         "query_router_assignment",
         RetryConfig(
-            max_attempts=3,
-            base_delay=0.1,
-            max_delay=2.0,
-            retry_on=[Exception]
+            max_attempts=3, base_delay=0.1, max_delay=2.0, retry_on=[Exception]
         ),
-        ExponentialBackoffStrategy(RetryConfig(
-            max_attempts=3,
-            base_delay=0.1,
-            max_delay=2.0,
-            retry_on=[Exception]
-        ))
+        ExponentialBackoffStrategy(
+            RetryConfig(
+                max_attempts=3, base_delay=0.1, max_delay=2.0, retry_on=[Exception]
+            )
+        ),
     )
 
     manager.create_bulkhead(
         "query_router",
-        BulkheadConfig(
-            max_concurrent=50,
-            max_queue_size=200,
-            timeout=1.0
-        )
+        BulkheadConfig(max_concurrent=50, max_queue_size=200, timeout=1.0),
     )
 
     # Metrics Collector resilience
@@ -808,17 +890,13 @@ def create_ab_testing_resilience_manager() -> ResilienceManager:
             failure_threshold=10,
             recovery_timeout=60.0,
             expected_exception=Exception,
-            failure_rate_threshold=0.2
-        )
+            failure_rate_threshold=0.2,
+        ),
     )
 
     manager.create_bulkhead(
         "metrics_collector",
-        BulkheadConfig(
-            max_concurrent=20,
-            max_queue_size=500,
-            timeout=5.0
-        )
+        BulkheadConfig(max_concurrent=20, max_queue_size=500, timeout=5.0),
     )
 
     # Statistical Analyzer resilience
@@ -828,24 +906,20 @@ def create_ab_testing_resilience_manager() -> ResilienceManager:
             failure_threshold=3,
             recovery_timeout=120.0,
             expected_exception=Exception,
-            failure_rate_threshold=0.4
-        )
+            failure_rate_threshold=0.4,
+        ),
     )
 
     manager.create_retry_mechanism(
         "statistical_analysis",
         RetryConfig(
-            max_attempts=2,
-            base_delay=1.0,
-            max_delay=10.0,
-            retry_on=[Exception]
+            max_attempts=2, base_delay=1.0, max_delay=10.0, retry_on=[Exception]
         ),
-        LinearBackoffStrategy(RetryConfig(
-            max_attempts=2,
-            base_delay=1.0,
-            max_delay=10.0,
-            retry_on=[Exception]
-        ))
+        LinearBackoffStrategy(
+            RetryConfig(
+                max_attempts=2, base_delay=1.0, max_delay=10.0, retry_on=[Exception]
+            )
+        ),
     )
 
     return manager
@@ -855,22 +929,15 @@ def create_ab_testing_resilience_manager() -> ResilienceManager:
 # DECORATORS FOR COMMON USE CASES
 # ============================================================================
 
+
 def resilient_database_operation(name: str):
     """Decorator for database operations with standard resilience"""
     config = ResilienceConfig(
         circuit_breaker=CircuitBreakerConfig(
-            failure_threshold=5,
-            recovery_timeout=30.0,
-            failure_rate_threshold=0.3
+            failure_threshold=5, recovery_timeout=30.0, failure_rate_threshold=0.3
         ),
-        retry=RetryConfig(
-            max_attempts=3,
-            base_delay=0.5,
-            max_delay=5.0
-        ),
-        fallback=FallbackConfig(
-            enabled=False  # No fallback for DB operations
-        )
+        retry=RetryConfig(max_attempts=3, base_delay=0.5, max_delay=5.0),
+        fallback=FallbackConfig(enabled=False),  # No fallback for DB operations
     )
 
     manager = create_ab_testing_resilience_manager()
@@ -881,19 +948,10 @@ def resilient_external_service_call(name: str, fallback_value: Any = None):
     """Decorator for external service calls with fallback"""
     config = ResilienceConfig(
         circuit_breaker=CircuitBreakerConfig(
-            failure_threshold=3,
-            recovery_timeout=60.0,
-            failure_rate_threshold=0.4
+            failure_threshold=3, recovery_timeout=60.0, failure_rate_threshold=0.4
         ),
-        retry=RetryConfig(
-            max_attempts=2,
-            base_delay=1.0,
-            max_delay=10.0
-        ),
-        fallback=FallbackConfig(
-            enabled=True,
-            timeout=5.0
-        )
+        retry=RetryConfig(max_attempts=2, base_delay=1.0, max_delay=10.0),
+        fallback=FallbackConfig(enabled=True, timeout=5.0),
     )
 
     manager = create_ab_testing_resilience_manager()
@@ -901,7 +959,9 @@ def resilient_external_service_call(name: str, fallback_value: Any = None):
     # Create fallback strategy if fallback value provided
     if fallback_value is not None:
         fallback_strategy = DefaultValueFallbackStrategy(fallback_value)
-        manager.create_fallback_mechanism(f"{name}_fallback", config.fallback, fallback_strategy)
+        manager.create_fallback_mechanism(
+            f"{name}_fallback", config.fallback, fallback_strategy
+        )
 
     return manager.apply_resilience(name, config)
 
@@ -910,9 +970,7 @@ def resilient_high_throughput_operation(name: str, max_concurrent: int = 100):
     """Decorator for high-throughput operations with bulkhead"""
     config = ResilienceConfig(
         bulkhead=BulkheadConfig(
-            max_concurrent=max_concurrent,
-            max_queue_size=500,
-            timeout=0.1
+            max_concurrent=max_concurrent, max_queue_size=500, timeout=0.1
         )
     )
 

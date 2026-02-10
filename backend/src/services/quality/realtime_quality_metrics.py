@@ -6,14 +6,17 @@ import asyncio
 import json
 import logging
 import time
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Dict, Any, Optional, Set
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, Optional, Set
 
-from src.services.websocket import connection_manager
-from src.services.evaluation.rag_evaluation_service import rag_evaluation_service, RAGEvaluationInput
 from src.core.database import get_db
 from src.models.document import Document
+from src.services.evaluation.rag_evaluation_service import (
+    RAGEvaluationInput,
+    rag_evaluation_service,
+)
+from src.services.websocket import connection_manager
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +24,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RealTimeQualityMetrics:
     """Real-time quality metrics data structure"""
+
     query: str
     answer_relevancy: float
     faithfulness: float
@@ -49,7 +53,7 @@ class RealTimeQualityMetricsService:
         query_id: str,
         user_id: str,
         organization_id: str,
-        websocket_channel: str = None
+        websocket_channel: str = None,
     ) -> None:
         """
         Start real-time evaluation for a query
@@ -57,12 +61,12 @@ class RealTimeQualityMetricsService:
         try:
             # Register the query
             self.active_queries[query_id] = {
-                'query': query,
-                'user_id': user_id,
-                'organization_id': organization_id,
-                'websocket_channel': websocket_channel or f"quality_metrics_{user_id}",
-                'start_time': time.time(),
-                'status': 'processing'
+                "query": query,
+                "user_id": user_id,
+                "organization_id": organization_id,
+                "websocket_channel": websocket_channel or f"quality_metrics_{user_id}",
+                "start_time": time.time(),
+                "status": "processing",
             }
 
             # Initialize metrics history
@@ -81,9 +85,7 @@ class RealTimeQualityMetricsService:
             raise
 
     async def _evaluate_and_broadcast(
-        self,
-        query_id: str,
-        websocket_channel: str
+        self, query_id: str, websocket_channel: str
     ) -> None:
         """
         Perform evaluation and broadcast metrics in real-time
@@ -93,16 +95,16 @@ class RealTimeQualityMetricsService:
             if not query_info:
                 return
 
-            query = query_info['query']
-            organization_id = query_info['organization_id']
-            user_id = query_info['user_id']
+            query = query_info["query"]
+            organization_id = query_info["organization_id"]
+            user_id = query_info["user_id"]
 
             # Simulate real-time processing stages
             stages = [
-                {'name': 'retrieval', 'duration': 0.3},
-                {'name': 'analysis', 'duration': 0.5},
-                {'name': 'generation', 'duration': 0.7},
-                {'name': 'evaluation', 'duration': 0.5}
+                {"name": "retrieval", "duration": 0.3},
+                {"name": "analysis", "duration": 0.5},
+                {"name": "generation", "duration": 0.7},
+                {"name": "evaluation", "duration": 0.5},
             ]
 
             retrieved_docs = 0
@@ -112,10 +114,10 @@ class RealTimeQualityMetricsService:
 
             # Simulate processing through stages
             for i, stage in enumerate(stages):
-                await asyncio.sleep(stage['duration'])
+                await asyncio.sleep(stage["duration"])
 
                 # Update metrics based on stage
-                if stage['name'] == 'retrieval':
+                if stage["name"] == "retrieval":
                     # Simulate document retrieval
                     retrieved_docs = 2 + int(time.time() % 5)
                     entities = int(time.time() % 10)
@@ -124,9 +126,12 @@ class RealTimeQualityMetricsService:
                     try:
                         db = next(get_db())
                         try:
-                            documents = db.query(Document).filter(
-                                Document.organization_id == organization_id
-                            ).limit(retrieved_docs).all()
+                            documents = (
+                                db.query(Document)
+                                .filter(Document.organization_id == organization_id)
+                                .limit(retrieved_docs)
+                                .all()
+                            )
 
                             retrieved_context = [
                                 doc.content[:500] if doc.content else ""
@@ -135,12 +140,16 @@ class RealTimeQualityMetricsService:
                         finally:
                             db.close()
                     except Exception as e:
-                        logger.warning(f"Could not retrieve documents from DB, using simulation: {e}")
+                        logger.warning(
+                            f"Could not retrieve documents from DB, using simulation: {e}"
+                        )
                         # Keep retrieved_context empty or add dummy text if needed for simulation
                         if not retrieved_context:
-                            retrieved_context = ["Simulated content context for evaluation..."]
+                            retrieved_context = [
+                                "Simulated content context for evaluation..."
+                            ]
 
-                elif stage['name'] == 'generation':
+                elif stage["name"] == "generation":
                     # Generate a simple answer
                     generated_answer = f"Based on the retrieved documents, the answer to '{query}' involves several key factors that need to be considered. The analysis shows that multiple perspectives should be taken into account when addressing this topic."
 
@@ -150,7 +159,9 @@ class RealTimeQualityMetricsService:
                 # Simulate improving metrics as processing progresses
                 metrics = RealTimeQualityMetrics(
                     query=query,
-                    answer_relevancy=min(95, 45 + stage_completion * 40 + (hash(query) % 10)),
+                    answer_relevancy=min(
+                        95, 45 + stage_completion * 40 + (hash(query) % 10)
+                    ),
                     faithfulness=min(98, 70 + stage_completion * 25),
                     contextual_relevancy=min(92, 50 + stage_completion * 35),
                     hallucination_risk=max(2, 20 - stage_completion * 15),
@@ -159,7 +170,7 @@ class RealTimeQualityMetricsService:
                     documents_retrieved=retrieved_docs,
                     entities=entities,
                     timestamp=time.time() * 1000,
-                    query_id=query_id
+                    query_id=query_id,
                 )
 
                 # Broadcast metrics
@@ -177,11 +188,13 @@ class RealTimeQualityMetricsService:
                             query=query,
                             generated_answer=generated_answer,
                             retrieved_context=retrieved_context,
-                            metadata={'real_time_evaluation': True}
+                            metadata={"real_time_evaluation": True},
                         )
 
-                        rag_metrics = await rag_evaluation_service.run_rag_triad_evaluation(
-                            evaluation_input, None, organization_id, db
+                        rag_metrics = (
+                            await rag_evaluation_service.run_rag_triad_evaluation(
+                                evaluation_input, None, organization_id, db
+                            )
                         )
 
                         # Final metrics with RAG service results
@@ -196,7 +209,7 @@ class RealTimeQualityMetricsService:
                             documents_retrieved=retrieved_docs,
                             entities=entities,
                             timestamp=time.time() * 1000,
-                            query_id=query_id
+                            query_id=query_id,
                         )
 
                         await self._broadcast_metrics(final_metrics, websocket_channel)
@@ -204,18 +217,20 @@ class RealTimeQualityMetricsService:
                     finally:
                         db.close()
                 except Exception as e:
-                    logger.warning(f"Could not run RAG evaluation, keeping last simulated metrics: {e}")
+                    logger.warning(
+                        f"Could not run RAG evaluation, keeping last simulated metrics: {e}"
+                    )
                     # No need to broadcast failure, the user already sees "good" simulated numbers from the loop
 
             # Update query status
-            self.active_queries[query_id]['status'] = 'completed'
+            self.active_queries[query_id]["status"] = "completed"
 
         except Exception as e:
             logger.error(f"Error in evaluate_and_broadcast: {e}")
 
             # Send error metrics
             error_metrics = RealTimeQualityMetrics(
-                query=self.active_queries.get(query_id, {}).get('query', ''),
+                query=self.active_queries.get(query_id, {}).get("query", ""),
                 answer_relevancy=0,
                 faithfulness=0,
                 contextual_relevancy=0,
@@ -225,59 +240,51 @@ class RealTimeQualityMetricsService:
                 documents_retrieved=0,
                 entities=0,
                 timestamp=time.time() * 1000,
-                query_id=query_id
+                query_id=query_id,
             )
 
             await self._broadcast_metrics(error_metrics, websocket_channel)
 
     async def _broadcast_metrics(
-        self,
-        metrics: RealTimeQualityMetrics,
-        websocket_channel: str
+        self, metrics: RealTimeQualityMetrics, websocket_channel: str
     ) -> None:
         """
         Broadcast metrics to WebSocket subscribers
         """
         try:
             message = {
-                'type': 'quality_metrics_update',
-                'payload': {
-                    'query_id': metrics.query_id,
-                    'metrics': {
-                        'query': metrics.query,
-                        'answerRelevancy': round(metrics.answer_relevancy, 1),
-                        'faithfulness': round(metrics.faithfulness, 1),
-                        'contextualRelevancy': round(metrics.contextual_relevancy, 1),
-                        'hallucinationRisk': round(metrics.hallucination_risk, 1),
-                        'confidence': round(metrics.confidence, 1),
-                        'latency': round(metrics.latency),
-                        'documentsRetrieved': metrics.documents_retrieved,
-                        'entities': metrics.entities,
-                        'timestamp': metrics.timestamp
-                    }
-                }
+                "type": "quality_metrics_update",
+                "payload": {
+                    "query_id": metrics.query_id,
+                    "metrics": {
+                        "query": metrics.query,
+                        "answerRelevancy": round(metrics.answer_relevancy, 1),
+                        "faithfulness": round(metrics.faithfulness, 1),
+                        "contextualRelevancy": round(metrics.contextual_relevancy, 1),
+                        "hallucinationRisk": round(metrics.hallucination_risk, 1),
+                        "confidence": round(metrics.confidence, 1),
+                        "latency": round(metrics.latency),
+                        "documentsRetrieved": metrics.documents_retrieved,
+                        "entities": metrics.entities,
+                        "timestamp": metrics.timestamp,
+                    },
+                },
             }
 
             # Broadcast to specific channel
             await connection_manager.broadcast_to_channel(
-                websocket_channel,
-                json.dumps(message)
+                websocket_channel, json.dumps(message)
             )
 
             # Also broadcast to general quality metrics channel
             await connection_manager.broadcast_to_channel(
-                'quality_metrics',
-                json.dumps(message)
+                "quality_metrics", json.dumps(message)
             )
 
         except Exception as e:
             logger.error(f"Error broadcasting metrics: {e}")
 
-    async def get_query_metrics_history(
-        self,
-        query_id: str,
-        limit: int = 100
-    ) -> list:
+    async def get_query_metrics_history(self, query_id: str, limit: int = 100) -> list:
         """
         Get historical metrics for a query
         """
@@ -298,8 +305,9 @@ class RealTimeQualityMetricsService:
 
             # Clean up active queries
             expired_queries = [
-                qid for qid, info in self.active_queries.items()
-                if info.get('start_time', 0) < cutoff_time
+                qid
+                for qid, info in self.active_queries.items()
+                if info.get("start_time", 0) < cutoff_time
             ]
 
             for qid in expired_queries:
@@ -319,7 +327,7 @@ class RealTimeQualityMetricsService:
     def get_query_status(self, query_id: str) -> Optional[str]:
         """Get status of a specific query"""
         query_info = self.active_queries.get(query_id)
-        return query_info.get('status') if query_info else None
+        return query_info.get("status") if query_info else None
 
 
 # Global service instance

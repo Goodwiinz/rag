@@ -4,11 +4,11 @@ Provides GDPR-compliant data anonymization for user analytics
 """
 
 import hashlib
-import secrets
-import re
-from typing import Dict, Any, List, Optional, Union
-from datetime import datetime
 import logging
+import re
+import secrets
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,11 @@ class DataAnonymizer:
 
         if preserve_length:
             # Truncate or pad to original length
-            return hashed[:len(value)] if len(hashed) >= len(value) else hashed.ljust(len(value), '0')
+            return (
+                hashed[: len(value)]
+                if len(hashed) >= len(value)
+                else hashed.ljust(len(value), "0")
+            )
 
         return hashed
 
@@ -54,27 +58,35 @@ class DataAnonymizer:
         Examples:
         john.doe@example.com -> j***.e***@e*****.com
         """
-        if not email or '@' not in email:
+        if not email or "@" not in email:
             return email
 
-        local, domain = email.split('@', 1)
+        local, domain = email.split("@", 1)
 
         # Anonymize local part
         if len(local) <= 2:
-            anonymized_local = '*' * len(local)
+            anonymized_local = "*" * len(local)
         else:
-            anonymized_local = local[0] + '*' * (len(local) - 2) + local[-1] if len(local) > 3 else local[0] + '*'
+            anonymized_local = (
+                local[0] + "*" * (len(local) - 2) + local[-1]
+                if len(local) > 3
+                else local[0] + "*"
+            )
 
         # Anonymize domain (preserve top-level domain)
-        if '.' in domain:
-            domain_parts = domain.rsplit('.', 1)
+        if "." in domain:
+            domain_parts = domain.rsplit(".", 1)
             main_domain = domain_parts[0]
             tld = domain_parts[1]
 
             if len(main_domain) <= 2:
-                anonymized_domain = '*' * len(main_domain)
+                anonymized_domain = "*" * len(main_domain)
             else:
-                anonymized_domain = main_domain[0] + '*' * (len(main_domain) - 2) + main_domain[-1] if len(main_domain) > 3 else main_domain[0] + '*'
+                anonymized_domain = (
+                    main_domain[0] + "*" * (len(main_domain) - 2) + main_domain[-1]
+                    if len(main_domain) > 3
+                    else main_domain[0] + "*"
+                )
 
             anonymized_email = f"{anonymized_local}@{anonymized_domain}.{tld}"
         else:
@@ -95,14 +107,14 @@ class DataAnonymizer:
             return ip
 
         # IPv4
-        if ':' not in ip:
-            parts = ip.split('.')
+        if ":" not in ip:
+            parts = ip.split(".")
             if len(parts) == 4:
                 return f"{parts[0]}.{parts[1]}.{parts[2]}.0"
 
         # IPv6
-        elif ':' in ip:
-            parts = ip.split(':')
+        elif ":" in ip:
+            parts = ip.split(":")
             if len(parts) == 8:
                 # Zero out the last two segments
                 return f"{parts[0]}:{parts[1]}:{parts[2]}:{parts[3]}:{parts[4]}:{parts[5]}:{parts[6]}:0000"
@@ -118,9 +130,13 @@ class DataAnonymizer:
             return user_agent
 
         # Remove version numbers and build identifiers
-        anonymized = re.sub(r'\d+\.\d+(\.\d+)?', 'X.X.X', user_agent)
-        anonymized = re.sub(r'\b[0-9a-fA-F]{8,}\b', 'XXXXXXXX', anonymized)  # Remove long hex strings
-        anonymized = re.sub(r'\([^)]*\)', '(XXX)', anonymized)  # Anonymize parenthetical info
+        anonymized = re.sub(r"\d+\.\d+(\.\d+)?", "X.X.X", user_agent)
+        anonymized = re.sub(
+            r"\b[0-9a-fA-F]{8,}\b", "XXXXXXXX", anonymized
+        )  # Remove long hex strings
+        anonymized = re.sub(
+            r"\([^)]*\)", "(XXX)", anonymized
+        )  # Anonymize parenthetical info
 
         return anonymized
 
@@ -136,20 +152,36 @@ class DataAnonymizer:
 
         # Anonymize common sensitive fields
         sensitive_fields = [
-            'ip_address', 'user_agent', 'email', 'name', 'first_name', 'last_name',
-            'phone', 'address', 'location', 'coordinates'
+            "ip_address",
+            "user_agent",
+            "email",
+            "name",
+            "first_name",
+            "last_name",
+            "phone",
+            "address",
+            "location",
+            "coordinates",
         ]
 
         for field in sensitive_fields:
             if field in anonymized:
-                if field == 'email':
-                    anonymized[field] = DataAnonymizer.anonymize_email(str(anonymized[field]))
-                elif field == 'ip_address':
-                    anonymized[field] = DataAnonymizer.anonymize_ip_address(str(anonymized[field]))
-                elif field == 'user_agent':
-                    anonymized[field] = DataAnonymizer.anonymize_user_agent(str(anonymized[field]))
+                if field == "email":
+                    anonymized[field] = DataAnonymizer.anonymize_email(
+                        str(anonymized[field])
+                    )
+                elif field == "ip_address":
+                    anonymized[field] = DataAnonymizer.anonymize_ip_address(
+                        str(anonymized[field])
+                    )
+                elif field == "user_agent":
+                    anonymized[field] = DataAnonymizer.anonymize_user_agent(
+                        str(anonymized[field])
+                    )
                 else:
-                    anonymized[field] = DataAnonymizer.hash_value(str(anonymized[field]))
+                    anonymized[field] = DataAnonymizer.hash_value(
+                        str(anonymized[field])
+                    )
 
         # Anonymize nested objects
         for key, value in anonymized.items():
@@ -157,7 +189,9 @@ class DataAnonymizer:
                 anonymized[key] = DataAnonymizer.anonymize_session_data(value)
             elif isinstance(value, list):
                 anonymized[key] = [
-                    DataAnonymizer.anonymize_session_data(item) if isinstance(item, dict) else item
+                    DataAnonymizer.anonymize_session_data(item)
+                    if isinstance(item, dict)
+                    else item
                     for item in value
                 ]
 
@@ -178,16 +212,22 @@ class DataAnonymizer:
         anonymized = query
 
         # Remove email addresses
-        anonymized = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '[EMAIL]', anonymized)
+        anonymized = re.sub(
+            r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
+            "[EMAIL]",
+            anonymized,
+        )
 
         # Remove phone numbers
-        anonymized = re.sub(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', '[PHONE]', anonymized)
+        anonymized = re.sub(r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b", "[PHONE]", anonymized)
 
         # Remove social security numbers
-        anonymized = re.sub(r'\b\d{3}-\d{2}-\d{4}\b', '[SSN]', anonymized)
+        anonymized = re.sub(r"\b\d{3}-\d{2}-\d{4}\b", "[SSN]", anonymized)
 
         # Remove credit card numbers (basic pattern)
-        anonymized = re.sub(r'\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b', '[CARD]', anonymized)
+        anonymized = re.sub(
+            r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b", "[CARD]", anonymized
+        )
 
         # Replace proper nouns with generic placeholders
         # This is a simplified approach - in production, you'd use NER
@@ -197,11 +237,11 @@ class DataAnonymizer:
         for word in words:
             # Capitalized words might be names/places
             if word.istitle() and len(word) > 3:
-                anonymized_words.append('[PROPER_NOUN]')
+                anonymized_words.append("[PROPER_NOUN]")
             else:
                 anonymized_words.append(word)
 
-        anonymized = ' '.join(anonymized_words)
+        anonymized = " ".join(anonymized_words)
 
         # If we want to completely anonymize but preserve length
         if preserve_length and query != anonymized:
@@ -209,17 +249,17 @@ class DataAnonymizer:
             words = anonymized.split()
             hashed_words = []
             for word in words:
-                if word.startswith('[') and word.endswith(']'):
+                if word.startswith("[") and word.endswith("]"):
                     hashed_words.append(word)  # Keep placeholders
                 else:
                     # Hash the word but preserve length and first letter
                     if len(word) <= 2:
-                        hashed_words.append(word[0] + '*')
+                        hashed_words.append(word[0] + "*")
                     else:
-                        hash_suffix = DataAnonymizer.hash_value(word)[1:len(word)-1]
+                        hash_suffix = DataAnonymizer.hash_value(word)[1 : len(word) - 1]
                         hashed_words.append(word[0] + hash_suffix + word[-1])
 
-            return ' '.join(hashed_words)
+            return " ".join(hashed_words)
 
         return anonymized
 
@@ -235,13 +275,13 @@ class DataAnonymizer:
 
         # Handle specific user fields
         field_mappings = {
-            'email': DataAnonymizer.anonymize_email,
-            'first_name': lambda x: DataAnonymizer.hash_value(str(x))[:3] + '***',
-            'last_name': lambda x: '***' + DataAnonymizer.hash_value(str(x))[-3:],
-            'phone': lambda x: DataAnonymizer.hash_value(str(x))[:10],
-            'address': lambda x: DataAnonymizer.hash_value(str(x)),
-            'ip_address': DataAnonymizer.anonymize_ip_address,
-            'user_agent': DataAnonymizer.anonymize_user_agent,
+            "email": DataAnonymizer.anonymize_email,
+            "first_name": lambda x: DataAnonymizer.hash_value(str(x))[:3] + "***",
+            "last_name": lambda x: "***" + DataAnonymizer.hash_value(str(x))[-3:],
+            "phone": lambda x: DataAnonymizer.hash_value(str(x))[:10],
+            "address": lambda x: DataAnonymizer.hash_value(str(x)),
+            "ip_address": DataAnonymizer.anonymize_ip_address,
+            "user_agent": DataAnonymizer.anonymize_user_agent,
         }
 
         for field, anonymizer_func in field_mappings.items():
@@ -250,13 +290,15 @@ class DataAnonymizer:
                     anonymized[field] = anonymizer_func(anonymized[field])
                 except Exception as e:
                     logger.warning(f"Failed to anonymize field {field}: {e}")
-                    anonymized[field] = '[ANONYMIZED]'
+                    anonymized[field] = "[ANONYMIZED]"
 
         # Generate consistent anonymous user ID
-        if 'id' in anonymized:
-            original_id = str(anonymized['id'])
-            anonymized['id'] = DataAnonymizer.hash_value(original_id)
-            anonymized['original_id_hash'] = DataAnonymizer.hash_value(original_id + 'original')
+        if "id" in anonymized:
+            original_id = str(anonymized["id"])
+            anonymized["id"] = DataAnonymizer.hash_value(original_id)
+            anonymized["original_id_hash"] = DataAnonymizer.hash_value(
+                original_id + "original"
+            )
 
         return anonymized
 
@@ -268,7 +310,9 @@ class DataAnonymizer:
         return DataAnonymizer.hash_value(f"user_{original_user_id}")
 
     @staticmethod
-    def should_anonymize_data(user_consent: bool, data_type: str, retention_policy: Dict[str, Any]) -> bool:
+    def should_anonymize_data(
+        user_consent: bool, data_type: str, retention_policy: Dict[str, Any]
+    ) -> bool:
         """
         Determine if data should be anonymized based on consent and retention policies
 
@@ -288,25 +332,26 @@ class DataAnonymizer:
         retention_days = retention_policy.get(f"{data_type}_retention_days", 365)
 
         # Check if data type requires anonymization by policy
-        sensitive_types = ['personal', 'contact', 'location', 'behavioral']
+        sensitive_types = ["personal", "contact", "location", "behavioral"]
 
-        return (
-            data_type in sensitive_types or
-            retention_days < retention_policy.get('full_data_retention_days', 365)
+        return data_type in sensitive_types or retention_days < retention_policy.get(
+            "full_data_retention_days", 365
         )
 
     @staticmethod
-    def apply_privacy_filters(data: Dict[str, Any],
-                            user_consent: bool = True,
-                            retention_policy: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def apply_privacy_filters(
+        data: Dict[str, Any],
+        user_consent: bool = True,
+        retention_policy: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
         Apply privacy filters to analytics data based on consent and retention policies
         """
         if not retention_policy:
             retention_policy = {
-                'personal_retention_days': 90,
-                'behavioral_retention_days': 365,
-                'full_data_retention_days': 730
+                "personal_retention_days": 90,
+                "behavioral_retention_days": 365,
+                "full_data_retention_days": 730,
             }
 
         filtered_data = data.copy()
@@ -314,20 +359,20 @@ class DataAnonymizer:
         # Filter sensitive fields based on consent
         if not user_consent:
             # Remove all potentially identifying fields
-            sensitive_fields = ['email', 'name', 'ip_address', 'user_agent', 'location']
+            sensitive_fields = ["email", "name", "ip_address", "user_agent", "location"]
             for field in sensitive_fields:
                 filtered_data.pop(field, None)
 
         # Apply time-based retention
-        if 'timestamp' in filtered_data:
-            timestamp = filtered_data['timestamp']
+        if "timestamp" in filtered_data:
+            timestamp = filtered_data["timestamp"]
             if isinstance(timestamp, str):
-                timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
 
             days_old = (datetime.utcnow() - timestamp).days
 
             # Anonymize older data according to retention policies
-            if days_old > retention_policy['personal_retention_days']:
+            if days_old > retention_policy["personal_retention_days"]:
                 filtered_data = DataAnonymizer.anonymize_session_data(filtered_data)
 
         return filtered_data

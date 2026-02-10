@@ -3,17 +3,32 @@ Processing job model for background task management
 """
 
 import uuid
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Enum, ForeignKey, Text, JSON
-from sqlalchemy.orm import relationship
+from datetime import datetime
+from datetime import timezone as dt_timezone
 from enum import Enum as PyEnum
-from datetime import datetime, timezone as dt_timezone
 from typing import Optional
 
-from .base import BaseModel, GUID
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.orm import relationship
+
+from .base import GUID, BaseModel
 from .utils import StringArray
+
 
 class JobType(PyEnum):
     """Types of processing jobs"""
+
     DOCUMENT_INGESTION = "document_ingestion"
     TEXT_EXTRACTION = "text_extraction"
     EMBEDDING_GENERATION = "embedding_generation"
@@ -23,8 +38,10 @@ class JobType(PyEnum):
     BATCH_PROCESSING = "batch_processing"
     CLEANUP = "cleanup"
 
+
 class JobStatus(PyEnum):
     """Status of processing jobs"""
+
     PENDING = "pending"
     QUEUED = "queued"
     RUNNING = "running"
@@ -33,12 +50,15 @@ class JobStatus(PyEnum):
     CANCELLED = "cancelled"
     RETRYING = "retrying"
 
+
 class JobPriority(PyEnum):
     """Priority levels for jobs"""
+
     LOW = 1
     NORMAL = 2
     HIGH = 3
     URGENT = 4
+
 
 class ProcessingJob(BaseModel):
     """Processing job model for background task management"""
@@ -47,13 +67,19 @@ class ProcessingJob(BaseModel):
 
     # Job information
     job_type = Column(Enum(JobType), nullable=False, index=True)
-    status = Column(Enum(JobStatus), nullable=False, default=JobStatus.PENDING, index=True)
-    priority = Column(Enum(JobPriority), nullable=False, default=JobPriority.NORMAL, index=True)
+    status = Column(
+        Enum(JobStatus), nullable=False, default=JobStatus.PENDING, index=True
+    )
+    priority = Column(
+        Enum(JobPriority), nullable=False, default=JobPriority.NORMAL, index=True
+    )
 
     # Job configuration
     parameters = Column(JSON, nullable=True)  # Job-specific parameters
     config = Column(JSON, nullable=True)  # Job configuration
-    requirements = Column(JSON, nullable=True)  # System requirements (memory, CPU, etc.)
+    requirements = Column(
+        JSON, nullable=True
+    )  # System requirements (memory, CPU, etc.)
 
     # Execution information
     celery_task_id = Column(String(255), nullable=True, index=True)  # Celery task ID
@@ -84,7 +110,9 @@ class ProcessingJob(BaseModel):
 
     # Results
     result = Column(JSON, nullable=True)  # Job result data
-    artifacts = Column(JSON, nullable=True)  # Generated artifacts (files, vectors, etc.)
+    artifacts = Column(
+        JSON, nullable=True
+    )  # Generated artifacts (files, vectors, etc.)
     metrics = Column(JSON, nullable=True)  # Performance metrics
 
     # Relationships
@@ -103,7 +131,11 @@ class ProcessingJob(BaseModel):
     @property
     def is_finished(self) -> bool:
         """Check if job is finished (completed, failed, or cancelled)"""
-        return self.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]
+        return self.status in [
+            JobStatus.COMPLETED,
+            JobStatus.FAILED,
+            JobStatus.CANCELLED,
+        ]
 
     @property
     def is_active(self) -> bool:
@@ -113,10 +145,7 @@ class ProcessingJob(BaseModel):
     @property
     def can_retry(self) -> bool:
         """Check if job can be retried"""
-        return (
-            self.status == JobStatus.FAILED and
-            self.retry_count < self.max_retries
-        )
+        return self.status == JobStatus.FAILED and self.retry_count < self.max_retries
 
     @property
     def estimated_remaining_time(self) -> float:
@@ -146,7 +175,9 @@ class ProcessingJob(BaseModel):
         if celery_task_id:
             self.celery_task_id = celery_task_id
 
-    def complete_job(self, result: dict = None, artifacts: dict = None, metrics: dict = None):
+    def complete_job(
+        self, result: dict = None, artifacts: dict = None, metrics: dict = None
+    ):
         """Mark job as completed"""
         self.status = JobStatus.COMPLETED
         self.completed_at = datetime.now(dt_timezone.utc)
@@ -162,7 +193,9 @@ class ProcessingJob(BaseModel):
 
         # Calculate duration
         if self.started_at:
-            self.duration_seconds = (self.completed_at - self.started_at).total_seconds()
+            self.duration_seconds = (
+                self.completed_at - self.started_at
+            ).total_seconds()
 
     def fail_job(self, error_message: str, error_type: str = None):
         """Mark job as failed"""
@@ -174,7 +207,9 @@ class ProcessingJob(BaseModel):
 
         # Calculate duration
         if self.started_at:
-            self.duration_seconds = (self.completed_at - self.started_at).total_seconds()
+            self.duration_seconds = (
+                self.completed_at - self.started_at
+            ).total_seconds()
 
     def cancel_job(self):
         """Cancel the job"""
@@ -183,7 +218,9 @@ class ProcessingJob(BaseModel):
 
         # Calculate duration
         if self.started_at:
-            self.duration_seconds = (self.completed_at - self.started_at).total_seconds()
+            self.duration_seconds = (
+                self.completed_at - self.started_at
+            ).total_seconds()
 
     def retry_job(self):
         """Prepare job for retry"""
@@ -196,7 +233,9 @@ class ProcessingJob(BaseModel):
             self.started_at = None
             self.completed_at = None
 
-    def update_progress(self, current_step: str = None, progress_percentage: float = None):
+    def update_progress(
+        self, current_step: str = None, progress_percentage: float = None
+    ):
         """Update job progress"""
         if current_step:
             self.current_step = current_step
@@ -242,26 +281,28 @@ class ProcessingJob(BaseModel):
         data = super().to_dict()
 
         # Convert enum values
-        data['job_type'] = self.job_type.value if self.job_type else None
-        data['status'] = self.status.value if self.status else None
-        data['priority'] = self.priority.value if self.priority else None
+        data["job_type"] = self.job_type.value if self.job_type else None
+        data["status"] = self.status.value if self.status else None
+        data["priority"] = self.priority.value if self.priority else None
 
         # Add computed fields
-        data['is_finished'] = self.is_finished
-        data['is_active'] = self.is_active
-        data['can_retry'] = self.can_retry
-        data['estimated_remaining_time'] = self.estimated_remaining_time
+        data["is_finished"] = self.is_finished
+        data["is_active"] = self.is_active
+        data["can_retry"] = self.can_retry
+        data["estimated_remaining_time"] = self.estimated_remaining_time
 
         # Include artifacts if requested
         if include_artifacts:
-            data['artifacts'] = self.artifacts
+            data["artifacts"] = self.artifacts
         else:
-            data.pop('artifacts', None)
+            data.pop("artifacts", None)
 
         return data
 
     @classmethod
-    def get_jobs_by_status(cls, status: JobStatus, organization_id: Optional[uuid.UUID] = None) -> list:
+    def get_jobs_by_status(
+        cls, status: JobStatus, organization_id: Optional[uuid.UUID] = None
+    ) -> list:
         """Get jobs by status"""
         query = cls.query.filter(cls.status == status, cls.is_deleted == False)
         if organization_id:
@@ -269,7 +310,9 @@ class ProcessingJob(BaseModel):
         return query.all()
 
     @classmethod
-    def get_jobs_by_type(cls, job_type: JobType, organization_id: Optional[uuid.UUID] = None) -> list:
+    def get_jobs_by_type(
+        cls, job_type: JobType, organization_id: Optional[uuid.UUID] = None
+    ) -> list:
         """Get jobs by type"""
         query = cls.query.filter(cls.job_type == job_type, cls.is_deleted == False)
         if organization_id:
@@ -277,11 +320,12 @@ class ProcessingJob(BaseModel):
         return query.all()
 
     @classmethod
-    def get_queue_length(cls, queue_name: str = None, organization_id: Optional[uuid.UUID] = None) -> int:
+    def get_queue_length(
+        cls, queue_name: str = None, organization_id: Optional[uuid.UUID] = None
+    ) -> int:
         """Get number of jobs in queue"""
         query = cls.query.filter(
-            cls.status == JobStatus.QUEUED,
-            cls.is_deleted == False
+            cls.status == JobStatus.QUEUED, cls.is_deleted == False
         )
         if queue_name:
             query = query.filter(cls.queue_name == queue_name)
@@ -290,12 +334,14 @@ class ProcessingJob(BaseModel):
         return query.count()
 
     @classmethod
-    def get_failed_jobs_to_retry(cls, organization_id: Optional[uuid.UUID] = None) -> list:
+    def get_failed_jobs_to_retry(
+        cls, organization_id: Optional[uuid.UUID] = None
+    ) -> list:
         """Get failed jobs that can be retried"""
         query = cls.query.filter(
             cls.status == JobStatus.FAILED,
             cls.retry_count < cls.max_retries,
-            cls.is_deleted == False
+            cls.is_deleted == False,
         )
         if organization_id:
             query = query.filter(cls.organization_id == organization_id)

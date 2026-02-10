@@ -3,22 +3,29 @@ Data migration utilities for enhanced document processing schema
 """
 
 import hashlib
-import uuid
-from datetime import datetime, timezone as dt_timezone
-from typing import List, Dict, Optional, Tuple
-from sqlalchemy.orm import Session
-from sqlalchemy import text, and_, or_
 import logging
+import uuid
+from datetime import datetime
+from datetime import timezone as dt_timezone
+from typing import Dict, List, Optional, Tuple
+
+from sqlalchemy import and_, or_, text
+from sqlalchemy.orm import Session
 
 from src.models.base import Base
 from src.models.document import Document, ProcessingStatus
 from src.models.document_processing import (
-    ProcessingHistory, ProcessingStage, DocumentVersion,
-    MultimodalContent, ContentType, DocumentQualityMetrics,
-    QualityMetricType, DocumentAccessLog
+    ContentType,
+    DocumentAccessLog,
+    DocumentQualityMetrics,
+    DocumentVersion,
+    MultimodalContent,
+    ProcessingHistory,
+    ProcessingStage,
+    QualityMetricType,
 )
-from src.models.user import User
 from src.models.organization import Organization
+from src.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -38,22 +45,26 @@ class DataMigrationManager:
         Returns migration statistics
         """
         stats = {
-            'documents_processed': 0,
-            'versions_created': 0,
-            'processing_history_created': 0,
-            'multimodal_content_created': 0,
-            'quality_metrics_created': 0,
-            'errors': 0
+            "documents_processed": 0,
+            "versions_created": 0,
+            "processing_history_created": 0,
+            "multimodal_content_created": 0,
+            "quality_metrics_created": 0,
+            "errors": 0,
         }
 
         try:
             # Get all existing documents that haven't been migrated
-            query = self.db.query(Document).filter(
-                and_(
-                    Document.is_deleted == False,
-                    ~Document.versions.any()  # No versions exist yet
+            query = (
+                self.db.query(Document)
+                .filter(
+                    and_(
+                        Document.is_deleted == False,
+                        ~Document.versions.any(),  # No versions exist yet
+                    )
                 )
-            ).order_by(Document.created_at)
+                .order_by(Document.created_at)
+            )
 
             total_documents = query.count()
             logger.info(f"Starting migration of {total_documents} documents")
@@ -66,28 +77,28 @@ class DataMigrationManager:
                 for document in documents:
                     try:
                         self._migrate_single_document(document)
-                        stats['documents_processed'] += 1
-                        stats['versions_created'] += 1
+                        stats["documents_processed"] += 1
+                        stats["versions_created"] += 1
 
                         # Create initial processing history
                         self._create_initial_processing_history(document)
-                        stats['processing_history_created'] += 1
+                        stats["processing_history_created"] += 1
 
                         # Create initial multimodal content for text documents
                         if document.content_text:
                             self._create_initial_multimodal_content(document)
-                            stats['multimodal_content_created'] += 1
+                            stats["multimodal_content_created"] += 1
 
                         # Create initial quality metrics
                         self._create_initial_quality_metrics(document)
-                        stats['quality_metrics_created'] += 1
+                        stats["quality_metrics_created"] += 1
 
                         # Commit each document to avoid large transactions
                         self.db.commit()
 
                     except Exception as e:
                         logger.error(f"Error migrating document {document.id}: {e}")
-                        stats['errors'] += 1
+                        stats["errors"] += 1
                         self.db.rollback()
 
                 offset += batch_size
@@ -118,7 +129,7 @@ class DataMigrationManager:
             file_hash=self._calculate_file_hash(document.file_path),
             mime_type=document.mime_type,
             created_by_user_id=document.uploaded_by_user_id,
-            organization_id=document.organization_id
+            organization_id=document.organization_id,
         )
 
         self.db.add(version)
@@ -126,17 +137,19 @@ class DataMigrationManager:
         # Update document with new fields if needed
         if not document.uploaded_by_user_id:
             # Find a user from the same organization
-            user = self.db.query(User).filter(
-                User.organization_id == document.organization_id
-            ).first()
+            user = (
+                self.db.query(User)
+                .filter(User.organization_id == document.organization_id)
+                .first()
+            )
             if user:
                 document.uploaded_by_user_id = user.id
 
         # Set default values for new fields
         if not document.document_metadata:
             document.document_metadata = {
-                'migration_timestamp': datetime.utcnow().isoformat(),
-                'migration_version': '1.0.0'
+                "migration_timestamp": datetime.utcnow().isoformat(),
+                "migration_version": "1.0.0",
             }
 
     def _create_initial_processing_history(self, document: Document):
@@ -151,29 +164,33 @@ class DataMigrationManager:
             completed_at=document.created_at,
             duration_seconds=0.0,
             processing_metadata={
-                'migration': True,
-                'original_upload_time': document.created_at.isoformat()
+                "migration": True,
+                "original_upload_time": document.created_at.isoformat(),
             },
             progress_percentage=100.0,
-            organization_id=document.organization_id
+            organization_id=document.organization_id,
         )
 
         # Create processing stage history based on current status
         processing_history = ProcessingHistory(
             document_id=document.id,
             stage=self._map_processing_status_to_stage(document.processing_status),
-            status="completed" if document.processing_status == ProcessingStatus.COMPLETED else "pending",
+            status="completed"
+            if document.processing_status == ProcessingStatus.COMPLETED
+            else "pending",
             started_at=document.processing_started_at or document.created_at,
             completed_at=document.processing_completed_at,
             duration_seconds=document.processing_duration_seconds,
             error_message=document.processing_error,
             retry_count=document.processing_retry_count,
             processing_metadata={
-                'migration': True,
-                'original_status': document.processing_status.value
+                "migration": True,
+                "original_status": document.processing_status.value,
             },
-            progress_percentage=100.0 if document.processing_status == ProcessingStatus.COMPLETED else 0.0,
-            organization_id=document.organization_id
+            progress_percentage=100.0
+            if document.processing_status == ProcessingStatus.COMPLETED
+            else 0.0,
+            organization_id=document.organization_id,
         )
 
         self.db.add(upload_history)
@@ -190,19 +207,21 @@ class DataMigrationManager:
             raw_content=document.content_text,
             processed_content=document.content_text,
             content_metadata={
-                'migration': True,
-                'extraction_method': 'legacy',
-                'original_extraction_time': document.created_at.isoformat()
+                "migration": True,
+                "extraction_method": "legacy",
+                "original_extraction_time": document.created_at.isoformat(),
             },
             quality_score=0.8,  # Default quality score
             extraction_method="legacy_migration",
             extraction_confidence=0.9,
             language_code="en",  # Default to English
-            word_count=len(document.content_text.split()) if document.content_text else 0,
+            word_count=len(document.content_text.split())
+            if document.content_text
+            else 0,
             character_count=len(document.content_text) if document.content_text else 0,
             is_indexed=document.is_indexed,
             embedding_id=document.embedding_id,
-            organization_id=document.organization_id
+            organization_id=document.organization_id,
         )
 
         self.db.add(content)
@@ -224,15 +243,21 @@ class DataMigrationManager:
             threshold_target=0.7,
             meets_threshold=True,
             metric_details={
-                'word_count': len(document.content_text.split()) if document.content_text else 0,
-                'character_count': len(document.content_text) if document.content_text else 0,
-                'unique_words': len(set(document.content_text.lower().split())) if document.content_text else 0
+                "word_count": len(document.content_text.split())
+                if document.content_text
+                else 0,
+                "character_count": len(document.content_text)
+                if document.content_text
+                else 0,
+                "unique_words": len(set(document.content_text.lower().split()))
+                if document.content_text
+                else 0,
             },
-            organization_id=document.organization_id
+            organization_id=document.organization_id,
         )
 
         # Text clarity metric (for text documents)
-        if document.document_type.value in ['text', 'pdf']:
+        if document.document_type.value in ["text", "pdf"]:
             text_clarity = DocumentQualityMetrics(
                 document_id=document.id,
                 content_id="main_content",
@@ -246,10 +271,12 @@ class DataMigrationManager:
                 threshold_target=0.8,
                 meets_threshold=True,
                 metric_details={
-                    'avg_sentence_length': self._calculate_avg_sentence_length(document.content_text),
-                    'complexity_score': 0.6  # Placeholder
+                    "avg_sentence_length": self._calculate_avg_sentence_length(
+                        document.content_text
+                    ),
+                    "complexity_score": 0.6,  # Placeholder
                 },
-                organization_id=document.organization_id
+                organization_id=document.organization_id,
             )
 
             self.db.add(text_clarity)
@@ -262,14 +289,16 @@ class DataMigrationManager:
         # For now, return a mock hash
         return hashlib.sha256(file_path.encode()).hexdigest()[:64]
 
-    def _map_processing_status_to_stage(self, status: ProcessingStatus) -> ProcessingStage:
+    def _map_processing_status_to_stage(
+        self, status: ProcessingStatus
+    ) -> ProcessingStage:
         """Map legacy processing status to new processing stage"""
         mapping = {
             ProcessingStatus.PENDING: ProcessingStage.UPLOADED,
             ProcessingStatus.PROCESSING: ProcessingStage.PROCESSING,
             ProcessingStatus.COMPLETED: ProcessingStage.COMPLETED,
             ProcessingStatus.FAILED: ProcessingStage.PROCESSING,
-            ProcessingStatus.RETRYING: ProcessingStage.PROCESSING
+            ProcessingStatus.RETRYING: ProcessingStage.PROCESSING,
         }
         return mapping.get(status, ProcessingStage.UPLOADED)
 
@@ -294,7 +323,7 @@ class DataMigrationManager:
             return 0.0
 
         # Basic clarity calculation based on sentence length variance
-        sentences = text.split('.')
+        sentences = text.split(".")
         if len(sentences) == 0:
             return 0.0
 
@@ -315,32 +344,35 @@ class DataMigrationManager:
         if not text:
             return 0.0
 
-        sentences = [s.strip() for s in text.split('.') if s.strip()]
+        sentences = [s.strip() for s in text.split(".") if s.strip()]
         if len(sentences) == 0:
             return 0.0
 
         total_words = sum(len(s.split()) for s in sentences)
         return total_words / len(sentences)
 
-    def create_access_log_backfill(self, days_back: int = 30, batch_size: int = 1000) -> Dict[str, int]:
+    def create_access_log_backfill(
+        self, days_back: int = 30, batch_size: int = 1000
+    ) -> Dict[str, int]:
         """
         Create sample access logs for testing and demonstration
         Note: This is for demonstration purposes only
         """
-        stats = {
-            'logs_created': 0,
-            'documents_processed': 0,
-            'errors': 0
-        }
+        stats = {"logs_created": 0, "documents_processed": 0, "errors": 0}
 
         try:
             # Get recent documents
-            documents = self.db.query(Document).filter(
-                and_(
-                    Document.is_deleted == False,
-                    Document.created_at >= datetime.utcnow() - timedelta(days=days_back)
+            documents = (
+                self.db.query(Document)
+                .filter(
+                    and_(
+                        Document.is_deleted == False,
+                        Document.created_at
+                        >= datetime.utcnow() - timedelta(days=days_back),
+                    )
                 )
-            ).all()
+                .all()
+            )
 
             logger.info(f"Creating access logs for {len(documents)} documents")
 
@@ -348,12 +380,14 @@ class DataMigrationManager:
                 try:
                     # Create sample access logs
                     self._create_sample_access_logs(document)
-                    stats['documents_processed'] += 1
-                    stats['logs_created'] += 5  # 5 sample logs per document
+                    stats["documents_processed"] += 1
+                    stats["logs_created"] += 5  # 5 sample logs per document
 
                 except Exception as e:
-                    logger.error(f"Error creating access logs for document {document.id}: {e}")
-                    stats['errors'] += 1
+                    logger.error(
+                        f"Error creating access logs for document {document.id}: {e}"
+                    )
+                    stats["errors"] += 1
 
             self.db.commit()
             logger.info(f"Access log creation completed. Stats: {stats}")
@@ -373,65 +407,65 @@ class DataMigrationManager:
         # Sample access log entries
         sample_logs = [
             {
-                'access_type': 'view',
-                'access_result': 'success',
-                'created_at': document.created_at,
-                'user_id': document.uploaded_by_user_id,
-                'ip_address': '192.168.1.100',
-                'user_agent': 'Mozilla/5.0 (Sample User Agent)',
-                'response_status_code': 200,
-                'response_time_ms': 150.0
+                "access_type": "view",
+                "access_result": "success",
+                "created_at": document.created_at,
+                "user_id": document.uploaded_by_user_id,
+                "ip_address": "192.168.1.100",
+                "user_agent": "Mozilla/5.0 (Sample User Agent)",
+                "response_status_code": 200,
+                "response_time_ms": 150.0,
             },
             {
-                'access_type': 'view',
-                'access_result': 'success',
-                'created_at': document.created_at + timedelta(hours=1),
-                'user_id': document.uploaded_by_user_id,
-                'ip_address': '192.168.1.100',
-                'user_agent': 'Mozilla/5.0 (Sample User Agent)',
-                'response_status_code': 200,
-                'response_time_ms': 120.0
+                "access_type": "view",
+                "access_result": "success",
+                "created_at": document.created_at + timedelta(hours=1),
+                "user_id": document.uploaded_by_user_id,
+                "ip_address": "192.168.1.100",
+                "user_agent": "Mozilla/5.0 (Sample User Agent)",
+                "response_status_code": 200,
+                "response_time_ms": 120.0,
             },
             {
-                'access_type': 'download',
-                'access_result': 'success',
-                'created_at': document.created_at + timedelta(hours=2),
-                'user_id': document.uploaded_by_user_id,
-                'ip_address': '192.168.1.100',
-                'user_agent': 'Mozilla/5.0 (Sample User Agent)',
-                'response_status_code': 200,
-                'response_time_ms': 300.0,
-                'response_size_bytes': document.file_size_bytes
+                "access_type": "download",
+                "access_result": "success",
+                "created_at": document.created_at + timedelta(hours=2),
+                "user_id": document.uploaded_by_user_id,
+                "ip_address": "192.168.1.100",
+                "user_agent": "Mozilla/5.0 (Sample User Agent)",
+                "response_status_code": 200,
+                "response_time_ms": 300.0,
+                "response_size_bytes": document.file_size_bytes,
             },
             {
-                'access_type': 'view',
-                'access_result': 'success',
-                'created_at': current_time - timedelta(days=1),
-                'user_id': document.uploaded_by_user_id,
-                'ip_address': '10.0.0.50',
-                'user_agent': 'Mozilla/5.0 (Sample User Agent)',
-                'response_status_code': 200,
-                'response_time_ms': 180.0
+                "access_type": "view",
+                "access_result": "success",
+                "created_at": current_time - timedelta(days=1),
+                "user_id": document.uploaded_by_user_id,
+                "ip_address": "10.0.0.50",
+                "user_agent": "Mozilla/5.0 (Sample User Agent)",
+                "response_status_code": 200,
+                "response_time_ms": 180.0,
             },
             {
-                'access_type': 'view',
-                'access_result': 'denied',
-                'created_at': current_time - timedelta(hours=6),
-                'ip_address': '203.0.113.10',
-                'user_agent': 'Suspicious Bot 1.0',
-                'response_status_code': 403,
-                'response_time_ms': 50.0,
-                'is_suspicious': True,
-                'threat_score': 0.8,
-                'security_flags': {'ip_reputation': 'poor', 'user_agent': 'bot'}
-            }
+                "access_type": "view",
+                "access_result": "denied",
+                "created_at": current_time - timedelta(hours=6),
+                "ip_address": "203.0.113.10",
+                "user_agent": "Suspicious Bot 1.0",
+                "response_status_code": 403,
+                "response_time_ms": 50.0,
+                "is_suspicious": True,
+                "threat_score": 0.8,
+                "security_flags": {"ip_reputation": "poor", "user_agent": "bot"},
+            },
         ]
 
         for log_data in sample_logs:
             access_log = DocumentAccessLog(
                 document_id=document.id,
                 organization_id=document.organization_id,
-                **log_data
+                **log_data,
             )
             self.db.add(access_log)
 
@@ -473,23 +507,27 @@ def validate_migration(db: Session) -> Dict[str, int]:
         Validation statistics
     """
     stats = {
-        'total_documents': db.query(Document).filter(Document.is_deleted == False).count(),
-        'documents_with_versions': db.query(Document).join(DocumentVersion).filter(Document.is_deleted == False).count(),
-        'total_versions': db.query(DocumentVersion).count(),
-        'total_processing_history': db.query(ProcessingHistory).count(),
-        'total_multimodal_content': db.query(MultimodalContent).count(),
-        'total_quality_metrics': db.query(DocumentQualityMetrics).count(),
-        'total_access_logs': db.query(DocumentAccessLog).count(),
-        'migration_errors': 0
+        "total_documents": db.query(Document)
+        .filter(Document.is_deleted == False)
+        .count(),
+        "documents_with_versions": db.query(Document)
+        .join(DocumentVersion)
+        .filter(Document.is_deleted == False)
+        .count(),
+        "total_versions": db.query(DocumentVersion).count(),
+        "total_processing_history": db.query(ProcessingHistory).count(),
+        "total_multimodal_content": db.query(MultimodalContent).count(),
+        "total_quality_metrics": db.query(DocumentQualityMetrics).count(),
+        "total_access_logs": db.query(DocumentAccessLog).count(),
+        "migration_errors": 0,
     }
 
     # Check for data consistency
-    stats['migration_errors'] = db.query(Document).filter(
-        and_(
-            Document.is_deleted == False,
-            ~Document.versions.any()
-        )
-    ).count()
+    stats["migration_errors"] = (
+        db.query(Document)
+        .filter(and_(Document.is_deleted == False, ~Document.versions.any()))
+        .count()
+    )
 
     logger.info(f"Migration validation completed. Stats: {stats}")
     return stats

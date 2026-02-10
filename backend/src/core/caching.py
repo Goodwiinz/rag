@@ -21,10 +21,15 @@ logger = logging.getLogger(__name__)
 # Import settings for HMAC key
 try:
     from src.core.config import settings
-    HMAC_SECRET = settings.SECRET_KEY.encode() if hasattr(settings, 'SECRET_KEY') else b'default-insecure-key-change-in-production'
+
+    HMAC_SECRET = (
+        settings.SECRET_KEY.encode()
+        if hasattr(settings, "SECRET_KEY")
+        else b"default-insecure-key-change-in-production"
+    )
 except ImportError:
     logger.warning("Could not import settings, using default HMAC key (INSECURE)")
-    HMAC_SECRET = b'default-insecure-key-change-in-production'
+    HMAC_SECRET = b"default-insecure-key-change-in-production"
 
 T = TypeVar("T")
 
@@ -482,7 +487,9 @@ def cached(
             if key_builder:
                 cache_key = key_builder(*args, **kwargs)
             else:
-                cache_key = generate_cache_key(namespace, func.__name__, *args, **kwargs)
+                cache_key = generate_cache_key(
+                    namespace, func.__name__, *args, **kwargs
+                )
 
             # Try to get from cache
             cache = get_cache()

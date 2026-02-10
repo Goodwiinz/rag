@@ -4,7 +4,8 @@ Base model with common fields and functionality
 
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Boolean, text, TypeDecorator, CHAR
+
+from sqlalchemy import CHAR, Boolean, Column, DateTime, String, TypeDecorator, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -17,11 +18,12 @@ class GUID(TypeDecorator):
     Uses PostgreSQL's UUID type when available, otherwise uses
     CHAR(36) storing UUIDs as stringified hex values.
     """
+
     impl = CHAR
     cache_ok = True
 
     def load_dialect_impl(self, dialect):
-        if dialect.name == 'postgresql':
+        if dialect.name == "postgresql":
             return dialect.type_descriptor(PG_UUID(as_uuid=True))
         else:
             return dialect.type_descriptor(CHAR(36))
@@ -29,7 +31,7 @@ class GUID(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return value
-        elif dialect.name == 'postgresql':
+        elif dialect.name == "postgresql":
             return str(value) if isinstance(value, uuid.UUID) else value
         else:
             if isinstance(value, uuid.UUID):
@@ -52,8 +54,15 @@ class BaseModel(Base):
     __abstract__ = True
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4, index=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
 
     # Soft delete
     is_deleted = Column(Boolean, default=False, nullable=False)
@@ -72,8 +81,7 @@ class BaseModel(Base):
     def to_dict(self):
         """Convert model to dictionary"""
         return {
-            column.name: getattr(self, column.name)
-            for column in self.__table__.columns
+            column.name: getattr(self, column.name) for column in self.__table__.columns
         }
 
     def __repr__(self):

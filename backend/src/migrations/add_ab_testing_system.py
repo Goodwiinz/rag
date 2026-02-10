@@ -8,16 +8,25 @@ Optimized for high-volume scenarios (thousands of queries per hour) with compreh
 from sqlalchemy import text
 
 from src.core.database import get_engine
-from src.models.base import Base
 from src.models.ab_testing import (
-    Experiment, Variant, ExperimentAssignment, ExperimentMetric,
-    UserSegment, UserSegmentMembership, ExperimentSegment, QueryRouting
+    Experiment,
+    ExperimentAssignment,
+    ExperimentMetric,
+    ExperimentSegment,
+    QueryRouting,
+    UserSegment,
+    UserSegmentMembership,
+    Variant,
 )
 from src.models.ab_testing_analytics import (
-    StatisticalSignificance, VariantComparison, AggregatedMetric,
-    FunnelAnalysis, CohortAnalysis, ExperimentDashboard
+    AggregatedMetric,
+    CohortAnalysis,
+    ExperimentDashboard,
+    FunnelAnalysis,
+    StatisticalSignificance,
+    VariantComparison,
 )
-
+from src.models.base import Base
 
 MIGRATION_NAME = "add_ab_testing_system"
 
@@ -29,22 +38,25 @@ def create_ab_testing_tables(conn):
     print("Creating A/B testing tables...")
 
     # Create tables
-    Base.metadata.create_all(bind=conn, tables=[
-        Experiment.__table__,
-        Variant.__table__,
-        ExperimentAssignment.__table__,
-        ExperimentMetric.__table__,
-        UserSegment.__table__,
-        UserSegmentMembership.__table__,
-        ExperimentSegment.__table__,
-        QueryRouting.__table__,
-        StatisticalSignificance.__table__,
-        VariantComparison.__table__,
-        AggregatedMetric.__table__,
-        FunnelAnalysis.__table__,
-        CohortAnalysis.__table__,
-        ExperimentDashboard.__table__,
-    ])
+    Base.metadata.create_all(
+        bind=conn,
+        tables=[
+            Experiment.__table__,
+            Variant.__table__,
+            ExperimentAssignment.__table__,
+            ExperimentMetric.__table__,
+            UserSegment.__table__,
+            UserSegmentMembership.__table__,
+            ExperimentSegment.__table__,
+            QueryRouting.__table__,
+            StatisticalSignificance.__table__,
+            VariantComparison.__table__,
+            AggregatedMetric.__table__,
+            FunnelAnalysis.__table__,
+            CohortAnalysis.__table__,
+            ExperimentDashboard.__table__,
+        ],
+    )
 
 
 def create_performance_indexes(conn):
@@ -69,171 +81,144 @@ def create_performance_indexes(conn):
         ON ab_experiments (organization_id, status, start_time, end_time)
         WHERE status = 'running';
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_experiments_traffic_allocation
         ON ab_experiments (organization_id, traffic_percentage, status)
         WHERE status IN ('running', 'scheduled');
         """,
-
         # Variant indexes for real-time metrics
         """
         CREATE INDEX IF NOT EXISTS idx_variants_performance_lookup
         ON ab_variants (experiment_id, participant_count, primary_metric_value)
         WHERE is_deleted = false;
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_variants_traffic_calculation
         ON ab_variants (experiment_id, weight, is_control)
         WHERE is_deleted = false;
         """,
-
         # Assignment indexes for fast user experiment lookup
         """
         CREATE INDEX IF NOT EXISTS idx_assignments_user_experiment_lookup
         ON ab_assignments (user_id, experiment_id);
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_assignments_session_lookup
         ON ab_assignments (session_id, experiment_id, assigned_at)
         WHERE assigned_at >= NOW() - INTERVAL '24 hours';
         """,
-
         # Query routing indexes for real-time routing decisions
         """
         CREATE INDEX IF NOT EXISTS idx_routing_experiment_active
         ON ab_query_routing (experiment_id, routing_decision_at)
         WHERE routing_decision_at >= NOW() - INTERVAL '7 days';
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_routing_variant_performance
         ON ab_query_routing (variant_id, routing_decision_at, processing_overhead_ms)
         WHERE routing_decision_at >= NOW() - INTERVAL '24 hours';
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_routing_user_session_time
         ON ab_query_routing (user_id, session_id, routing_decision_at)
         WHERE routing_decision_at >= NOW() - INTERVAL '1 hour';
         """,
-
         # Metrics indexes for real-time aggregation
         """
         CREATE INDEX IF NOT EXISTS idx_metrics_realtime_aggregation
         ON ab_experiment_metrics (experiment_id, variant_id, metric_type, timestamp)
         WHERE timestamp >= NOW() - INTERVAL '24 hours';
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_metrics_daily_summary
         ON ab_experiment_metrics (experiment_id, metric_type, date_day, metric_value)
         WHERE date_day >= CURRENT_DATE - INTERVAL '30 days';
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_metrics_user_performance
         ON ab_experiment_metrics (user_id, metric_type, timestamp)
         WHERE timestamp >= NOW() - INTERVAL '7 days';
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_metrics_session_tracking
         ON ab_experiment_metrics (session_id, timestamp, metric_value)
         WHERE timestamp >= NOW() - INTERVAL '24 hours';
         """,
-
         # Statistical significance indexes
         """
         CREATE INDEX IF NOT EXISTS idx_significance_recent_analysis
         ON ab_statistical_significance (experiment_id, analysis_timestamp DESC)
         WHERE analysis_timestamp >= NOW() - INTERVAL '30 days';
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_significance_significant_results
         ON ab_statistical_significance (is_statistically_significant, p_value, effect_size)
         WHERE is_statistically_significant = true;
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_significance_power_analysis
         ON ab_statistical_significance (statistical_power, sample_size, confidence_level);
         """,
-
         # Aggregated metrics indexes for dashboard performance
         """
         CREATE INDEX IF NOT EXISTS idx_aggregated_dashboard_lookup
         ON ab_aggregated_metrics (experiment_id, time_bucket, time_bucket_start DESC)
         WHERE time_bucket_start >= NOW() - INTERVAL '90 days';
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_aggregated_variant_trends
         ON ab_aggregated_metrics (variant_id, metric_type, time_bucket_start, metric_value)
         WHERE time_bucket_start >= NOW() - INTERVAL '30 days';
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_aggregated_metric_performance
         ON ab_aggregated_metrics (metric_type, aggregation_type, time_bucket_start, metric_value)
         WHERE time_bucket_start >= NOW() - INTERVAL '7 days';
         """,
-
         # User segment indexes for targeting
         """
         CREATE INDEX IF NOT EXISTS idx_segments_active_users
         ON ab_user_segments (organization_id, active_user_count, is_dynamic)
         WHERE is_dynamic = true;
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_segment_memberships_user_lookup
         ON ab_user_segment_memberships (user_id, segment_id, is_active)
         WHERE is_active = true;
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_segment_memberships_segment_users
         ON ab_user_segment_memberships (segment_id, is_active, joined_at)
         WHERE is_active = true;
         """,
-
         # Funnel analysis indexes
         """
         CREATE INDEX IF NOT EXISTS idx_funnel_conversion_analysis
         ON ab_funnel_analysis (experiment_id, variant_id, stage_order, conversion_rate)
         WHERE analysis_period_start >= NOW() - INTERVAL '90 days';
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_funnel_stage_comparison
         ON ab_funnel_analysis (stage_name, conversion_rate, is_significant)
         WHERE is_significant = true;
         """,
-
         # Cohort analysis indexes
         """
         CREATE INDEX IF NOT EXISTS idx_cohort_retention_trends
         ON ab_cohort_analysis (experiment_id, cohort_name, period_number, retention_rate)
         WHERE period_number <= 90;
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_cohort_long_term_value
         ON ab_cohort_analysis (variant_id, cumulative_value, retention_rate)
         WHERE period_number >= 30;
         """,
-
         # Dashboard indexes for real-time updates
         """
         CREATE INDEX IF NOT EXISTS idx_dashboard_business_impact
         ON ab_experiment_dashboards (business_confidence_score DESC, last_updated DESC)
         WHERE business_confidence_score >= 50;
         """,
-
         """
         CREATE INDEX IF NOT EXISTS idx_dashboard_update_schedule
         ON ab_experiment_dashboards (last_updated, update_frequency_minutes)
@@ -334,7 +319,6 @@ def create_materialized_views(conn):
         GROUP BY e.id, e.name, e.organization_id, e.status, e.experiment_type,
                  e.start_time, e.end_time, e.confidence_level, e.minimum_sample_size;
         """,
-
         # Variant performance comparison
         """
         CREATE MATERIALIZED VIEW IF NOT EXISTS mv_variant_performance_comparison AS
@@ -361,7 +345,6 @@ def create_materialized_views(conn):
             AND v.is_deleted = false
         GROUP BY e.id, v.id, v.name, v.is_control, v.traffic_percentage, v.primary_metric_value;
         """,
-
         # User segment experiment participation
         """
         CREATE MATERIALIZED VIEW IF NOT EXISTS mv_segment_experiment_participation AS
@@ -394,7 +377,9 @@ def create_materialized_views(conn):
     for view_sql in views:
         try:
             conn.execute(text(view_sql))
-            print(f"✓ Created materialized view: {view_sql.split('mv_')[1].split(' ')[0]}")
+            print(
+                f"✓ Created materialized view: {view_sql.split('mv_')[1].split(' ')[0]}"
+            )
         except Exception as exc:
             print(f"✗ Failed to create materialized view: {exc}")
             raise
@@ -436,7 +421,6 @@ def create_refresh_functions(conn):
         END;
         $$ LANGUAGE plpgsql;
         """,
-
         # Function to aggregate metrics for time buckets
         """
         CREATE OR REPLACE FUNCTION aggregate_experiment_metrics(
@@ -485,7 +469,6 @@ def create_refresh_functions(conn):
         END;
         $$ LANGUAGE plpgsql;
         """,
-
         # Function to calculate statistical significance
         """
         CREATE OR REPLACE FUNCTION calculate_experiment_significance(p_experiment_id UUID)
@@ -579,7 +562,9 @@ def create_refresh_functions(conn):
     for func_sql in functions:
         try:
             conn.execute(text(func_sql))
-            print(f"✓ Created function: {func_sql.split('CREATE OR REPLACE FUNCTION ')[1].split('(')[0]}")
+            print(
+                f"✓ Created function: {func_sql.split('CREATE OR REPLACE FUNCTION ')[1].split('(')[0]}"
+            )
         except Exception as exc:
             print(f"✗ Failed to create function: {exc}")
             raise
@@ -642,14 +627,12 @@ def create_triggers(conn):
         END;
         $$ LANGUAGE plpgsql;
         """,
-
         """
         DROP TRIGGER IF EXISTS trigger_update_participant_count ON ab_assignments;
         CREATE TRIGGER trigger_update_participant_count
             AFTER INSERT OR DELETE ON ab_assignments
             FOR EACH ROW EXECUTE FUNCTION update_experiment_participant_count();
         """,
-
         # Trigger to update segment user counts
         """
         CREATE OR REPLACE FUNCTION update_segment_user_count()
@@ -683,7 +666,6 @@ def create_triggers(conn):
         END;
         $$ LANGUAGE plpgsql;
         """,
-
         """
         DROP TRIGGER IF EXISTS trigger_update_segment_count ON ab_user_segment_memberships;
         CREATE TRIGGER trigger_update_segment_count
@@ -710,17 +692,13 @@ def grant_permissions(conn):
     permissions = [
         # Grant read permissions to analytics user
         "GRANT SELECT ON ALL TABLES IN SCHEMA public TO analytics_user;",
-
         # Grant read/write permissions to application user
         "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;",
-
         # Grant usage on sequences
         "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;",
-
         # Grant execute on functions
         "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO app_user;",
         "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO analytics_user;",
-
         # Allow materialized view refresh
         "GRANT SELECT ON mv_current_experiments_summary TO analytics_user;",
         "GRANT SELECT ON mv_variant_performance_comparison TO analytics_user;",
@@ -747,12 +725,16 @@ def run_migration():
         engine = get_engine()
 
         with engine.begin() as conn:
-            conn.execute(text("""
+            conn.execute(
+                text(
+                    """
                 CREATE TABLE IF NOT EXISTS migration_history (
                     migration_name TEXT PRIMARY KEY,
                     applied_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
                 );
-            """))
+            """
+                )
+            )
 
             already_applied = conn.execute(
                 text("SELECT 1 FROM migration_history WHERE migration_name = :name"),
@@ -760,7 +742,9 @@ def run_migration():
             ).scalar()
 
             if already_applied:
-                print(f"⚠️ Migration '{MIGRATION_NAME}' already applied. Skipping execution.")
+                print(
+                    f"⚠️ Migration '{MIGRATION_NAME}' already applied. Skipping execution."
+                )
                 return
 
             steps = [

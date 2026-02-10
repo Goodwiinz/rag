@@ -7,25 +7,28 @@ import logging
 import smtplib
 import tempfile
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Union, BinaryIO
-from concurrent.futures import ThreadPoolExecutor
+from typing import Any, BinaryIO, Dict, List, Optional, Union
 
 import aiofiles
 import aiohttp
 import pandas as pd
+from sqlalchemy import and_, delete, desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, and_, or_, func, desc
 from sqlalchemy.orm import selectinload
 
 from src.core.config import settings
 from src.core.database import get_async_session
 from src.models.analytics.analytics_models import (
-    AnalyticsReport, MetricQuery, MetricQueryResult, TimeSeriesData
+    AnalyticsReport,
+    MetricQuery,
+    MetricQueryResult,
+    TimeSeriesData,
 )
 from src.models.analytics.dashboard_models import Dashboard
 from src.models.base import GUID
@@ -53,7 +56,7 @@ class ReportGenerationService:
         report_config: Dict[str, Any],
         schedule_config: Optional[Dict[str, Any]] = None,
         output_format: str = "pdf",
-        delivery_config: Optional[Dict[str, Any]] = None
+        delivery_config: Optional[Dict[str, Any]] = None,
     ) -> AnalyticsReport:
         """Create a new analytics report"""
         try:
@@ -69,7 +72,7 @@ class ReportGenerationService:
                     output_format=output_format,
                     delivery_config=delivery_config,
                     is_active=True,
-                    is_public=False
+                    is_public=False,
                 )
                 db.add(report)
                 await db.commit()
@@ -94,11 +97,17 @@ class ReportGenerationService:
                     raise ValueError(f"Report not found: {report_id}")
 
                 if not report.is_active and not force:
-                    logger.info(f"Report {report_id} is not active, skipping generation")
+                    logger.info(
+                        f"Report {report_id} is not active, skipping generation"
+                    )
                     return False
 
                 # Check if recently generated (unless forced)
-                if not force and report.last_run_at and (datetime.utcnow() - report.last_run_at) < timedelta(minutes=5):
+                if (
+                    not force
+                    and report.last_run_at
+                    and (datetime.utcnow() - report.last_run_at) < timedelta(minutes=5)
+                ):
                     logger.info(f"Report {report_id} was recently generated, skipping")
                     return False
 
@@ -106,16 +115,15 @@ class ReportGenerationService:
                 await db.execute(
                     update(AnalyticsReport)
                     .where(AnalyticsReport.id == report_id)
-                    .values(
-                        last_run_status="running",
-                        last_run_at=datetime.utcnow()
-                    )
+                    .values(last_run_status="running", last_run_at=datetime.utcnow())
                 )
                 await db.commit()
 
                 try:
                     # Generate report content
-                    report_data = await self._generate_report_content(report.report_config)
+                    report_data = await self._generate_report_content(
+                        report.report_config
+                    )
 
                     # Create output file
                     output_path = await self._create_report_file(report, report_data)
@@ -129,8 +137,7 @@ class ReportGenerationService:
                         update(AnalyticsReport)
                         .where(AnalyticsReport.id == report_id)
                         .values(
-                            last_run_status="completed",
-                            last_run_at=datetime.utcnow()
+                            last_run_status="completed", last_run_at=datetime.utcnow()
                         )
                     )
                     await db.commit()
@@ -148,7 +155,7 @@ class ReportGenerationService:
                         .values(
                             last_run_status="failed",
                             last_run_error=str(e),
-                            last_run_at=datetime.utcnow()
+                            last_run_at=datetime.utcnow(),
                         )
                     )
                     await db.commit()
@@ -159,13 +166,15 @@ class ReportGenerationService:
             logger.error(f"Error in generate_report: {e}")
             return False
 
-    async def _generate_report_content(self, report_config: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generate_report_content(
+        self, report_config: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Generate report content based on configuration"""
         content = {
             "title": report_config.get("title", "Analytics Report"),
             "subtitle": report_config.get("subtitle", ""),
             "generated_at": datetime.utcnow(),
-            "sections": []
+            "sections": [],
         }
 
         # Generate sections based on config
@@ -209,10 +218,12 @@ class ReportGenerationService:
                         "content": {
                             "dashboard_name": dashboard.name,
                             "description": dashboard.description,
-                            "widget_count": len([w for w in dashboard.widgets if w.is_active]),
+                            "widget_count": len(
+                                [w for w in dashboard.widgets if w.is_active]
+                            ),
                             "last_updated": dashboard.updated_at,
-                            "theme": dashboard.theme
-                        }
+                            "theme": dashboard.theme,
+                        },
                     }
 
         # Default summary
@@ -221,8 +232,8 @@ class ReportGenerationService:
             "title": config.get("title", "Report Summary"),
             "content": {
                 "generated_at": datetime.utcnow(),
-                "report_period": config.get("period", "Last 30 days")
-            }
+                "report_period": config.get("period", "Last 30 days"),
+            },
         }
 
     async def _generate_metrics_section(self, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -237,15 +248,14 @@ class ReportGenerationService:
                 metrics_data.append(metric_data)
             except Exception as e:
                 logger.error(f"Error executing metric query: {e}")
-                metrics_data.append({
-                    "name": metric_config.get("name", "Unknown"),
-                    "error": str(e)
-                })
+                metrics_data.append(
+                    {"name": metric_config.get("name", "Unknown"), "error": str(e)}
+                )
 
         return {
             "type": "metrics",
             "title": config.get("title", "Key Metrics"),
-            "metrics": metrics_data
+            "metrics": metrics_data,
         }
 
     async def _generate_charts_section(self, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -260,15 +270,17 @@ class ReportGenerationService:
                 charts_data.append(chart_data)
             except Exception as e:
                 logger.error(f"Error getting chart data: {e}")
-                charts_data.append({
-                    "title": chart_config.get("title", "Unknown Chart"),
-                    "error": str(e)
-                })
+                charts_data.append(
+                    {
+                        "title": chart_config.get("title", "Unknown Chart"),
+                        "error": str(e),
+                    }
+                )
 
         return {
             "type": "charts",
             "title": config.get("title", "Charts"),
-            "charts": charts_data
+            "charts": charts_data,
         }
 
     async def _generate_tables_section(self, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -283,32 +295,38 @@ class ReportGenerationService:
                 tables_data.append(table_data)
             except Exception as e:
                 logger.error(f"Error getting table data: {e}")
-                tables_data.append({
-                    "title": table_config.get("title", "Unknown Table"),
-                    "error": str(e)
-                })
+                tables_data.append(
+                    {
+                        "title": table_config.get("title", "Unknown Table"),
+                        "error": str(e),
+                    }
+                )
 
         return {
             "type": "tables",
             "title": config.get("title", "Data Tables"),
-            "tables": tables_data
+            "tables": tables_data,
         }
 
-    async def _generate_dashboard_section(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generate_dashboard_section(
+        self, config: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Generate dashboard snapshot section"""
         dashboard_id = config.get("dashboard_id")
         if not dashboard_id:
             return {
                 "type": "dashboard",
                 "title": "Dashboard Snapshot",
-                "error": "No dashboard ID specified"
+                "error": "No dashboard ID specified",
             }
 
         try:
             async with get_async_session() as db:
-                query = select(Dashboard).options(
-                    selectinload(Dashboard.widgets)
-                ).where(Dashboard.id == dashboard_id)
+                query = (
+                    select(Dashboard)
+                    .options(selectinload(Dashboard.widgets))
+                    .where(Dashboard.id == dashboard_id)
+                )
                 result = await db.execute(query)
                 dashboard = result.scalar_one_or_none()
 
@@ -316,7 +334,7 @@ class ReportGenerationService:
                     return {
                         "type": "dashboard",
                         "title": "Dashboard Snapshot",
-                        "error": f"Dashboard not found: {dashboard_id}"
+                        "error": f"Dashboard not found: {dashboard_id}",
                     }
 
                 # Get dashboard data
@@ -325,7 +343,7 @@ class ReportGenerationService:
                     "description": dashboard.description,
                     "theme": dashboard.theme,
                     "layout": dashboard.layout,
-                    "widgets": []
+                    "widgets": [],
                 }
 
                 # Get widget data (simplified)
@@ -337,16 +355,12 @@ class ReportGenerationService:
                 return {
                     "type": "dashboard",
                     "title": config.get("title", f"Dashboard: {dashboard.name}"),
-                    "dashboard": dashboard_data
+                    "dashboard": dashboard_data,
                 }
 
         except Exception as e:
             logger.error(f"Error generating dashboard section: {e}")
-            return {
-                "type": "dashboard",
-                "title": "Dashboard Snapshot",
-                "error": str(e)
-            }
+            return {"type": "dashboard", "title": "Dashboard Snapshot", "error": str(e)}
 
     async def _execute_metric_query(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a metric query"""
@@ -364,7 +378,7 @@ class ReportGenerationService:
             "change": 5.67,
             "change_percent": 12.3,
             "time_range": time_range,
-            "status": "good"  # good, warning, critical
+            "status": "good",  # good, warning, critical
         }
 
     async def _get_chart_data(self, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -378,13 +392,8 @@ class ReportGenerationService:
             "type": chart_type,
             "data": {
                 "labels": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-                "datasets": [
-                    {
-                        "label": "Dataset 1",
-                        "data": [12, 19, 3, 5, 2, 3]
-                    }
-                ]
-            }
+                "datasets": [{"label": "Dataset 1", "data": [12, 19, 3, 5, 2, 3]}],
+            },
         }
 
     async def _get_table_data(self, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -396,8 +405,8 @@ class ReportGenerationService:
             "rows": [
                 ["Item 1", 100, 5.0, "Good"],
                 ["Item 2", 200, -2.0, "Warning"],
-                ["Item 3", 150, 0.0, "Good"]
-            ]
+                ["Item 3", 150, 0.0, "Good"],
+            ],
         }
 
     async def _get_widget_data(self, widget) -> Dict[str, Any]:
@@ -411,15 +420,17 @@ class ReportGenerationService:
                 "x": widget.x,
                 "y": widget.y,
                 "width": widget.width,
-                "height": widget.height
+                "height": widget.height,
             },
             "data": {
                 "summary": "Widget data would go here",
-                "last_updated": datetime.utcnow()
-            }
+                "last_updated": datetime.utcnow(),
+            },
         }
 
-    async def _create_report_file(self, report: AnalyticsReport, report_data: Dict[str, Any]) -> Path:
+    async def _create_report_file(
+        self, report: AnalyticsReport, report_data: Dict[str, Any]
+    ) -> Path:
         """Create report file in specified format"""
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         filename = f"{report.name}_{timestamp}.{report.output_format}"
@@ -438,7 +449,9 @@ class ReportGenerationService:
 
         return output_path
 
-    async def _create_pdf_report(self, output_path: Path, report_data: Dict[str, Any]) -> None:
+    async def _create_pdf_report(
+        self, output_path: Path, report_data: Dict[str, Any]
+    ) -> None:
         """Create PDF report"""
         # This is a simplified implementation
         # In production, you'd use a proper PDF library like ReportLab or WeasyPrint
@@ -446,10 +459,12 @@ class ReportGenerationService:
         # For now, create a simple text file as placeholder
         content = self._format_report_as_text(report_data)
 
-        async with aiofiles.open(output_path, 'w') as f:
+        async with aiofiles.open(output_path, "w") as f:
             await f.write(content)
 
-    async def _create_csv_report(self, output_path: Path, report_data: Dict[str, Any]) -> None:
+    async def _create_csv_report(
+        self, output_path: Path, report_data: Dict[str, Any]
+    ) -> None:
         """Create CSV report"""
         # Extract table data and convert to CSV
         rows = []
@@ -468,12 +483,14 @@ class ReportGenerationService:
                 rows.append(["Metric", "Value", "Change", "Status"])
                 for metric in section["metrics"]:
                     if "error" not in metric:
-                        rows.append([
-                            metric["name"],
-                            str(metric["value"]),
-                            str(metric.get("change", 0)),
-                            metric.get("status", "")
-                        ])
+                        rows.append(
+                            [
+                                metric["name"],
+                                str(metric["value"]),
+                                str(metric.get("change", 0)),
+                                metric.get("status", ""),
+                            ]
+                        )
             elif section["type"] == "tables":
                 for table in section["tables"]:
                     if "error" not in table:
@@ -487,14 +504,16 @@ class ReportGenerationService:
         df = pd.DataFrame(rows)
         df.to_csv(output_path, index=False, header=False)
 
-    async def _create_excel_report(self, output_path: Path, report_data: Dict[str, Any]) -> None:
+    async def _create_excel_report(
+        self, output_path: Path, report_data: Dict[str, Any]
+    ) -> None:
         """Create Excel report"""
-        with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+        with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
             # Summary sheet
             summary_data = [
                 ["Report Title", report_data["title"]],
                 ["Generated", report_data["generated_at"]],
-                ["Sections", len(report_data["sections"])]
+                ["Sections", len(report_data["sections"])],
             ]
             pd.DataFrame(summary_data, columns=["Item", "Value"]).to_excel(
                 writer, sheet_name="Summary", index=False
@@ -508,19 +527,22 @@ class ReportGenerationService:
                     metrics_data = []
                     for metric in section["metrics"]:
                         if "error" not in metric:
-                            metrics_data.append([
-                                metric["name"],
-                                metric["value"],
-                                metric.get("change", 0),
-                                metric.get("status", "")
-                            ])
+                            metrics_data.append(
+                                [
+                                    metric["name"],
+                                    metric["value"],
+                                    metric.get("change", 0),
+                                    metric.get("status", ""),
+                                ]
+                            )
 
                     pd.DataFrame(
-                        metrics_data,
-                        columns=["Metric", "Value", "Change", "Status"]
+                        metrics_data, columns=["Metric", "Value", "Change", "Status"]
                     ).to_excel(writer, sheet_name=sheet_name, index=False)
 
-    async def _create_json_report(self, output_path: Path, report_data: Dict[str, Any]) -> None:
+    async def _create_json_report(
+        self, output_path: Path, report_data: Dict[str, Any]
+    ) -> None:
         """Create JSON report"""
         import json
 
@@ -530,7 +552,7 @@ class ReportGenerationService:
                 return obj.isoformat()
             raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
-        async with aiofiles.open(output_path, 'w') as f:
+        async with aiofiles.open(output_path, "w") as f:
             await f.write(json.dumps(report_data, default=json_serializer, indent=2))
 
     def _format_report_as_text(self, report_data: Dict[str, Any]) -> str:
@@ -556,7 +578,9 @@ class ReportGenerationService:
                     if "error" not in metric:
                         lines.append(f"{metric['name']}: {metric['value']}")
                         if metric.get("change"):
-                            lines.append(f"  Change: {metric['change']} ({metric.get('change_percent', 0)}%)")
+                            lines.append(
+                                f"  Change: {metric['change']} ({metric.get('change_percent', 0)}%)"
+                            )
 
             lines.append("")
 
@@ -583,7 +607,9 @@ class ReportGenerationService:
             except Exception as e:
                 logger.error(f"Error delivering report via {method}: {e}")
 
-    async def _deliver_email(self, report: AnalyticsReport, file_path: Path, config: Dict[str, Any]) -> None:
+    async def _deliver_email(
+        self, report: AnalyticsReport, file_path: Path, config: Dict[str, Any]
+    ) -> None:
         """Deliver report via email"""
         email_config = config.get("email", {})
         recipients = email_config.get("recipients", [])
@@ -621,19 +647,14 @@ class ReportGenerationService:
 
         attachment = MIMEApplication(attachment_data)
         attachment.add_header(
-            "Content-Disposition",
-            "attachment",
-            filename=file_path.name
+            "Content-Disposition", "attachment", filename=file_path.name
         )
         msg.attach(attachment)
 
         # Send email
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
-            self.executor,
-            self._send_email_sync,
-            msg,
-            recipients
+            self.executor, self._send_email_sync, msg, recipients
         )
 
     def _send_email_sync(self, msg: MIMEMultipart, recipients: List[str]) -> None:
@@ -651,7 +672,9 @@ class ReportGenerationService:
             logger.error(f"Error sending email: {e}")
             raise
 
-    async def _deliver_webhook(self, report: AnalyticsReport, file_path: Path, config: Dict[str, Any]) -> None:
+    async def _deliver_webhook(
+        self, report: AnalyticsReport, file_path: Path, config: Dict[str, Any]
+    ) -> None:
         """Deliver report via webhook"""
         webhook_config = config.get("webhook", {})
         url = webhook_config.get("url")
@@ -666,7 +689,7 @@ class ReportGenerationService:
             "report_name": report.name,
             "report_title": report.title,
             "generated_at": datetime.utcnow().isoformat(),
-            "format": report.output_format
+            "format": report.output_format,
         }
 
         # Send file if configured
@@ -689,7 +712,9 @@ class ReportGenerationService:
                     else:
                         logger.info("Webhook delivered successfully")
 
-    async def _deliver_s3(self, report: AnalyticsReport, file_path: Path, config: Dict[str, Any]) -> None:
+    async def _deliver_s3(
+        self, report: AnalyticsReport, file_path: Path, config: Dict[str, Any]
+    ) -> None:
         """Deliver report to S3"""
         # This is a placeholder for S3 delivery
         # In production, you'd use boto3 or similar
@@ -700,24 +725,30 @@ class ReportGenerationService:
         user_id: uuid.UUID,
         organization_id: Optional[uuid.UUID] = None,
         limit: int = 50,
-        offset: int = 0
+        offset: int = 0,
     ) -> List[AnalyticsReport]:
         """List reports for user"""
         try:
             async with get_async_session() as db:
-                query = select(AnalyticsReport).where(
-                    and_(
-                        AnalyticsReport.is_active == True,
-                        or_(
-                            AnalyticsReport.owner_id == user_id,
-                            AnalyticsReport.is_public == True,
-                            and_(
-                                AnalyticsReport.organization_id == organization_id,
-                                organization_id is not None
-                            )
+                query = (
+                    select(AnalyticsReport)
+                    .where(
+                        and_(
+                            AnalyticsReport.is_active == True,
+                            or_(
+                                AnalyticsReport.owner_id == user_id,
+                                AnalyticsReport.is_public == True,
+                                and_(
+                                    AnalyticsReport.organization_id == organization_id,
+                                    organization_id is not None,
+                                ),
+                            ),
                         )
                     )
-                ).order_by(desc(AnalyticsReport.updated_at)).offset(offset).limit(limit)
+                    .order_by(desc(AnalyticsReport.updated_at))
+                    .offset(offset)
+                    .limit(limit)
+                )
 
                 result = await db.execute(query)
                 reports = result.scalars().all()
@@ -727,7 +758,9 @@ class ReportGenerationService:
             logger.error(f"Error listing reports: {e}")
             return []
 
-    async def get_report(self, report_id: uuid.UUID, user_id: uuid.UUID) -> Optional[AnalyticsReport]:
+    async def get_report(
+        self, report_id: uuid.UUID, user_id: uuid.UUID
+    ) -> Optional[AnalyticsReport]:
         """Get report by ID"""
         try:
             async with get_async_session() as db:
@@ -739,9 +772,11 @@ class ReportGenerationService:
                     return None
 
                 # Check permissions
-                if (report.owner_id != user_id and
-                    not report.is_public and
-                    report.organization_id):
+                if (
+                    report.owner_id != user_id
+                    and not report.is_public
+                    and report.organization_id
+                ):
                     # Would need to check organization membership
                     pass
 
@@ -803,7 +838,7 @@ class ReportGenerationService:
 
     def __del__(self):
         """Cleanup on service destruction"""
-        if hasattr(self, 'executor'):
+        if hasattr(self, "executor"):
             self.executor.shutdown(wait=False)
 
 

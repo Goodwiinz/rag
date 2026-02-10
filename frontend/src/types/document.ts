@@ -62,4 +62,3 @@ export interface UploadProgress {
   estimated_remaining_seconds?: number;
   error_message?: string;
 }
-

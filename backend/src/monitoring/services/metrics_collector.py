@@ -6,21 +6,34 @@ and business metrics with Prometheus integration.
 """
 
 import asyncio
-import logging
-import time
-import psutil
-import platform
 import json
-from typing import Dict, List, Optional, Any, Union
-from datetime import datetime, timedelta
-from dataclasses import dataclass, asdict
+import logging
+import platform
+import time
 import uuid
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Union
 
-from prometheus_client import Counter, Histogram, Gauge, Summary, CollectorRegistry, generate_latest
+import psutil
+from prometheus_client import (
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    Histogram,
+    Summary,
+    generate_latest,
+)
 from prometheus_client.core import REGISTRY
 
+from src.monitoring.models.metrics import (
+    Metric,
+    MetricAggregation,
+    MetricDefinition,
+    TimeSeriesData,
+)
+
 from ..config.monitoring_config import MetricsConfig
-from src.monitoring.models.metrics import MetricDefinition, Metric, MetricAggregation, TimeSeriesData
 from ..utils.exceptions import MetricsError
 
 logger = logging.getLogger(__name__)
@@ -29,6 +42,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MetricPoint:
     """Single metric data point"""
+
     name: str
     value: float
     labels: Dict[str, str]
@@ -146,12 +160,14 @@ class MetricsCollector:
         self._metric_buffer.clear()
         logger.info("✅ Metrics collector cleanup complete")
 
-    async def record_metric(self,
-                           name: str,
-                           value: float,
-                           labels: Optional[Dict[str, str]] = None,
-                           timestamp: Optional[datetime] = None,
-                           source: Optional[str] = None) -> None:
+    async def record_metric(
+        self,
+        name: str,
+        value: float,
+        labels: Optional[Dict[str, str]] = None,
+        timestamp: Optional[datetime] = None,
+        source: Optional[str] = None,
+    ) -> None:
         """
         Record a metric
 
@@ -179,7 +195,7 @@ class MetricsCollector:
                 labels=labels or {},
                 timestamp=timestamp or datetime.utcnow(),
                 unit=definition.unit,
-                metric_type=definition.metric_type
+                metric_type=definition.metric_type,
             )
 
             # Add to buffer
@@ -193,35 +209,34 @@ class MetricsCollector:
         except Exception as e:
             logger.error(f"Error recording metric {name}: {e}")
 
-    async def increment_counter(self,
-                              name: str,
-                              value: float = 1.0,
-                              labels: Optional[Dict[str, str]] = None) -> None:
+    async def increment_counter(
+        self, name: str, value: float = 1.0, labels: Optional[Dict[str, str]] = None
+    ) -> None:
         """Increment a counter metric"""
         await self.record_metric(name, value, labels)
 
-    async def set_gauge(self,
-                       name: str,
-                       value: float,
-                       labels: Optional[Dict[str, str]] = None) -> None:
+    async def set_gauge(
+        self, name: str, value: float, labels: Optional[Dict[str, str]] = None
+    ) -> None:
         """Set a gauge metric value"""
         await self.record_metric(name, value, labels)
 
-    async def observe_histogram(self,
-                               name: str,
-                               value: float,
-                               labels: Optional[Dict[str, str]] = None) -> None:
+    async def observe_histogram(
+        self, name: str, value: float, labels: Optional[Dict[str, str]] = None
+    ) -> None:
         """Observe a histogram metric value"""
         await self.record_metric(name, value, labels)
 
-    async def create_metric_definition(self,
-                                     name: str,
-                                     metric_type: str,
-                                     unit: str,
-                                     description: Optional[str] = None,
-                                     labels_schema: Optional[Dict[str, Any]] = None,
-                                     aggregation_rules: Optional[Dict[str, Any]] = None,
-                                     category: Optional[str] = None) -> None:
+    async def create_metric_definition(
+        self,
+        name: str,
+        metric_type: str,
+        unit: str,
+        description: Optional[str] = None,
+        labels_schema: Optional[Dict[str, Any]] = None,
+        aggregation_rules: Optional[Dict[str, Any]] = None,
+        category: Optional[str] = None,
+    ) -> None:
         """
         Create a new metric definition
 
@@ -242,7 +257,7 @@ class MetricsCollector:
                 unit=unit,
                 labels_schema=labels_schema or {},
                 aggregation_rules=aggregation_rules or {},
-                category=category or "custom"
+                category=category or "custom",
             )
 
             self._metric_definitions[name] = definition
@@ -257,12 +272,14 @@ class MetricsCollector:
             logger.error(f"❌ Failed to create metric definition {name}: {e}")
             raise MetricsError(f"Failed to create metric definition: {e}")
 
-    async def get_metrics(self,
-                         service: Optional[str] = None,
-                         metric_name: Optional[str] = None,
-                         start_time: Optional[datetime] = None,
-                         end_time: Optional[datetime] = None,
-                         labels: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    async def get_metrics(
+        self,
+        service: Optional[str] = None,
+        metric_name: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        labels: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
         """
         Get metrics data
 
@@ -286,26 +303,26 @@ class MetricsCollector:
             # Filter metrics from buffer
             async with self._buffer_lock:
                 filtered_metrics = [
-                    metric for metric in self._metric_buffer
+                    metric
+                    for metric in self._metric_buffer
                     if start_time <= metric.timestamp <= end_time
                 ]
 
             # Apply filters
             if service:
                 filtered_metrics = [
-                    m for m in filtered_metrics
-                    if m.labels.get('service') == service
+                    m for m in filtered_metrics if m.labels.get("service") == service
                 ]
 
             if metric_name:
                 filtered_metrics = [
-                    m for m in filtered_metrics
-                    if m.name == metric_name
+                    m for m in filtered_metrics if m.name == metric_name
                 ]
 
             if labels:
                 filtered_metrics = [
-                    m for m in filtered_metrics
+                    m
+                    for m in filtered_metrics
                     if all(m.labels.get(k) == v for k, v in labels.items())
                 ]
 
@@ -324,8 +341,8 @@ class MetricsCollector:
                 "filters": {
                     "service": service,
                     "metric_name": metric_name,
-                    "labels": labels
-                }
+                    "labels": labels,
+                },
             }
 
         except Exception as e:
@@ -338,7 +355,7 @@ class MetricsCollector:
             return ""
 
         try:
-            return generate_latest(self._registry).decode('utf-8')
+            return generate_latest(self._registry).decode("utf-8")
         except Exception as e:
             logger.error(f"Error generating Prometheus metrics: {e}")
             return ""
@@ -348,52 +365,61 @@ class MetricsCollector:
         try:
             # CPU metrics
             cpu_percent = psutil.cpu_percent(interval=1)
-            await self.set_gauge("system_cpu_usage_percent", cpu_percent, {
-                "host": platform.node(),
-                "cores": str(psutil.cpu_count())
-            })
+            await self.set_gauge(
+                "system_cpu_usage_percent",
+                cpu_percent,
+                {"host": platform.node(), "cores": str(psutil.cpu_count())},
+            )
 
             # Memory metrics
             memory = psutil.virtual_memory()
-            await self.set_gauge("system_memory_usage_percent", memory.percent, {
-                "host": platform.node()
-            })
-            await self.set_gauge("system_memory_available_bytes", memory.available, {
-                "host": platform.node()
-            })
+            await self.set_gauge(
+                "system_memory_usage_percent", memory.percent, {"host": platform.node()}
+            )
+            await self.set_gauge(
+                "system_memory_available_bytes",
+                memory.available,
+                {"host": platform.node()},
+            )
 
             # Disk metrics
-            disk = psutil.disk_usage('/')
-            await self.set_gauge("system_disk_usage_percent", disk.percent, {
-                "host": platform.node(),
-                "mount": "/"
-            })
-            await self.set_gauge("system_disk_free_bytes", disk.free, {
-                "host": platform.node(),
-                "mount": "/"
-            })
+            disk = psutil.disk_usage("/")
+            await self.set_gauge(
+                "system_disk_usage_percent",
+                disk.percent,
+                {"host": platform.node(), "mount": "/"},
+            )
+            await self.set_gauge(
+                "system_disk_free_bytes",
+                disk.free,
+                {"host": platform.node(), "mount": "/"},
+            )
 
             # Network metrics
             network = psutil.net_io_counters()
-            await self.increment_counter("system_network_bytes_sent", network.bytes_sent, {
-                "host": platform.node(),
-                "direction": "sent"
-            })
-            await self.increment_counter("system_network_bytes_recv", network.bytes_recv, {
-                "host": platform.node(),
-                "direction": "received"
-            })
+            await self.increment_counter(
+                "system_network_bytes_sent",
+                network.bytes_sent,
+                {"host": platform.node(), "direction": "sent"},
+            )
+            await self.increment_counter(
+                "system_network_bytes_recv",
+                network.bytes_recv,
+                {"host": platform.node(), "direction": "received"},
+            )
 
             # Process metrics
             process = psutil.Process()
-            await self.set_gauge("process_memory_rss_bytes", process.memory_info().rss, {
-                "host": platform.node(),
-                "pid": str(process.pid)
-            })
-            await self.set_gauge("process_cpu_percent", process.cpu_percent(), {
-                "host": platform.node(),
-                "pid": str(process.pid)
-            })
+            await self.set_gauge(
+                "process_memory_rss_bytes",
+                process.memory_info().rss,
+                {"host": platform.node(), "pid": str(process.pid)},
+            )
+            await self.set_gauge(
+                "process_cpu_percent",
+                process.cpu_percent(),
+                {"host": platform.node(), "pid": str(process.pid)},
+            )
 
         except Exception as e:
             logger.error(f"Error collecting system metrics: {e}")
@@ -409,37 +435,35 @@ class MetricsCollector:
             "buffer_size": len(self._metric_buffer),
             "collection_interval": self.config.collection_interval_seconds,
             "status": "healthy" if self._running else "stopped",
-            "system_info": self._system_info
+            "system_info": self._system_info,
         }
 
     async def _initialize_prometheus_metrics(self) -> None:
         """Initialize Prometheus metrics"""
         try:
             # Default system metrics
-            self._prometheus_metrics['uptime_seconds'] = Gauge(
-                'uptime_seconds',
-                'Service uptime in seconds',
-                registry=self._registry
+            self._prometheus_metrics["uptime_seconds"] = Gauge(
+                "uptime_seconds", "Service uptime in seconds", registry=self._registry
             )
 
-            self._prometheus_metrics['requests_total'] = Counter(
-                'requests_total',
-                'Total number of requests',
-                ['method', 'endpoint', 'status'],
-                registry=self._registry
+            self._prometheus_metrics["requests_total"] = Counter(
+                "requests_total",
+                "Total number of requests",
+                ["method", "endpoint", "status"],
+                registry=self._registry,
             )
 
-            self._prometheus_metrics['request_duration_seconds'] = Histogram(
-                'request_duration_seconds',
-                'Request duration in seconds',
-                ['method', 'endpoint'],
-                registry=self._registry
+            self._prometheus_metrics["request_duration_seconds"] = Histogram(
+                "request_duration_seconds",
+                "Request duration in seconds",
+                ["method", "endpoint"],
+                registry=self._registry,
             )
 
-            self._prometheus_metrics['active_connections'] = Gauge(
-                'active_connections',
-                'Number of active connections',
-                registry=self._registry
+            self._prometheus_metrics["active_connections"] = Gauge(
+                "active_connections",
+                "Number of active connections",
+                registry=self._registry,
             )
 
             logger.info("✅ Prometheus metrics initialized")
@@ -456,50 +480,50 @@ class MetricsCollector:
                 "metric_type": "counter",
                 "unit": "count",
                 "description": "Total HTTP requests",
-                "category": "application"
+                "category": "application",
             },
             {
                 "name": "http_request_duration_ms",
                 "metric_type": "histogram",
                 "unit": "milliseconds",
                 "description": "HTTP request duration",
-                "category": "application"
+                "category": "application",
             },
             {
                 "name": "system_cpu_usage_percent",
                 "metric_type": "gauge",
                 "unit": "percentage",
                 "description": "System CPU usage percentage",
-                "category": "system"
+                "category": "system",
             },
             {
                 "name": "system_memory_usage_percent",
                 "metric_type": "gauge",
                 "unit": "percentage",
                 "description": "System memory usage percentage",
-                "category": "system"
+                "category": "system",
             },
             {
                 "name": "rag_query_total",
                 "metric_type": "counter",
                 "unit": "count",
                 "description": "Total RAG queries",
-                "category": "business"
+                "category": "business",
             },
             {
                 "name": "rag_query_duration_ms",
                 "metric_type": "histogram",
                 "unit": "milliseconds",
                 "description": "RAG query duration",
-                "category": "business"
+                "category": "business",
             },
             {
                 "name": "rag_documents_indexed_total",
                 "metric_type": "counter",
                 "unit": "count",
                 "description": "Total documents indexed",
-                "category": "business"
-            }
+                "category": "business",
+            },
         ]
 
         for metric_config in default_metrics:
@@ -520,29 +544,37 @@ class MetricsCollector:
                 metric = Counter(
                     name,
                     description,
-                    list(definition.labels_schema.keys()) if definition.labels_schema else [],
-                    registry=self._registry
+                    list(definition.labels_schema.keys())
+                    if definition.labels_schema
+                    else [],
+                    registry=self._registry,
                 )
             elif definition.metric_type == "gauge":
                 metric = Gauge(
                     name,
                     description,
-                    list(definition.labels_schema.keys()) if definition.labels_schema else [],
-                    registry=self._registry
+                    list(definition.labels_schema.keys())
+                    if definition.labels_schema
+                    else [],
+                    registry=self._registry,
                 )
             elif definition.metric_type == "histogram":
                 metric = Histogram(
                     name,
                     description,
-                    list(definition.labels_schema.keys()) if definition.labels_schema else [],
-                    registry=self._registry
+                    list(definition.labels_schema.keys())
+                    if definition.labels_schema
+                    else [],
+                    registry=self._registry,
                 )
             elif definition.metric_type == "summary":
                 metric = Summary(
                     name,
                     description,
-                    list(definition.labels_schema.keys()) if definition.labels_schema else [],
-                    registry=self._registry
+                    list(definition.labels_schema.keys())
+                    if definition.labels_schema
+                    else [],
+                    registry=self._registry,
                 )
             else:
                 logger.warning(f"Unsupported metric type: {definition.metric_type}")
@@ -637,5 +669,5 @@ class MetricsCollector:
             "python_version": platform.python_version(),
             "cpu_count": psutil.cpu_count(),
             "memory_total": psutil.virtual_memory().total,
-            "disk_total": psutil.disk_usage('/').total
+            "disk_total": psutil.disk_usage("/").total,
         }

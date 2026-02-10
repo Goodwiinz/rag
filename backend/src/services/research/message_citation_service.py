@@ -5,11 +5,11 @@ Handles parsing [Doc N] citations from AI responses and persisting them to the d
 
 import re
 import time
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from structlog import get_logger
 
 from src.models import Citation, Document
@@ -21,7 +21,7 @@ logger = get_logger()
 class MessageCitationService:
     """Service for extracting and persisting citations from chat messages."""
 
-    CITATION_PATTERN = re.compile(r'\[Doc\s+(\d+)\]')
+    CITATION_PATTERN = re.compile(r"\[Doc\s+(\d+)\]")
 
     def __init__(self, db: AsyncSession):
         """Initialize service with database session.
@@ -52,7 +52,7 @@ class MessageCitationService:
         try:
             # Find all [Doc N] citations in message
             citation_matches = self.CITATION_PATTERN.findall(message_content)
-            
+
             if not citation_matches:
                 logger.debug(
                     "no_citations_found",
@@ -125,7 +125,9 @@ class MessageCitationService:
 
             # Enhanced observability logging
             elapsed_ms = (time.time() - start_time) * 1000
-            unique_docs = len(set(c.document_id for c in citations_created if c.document_id))
+            unique_docs = len(
+                set(c.document_id for c in citations_created if c.document_id)
+            )
             logger.info(
                 "citations_saved",
                 message_id=str(message_id),
@@ -135,7 +137,7 @@ class MessageCitationService:
                 duration_ms=round(elapsed_ms, 2),
                 event="citation_batch_created",
             )
-            
+
             # Log individual citation details for debugging
             for citation in citations_created:
                 logger.debug(

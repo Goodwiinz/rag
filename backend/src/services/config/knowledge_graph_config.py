@@ -4,6 +4,7 @@ Configuration for Knowledge Graph Service
 
 import os
 from typing import Optional
+
 try:
     from pydantic_settings import BaseSettings
 except ImportError:
@@ -27,8 +28,7 @@ class KnowledgeGraphConfig(BaseSettings):
 
     # PostgreSQL Configuration
     DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql://user:password@localhost:5432/rag_system"
+        "DATABASE_URL", "postgresql://user:password@localhost:5432/rag_system"
     )
 
     # Redis Configuration

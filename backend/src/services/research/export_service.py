@@ -11,26 +11,26 @@ Handles conversion of thread data to various formats:
 import io
 import json
 import zipfile
-import structlog
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, Optional, Dict, Any, Protocol, BinaryIO
-from jinja2 import Environment, BaseLoader, select_autoescape
-from jinja2.ext import loopcontrols
+from typing import Any, BinaryIO, Dict, List, Optional, Protocol
 
-from sqlalchemy.ext.asyncio import AsyncSession
+import structlog
+from jinja2 import BaseLoader, Environment, select_autoescape
+from jinja2.ext import loopcontrols
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.models.thread import Thread
 from src.models.chat_message import ChatMessage, MessageRole
 from src.models.citation import Citation
+from src.models.thread import Thread
 from src.shared.export_schemas import (
+    CitationExport,
     ExportFormat,
     ExportOptions,
-    ThreadExport,
     MessageExport,
-    CitationExport,
+    ThreadExport,
 )
 
 logger = structlog.get_logger(__name__)
@@ -183,22 +183,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
 class ExportFormatter(ABC):
     """Abstract base class for export formatters."""
-    
+
     @abstractmethod
-    def format(
-        self,
-        thread: ThreadExport,
-        options: ExportOptions
-    ) -> bytes:
+    def format(self, thread: ThreadExport, options: ExportOptions) -> bytes:
         """Format thread data to bytes."""
         pass
-    
+
     @property
     @abstractmethod
     def content_type(self) -> str:
         """MIME content type."""
         pass
-    
+
     @property
     @abstractmethod
     def file_extension(self) -> str:
@@ -212,25 +208,23 @@ class MarkdownFormatter(ExportFormatter):
     def __init__(self):
         # Enable autoescape for security (even for Markdown)
         self._env = Environment(
-            loader=BaseLoader(),
-            extensions=[loopcontrols],
-            autoescape=True
+            loader=BaseLoader(), extensions=[loopcontrols], autoescape=True
         )
         self._template = self._env.from_string(MARKDOWN_TEMPLATE)
-    
+
     def format(self, thread: ThreadExport, options: ExportOptions) -> bytes:
         content = self._template.render(
             thread=thread,
             options=options,
             date_format=options.date_format,
-            exported_at=datetime.utcnow()
+            exported_at=datetime.utcnow(),
         )
-        return content.encode('utf-8')
-    
+        return content.encode("utf-8")
+
     @property
     def content_type(self) -> str:
         return "text/markdown; charset=utf-8"
-    
+
     @property
     def file_extension(self) -> str:
         return "md"
@@ -244,23 +238,23 @@ class HTMLFormatter(ExportFormatter):
         self._env = Environment(
             loader=BaseLoader(),
             extensions=[loopcontrols],
-            autoescape=select_autoescape(['html', 'xml'])
+            autoescape=select_autoescape(["html", "xml"]),
         )
         self._template = self._env.from_string(HTML_TEMPLATE)
-    
+
     def format(self, thread: ThreadExport, options: ExportOptions) -> bytes:
         content = self._template.render(
             thread=thread,
             options=options,
             date_format=options.date_format,
-            exported_at=datetime.utcnow()
+            exported_at=datetime.utcnow(),
         )
-        return content.encode('utf-8')
-    
+        return content.encode("utf-8")
+
     @property
     def content_type(self) -> str:
         return "text/html; charset=utf-8"
-    
+
     @property
     def file_extension(self) -> str:
         return "html"
@@ -268,17 +262,17 @@ class HTMLFormatter(ExportFormatter):
 
 class JSONFormatter(ExportFormatter):
     """Format thread as JSON."""
-    
+
     def format(self, thread: ThreadExport, options: ExportOptions) -> bytes:
-        data = thread.model_dump(mode='json')
-        data['export_options'] = options.model_dump()
+        data = thread.model_dump(mode="json")
+        data["export_options"] = options.model_dump()
         content = json.dumps(data, indent=2, default=str)
-        return content.encode('utf-8')
-    
+        return content.encode("utf-8")
+
     @property
     def content_type(self) -> str:
         return "application/json; charset=utf-8"
-    
+
     @property
     def file_extension(self) -> str:
         return "json"
@@ -286,42 +280,48 @@ class JSONFormatter(ExportFormatter):
 
 class PDFFormatter(ExportFormatter):
     """Format thread as PDF using WeasyPrint."""
-    
+
     def __init__(self):
         self._html_formatter = HTMLFormatter()
         self._weasyprint_available = self._check_weasyprint()
-    
+
     def _check_weasyprint(self) -> bool:
         try:
             import weasyprint
+
             return True
         except ImportError:
-            logger.warning("WeasyPrint not installed, PDF export will use HTML fallback")
+            logger.warning(
+                "WeasyPrint not installed, PDF export will use HTML fallback"
+            )
             return False
-    
+
     def format(self, thread: ThreadExport, options: ExportOptions) -> bytes:
         html_content = self._html_formatter.format(thread, options)
-        
+
         if not self._weasyprint_available:
             # Fallback: return HTML with PDF content type suggestion
-            logger.warning("PDF export falling back to HTML - install weasyprint for true PDF")
+            logger.warning(
+                "PDF export falling back to HTML - install weasyprint for true PDF"
+            )
             return html_content
-        
+
         try:
             import weasyprint
-            html_doc = weasyprint.HTML(string=html_content.decode('utf-8'))
+
+            html_doc = weasyprint.HTML(string=html_content.decode("utf-8"))
             pdf_bytes = html_doc.write_pdf()
             return pdf_bytes
         except Exception as e:
             logger.error("PDF generation failed", error=str(e))
             raise RuntimeError(f"PDF generation failed: {e}")
-    
+
     @property
     def content_type(self) -> str:
         if self._weasyprint_available:
             return "application/pdf"
         return "text/html; charset=utf-8"
-    
+
     @property
     def file_extension(self) -> str:
         if self._weasyprint_available:
@@ -331,7 +331,7 @@ class PDFFormatter(ExportFormatter):
 
 class ExportService:
     """Service for exporting threads to various formats."""
-    
+
     def __init__(self, db: AsyncSession):
         self._db = db
         self._formatters: Dict[ExportFormat, ExportFormatter] = {
@@ -340,117 +340,118 @@ class ExportService:
             ExportFormat.JSON: JSONFormatter(),
             ExportFormat.PDF: PDFFormatter(),
         }
-    
+
     async def export_thread(
-        self,
-        thread_id: str,
-        user_id: str,
-        format: ExportFormat,
-        options: ExportOptions
+        self, thread_id: str, user_id: str, format: ExportFormat, options: ExportOptions
     ) -> tuple[bytes, str, str]:
         """
         Export a single thread.
-        
+
         Returns:
             tuple: (content_bytes, filename, content_type)
         """
         thread = await self._load_thread(thread_id, user_id, options)
         if not thread:
             raise ValueError(f"Thread {thread_id} not found or access denied")
-        
+
         formatter = self._formatters[format]
         content = formatter.format(thread, options)
-        
+
         # Generate filename
         title_slug = self._slugify(thread.title or "thread")
         filename = f"{title_slug}_{thread_id[:8]}.{formatter.file_extension}"
-        
+
         logger.info(
             "Thread exported",
             thread_id=thread_id,
             format=format.value,
-            size_bytes=len(content)
+            size_bytes=len(content),
         )
-        
+
         return content, filename, formatter.content_type
-    
+
     async def export_batch(
         self,
         thread_ids: List[str],
         user_id: str,
         format: ExportFormat,
         options: ExportOptions,
-        as_zip: bool = True
+        as_zip: bool = True,
     ) -> tuple[bytes, str, str]:
         """
         Export multiple threads.
-        
+
         Returns:
             tuple: (content_bytes, filename, content_type)
         """
         if not as_zip and len(thread_ids) > 1:
             raise ValueError("Multiple threads require ZIP packaging")
-        
+
         if len(thread_ids) == 1 and not as_zip:
             return await self.export_thread(thread_ids[0], user_id, format, options)
-        
+
         # Create ZIP archive
         zip_buffer = io.BytesIO()
         formatter = self._formatters[format]
-        
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
             for thread_id in thread_ids:
                 try:
                     thread = await self._load_thread(thread_id, user_id, options)
                     if not thread:
-                        logger.warning("Thread not found, skipping", thread_id=thread_id)
+                        logger.warning(
+                            "Thread not found, skipping", thread_id=thread_id
+                        )
                         continue
-                    
+
                     content = formatter.format(thread, options)
                     title_slug = self._slugify(thread.title or "thread")
-                    filename = f"{title_slug}_{thread_id[:8]}.{formatter.file_extension}"
-                    
+                    filename = (
+                        f"{title_slug}_{thread_id[:8]}.{formatter.file_extension}"
+                    )
+
                     zf.writestr(filename, content)
-                    
+
                 except Exception as e:
-                    logger.error("Failed to export thread", thread_id=thread_id, error=str(e))
+                    logger.error(
+                        "Failed to export thread", thread_id=thread_id, error=str(e)
+                    )
                     # Add error file
                     zf.writestr(f"error_{thread_id[:8]}.txt", f"Export failed: {e}")
-        
+
         zip_buffer.seek(0)
         zip_content = zip_buffer.read()
-        
+
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         filename = f"thread_export_{timestamp}.zip"
-        
+
         logger.info(
             "Batch export completed",
             thread_count=len(thread_ids),
             format=format.value,
-            size_bytes=len(zip_content)
+            size_bytes=len(zip_content),
         )
-        
+
         return zip_content, filename, "application/zip"
-    
+
     async def _load_thread(
-        self,
-        thread_id: str,
-        user_id: str,
-        options: ExportOptions
+        self, thread_id: str, user_id: str, options: ExportOptions
     ) -> Optional[ThreadExport]:
         """Load thread with messages and citations."""
         query = (
             select(Thread)
             .options(
                 selectinload(Thread.messages).selectinload(ChatMessage.citations),
-                selectinload(Thread.conversation)  # Load conversation for ownership check
+                selectinload(
+                    Thread.conversation
+                ),  # Load conversation for ownership check
             )
             .where(Thread.id == thread_id)
         )
-        
+
         result = await self._db.execute(query)
         thread = result.unique().scalar_one_or_none()
-        
+
         if not thread:
             return None
 
@@ -458,51 +459,66 @@ class ExportService:
         # Thread ownership is determined by:
         # 1. User created the thread directly (thread.created_by_id == user_id)
         # 2. User owns the parent conversation (conversation.created_by_id == user_id)
-        if str(thread.created_by_id) != user_id and str(thread.conversation.created_by_id) != user_id:
+        if (
+            str(thread.created_by_id) != user_id
+            and str(thread.conversation.created_by_id) != user_id
+        ):
             logger.warning(
                 "Unauthorized thread export attempt",
                 thread_id=thread_id,
                 user_id=user_id,
                 thread_owner=str(thread.created_by_id),
-                conversation_owner=str(thread.conversation.created_by_id)
+                conversation_owner=str(thread.conversation.created_by_id),
             )
             return None
-        
+
         # Convert to export schema
         messages = []
         for msg in thread.messages:
             # Skip system messages if not requested
             if msg.role == MessageRole.SYSTEM and not options.include_system_messages:
                 continue
-            
+
             citations = []
             if options.include_citations and msg.citations:
                 for cit in msg.citations:
-                    citations.append(CitationExport(
-                        id=str(cit.id),
-                        document_id=str(cit.document_id) if cit.document_id else None,
-                        external_reference_id=cit.external_reference_id,
-                        document_title=cit.document_title,
-                        document_type=cit.document_type,
-                        snippet=cit.snippet,
-                        page_number=cit.page_number,
-                        score=cit.score
-                    ))
-            
-            messages.append(MessageExport(
-                id=str(msg.id),
-                role=msg.role.value,
-                content=msg.content,
-                created_at=msg.created_at,
-                model_name=msg.model_name if options.include_metadata else None,
-                token_count=msg.token_count if options.include_metadata else 0,
-                latency_ms=msg.latency_ms if options.include_metadata else None,
-                feedback_rating=msg.feedback_rating if options.include_feedback else None,
-                feedback_text=msg.feedback_text if options.include_feedback else None,
-                citations=citations,
-                has_attachments=msg.has_attachments if options.include_attachments else False
-            ))
-        
+                    citations.append(
+                        CitationExport(
+                            id=str(cit.id),
+                            document_id=str(cit.document_id)
+                            if cit.document_id
+                            else None,
+                            external_reference_id=cit.external_reference_id,
+                            document_title=cit.document_title,
+                            document_type=cit.document_type,
+                            snippet=cit.snippet,
+                            page_number=cit.page_number,
+                            score=cit.score,
+                        )
+                    )
+
+            messages.append(
+                MessageExport(
+                    id=str(msg.id),
+                    role=msg.role.value,
+                    content=msg.content,
+                    created_at=msg.created_at,
+                    model_name=msg.model_name if options.include_metadata else None,
+                    token_count=msg.token_count if options.include_metadata else 0,
+                    latency_ms=msg.latency_ms if options.include_metadata else None,
+                    feedback_rating=msg.feedback_rating
+                    if options.include_feedback
+                    else None,
+                    feedback_text=msg.feedback_text
+                    if options.include_feedback
+                    else None,
+                    citations=citations,
+                    has_attachments=msg.has_attachments
+                    if options.include_attachments
+                    else False,
+                )
+            )
+
         return ThreadExport(
             id=str(thread.id),
             title=thread.title,
@@ -515,16 +531,17 @@ class ExportService:
             token_count=thread.token_count,
             conversation_id=str(thread.conversation_id),
             messages=messages,
-            export_format=ExportFormat.MARKDOWN  # Will be overwritten by formatter
+            export_format=ExportFormat.MARKDOWN,  # Will be overwritten by formatter
         )
-    
+
     def _slugify(self, text: str, max_length: int = 50) -> str:
         """Convert text to URL-safe slug."""
         import re
+
         text = text.lower()
-        text = re.sub(r'[^\w\s-]', '', text)
-        text = re.sub(r'[-\s]+', '_', text)
-        return text[:max_length].strip('_')
+        text = re.sub(r"[^\w\s-]", "", text)
+        text = re.sub(r"[-\s]+", "_", text)
+        return text[:max_length].strip("_")
 
 
 def get_export_service(db: AsyncSession) -> ExportService:

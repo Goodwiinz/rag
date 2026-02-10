@@ -5,7 +5,7 @@ MessageAttachment model for Terminal Observatory multimodal messages
 from sqlalchemy import Column, ForeignKey, String
 from sqlalchemy.orm import relationship
 
-from .base import BaseModel, GUID
+from .base import GUID, BaseModel
 
 
 class MessageAttachment(BaseModel):
@@ -19,8 +19,18 @@ class MessageAttachment(BaseModel):
     __tablename__ = "message_attachments"
 
     # Parent relationships
-    message_id = Column(GUID(), ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=False, index=True)
-    document_id = Column(GUID(), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    message_id = Column(
+        GUID(),
+        ForeignKey("chat_messages.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    document_id = Column(
+        GUID(),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     # Optional metadata
     display_name = Column(String(255), nullable=True)  # Custom display name
@@ -39,9 +49,13 @@ class MessageAttachment(BaseModel):
 
         # Include document info if available
         if self.document:
-            data['document_title'] = self.document.title
-            data['document_type'] = self.document.document_type.value if self.document.document_type else None
-            data['mime_type'] = self.document.mime_type
+            data["document_title"] = self.document.title
+            data["document_type"] = (
+                self.document.document_type.value
+                if self.document.document_type
+                else None
+            )
+            data["mime_type"] = self.document.mime_type
 
         return data
 
@@ -50,11 +64,14 @@ class MessageAttachment(BaseModel):
         return {
             "id": str(self.id),
             "document_id": str(self.document_id),
-            "display_name": self.display_name or (self.document.title if self.document else "Unknown"),
+            "display_name": self.display_name
+            or (self.document.title if self.document else "Unknown"),
             "thumbnail_url": self.thumbnail_url,
-            "document_type": self.document.document_type.value if self.document and self.document.document_type else None,
-            "mime_type": self.document.mime_type if self.document else None
+            "document_type": self.document.document_type.value
+            if self.document and self.document.document_type
+            else None,
+            "mime_type": self.document.mime_type if self.document else None,
         }
 
     class Meta:
-        unique_together = [('message_id', 'document_id')]
+        unique_together = [("message_id", "document_id")]

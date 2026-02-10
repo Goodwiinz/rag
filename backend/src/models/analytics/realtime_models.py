@@ -5,20 +5,22 @@ Real-time analytics models for WebSocket streaming and live metrics
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional, Any, Union
-from pydantic import BaseModel, Field, validator, ConfigDict
-from sqlalchemy import (
-    Column, String, DateTime, Boolean, Text, JSON, Integer, ForeignKey,
-    Float, Enum as SQLEnum, BigInteger
-)
-from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from typing import Any, Dict, List, Optional, Union
 
-from ..base import BaseModel as SQLBaseModel, GUID
+from pydantic import BaseModel, ConfigDict, Field, validator
+from sqlalchemy import JSON, BigInteger, Boolean, Column, DateTime
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import Float, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import relationship
+
+from ..base import GUID
+from ..base import BaseModel as SQLBaseModel
 
 
 class SubscriptionType(str, Enum):
     """Types of real-time subscriptions"""
+
     METRICS = "metrics"
     EVENTS = "events"
     KPI = "kpi"
@@ -31,6 +33,7 @@ class SubscriptionType(str, Enum):
 
 class WebSocketMessageType(str, Enum):
     """WebSocket message types"""
+
     SUBSCRIBE = "subscribe"
     UNSUBSCRIBE = "unsubscribe"
     DATA = "data"
@@ -53,7 +56,9 @@ class RealtimeSubscription(SQLBaseModel):
 
     # Subscription configuration
     subscription_type = Column(SQLEnum(SubscriptionType), nullable=False, index=True)
-    channel = Column(String(255), nullable=False, index=True)  # Subscription channel/topic
+    channel = Column(
+        String(255), nullable=False, index=True
+    )  # Subscription channel/topic
     filters = Column(JSON, nullable=True)  # Subscription filters
 
     # Configuration
@@ -63,7 +68,9 @@ class RealtimeSubscription(SQLBaseModel):
 
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
-    last_activity = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    last_activity = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
     message_count = Column(Integer, default=0, nullable=False)
     error_count = Column(Integer, default=0, nullable=False)
 
@@ -122,7 +129,9 @@ class EventStream(SQLBaseModel):
 
     # Event data
     payload = Column(JSON, nullable=False)
-    event_metadata = Column(JSON, nullable=True)  # Renamed from 'metadata' to avoid SQLAlchemy conflict
+    event_metadata = Column(
+        JSON, nullable=True
+    )  # Renamed from 'metadata' to avoid SQLAlchemy conflict
 
     # Context
     user_id = Column(GUID(), ForeignKey("users.id"), nullable=True, index=True)
@@ -159,7 +168,9 @@ class WebSocketConnection(SQLBaseModel):
 
     # Status
     is_connected = Column(Boolean, default=True, nullable=False)
-    connected_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    connected_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
     disconnected_at = Column(DateTime(timezone=True), nullable=True)
     last_ping = Column(DateTime(timezone=True), nullable=True)
     last_pong = Column(DateTime(timezone=True), nullable=True)
@@ -177,8 +188,10 @@ class WebSocketConnection(SQLBaseModel):
 
 # Pydantic models for API serialization
 
+
 class WebSocketMessage(BaseModel):
     """WebSocket message base model"""
+
     type: WebSocketMessageType
     message_id: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
@@ -190,6 +203,7 @@ class WebSocketMessage(BaseModel):
 
 class SubscribeMessage(WebSocketMessage):
     """WebSocket subscribe message"""
+
     subscription_type: SubscriptionType
     channel: str
     filters: Optional[Dict[str, Any]] = None
@@ -201,6 +215,7 @@ class SubscribeMessage(WebSocketMessage):
 
 class UnsubscribeMessage(WebSocketMessage):
     """WebSocket unsubscribe message"""
+
     subscription_id: Optional[str] = None
     channel: Optional[str] = None
     subscription_type: Optional[SubscriptionType] = None
@@ -210,6 +225,7 @@ class UnsubscribeMessage(WebSocketMessage):
 
 class DataMessage(WebSocketMessage):
     """WebSocket data message"""
+
     channel: str
     data_type: str  # metric, event, kpi, etc.
     payload: Dict[str, Any]
@@ -220,6 +236,7 @@ class DataMessage(WebSocketMessage):
 
 class ErrorMessage(WebSocketMessage):
     """WebSocket error message"""
+
     error_code: Optional[str] = None
     error_details: Optional[Dict[str, Any]] = None
     retry_after: Optional[int] = None
@@ -229,6 +246,7 @@ class ErrorMessage(WebSocketMessage):
 
 class AuthMessage(WebSocketMessage):
     """WebSocket authentication message"""
+
     token: str
     refresh_token: Optional[str] = None
 
@@ -237,6 +255,7 @@ class AuthMessage(WebSocketMessage):
 
 class HeartbeatMessage(WebSocketMessage):
     """WebSocket heartbeat message"""
+
     sequence: Optional[int] = None
     latency_ms: Optional[int] = None
 
@@ -245,6 +264,7 @@ class HeartbeatMessage(WebSocketMessage):
 
 class SubscriptionConfig(BaseModel):
     """Subscription configuration"""
+
     subscription_type: SubscriptionType
     channel: str
     filters: Optional[Dict[str, Any]] = None
@@ -254,12 +274,15 @@ class SubscriptionConfig(BaseModel):
     expires_at: Optional[datetime] = None
     auto_renew: bool = True
 
-    @validator('channel')
+    @validator("channel")
     def validate_channel(cls, v):
         """Validate channel name"""
         import re
-        if not re.match(r'^[a-zA-Z0-9._-]+$', v):
-            raise ValueError("Channel can only contain alphanumeric characters, dots, hyphens, and underscores")
+
+        if not re.match(r"^[a-zA-Z0-9._-]+$", v):
+            raise ValueError(
+                "Channel can only contain alphanumeric characters, dots, hyphens, and underscores"
+            )
         return v
 
     model_config = ConfigDict(from_attributes=True)
@@ -267,6 +290,7 @@ class SubscriptionConfig(BaseModel):
 
 class SubscriptionCreate(BaseModel):
     """Create subscription request"""
+
     config: SubscriptionConfig
     websocket_id: Optional[str] = None
 
@@ -275,6 +299,7 @@ class SubscriptionCreate(BaseModel):
 
 class SubscriptionResponse(BaseModel):
     """Subscription response"""
+
     id: uuid.UUID
     user_id: uuid.UUID
     session_id: str
@@ -299,6 +324,7 @@ class SubscriptionResponse(BaseModel):
 
 class LiveMetricData(BaseModel):
     """Live metric data"""
+
     metric_id: str
     metric_name: str
     channel: str
@@ -323,6 +349,7 @@ class LiveMetricData(BaseModel):
 
 class EventStreamData(BaseModel):
     """Event stream data"""
+
     event_type: str
     event_name: str
     source: str
@@ -344,6 +371,7 @@ class EventStreamData(BaseModel):
 
 class ConnectionStats(BaseModel):
     """WebSocket connection statistics"""
+
     connection_id: str
     user_id: uuid.UUID
     session_id: str
@@ -366,6 +394,7 @@ class ConnectionStats(BaseModel):
 
 class RealtimeAnalyticsSummary(BaseModel):
     """Real-time analytics summary"""
+
     total_connections: int
     active_subscriptions: int
     messages_per_second: float
@@ -380,6 +409,7 @@ class RealtimeAnalyticsSummary(BaseModel):
 
 class ChannelMetrics(BaseModel):
     """Channel-specific metrics"""
+
     channel: str
     subscription_count: int
     messages_per_second: float
@@ -392,6 +422,7 @@ class ChannelMetrics(BaseModel):
 
 class RealtimeDashboard(BaseModel):
     """Real-time dashboard configuration"""
+
     dashboard_id: uuid.UUID
     channels: List[str]
     widgets: List[Dict[str, Any]]

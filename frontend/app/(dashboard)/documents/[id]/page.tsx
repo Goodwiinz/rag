@@ -113,14 +113,14 @@ export default function DocumentDetailPage() {
 
   const handleExtractCitations = async () => {
     if (!document) return;
-    
+
     setExtracting(true);
     setExtractionError(null);
-    
+
     try {
       // Extract citations using hybrid strategy
       const result = await citationService.extractCitations(document.id, 'auto');
-      
+
       // Fetch all citations for this document
       const allCitations = await citationService.getCitationsForDocument(document.id);
       setCitations(allCitations);
@@ -350,7 +350,7 @@ export default function DocumentDetailPage() {
                               </h4>
                               <p className="text-xs font-mono text-gray-400">
                                 {citation.authors && citation.authors.length > 0
-                                  ? citation.authors.slice(0, 3).join(', ') + 
+                                  ? citation.authors.slice(0, 3).join(', ') +
                                     (citation.authors.length > 3 ? ', et al.' : '')
                                   : 'Unknown authors'}
                                 {citation.year && ` (${citation.year})`}

@@ -5,31 +5,50 @@ Handles WebSocket connections, real-time status updates, live notifications, and
 
 import asyncio
 import json
-import uuid
-from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any, Set
-from dataclasses import dataclass, asdict
 import logging
+import uuid
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Set
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, status, Depends, Query, Form
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 import redis.asyncio as redis
 import redis.asyncio as aioredis
-
-from src.shared.schemas import (
-    BaseResponse, WebSocketMessage, ProcessingStatusUpdate, SearchProgressUpdate,
-    SystemNotification, HealthCheckResponse, NotificationType
+from fastapi import (
+    Depends,
+    FastAPI,
+    Form,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
 )
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from src.core.config import settings
 from src.shared.exceptions import (
-    BaseCustomException, ValidationError, AuthenticationError, handle_exceptions
+    AuthenticationError,
+    BaseCustomException,
+    ValidationError,
+    handle_exceptions,
+)
+from src.shared.schemas import (
+    BaseResponse,
+    HealthCheckResponse,
+    NotificationType,
+    ProcessingStatusUpdate,
+    SearchProgressUpdate,
+    SystemNotification,
+    WebSocketMessage,
 )
 from src.shared.utils import (
-    CorrelationIdMiddleware, EventLogger, HealthChecker, MetricsCollector,
-    get_correlation_id
+    CorrelationIdMiddleware,
+    EventLogger,
+    HealthChecker,
+    MetricsCollector,
+    get_correlation_id,
 )
-from src.core.config import settings
-
 
 # Configuration
 REALTIME_SERVICE_CONFIG = {
@@ -73,6 +92,7 @@ metrics = MetricsCollector(REALTIME_SERVICE_CONFIG["service_name"])
 redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 pubsub = redis_client.pubsub()
 
+
 # WebSocket connection management
 class ConnectionManager:
     """Manages WebSocket connections"""
@@ -87,7 +107,9 @@ class ConnectionManager:
         # Lock for thread-safe operations
         self._lock = asyncio.Lock()
 
-    async def connect(self, websocket: WebSocket, user_id: str, client_id: str, token: str):
+    async def connect(
+        self, websocket: WebSocket, user_id: str, client_id: str, token: str
+    ):
         """Accept and register WebSocket connection"""
         await websocket.accept()
 
@@ -121,7 +143,7 @@ class ConnectionManager:
                 "client_id": client_id,
                 "connected_at": datetime.now(timezone.utc),
                 "last_heartbeat": datetime.now(timezone.utc),
-                "ip_address": websocket.client.host if websocket.client else "unknown"
+                "ip_address": websocket.client.host if websocket.client else "unknown",
             }
 
         # Send queued messages if any
@@ -133,9 +155,9 @@ class ConnectionManager:
             event_data={
                 "user_id": user_id,
                 "client_id": client_id,
-                "connection_id": connection_id
+                "connection_id": connection_id,
             },
-            user_id=user_id
+            user_id=user_id,
         )
 
         # Record metrics
@@ -165,13 +187,15 @@ class ConnectionManager:
             event_data={
                 "user_id": user_id,
                 "client_id": client_id,
-                "connection_id": connection_id
+                "connection_id": connection_id,
             },
-            user_id=user_id
+            user_id=user_id,
         )
 
         # Record metrics
-        metrics.increment_counter("websocket_connections", labels={"action": "disconnect"})
+        metrics.increment_counter(
+            "websocket_connections", labels={"action": "disconnect"}
+        )
         metrics.set_gauge("active_connections", len(self.connection_metadata))
 
     async def send_to_user(self, user_id: str, message: WebSocketMessage):
@@ -193,10 +217,9 @@ class ConnectionManager:
             except Exception as e:
                 # Mark failed connections for removal
                 disconnected_connections.add(connection)
-                await event_logger.log_error(e, {
-                    "operation": "send_to_user",
-                    "user_id": user_id
-                })
+                await event_logger.log_error(
+                    e, {"operation": "send_to_user", "user_id": user_id}
+                )
 
         # Clean up disconnected connections
         if disconnected_connections:
@@ -214,7 +237,9 @@ class ConnectionManager:
         for user_id in user_ids:
             await self.send_to_user(user_id, message)
 
-    async def broadcast(self, message: WebSocketMessage, exclude_users: Optional[List[str]] = None):
+    async def broadcast(
+        self, message: WebSocketMessage, exclude_users: Optional[List[str]] = None
+    ):
         """Broadcast message to all connected users"""
         exclude_set = set(exclude_users) if exclude_users else set()
 
@@ -223,7 +248,9 @@ class ConnectionManager:
                 await self.send_to_user(user_id, message)
 
         # Record metrics
-        metrics.increment_counter("messages_sent", labels={"recipient_type": "broadcast"})
+        metrics.increment_counter(
+            "messages_sent", labels={"recipient_type": "broadcast"}
+        )
 
     async def _queue_message(self, user_id: str, message: WebSocketMessage):
         """Queue message for offline user"""
@@ -237,7 +264,9 @@ class ConnectionManager:
         max_queue_size = REALTIME_SERVICE_CONFIG["message_queue_size"]
         if len(self.message_queues[user_id]) > max_queue_size:
             # Remove oldest messages
-            self.message_queues[user_id] = self.message_queues[user_id][-max_queue_size:]
+            self.message_queues[user_id] = self.message_queues[user_id][
+                -max_queue_size:
+            ]
 
     async def _send_queued_messages(self, user_id: str):
         """Send queued messages to newly connected user"""
@@ -259,7 +288,9 @@ class ConnectionManager:
                     user_id: len(connections)
                     for user_id, connections in self.user_connections.items()
                 },
-                "queued_messages": sum(len(queue) for queue in self.message_queues.values())
+                "queued_messages": sum(
+                    len(queue) for queue in self.message_queues.values()
+                ),
             }
 
     async def cleanup_stale_connections(self):
@@ -272,9 +303,17 @@ class ConnectionManager:
 
         async with self._lock:
             for connection_id, metadata in self.connection_metadata.items():
-                last_heartbeat = metadata.get("last_heartbeat", metadata["connected_at"])
+                last_heartbeat = metadata.get(
+                    "last_heartbeat", metadata["connected_at"]
+                )
                 if (now - last_heartbeat).total_seconds() > timeout:
-                    stale_connections.append((metadata["websocket"], metadata["user_id"], metadata["client_id"]))
+                    stale_connections.append(
+                        (
+                            metadata["websocket"],
+                            metadata["user_id"],
+                            metadata["client_id"],
+                        )
+                    )
 
         # Close stale connections
         for websocket, user_id, client_id in stale_connections:
@@ -287,7 +326,7 @@ class ConnectionManager:
         if stale_connections:
             await event_logger.log_event(
                 event_type="stale_connections_cleaned",
-                event_data={"count": len(stale_connections)}
+                event_data={"count": len(stale_connections)},
             )
 
 
@@ -306,7 +345,7 @@ class NotificationService:
         target_users: Optional[List[str]] = None,
         target_roles: Optional[List[str]] = None,
         actions: Optional[List[Dict[str, str]]] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Create and send notification"""
         notification_id = str(uuid.uuid4())
@@ -320,8 +359,8 @@ class NotificationService:
                 "message": message,
                 "actions": actions or [],
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                **(metadata or {})
-            }
+                **(metadata or {}),
+            },
         )
 
         # Store notification
@@ -341,22 +380,26 @@ class NotificationService:
                 "type": notification_type.value,
                 "title": title,
                 "target_users": target_users or [],
-                "target_roles": target_roles or []
-            }
+                "target_roles": target_roles or [],
+            },
         )
 
         return notification_id
 
-    async def _store_notification(self, notification_id: str, notification: SystemNotification):
+    async def _store_notification(
+        self, notification_id: str, notification: SystemNotification
+    ):
         """Store notification in Redis"""
         key = f"notification:{notification_id}"
         await self.notification_store.setex(
             key,
             REALTIME_SERVICE_CONFIG["notification_retention_hours"] * 3600,
-            json.dumps(asdict(notification), default=str)
+            json.dumps(asdict(notification), default=str),
         )
 
-    async def get_user_notifications(self, user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+    async def get_user_notifications(
+        self, user_id: str, limit: int = 50
+    ) -> List[Dict[str, Any]]:
         """Get recent notifications for user"""
         # This would query user-specific notifications
         # For now, return empty list
@@ -400,10 +443,7 @@ class EventProcessor:
         organization_id = data.get("organization_id")
 
         if user_id:
-            message = ProcessingStatusUpdate(
-                type="processing_status_update",
-                data=data
-            )
+            message = ProcessingStatusUpdate(type="processing_status_update", data=data)
             await self.connection_manager.send_to_user(user_id, message)
 
     async def _handle_search_progress(self, event: Dict[str, Any]):
@@ -412,10 +452,7 @@ class EventProcessor:
         user_id = data.get("user_id")
 
         if user_id:
-            message = SearchProgressUpdate(
-                type="search_progress",
-                data=data
-            )
+            message = SearchProgressUpdate(type="search_progress", data=data)
             await self.connection_manager.send_to_user(user_id, message)
 
     async def _handle_system_notification(self, event: Dict[str, Any]):
@@ -424,10 +461,7 @@ class EventProcessor:
         target_users = data.get("target_users", [])
         notification_type = NotificationType(data.get("notification_type", "info"))
 
-        message = SystemNotification(
-            type="system_notification",
-            data=data
-        )
+        message = SystemNotification(type="system_notification", data=data)
 
         if target_users:
             await self.connection_manager.send_to_users(target_users, message)
@@ -446,11 +480,13 @@ async def startup_event():
     """Initialize service on startup"""
     await event_logger.log_event(
         event_type="service_startup",
-        event_data={"version": REALTIME_SERVICE_CONFIG["version"]}
+        event_data={"version": REALTIME_SERVICE_CONFIG["version"]},
     )
 
     # Add health checks
-    health_checker.add_check("redis", lambda: True)  # Would check actual Redis connection
+    health_checker.add_check(
+        "redis", lambda: True
+    )  # Would check actual Redis connection
 
     # Start background tasks
     asyncio.create_task(event_processor.start_listening())
@@ -463,7 +499,7 @@ async def websocket_endpoint(
     websocket: WebSocket,
     token: str = Query(...),
     client_id: str = Query(...),
-    user_id: str = Query(...)
+    user_id: str = Query(...),
 ):
     """Main WebSocket endpoint"""
     # Verify and establish connection
@@ -480,8 +516,8 @@ async def websocket_endpoint(
             data={
                 "session_id": str(uuid.uuid4()),
                 "user_id": user_id,
-                "server_time": datetime.now(timezone.utc).isoformat()
-            }
+                "server_time": datetime.now(timezone.utc).isoformat(),
+            },
         )
         await websocket.send_text(json.dumps(asdict(welcome_message), default=str))
 
@@ -489,38 +525,50 @@ async def websocket_endpoint(
         while True:
             try:
                 # Receive message with timeout
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=REALTIME_SERVICE_CONFIG["heartbeat_interval_seconds"] + 10)
+                data = await asyncio.wait_for(
+                    websocket.receive_text(),
+                    timeout=REALTIME_SERVICE_CONFIG["heartbeat_interval_seconds"] + 10,
+                )
 
                 # Parse message
                 message_data = json.loads(data)
-                await handle_websocket_message(websocket, user_id, client_id, message_data)
+                await handle_websocket_message(
+                    websocket, user_id, client_id, message_data
+                )
 
             except asyncio.TimeoutError:
                 # Send heartbeat
                 heartbeat = WebSocketMessage(
                     type="heartbeat",
-                    data={"timestamp": datetime.now(timezone.utc).isoformat()}
+                    data={"timestamp": datetime.now(timezone.utc).isoformat()},
                 )
                 await websocket.send_text(json.dumps(asdict(heartbeat), default=str))
 
                 # Update last heartbeat
                 async with connection_manager._lock:
                     if connection_id in connection_manager.connection_metadata:
-                        connection_manager.connection_metadata[connection_id]["last_heartbeat"] = datetime.now(timezone.utc)
+                        connection_manager.connection_metadata[connection_id][
+                            "last_heartbeat"
+                        ] = datetime.now(timezone.utc)
 
     except WebSocketDisconnect:
         pass
     except Exception as e:
-        await event_logger.log_error(e, {
-            "user_id": user_id,
-            "client_id": client_id,
-            "operation": "websocket_connection"
-        })
+        await event_logger.log_error(
+            e,
+            {
+                "user_id": user_id,
+                "client_id": client_id,
+                "operation": "websocket_connection",
+            },
+        )
     finally:
         await connection_manager.disconnect(websocket, user_id, client_id)
 
 
-async def handle_websocket_message(websocket: WebSocket, user_id: str, client_id: str, message_data: Dict[str, Any]):
+async def handle_websocket_message(
+    websocket: WebSocket, user_id: str, client_id: str, message_data: Dict[str, Any]
+):
     """Handle incoming WebSocket message"""
     message_type = message_data.get("type")
 
@@ -529,7 +577,9 @@ async def handle_websocket_message(websocket: WebSocket, user_id: str, client_id
         connection_id = f"{user_id}:{client_id}"
         async with connection_manager._lock:
             if connection_id in connection_manager.connection_metadata:
-                connection_manager.connection_metadata[connection_id]["last_heartbeat"] = datetime.now(timezone.utc)
+                connection_manager.connection_metadata[connection_id][
+                    "last_heartbeat"
+                ] = datetime.now(timezone.utc)
 
     elif message_type == "subscribe":
         # Handle subscription to specific events
@@ -548,8 +598,8 @@ async def handle_websocket_message(websocket: WebSocket, user_id: str, client_id
             event_data={
                 "user_id": user_id,
                 "message_type": message_type,
-                "message_data": message_data
-            }
+                "message_data": message_data,
+            },
         )
 
 
@@ -562,7 +612,7 @@ async def create_notification(
     target_users: str = Form(default="[]"),
     target_roles: str = Form(default="[]"),
     actions: str = Form(default="[]"),
-    metadata: str = Form(default="{}")
+    metadata: str = Form(default="{}"),
 ):
     """Create system notification"""
     try:
@@ -578,13 +628,13 @@ async def create_notification(
             target_users=users,
             target_roles=roles,
             actions=actions_list,
-            metadata=metadata_dict
+            metadata=metadata_dict,
         )
 
         return BaseResponse(
             success=True,
             message="Notification created successfully",
-            data={"notification_id": notification_id}
+            data={"notification_id": notification_id},
         )
 
     except json.JSONDecodeError as e:
@@ -594,15 +644,11 @@ async def create_notification(
 @app.get("/notifications")
 @handle_exceptions
 async def get_notifications(
-    user_id: str = Query(...),
-    limit: int = Query(20, ge=1, le=100)
+    user_id: str = Query(...), limit: int = Query(20, ge=1, le=100)
 ):
     """Get user notifications"""
     notifications = await notification_service.get_user_notifications(user_id, limit)
-    return {
-        "notifications": notifications,
-        "count": len(notifications)
-    }
+    return {"notifications": notifications, "count": len(notifications)}
 
 
 @app.get("/connections/stats")
@@ -617,24 +663,18 @@ async def get_connection_stats():
 async def broadcast_message(
     message_type: str = Form(...),
     message_data: str = Form(...),
-    exclude_users: str = Form(default="[]")
+    exclude_users: str = Form(default="[]"),
 ):
     """Broadcast message to all connected users"""
     try:
         data = json.loads(message_data)
         exclude = json.loads(exclude_users) if exclude_users else []
 
-        message = WebSocketMessage(
-            type=message_type,
-            data=data
-        )
+        message = WebSocketMessage(type=message_type, data=data)
 
         await connection_manager.broadcast(message, exclude_users=exclude)
 
-        return BaseResponse(
-            success=True,
-            message="Message broadcasted successfully"
-        )
+        return BaseResponse(success=True, message="Message broadcasted successfully")
 
     except json.JSONDecodeError as e:
         raise ValidationError(f"Invalid JSON in message data: {e}")
@@ -647,7 +687,7 @@ async def send_processing_status_update(
     document_id: str = Form(...),
     status: str = Form(...),
     progress: float = Form(0),
-    error_message: str = Form(default="")
+    error_message: str = Form(default=""),
 ):
     """Send processing status update to user"""
     message = ProcessingStatusUpdate(
@@ -657,16 +697,13 @@ async def send_processing_status_update(
             "status": status,
             "progress_percentage": progress,
             "error_message": error_message,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
     )
 
     await connection_manager.send_to_user(user_id, message)
 
-    return BaseResponse(
-        success=True,
-        message="Processing status update sent"
-    )
+    return BaseResponse(success=True, message="Processing status update sent")
 
 
 @app.post("/events/search-progress")
@@ -676,7 +713,7 @@ async def send_search_progress_update(
     search_id: str = Form(...),
     stage: str = Form(...),
     progress: float = Form(0),
-    intermediate_results: str = Form(default="[]")
+    intermediate_results: str = Form(default="[]"),
 ):
     """Send search progress update to user"""
     try:
@@ -691,16 +728,13 @@ async def send_search_progress_update(
             "stage": stage,
             "progress_percentage": progress,
             "intermediate_results": results,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
     )
 
     await connection_manager.send_to_user(user_id, message)
 
-    return BaseResponse(
-        success=True,
-        message="Search progress update sent"
-    )
+    return BaseResponse(success=True, message="Search progress update sent")
 
 
 @app.get("/health", response_model=HealthCheckResponse)
@@ -721,10 +755,10 @@ async def health_check():
             "websocket_connections": {
                 "status": "healthy",
                 "active_connections": connection_stats["total_connections"],
-                "unique_users": connection_stats["unique_users"]
-            }
+                "unique_users": connection_stats["unique_users"],
+            },
         },
-        uptime_seconds=0  # Would track actual uptime
+        uptime_seconds=0,  # Would track actual uptime
     )
 
 
@@ -755,10 +789,7 @@ async def shutdown_event():
     """Cleanup on shutdown"""
     await pubsub.close()
     await redis_client.close()
-    await event_logger.log_event(
-        event_type="service_shutdown",
-        event_data={}
-    )
+    await event_logger.log_event(event_type="service_shutdown", event_data={})
 
 
 if __name__ == "__main__":
@@ -768,5 +799,5 @@ if __name__ == "__main__":
         "src.services.realtime_service:app",
         host=REALTIME_SERVICE_CONFIG["host"],
         port=REALTIME_SERVICE_CONFIG["port"],
-        log_level=settings.LOG_LEVEL.lower()
+        log_level=settings.LOG_LEVEL.lower(),
     )
