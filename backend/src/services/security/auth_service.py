@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.config import settings
 from src.core.database import get_db
 from src.core.security import (
-    auth_rate_limiter,
     check_password_strength,
     create_access_token,
     create_refresh_token,
@@ -52,13 +51,10 @@ class AuthService:
         self.db = db
 
     async def authenticate_user(self, email: str, password: str) -> Optional[User]:
-        """Authenticate user with email and password"""
-        # Check rate limiting
-        if not auth_rate_limiter.is_allowed(email):
-            raise AuthenticationError(
-                "Too many login attempts. Please try again later."
-            )
+        """Authenticate user with email and password.
 
+        Note: Rate limiting is handled at the endpoint layer (dual IP + email check).
+        """
         # Eager load organization relationship
         from sqlalchemy.orm import selectinload
 

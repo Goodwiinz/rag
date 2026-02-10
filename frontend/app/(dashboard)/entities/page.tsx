@@ -28,6 +28,7 @@ import { BulkOperations } from '@/components/entities/BulkOperations';
 import { DocumentEntityExtractor } from '@/components/entities/DocumentEntityExtractor';
 import { EntityMergeTool } from '@/components/entities/EntityMergeTool';
 import { GraphHealthMonitor } from '@/components/entities/GraphHealthMonitor';
+import { EntityErrorBoundary } from '@/components/entities/EntityErrorBoundary';
 import { KeyboardShortcutsDialog } from '@/components/entities/KeyboardShortcutsDialog';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useEntityPermissions } from '@/hooks/useEntityPermissions';
@@ -835,8 +836,10 @@ function EntityPageLoading() {
 // Wrap in Suspense for useSearchParams() compatibility
 export default function EntityManagementPage() {
   return (
-    <Suspense fallback={<EntityPageLoading />}>
-      <EntityManagementContent />
-    </Suspense>
+    <EntityErrorBoundary>
+      <Suspense fallback={<EntityPageLoading />}>
+        <EntityManagementContent />
+      </Suspense>
+    </EntityErrorBoundary>
   );
 }

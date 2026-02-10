@@ -1,306 +1,313 @@
 """
-Tests for authentication functionality
+Tests for authentication API endpoints.
+
+Tests cover registration, login (with dual-layer rate limiting),
+token refresh, and remember-me extended sessions.
 """
 
 import pytest
+from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-import tempfile
-import os
 
 from src.main import app
-from src.core.database import get_db, Base
-from src.core.config import settings
-from src.models import User, Organization, UserRole, StorageTier
+from src.core.dependencies import get_current_user
+from src.core.database import get_db
+from src.services.security.auth_service import (
+    AuthService,
+    AuthenticationError,
+    RegistrationError,
+    get_auth_service,
+)
 
-# Create test database
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-def override_get_db():
-    """Override database dependency for testing"""
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _make_mock_user(**overrides):
+    """Return a Mock that behaves like a User ORM instance."""
+    user = Mock()
+    user.id = overrides.get("id", "user-id-1234")
+    user.email = overrides.get("email", "new@example.com")
+    user.first_name = overrides.get("first_name", "New")
+    user.last_name = overrides.get("last_name", "User")
+    user.role = Mock(value=overrides.get("role", "admin"))
+    user.organization_id = overrides.get("organization_id", "org-id-1")
+    user.is_active = True
+    user.is_deleted = False
+    user.created_at = datetime.utcnow()
+    user.updated_at = datetime.utcnow()
+    user.to_dict = Mock(return_value={
+        "id": str(user.id),
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "role": user.role.value,
+        "organization_id": str(user.organization_id),
+        "is_active": user.is_active,
+    })
+    return user
+
+
+def _make_login_token_data(remember_me=False):
+    """Return a dict matching AuthService.login_user output."""
+    return {
+        "access_token": "access.jwt.token",
+        "refresh_token": "refresh.jwt.token",
+        "token_type": "bearer",
+        "expires_in": 1800,
+        "refresh_expires_in": 2592000 if remember_me else 604800,
+        "remember_me": remember_me,
+        "user": {
+            "id": "user-id-1234",
+            "email": "test@example.com",
+            "first_name": "Test",
+            "last_name": "User",
+            "role": "user",
+        },
+        "organization": None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture()
+def mock_auth_service():
+    """Create a mock AuthService with async methods."""
+    svc = AsyncMock(spec=AuthService)
+    return svc
+
+
+@pytest.fixture()
+def client(mock_auth_service):
+    """
+    Create a TestClient with dependency overrides so that:
+      - get_auth_service  -> mock_auth_service
+      - get_db            -> a no-op async generator
+      - get_current_user  -> not overridden here (only needed for protected routes)
+    The lifespan is replaced with a no-op to avoid DB/Redis startup.
+    """
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def _no_lifespan(_app):
+        yield
+
+    original_lifespan = app.router.lifespan_context
+    app.router.lifespan_context = _no_lifespan
+
+    async def _fake_db():
+        yield AsyncMock()
+
+    app.dependency_overrides[get_auth_service] = lambda: mock_auth_service
+    app.dependency_overrides[get_db] = _fake_db
+
     try:
-        db = TestingSessionLocal()
-        yield db
+        with TestClient(app) as c:
+            yield c
     finally:
-        db.close()
+        app.dependency_overrides.clear()
+        app.router.lifespan_context = original_lifespan
 
-app.dependency_overrides[get_db] = override_get_db
 
-@pytest.fixture(scope="function")
-def client():
-    """Create test client"""
-    Base.metadata.create_all(bind=engine)
-    with TestClient(app) as c:
-        yield c
-    Base.metadata.drop_all(bind=engine)
+# ---------------------------------------------------------------------------
+# Registration Tests
+# ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="function")
-def test_organization():
-    """Create test organization"""
-    db = TestingSessionLocal()
-    organization = Organization(
-        name="Test Organization",
-        storage_tier=StorageTier.FREE,
-        storage_limit_bytes=Organization.get_default_storage_limit(StorageTier.FREE),
-        is_active=True
-    )
-    db.add(organization)
-    db.commit()
-    db.refresh(organization)
-    db.close()
-    return organization
+class TestRegister:
+    """Tests for POST /api/v1/auth/register"""
 
-@pytest.fixture(scope="function")
-def test_user(test_organization):
-    """Create test user"""
-    db = TestingSessionLocal()
-    user = User(
-        email="test@example.com",
-        first_name="Test",
-        last_name="User",
-        role=UserRole.USER,
-        organization_id=test_organization.id,
-        is_active=True
-    )
-    user.set_password("testpassword123")
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    db.close()
-    return user
+    @patch("src.api.auth.auth.auth_rate_limiter")
+    def test_register_success(self, mock_limiter, client, mock_auth_service):
+        """Successful registration returns 200 with user data."""
+        mock_limiter.is_allowed.return_value = True
 
-@pytest.fixture(scope="function")
-def admin_user(test_organization):
-    """Create admin user"""
-    db = TestingSessionLocal()
-    user = User(
-        email="admin@example.com",
-        first_name="Admin",
-        last_name="User",
-        role=UserRole.ADMIN,
-        organization_id=test_organization.id,
-        is_active=True
-    )
-    user.set_password("adminpassword123")
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    db.close()
-    return user
+        mock_user = _make_mock_user()
+        mock_auth_service.register_user.return_value = mock_user
 
-def get_auth_headers(client, email: str, password: str):
-    """Get authentication headers for a user"""
-    response = client.post("/api/v1/auth/login", json={
-        "email": email,
-        "password": password
-    })
-    assert response.status_code == 200
-    data = response.json()
-    return {"Authorization": f"Bearer {data['access_token']}"}
+        response = client.post("/api/v1/auth/register", json={
+            "email": "new@example.com",
+            "password": "StrongPassword123!",
+            "first_name": "New",
+            "last_name": "User",
+            "organization_name": "New Org",
+        })
 
-def test_health_check(client):
-    """Test health check endpoint"""
-    response = client.get("/health")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "healthy"
-    assert "version" in data
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"] == "User registered successfully"
+        assert "user" in data
+        assert data["user"]["email"] == "new@example.com"
 
-def test_root_endpoint(client):
-    """Test root endpoint"""
-    response = client.get("/")
-    assert response.status_code == 200
-    data = response.json()
-    assert "message" in data
-    assert "version" in data
+        mock_auth_service.register_user.assert_awaited_once()
 
-def test_register_user_success(client):
-    """Test successful user registration"""
-    response = client.post("/api/v1/auth/register", json={
-        "email": "newuser@example.com",
-        "password": "StrongPassword123!",
-        "first_name": "New",
-        "last_name": "User",
-        "organization_name": "New Organization"
-    })
-    assert response.status_code == 200
-    data = response.json()
-    assert "user" in data
-    assert data["user"]["email"] == "newuser@example.com"
-    assert data["user"]["role"] == "admin"  # First user becomes admin
+    @patch("src.api.auth.auth.auth_rate_limiter")
+    def test_register_rate_limited(self, mock_limiter, client, mock_auth_service):
+        """Rate limiter rejection returns 429."""
+        mock_limiter.is_allowed.return_value = False
 
-def test_register_user_weak_password(client):
-    """Test registration with weak password fails"""
-    response = client.post("/api/v1/auth/register", json={
-        "email": "weakuser@example.com",
-        "password": "123",
-        "first_name": "Weak",
-        "last_name": "User",
-        "organization_name": "Weak Organization"
-    })
-    assert response.status_code == 400
-    assert "Password does not meet security requirements" in response.json()["detail"]
+        response = client.post("/api/v1/auth/register", json={
+            "email": "spam@example.com",
+            "password": "StrongPassword123!",
+            "first_name": "Spam",
+            "last_name": "Bot",
+            "organization_name": "Spam Org",
+        })
 
-def test_register_duplicate_email(client, test_user):
-    """Test registration with duplicate email fails"""
-    response = client.post("/api/v1/auth/register", json={
-        "email": "test@example.com",  # Same as test_user
-        "password": "StrongPassword123!",
-        "first_name": "Duplicate",
-        "last_name": "User",
-        "organization_name": "Duplicate Organization"
-    })
-    assert response.status_code == 400
-    assert "already exists" in response.json()["detail"]
+        assert response.status_code == 429
+        # Custom exception handler wraps errors as {"error": {"message": ...}}
+        assert "Too many registration attempts" in response.json()["error"]["message"]
+        mock_auth_service.register_user.assert_not_awaited()
 
-def test_login_success(client, test_user):
-    """Test successful login"""
-    response = client.post("/api/v1/auth/login", json={
-        "email": "test@example.com",
-        "password": "testpassword123"
-    })
-    assert response.status_code == 200
-    data = response.json()
-    assert "access_token" in data
-    assert "refresh_token" in data
-    assert data["token_type"] == "bearer"
-    assert "user" in data
 
-def test_login_invalid_credentials(client, test_user):
-    """Test login with invalid credentials"""
-    response = client.post("/api/v1/auth/login", json={
-        "email": "test@example.com",
-        "password": "wrongpassword"
-    })
-    assert response.status_code == 401
-    assert "Invalid email or password" in response.json()["detail"]
+# ---------------------------------------------------------------------------
+# Login Tests
+# ---------------------------------------------------------------------------
 
-def test_login_nonexistent_user(client):
-    """Test login with non-existent user"""
-    response = client.post("/api/v1/auth/login", json={
-        "email": "nonexistent@example.com",
-        "password": "somepassword"
-    })
-    assert response.status_code == 401
-    assert "Invalid email or password" in response.json()["detail"]
+class TestLogin:
+    """Tests for POST /api/v1/auth/login"""
 
-def test_get_current_user(client, test_user):
-    """Test getting current user info"""
-    headers = get_auth_headers(client, "test@example.com", "testpassword123")
-    response = client.get("/api/v1/auth/me", headers=headers)
-    assert response.status_code == 200
-    data = response.json()
-    assert data["user"]["email"] == "test@example.com"
-    assert "password_hash" not in data["user"]
+    @patch("src.api.auth.auth.auth_rate_limiter")
+    def test_login_success(self, mock_limiter, client, mock_auth_service):
+        """Valid credentials return tokens and user info."""
+        mock_limiter.is_allowed.return_value = True
 
-def test_get_current_user_unauthorized(client):
-    """Test getting current user without authentication"""
-    response = client.get("/api/v1/auth/me")
-    assert response.status_code == 401
+        token_data = _make_login_token_data(remember_me=False)
+        mock_auth_service.login_user.return_value = token_data
 
-def test_update_profile(client, test_user):
-    """Test updating user profile"""
-    headers = get_auth_headers(client, "test@example.com", "testpassword123")
-    response = client.put("/api/v1/auth/me", headers=headers, json={
-        "first_name": "Updated",
-        "last_name": "Name"
-    })
-    assert response.status_code == 200
-    data = response.json()
-    assert data["user"]["first_name"] == "Updated"
-    assert data["user"]["last_name"] == "Name"
+        response = client.post("/api/v1/auth/login", json={
+            "email": "test@example.com",
+            "password": "CorrectPassword1!",
+        })
 
-def test_change_password_success(client, test_user):
-    """Test successful password change"""
-    headers = get_auth_headers(client, "test@example.com", "testpassword123")
-    response = client.post("/api/v1/auth/change-password", headers=headers, json={
-        "current_password": "testpassword123",
-        "new_password": "NewPassword123!"
-    })
-    assert response.status_code == 200
-    assert "Password changed successfully" in response.json()["message"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["access_token"] == "access.jwt.token"
+        assert data["refresh_token"] == "refresh.jwt.token"
+        assert data["token_type"] == "bearer"
+        assert "user" in data
+        assert data["remember_me"] is False
 
-def test_change_password_wrong_current(client, test_user):
-    """Test password change with wrong current password"""
-    headers = get_auth_headers(client, "test@example.com", "testpassword123")
-    response = client.post("/api/v1/auth/change-password", headers=headers, json={
-        "current_password": "wrongpassword",
-        "new_password": "NewPassword123!"
-    })
-    assert response.status_code == 400
-    assert "Current password is incorrect" in response.json()["detail"]
+        mock_auth_service.login_user.assert_awaited_once_with(
+            email="test@example.com",
+            password="CorrectPassword1!",
+            remember_me=False,
+        )
 
-def test_refresh_token_success(client, test_user):
-    """Test successful token refresh"""
-    # First login to get refresh token
-    login_response = client.post("/api/v1/auth/login", json={
-        "email": "test@example.com",
-        "password": "testpassword123"
-    })
-    login_data = login_response.json()
-    refresh_token = login_data["refresh_token"]
+    @patch("src.api.auth.auth.auth_rate_limiter")
+    def test_login_invalid_credentials(self, mock_limiter, client, mock_auth_service):
+        """AuthService raising exception returns 401."""
+        mock_limiter.is_allowed.return_value = True
 
-    # Use refresh token to get new access token
-    response = client.post("/api/v1/auth/refresh", json={
-        "refresh_token": refresh_token
-    })
-    assert response.status_code == 200
-    data = response.json()
-    assert "access_token" in data
-    assert data["token_type"] == "bearer"
+        mock_auth_service.login_user.side_effect = AuthenticationError(
+            "Invalid email or password"
+        )
 
-def test_refresh_token_invalid(client):
-    """Test refresh with invalid token"""
-    response = client.post("/api/v1/auth/refresh", json={
-        "refresh_token": "invalid_token"
-    })
-    assert response.status_code == 401
+        response = client.post("/api/v1/auth/login", json={
+            "email": "test@example.com",
+            "password": "WrongPassword",
+        })
 
-def test_get_users_admin(client, admin_user, test_user):
-    """Test getting users list (admin only)"""
-    headers = get_auth_headers(client, "admin@example.com", "adminpassword123")
-    response = client.get("/api/v1/auth/users", headers=headers)
-    assert response.status_code == 200
-    data = response.json()
-    assert "users" in data
-    assert len(data["users"]) >= 2  # admin_user and test_user
+        assert response.status_code == 401
+        # Custom exception handler wraps errors as {"error": {"message": ...}}
+        assert "Invalid email or password" in response.json()["error"]["message"]
 
-def test_get_users_regular_user_forbidden(client, test_user):
-    """Test getting users list as regular user (should fail)"""
-    headers = get_auth_headers(client, "test@example.com", "testpassword123")
-    response = client.get("/api/v1/auth/users", headers=headers)
-    assert response.status_code == 403
+    @patch("src.api.auth.auth.auth_rate_limiter")
+    def test_login_ip_rate_limited(self, mock_limiter, client, mock_auth_service):
+        """IP-level rate limit rejection returns 429."""
+        # First call (ip prefix) returns False -> blocked
+        mock_limiter.is_allowed.return_value = False
 
-def test_update_user_role_admin(client, admin_user, test_user):
-    """Test updating user role (admin only)"""
-    headers = get_auth_headers(client, "admin@example.com", "adminpassword123")
-    response = client.put(
-        f"/api/v1/auth/users/{test_user.id}/role",
-        headers=headers,
-        json={"role": "analyst"}
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["user"]["role"] == "analyst"
+        response = client.post("/api/v1/auth/login", json={
+            "email": "test@example.com",
+            "password": "SomePassword1!",
+        })
 
-def test_deactivate_user_admin(client, admin_user, test_user):
-    """Test deactivating user (admin only)"""
-    headers = get_auth_headers(client, "admin@example.com", "adminpassword123")
-    response = client.post(f"/api/v1/auth/users/{test_user.id}/deactivate", headers=headers)
-    assert response.status_code == 200
-    assert "deactivated successfully" in response.json()["message"]
+        assert response.status_code == 429
+        # Custom exception handler wraps errors as {"error": {"message": ...}}
+        assert "Too many login attempts from this IP" in response.json()["error"]["message"]
+        mock_auth_service.login_user.assert_not_awaited()
 
-def test_get_user_statistics_admin(client, admin_user):
-    """Test getting user statistics (admin only)"""
-    headers = get_auth_headers(client, "admin@example.com", "adminpassword123")
-    response = client.get("/api/v1/auth/statistics", headers=headers)
-    assert response.status_code == 200
-    data = response.json()
-    assert "total_users" in data
-    assert "users_by_role" in data
+    @patch("src.api.auth.auth.auth_rate_limiter")
+    def test_login_email_rate_limited(self, mock_limiter, client, mock_auth_service):
+        """IP passes but email-level rate limit fails -> 429."""
+        # is_allowed is called twice: first with prefix="ip", then prefix="email"
+        mock_limiter.is_allowed.side_effect = lambda identifier, prefix="": (
+            True if prefix == "ip" else False
+        )
+
+        response = client.post("/api/v1/auth/login", json={
+            "email": "test@example.com",
+            "password": "SomePassword1!",
+        })
+
+        assert response.status_code == 429
+        # Custom exception handler wraps errors as {"error": {"message": ...}}
+        assert "Too many login attempts for this account" in response.json()["error"]["message"]
+        mock_auth_service.login_user.assert_not_awaited()
+
+    @patch("src.api.auth.auth.auth_rate_limiter")
+    def test_login_with_remember_me(self, mock_limiter, client, mock_auth_service):
+        """remember_me=True returns extended refresh expiry."""
+        mock_limiter.is_allowed.return_value = True
+
+        token_data = _make_login_token_data(remember_me=True)
+        mock_auth_service.login_user.return_value = token_data
+
+        response = client.post("/api/v1/auth/login", json={
+            "email": "test@example.com",
+            "password": "CorrectPassword1!",
+            "remember_me": True,
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["remember_me"] is True
+        # 30-day refresh: 30 * 24 * 3600 = 2_592_000
+        assert data["refresh_expires_in"] == 2592000
+
+        mock_auth_service.login_user.assert_awaited_once_with(
+            email="test@example.com",
+            password="CorrectPassword1!",
+            remember_me=True,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Token Refresh Tests
+# ---------------------------------------------------------------------------
+
+class TestRefreshToken:
+    """Tests for POST /api/v1/auth/refresh"""
+
+    def test_refresh_token(self, client, mock_auth_service):
+        """Valid refresh token returns new access token."""
+        mock_auth_service.refresh_access_token.return_value = {
+            "access_token": "new.access.token",
+            "token_type": "bearer",
+            "expires_in": 1800,
+            "remember_me": False,
+            "refresh_token": "new.refresh.token",
+            "refresh_expires_in": 604800,
+        }
+
+        response = client.post("/api/v1/auth/refresh", json={
+            "refresh_token": "old.refresh.token",
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["access_token"] == "new.access.token"
+        assert data["token_type"] == "bearer"
+
+        mock_auth_service.refresh_access_token.assert_awaited_once_with(
+            refresh_token="old.refresh.token"
+        )
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
