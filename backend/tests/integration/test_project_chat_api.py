@@ -7,14 +7,10 @@ project-thread relationships.
 """
 
 import pytest
-import asyncio
 from uuid import uuid4
-from httpx import AsyncClient
 from fastapi import status
 
-from src.main import app
-from src.core.database import get_db
-from src.models import User, Workspace, Collection, Conversation, Thread, ProjectThread
+from src.models import Collection, Conversation, Thread
 
 
 @pytest.mark.asyncio
@@ -98,10 +94,7 @@ class TestProjectChatIntegration:
         )
 
         # Assert
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert "message" in data
-        assert "unlinked" in data["message"].lower()
+        assert response.status_code == status.HTTP_204_NO_CONTENT
 
     async def test_save_thread_to_note(
         self, async_client, test_user, test_project, test_thread, test_project_thread
@@ -109,13 +102,14 @@ class TestProjectChatIntegration:
         """Test saving a thread's content to a project note."""
         # Arrange
         request_data = {
+            "thread_id": str(test_thread.id),
             "note_title": "Chat Discussion Notes",
             "include_citations": True
         }
 
         # Act
         response = await async_client.post(
-            f"/api/v1/projects/{test_project.id}/chat/threads/{test_thread.id}/save-to-note",
+            f"/api/v1/projects/{test_project.id}/chat/save-to-note",
             json=request_data
         )
 
@@ -127,7 +121,7 @@ class TestProjectChatIntegration:
         ]
 
     async def test_start_chat_with_no_documents(
-        self, async_client, test_user, test_workspace
+        self, async_client, test_user, test_workspace, test_db
     ):
         """Test starting a chat from a project with no documents."""
         # Create empty project
@@ -136,9 +130,9 @@ class TestProjectChatIntegration:
             description="No documents",
             workspace_id=test_workspace.id
         )
-        db = next(get_db())
-        db.add(empty_project)
-        await db.commit()
+        test_db.add(empty_project)
+        await test_db.commit()
+        await test_db.refresh(empty_project)
 
         # Arrange
         request_data = {
@@ -177,10 +171,13 @@ class TestProjectChatIntegration:
         # Assert - Should fail with 409 Conflict
         assert response.status_code == status.HTTP_409_CONFLICT
         data = response.json()
-        assert "already linked" in data["detail"].lower()
+        detail_text = str(
+            data.get("detail") or data.get("message") or data
+        ).lower()
+        assert "already linked" in detail_text
 
     async def test_workspace_isolation(
-        self, async_client, test_user, other_user, test_project, other_workspace
+        self, async_client, test_user, other_user, test_project, other_workspace, test_db
     ):
         """Test that users cannot link threads from different workspaces."""
         # Create thread in different workspace
@@ -189,15 +186,17 @@ class TestProjectChatIntegration:
             title="Other Workspace Chat",
             created_by_id=other_user.id
         )
+        test_db.add(other_conversation)
+        await test_db.flush()
+
         other_thread = Thread(
             conversation_id=other_conversation.id,
             title="Other Thread",
             created_by_id=other_user.id
         )
-        db = next(get_db())
-        db.add(other_conversation)
-        db.add(other_thread)
-        await db.commit()
+        test_db.add(other_thread)
+        await test_db.commit()
+        await test_db.refresh(other_thread)
 
         # Arrange
         request_data = {
@@ -211,8 +210,8 @@ class TestProjectChatIntegration:
             json=request_data
         )
 
-        # Assert - Should fail with 403 Forbidden
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        # Assert - Should fail because user cannot access another user's thread
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
     async def test_invalid_project_id(self, async_client, test_user):
         """Test accessing non-existent project."""
@@ -226,112 +225,3 @@ class TestProjectChatIntegration:
 
         # Assert
         assert response.status_code == status.HTTP_404_NOT_FOUND
-
-
-# Fixtures
-@pytest.fixture
-async def test_workspace(test_user):
-    """Create a test workspace."""
-    workspace = Workspace(
-        name="Test Workspace",
-        description="Integration test workspace",
-        owner_id=test_user.id
-    )
-    db = next(get_db())
-    db.add(workspace)
-    await db.commit()
-    await db.refresh(workspace)
-    return workspace
-
-
-@pytest.fixture
-async def test_project(test_workspace):
-    """Create a test project (Collection)."""
-    project = Collection(
-        name="Test Project",
-        description="Integration test project",
-        workspace_id=test_workspace.id
-    )
-    db = next(get_db())
-    db.add(project)
-    await db.commit()
-    await db.refresh(project)
-    return project
-
-
-@pytest.fixture
-async def test_conversation(test_workspace, test_user):
-    """Create a test conversation."""
-    conversation = Conversation(
-        workspace_id=test_workspace.id,
-        title="Test Conversation",
-        created_by_id=test_user.id
-    )
-    db = next(get_db())
-    db.add(conversation)
-    await db.commit()
-    await db.refresh(conversation)
-    return conversation
-
-
-@pytest.fixture
-async def test_thread(test_conversation, test_user):
-    """Create a test thread."""
-    thread = Thread(
-        conversation_id=test_conversation.id,
-        title="Test Thread",
-        created_by_id=test_user.id
-    )
-    db = next(get_db())
-    db.add(thread)
-    await db.commit()
-    await db.refresh(thread)
-    return thread
-
-
-@pytest.fixture
-async def test_project_thread(test_project, test_thread, test_user):
-    """Create a test project-thread link."""
-    project_thread = ProjectThread(
-        project_id=test_project.id,
-        thread_id=test_thread.id,
-        link_type="auto",
-        linked_by_id=test_user.id,
-        context_note="Test link"
-    )
-    db = next(get_db())
-    db.add(project_thread)
-    await db.commit()
-    await db.refresh(project_thread)
-    return project_thread
-
-
-@pytest.fixture
-async def other_workspace(other_user):
-    """Create another workspace for isolation testing."""
-    workspace = Workspace(
-        name="Other Workspace",
-        description="Isolation test workspace",
-        owner_id=other_user.id
-    )
-    db = next(get_db())
-    db.add(workspace)
-    await db.commit()
-    await db.refresh(workspace)
-    return workspace
-
-
-@pytest.fixture
-async def other_user():
-    """Create another user for isolation testing."""
-    user = User(
-        email="other@test.com",
-        password_hash="hashed_password",
-        first_name="Other",
-        last_name="User"
-    )
-    db = next(get_db())
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    return user

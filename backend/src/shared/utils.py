@@ -44,16 +44,7 @@ def get_correlation_id(request: Request) -> str:
     correlation_id = getattr(request.state, "correlation_id", None)
     if correlation_id:
         return str(correlation_id)
-    generated = uuid.uuid4()
-    if isinstance(generated, uuid.UUID):
-        return str(generated)
-
-    generated_hex = getattr(generated, "hex", None)
-    if isinstance(generated_hex, str) and generated_hex:
-        return generated_hex
-
-    # Test-safe fallback for heavily mocked UUID objects.
-    return "generated-correlation-id"
+    return str(uuid.uuid4())
 
 
 def hash_string(text: str, algorithm: str = "sha256") -> str:
@@ -531,8 +522,8 @@ def sanitize_filename(filename: str) -> str:
     """Sanitize filename for storage"""
     import re
 
-    # Collapse one or more path separators into one underscore.
-    filename = re.sub(r"[/\\]+", "_", filename)
+    # Replace path separators one-for-one to preserve character count.
+    filename = re.sub(r"[/\\]", "_", filename)
     # Remove or replace dangerous characters
     filename = re.sub(r'[<>:"|?*]', "_", filename)
     # Remove control characters

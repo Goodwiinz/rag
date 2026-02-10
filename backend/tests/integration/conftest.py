@@ -16,24 +16,24 @@ from pathlib import Path
 backend_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(backend_dir))
 
-# CRITICAL: Set environment variables BEFORE any application imports
-# This prevents database.py from trying to connect to PostgreSQL
-os.environ.setdefault("ENVIRONMENT", "testing")
-os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
-os.environ.setdefault("ASYNC_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
-os.environ.setdefault("TESTING", "true")
-os.environ.setdefault("DEBUG", "true")
-os.environ.setdefault("LOG_LEVEL", "WARNING")
+# CRITICAL: Force test environment variables BEFORE any application imports.
+# Do not use setdefault here - local shells may already export production/dev URLs.
+os.environ["ENVIRONMENT"] = "testing"
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["ASYNC_DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+os.environ["TESTING"] = "true"
+os.environ["DEBUG"] = "true"
+os.environ["LOG_LEVEL"] = "WARNING"
 
 # Mock external service URLs (tests will mock these services)
-os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
-os.environ.setdefault("NEO4J_URI", "bolt://localhost:7687")
-os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
+os.environ["REDIS_URL"] = "redis://localhost:6379/15"
+os.environ["NEO4J_URI"] = "bolt://localhost:7687"
+os.environ["QDRANT_URL"] = "http://localhost:6333"
 
 # Mock API keys for testing
-os.environ.setdefault("SECRET_KEY", "test-secret-key-for-integration-tests")
-os.environ.setdefault("OPENAI_API_KEY", "test-openai-key")
-os.environ.setdefault("ANTHROPIC_API_KEY", "test-anthropic-key")
+os.environ["SECRET_KEY"] = "test-secret-key-for-integration-tests"
+os.environ["OPENAI_API_KEY"] = "test-openai-key"
+os.environ["ANTHROPIC_API_KEY"] = "test-anthropic-key"
 
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
@@ -289,14 +289,20 @@ Provides database fixtures for testing project-chat API endpoints.
 import pytest
 import pytest_asyncio
 from uuid import uuid4
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.main import app
 from src.core.database import get_db
 from src.models import (
-    Base, User, UserRole, Workspace, WorkspaceRole,
+    Base,
+    Organization,
+    StorageTier,
+    User,
+    UserRole,
+    Workspace,
+    WorkspaceRole,
     Collection, Conversation, Thread, ChatMessage,
     MessageRole, ProjectThread, ProjectThreadLinkType
 )
@@ -344,14 +350,25 @@ async def test_db():
 
 
 @pytest_asyncio.fixture(scope="function")
-async def async_client(test_db):
+async def async_client(test_db, test_user):
     """Create async HTTP client with test database override."""
     async def override_get_db():
         yield test_db
 
-    app.dependency_overrides[get_db] = override_get_db
+    async def override_get_current_user():
+        return test_user
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    from src.core.dependencies import get_current_user as core_get_current_user
+    from src.services.security.user_management import (
+        get_current_user as user_mgmt_get_current_user,
+    )
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[core_get_current_user] = override_get_current_user
+    app.dependency_overrides[user_mgmt_get_current_user] = override_get_current_user
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://localhost") as client:
         yield client
 
     app.dependency_overrides.clear()
@@ -362,14 +379,33 @@ async def async_client(test_db):
 # ============================================================================
 
 @pytest_asyncio.fixture(scope="function")
-async def test_user(test_db: AsyncSession):
+async def test_organization(test_db: AsyncSession):
+    """Create a test organization required by User foreign keys."""
+    organization = Organization(
+        id=uuid4(),
+        name="Test Organization",
+        storage_tier=StorageTier.FREE,
+        storage_limit_bytes=Organization.get_default_storage_limit(StorageTier.FREE),
+        is_active=True,
+    )
+    test_db.add(organization)
+    await test_db.commit()
+    await test_db.refresh(organization)
+    return organization
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_user(test_db: AsyncSession, test_organization: Organization):
     """Create a test user."""
     user = User(
         id=uuid4(),
         email="test@example.com",
-        hashed_password="hashed_password_123",
+        password_hash="hashed_password_123",
+        first_name="Test",
+        last_name="User",
         role=UserRole.USER,
         is_active=True,
+        organization_id=test_organization.id,
     )
     test_db.add(user)
     await test_db.commit()
@@ -378,14 +414,17 @@ async def test_user(test_db: AsyncSession):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def other_user(test_db: AsyncSession):
+async def other_user(test_db: AsyncSession, test_organization: Organization):
     """Create another test user for isolation tests."""
     user = User(
         id=uuid4(),
         email="other@example.com",
-        hashed_password="hashed_password_456",
+        password_hash="hashed_password_456",
+        first_name="Other",
+        last_name="User",
         role=UserRole.USER,
         is_active=True,
+        organization_id=test_organization.id,
     )
     test_db.add(user)
     await test_db.commit()
@@ -400,6 +439,7 @@ async def test_workspace(test_db: AsyncSession, test_user: User):
         id=uuid4(),
         name="Test Workspace",
         owner_id=test_user.id,
+        organization_id=test_user.organization_id,
     )
     test_db.add(workspace)
     await test_db.commit()
@@ -414,6 +454,7 @@ async def other_workspace(test_db: AsyncSession, other_user: User):
         id=uuid4(),
         name="Other Workspace",
         owner_id=other_user.id,
+        organization_id=other_user.organization_id,
     )
     test_db.add(workspace)
     await test_db.commit()
@@ -429,7 +470,6 @@ async def test_project(test_db: AsyncSession, test_workspace: Workspace):
         name="Test Research Project",
         description="A test project for integration testing",
         workspace_id=test_workspace.id,
-        created_by_id=test_workspace.owner_id,
     )
     test_db.add(project)
     await test_db.commit()
