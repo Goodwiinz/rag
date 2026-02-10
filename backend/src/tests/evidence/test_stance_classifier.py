@@ -2,12 +2,19 @@
 Unit tests for StanceClassifier service
 """
 
+import asyncio
+import hashlib
 import json
 import pytest
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
-from src.services.evidence.stance_classifier import StanceClassifier, StanceClassificationResult
+from src.services.evidence.stance_classifier import (
+    BatchClassificationLimitError,
+    BatchClassificationTimeoutError,
+    StanceClassificationResult,
+    StanceClassifier,
+)
 from src.services.evidence.cache import EvidenceCacheService
 
 
@@ -198,6 +205,9 @@ class TestStanceClassifier:
         
         assert result == cached_result
         mock_cache_service.get_stance_classification.assert_called_once()
+        cache_key = mock_cache_service.get_stance_classification.call_args[0][0]
+        expected_excerpt_hash = hashlib.sha256(excerpt.encode("utf-8")).hexdigest()[:16]
+        assert expected_excerpt_hash in cache_key
         mock_cache_service.set_stance_classification.assert_not_called()
     
     @patch('src.services.evidence.stance_classifier.StanceClassifier._classify_with_fallback')
@@ -270,3 +280,28 @@ class TestStanceClassifier:
         assert len(results) == 2
         assert results[0]["stance"] == "supporting"
         assert results[1] is None  # Failed classification
+
+    async def test_classify_sources_batch_limit_enforced(self, stance_classifier, sample_claim):
+        """Batch should reject requests over configured source limit."""
+        stance_classifier.max_batch_sources = 1
+        sources = [
+            {"source_id": uuid4(), "excerpt": "excerpt 1"},
+            {"source_id": uuid4(), "excerpt": "excerpt 2"},
+        ]
+
+        with pytest.raises(BatchClassificationLimitError):
+            await stance_classifier.classify_sources_batch(sample_claim, "test_hash", sources)
+
+    async def test_classify_sources_batch_timeout_enforced(self, stance_classifier, sample_claim):
+        """Batch should fail with timeout when processing exceeds configured total timeout."""
+        stance_classifier.batch_timeout_seconds = 0.01
+
+        async def slow_classify(*args, **kwargs):
+            await asyncio.sleep(0.05)
+            return {"stance": "supporting", "confidence": 0.9}
+
+        sources = [{"source_id": uuid4(), "excerpt": "excerpt 1"}]
+
+        with patch.object(stance_classifier, "classify_stance", side_effect=slow_classify):
+            with pytest.raises(BatchClassificationTimeoutError):
+                await stance_classifier.classify_sources_batch(sample_claim, "test_hash", sources)

@@ -74,9 +74,7 @@ class Neo4jTemplates:
     # Find similar claims (for potential reuse)
     FIND_SIMILAR_CLAIMS = """
     MATCH (c:Claim)
-    WHERE c.normalized CONTAINS $normalized_keywords[0]
-       OR c.normalized CONTAINS $normalized_keywords[1]
-       OR c.normalized CONTAINS $normalized_keywords[2]
+    WHERE ANY(kw IN $normalized_keywords WHERE c.normalized CONTAINS kw)
     RETURN c.hash as claim_hash, c.text as claim_text, c.normalized as normalized_text
     LIMIT 10
     """

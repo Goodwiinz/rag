@@ -5,9 +5,10 @@ Classifies source stances on claims using LLM with structured output
 """
 
 import asyncio
+import hashlib
 import json
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from uuid import UUID
 
 import openai
@@ -26,6 +27,14 @@ class StanceClassificationResult(BaseModel):
     justification_excerpt: str
 
 
+class BatchClassificationLimitError(ValueError):
+    """Raised when batch classification input exceeds configured source count limits."""
+
+
+class BatchClassificationTimeoutError(asyncio.TimeoutError):
+    """Raised when batch classification exceeds configured total timeout."""
+
+
 class StanceClassifier:
     """Service for classifying source stances on claims using LLM"""
     
@@ -33,6 +42,8 @@ class StanceClassifier:
         self.cache_service = cache_service
         self.model_version = "gpt-4o-mini-2024-07-18"
         self.fallback_model = "gpt-4o-2024-08-06"
+        self.max_batch_sources = 100
+        self.batch_timeout_seconds = 60.0
         
     def _build_classification_prompt(self, claim: str, source_excerpt: str) -> str:
         """Build the prompt for stance classification"""
@@ -180,7 +191,7 @@ Respond with ONLY a valid JSON object in this exact format:
         """
         
         # Generate excerpt hash for caching
-        excerpt_hash = str(hash(source_excerpt))[:16]
+        excerpt_hash = hashlib.sha256(source_excerpt.encode("utf-8")).hexdigest()[:16]
         cache_key = self._generate_cache_key(claim_hash, str(source_id), excerpt_hash)
         
         # Check cache first
@@ -235,6 +246,11 @@ Respond with ONLY a valid JSON object in this exact format:
             List of classification results (None for failed classifications)
         """
         
+        if len(sources) > self.max_batch_sources:
+            raise BatchClassificationLimitError(
+                f"Maximum {self.max_batch_sources} sources allowed per batch classification request"
+            )
+
         tasks = []
         for source in sources:
             task = self.classify_stance(
@@ -246,7 +262,19 @@ Respond with ONLY a valid JSON object in this exact format:
             tasks.append(task)
         
         # Run classifications in parallel
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=self.batch_timeout_seconds,
+            )
+        except asyncio.TimeoutError as e:
+            logger.error(
+                f"Batch classification timed out after {self.batch_timeout_seconds}s "
+                f"for {len(sources)} sources"
+            )
+            raise BatchClassificationTimeoutError(
+                f"Batch classification timed out after {self.batch_timeout_seconds} seconds"
+            ) from e
         
         # Handle exceptions
         processed_results = []
