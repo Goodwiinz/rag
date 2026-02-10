@@ -30,6 +30,7 @@ from src.api.arxiv import (
 from src.api.auth import auth_router
 from src.api.auth.api_keys import router as api_keys_router
 from src.api.documents import documents_router, files_router, processing_router
+from src.api.evidence.router import router as evidence_router
 from src.api.infrastructure import evaluation_router, workers_router
 from src.api.quality import (
     performance_dashboard_router,
@@ -267,6 +268,7 @@ app.include_router(search_router, prefix="/api/v1")
 app.include_router(search_quality_router, prefix="/api/v1")
 app.include_router(multi_agent_search_router, prefix="/api/v1")
 app.include_router(multi_agent_search_v2_router)  # Enhanced v2 multi-agent search
+app.include_router(evidence_router, prefix="/api/v1/evidence", tags=["evidence"])
 app.include_router(quality_metrics_router, prefix="/api/v1/analytics/quality")
 app.include_router(user_behavior_router, prefix="/api/v1/analytics/behavior")
 app.include_router(performance_dashboard_router, prefix="/api/v1/analytics/performance")

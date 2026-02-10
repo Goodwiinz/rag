@@ -1,4 +1,4 @@
-import { AnalyticsConfig, AnalyticsEvent, PageView, UserSession } from '@/types/analytics';
+import { AnalyticsConfig, AnalyticsEvent, PageView } from '@/types/analytics';
 
 // Internal session tracking structure (different from exported UserSession)
 interface InternalSession {
@@ -75,6 +75,7 @@ class AnalyticsService {
     // Initialize gtag
     window.dataLayer = window.dataLayer || [];
     window.gtag = function gtag() {
+      // eslint-disable-next-line prefer-rest-params
       window.dataLayer?.push(arguments);
     };
     window.gtag('js', new Date());
