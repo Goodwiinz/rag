@@ -118,13 +118,19 @@ async def login(
             - remember_me=True: Session persists for 30 days
             - remember_me=False (default): Session persists for 7 days
     """
-    # Get client IP for rate limiting
+    # Dual-layer rate limiting: IP + email
     client_ip = request.client.host if request.client else "unknown"
 
-    if not auth_rate_limiter.is_allowed(client_ip):
+    if not auth_rate_limiter.is_allowed(client_ip, prefix="ip"):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many login attempts. Please try again later."
+            detail="Too many login attempts from this IP. Please try again later."
+        )
+
+    if not auth_rate_limiter.is_allowed(user_credentials.email, prefix="email"):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts for this account. Please try again later."
         )
 
     try:
