@@ -276,13 +276,23 @@ jobs:
 
       - name: Run integration tests
         run: |
+          set +e
           pytest backend/tests/integration/ \
             -c backend/pytest.ini \
             -m "integration" \
             --cov=backend/src \
             --cov-report=xml \
             --cov-report=term-missing \
-            -v || exit_code=$?; if [ "$exit_code" = "5" ]; then echo "No integration tests found - skipping"; exit 0; else exit $exit_code; fi
+            -v
+          exit_code=$?
+          set -e
+
+          if [ "$exit_code" = "5" ]; then
+            echo "No integration tests found - skipping"
+            exit 0
+          fi
+
+          exit "$exit_code"
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports[5432] }}/test_db"
@@ -329,12 +339,22 @@ jobs:
 
       - name: Run resilience tests
         run: |
+          set +e
           pytest backend/tests/ \
             -c backend/pytest.ini \
             -m "resilience" \
             --cov=backend/src/core \
             --cov-report=xml \
-            -v || exit_code=$?; if [ "$exit_code" = "5" ]; then echo "No resilience tests found - skipping"; exit 0; else exit $exit_code; fi
+            -v
+          exit_code=$?
+          set -e
+
+          if [ "$exit_code" = "5" ]; then
+            echo "No resilience tests found - skipping"
+            exit 0
+          fi
+
+          exit "$exit_code"
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "sqlite:///:memory:"
@@ -408,6 +428,16 @@ jobs:
     needs: [integration-tests]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Free runner disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+          df -h
 
       - name: Build backend image
         run: docker build --build-arg PYTHON_VERSION=3.11 -t rag-backend:test -f backend/docker/Dockerfile.prod .

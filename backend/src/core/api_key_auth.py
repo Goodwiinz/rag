@@ -41,6 +41,7 @@ class APIKey(Base):
     created_by = Column(String, nullable=True)  # Admin who created the key
     description = Column(Text, nullable=True)
     expires_at = Column(DateTime, nullable=True)  # Optional expiration
+    organization_id = Column(String, nullable=True)  # Organization the key is scoped to
 
 
 class APIKeyUsageLog(Base):
@@ -70,6 +71,7 @@ class APIKeyData(BaseModel):
     rate_limit_per_hour: int
     last_used_at: Optional[datetime]
     usage_count: int
+    organization_id: Optional[str] = None
 
 class APIKeyCreate(BaseModel):
     """API Key creation request"""
@@ -87,6 +89,7 @@ class APIKeyResponse(BaseModel):
     key_prefix: str
     rate_limit_per_hour: int
     expires_at: Optional[datetime]
+    organization_id: Optional[str] = None
 
 def generate_api_key() -> tuple[str, str]:
     """Generate API key and return (raw_key, hash)"""
@@ -278,7 +281,8 @@ async def get_api_key_data(
             is_active=api_key_record.is_active,
             rate_limit_per_hour=api_key_record.rate_limit_per_hour,
             last_used_at=api_key_record.last_used_at,
-            usage_count=api_key_record.usage_count
+            usage_count=api_key_record.usage_count,
+            organization_id=api_key_record.organization_id
         ), endpoint
         
     except HTTPException:

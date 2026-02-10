@@ -43,11 +43,9 @@ export function useEvidenceMeter({
         params.set('query_id', queryId);
       }
       
-      const response = await api.get<EvidenceMeterData>(
+      return api.get<EvidenceMeterData>(
         `/api/v1/evidence/meter?${params.toString()}`
       );
-      
-      return response.data;
     },
     enabled: enabled && !!claim,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -74,11 +72,9 @@ export function useEvidenceBreakdown({
         params.set('stance_filter', stanceFilter);
       }
       
-      const response = await api.get<EvidenceBreakdownData>(
+      return api.get<EvidenceBreakdownData>(
         `/api/v1/evidence/breakdown?${params.toString()}`
       );
-      
-      return response.data;
     },
     enabled: enabled && !!claimHash,
     staleTime: 5 * 60 * 1000, // 5 minutes
