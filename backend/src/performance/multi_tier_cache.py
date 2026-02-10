@@ -9,6 +9,8 @@ import json
 import hashlib
 import time
 import gzip
+import tempfile
+import os
 from datetime import datetime, timezone as dt_timezone, timedelta
 from typing import Dict, List, Optional, Any, Union, Callable, Set, Tuple
 from dataclasses import dataclass, field, asdict
@@ -77,7 +79,8 @@ class CacheConfig:
     l2_redis_url: str = "redis://localhost:6379"
     l2_default_ttl: int = 300  # 5 minutes
     l3_enable_file_cache: bool = True
-    l3_cache_dir: str = "/tmp/cache"
+    # Use system tempdir for secure cache location (avoids hardcoded /tmp)
+    l3_cache_dir: str = field(default_factory=lambda: os.path.join(tempfile.gettempdir(), "rag_cache"))
     l4_cdn_url: Optional[str] = None
     compression_threshold: int = 1024  # Compress entries larger than 1KB
     enable_metrics: bool = True
@@ -926,7 +929,8 @@ def cached_multi_tier(
             key_parts = [key_prefix, str(func.__name__)] + [str(arg) for arg in args] + [
                 f"{k}:{v}" for k, v in sorted(kwargs.items())
             ]
-            cache_key = hashlib.md5(":".join(key_parts).encode()).hexdigest()
+            # Use MD5 for non-security cache key generation (usedforsecurity=False)
+            cache_key = hashlib.md5(":".join(key_parts).encode(), usedforsecurity=False).hexdigest()
 
             # Try to get from cache
             cached_result = await cache_manager.get(cache_key)

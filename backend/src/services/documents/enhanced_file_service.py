@@ -74,7 +74,10 @@ class EnhancedFileService:
         self.upload_dir.mkdir(parents=True, exist_ok=True)
 
         # Security scan configuration
-        self.clamd_socket = getattr(settings, 'CLAMD_SOCKET', '/tmp/clamd.socket')
+        # Use standard ClamAV socket locations, configurable via settings
+        import os
+        default_socket = os.environ.get('CLAMD_SOCKET', '/var/run/clamav/clamd.sock')
+        self.clamd_socket = getattr(settings, 'CLAMD_SOCKET', default_socket)
         self.max_scan_size_mb = getattr(settings, 'MAX_VIRUS_SCAN_SIZE_MB', 100)
 
         # File validation configuration
