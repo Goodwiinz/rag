@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Production-optimized Dockerfile for Multimodal RAG Backend
 # Multi-stage build with security hardening and performance optimization
-# Optimized for Depot remote builds with BuildKit cache mounts
+# Optimized for remote builds
 
 ARG PYTHON_VERSION=3.11
 FROM python:${PYTHON_VERSION}-slim AS base
@@ -52,8 +52,8 @@ FROM base AS dependencies
 # Copy requirements files
 COPY backend/requirements.txt backend/requirements-minimal.txt ./
 
-# Upgrade pip and install dependencies with cache mount for faster rebuilds
-RUN --mount=type=cache,target=/root/.cache/pip \
+# Upgrade pip and install dependencies
+RUN \
     pip install --upgrade pip setuptools wheel && \
     pip install -r requirements.txt
 

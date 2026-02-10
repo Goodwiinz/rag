@@ -2,6 +2,9 @@
 Search API endpoints for hybrid search functionality
 """
 
+from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks, Request
+from fastapi.responses import JSONResponse
+from typing import List, Dict, Any, Optional
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -10,6 +13,9 @@ from fastapi.responses import JSONResponse
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
+from src.core.api_key_auth import get_api_key_data, APIKeyData, APIKeyUsageLog
+from src.services.search.fulltext_search_service import fulltext_search_service
+from src.services.search.hybrid_search_service import hybrid_search_service
 from src.models.search_schemas import (
     SearchAnalytics,
     SearchIndex,
@@ -612,63 +618,111 @@ async def search_health_check(
         )
 
 
-@router.post("/public/hybrid", response_model=SearchResponse)
-async def public_hybrid_search(
-    search_request: SearchQuery, background_tasks: BackgroundTasks, db=Depends(get_db)
+@router.post("/authenticated/hybrid", response_model=SearchResponse)
+async def authenticated_hybrid_search(
+    search_request: SearchQuery,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    api_key_data: tuple = Depends(get_api_key_data),
+    db = Depends(get_db)
 ):
     """
-    Public hybrid search endpoint (no authentication required).
-    Used for evaluation and testing purposes.
+    API Key authenticated hybrid search endpoint.
+    Requires valid API key for secure external access.
+    
+    This endpoint replaces the previous unauthenticated '/public/hybrid' endpoint
+    to prevent unauthorized access to search functionality.
     """
+    api_key, endpoint = api_key_data
+    
     try:
         # Force hybrid search type
         search_request.search_type = SearchType.HYBRID
 
-        # Perform hybrid search without user context
-        # Use None to skip organization filtering (postgres expects UUID, not string)
+        # Perform hybrid search with API key context
+        # Use specific organization_id from API key or None for cross-org search based on key permissions
         result = hybrid_search_service.search(
             search_request=search_request,
-            user_id="anonymous",
-            organization_id=None,  # Skip org filtering for public search
+            user_id=f"api_key:{api_key.id}",
+            organization_id=None  # API keys can access across organizations (controlled by key permissions)
         )
 
-        # Log search query in background
-        background_tasks.add_task(
-            log_search_query,
-            "anonymous",
-            "public",
-            search_request.query,
-            len(result.results),
-            result.search_time_ms,
-            "hybrid_public",
+        # Enhanced logging for API key usage
+        await log_authenticated_search_query(
+            api_key_id=api_key.id,
+            api_key_name=api_key.name,
+            query=search_request.query,
+            result_count=len(result.results),
+            search_time_ms=result.search_time_ms,
+            search_type="authenticated_hybrid",
+            client_ip=request.client.host if request.client else "unknown",
+            user_agent=request.headers.get("user-agent", "unknown"),
+            background_tasks=background_tasks,
+            endpoint=request.url.path,
+            method=request.method
+        )
+
+        # Log API access for security audit
+        from src.core.api_key_auth import log_api_access
+        log_api_access(
+            api_key_data,
+            request,
+            "search",
+            {
+                "query_length": len(search_request.query),
+                "search_type": search_request.search_type.value,
+                "results_count": len(result.results),
+                "search_time_ms": result.search_time_ms
+            }
         )
 
         return result
 
     except Exception as e:
-        logger.error(f"Error performing public hybrid search: {e}")
+        logger.error(f"Error performing authenticated hybrid search: {e}")
+        
+        # Log failed search attempt
+        from src.core.api_key_auth import log_api_access
+        log_api_access(
+            api_key_data,
+            request,
+            "search_failed",
+            {"error": str(e), "query_length": len(search_request.query)}
+        )
+        
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/public/health")
-async def public_search_health_check():
+@router.get("/authenticated/health")
+async def authenticated_search_health_check(
+    request: Request,
+    api_key_data: tuple = Depends(get_api_key_data)
+):
     """
-    Public health check for search services (no authentication required)
+    API Key authenticated health check for search services.
+    Requires valid API key to prevent information disclosure.
     """
+    api_key, endpoint = api_key_data
+    
     try:
         health_status = {
-            "status": "healthy",
+            "status": "healthy", 
             "services": {},
             "timestamp": datetime.utcnow().isoformat(),
+            "api_key": {
+                "name": api_key.name,
+                "prefix": api_key.key_prefix,
+                "usage_count": api_key.usage_count
+            }
         }
 
-        # Test basic functionality without authentication
+        # Test basic API functionality
         health_status["services"]["api"] = {
             "status": "healthy",
-            "message": "Search API is accessible",
+            "message": "Search API is accessible with valid authentication"
         }
 
-        # Test hybrid search service availability
+        # Test hybrid search service availability (without performing actual search)
         try:
             health_status["services"]["hybrid_search"] = {
                 "status": "healthy",
@@ -680,10 +734,29 @@ async def public_search_health_check():
                 "error": str(e),
             }
 
+        # Log API access
+        from src.core.api_key_auth import log_api_access
+        log_api_access(
+            api_key_data,
+            request, 
+            "health_check",
+            {"services_checked": len(health_status["services"])}
+        )
+
         return health_status
 
     except Exception as e:
-        logger.error(f"Public search health check failed: {e}")
+        logger.error(f"Authenticated search health check failed: {e}")
+        
+        # Log failed health check
+        from src.core.api_key_auth import log_api_access
+        log_api_access(
+            api_key_data,
+            request,
+            "health_check_failed", 
+            {"error": str(e)}
+        )
+        
         return JSONResponse(
             status_code=503,
             content={
@@ -713,6 +786,92 @@ async def log_search_query(
         )
     except Exception as e:
         logger.error(f"Error logging search query: {e}")
+
+async def persist_api_key_usage_log(
+    api_key_id: str,
+    endpoint: str,
+    method: str,
+    client_ip: str,
+    user_agent: str,
+    response_time_ms: float,
+    search_query: str,
+    results_count: int,
+    response_status: int = 200
+):
+    """
+    Persist API key usage to database for audit trail (background task)
+    """
+    try:
+        from src.core.database import SessionLocal
+        
+        db = SessionLocal()
+        try:
+            usage_log = APIKeyUsageLog(
+                api_key_id=api_key_id,
+                endpoint=endpoint,
+                method=method,
+                client_ip=client_ip,
+                user_agent=user_agent[:500] if user_agent else None,  # Limit length
+                response_time_ms=int(response_time_ms),
+                search_query=search_query[:1000] if search_query else None,  # Limit length
+                results_count=results_count,
+                response_status=response_status
+            )
+            
+            db.add(usage_log)
+            db.commit()
+            
+            logger.debug(f"API usage logged to database: key_id={api_key_id}, endpoint={endpoint}")
+            
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to persist API usage log to database: {e}")
+        finally:
+            db.close()
+            
+    except Exception as e:
+        logger.error(f"Error in persist_api_key_usage_log background task: {e}")
+
+
+async def log_authenticated_search_query(
+    api_key_id: str,
+    api_key_name: str, 
+    query: str,
+    result_count: int,
+    search_time_ms: float,
+    search_type: str,
+    client_ip: str,
+    user_agent: str,
+    background_tasks: BackgroundTasks,
+    endpoint: str = "/search/public",
+    method: str = "POST"
+):
+    """
+    Log authenticated search query with enhanced security context
+    """
+    try:
+        # Enhanced logging for API key searches with security context
+        logger.info(f"API Key Search: key_id={api_key_id}, key_name='{api_key_name}', "
+                   f"query_hash='{hash(query) % 10000}', query_length={len(query)}, "
+                   f"results={result_count}, time={search_time_ms:.2f}ms, "
+                   f"type={search_type}, ip={client_ip}, ua='{user_agent[:100]}'")
+        
+        # Store in api_key_usage_log table for audit trail (async background task)
+        background_tasks.add_task(
+            persist_api_key_usage_log,
+            api_key_id=api_key_id,
+            endpoint=endpoint,
+            method=method,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            response_time_ms=search_time_ms,
+            search_query=query,
+            results_count=result_count,
+            response_status=200
+        )
+        
+    except Exception as e:
+        logger.error(f"Error logging authenticated search query: {e}")
 
 
 # Import time for health check

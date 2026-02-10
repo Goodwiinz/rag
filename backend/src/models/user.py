@@ -2,6 +2,10 @@
 User model and related functionality
 """
 
+from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Integer, Index
+from sqlalchemy.orm import relationship, selectinload, joinedload
+from enum import Enum as PyEnum
+import bcrypt
 from datetime import datetime
 from enum import Enum as PyEnum
 
@@ -69,6 +73,15 @@ class User(BaseModel):
     # A/B Testing relationships
     created_experiments = relationship("Experiment", back_populates="creator")
 
+    # Database indexes for performance optimization
+    __table_args__ = (
+        Index('idx_user_email_active', 'email', 'is_active'),
+        Index('idx_user_org_role', 'organization_id', 'role'),
+        Index('idx_user_org_active', 'organization_id', 'is_active'),
+        Index('idx_user_last_login_active', 'last_login', 'is_active'),
+        Index('idx_user_role_active', 'role', 'is_active'),
+    )
+
     def __repr__(self):
         return f"<User(email={self.email}, role={self.role.value})>"
 
@@ -116,6 +129,35 @@ class User(BaseModel):
     def can_view_analytics(self) -> bool:
         """Check if user can view analytics"""
         return self.has_permission(UserRole.ANALYST)
+
+    @classmethod
+    def get_with_organization(cls, user_id):
+        """Get user with organization eagerly loaded to avoid N+1 queries"""
+        from sqlalchemy.orm import sessionmaker
+        return cls.query.options(joinedload(cls.organization)).filter(cls.id == user_id).first()
+    
+    @classmethod
+    def get_with_recent_activity(cls, user_id):
+        """Get user with recent activity data eagerly loaded"""
+        from sqlalchemy.orm import sessionmaker
+        from src.models.quality_metrics import SearchSession
+        return cls.query.options(
+            joinedload(cls.organization),
+            selectinload(cls.search_sessions).options(
+                selectinload(SearchSession.searches)
+            ),
+            selectinload(cls.sessions)
+        ).filter(cls.id == user_id).first()
+    
+    @classmethod
+    def get_org_users_with_details(cls, organization_id):
+        """Get organization users with common relationships loaded to avoid N+1"""
+        return cls.query.options(
+            joinedload(cls.organization),
+            selectinload(cls.search_sessions),
+            selectinload(cls.analytics_events)
+        ).filter(cls.organization_id == organization_id).all()
+
 
     def to_dict(self, exclude_sensitive: bool = True) -> dict:
         """Convert to dictionary, optionally excluding sensitive data"""

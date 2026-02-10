@@ -1,8 +1,8 @@
-# docker-bake.hcl - Multi-service Docker builds with Depot
-# Usage: depot bake -f docker-bake.hcl [target]
-# Or: depot bake -f docker-bake.hcl --push
+# docker-bake.hcl - Multi-service Docker builds
+# Usage: docker buildx bake -f docker-bake.hcl [target]
+# Or: docker buildx bake -f docker-bake.hcl --push
 #
-# Note: Depot has built-in caching, no need for external cache configuration
+# Note: cache configuration is handled by the workflow invoking bake
 
 variable "REGISTRY" {
   default = "ghcr.io/goodwiins/rag_system"
@@ -131,7 +131,7 @@ target "frontend-dev" {
 }
 
 # Lint tools only (minimal image for CI)
-# Build: depot bake -f docker-bake.hcl lint
+# Build: docker buildx bake -f docker-bake.hcl lint
 # Usage: docker run --rm rag-lint:latest ruff check backend/src
 target "lint" {
   dockerfile = "backend/docker/Dockerfile.lint"

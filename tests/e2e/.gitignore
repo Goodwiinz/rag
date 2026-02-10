@@ -1,0 +1,66 @@
+# E2E Testing .gitignore - .brv file management
+
+# Browser revision files
+*.brv
+*.brv.*
+.brv/
+
+# E2E test browser artifacts
+tests/**/*.brv
+test-data/**/*.brv
+fixtures/**/*.brv
+
+# Playwright artifacts with .brv files
+playwright-report/**/*.brv
+test-results/**/*.brv
+test-results/
+playwright-report/
+
+# Browser automation artifacts
+screenshots/**/*.brv
+videos/**/*.brv
+traces/**/*.brv
+html-report/**/*.brv
+
+# Test-specific browser data
+test-browser-profiles/
+test-sessions/
+mock-browser-data/
+browser-test-cache/
+
+# CI artifacts
+ci-test-artifacts/**/*.brv
+
+# Development testing artifacts
+debug-browser-cache/
+dev-test-sessions/**/*.brv
+
+# Large files that shouldn't be committed
+*.webm
+*.mp4
+*.avi
+test-videos/
+test-screenshots/
+
+# Test coverage with browser data
+coverage/**/*.brv
+
+# Environment-specific test data
+.env.test
+.env.test.local
+
+# Node modules and dependencies
+node_modules/
+.npm
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp

@@ -28,6 +28,7 @@ from src.api.arxiv import (
     arxiv_router,
 )
 from src.api.auth import auth_router
+from src.api.auth.api_keys import router as api_keys_router
 from src.api.documents import documents_router, files_router, processing_router
 from src.api.infrastructure import evaluation_router, workers_router
 from src.api.quality import (
@@ -256,6 +257,7 @@ async def log_requests(request: Request, call_next):
 
 # Include routers
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(api_keys_router, prefix="/api/v1")
 app.include_router(files_router, prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
 app.include_router(processing_router, prefix="/api/v1")

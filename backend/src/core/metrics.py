@@ -1,82 +1,46 @@
 """
-Lightweight compatibility metrics helpers for core health endpoints.
-
-This module provides a stable import path (`src.core.metrics`) used by
-`src.health.endpoints` while keeping instrumentation optional/safe.
+Backward-compatible metrics helpers used by legacy health endpoints.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Optional
-
-try:
-    from prometheus_client import Counter, Histogram
-except Exception:  # pragma: no cover - optional dependency path
-    Counter = None  # type: ignore[assignment]
-    Histogram = None  # type: ignore[assignment]
-
+from collections import defaultdict
+from threading import Lock
 
 logger = logging.getLogger(__name__)
 
-_request_count_metric: Optional["Counter"] = None
-_request_duration_metric: Optional["Histogram"] = None
-
-
-def _init_metrics() -> None:
-    """Initialize metrics once; remain operational if registration fails."""
-    global _request_count_metric, _request_duration_metric
-
-    if Counter is None or Histogram is None:
-        return
-
-    if _request_count_metric is None:
-        try:
-            _request_count_metric = Counter(
-                "health_endpoint_requests_total",
-                "Total health endpoint requests",
-                ["endpoint", "status_code"],
-            )
-        except Exception:
-            logger.debug("Could not initialize health request counter", exc_info=True)
-
-    if _request_duration_metric is None:
-        try:
-            _request_duration_metric = Histogram(
-                "health_endpoint_request_duration_seconds",
-                "Health endpoint request duration in seconds",
-                ["endpoint"],
-            )
-        except Exception:
-            logger.debug(
-                "Could not initialize health request duration histogram", exc_info=True
-            )
+_counts_lock = Lock()
+_durations_lock = Lock()
+_request_counts: defaultdict[tuple[str, str], int] = defaultdict(int)
+_request_durations: defaultdict[str, list[float]] = defaultdict(list)
 
 
 def record_request_count(endpoint: str, status_code: str) -> None:
-    """Record a single request count for a health endpoint."""
-    _init_metrics()
-    if _request_count_metric is None:
-        return
+    """
+    Record a request count for an endpoint/status code pair.
 
-    try:
-        _request_count_metric.labels(
-            endpoint=str(endpoint), status_code=str(status_code)
-        ).inc()
-    except Exception:
-        logger.debug("Failed to increment health request counter", exc_info=True)
+    This keeps lightweight in-process counters so legacy imports continue to work
+    even when the full observability stack is unavailable.
+    """
+
+    key = (endpoint, str(status_code))
+    with _counts_lock:
+        _request_counts[key] += 1
 
 
 def record_request_duration(endpoint: str, duration_seconds: float) -> None:
-    """Record observed request duration for a health endpoint."""
-    _init_metrics()
-    if _request_duration_metric is None:
-        return
+    """
+    Record request duration for an endpoint.
+
+    Durations are stored in memory for compatibility with older callers.
+    """
 
     try:
-        _request_duration_metric.labels(endpoint=str(endpoint)).observe(
-            max(0.0, float(duration_seconds))
-        )
-    except Exception:
-        logger.debug("Failed to observe health request duration", exc_info=True)
+        duration = float(duration_seconds)
+    except (TypeError, ValueError):
+        logger.debug("Ignoring non-numeric request duration for endpoint=%s", endpoint)
+        return
 
+    with _durations_lock:
+        _request_durations[endpoint].append(duration)

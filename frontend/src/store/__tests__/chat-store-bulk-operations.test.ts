@@ -16,9 +16,6 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { enableMapSet } from 'immer';
 
-// Enable Immer support for Map and Set
-enableMapSet();
-
 // Mock workspace service
 const mockWorkspaceService = {
   bulkResolveThreads: jest.fn(),
@@ -204,6 +201,7 @@ describe('Chat Store Bulk Operations', () => {
   let store: ReturnType<typeof createTestStore>;
 
   beforeEach(() => {
+    enableMapSet();
     store = createTestStore();
     jest.clearAllMocks();
   });
