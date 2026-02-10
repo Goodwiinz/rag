@@ -450,23 +450,15 @@ class TestMultiDatabaseIntegration:
             poolclass=StaticPool,
         )
 
-        # Test multiple concurrent connections
-        async def test_concurrent_connections():
-            def run_query(i: int):
-                with pg_engine.connect() as conn:
-                    return conn.execute(text("SELECT :i"), {"i": i}).fetchone()
+        # SQLite in-memory + StaticPool shares one connection; validate repeated
+        # checkouts instead of thread-level concurrency.
+        results = []
+        for i in range(5):
+            with pg_engine.connect() as conn:
+                row = conn.execute(text("SELECT :i"), {"i": i}).fetchone()
+                results.append(row[0])
 
-            loop = asyncio.get_running_loop()
-            tasks = []
-            for i in range(5):
-                task = loop.run_in_executor(None, lambda i=i: run_query(i))
-                tasks.append(task)
-
-            results = await asyncio.gather(*tasks)
-            assert len(results) == 5
-
-        # Run async test
-        asyncio.run(test_concurrent_connections())
+        assert results == [0, 1, 2, 3, 4]
         pg_engine.dispose()
 
     @pytest.mark.integration

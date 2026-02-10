@@ -6,10 +6,27 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import CHAR, Boolean, Column, DateTime, String, TypeDecorator, text
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
+
+
+@compiles(JSONB, "sqlite")
+def _compile_jsonb_sqlite(_type, _compiler, **_kw):
+    return "JSON"
+
+
+@compiles(ARRAY, "sqlite")
+def _compile_array_sqlite(_type, _compiler, **_kw):
+    return "JSON"
+
+
+@compiles(TSVECTOR, "sqlite")
+def _compile_tsvector_sqlite(_type, _compiler, **_kw):
+    return "TEXT"
 
 
 class GUID(TypeDecorator):
