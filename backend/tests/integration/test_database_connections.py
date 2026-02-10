@@ -43,9 +43,10 @@ class TestPostgreSQLIntegration:
         assert mock_db_session.is_active
 
         # Test basic query
-        result = mock_db_session.execute(text("SELECT version()"))
-        version = result.fetchone()
-        assert version is not None
+        result = mock_db_session.execute(text("SELECT 1 as test_value"))
+        row = result.fetchone()
+        assert row is not None
+        assert row[0] == 1
 
     @pytest.mark.integration
     @pytest.mark.database
@@ -75,8 +76,6 @@ class TestPostgreSQLIntegration:
             "sqlite:///:memory:",
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
-            pool_size=5,
-            max_overflow=10
         )
 
         # Test multiple connections
@@ -84,7 +83,7 @@ class TestPostgreSQLIntegration:
         for i in range(3):
             conn = engine.connect()
             connections.append(conn)
-            result = conn.execute(text("SELECT :i as test_value", {"i": i}))
+            result = conn.execute(text("SELECT :i as test_value"), {"i": i})
             assert result.fetchone()[0] == i
 
         # Close all connections
@@ -400,6 +399,8 @@ class TestMultiDatabaseIntegration:
         document_data = {"title": "Test Document", "content": "Test content"}
 
         try:
+            # Ensure test table exists for SQLite-backed mock sessions.
+            mock_db_session.execute(text("CREATE TABLE IF NOT EXISTS documents (id TEXT PRIMARY KEY, data TEXT)"))
             # 1. Save to PostgreSQL
             mock_db_session.execute(text("INSERT INTO documents (id, data) VALUES (:id, :data)"),
                                   {"id": document_id, "data": str(document_data)})
@@ -447,16 +448,18 @@ class TestMultiDatabaseIntegration:
             "sqlite:///:memory:",
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
-            pool_size=3
         )
 
         # Test multiple concurrent connections
         async def test_concurrent_connections():
+            def run_query(i: int):
+                with pg_engine.connect() as conn:
+                    return conn.execute(text("SELECT :i"), {"i": i}).fetchone()
+
+            loop = asyncio.get_running_loop()
             tasks = []
             for i in range(5):
-                task = asyncio.create_task(asyncio.get_event_loop().run_in_executor(
-                    None, lambda i=i: pg_engine.connect().execute(text("SELECT :i", {"i": i})).fetchone()
-                ))
+                task = loop.run_in_executor(None, lambda i=i: run_query(i))
                 tasks.append(task)
 
             results = await asyncio.gather(*tasks)

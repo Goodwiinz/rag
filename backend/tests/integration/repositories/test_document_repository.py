@@ -48,11 +48,6 @@ def db_session(postgres_container):
     finally:
         session.rollback()
         session.close()
-        # Drop tables with CASCADE to handle circular dependencies in ab_testing
-        with engine.connect() as conn:
-            conn.execute(text("DROP SCHEMA public CASCADE"))
-            conn.execute(text("CREATE SCHEMA public"))
-            conn.commit()
         engine.dispose()
 
 
@@ -279,6 +274,7 @@ class TestDocumentCascadeDeletes:
             extraction_method=ExtractionMethod.SPACY,
             extracted_at=datetime.utcnow(),
             document_id=doc.id,
+            organization_id=test_organization.id,
         )
         entity2 = Entity(
             id=uuid.uuid4(),
@@ -287,6 +283,7 @@ class TestDocumentCascadeDeletes:
             extracted_at=datetime.utcnow(),
             extraction_method=ExtractionMethod.SPACY,
             document_id=doc.id,
+            organization_id=test_organization.id,
         )
         db_session.add_all([entity1, entity2])
         db_session.commit()
@@ -312,6 +309,7 @@ class TestDocumentQueries:
         """Verify efficient querying by processing status."""
         from src.models.document import Document, DocumentType, ProcessingStatus
 
+        title_prefix = f"status-{uuid.uuid4().hex[:8]}"
         # Create documents with different statuses
         statuses = [
             ProcessingStatus.PENDING,
@@ -324,7 +322,7 @@ class TestDocumentQueries:
         for i, status in enumerate(statuses):
             doc = Document(
                 id=uuid.uuid4(),
-                title=f"Document {i}",
+                title=f"{title_prefix}-Document {i}",
                 filename=f"doc{i}.txt",
                 file_path=f"/uploads/doc{i}.txt",
                 file_size_bytes=100,
@@ -339,13 +337,15 @@ class TestDocumentQueries:
         db_session.commit()
 
         # Query by status
-        completed_docs = db_session.query(Document).filter_by(
-            processing_status=ProcessingStatus.COMPLETED
+        completed_docs = db_session.query(Document).filter(
+            Document.processing_status == ProcessingStatus.COMPLETED,
+            Document.title.like(f"{title_prefix}-%"),
         ).all()
         assert len(completed_docs) == 2
 
-        pending_docs = db_session.query(Document).filter_by(
-            processing_status=ProcessingStatus.PENDING
+        pending_docs = db_session.query(Document).filter(
+            Document.processing_status == ProcessingStatus.PENDING,
+            Document.title.like(f"{title_prefix}-%"),
         ).all()
         assert len(pending_docs) == 1
 
@@ -353,6 +353,7 @@ class TestDocumentQueries:
         """Verify querying by document type."""
         from src.models.document import Document, DocumentType
 
+        title_prefix = f"type-{uuid.uuid4().hex[:8]}"
         types = [
             DocumentType.PDF,
             DocumentType.PDF,
@@ -364,7 +365,7 @@ class TestDocumentQueries:
         for i, doc_type in enumerate(types):
             doc = Document(
                 id=uuid.uuid4(),
-                title=f"Document {i}",
+                title=f"{title_prefix}-Document {i}",
                 filename=f"doc{i}.txt",
                 file_path=f"/uploads/doc{i}.txt",
                 file_size_bytes=100,
@@ -378,7 +379,10 @@ class TestDocumentQueries:
         db_session.commit()
 
         # Query PDFs
-        pdf_docs = db_session.query(Document).filter_by(document_type=DocumentType.PDF).all()
+        pdf_docs = db_session.query(Document).filter(
+            Document.document_type == DocumentType.PDF,
+            Document.title.like(f"{title_prefix}-%"),
+        ).all()
         assert len(pdf_docs) == 2
 
 
@@ -420,6 +424,7 @@ class TestConcurrentAccess:
         def update_session2():
             s = Session()
             try:
+                s.execute(text("SET lock_timeout = '2000ms'"))
                 d = s.query(Document).filter_by(id=doc_id).first()
                 d.title = "Updated by Session 2"
                 d.processing_status = ProcessingStatus.PROCESSING
@@ -434,6 +439,7 @@ class TestConcurrentAccess:
         def update_session3():
             s = Session()
             try:
+                s.execute(text("SET lock_timeout = '2000ms'"))
                 d = s.query(Document).filter_by(id=doc_id).first()
                 d.title = "Updated by Session 3"
                 d.processing_status = ProcessingStatus.COMPLETED
@@ -449,8 +455,8 @@ class TestConcurrentAccess:
         with ThreadPoolExecutor(max_workers=2) as executor:
             f2 = executor.submit(update_session2)
             f3 = executor.submit(update_session3)
-            f2.result()
-            f3.result()
+            f2.result(timeout=15)
+            f3.result(timeout=15)
 
         # At least one should succeed
         assert results["session2_updated"] or results["session3_updated"]
@@ -461,11 +467,6 @@ class TestConcurrentAccess:
         assert final_doc.title in ["Updated by Session 2", "Updated by Session 3"]
         session_final.close()
 
-        # Drop tables with CASCADE to handle circular dependencies in ab_testing
-        with engine.connect() as conn:
-            conn.execute(text("DROP SCHEMA public CASCADE"))
-            conn.execute(text("CREATE SCHEMA public"))
-            conn.commit()
         engine.dispose()
 
 

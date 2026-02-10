@@ -8,7 +8,7 @@ import sys
 import os
 from pathlib import Path
 from typing import AsyncGenerator, Generator
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock, AsyncMock, MagicMock
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 
@@ -17,13 +17,14 @@ backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
 # Set test environment variables
-os.environ["ENVIRONMENT"] = "testing"
+os.environ.setdefault("ENVIRONMENT", "testing")
+# Force DEBUG in tests so TrustedHostMiddleware is not enabled for TestClient host.
 os.environ["DEBUG"] = "true"
-os.environ["LOG_LEVEL"] = "INFO"
-os.environ["DATABASE_URL"] = "sqlite:///./test.db"
-os.environ["NEO4J_URI"] = "bolt://localhost:7687"
-os.environ["QDRANT_URL"] = "http://localhost:6333"
-os.environ["REDIS_URL"] = "redis://localhost:6379/1"
+os.environ.setdefault("LOG_LEVEL", "INFO")
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
+os.environ.setdefault("NEO4J_URI", "bolt://localhost:7687")
+os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/1")
 
 @pytest.fixture(scope="session")
 def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
@@ -77,10 +78,10 @@ def mock_db_engine():
 @pytest.fixture
 def mock_db_session(mock_db_engine):
     """Mock database session for testing"""
-    from sqlalchemy.orm import Session
+    from sqlalchemy.orm import sessionmaker
 
-    Session = sessionmaker(bind=mock_db_engine)
-    session = Session()
+    SessionLocal = sessionmaker(bind=mock_db_engine)
+    session = SessionLocal()
 
     try:
         yield session
@@ -106,9 +107,11 @@ def mock_qdrant_client():
 def mock_neo4j_driver():
     """Mock Neo4j driver for knowledge graph tests"""
     driver = Mock()
-    session = Mock()
+    session = MagicMock()
     session.run = Mock(return_value=Mock())
     session.close = Mock(return_value=None)
+    session.__enter__.return_value = session
+    session.__exit__.side_effect = lambda exc_type, exc, tb: session.close()
     driver.session = Mock(return_value=session)
     driver.verify_connectivity = Mock(return_value=None)
     driver.close = Mock(return_value=None)
