@@ -7,11 +7,8 @@ for testing and evaluating the multimodal RAG system.
 
 import asyncio
 import logging
-try:
-    from defusedxml import ElementTree as ET
-except ImportError:
-    import xml.etree.ElementTree as ET
-from xml.etree.ElementTree import Element  # For type hints only
+from defusedxml import ElementTree as ET
+from xml.etree.ElementTree import Element, ParseError  # nosec B405 - type hint + exception only, no parsing
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple, Any
 from pathlib import Path
@@ -192,7 +189,7 @@ class ArXivIngestionService:
                 # Parse XML response
                 try:
                     root = ET.fromstring(response_text)
-                except ET.ParseError as e:
+                except ParseError as e:
                     logger.error(f"Failed to parse XML: {e}")
                     logger.error(f"Response text: {response_text[:1000]}")
                     raise
