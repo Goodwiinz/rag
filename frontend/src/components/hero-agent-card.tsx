@@ -256,5 +256,3 @@ export function HeroAgentCard({ className }: { className?: string }) {
     </div>
   );
 }
-
-

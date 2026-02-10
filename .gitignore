@@ -66,6 +66,7 @@ pids/
 
 # Coverage directory used by tools like istanbul
 coverage/
+coverage.xml
 *.lcov
 
 # Dependency directories

@@ -62,7 +62,7 @@ class Workspace(BaseModel):
 
     def is_member(self, user_id: str) -> bool:
         """Check if user is a member of this workspace"""
-        return any(m.user_id == user_id for m in self.members)
+        return any(str(m.user_id) == str(user_id) for m in self.members)
 
     def get_member_role(self, user_id: str) -> WorkspaceRole:
         """Get user's role in this workspace"""

@@ -18,22 +18,22 @@ sys.path.insert(0, str(backend_dir))
 
 # CRITICAL: Set environment variables BEFORE any application imports
 # This prevents database.py from trying to connect to PostgreSQL
-os.environ["ENVIRONMENT"] = "testing"
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
-os.environ["ASYNC_DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
-os.environ["TESTING"] = "true"
-os.environ["DEBUG"] = "false"
-os.environ["LOG_LEVEL"] = "WARNING"
+os.environ.setdefault("ENVIRONMENT", "testing")
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("ASYNC_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+os.environ.setdefault("TESTING", "true")
+os.environ.setdefault("DEBUG", "true")
+os.environ.setdefault("LOG_LEVEL", "WARNING")
 
 # Mock external service URLs (tests will mock these services)
-os.environ["REDIS_URL"] = "redis://localhost:6379/15"
-os.environ["NEO4J_URI"] = "bolt://localhost:7687"
-os.environ["QDRANT_URL"] = "http://localhost:6333"
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
+os.environ.setdefault("NEO4J_URI", "bolt://localhost:7687")
+os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
 
 # Mock API keys for testing
-os.environ["SECRET_KEY"] = "test-secret-key-for-integration-tests"
-os.environ["OPENAI_API_KEY"] = "test-openai-key"
-os.environ["ANTHROPIC_API_KEY"] = "test-anthropic-key"
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-integration-tests")
+os.environ.setdefault("OPENAI_API_KEY", "test-openai-key")
+os.environ.setdefault("ANTHROPIC_API_KEY", "test-anthropic-key")
 
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
@@ -301,6 +301,12 @@ from src.models import (
     MessageRole, ProjectThread, ProjectThreadLinkType
 )
 
+try:
+    import greenlet  # noqa: F401
+    GREENLET_AVAILABLE = True
+except ImportError:
+    GREENLET_AVAILABLE = False
+
 
 # ============================================================================
 # Database Setup
@@ -309,6 +315,9 @@ from src.models import (
 @pytest_asyncio.fixture(scope="function")
 async def test_db():
     """Create test database with all tables."""
+    if not GREENLET_AVAILABLE:
+        pytest.skip("greenlet is required for async SQLAlchemy integration fixtures")
+
     # Use in-memory SQLite for tests
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",

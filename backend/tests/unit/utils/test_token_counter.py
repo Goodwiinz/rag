@@ -23,14 +23,15 @@ class TestCountTokens:
 
     def test_fallback_to_estimation_when_tiktoken_unavailable(self):
         """Test fallback to estimation when tiktoken is not available"""
-        with patch('src.utils.token_counter.tiktoken', None):
+        # Patch the internal _tiktoken variable
+        with patch('src.utils.token_counter._tiktoken', None):
             with patch('builtins.__import__', side_effect=ImportError("No module named 'tiktoken'")):
                 text = "Hello world"
                 result = count_tokens(text)
                 expected = estimate_tokens(text)
                 assert result == expected
 
-    @patch('src.utils.token_counter.tiktoken')
+    @patch('src.utils.token_counter._tiktoken')
     def test_uses_tiktoken_when_available(self, mock_tiktoken):
         """Test that tiktoken is used when available"""
         mock_encoding = MagicMock()
@@ -38,12 +39,12 @@ class TestCountTokens:
         mock_tiktoken.get_encoding.return_value = mock_encoding
 
         result = count_tokens("Hello world")
-        
+
         assert result == 5
         mock_tiktoken.get_encoding.assert_called_once_with("cl100k_base")
         mock_encoding.encode.assert_called_once_with("Hello world")
 
-    @patch('src.utils.token_counter.tiktoken')
+    @patch('src.utils.token_counter._tiktoken')
     def test_model_specific_encoding(self, mock_tiktoken):
         """Test that model-specific encodings are selected correctly"""
         mock_encoding = MagicMock()
@@ -62,7 +63,7 @@ class TestCountTokens:
         count_tokens("test", model="text-davinci-003")
         mock_tiktoken.get_encoding.assert_called_with("p50k_base")
 
-    @patch('src.utils.token_counter.tiktoken')
+    @patch('src.utils.token_counter._tiktoken')
     def test_handles_tiktoken_encoding_errors(self, mock_tiktoken):
         """Test fallback when tiktoken encoding fails"""
         mock_tiktoken.get_encoding.side_effect = Exception("Encoding failed")
