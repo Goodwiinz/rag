@@ -2,17 +2,38 @@
 Evidence Agreement Meter API endpoints
 """
 
-import asyncio
 import logging
-from datetime import datetime, timedelta
+import threading
+import time
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Depends, Request
+import redis
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from ...core.config import settings
 from ...core.database import get_db
 from ...core.dependencies import get_current_user
+from ...middleware.rate_limiting import get_rate_limiter
+from ...models.evidence import StanceClassificationModel
+from ...services.evidence import (
+    BatchClassificationLimitError,
+    BatchClassificationTimeoutError,
+    ConsensusCalculator,
+    EvidenceCacheService,
+    StanceClassifier,
+)
+from .schemas import (
+    EvidenceBreakdown,
+    EvidenceMeter,
+    Stance,
+    StanceBreakdownItem,
+)
+
+logger = logging.getLogger(__name__)
 
 
 # Rate limiter for evidence endpoints
@@ -22,29 +43,57 @@ class EvidenceRateLimiter:
     def __init__(self, max_requests: int = 60, window_minutes: int = 1):
         self.max_requests = max_requests
         self.window_minutes = window_minutes
-        self.requests: Dict[str, List[datetime]] = {}
+        self._rate_limiter = None
+        self._lock = threading.Lock()
     
     def check_rate_limit(self, identifier: str) -> bool:
-        """Check if request is allowed, raises HTTPException if not"""
-        now = datetime.utcnow()
-        window_start = now - timedelta(minutes=self.window_minutes)
-        
-        if identifier in self.requests:
-            self.requests[identifier] = [
-                req_time for req_time in self.requests[identifier]
-                if req_time > window_start
-            ]
-        else:
-            self.requests[identifier] = []
-        
-        if len(self.requests[identifier]) >= self.max_requests:
+        """Check if request is allowed, raises HTTPException if not."""
+        rate_limiter = self._get_rate_limiter()
+        allowed, info = rate_limiter.is_allowed(
+            key=identifier,
+            limit=self.max_requests,
+            window=self.window_minutes * 60,
+        )
+
+        if not allowed:
+            retry_after = info.get("retry_after", self.window_minutes * 60)
             raise HTTPException(
-                status_code=429,
-                detail=f"Rate limit exceeded. Max {self.max_requests} requests per {self.window_minutes} minute(s)."
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=(
+                    f"Rate limit exceeded. Max {self.max_requests} requests "
+                    f"per {self.window_minutes} minute(s)."
+                ),
+                headers={
+                    "X-RateLimit-Limit": str(self.max_requests),
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": str(
+                        int(info.get("reset_time", time.time() + (self.window_minutes * 60)))
+                    ),
+                    "Retry-After": str(retry_after),
+                },
             )
-        
-        self.requests[identifier].append(now)
+
         return True
+
+    def _get_rate_limiter(self):
+        """Initialize rate limiter once; prefer Redis for multi-worker safety."""
+        if self._rate_limiter is None:
+            with self._lock:
+                if self._rate_limiter is None:
+                    try:
+                        redis_client = redis.Redis.from_url(
+                            settings.REDIS_URL or "redis://localhost:6379/0",
+                            decode_responses=True,
+                        )
+                        redis_client.ping()
+                        self._rate_limiter = get_rate_limiter(redis_client)
+                        logger.info("Evidence rate limiter initialized with Redis")
+                    except Exception as e:
+                        logger.warning(
+                            f"Redis unavailable for evidence rate limiting, using in-memory: {e}"
+                        )
+                        self._rate_limiter = get_rate_limiter(None)
+        return self._rate_limiter
 
 
 evidence_rate_limiter = EvidenceRateLimiter(max_requests=60, window_minutes=1)
@@ -53,30 +102,83 @@ evidence_rate_limiter = EvidenceRateLimiter(max_requests=60, window_minutes=1)
 async def rate_limit_dependency(request: Request):
     """Dependency to enforce rate limiting"""
     client_ip = request.client.host if request.client else "unknown"
-    evidence_rate_limiter.check_rate_limit(client_ip)
+    route_name = request.url.path.rsplit("/", 1)[-1]
+    rate_key = f"evidence:ip:{client_ip}:{route_name}"
+    evidence_rate_limiter.check_rate_limit(rate_key)
     return True
-from ...models.evidence import StanceClassificationModel
-from ...services.evidence import (
-    EvidenceCacheService,
-    StanceClassifier, 
-    ConsensusCalculator
-)
-from .schemas import (
-    EvidenceMeter,
-    EvidenceBreakdown,
-    StanceBreakdownItem,
-    EvidenceMeterRequest,
-    EvidenceBreakdownRequest,
-    Stance,
-)
-
-logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Initialize services
 cache_service = EvidenceCacheService()
 stance_classifier = StanceClassifier(cache_service)
 consensus_calculator = ConsensusCalculator()
+
+
+def _save_stance_classifications(
+    db: Session,
+    classifications: List[Optional[Dict]],
+    claim_hash: str,
+    model_version: str,
+) -> int:
+    """
+    Persist stance classifications with upsert semantics to avoid duplicate-key races.
+
+    Uses PostgreSQL ON CONFLICT when available and a safe ORM fallback otherwise.
+    """
+    valid_classifications = [classification for classification in classifications if classification]
+    if not valid_classifications:
+        return 0
+
+    def _as_uuid(value) -> UUID:
+        return value if isinstance(value, UUID) else UUID(str(value))
+
+    rows = [
+        {
+            "claim_hash": claim_hash,
+            "source_id": _as_uuid(classification["source_id"]),
+            "stance": classification["stance"],
+            "confidence": classification["confidence"],
+            "justification_excerpt": classification.get("justification_excerpt"),
+            "model_version": model_version,
+        }
+        for classification in valid_classifications
+    ]
+
+    dialect_name = db.bind.dialect.name if db.bind is not None else ""
+
+    if dialect_name == "postgresql":
+        insert_stmt = pg_insert(StanceClassificationModel).values(rows)
+        upsert_stmt = insert_stmt.on_conflict_do_update(
+            index_elements=["claim_hash", "source_id", "model_version"],
+            set_={
+                "stance": insert_stmt.excluded.stance,
+                "confidence": insert_stmt.excluded.confidence,
+                "justification_excerpt": insert_stmt.excluded.justification_excerpt,
+                "updated_at": func.now(),
+            },
+        )
+        db.execute(upsert_stmt)
+        return len(rows)
+
+    # SQLite/test fallback
+    for row in rows:
+        existing = (
+            db.query(StanceClassificationModel)
+            .filter(
+                StanceClassificationModel.claim_hash == row["claim_hash"],
+                StanceClassificationModel.source_id == row["source_id"],
+                StanceClassificationModel.model_version == row["model_version"],
+            )
+            .one_or_none()
+        )
+        if existing:
+            existing.stance = row["stance"]
+            existing.confidence = row["confidence"]
+            existing.justification_excerpt = row["justification_excerpt"]
+        else:
+            db.add(StanceClassificationModel(**row))
+
+    return len(rows)
 
 
 async def get_retracted_sources(source_ids: List[str], db: Session) -> List[str]:
@@ -153,11 +255,16 @@ async def get_evidence_meter(
         logger.info(f"Classifying stances for {len(sources_data)} sources on claim: {claim[:50]}...")
         
         # Classify stances in parallel
-        classifications = await stance_classifier.classify_sources_batch(
-            claim=claim,
-            claim_hash=claim_hash, 
-            sources=sources_data
-        )
+        try:
+            classifications = await stance_classifier.classify_sources_batch(
+                claim=claim,
+                claim_hash=claim_hash,
+                sources=sources_data,
+            )
+        except BatchClassificationLimitError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except BatchClassificationTimeoutError as e:
+            raise HTTPException(status_code=504, detail=str(e))
         
         # Get retracted sources
         retracted_source_ids = await get_retracted_sources(source_id_strings, db)
@@ -169,17 +276,17 @@ async def get_evidence_meter(
             retracted_source_ids=retracted_source_ids
         )
         
-        # Store in database (create stance classification records)
-        for classification in classifications:
-            if classification:
-                stance_record = StanceClassificationModel.from_classification(
-                    classification, claim_hash, stance_classifier.model_version
-                )
-                db.add(stance_record)
-        
+        # Store in database (upsert to avoid duplicates/races)
+        saved_count = _save_stance_classifications(
+            db=db,
+            classifications=classifications,
+            claim_hash=claim_hash,
+            model_version=stance_classifier.model_version,
+        )
+
         try:
             db.commit()
-            logger.info(f"Saved {len([c for c in classifications if c])} stance classifications")
+            logger.info(f"Saved/upserted {saved_count} stance classifications")
         except Exception as e:
             db.rollback()
             logger.error(f"Failed to save stance classifications: {e}")
@@ -301,22 +408,25 @@ async def classify_sources_for_claim(
             })
         
         # Classify stances
-        classifications = await stance_classifier.classify_sources_batch(
-            claim=claim,
+        try:
+            classifications = await stance_classifier.classify_sources_batch(
+                claim=claim,
+                claim_hash=claim_hash,
+                sources=sources_data,
+            )
+        except BatchClassificationLimitError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except BatchClassificationTimeoutError as e:
+            raise HTTPException(status_code=504, detail=str(e))
+        
+        # Store results in database (upsert to avoid duplicates/races)
+        saved_count = _save_stance_classifications(
+            db=db,
+            classifications=classifications,
             claim_hash=claim_hash,
-            sources=sources_data
+            model_version=stance_classifier.model_version,
         )
-        
-        # Store results in database
-        saved_count = 0
-        for classification in classifications:
-            if classification:
-                stance_record = StanceClassificationModel.from_classification(
-                    classification, claim_hash, stance_classifier.model_version
-                )
-                db.add(stance_record)
-                saved_count += 1
-        
+
         db.commit()
         
         return {
@@ -327,6 +437,8 @@ async def classify_sources_for_claim(
             "model_version": stance_classifier.model_version
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to classify sources: {e}")
@@ -335,15 +447,12 @@ async def classify_sources_for_claim(
 
 # Health check endpoint
 @router.get("/health")
-async def health_check():
+async def health_check(_current_user=Depends(get_current_user)):
     """Health check for evidence meter service"""
     
     try:
         # Check cache service
-        cache_connected = await cache_service._ensure_connected()
-        
-        # Check if we can generate a claim hash
-        test_hash = consensus_calculator._generate_claim_hash("test claim")
+        cache_connected = cache_service._ensure_connected()
         
         return {
             "status": "healthy",

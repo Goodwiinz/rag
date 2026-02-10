@@ -35,6 +35,8 @@ const customJestConfig = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
+    '^react(/.*)?$': '<rootDir>/node_modules/react$1',
+    '^react-dom(/.*)?$': '<rootDir>/node_modules/react-dom$1',
   },
 
   // Reporters

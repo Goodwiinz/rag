@@ -381,7 +381,7 @@ describe('getConsensusText helper', () => {
       ...mockMeterData,
       consensus_level: 'strong_agreement',
     };
-    expect(getConsensusText(data)).toContain('7 of 10 sources agree');
+    expect(getConsensusText(data)).toContain('7 of 9 sources agree');
   });
 
   it('returns limited evidence text for <3 sources', () => {

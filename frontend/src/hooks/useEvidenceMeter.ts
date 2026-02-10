@@ -36,7 +36,7 @@ export function useEvidenceMeter({
       params.set('claim', claim);
       
       if (sourceIds?.length) {
-        sourceIds.forEach(id => params.append('source_ids', id));
+        params.set('source_ids', sourceIds.join(','));
       }
       
       if (queryId) {
@@ -91,7 +91,7 @@ export function useEvidenceBreakdown({
  */
 export function getConsensusText(data: EvidenceMeterData): string {
   const { supporting, opposing, neutral, total_sources, consensus_level } = data;
-  const relevant = supporting + opposing + neutral;
+  const relevant = supporting + opposing;
   
   if (total_sources === 0) {
     return 'No sources found';

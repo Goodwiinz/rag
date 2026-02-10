@@ -4,6 +4,7 @@ Redis caching layer for Evidence Agreement Meter
 Caches stance classifications and evidence meters for fast retrieval
 """
 
+import hashlib
 import json
 import logging
 from typing import Dict, List, Optional
@@ -106,7 +107,7 @@ class EvidenceCacheService:
         """Generate cache key for evidence meter"""
         # Sort source IDs for consistent caching
         sorted_sources = sorted(source_ids)
-        sources_hash = str(hash("|".join(sorted_sources)))[:16]
+        sources_hash = hashlib.sha256("|".join(sorted_sources).encode("utf-8")).hexdigest()[:16]
         return f"meter:{claim_hash}:{sources_hash}:{model_version}"
     
     async def get_evidence_meter(
