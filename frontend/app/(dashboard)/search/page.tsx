@@ -79,9 +79,9 @@ export default function SearchPage() {
   }, []);
 
   const toggleFilter = (filter: string) => {
-    setActiveFilters(prev => 
-      prev.includes(filter) 
-        ? prev.filter(f => f !== filter)
+    setActiveFilters((prev) =>
+      prev.includes(filter)
+        ? prev.filter((f) => f !== filter)
         : [...prev, filter]
     );
   };
@@ -90,91 +90,98 @@ export default function SearchPage() {
     toggleFilter('RECENT_7D');
   };
 
-  const handleSearch = useCallback(async (searchQuery?: string) => {
-    const q = searchQuery || query;
-    if (!q.trim()) return;
+  const handleSearch = useCallback(
+    async (searchQuery?: string) => {
+      const q = searchQuery || query;
+      if (!q.trim()) return;
 
-    setIsLoading(true);
-    setError(null);
+      setIsLoading(true);
+      setError(null);
 
-    // Construct filters object
-    const filters: SearchFilters = {};
-    
-    // Process file types/modalities
-    const fileTypes = activeFilters.filter(f => MODALITY_FILTERS.includes(f as any)) as any[];
-    if (fileTypes.length > 0) {
-      // Map 'image', 'audio', 'video' to modalities if needed by backend, 
-      // but here we align with the local interface which has file_types AND modalities
-      // Assuming backend handles these. For now passing as file_types mostly.
-      const mappedFileTypes: any[] = [];
-      const mappedModalities: any[] = [];
-      
-      fileTypes.forEach(ft => {
-        if (['pdf', 'txt'].includes(ft)) mappedFileTypes.push(ft);
-        if (['image', 'audio', 'video'].includes(ft)) mappedModalities.push(ft); 
-        // Note: 'image', 'audio', 'video' are technically modalities but often treated as file categories in UI
-        if (['image', 'audio', 'video'].includes(ft)) {
+      // Construct filters object
+      const filters: SearchFilters = {};
+
+      // Process file types/modalities
+      const fileTypes = activeFilters.filter((f) =>
+        MODALITY_FILTERS.includes(f as any)
+      ) as any[];
+      if (fileTypes.length > 0) {
+        // Map 'image', 'audio', 'video' to modalities if needed by backend,
+        // but here we align with the local interface which has file_types AND modalities
+        // Assuming backend handles these. For now passing as file_types mostly.
+        const mappedFileTypes: any[] = [];
+        const mappedModalities: any[] = [];
+
+        fileTypes.forEach((ft) => {
+          if (['pdf', 'txt'].includes(ft)) mappedFileTypes.push(ft);
+          if (['image', 'audio', 'video'].includes(ft))
+            mappedModalities.push(ft);
+          // Note: 'image', 'audio', 'video' are technically modalities but often treated as file categories in UI
+          if (['image', 'audio', 'video'].includes(ft)) {
             // Also add to modalities for completeness if the type definition supports it
-             mappedModalities.push(ft);
+            mappedModalities.push(ft);
+          }
+        });
+
+        if (mappedFileTypes.length > 0) filters.file_types = mappedFileTypes;
+        if (mappedModalities.length > 0) filters.modalities = mappedModalities;
+      }
+
+      // Process Date Range
+      if (activeFilters.includes('RECENT_7D')) {
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 7);
+        filters.date_range = {
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
+        };
+      }
+
+      try {
+        const analytics = getAnalytics();
+        analytics.trackSearch(q, 0, 'semantic');
+      } catch (error) {}
+
+      try {
+        const searchRequest: SearchRequest = {
+          query: q.trim(),
+          limit: 10,
+          filters: filters as any, // Type assertion as backend types might be loose or strict
+        };
+
+        const response = await searchService.search(searchRequest);
+
+        if (response.success && response.data) {
+          setSearchResult(response.data);
+          try {
+            await searchService.addToHistory(q.trim(), response.data.id);
+          } catch (historyError) {
+            console.warn('Failed to add to search history:', historyError);
+          }
+        } else {
+          setError(response.message || 'Search failed');
+          setSearchResult(null);
         }
-      });
-
-      if (mappedFileTypes.length > 0) filters.file_types = mappedFileTypes;
-      if (mappedModalities.length > 0) filters.modalities = mappedModalities;
-    }
-
-    // Process Date Range
-    if (activeFilters.includes('RECENT_7D')) {
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 7);
-      filters.date_range = {
-        start: startDate.toISOString(),
-        end: endDate.toISOString()
-      };
-    }
-
-    try {
-      const analytics = getAnalytics();
-      analytics.trackSearch(q, 0, 'semantic');
-    } catch (error) {}
-
-    try {
-      const searchRequest: SearchRequest = {
-        query: q.trim(),
-        limit: 10,
-        filters: filters as any, // Type assertion as backend types might be loose or strict
-      };
-
-      const response = await searchService.search(searchRequest);
-
-      if (response.success && response.data) {
-        setSearchResult(response.data);
-        try {
-          await searchService.addToHistory(q.trim(), response.data.id);
-        } catch (historyError) {
-          console.warn('Failed to add to search history:', historyError);
+      } catch (err: any) {
+        console.error('Search error:', err);
+        let errorMessage = 'An unexpected error occurred';
+        if (err?.response?.data?.error) {
+          errorMessage =
+            err.response.data.error.message || err.response.data.error;
+        } else if (err?.response?.data?.detail) {
+          errorMessage = err.response.data.detail;
+        } else if (err?.message) {
+          errorMessage = err.message;
         }
-      } else {
-        setError(response.message || 'Search failed');
+        setError(errorMessage);
         setSearchResult(null);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err: any) {
-      console.error('Search error:', err);
-      let errorMessage = 'An unexpected error occurred';
-      if (err?.response?.data?.error) {
-        errorMessage = err.response.data.error.message || err.response.data.error;
-      } else if (err?.response?.data?.detail) {
-        errorMessage = err.response.data.detail;
-      } else if (err?.message) {
-        errorMessage = err.message;
-      }
-      setError(errorMessage);
-      setSearchResult(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [query, activeFilters]);
+    },
+    [query, activeFilters]
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -211,7 +218,9 @@ export default function SearchPage() {
       metrics: result.metrics,
       timestamp: new Date().toISOString(),
     };
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: 'application/json',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -222,15 +231,38 @@ export default function SearchPage() {
     URL.revokeObjectURL(url);
   }, []);
 
-  const handleFeedback = useCallback((result: SearchResult, rating: number, comment?: string) => {
-    console.log('Feedback submitted:', { resultId: result.id, rating, comment });
-  }, []);
+  const handleFeedback = useCallback(
+    (result: SearchResult, rating: number, comment?: string) => {
+      console.log('Feedback submitted:', {
+        resultId: result.id,
+        rating,
+        comment,
+      });
+    },
+    []
+  );
 
   const suggestedQueries = [
-    { icon: Database, label: 'Papers about transformers', cmd: 'transformers architecture' },
-    { icon: Brain, label: 'Explain RAG systems', cmd: 'retrieval augmented generation' },
-    { icon: FileText, label: 'Recent uploads', cmd: 'recently uploaded documents' },
-    { icon: Zap, label: 'Optimization metrics', cmd: 'system performance metrics' },
+    {
+      icon: Database,
+      label: 'Papers about transformers',
+      cmd: 'transformers architecture',
+    },
+    {
+      icon: Brain,
+      label: 'Explain RAG systems',
+      cmd: 'retrieval augmented generation',
+    },
+    {
+      icon: FileText,
+      label: 'Recent uploads',
+      cmd: 'recently uploaded documents',
+    },
+    {
+      icon: Zap,
+      label: 'Optimization metrics',
+      cmd: 'system performance metrics',
+    },
   ];
 
   const features = [
@@ -266,14 +298,17 @@ export default function SearchPage() {
           className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-6 shadow-xl mb-10"
         >
           <div className="flex items-center gap-4">
-            <div 
+            <div
               className="w-12 h-12 rounded-lg flex items-center justify-center p-0.5"
-              style={{ 
+              style={{
                 background: `${THEME.colors.primary}1A`, // 10% opacity
-                border: `1px solid ${THEME.colors.primary}33` // 20% opacity
+                border: `1px solid ${THEME.colors.primary}33`, // 20% opacity
               }}
             >
-              <Terminal className="w-6 h-6" style={{ color: THEME.colors.primary }} />
+              <Terminal
+                className="w-6 h-6"
+                style={{ color: THEME.colors.primary }}
+              />
             </div>
             <div>
               <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)] tracking-wider uppercase">
@@ -296,19 +331,24 @@ export default function SearchPage() {
           <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-2xl overflow-hidden">
             {/* Title Bar */}
             <div className="flex items-center justify-between px-5 py-2 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30">
-              <span className="text-[10px] font-mono text-[var(--terminal-text-dim)] font-bold tracking-widest uppercase">Query_Console.v2</span>
+              <span className="text-[10px] font-mono text-[var(--terminal-text-dim)] font-bold tracking-widest uppercase">
+                Query_Console.v2
+              </span>
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setShowFilters(!showFilters)}
                   className={cn(
-                    "flex items-center gap-1.5 px-2 py-0.5 rounded border transition-all text-[9px] font-bold font-mono",
-                    showFilters 
-                      ? "border-[var(--phosphor-green)]/50 bg-[var(--phosphor-green)]/10 text-[var(--phosphor-green)]"
-                      : "border-transparent text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]"
+                    'flex items-center gap-1.5 px-2 py-0.5 rounded border transition-all text-[9px] font-bold font-mono',
+                    showFilters
+                      ? 'border-[var(--phosphor-green)]/50 bg-[var(--phosphor-green)]/10 text-[var(--phosphor-green)]'
+                      : 'border-transparent text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]'
                   )}
+                  aria-expanded={showFilters}
+                  aria-controls="search-filter-panel"
                 >
                   <Filter className="w-3 h-3" />
-                  FILTERS {activeFilters.length > 0 && `(${activeFilters.length})`}
+                  FILTERS{' '}
+                  {activeFilters.length > 0 && `(${activeFilters.length})`}
                 </button>
               </div>
             </div>
@@ -316,7 +356,12 @@ export default function SearchPage() {
             {/* Input Area */}
             <div className="p-6">
               <div className="flex items-center gap-4">
-                <div className="font-mono text-lg font-bold opacity-50 shrink-0" style={{ color: THEME.colors.primary }}>{'>'}</div>
+                <div
+                  className="font-mono text-lg font-bold opacity-50 shrink-0"
+                  style={{ color: THEME.colors.primary }}
+                >
+                  {'>'}
+                </div>
                 <input
                   ref={inputRef}
                   type="text"
@@ -331,12 +376,16 @@ export default function SearchPage() {
                   onClick={() => handleSearch()}
                   disabled={isLoading || !query.trim()}
                   className={cn(
-                    "flex items-center gap-2 px-5 py-2 rounded-xl font-mono text-[10px] font-bold tracking-widest transition-all",
+                    'flex items-center gap-2 px-5 py-2 rounded-xl font-mono text-[10px] font-bold tracking-widest transition-all',
                     query.trim() && !isLoading
-                      ? "text-[var(--terminal-bg)] hover:shadow-[0_0_20px_var(--phosphor-green-glow)]"
-                      : "bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] border border-[var(--terminal-border)] cursor-not-allowed"
+                      ? 'text-[var(--terminal-bg)] hover:shadow-[0_0_20px_var(--phosphor-green-glow)]'
+                      : 'bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] border border-[var(--terminal-border)] cursor-not-allowed'
                   )}
-                  style={query.trim() && !isLoading ? { backgroundColor: THEME.colors.primary } : {}}
+                  style={
+                    query.trim() && !isLoading
+                      ? { backgroundColor: THEME.colors.primary }
+                      : {}
+                  }
                 >
                   {isLoading ? (
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -358,43 +407,58 @@ export default function SearchPage() {
                     exit={{ height: 0, opacity: 0 }}
                     className="overflow-hidden"
                   >
-                    <div className="mt-6 pt-6 border-t border-[var(--terminal-border)] flex flex-wrap gap-2">
+                    <div
+                      className="mt-6 pt-6 border-t border-[var(--terminal-border)] flex flex-wrap gap-2"
+                      id="search-filter-panel"
+                      role="region"
+                      aria-label="Search filters"
+                    >
                       {MODALITY_FILTERS.map((type) => {
-                         const isActive = activeFilters.includes(type);
-                         return (
+                        const isActive = activeFilters.includes(type);
+                        return (
                           <button
                             key={type}
                             onClick={() => toggleFilter(type)}
                             className={cn(
-                              "px-3 py-1 rounded-lg border text-[9px] font-mono font-bold transition-all uppercase",
+                              'px-3 py-1 rounded-lg border text-[9px] font-mono font-bold transition-all uppercase',
                               isActive
-                                ? "text-[var(--terminal-bg)]"
-                                : "border-[var(--terminal-border)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] hover:border-[var(--terminal-text-muted)]"
+                                ? 'text-[var(--terminal-bg)]'
+                                : 'border-[var(--terminal-border)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] hover:border-[var(--terminal-text-muted)]'
                             )}
-                            style={isActive ? { 
-                              backgroundColor: THEME.colors.primary, 
-                              borderColor: THEME.colors.primary,
-                              color: COLORS.background 
-                            } : {}}
+                            style={
+                              isActive
+                                ? {
+                                    backgroundColor: THEME.colors.primary,
+                                    borderColor: THEME.colors.primary,
+                                    color: COLORS.background,
+                                  }
+                                : {}
+                            }
+                            aria-pressed={isActive}
                           >
                             {type}
                           </button>
                         );
                       })}
                       <div className="w-px h-4 bg-[var(--terminal-border)] mx-2 self-center" />
-                      <button 
+                      <button
                         onClick={toggleRecent}
                         className={cn(
-                          "px-3 py-1 rounded-lg border text-[9px] font-mono font-bold transition-all flex items-center gap-1.5 uppercase",
-                           activeFilters.includes('RECENT_7D')
-                                ? "text-[var(--terminal-bg)]"
-                                : "border-[var(--terminal-border)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] hover:border-[var(--terminal-text-muted)]"
+                          'px-3 py-1 rounded-lg border text-[9px] font-mono font-bold transition-all flex items-center gap-1.5 uppercase',
+                          activeFilters.includes('RECENT_7D')
+                            ? 'text-[var(--terminal-bg)]'
+                            : 'border-[var(--terminal-border)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] hover:border-[var(--terminal-text-muted)]'
                         )}
-                        style={activeFilters.includes('RECENT_7D') ? { 
-                          backgroundColor: THEME.colors.primary, 
-                          borderColor: THEME.colors.primary,
-                          color: COLORS.background 
-                        } : {}}
+                        style={
+                          activeFilters.includes('RECENT_7D')
+                            ? {
+                                backgroundColor: THEME.colors.primary,
+                                borderColor: THEME.colors.primary,
+                                color: COLORS.background,
+                              }
+                            : {}
+                        }
+                        aria-pressed={activeFilters.includes('RECENT_7D')}
                       >
                         <Clock className="w-3 h-3" />
                         RECENT_7D
@@ -410,40 +474,54 @@ export default function SearchPage() {
         {/* Display Area */}
         <div className="relative min-h-[400px]">
           {isLoading && (
-            <motion.div 
-              initial={{ opacity: 0 }} 
+            <motion.div
+              initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="space-y-6"
             >
-              <div className="flex items-center gap-3 font-mono text-[10px] font-bold tracking-widest" style={{ color: THEME.colors.primary }}>
+              <div
+                className="flex items-center gap-3 font-mono text-[10px] font-bold tracking-widest"
+                style={{ color: THEME.colors.primary }}
+              >
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span className="animate-pulse">NEURAL_SYNTHESIS_IN_PROGRESS...</span>
+                <span className="animate-pulse">
+                  NEURAL_SYNTHESIS_IN_PROGRESS...
+                </span>
               </div>
-              
+
               {/* Agent "Thinking" UI */}
               <div className="p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/50 backdrop-blur-sm">
-                 <div className="flex items-center gap-2 mb-2">
-                    <Brain className="w-4 h-4 text-[var(--terminal-text-dim)]" />
-                    <span className="text-xs font-mono text-[var(--terminal-text-dim)]">Agent is processing query contexts...</span>
-                 </div>
-                 <div className="h-1 w-full bg-[var(--terminal-elevated)] rounded-full overflow-hidden">
-                    <motion.div 
-                        className="h-full bg-[var(--phosphor-green)]"
-                        initial={{ x: '-100%' }}
-                        animate={{ x: '100%' }}
-                        transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-                    />
-                 </div>
-                 <div className="mt-3 space-y-2">
-                    <div className="h-3 w-3/4 bg-[var(--terminal-elevated)] rounded animate-pulse" />
-                    <div className="h-3 w-1/2 bg-[var(--terminal-elevated)] rounded animate-pulse delay-75" />
-                 </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Brain className="w-4 h-4 text-[var(--terminal-text-dim)]" />
+                  <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+                    Agent is processing query contexts...
+                  </span>
+                </div>
+                <div className="h-1 w-full bg-[var(--terminal-elevated)] rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full bg-[var(--phosphor-green)]"
+                    initial={{ x: '-100%' }}
+                    animate={{ x: '100%' }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: 1.5,
+                      ease: 'linear',
+                    }}
+                  />
+                </div>
+                <div className="mt-3 space-y-2">
+                  <div className="h-3 w-3/4 bg-[var(--terminal-elevated)] rounded animate-pulse" />
+                  <div className="h-3 w-1/2 bg-[var(--terminal-elevated)] rounded animate-pulse delay-75" />
+                </div>
               </div>
             </motion.div>
           )}
 
           {searchResult && !isLoading && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
               <ResultsPanel
                 result={searchResult}
                 loading={isLoading}
@@ -469,16 +547,28 @@ export default function SearchPage() {
                     transition={{ delay: index * 0.05 }}
                     className="p-5 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg relative group overflow-hidden"
                   >
-                    <div className="absolute top-0 left-0 w-1 h-full opacity-20 transition-opacity" style={{ backgroundColor: feature.color }} />
-                    <feature.icon className="w-5 h-5 mb-4" style={{ color: feature.color }} />
-                    <h3 className="font-mono text-xs font-bold text-[var(--terminal-text)] mb-2 uppercase tracking-wider">{feature.title}</h3>
-                    <p className="text-[10px] font-mono text-[var(--terminal-text-dim)] leading-relaxed">{feature.description}</p>
+                    <div
+                      className="absolute top-0 left-0 w-1 h-full opacity-20 transition-opacity"
+                      style={{ backgroundColor: feature.color }}
+                    />
+                    <feature.icon
+                      className="w-5 h-5 mb-4"
+                      style={{ color: feature.color }}
+                    />
+                    <h3 className="font-mono text-xs font-bold text-[var(--terminal-text)] mb-2 uppercase tracking-wider">
+                      {feature.title}
+                    </h3>
+                    <p className="text-[10px] font-mono text-[var(--terminal-text-dim)] leading-relaxed">
+                      {feature.description}
+                    </p>
                   </motion.div>
                 ))}
               </div>
 
               <div className="text-center">
-                <span className="text-[9px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-[0.3em] mb-6 block">Suggested Directives</span>
+                <span className="text-[9px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-[0.3em] mb-6 block">
+                  Suggested Directives
+                </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
                   {suggestedQueries.map((suggestion, index) => (
                     <motion.button
@@ -486,13 +576,18 @@ export default function SearchPage() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.3 + index * 0.05 }}
-                      onClick={() => { setQuery(suggestion.cmd); handleSearch(suggestion.cmd); }}
+                      onClick={() => {
+                        setQuery(suggestion.cmd);
+                        handleSearch(suggestion.cmd);
+                      }}
                       className="group flex items-center gap-3 p-3 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:border-[var(--phosphor-green)]/30 transition-all text-left"
                     >
                       <div className="w-8 h-8 rounded-lg bg-[var(--terminal-bg)] flex items-center justify-center shrink-0">
                         <suggestion.icon className="w-4 h-4 text-[var(--terminal-text-dim)] group-hover:text-[var(--phosphor-green)] transition-colors" />
                       </div>
-                      <span className="flex-1 font-mono text-[11px] text-[var(--terminal-text-dim)] group-hover:text-[var(--terminal-text)] truncate transition-colors uppercase tracking-tight">{suggestion.label}</span>
+                      <span className="flex-1 font-mono text-[11px] text-[var(--terminal-text-dim)] group-hover:text-[var(--terminal-text)] truncate transition-colors uppercase tracking-tight">
+                        {suggestion.label}
+                      </span>
                       <ArrowRight className="w-3.5 h-3.5 text-[var(--terminal-text-muted)] group-hover:text-[var(--phosphor-green)] transition-all group-hover:translate-x-0.5" />
                     </motion.button>
                   ))}

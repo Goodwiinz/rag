@@ -9,18 +9,38 @@ import {
   SparklesIcon,
   DocumentTextIcon,
 } from '@heroicons/react/24/outline';
-import { SearchRequest, SearchResult, QueryHistory, QuerySuggestions } from '@/types/search';
+import {
+  SearchRequest,
+  SearchResult,
+  QueryHistory,
+  QuerySuggestions,
+} from '@/types/search';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Card } from '@/components/ui/card';
 
 interface SearchInterfaceProps {
   className?: string;
-  onSearch: (query: string, filters?: SearchRequest['filters']) => Promise<SearchResult | void>;
+  onSearch: (
+    query: string,
+    filters?: SearchRequest['filters']
+  ) => Promise<SearchResult | void>;
   onGetSuggestions?: (query: string) => Promise<QuerySuggestions>;
   onGetHistory?: () => Promise<QueryHistory[]>;
   onSaveSearch?: (query: string, name: string) => Promise<void>;
@@ -48,7 +68,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
   onGetHistory,
   onSaveSearch,
   loading = false,
-  placeholder = "Search your documents...",
+  placeholder = 'Search your documents...',
   autoFocus = false,
 }) => {
   const [query, setQuery] = useState('');
@@ -58,7 +78,9 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
   const [showSavedSearches, setShowSavedSearches] = useState(false);
   const [suggestions, setSuggestions] = useState<QuerySuggestions | null>(null);
   const [history, setHistory] = useState<QueryHistory[]>([]);
-  const [savedSearches, setSavedSearches] = useState<Array<{ id: string; name: string; query: string }>>([]);
+  const [savedSearches, setSavedSearches] = useState<
+    Array<{ id: string; name: string; query: string }>
+  >([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const [isSearching, setIsSearching] = useState(false);
@@ -114,17 +136,25 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
     if (onGetHistory) {
       onGetHistory()
         .then(setHistory)
-        .catch(error => console.error('Failed to fetch search history:', error));
+        .catch((error) =>
+          console.error('Failed to fetch search history:', error)
+        );
     }
   }, [onGetHistory]);
 
   // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node)) {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target as Node)
+      ) {
         setShowSuggestions(false);
       }
-      if (filtersRef.current && !filtersRef.current.contains(event.target as Node)) {
+      if (
+        filtersRef.current &&
+        !filtersRef.current.contains(event.target as Node)
+      ) {
         setShowFilters(false);
       }
     };
@@ -135,45 +165,81 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
     };
   }, []);
 
-  const handleSearch = useCallback(async (searchQuery: string = query) => {
-    if (!searchQuery.trim()) return;
+  // Global / keyboard shortcut for search focus
+  useEffect(() => {
+    const handleGlobalKeydown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        e.key === '/' &&
+        target.tagName !== 'INPUT' &&
+        target.tagName !== 'TEXTAREA'
+      ) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
 
-    setIsSearching(true);
-    setLastQuery(searchQuery);
-    setShowSuggestions(false);
+    document.addEventListener('keydown', handleGlobalKeydown);
+    return () => {
+      document.removeEventListener('keydown', handleGlobalKeydown);
+    };
+  }, []);
 
-    try {
-      const activeFilters = Object.keys(filters).length > 0 ? filters : undefined;
-      await onSearch(searchQuery.trim(), activeFilters);
-    } catch (error) {
-      console.error('Search failed:', error);
-    } finally {
-      setIsSearching(false);
-    }
-  }, [query, filters, onSearch]);
+  const handleSearch = useCallback(
+    async (searchQuery: string = query) => {
+      if (!searchQuery.trim()) return;
 
-  const handleSubmit = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-    handleSearch();
-  }, [handleSearch]);
+      setIsSearching(true);
+      setLastQuery(searchQuery);
+      setShowSuggestions(false);
 
-  const handleSuggestionClick = useCallback((suggestion: string) => {
-    setQuery(suggestion);
-    setShowSuggestions(false);
-    handleSearch(suggestion);
-  }, [handleSearch]);
+      try {
+        const activeFilters =
+          Object.keys(filters).length > 0 ? filters : undefined;
+        await onSearch(searchQuery.trim(), activeFilters);
+      } catch (error) {
+        console.error('Search failed:', error);
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [query, filters, onSearch]
+  );
 
-  const handleHistoryClick = useCallback((historyItem: QueryHistory) => {
-    setQuery(historyItem.query);
-    setShowHistory(false);
-    handleSearch(historyItem.query);
-  }, [handleSearch]);
+  const handleSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      handleSearch();
+    },
+    [handleSearch]
+  );
 
-  const handleSavedSearchClick = useCallback((savedSearch: { query: string; name: string }) => {
-    setQuery(savedSearch.query);
-    setShowSavedSearches(false);
-    handleSearch(savedSearch.query);
-  }, [handleSearch]);
+  const handleSuggestionClick = useCallback(
+    (suggestion: string) => {
+      setQuery(suggestion);
+      setShowSuggestions(false);
+      handleSearch(suggestion);
+    },
+    [handleSearch]
+  );
+
+  const handleHistoryClick = useCallback(
+    (historyItem: QueryHistory) => {
+      setQuery(historyItem.query);
+      setShowHistory(false);
+      handleSearch(historyItem.query);
+    },
+    [handleSearch]
+  );
+
+  const handleSavedSearchClick = useCallback(
+    (savedSearch: { query: string; name: string }) => {
+      setQuery(savedSearch.query);
+      setShowSavedSearches(false);
+      handleSearch(savedSearch.query);
+    },
+    [handleSearch]
+  );
 
   const handleSaveSearch = useCallback(async () => {
     if (!onSaveSearch || !query.trim()) return;
@@ -187,68 +253,101 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
           name: name.trim(),
           query: query.trim(),
         };
-        setSavedSearches(prev => [...prev, newSavedSearch]);
+        setSavedSearches((prev) => [...prev, newSavedSearch]);
       } catch (error) {
         console.error('Failed to save search:', error);
       }
     }
   }, [query, onSaveSearch]);
 
-  const handleFilterChange = useCallback((key: keyof SearchFilters, value: any) => {
-    setFilters(prev => {
-      const newFilters = { ...prev };
-      if (value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) {
-        delete newFilters[key];
-      } else {
-        newFilters[key] = value;
-      }
-      return newFilters;
-    });
-  }, []);
+  const handleFilterChange = useCallback(
+    (key: keyof SearchFilters, value: any) => {
+      setFilters((prev) => {
+        const newFilters = { ...prev };
+        if (
+          value === undefined ||
+          value === '' ||
+          (Array.isArray(value) && value.length === 0)
+        ) {
+          delete newFilters[key];
+        } else {
+          newFilters[key] = value;
+        }
+        return newFilters;
+      });
+    },
+    []
+  );
 
   const clearFilters = useCallback(() => {
     setFilters({});
   }, []);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!showSuggestions || !suggestions) return;
+  const handleClear = useCallback(() => {
+    setQuery('');
+    setShowSuggestions(false);
+    setSelectedSuggestionIndex(-1);
+    searchInputRef.current?.focus();
+  }, []);
 
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault();
-        const totalSuggestions = suggestions.auto_complete.length + suggestions.related_queries.length;
-        setSelectedSuggestionIndex(prev =>
-          prev < totalSuggestions - 1 ? prev + 1 : prev
-        );
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setSelectedSuggestionIndex(prev => prev > -1 ? prev - 1 : -1);
-        break;
-      case 'Enter':
-        e.preventDefault();
-        const autoCompleteLength = suggestions.auto_complete.length;
-        if (selectedSuggestionIndex >= 0 && selectedSuggestionIndex < autoCompleteLength) {
-          const suggestion = suggestions.auto_complete[selectedSuggestionIndex];
-          if (suggestion) {
-            handleSuggestionClick(suggestion);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!showSuggestions || !suggestions) return;
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          const totalSuggestions =
+            suggestions.auto_complete.length +
+            suggestions.related_queries.length;
+          setSelectedSuggestionIndex((prev) =>
+            prev < totalSuggestions - 1 ? prev + 1 : prev
+          );
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setSelectedSuggestionIndex((prev) => (prev > -1 ? prev - 1 : -1));
+          break;
+        case 'Enter':
+          e.preventDefault();
+          const autoCompleteLength = suggestions.auto_complete.length;
+          if (
+            selectedSuggestionIndex >= 0 &&
+            selectedSuggestionIndex < autoCompleteLength
+          ) {
+            const suggestion =
+              suggestions.auto_complete[selectedSuggestionIndex];
+            if (suggestion) {
+              handleSuggestionClick(suggestion);
+            }
+          } else if (selectedSuggestionIndex >= autoCompleteLength) {
+            const relatedIndex = selectedSuggestionIndex - autoCompleteLength;
+            const relatedQuery = suggestions.related_queries[relatedIndex];
+            if (relatedQuery?.query) {
+              handleSuggestionClick(relatedQuery.query);
+            }
+          } else {
+            handleSearch();
           }
-        } else if (selectedSuggestionIndex >= autoCompleteLength) {
-          const relatedIndex = selectedSuggestionIndex - autoCompleteLength;
-          const relatedQuery = suggestions.related_queries[relatedIndex];
-          if (relatedQuery?.query) {
-            handleSuggestionClick(relatedQuery.query);
+          break;
+        case 'Escape':
+          if (showSuggestions) {
+            setShowSuggestions(false);
+            setSelectedSuggestionIndex(-1);
+          } else if (query) {
+            handleClear();
           }
-        } else {
-          handleSearch();
-        }
-        break;
-      case 'Escape':
-        setShowSuggestions(false);
-        setSelectedSuggestionIndex(-1);
-        break;
-    }
-  }, [showSuggestions, suggestions, selectedSuggestionIndex, handleSuggestionClick, handleSearch]);
+          break;
+      }
+    },
+    [
+      showSuggestions,
+      suggestions,
+      selectedSuggestionIndex,
+      handleSuggestionClick,
+      handleSearch,
+    ]
+  );
 
   const hasActiveFilters = Object.keys(filters).length > 0;
 
@@ -257,7 +356,10 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
       case 'file_type':
         const currentTypes = filters.file_types || [];
         if (currentTypes.includes(value)) {
-          handleFilterChange('file_types', currentTypes.filter(t => t !== value));
+          handleFilterChange(
+            'file_types',
+            currentTypes.filter((t) => t !== value)
+          );
         } else {
           handleFilterChange('file_types', [...currentTypes, value]);
         }
@@ -271,7 +373,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
           start.setDate(start.getDate() - 7);
           handleFilterChange('date_range', {
             start: start.toISOString().split('T')[0],
-            end: end.toISOString().split('T')[0]
+            end: end.toISOString().split('T')[0],
           });
         }
         break;
@@ -286,7 +388,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
   };
 
   return (
-    <div className={cn("w-full space-y-4", className)}>
+    <div className={cn('w-full space-y-4', className)}>
       {/* Search Input */}
       <form onSubmit={handleSubmit} className="relative group z-20">
         <div className="relative">
@@ -305,6 +407,18 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
             aria-label="Search query"
           />
 
+          {/* Clear Button */}
+          {query && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="absolute right-28 top-1/2 transform -translate-y-1/2 h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              aria-label="Clear search"
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </button>
+          )}
+
           {/* Search Actions */}
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1.5">
             {/* Filters Button */}
@@ -314,8 +428,9 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
               size="icon"
               onClick={() => setShowFilters(!showFilters)}
               className={cn(
-                "h-9 w-9 rounded-xl hover:bg-muted text-muted-foreground transition-colors",
-                hasActiveFilters && "text-primary bg-primary/10 hover:bg-primary/20"
+                'h-9 w-9 rounded-xl hover:bg-muted text-muted-foreground transition-colors',
+                hasActiveFilters &&
+                  'text-primary bg-primary/10 hover:bg-primary/20'
               )}
               title="Filters"
               aria-label="Toggle filters"
@@ -331,12 +446,12 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
               type="submit"
               size="icon"
               disabled={!query.trim() || isSearching}
-              aria-label={isSearching ? "Searching..." : "Search"}
+              aria-label={isSearching ? 'Searching...' : 'Search'}
               className={cn(
-                "h-9 w-9 rounded-xl transition-all duration-200",
+                'h-9 w-9 rounded-xl transition-all duration-200',
                 query.trim()
-                  ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md hover:shadow-lg hover:scale-105"
-                  : "bg-muted text-muted-foreground"
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md hover:shadow-lg hover:scale-105'
+                  : 'bg-muted text-muted-foreground'
               )}
             >
               {isSearching ? (
@@ -357,23 +472,29 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
             {/* Auto-complete suggestions */}
             {suggestions.auto_complete.length > 0 && (
               <div className="p-2">
-                <p className="px-3 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Suggestions</p>
+                <p className="px-3 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Suggestions
+                </p>
                 {suggestions.auto_complete.map((suggestion, index) => (
                   <button
                     key={index}
                     type="button"
                     onClick={() => handleSuggestionClick(suggestion)}
                     className={cn(
-                      "w-full text-left px-3 py-2.5 text-sm rounded-xl transition-all duration-150 flex items-center space-x-3 group",
+                      'w-full text-left px-3 py-2.5 text-sm rounded-xl transition-all duration-150 flex items-center space-x-3 group',
                       selectedSuggestionIndex === index
-                        ? "bg-accent text-accent-foreground"
-                        : "hover:bg-accent/50 text-foreground"
+                        ? 'bg-accent text-accent-foreground'
+                        : 'hover:bg-accent/50 text-foreground'
                     )}
                   >
-                    <div className={cn(
-                      "p-1.5 rounded-lg transition-colors",
-                      selectedSuggestionIndex === index ? "bg-background text-primary" : "bg-muted text-muted-foreground group-hover:bg-background group-hover:text-foreground"
-                    )}>
+                    <div
+                      className={cn(
+                        'p-1.5 rounded-lg transition-colors',
+                        selectedSuggestionIndex === index
+                          ? 'bg-background text-primary'
+                          : 'bg-muted text-muted-foreground group-hover:bg-background group-hover:text-foreground'
+                      )}
+                    >
                       <MagnifyingGlassIcon className="h-4 w-4" />
                     </div>
                     <span className="font-medium">{suggestion}</span>
@@ -395,19 +516,24 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                     type="button"
                     onClick={() => handleSuggestionClick(related.query)}
                     className={cn(
-                      "w-full text-left px-3 py-2.5 text-sm rounded-xl transition-all duration-150 flex items-center justify-between group",
-                      selectedSuggestionIndex === suggestions.auto_complete.length + index
-                        ? "bg-accent text-accent-foreground"
-                        : "hover:bg-background hover:shadow-sm text-foreground"
+                      'w-full text-left px-3 py-2.5 text-sm rounded-xl transition-all duration-150 flex items-center justify-between group',
+                      selectedSuggestionIndex ===
+                        suggestions.auto_complete.length + index
+                        ? 'bg-accent text-accent-foreground'
+                        : 'hover:bg-background hover:shadow-sm text-foreground'
                     )}
                   >
                     <span className="font-medium">{related.query}</span>
-                    <Badge variant="secondary" className={cn(
-                      "text-[10px] h-5 px-1.5 transition-colors font-mono",
-                      selectedSuggestionIndex === suggestions.auto_complete.length + index
-                        ? "bg-background text-foreground"
-                        : "bg-muted text-muted-foreground"
-                    )}>
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        'text-[10px] h-5 px-1.5 transition-colors font-mono',
+                        selectedSuggestionIndex ===
+                          suggestions.auto_complete.length + index
+                          ? 'bg-background text-foreground'
+                          : 'bg-muted text-muted-foreground'
+                      )}
+                    >
                       {Math.round(related.similarity * 100)}%
                     </Badge>
                   </button>
@@ -424,10 +550,10 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
           <button
             onClick={() => toggleQuickFilter('file_type', 'pdf')}
             className={cn(
-              "px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5",
+              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5',
               filters.file_types?.includes('pdf')
-                ? "bg-primary/10 border-primary/20 text-primary"
-                : "bg-background border-border hover:border-primary/50 hover:bg-accent text-muted-foreground hover:text-foreground"
+                ? 'bg-primary/10 border-primary/20 text-primary'
+                : 'bg-background border-border hover:border-primary/50 hover:bg-accent text-muted-foreground hover:text-foreground'
             )}
           >
             <DocumentTextIcon className="h-3.5 w-3.5" />
@@ -436,10 +562,10 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
           <button
             onClick={() => toggleQuickFilter('date', 'week')}
             className={cn(
-              "px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5",
+              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5',
               filters.date_range
-                ? "bg-primary/10 border-primary/20 text-primary"
-                : "bg-background border-border hover:border-primary/50 hover:bg-accent text-muted-foreground hover:text-foreground"
+                ? 'bg-primary/10 border-primary/20 text-primary'
+                : 'bg-background border-border hover:border-primary/50 hover:bg-accent text-muted-foreground hover:text-foreground'
             )}
           >
             <ClockIcon className="h-3.5 w-3.5" />
@@ -448,10 +574,10 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
           <button
             onClick={() => toggleQuickFilter('confidence', 0.8)}
             className={cn(
-              "px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5",
+              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5',
               filters.min_confidence === 0.8
-                ? "bg-primary/10 border-primary/20 text-primary"
-                : "bg-background border-border hover:border-primary/50 hover:bg-accent text-muted-foreground hover:text-foreground"
+                ? 'bg-primary/10 border-primary/20 text-primary'
+                : 'bg-background border-border hover:border-primary/50 hover:bg-accent text-muted-foreground hover:text-foreground'
             )}
           >
             <SparklesIcon className="h-3.5 w-3.5" />
@@ -464,33 +590,53 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
       {hasActiveFilters && (
         <div className="flex items-center justify-between p-3 bg-muted/30 border border-border/50 rounded-xl animate-in fade-in slide-in-from-top-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground mr-1">Active:</span>
-            {filters.modalities && filters.modalities.map(m => (
-              <Badge key={m} variant="secondary" className="bg-background border-border text-foreground px-2 py-0.5 text-xs font-normal">
-                {m}
-                <button
-                  onClick={() => handleFilterChange('modalities', filters.modalities?.filter(i => i !== m))}
-                  className="ml-1.5 hover:text-destructive"
-                  aria-label={`Remove ${m} filter`}
+            <span className="text-xs font-medium text-muted-foreground mr-1">
+              Active:
+            </span>
+            {filters.modalities &&
+              filters.modalities.map((m) => (
+                <Badge
+                  key={m}
+                  variant="secondary"
+                  className="bg-background border-border text-foreground px-2 py-0.5 text-xs font-normal"
                 >
-                  ×
-                </button>
-              </Badge>
-            ))}
-            {filters.file_types && filters.file_types.map(f => (
-              <Badge key={f} variant="secondary" className="bg-background border-border text-foreground px-2 py-0.5 text-xs font-normal">
-                .{f}
-                <button
-                  onClick={() => toggleQuickFilter('file_type', f)}
-                  className="ml-1.5 hover:text-destructive"
-                  aria-label={`Remove ${f} file type filter`}
+                  {m}
+                  <button
+                    onClick={() =>
+                      handleFilterChange(
+                        'modalities',
+                        filters.modalities?.filter((i) => i !== m)
+                      )
+                    }
+                    className="ml-1.5 hover:text-destructive"
+                    aria-label={`Remove ${m} filter`}
+                  >
+                    ×
+                  </button>
+                </Badge>
+              ))}
+            {filters.file_types &&
+              filters.file_types.map((f) => (
+                <Badge
+                  key={f}
+                  variant="secondary"
+                  className="bg-background border-border text-foreground px-2 py-0.5 text-xs font-normal"
                 >
-                  ×
-                </button>
-              </Badge>
-            ))}
+                  .{f}
+                  <button
+                    onClick={() => toggleQuickFilter('file_type', f)}
+                    className="ml-1.5 hover:text-destructive"
+                    aria-label={`Remove ${f} file type filter`}
+                  >
+                    ×
+                  </button>
+                </Badge>
+              ))}
             {filters.date_range && (
-              <Badge variant="secondary" className="bg-background border-border text-foreground px-2 py-0.5 text-xs font-normal">
+              <Badge
+                variant="secondary"
+                className="bg-background border-border text-foreground px-2 py-0.5 text-xs font-normal"
+              >
                 Last 7 Days
                 <button
                   onClick={() => toggleQuickFilter('date', 'week')}
@@ -502,7 +648,10 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
               </Badge>
             )}
             {filters.min_confidence && (
-              <Badge variant="secondary" className="bg-background border-border text-foreground px-2 py-0.5 text-xs font-normal">
+              <Badge
+                variant="secondary"
+                className="bg-background border-border text-foreground px-2 py-0.5 text-xs font-normal"
+              >
                 High Confidence
                 <button
                   onClick={() => toggleQuickFilter('confidence', 0.8)}
@@ -532,7 +681,9 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
           className="absolute top-full left-0 right-0 z-40 mt-2 p-4 shadow-2xl border-border/50 bg-popover/95 backdrop-blur-xl rounded-2xl animate-in fade-in zoom-in-95 duration-200"
         >
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-foreground">Advanced Filters</h3>
+            <h3 className="text-sm font-semibold text-foreground">
+              Advanced Filters
+            </h3>
             <Button
               variant="ghost"
               size="sm"
@@ -553,23 +704,37 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {modalityOptions.map((option) => (
-                    <label key={option.value} className="flex items-center space-x-2 cursor-pointer group">
+                    <label
+                      key={option.value}
+                      className="flex items-center space-x-2 cursor-pointer group"
+                    >
                       <div className="relative flex items-center">
                         <input
                           type="checkbox"
-                          checked={filters.modalities?.includes(option.value as any) || false}
+                          checked={
+                            filters.modalities?.includes(option.value as any) ||
+                            false
+                          }
                           onChange={(e) => {
                             const current = filters.modalities || [];
                             if (e.target.checked) {
-                              handleFilterChange('modalities', [...current, option.value as any]);
+                              handleFilterChange('modalities', [
+                                ...current,
+                                option.value as any,
+                              ]);
                             } else {
-                              handleFilterChange('modalities', current.filter(m => m !== option.value));
+                              handleFilterChange(
+                                'modalities',
+                                current.filter((m) => m !== option.value)
+                              );
                             }
                           }}
                           className="peer h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/20"
                         />
                       </div>
-                      <span className="text-sm text-foreground group-hover:text-primary transition-colors">{option.label}</span>
+                      <span className="text-sm text-foreground group-hover:text-primary transition-colors">
+                        {option.label}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -582,21 +747,35 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {fileTypeOptions.map((option) => (
-                    <label key={option.value} className="flex items-center space-x-2 cursor-pointer group">
+                    <label
+                      key={option.value}
+                      className="flex items-center space-x-2 cursor-pointer group"
+                    >
                       <input
                         type="checkbox"
-                        checked={filters.file_types?.includes(option.value as any) || false}
+                        checked={
+                          filters.file_types?.includes(option.value as any) ||
+                          false
+                        }
                         onChange={(e) => {
                           const current = filters.file_types || [];
                           if (e.target.checked) {
-                            handleFilterChange('file_types', [...current, option.value as any]);
+                            handleFilterChange('file_types', [
+                              ...current,
+                              option.value as any,
+                            ]);
                           } else {
-                            handleFilterChange('file_types', current.filter(f => f !== option.value));
+                            handleFilterChange(
+                              'file_types',
+                              current.filter((f) => f !== option.value)
+                            );
                           }
                         }}
                         className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/20"
                       />
-                      <span className="text-sm text-foreground group-hover:text-primary transition-colors">{option.label}</span>
+                      <span className="text-sm text-foreground group-hover:text-primary transition-colors">
+                        {option.label}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -611,7 +790,9 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground">Start</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      Start
+                    </span>
                     <Input
                       type="date"
                       value={filters.date_range?.start || ''}
@@ -625,7 +806,9 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                     />
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground">End</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      End
+                    </span>
                     <Input
                       type="date"
                       value={filters.date_range?.end || ''}
@@ -648,9 +831,17 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                 </label>
                 <Select
                   value={filters.min_confidence?.toString() || 'any'}
-                  onValueChange={(value) => handleFilterChange('min_confidence', value === 'any' ? undefined : parseFloat(value))}
+                  onValueChange={(value) =>
+                    handleFilterChange(
+                      'min_confidence',
+                      value === 'any' ? undefined : parseFloat(value)
+                    )
+                  }
                 >
-                  <SelectTrigger className="text-sm h-9" aria-label="Minimum confidence">
+                  <SelectTrigger
+                    className="text-sm h-9"
+                    aria-label="Minimum confidence"
+                  >
                     <SelectValue placeholder="Any confidence" />
                   </SelectTrigger>
                   <SelectContent>
@@ -671,9 +862,17 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                 </label>
                 <Select
                   value={filters.max_results?.toString() || 'default'}
-                  onValueChange={(value) => handleFilterChange('max_results', value === 'default' ? undefined : parseInt(value, 10))}
+                  onValueChange={(value) =>
+                    handleFilterChange(
+                      'max_results',
+                      value === 'default' ? undefined : parseInt(value, 10)
+                    )
+                  }
                 >
-                  <SelectTrigger className="text-sm h-9" aria-label="Maximum results">
+                  <SelectTrigger
+                    className="text-sm h-9"
+                    aria-label="Maximum results"
+                  >
                     <SelectValue placeholder="Default" />
                   </SelectTrigger>
                   <SelectContent>
@@ -699,10 +898,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
             >
               Apply Filters
             </Button>
-            <Button
-              variant="outline"
-              onClick={clearFilters}
-            >
+            <Button variant="outline" onClick={clearFilters}>
               Clear
             </Button>
           </div>
