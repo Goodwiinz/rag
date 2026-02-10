@@ -254,7 +254,8 @@ def search_cache_key(query: str, filters: dict, tenant_id: str) -> str:
     # Create deterministic hash for complex parameters
     filter_str = json.dumps(sorted(filters.items()), sort_keys=True)
     combined = f"{query}:{filter_str}"
-    hash_obj = hashlib.md5(combined.encode())
+    # Use MD5 for non-security cache key generation (usedforsecurity=False)
+    hash_obj = hashlib.md5(combined.encode(), usedforsecurity=False)
     return f"search:{hash_obj.hexdigest()}:tenant:{tenant_id}"
 
 
@@ -262,7 +263,8 @@ def analytics_cache_key(analytics_type: str, params: dict, tenant_id: str) -> st
     """Generate cache key for analytics results"""
     param_str = json.dumps(sorted(params.items()), sort_keys=True)
     combined = f"{analytics_type}:{param_str}"
-    hash_obj = hashlib.md5(combined.encode())
+    # Use MD5 for non-security cache key generation (usedforsecurity=False)
+    hash_obj = hashlib.md5(combined.encode(), usedforsecurity=False)
     return f"analytics:{hash_obj.hexdigest()}:tenant:{tenant_id}"
 
 

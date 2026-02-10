@@ -70,7 +70,8 @@ class DraftGenerationService:
         Returns:
             Generation status with task ID
         """
-        task_id = hashlib.md5(f"{project_id}:{time.time()}".encode()).hexdigest()[:12]
+        # Use MD5 for non-security task ID generation (usedforsecurity=False)
+        task_id = hashlib.md5(f"{project_id}:{time.time()}".encode(), usedforsecurity=False).hexdigest()[:12]
 
         # Initialize status
         _generation_status[task_id] = {
