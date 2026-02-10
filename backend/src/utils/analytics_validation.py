@@ -16,6 +16,7 @@ try:
 
     HAS_BLEACH = True
 except ImportError:
+    bleach = None
     HAS_BLEACH = False
 
 # Security configurations
@@ -39,6 +40,8 @@ SQL_INJECTION_PATTERNS = [
     r"(\b(WAITFOR|DELAY)\s+)",
     r"(\b(BENCHMARK|SLEEP)\s*\()",
     r"(\b(USER|VERSION|DATABASE)\s*\()",
+    r"(\'\s*OR\s*\'[^']+\'\s*=\s*\'[^']+\')",
+    r"(\'\s*OR\s*\'?\w+\'?\s*=\s*\'?\w+\'?)",
 ]
 
 # XSS patterns
@@ -223,10 +226,14 @@ class SecurityValidator:
             raise AnalyticsValidationError(f"{field_name} must be numeric")
 
         if min_val is not None and value < min_val:
-            raise AnalyticsValidationError(f"{field_name} must be >= {min_val}")
+            raise AnalyticsValidationError(
+                f"{field_name} is below minimum ({min_val})"
+            )
 
         if max_val is not None and value > max_val:
-            raise AnalyticsValidationError(f"{field_name} must be <= {max_val}")
+            raise AnalyticsValidationError(
+                f"{field_name} is above maximum ({max_val})"
+            )
 
         return value
 
@@ -249,7 +256,7 @@ class SecurityValidator:
         """
         if start_date and end_date:
             if start_date >= end_date:
-                raise AnalyticsValidationError("start_date must be before end_date")
+                raise AnalyticsValidationError("Start time cannot be after end time")
 
             # Check range limit
             max_range = timedelta(days=max_range_days)
@@ -266,13 +273,17 @@ class SecurityValidator:
 
     @staticmethod
     def validate_list_input(
-        value: List[Any], max_items: int = MAX_LIST_ITEMS, field_name: str = "list"
+        value: List[Any],
+        item_type_or_max_items: Any = None,
+        max_items: int = MAX_LIST_ITEMS,
+        field_name: str = "list",
     ) -> List[Any]:
         """
         Validate list inputs
 
         Args:
             value: List to validate
+            item_type_or_max_items: Expected item type OR max items (legacy)
             max_items: Maximum number of items allowed
             field_name: Name of the field for error messages
 
@@ -282,12 +293,48 @@ class SecurityValidator:
         if not isinstance(value, list):
             raise AnalyticsValidationError(f"{field_name} must be a list")
 
-        if len(value) > max_items:
+        # Backward-compatible calling conventions:
+        # validate_list_input(items, str) -> enforce item type
+        # validate_list_input(items, 10, "name") -> enforce max items
+        item_type = None
+        if isinstance(item_type_or_max_items, type):
+            item_type = item_type_or_max_items
+        elif isinstance(item_type_or_max_items, int):
+            max_items = item_type_or_max_items
+        elif item_type_or_max_items is not None:
             raise AnalyticsValidationError(
-                f"{field_name} cannot contain more than {max_items} items"
+                f"{field_name} validator configuration is invalid"
             )
 
+        if len(value) > max_items:
+            raise AnalyticsValidationError(f"{field_name} has too many items")
+
+        if item_type is not None:
+            for idx, item in enumerate(value):
+                if not isinstance(item, item_type):
+                    raise AnalyticsValidationError(
+                        f"Item at index {idx} is not of type {item_type.__name__}"
+                    )
+
         return value
+
+    @staticmethod
+    def validate_pagination(limit: int, offset: int) -> tuple[int, int]:
+        """
+        Validate pagination parameters.
+        """
+        if not isinstance(limit, int) or limit < 1 or limit > 10000:
+            raise AnalyticsValidationError("Limit must be between 1 and 10000")
+
+        if not isinstance(offset, int) or offset < 0:
+            raise AnalyticsValidationError("Offset must be >= 0")
+
+        if offset > 100000:
+            raise AnalyticsValidationError(
+                "Offset too large, please use time-based filtering instead"
+            )
+
+        return limit, offset
 
     @staticmethod
     def validate_dict_input(

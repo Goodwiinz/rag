@@ -17,8 +17,12 @@ from xml.etree.ElementTree import Element  # For type hints only
 import aiofiles
 import aiohttp
 import requests
-from defusedxml import ElementTree as ET
 from pypdf import PdfReader
+
+try:
+    from defusedxml import ElementTree as ET
+except ImportError:  # pragma: no cover - fallback for test/dev environments
+    from xml.etree import ElementTree as ET
 
 from src.models.document import DocumentType, ProcessingStatus
 from src.services.infrastructure.azure_openai_service import azure_openai_service
