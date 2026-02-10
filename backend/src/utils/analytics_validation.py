@@ -227,14 +227,10 @@ class SecurityValidator:
             raise AnalyticsValidationError(f"{field_name} must be numeric")
 
         if min_val is not None and value < min_val:
-            raise AnalyticsValidationError(
-                f"{field_name} is below minimum ({min_val})"
-            )
+            raise AnalyticsValidationError(f"{field_name} must be >= {min_val}")
 
         if max_val is not None and value > max_val:
-            raise AnalyticsValidationError(
-                f"{field_name} is above maximum ({max_val})"
-            )
+            raise AnalyticsValidationError(f"{field_name} must be <= {max_val}")
 
         return value
 
@@ -257,7 +253,7 @@ class SecurityValidator:
         """
         if start_date and end_date:
             if start_date >= end_date:
-                raise AnalyticsValidationError("Start time cannot be after end time")
+                raise AnalyticsValidationError("start_date must be before end_date")
 
             # Check range limit
             max_range = timedelta(days=max_range_days)
@@ -308,7 +304,9 @@ class SecurityValidator:
             )
 
         if len(value) > max_items:
-            raise AnalyticsValidationError(f"{field_name} has too many items")
+            raise AnalyticsValidationError(
+                f"{field_name} cannot contain more than {max_items} items"
+            )
 
         if item_type is not None:
             for idx, item in enumerate(value):
@@ -324,11 +322,17 @@ class SecurityValidator:
         """
         Validate pagination parameters.
         """
-        if not isinstance(limit, int) or limit < 1 or limit > 10000:
-            raise AnalyticsValidationError("Limit must be between 1 and 10000")
+        if not isinstance(limit, int):
+            raise AnalyticsValidationError("limit must be an integer")
+        if limit < 1:
+            raise AnalyticsValidationError("limit must be >= 1")
+        if limit > 10000:
+            raise AnalyticsValidationError("limit must be <= 10000")
 
-        if not isinstance(offset, int) or offset < 0:
-            raise AnalyticsValidationError("Offset must be >= 0")
+        if not isinstance(offset, int):
+            raise AnalyticsValidationError("offset must be an integer")
+        if offset < 0:
+            raise AnalyticsValidationError("offset must be >= 0")
 
         if offset > 100000:
             raise AnalyticsValidationError(
@@ -637,7 +641,7 @@ class AnalyticsInputSanitizer:
         """
         # Sort parameters for consistent key generation
         sorted_params = json.dumps(params, sort_keys=True, default=str)
-        return hashlib.md5(sorted_params.encode()).hexdigest()
+        return hashlib.md5(sorted_params.encode(), usedforsecurity=False).hexdigest()
 
 
 # Global sanitizer instance
