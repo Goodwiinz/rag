@@ -82,7 +82,8 @@ class BM25Service:
     
     def _hash_token(self, token: str) -> int:
         """Hash token to vocabulary index"""
-        return int(hashlib.md5(token.encode()).hexdigest(), 16) % self.VOCAB_SIZE
+        # Use MD5 for non-security token hashing (usedforsecurity=False)
+        return int(hashlib.md5(token.encode(), usedforsecurity=False).hexdigest(), 16) % self.VOCAB_SIZE
     
     def _compute_tf(self, term_count: int, doc_length: int) -> float:
         """Compute BM25 term frequency component"""
