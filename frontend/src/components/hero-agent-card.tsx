@@ -162,7 +162,7 @@ export function HeroAgentCard({ className }: { className?: string }) {
                         {currentStep.label}
                       </span>
                       <span className="text-[var(--terminal-text-dim)] text-[9px] opacity-80 font-mono">
-                        PID: {2390 + stepIndex * 45} // THREAD_PRIORITY_HIGH
+                        PID: {2390 + stepIndex * 45} {/* THREAD_PRIORITY_HIGH */}
                       </span>
                   </div>
                 </div>

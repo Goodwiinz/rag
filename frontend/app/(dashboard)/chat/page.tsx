@@ -3,7 +3,6 @@
 import {
     ChatSettings,
     CitationPanel,
-    CitationRenderer,
     Model,
     RAGToggle,
 } from '@/components/chat';
@@ -29,8 +28,9 @@ import {
     Workspace,
 } from '@/types/workspace';
 import { Citation } from '@/utils/citationParser';
-import { CreateMLCEngine, InitProgressReport, MLCEngine } from "@mlc-ai/web-llm";
+import type { InitProgressReport, MLCEngine } from "@mlc-ai/web-llm";
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import dynamic from 'next/dynamic';
 import {
     Activity,
     ArrowDown,
@@ -54,6 +54,12 @@ import {
 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+
+// Lazy load CitationRenderer to reduce initial bundle size
+const CitationRenderer = dynamic(() => import('@/components/chat/CitationRenderer').then(mod => mod.CitationRenderer), {
+  loading: () => <div className="h-20 w-full animate-pulse bg-white/5 rounded-lg"></div>,
+  ssr: false
+});
 
 // ============================================
 // HELPERS
@@ -82,7 +88,7 @@ function generateConversationTitle(message: string): string {
   title = title.charAt(0).toUpperCase() + title.slice(1);
 
   // If the message is a question, keep the question mark
-  const isQuestion = message.trim().endsWith('?');
+  const _isQuestion = message.trim().endsWith('?');
 
   // Truncate to reasonable length (40 chars) at word boundary
   if (title.length > 40) {
@@ -108,6 +114,8 @@ function generateConversationTitle(message: string): string {
 // TYPES
 // ============================================
 
+import { Citation as DBCitation } from '@/types/workspace';
+
 interface ExtendedModel extends Model {
   isCloud?: boolean;
   provider?: 'openai' | 'local';
@@ -116,7 +124,6 @@ interface ExtendedModel extends Model {
 // Citation type is imported from '@/utils/citationParser'
 // Database citations use snake_case (document_id, document_title)
 // Parser citations use camelCase (documentId, title)
-import { Citation as DBCitation } from '@/types/workspace';
 
 /**
  * Extract title from snippet content (for legacy citations without document_title)
@@ -306,7 +313,7 @@ const DEFAULT_SETTINGS: ChatSettings = {
 
 // Database-backed storage - no more localStorage for conversations
 
-const STARTER_PROMPTS = [
+const _STARTER_PROMPTS = [
   {
     icon: BookOpen,
     title: 'Summarize Research',
@@ -374,8 +381,8 @@ function ChatMessage({
         ease: [0.25, 0.46, 0.45, 0.94]
       }}
       className={cn(
-        'group relative mb-6', 
-        isUser ? 'ml-8 sm:ml-20' : 'mr-8 sm:mr-20'
+        'group relative mb-4',
+        isUser ? 'ml-8 sm:ml-16' : 'mr-8 sm:mr-16'
       )}
     >
       {/* Transmission Line - Refined opacity */}
@@ -717,7 +724,7 @@ function ChatInput({
   const isNearLimit = charCount > maxChars * 0.8;
 
   return (
-    <div className="z-40 bg-gradient-to-t from-[var(--terminal-bg)] via-[var(--terminal-bg)] to-transparent pt-6 pb-6 px-4">
+    <div className="z-40 bg-gradient-to-t from-[var(--terminal-bg)] via-[var(--terminal-bg)] to-transparent pt-4 pb-4 px-4">
       <div className="max-w-4xl mx-auto">
         <motion.div
           className={cn(
@@ -852,7 +859,7 @@ function ChatInput({
 // ============================================
 
 function WelcomeState({
-  onPromptSelect,
+  onPromptSelect: _onPromptSelect,
   selectedModel,
 }: {
   onPromptSelect: (prompt: string) => void;
@@ -1049,9 +1056,9 @@ function ChatPageContent() {
   const [selectedModel, setSelectedModel] = useState<string>('');
 
   // Database state
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [_workspace, setWorkspace] = useState<Workspace | null>(null);
   const [dbConversation, setDbConversation] = useState<DBConversation | null>(null);
-  const [activeThread, setActiveThread] = useState<Thread | null>(null);
+  const [_activeThread, setActiveThread] = useState<Thread | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
 
@@ -1064,7 +1071,7 @@ function ChatPageContent() {
   // RAG state for local models
   const [enableRAG, setEnableRAG] = useState(true);
   const [isRAGLoading, setIsRAGLoading] = useState(false);
-  const [lastRAGContexts, setLastRAGContexts] = useState<RAGContextItem[]>([]);
+  const [_lastRAGContexts, setLastRAGContexts] = useState<RAGContextItem[]>([]);
 
   // Settings
   const [settings] = useState<ChatSettings>(DEFAULT_SETTINGS);
@@ -1094,7 +1101,7 @@ function ChatPageContent() {
   const addMessageToStore = useChatStore((state) => state.addMessageToStore);
 
   // Navigation detection
-  const pathname = usePathname();
+  const _pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -1223,7 +1230,7 @@ function ChatPageContent() {
   }, []);
 
   // Load threads and messages from database
-  const loadThreadsFromDb = useCallback(async (conversationId: string, isRetry = false): Promise<boolean> => {
+  const loadThreadsFromDb = useCallback(async (conversationId: string, _isRetry = false): Promise<boolean> => {
     try {
       console.log('[Chat] Loading threads from database for conversation:', conversationId);
       const threadResponse = await workspaceService.listThreads(conversationId, { limit: 50 });
@@ -1437,6 +1444,7 @@ function ChatPageContent() {
     setIsModelLoading(true);
     try {
       if (!engineRef.current) {
+        const { CreateMLCEngine } = await import("@mlc-ai/web-llm");
         engineRef.current = await CreateMLCEngine(modelId, { initProgressCallback });
       } else {
         await engineRef.current.reload(modelId);
@@ -1904,7 +1912,7 @@ function ChatPageContent() {
           ) : messages.length === 0 ? (
             <WelcomeState onPromptSelect={handlePromptSelect} selectedModel={selectedModel} />
           ) : (
-            <div className="max-w-4xl mx-auto pt-8 px-4 pb-12">
+            <div className="max-w-4xl mx-auto pt-4 px-4 pb-6">
               <AnimatePresence>
                 {messages.map((message, index) => (
                   <ChatMessage
