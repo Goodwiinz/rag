@@ -14,62 +14,96 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  SidebarSeparator,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import {
-  Activity,
+  BarChart3,
   Bell,
-  ChevronUp,
-  Cog,
+  BookOpen,
+  ChevronsUpDown,
   Files,
   FlaskConical,
   FolderKanban,
   HelpCircle,
-  Key,
   LayoutDashboard,
   LogOut,
   MessageSquare,
+  Network,
   Search,
   Settings,
+  Sparkles,
   Terminal,
-  Upload
+  Upload,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
-// Navigation items organized by groups - cleaner structure
+// Navigation items organized by section
 const mainNavItems = [
-  { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard, description: 'Overview & stats' },
-  { title: 'AI Chat', url: '/chat', icon: MessageSquare, description: 'Chat with AI' },
-  { title: 'Search', url: '/search', icon: Search, description: 'Search documents' },
+  { title: 'Overview', url: '/dashboard', icon: LayoutDashboard },
+  { title: 'Chat', url: '/chat', icon: MessageSquare },
+  { title: 'Search', url: '/search', icon: Search },
 ];
 
 const documentsNavItems = [
-  { title: 'All Documents', url: '/documents', icon: Files, description: 'Browse files' },
-  { title: 'Upload', url: '/documents/upload', icon: Upload, description: 'Add new files' },
-  { title: 'Entities', url: '/entities', icon: Terminal, description: 'Knowledge nodes' },
-  { title: 'ArXiv Papers', url: '/arxiv', icon: FlaskConical, description: 'Research papers' },
-  { title: 'Projects', url: '/projects', icon: FolderKanban, description: 'Research projects' },
+  { title: 'All Documents', url: '/documents', icon: Files },
+  { title: 'Upload', url: '/documents/upload', icon: Upload },
+  { title: 'Entities', url: '/entities', icon: Network },
+];
+
+const researchNavItems = [
+  { title: 'ArXiv Papers', url: '/arxiv', icon: BookOpen },
+  { title: 'Projects', url: '/projects', icon: FolderKanban },
 ];
 
 const systemNavItems = [
-  { title: 'Real-time', url: '/realtime', icon: Activity, description: 'Live metrics' },
-  { title: 'Settings', url: '/settings', icon: Cog, description: 'Preferences' },
-  { title: 'API Keys', url: '/secrets', icon: Key, description: 'Credentials' },
+  { title: 'Analytics', url: '/analytics', icon: BarChart3 },
+  { title: 'Settings', url: '/settings', icon: Settings },
 ];
+
+// System metrics type
+interface SystemMetrics {
+  uptime: string;
+  cpu: string;
+  memory: string;
+  queries: string;
+}
 
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
+
+  // System metrics state (would be fetched from API in production)
+  const [metrics, setMetrics] = useState<SystemMetrics>({
+    uptime: '99.4%',
+    cpu: '23%',
+    memory: '67%',
+    queries: '1,247',
+  });
+
+  // Simulate metrics update (replace with real API call)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMetrics((prev) => ({
+        ...prev,
+        cpu: `${Math.floor(Math.random() * 30 + 15)}%`,
+        memory: `${Math.floor(Math.random() * 20 + 55)}%`,
+        queries: (
+          parseInt(prev.queries.replace(',', '')) +
+          Math.floor(Math.random() * 5)
+        ).toLocaleString(),
+      }));
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -88,12 +122,19 @@ export function AppSidebar() {
   };
 
   const displayName = user?.email?.split('@')[0] || 'User';
-  const displayEmail = user?.email || 'Not signed in';
 
-  // Reusable NavItem component for cleaner code - Terminal Observatory Theme
-  // Using centralized CSS variables from @/theme/constants
-  const NavItem = ({ item }: { item: { title: string; url: string; icon: any; description?: string } }) => {
+  // Navigation item component matching the design
+  const NavItem = ({
+    item,
+  }: {
+    item: {
+      title: string;
+      url: string;
+      icon: React.ComponentType<{ className?: string }>;
+    };
+  }) => {
     const active = isActive(item.url);
+    const Icon = item.icon;
     return (
       <SidebarMenuItem>
         <SidebarMenuButton
@@ -101,119 +142,176 @@ export function AppSidebar() {
           isActive={active}
           tooltip={item.title}
           className={cn(
-            'font-mono text-sm transition-all duration-200 rounded-lg relative group/item h-10 border group-data-[collapsible=icon]:!size-10 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:mx-auto',
+            'group/nav font-mono text-xs transition-all duration-200 h-10 rounded-none border-l-2',
+            'group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:border-l-0',
             active
-              ? '!bg-[var(--terminal-elevated)] !border-[var(--terminal-border)] !text-[var(--phosphor-green)] font-medium shadow-[0_0_15px_-5px_rgba(0,0,0,0.3)]'
-              : 'border-transparent text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)]'
+              ? 'bg-[#00FF88]/10 text-[#fafafa] border-l-[#00FF88] group-data-[collapsible=icon]:bg-[#00FF88]/15'
+              : 'text-[#71717a] border-l-transparent hover:text-[#fafafa] hover:bg-[#1A1A1A] hover:border-l-[#00FF88]/50 group-data-[collapsible=icon]:hover:bg-[#1A1A1A]'
           )}
         >
-          <Link href={item.url} className="flex items-center gap-3 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 w-full">
-            {/* Active indicator - consistent with ConversationItem */}
-            {active && (
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 rounded-r-full bg-[var(--phosphor-green)] shadow-[0_0_8px_var(--phosphor-green)] transition-opacity duration-200" />
-            )}
-
-            {/* Icon Box - matches ConversationItem style */}
-            <div className={cn(
-              "w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all duration-200",
-              active
-                ? "bg-[var(--phosphor-green)]/10 !text-[var(--phosphor-green)] shadow-[0_0_10px_var(--phosphor-green-glow)]"
-                : "text-[var(--terminal-text-subtle)] group-hover/item:text-[var(--terminal-text-muted)] group-hover:bg-[var(--terminal-elevated)]"
-            )}>
-              <item.icon className="w-3.5 h-3.5" />
-            </div>
-
-            <span className={cn(
-              "truncate group-data-[collapsible=icon]:hidden",
-              active ? "!text-[var(--phosphor-green)]" : ""
-            )}>{item.title}</span>
+          <Link
+            href={item.url}
+            className="flex items-center gap-3 w-full px-5 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center"
+          >
+            <Icon
+              className={cn(
+                'w-4 h-4 flex-shrink-0 transition-colors duration-200',
+                active
+                  ? 'text-[#00ff9f]'
+                  : 'text-[#52525b] group-hover/nav:text-[#00ff9f]'
+              )}
+            />
+            <span className="truncate group-data-[collapsible=icon]:hidden font-medium">
+              {item.title}
+            </span>
           </Link>
         </SidebarMenuButton>
       </SidebarMenuItem>
     );
   };
 
+  // Section label component (// MAIN, // DOCUMENTS, etc.) - hidden when collapsed
+  const SectionLabel = ({ children }: { children: string }) => (
+    <div className="px-5 py-2 font-mono text-[9px] font-medium tracking-wider text-[#00FF88] uppercase group-data-[collapsible=icon]:hidden">
+      {`// ${children}`}
+    </div>
+  );
+
   return (
     <Sidebar
       collapsible="icon"
-      className="border-r border-[var(--terminal-border)]"
+      className="border-r border-[#1A1A1A] !bg-[#0A0A0A] z-50"
     >
-      {/* Header with Logo - Terminal Observatory Theme */}
-      <SidebarHeader className="border-b border-[var(--terminal-border)] p-2">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              size="lg"
-              asChild
-              tooltip="RAG System"
-              className="hover:bg-[var(--terminal-elevated)] data-[active=true]:bg-[var(--terminal-elevated)] rounded-lg h-12"
-            >
-              <Link href="/dashboard" className="flex items-center gap-3 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg flex-shrink-0">
-                  <Terminal className="w-4 h-4 text-[var(--phosphor-green)]" />
-                </div>
-                <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
-                  <span className="font-mono font-bold text-[var(--terminal-text)] text-sm">RAG System</span>
-                  <span className="text-[9px] font-mono text-[var(--phosphor-green)]/60 uppercase tracking-wider">
-                    v2.0
-                  </span>
-                </div>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+      {/* Header with Logo */}
+      <SidebarHeader className="border-b border-[#1A1A1A] px-5 py-4 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:py-2 bg-[#0A0A0A]">
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center"
+        >
+          <Terminal className="w-8 h-8 text-[#00FF88] flex-shrink-0 group-data-[collapsible=icon]:w-5 group-data-[collapsible=icon]:h-5" />
+          <div className="flex flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
+            <span className="font-mono font-semibold text-[13px] text-[#fafafa] tracking-wider">
+              RAG SYSTEM
+            </span>
+            <span className="font-mono text-[9px] text-[#52525b]">v2.1.0</span>
+          </div>
+        </Link>
       </SidebarHeader>
 
-      <SidebarContent className="py-3">
-        {/* Main Navigation */}
-        <SidebarGroup className="py-1 px-2 group-data-[collapsible=icon]:px-0">
-          <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-widest text-[var(--terminal-text-muted)] px-1 mb-2 group-data-[collapsible=icon]:sr-only">
-            Main
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {mainNavItems.map((item) => (
-                <NavItem key={item.title} item={item} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+      <SidebarContent className="flex flex-col justify-between py-6 group-data-[collapsible=icon]:py-2 bg-[#0A0A0A]">
+        <div className="flex-1">
+          {/* Main Navigation */}
+          <SidebarGroup className="py-0 group-data-[collapsible=icon]:px-1">
+            <SectionLabel>MAIN</SectionLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="space-y-0.5 group-data-[collapsible=icon]:space-y-1">
+                {mainNavItems.map((item) => (
+                  <NavItem key={item.title} item={item} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
 
-        <SidebarSeparator className="!bg-[var(--terminal-border)] mx-3 my-3 group-data-[collapsible=icon]:mx-2" />
+          {/* Documents Navigation */}
+          <SidebarGroup className="py-0 mt-4 group-data-[collapsible=icon]:mt-2 group-data-[collapsible=icon]:px-1">
+            <SectionLabel>DOCUMENTS</SectionLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="space-y-0.5 group-data-[collapsible=icon]:space-y-1">
+                {documentsNavItems.map((item) => (
+                  <NavItem key={item.title} item={item} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
 
-        {/* Documents */}
-        <SidebarGroup className="py-1 px-2 group-data-[collapsible=icon]:px-0">
-          <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-widest text-[var(--terminal-text-muted)] px-1 mb-2 group-data-[collapsible=icon]:sr-only">
-            Documents
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {documentsNavItems.map((item) => (
-                <NavItem key={item.title} item={item} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+          {/* Research Navigation */}
+          <SidebarGroup className="py-0 mt-4 group-data-[collapsible=icon]:mt-2 group-data-[collapsible=icon]:px-1">
+            <SectionLabel>RESEARCH</SectionLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="space-y-0.5 group-data-[collapsible=icon]:space-y-1">
+                {researchNavItems.map((item) => (
+                  <NavItem key={item.title} item={item} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
 
-        <SidebarSeparator className="!bg-[var(--terminal-border)] mx-3 my-3 group-data-[collapsible=icon]:mx-2" />
+          {/* System Navigation */}
+          <SidebarGroup className="py-0 mt-4 group-data-[collapsible=icon]:mt-2 group-data-[collapsible=icon]:px-1">
+            <SectionLabel>SYSTEM</SectionLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="space-y-0.5 group-data-[collapsible=icon]:space-y-1">
+                {systemNavItems.map((item) => (
+                  <NavItem key={item.title} item={item} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </div>
 
-        {/* System */}
-        <SidebarGroup className="py-1 px-2 group-data-[collapsible=icon]:px-0">
-          <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-widest text-[var(--terminal-text-muted)] px-1 mb-2 group-data-[collapsible=icon]:sr-only">
-            System
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {systemNavItems.map((item) => (
-                <NavItem key={item.title} item={item} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* System Status Panel */}
+        <div className="mt-8 group-data-[collapsible=icon]:hidden">
+          <div className="bg-[#0A0A0A] border-y border-[#1A1A1A] px-5 py-3">
+            <SectionLabel>SYSTEM STATUS</SectionLabel>
+            <div className="space-y-2 mt-2">
+              <div className="flex justify-between items-center">
+                <span className="font-mono text-[10px] text-[#71717a]">
+                  UPTIME
+                </span>
+                <span className="font-mono text-[10px] font-medium text-[#00ff9f]">
+                  {metrics.uptime}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="font-mono text-[10px] text-[#71717a]">
+                  CPU
+                </span>
+                <span className="font-mono text-[10px] font-medium text-[#fafafa]">
+                  {metrics.cpu}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="font-mono text-[10px] text-[#71717a]">
+                  MEMORY
+                </span>
+                <span className="font-mono text-[10px] font-medium text-[#ffb700]">
+                  {metrics.memory}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="font-mono text-[10px] text-[#71717a]">
+                  QUERIES
+                </span>
+                <span className="font-mono text-[10px] font-medium text-[#00d4ff]">
+                  {metrics.queries}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Premium Upgrade Card */}
+          <div className="mx-5 mt-4 p-4 border-2 border-[#00FF88]/25 rounded-none group-data-[collapsible=icon]:hidden">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="bg-[#00ff9f]/15 text-[#00ff9f] font-mono text-[9px] font-semibold px-2 py-1 rounded">
+                PRO
+              </span>
+              <span className="font-mono text-[11px] font-semibold text-[#00ff9f]">
+                UNLOCK PREMIUM
+              </span>
+            </div>
+            <p className="font-mono text-[10px] text-[#a1a1aa] leading-relaxed mb-3">
+              Advanced RAG features, unlimited queries, and priority support.
+            </p>
+            <button className="w-full bg-[#00FF88] text-[#050505] font-mono text-[9px] font-bold py-2.5 hover:bg-[#00FF88]/90 transition-colors flex items-center justify-center gap-1.5">
+              <Sparkles className="w-3 h-3" />
+              UPGRADE NOW
+            </button>
+          </div>
+        </div>
       </SidebarContent>
 
-      {/* Footer with User Menu - Terminal Observatory Theme */}
-      <SidebarFooter className="border-t border-[var(--terminal-border)] p-2">
+      {/* Footer with User Menu */}
+      <SidebarFooter className="border-t border-[#1A1A1A] p-0 group-data-[collapsible=icon]:p-1.5 bg-[#0A0A0A]">
         <SidebarMenu>
           <SidebarMenuItem>
             {isAuthenticated ? (
@@ -221,56 +319,80 @@ export function AppSidebar() {
                 <DropdownMenuTrigger asChild>
                   <SidebarMenuButton
                     size="lg"
-                    className="hover:bg-[var(--terminal-elevated)] data-[state=open]:bg-[var(--terminal-elevated)]"
+                    className="h-auto px-5 py-3 hover:bg-[#0A0A0A] data-[state=open]:bg-[#0A0A0A] rounded-none group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:mx-auto"
                   >
-                    <div className="flex items-center justify-center w-8 h-8 rounded bg-gradient-to-br from-[var(--phosphor-green)]/20 to-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30">
-                      <span className="text-xs font-mono font-medium text-[var(--phosphor-green)]">
+                    {/* Avatar */}
+                    <div className="flex items-center justify-center w-8 h-8 border border-[#00FF88]/30 rounded flex-shrink-0 bg-[#00FF88]/10">
+                      <span className="font-mono text-[10px] font-semibold text-[#00ff9f]">
                         {getInitials(user?.email)}
                       </span>
                     </div>
-                    <div className="flex flex-col gap-0.5 leading-none text-left group-data-[collapsible=icon]:hidden">
-                      <span className="font-mono text-sm text-[var(--terminal-text)] truncate">
+                    {/* User Info */}
+                    <div className="flex flex-col gap-0.5 leading-none text-left flex-1 group-data-[collapsible=icon]:hidden">
+                      <span className="font-mono text-[11px] font-medium text-[#fafafa] truncate">
                         {displayName}
                       </span>
-                      <span className="text-[10px] font-mono text-[var(--phosphor-green)]/70 truncate">
+                      <span className="font-mono text-[9px] text-[#71717a] truncate">
                         Administrator
                       </span>
                     </div>
-                    <ChevronUp className="ml-auto w-4 h-4 text-[var(--terminal-text-muted)] group-data-[collapsible=icon]:hidden" />
+                    <ChevronsUpDown className="w-4 h-4 text-[#4A4A4A] flex-shrink-0 group-data-[collapsible=icon]:hidden" />
                   </SidebarMenuButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
-                  className="w-56 bg-[var(--terminal-surface)] border-[var(--terminal-border)] font-mono"
+                  className="w-56 bg-[#0A0A0A] border-[#1A1A1A] font-mono"
                   side="top"
                   align="start"
                   sideOffset={4}
                 >
-                  <DropdownMenuLabel className="text-[var(--terminal-text-dim)] text-xs font-normal">
+                  <DropdownMenuLabel className="text-[#71717a] text-xs font-normal">
                     <div className="flex flex-col gap-1">
-                      <span className="text-[var(--terminal-text)] font-medium">{displayName}</span>
-                      <span className="text-[var(--terminal-text-muted)] text-[10px]">{displayEmail}</span>
+                      <span className="text-[#fafafa] font-medium">
+                        {displayName}
+                      </span>
+                      <span className="text-[#52525b] text-[10px]">
+                        {user?.email || 'Not signed in'}
+                      </span>
                     </div>
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-[var(--terminal-border)]" />
-                  <DropdownMenuItem asChild className="hover:bg-[var(--terminal-elevated)] focus:bg-[var(--terminal-elevated)] cursor-pointer">
-                    <Link href="/settings" className="flex items-center gap-2 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]">
+                  <DropdownMenuSeparator className="bg-[#1A1A1A]" />
+                  <DropdownMenuItem
+                    asChild
+                    className="hover:bg-[#1A1A1A] focus:bg-[#1A1A1A] cursor-pointer"
+                  >
+                    <Link
+                      href="/settings"
+                      className="flex items-center gap-2 text-[#a1a1aa] hover:text-[#fafafa]"
+                    >
                       <Settings className="w-4 h-4" />
                       Settings
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild className="hover:bg-[var(--terminal-elevated)] focus:bg-[var(--terminal-elevated)] cursor-pointer">
-                    <Link href="/notifications" className="flex items-center gap-2 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]">
+                  <DropdownMenuItem
+                    asChild
+                    className="hover:bg-[#1A1A1A] focus:bg-[#1A1A1A] cursor-pointer"
+                  >
+                    <Link
+                      href="/notifications"
+                      className="flex items-center gap-2 text-[#a1a1aa] hover:text-[#fafafa]"
+                    >
                       <Bell className="w-4 h-4" />
                       Notifications
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild className="hover:bg-[var(--terminal-elevated)] focus:bg-[var(--terminal-elevated)] cursor-pointer">
-                    <Link href="/help" className="flex items-center gap-2 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]">
+                  <DropdownMenuItem
+                    asChild
+                    className="hover:bg-[#1A1A1A] focus:bg-[#1A1A1A] cursor-pointer"
+                  >
+                    <Link
+                      href="/help"
+                      className="flex items-center gap-2 text-[#a1a1aa] hover:text-[#fafafa]"
+                    >
                       <HelpCircle className="w-4 h-4" />
                       Help Center
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-[var(--terminal-border)]" />
+                  <DropdownMenuSeparator className="bg-[#1A1A1A]" />
                   <DropdownMenuItem
                     onClick={handleLogout}
                     className="text-red-400 hover:text-red-300 hover:bg-red-500/10 focus:bg-red-500/10 cursor-pointer"
@@ -284,11 +406,17 @@ export function AppSidebar() {
               <SidebarMenuButton
                 asChild
                 size="lg"
-                className="bg-[var(--terminal-surface)] text-[var(--terminal-text)] border border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]"
+                tooltip="Sign In"
+                className="bg-[#0A0A0A] text-[#fafafa] border-t border-[#1A1A1A] hover:bg-[#1A1A1A] rounded-none h-auto px-5 py-4 group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:border-t-0"
               >
-                <Link href="/login" className="flex items-center gap-2">
-                  <LogOut className="w-4 h-4 text-[var(--phosphor-green)]" />
-                  <span className="font-mono group-data-[collapsible=icon]:hidden">Sign In</span>
+                <Link
+                  href="/login"
+                  className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center"
+                >
+                  <LogOut className="w-4 h-4 text-[#00FF88]" />
+                  <span className="font-mono text-[11px] group-data-[collapsible=icon]:hidden">
+                    Sign In
+                  </span>
                 </Link>
               </SidebarMenuButton>
             )}
@@ -296,7 +424,7 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarFooter>
 
-      <SidebarRail className="hover:after:bg-[var(--phosphor-green)]/30" />
+      <SidebarRail className="hover:after:bg-[#00FF88]/30" />
     </Sidebar>
   );
 }

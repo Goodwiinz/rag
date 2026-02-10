@@ -436,8 +436,7 @@ class EnhancedFileService:
             logger.error(f"Archive analysis failed: {str(e)}")
             return {"is_bomb": False, "error": str(e)}
 
-    async def analyze_zip_safety(self, file_path: str) -> Dict[str, Any]:
-        """Analyze ZIP file for zip bomb"""
+    def _analyze_zip_safety_sync(self, file_path: str) -> Dict[str, Any]:
         try:
             with zipfile.ZipFile(file_path, "r") as zip_file:
                 total_size = 0
@@ -479,8 +478,11 @@ class EnhancedFileService:
             logger.error(f"ZIP analysis failed: {str(e)}")
             return {"is_bomb": False, "error": str(e)}
 
-    async def analyze_tar_safety(self, file_path: str) -> Dict[str, Any]:
-        """Analyze TAR file for safety issues"""
+    async def analyze_zip_safety(self, file_path: str) -> Dict[str, Any]:
+        """Analyze ZIP file for zip bomb"""
+        return await asyncio.to_thread(self._analyze_zip_safety_sync, file_path)
+
+    def _analyze_tar_safety_sync(self, file_path: str) -> Dict[str, Any]:
         try:
             with tarfile.open(file_path, "r:*") as tar_file:
                 total_size = 0
@@ -501,6 +503,10 @@ class EnhancedFileService:
         except Exception as e:
             logger.error(f"TAR analysis failed: {str(e)}")
             return {"is_bomb": False, "error": str(e)}
+
+    async def analyze_tar_safety(self, file_path: str) -> Dict[str, Any]:
+        """Analyze TAR file for safety issues"""
+        return await asyncio.to_thread(self._analyze_tar_safety_sync, file_path)
 
     async def analyze_metadata_for_threats(
         self, file_path: str, validation_result: Dict[str, Any]
