@@ -1,19 +1,19 @@
 ## 2026-01-30 - Missing Rate Limiting on Login Endpoint
 
-**Vulnerability:** The `/api/v1/auth/login` endpoint was not enforcing rate limiting, despite having logic to retrieve the client IP. The `auth_rate_limiter.is_allowed(client_ip)` check was missing.
+**Vulnerability:** The `/api/v1/auth/login` endpoint was not enforcing rate-limiting, despite having logic to retrieve the client IP. The `auth_rate_limiter.is_allowed(client_ip)` check was missing.
 
 **Learning:** The rate limiter was instantiated but not called. This suggests a copy-paste error or an oversight during implementation, where the intent (getting client IP) was present but the enforcement was missed.
 Also, testing this endpoint proved difficult because the codebase has side effects on import (instantiating DB clients like Qdrant and Neo4j), which makes isolated unit testing challenging without extensive mocking.
 
 **Prevention:**
-1.  Ensure all sensitive endpoints (login, register, reset password) explicitly call the rate limiter.
+1.  Ensure all sensitive endpoints (login, register, reset password) explicitly call the rate-limiter.
 2.  Implement architectural changes to avoid side effects on import (e.g., lazy initialization of clients), facilitating easier unit testing.
 3.  Add integration tests that specifically target rate limiting behavior.
 
-## 2025-02-18 - Missing Rate Limiting on Password Reset
+## 2025-02-18 - Missing Rate-Limiting on Password Reset
 
-**Vulnerability:** The `/api/v1/auth/reset-password` endpoint lacked rate limiting, similar to the previous login endpoint issue.
+**Vulnerability:** The `/api/v1/auth/reset-password` endpoint lacked rate-limiting, similar to the previous login endpoint issue.
 
 **Learning:** Authentication endpoints are inconsistently protected. The `auth_rate_limiter` exists but manual application is error-prone. The integration testing environment is fragile due to circular imports, forcing the use of isolated unit tests that avoid importing `src.main`.
 
-**Prevention:** Consider using a decorator or middleware for rate limiting sensitive auth endpoints to ensure consistent application, rather than manual checks in each controller. Refactor codebase to remove circular dependencies to enable robust integration testing.
+**Prevention:** Consider using a decorator or middleware for rate-limiting sensitive auth endpoints to ensure consistent application, rather than manual checks in each controller. Refactor codebase to remove circular dependencies to enable robust integration testing.
