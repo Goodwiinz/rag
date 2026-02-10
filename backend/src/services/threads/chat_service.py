@@ -1279,7 +1279,7 @@ class ChatService:
                 continue
 
             # Use accurate token counting
-            msg_tokens = count_tokens(msg.content) if msg.content else 0
+            msg_tokens = msg.token_count if msg.token_count else 0
 
             if total_tokens + msg_tokens > effective_max_tokens:
                 truncated = True

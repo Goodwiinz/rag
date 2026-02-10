@@ -190,7 +190,6 @@ async def restore_document_and_extract(
         doc = existing_doc
         if not doc.content_text:
             doc.content_text = doc_data["text"]
-            db.commit()
             logger.info("Updated content text")
     else:
         # Create new document
@@ -217,7 +216,6 @@ async def restore_document_and_extract(
             uploaded_by_user_id=user_id,
         )
         db.add(doc)
-        db.commit()
         logger.info(f"Created new document with UUID {new_uuid}")
 
     # Now run extraction
@@ -248,8 +246,8 @@ async def restore_document_and_extract(
                         source_document_id=str(doc.id),
                     )
                     relationships_req.append(req)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to process relationship item: {e}")
 
             elif "name" in item:
                 try:
@@ -270,8 +268,8 @@ async def restore_document_and_extract(
                         source_document_id=str(doc.id),
                     )
                     entities_req.append(req)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to process entity item: {e}")
 
         if entities_req:
             batch_req = BatchEntityRequest(
@@ -319,6 +317,7 @@ async def main():
             await restore_document_and_extract(
                 db, doc_data, extraction_service, user.id, org.id
             )
+        db.commit()
 
     finally:
         db.close()
