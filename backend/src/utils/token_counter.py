@@ -9,6 +9,11 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+try:
+    import tiktoken
+except ImportError:  # pragma: no cover - optional dependency
+    tiktoken = None
+
 # Average characters per token for estimation (conservative estimate)
 # GPT models average ~4 chars/token for English, we use 3.5 for safety margin
 CHARS_PER_TOKEN_ESTIMATE = 3.5
@@ -30,7 +35,8 @@ def count_tokens(text: str, model: Optional[str] = None) -> int:
 
     # Try to use tiktoken for accurate counting
     try:
-        import tiktoken
+        if tiktoken is None:
+            raise ImportError("tiktoken not available")
 
         # Map common model names to encoding
         encoding_name = "cl100k_base"  # Default for GPT-4, Claude-compatible
