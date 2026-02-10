@@ -47,7 +47,12 @@ export function useEvidenceMeter({
         `/api/v1/evidence/meter?${params.toString()}`
       );
       
-      return response.data;
+      // If the API client returns the data directly (axios style) vs wrapped
+      // Check if response has a data property that matches the expected type
+      if (response && typeof response === 'object' && 'data' in response) {
+          return (response as any).data as EvidenceMeterData;
+      }
+      return response as unknown as EvidenceMeterData;
     },
     enabled: enabled && !!claim,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -78,7 +83,12 @@ export function useEvidenceBreakdown({
         `/api/v1/evidence/breakdown?${params.toString()}`
       );
       
-      return response.data;
+      // If the API client returns the data directly (axios style) vs wrapped
+      // Check if response has a data property that matches the expected type
+      if (response && typeof response === 'object' && 'data' in response) {
+          return (response as any).data as EvidenceBreakdownData;
+      }
+      return response as unknown as EvidenceBreakdownData;
     },
     enabled: enabled && !!claimHash,
     staleTime: 5 * 60 * 1000, // 5 minutes

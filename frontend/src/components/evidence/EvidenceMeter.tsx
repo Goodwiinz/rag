@@ -178,6 +178,22 @@ export function EvidenceMeter({
     error 
   } = useEvidenceMeter({ claim, sourceIds, queryId });
   
+  // Type guard or default
+  const safeData = data || {
+    claim: '',
+    claim_hash: '',
+    total_sources: 0,
+    supporting: 0,
+    opposing: 0,
+    neutral: 0,
+    not_addressed: 0,
+    consensus_level: 'insufficient_data' as const,
+    average_confidence: 0,
+    retracted_sources: 0,
+    cached: false,
+    reproducibility_hash: ''
+  };
+
   // Calculate meter segments
   const segments = useMemo(() => {
     if (!data) return [];
@@ -188,8 +204,8 @@ export function EvidenceMeter({
   const ariaLabel = useMemo(() => {
     if (!data) return 'Loading evidence meter';
     const text = getConsensusText(data);
-    return `Evidence meter: ${text}. ${data.supporting} supporting, ${data.opposing} opposing, ${data.neutral} neutral out of ${data.total_sources} sources.`;
-  }, [data]);
+    return `Evidence meter: ${text}. ${safeData.supporting} supporting, ${safeData.opposing} opposing, ${safeData.neutral} neutral out of ${safeData.total_sources} sources.`;
+  }, [data, safeData]);
   
   // Handle loading state
   if (isLoading) {
@@ -210,14 +226,14 @@ export function EvidenceMeter({
   }
   
   // Handle no data or empty sources
-  if (!data || data.total_sources === 0) {
+  if (!data || safeData.total_sources === 0) {
     return <EvidenceMeterEmpty className={className} />;
   }
   
   const consensusText = getConsensusText(data);
-  const consensusColor = getConsensusColor(data.consensus_level);
-  const consensusEmoji = getConsensusEmoji(data.consensus_level);
-  const showConfidenceWarning = data.average_confidence < 0.85;
+  const consensusColor = getConsensusColor(safeData.consensus_level);
+  const consensusEmoji = getConsensusEmoji(safeData.consensus_level);
+  const showConfidenceWarning = safeData.average_confidence < 0.85;
   
   return (
     <div 
@@ -274,15 +290,15 @@ export function EvidenceMeter({
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-1">
           <div className={cn('h-2 w-2 rounded-full', STANCE_COLORS.supporting)} />
-          <span>Supporting ({data.supporting})</span>
+          <span>Supporting ({safeData.supporting})</span>
         </div>
         <div className="flex items-center gap-1">
           <div className={cn('h-2 w-2 rounded-full', STANCE_COLORS.neutral)} />
-          <span>Neutral ({data.neutral})</span>
+          <span>Neutral ({safeData.neutral})</span>
         </div>
         <div className="flex items-center gap-1">
           <div className={cn('h-2 w-2 rounded-full', STANCE_COLORS.opposing)} />
-          <span>Opposing ({data.opposing})</span>
+          <span>Opposing ({safeData.opposing})</span>
         </div>
       </div>
       
@@ -297,8 +313,8 @@ export function EvidenceMeter({
             transition={{ duration: 0.2 }}
           >
             <EvidenceBreakdown
-              claimHash={data.claim_hash}
-              claim={data.claim}
+              claimHash={safeData.claim_hash}
+              claim={safeData.claim}
               sources={[]} // Will be fetched by the component
               onSourceClick={onSourceClick}
               className="mt-3 border-t pt-3"
@@ -308,14 +324,14 @@ export function EvidenceMeter({
       </AnimatePresence>
       
       {/* Retracted sources warning */}
-      {data.retracted_sources > 0 && (
+      {safeData.retracted_sources > 0 && (
         <div 
           className="flex items-center gap-2 rounded-md bg-yellow-50 dark:bg-yellow-900/20 p-2 text-xs text-yellow-700 dark:text-yellow-400"
           role="alert"
         >
           <AlertTriangle className="h-3 w-3" />
           <span>
-            ⚠️ {data.retracted_sources} retracted source{data.retracted_sources > 1 ? 's' : ''} found (excluded from count)
+            ⚠️ {safeData.retracted_sources} retracted source{safeData.retracted_sources > 1 ? 's' : ''} found (excluded from count)
           </span>
         </div>
       )}

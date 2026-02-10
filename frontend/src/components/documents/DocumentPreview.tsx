@@ -126,15 +126,16 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     }
   };
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
+  const formatFileSize = (bytes?: number): string => {
+    if (!bytes || bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const formatDate = (dateString: string): string => {
+  const formatDate = (dateString?: string): string => {
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -182,7 +183,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     if (!document) return null;
 
     // For images, show thumbnail
-    if (document.file_type === 'jpg' || document.file_type === 'png') {
+    if (document?.file_type === 'jpg' || document?.file_type === 'png') {
       return (
         <div className="flex items-center justify-center bg-gray-50 rounded-lg p-4">
           {document.thumbnail_url ? (
@@ -202,7 +203,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     }
 
     // For PDFs and text files, show placeholder
-    if (document.file_type === 'pdf' || document.file_type === 'txt') {
+    if (document?.file_type === 'pdf' || document?.file_type === 'txt') {
       return (
         <div className="flex items-center justify-center bg-gray-50 rounded-lg p-8">
           <div className="text-center">
@@ -221,7 +222,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     }
 
     // For audio files
-    if (document.file_type === 'mp3') {
+    if (document?.file_type === 'mp3') {
       return (
         <div className="flex items-center justify-center bg-gray-50 rounded-lg p-8">
           <div className="text-center">
@@ -240,7 +241,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     }
 
     // For video files
-    if (document.file_type === 'mp4') {
+    if (document?.file_type === 'mp4') {
       return (
         <div className="flex items-center justify-center bg-gray-50 rounded-lg p-8">
           <div className="text-center">
@@ -331,7 +332,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-700">File Type</p>
-                      <p className="text-sm text-gray-500">{document.file_type.toUpperCase()}</p>
+                      <p className="text-sm text-gray-500">{document.file_type?.toUpperCase()}</p>
                     </div>
                     {getDurationDisplay() && (
                       <div>

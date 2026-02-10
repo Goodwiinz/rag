@@ -240,7 +240,7 @@ export function EvidenceBreakdown({
   // Use provided sources or fetched data
   const sources = initialSources.length > 0 
     ? initialSources 
-    : (data?.sources ?? []);
+    : (data && 'sources' in data ? (data as any).sources : []);
   
   // Group sources by stance
   const groupedSources = useMemo(
