@@ -78,7 +78,7 @@ async def register(
 ):
     """Register a new user"""
     # Get client IP for rate limiting
-    client_ip = request.client.host
+    client_ip = request.client.host if request.client else "unknown"
 
     if not auth_rate_limiter.is_allowed(client_ip):
         raise HTTPException(
@@ -119,7 +119,7 @@ async def login(
             - remember_me=False (default): Session persists for 7 days
     """
     # Get client IP for rate limiting
-    client_ip = request.client.host
+    client_ip = request.client.host if request.client else "unknown"
 
     if not auth_rate_limiter.is_allowed(client_ip):
         raise HTTPException(
@@ -237,7 +237,7 @@ async def request_password_reset(
 ):
     """Request password reset"""
     # Get client IP for rate limiting
-    client_ip = request.client.host
+    client_ip = request.client.host if request.client else "unknown"
 
     if not auth_rate_limiter.is_allowed(client_ip):
         raise HTTPException(
