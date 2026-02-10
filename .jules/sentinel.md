@@ -18,6 +18,14 @@ Also, testing this endpoint proved difficult because the codebase has side effec
 
 **Prevention:** Always include IP-based rate limiting on sensitive authentication endpoints (login, register, password reset) in addition to account-based limiting. Ensure rate limiters use composite keys or multiple checks if needed.
 
+## 2026-02-09 - User Enumeration via Timing Attack
+
+**Vulnerability:** The authentication logic in `authenticate_user` returned early if a user was not found, before verifying the password hash. This allowed attackers to distinguish between valid and invalid email addresses by measuring the response time (valid users take longer due to bcrypt verification).
+
+**Learning:** `bcrypt` verification is intentionally slow. Skipping it for non-existent users creates a measurable timing difference.
+
+**Prevention:** Always perform a constant-time password verification (using a dummy hash if necessary) even if the user is not found, to ensure the response time is indistinguishable.
+
 ## 2025-02-18 - Missing Rate-Limiting on Password Reset
 
 **Vulnerability:** The `/api/v1/auth/reset-password` endpoint lacked rate-limiting, similar to the previous login endpoint issue.
