@@ -100,6 +100,10 @@ class TokenManager:
             })
         )
 
+        # Track refresh token IDs per user so global logout can revoke them.
+        self.redis.sadd(self._user_tokens_key(user_id), token_id)
+        self.redis.expire(self._user_tokens_key(user_id), self.refresh_token_ttl)
+
         return token
 
     def validate_access_token(self, token: str) -> dict:

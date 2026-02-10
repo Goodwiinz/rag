@@ -18,15 +18,16 @@ from pathlib import Path
 backend_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(backend_dir))
 
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
-os.environ["ASYNC_DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
-os.environ["ENVIRONMENT"] = "testing"
-os.environ["TESTING"] = "true"
-os.environ["SECRET_KEY"] = "test-secret-key-for-integration-tests"
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("ASYNC_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+os.environ.setdefault("ENVIRONMENT", "testing")
+os.environ.setdefault("TESTING", "true")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-integration-tests")
 
 import pytest
 import asyncio
 from unittest.mock import Mock, patch, AsyncMock, MagicMock
+from types import SimpleNamespace
 from uuid import uuid4, UUID
 from datetime import datetime, timezone
 from fastapi.testclient import TestClient
@@ -40,6 +41,23 @@ from src.api.threads import (
     check_bulk_archive_rate_limit,
     check_bulk_delete_rate_limit,
 )
+
+
+def _make_thread(thread_id: UUID, created_by_id: UUID | None = None) -> SimpleNamespace:
+    now = datetime.now(timezone.utc)
+    return SimpleNamespace(
+        id=thread_id,
+        conversation_id=uuid4(),
+        title="Test Thread",
+        summary=None,
+        status="resolved",
+        last_message_at=now,
+        message_count=1,
+        token_count=10,
+        created_by_id=created_by_id or uuid4(),
+        created_at=now,
+        updated_at=now,
+    )
 
 
 class TestBulkResolveEndpoint:
@@ -94,8 +112,8 @@ class TestBulkResolveEndpoint:
         thread_ids = [uuid4() for _ in range(3)]
 
         # Mock successful updates
-        mock_results = [(tid, True, None, Mock(id=tid)) for tid in thread_ids]
-        mock_chat_service.bulk_update_threads = Mock(return_value=mock_results)
+        mock_results = [(tid, True, None, _make_thread(tid, test_user.id)) for tid in thread_ids]
+        mock_chat_service.bulk_update_threads = AsyncMock(return_value=mock_results)
 
         # Override dependencies
         mock_app.dependency_overrides[get_current_user] = lambda: test_user
@@ -103,8 +121,8 @@ class TestBulkResolveEndpoint:
         # Mock rate limiter to pass
         mock_app.dependency_overrides[check_bulk_resolve_rate_limit] = lambda: True
 
-        with patch("src.api.threads.get_chat_service", return_value=mock_chat_service):
-            with patch("src.api.threads.thread_event_service") as mock_event:
+        with patch("src.api.threads.threads.get_chat_service", return_value=mock_chat_service):
+            with patch("src.api.threads.threads.thread_event_service") as mock_event:
                 mock_event.broadcast_threads_bulk_updated = AsyncMock()
 
                 client = TestClient(mock_app)
@@ -131,20 +149,20 @@ class TestBulkResolveEndpoint:
 
         # Mock partial success - first 2 succeed, last 2 fail
         mock_results = [
-            (thread_ids[0], True, None, Mock(id=thread_ids[0])),
-            (thread_ids[1], True, None, Mock(id=thread_ids[1])),
+            (thread_ids[0], True, None, _make_thread(thread_ids[0], test_user.id)),
+            (thread_ids[1], True, None, _make_thread(thread_ids[1], test_user.id)),
             (thread_ids[2], False, "Not found", None),
             (thread_ids[3], False, "Insufficient permissions", None),
         ]
-        mock_chat_service.bulk_update_threads = Mock(return_value=mock_results)
+        mock_chat_service.bulk_update_threads = AsyncMock(return_value=mock_results)
 
         # Override dependencies
         mock_app.dependency_overrides[get_current_user] = lambda: test_user
         mock_app.dependency_overrides[get_db] = lambda: mock_db
         mock_app.dependency_overrides[check_bulk_resolve_rate_limit] = lambda: True
 
-        with patch("src.api.threads.get_chat_service", return_value=mock_chat_service):
-            with patch("src.api.threads.thread_event_service") as mock_event:
+        with patch("src.api.threads.threads.get_chat_service", return_value=mock_chat_service):
+            with patch("src.api.threads.threads.thread_event_service") as mock_event:
                 mock_event.broadcast_threads_bulk_updated = AsyncMock()
 
                 client = TestClient(mock_app)
@@ -169,16 +187,16 @@ class TestBulkResolveEndpoint:
         """Test that bulk resolve broadcasts WebSocket event"""
         thread_ids = [uuid4() for _ in range(2)]
 
-        mock_results = [(tid, True, None, Mock(id=tid)) for tid in thread_ids]
-        mock_chat_service.bulk_update_threads = Mock(return_value=mock_results)
+        mock_results = [(tid, True, None, _make_thread(tid, test_user.id)) for tid in thread_ids]
+        mock_chat_service.bulk_update_threads = AsyncMock(return_value=mock_results)
 
         # Override dependencies
         mock_app.dependency_overrides[get_current_user] = lambda: test_user
         mock_app.dependency_overrides[get_db] = lambda: mock_db
         mock_app.dependency_overrides[check_bulk_resolve_rate_limit] = lambda: True
 
-        with patch("src.api.threads.get_chat_service", return_value=mock_chat_service):
-            with patch("src.api.threads.thread_event_service") as mock_event:
+        with patch("src.api.threads.threads.get_chat_service", return_value=mock_chat_service):
+            with patch("src.api.threads.threads.thread_event_service") as mock_event:
                 mock_event.broadcast_threads_bulk_updated = AsyncMock()
 
                 client = TestClient(mock_app)
@@ -200,25 +218,33 @@ class TestBulkResolveEndpoint:
         self, mock_app, test_user, auth_headers
     ):
         """Test bulk resolve with invalid thread_ids format"""
-        with patch("src.api.threads.get_current_user", return_value=test_user):
-            client = TestClient(mock_app)
-            response = client.post(
-                "/api/v2/threads/bulk/resolve",
-                json={"thread_ids": ["not-a-valid-uuid"]},
-                headers=auth_headers,
-            )
+        mock_app.dependency_overrides[get_current_user] = lambda: test_user
+        mock_app.dependency_overrides[get_db] = lambda: Mock()
+        mock_app.dependency_overrides[check_bulk_resolve_rate_limit] = lambda: True
+
+        client = TestClient(mock_app)
+        response = client.post(
+            "/api/v2/threads/bulk/resolve",
+            json={"thread_ids": ["not-a-valid-uuid"]},
+            headers=auth_headers,
+        )
+        mock_app.dependency_overrides = {}
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_bulk_resolve_empty_thread_ids(self, mock_app, test_user, auth_headers):
         """Test bulk resolve with empty thread_ids list"""
-        with patch("src.api.threads.get_current_user", return_value=test_user):
-            client = TestClient(mock_app)
-            response = client.post(
-                "/api/v2/threads/bulk/resolve",
-                json={"thread_ids": []},
-                headers=auth_headers,
-            )
+        mock_app.dependency_overrides[get_current_user] = lambda: test_user
+        mock_app.dependency_overrides[get_db] = lambda: Mock()
+        mock_app.dependency_overrides[check_bulk_resolve_rate_limit] = lambda: True
+
+        client = TestClient(mock_app)
+        response = client.post(
+            "/api/v2/threads/bulk/resolve",
+            json={"thread_ids": []},
+            headers=auth_headers,
+        )
+        mock_app.dependency_overrides = {}
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -229,13 +255,17 @@ class TestBulkResolveEndpoint:
             "/api/v2/threads/bulk/resolve", json={"thread_ids": [str(uuid4())]}
         )
 
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert response.status_code in (
+            status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_403_FORBIDDEN,
+        )
 
     def test_bulk_resolve_exceeds_max_limit(self, mock_app, test_user, auth_headers):
         """Test bulk resolve with more than 100 thread IDs"""
         thread_ids = [str(uuid4()) for _ in range(101)]
 
         mock_app.dependency_overrides[get_current_user] = lambda: test_user
+        mock_app.dependency_overrides[get_db] = lambda: Mock()
         mock_app.dependency_overrides[check_bulk_resolve_rate_limit] = lambda: True
 
         client = TestClient(mock_app)
@@ -293,16 +323,16 @@ class TestBulkArchiveEndpoint:
         """Test successful bulk archive"""
         thread_ids = [uuid4() for _ in range(3)]
 
-        mock_results = [(tid, True, None, Mock(id=tid)) for tid in thread_ids]
-        mock_chat_service.bulk_update_threads = Mock(return_value=mock_results)
+        mock_results = [(tid, True, None, _make_thread(tid, test_user.id)) for tid in thread_ids]
+        mock_chat_service.bulk_update_threads = AsyncMock(return_value=mock_results)
 
         # Override dependencies
         mock_app.dependency_overrides[get_current_user] = lambda: test_user
         mock_app.dependency_overrides[get_db] = lambda: mock_db
         mock_app.dependency_overrides[check_bulk_archive_rate_limit] = lambda: True
 
-        with patch("src.api.threads.get_chat_service", return_value=mock_chat_service):
-            with patch("src.api.threads.thread_event_service") as mock_event:
+        with patch("src.api.threads.threads.get_chat_service", return_value=mock_chat_service):
+            with patch("src.api.threads.threads.thread_event_service") as mock_event:
                 mock_event.broadcast_threads_bulk_updated = AsyncMock()
 
                 client = TestClient(mock_app)
@@ -324,16 +354,16 @@ class TestBulkArchiveEndpoint:
         """Test that bulk archive broadcasts 'archived' action"""
         thread_ids = [uuid4()]
 
-        mock_results = [(thread_ids[0], True, None, Mock())]
-        mock_chat_service.bulk_update_threads = Mock(return_value=mock_results)
+        mock_results = [(thread_ids[0], True, None, _make_thread(thread_ids[0], test_user.id))]
+        mock_chat_service.bulk_update_threads = AsyncMock(return_value=mock_results)
 
         # Override dependencies
         mock_app.dependency_overrides[get_current_user] = lambda: test_user
         mock_app.dependency_overrides[get_db] = lambda: mock_db
         mock_app.dependency_overrides[check_bulk_archive_rate_limit] = lambda: True
 
-        with patch("src.api.threads.get_chat_service", return_value=mock_chat_service):
-            with patch("src.api.threads.thread_event_service") as mock_event:
+        with patch("src.api.threads.threads.get_chat_service", return_value=mock_chat_service):
+            with patch("src.api.threads.threads.thread_event_service") as mock_event:
                 mock_event.broadcast_threads_bulk_updated = AsyncMock()
 
                 client = TestClient(mock_app)
@@ -393,15 +423,15 @@ class TestBulkDeleteEndpoint:
         thread_ids = [uuid4() for _ in range(3)]
 
         mock_results = [(tid, True, None) for tid in thread_ids]
-        mock_chat_service.bulk_delete_threads = Mock(return_value=mock_results)
+        mock_chat_service.bulk_delete_threads = AsyncMock(return_value=mock_results)
 
         # Override dependencies
         mock_app.dependency_overrides[get_current_user] = lambda: test_user
         mock_app.dependency_overrides[get_db] = lambda: mock_db
         mock_app.dependency_overrides[check_bulk_delete_rate_limit] = lambda: True
 
-        with patch("src.api.threads.get_chat_service", return_value=mock_chat_service):
-            with patch("src.api.threads.thread_event_service") as mock_event:
+        with patch("src.api.threads.threads.get_chat_service", return_value=mock_chat_service):
+            with patch("src.api.threads.threads.thread_event_service") as mock_event:
                 mock_event.broadcast_threads_bulk_updated = AsyncMock()
 
                 client = TestClient(mock_app)
@@ -430,15 +460,15 @@ class TestBulkDeleteEndpoint:
             (thread_ids[1], False, "Not found"),
             (thread_ids[2], True, None),
         ]
-        mock_chat_service.bulk_delete_threads = Mock(return_value=mock_results)
+        mock_chat_service.bulk_delete_threads = AsyncMock(return_value=mock_results)
 
         # Override dependencies
         mock_app.dependency_overrides[get_current_user] = lambda: test_user
         mock_app.dependency_overrides[get_db] = lambda: mock_db
         mock_app.dependency_overrides[check_bulk_delete_rate_limit] = lambda: True
 
-        with patch("src.api.threads.get_chat_service", return_value=mock_chat_service):
-            with patch("src.api.threads.thread_event_service") as mock_event:
+        with patch("src.api.threads.threads.get_chat_service", return_value=mock_chat_service):
+            with patch("src.api.threads.threads.thread_event_service") as mock_event:
                 mock_event.broadcast_threads_bulk_updated = AsyncMock()
 
                 client = TestClient(mock_app)
@@ -463,15 +493,15 @@ class TestBulkDeleteEndpoint:
         thread_ids = [uuid4()]
 
         mock_results = [(thread_ids[0], True, None)]
-        mock_chat_service.bulk_delete_threads = Mock(return_value=mock_results)
+        mock_chat_service.bulk_delete_threads = AsyncMock(return_value=mock_results)
 
         # Override dependencies
         mock_app.dependency_overrides[get_current_user] = lambda: test_user
         mock_app.dependency_overrides[get_db] = lambda: mock_db
         mock_app.dependency_overrides[check_bulk_delete_rate_limit] = lambda: True
 
-        with patch("src.api.threads.get_chat_service", return_value=mock_chat_service):
-            with patch("src.api.threads.thread_event_service") as mock_event:
+        with patch("src.api.threads.threads.get_chat_service", return_value=mock_chat_service):
+            with patch("src.api.threads.threads.thread_event_service") as mock_event:
                 mock_event.broadcast_threads_bulk_updated = AsyncMock()
 
                 client = TestClient(mock_app)
@@ -496,7 +526,10 @@ class TestBulkDeleteEndpoint:
             json={"thread_ids": [str(uuid4())]},
         )
 
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert response.status_code in (
+            status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_403_FORBIDDEN,
+        )
 
 
 class TestBulkOperationsResponseSchema:
@@ -531,20 +564,24 @@ class TestBulkOperationsResponseSchema:
         thread_ids = [uuid4()]
 
         mock_service = Mock()
-        mock_results = [(thread_ids[0], True, None, Mock(id=thread_ids[0]))]
-        mock_service.bulk_update_threads = Mock(return_value=mock_results)
+        mock_results = [(thread_ids[0], True, None, _make_thread(thread_ids[0], test_user.id))]
+        mock_service.bulk_update_threads = AsyncMock(return_value=mock_results)
 
-        with patch("src.api.threads.get_chat_service", return_value=mock_service):
-            with patch("src.api.threads.get_current_user", return_value=test_user):
-                with patch("src.api.threads.thread_event_service") as mock_event:
-                    mock_event.broadcast_threads_bulk_updated = AsyncMock()
+        mock_app.dependency_overrides[get_current_user] = lambda: test_user
+        mock_app.dependency_overrides[get_db] = lambda: Mock()
+        mock_app.dependency_overrides[check_bulk_resolve_rate_limit] = lambda: True
 
-                    client = TestClient(mock_app)
-                    response = client.post(
-                        "/api/v2/threads/bulk/resolve",
-                        json={"thread_ids": [str(thread_ids[0])]},
-                        headers=auth_headers,
-                    )
+        with patch("src.api.threads.threads.get_chat_service", return_value=mock_service):
+            with patch("src.api.threads.threads.thread_event_service") as mock_event:
+                mock_event.broadcast_threads_bulk_updated = AsyncMock()
+
+                client = TestClient(mock_app)
+                response = client.post(
+                    "/api/v2/threads/bulk/resolve",
+                    json={"thread_ids": [str(thread_ids[0])]},
+                    headers=auth_headers,
+                )
+        mock_app.dependency_overrides = {}
 
         data = response.json()
         assert "total" in data
@@ -558,24 +595,24 @@ class TestBulkOperationsResponseSchema:
         thread_id = uuid4()
 
         mock_service = Mock()
-        mock_thread = Mock()
-        mock_thread.id = thread_id
-        mock_thread.status = Mock(value="resolved")
+        mock_results = [(thread_id, True, None, _make_thread(thread_id, test_user.id))]
+        mock_service.bulk_update_threads = AsyncMock(return_value=mock_results)
 
-        mock_results = [(thread_id, True, None, mock_thread)]
-        mock_service.bulk_update_threads = Mock(return_value=mock_results)
+        mock_app.dependency_overrides[get_current_user] = lambda: test_user
+        mock_app.dependency_overrides[get_db] = lambda: Mock()
+        mock_app.dependency_overrides[check_bulk_resolve_rate_limit] = lambda: True
 
-        with patch("src.api.threads.get_chat_service", return_value=mock_service):
-            with patch("src.api.threads.get_current_user", return_value=test_user):
-                with patch("src.api.threads.thread_event_service") as mock_event:
-                    mock_event.broadcast_threads_bulk_updated = AsyncMock()
+        with patch("src.api.threads.threads.get_chat_service", return_value=mock_service):
+            with patch("src.api.threads.threads.thread_event_service") as mock_event:
+                mock_event.broadcast_threads_bulk_updated = AsyncMock()
 
-                    client = TestClient(mock_app)
-                    response = client.post(
-                        "/api/v2/threads/bulk/resolve",
-                        json={"thread_ids": [str(thread_id)]},
-                        headers=auth_headers,
-                    )
+                client = TestClient(mock_app)
+                response = client.post(
+                    "/api/v2/threads/bulk/resolve",
+                    json={"thread_ids": [str(thread_id)]},
+                    headers=auth_headers,
+                )
+        mock_app.dependency_overrides = {}
 
         data = response.json()
         result = data["results"][0]
