@@ -9,6 +9,14 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+try:
+    import tiktoken as _tiktoken
+except ImportError:
+    _tiktoken = None
+
+# Exposed at module level so tests can patch it directly.
+tiktoken = _tiktoken
+
 # Average characters per token for estimation (conservative estimate)
 # GPT models average ~4 chars/token for English, we use 3.5 for safety margin
 CHARS_PER_TOKEN_ESTIMATE = 3.5
@@ -29,9 +37,7 @@ def count_tokens(text: str, model: Optional[str] = None) -> int:
         return 0
 
     # Try to use tiktoken for accurate counting
-    try:
-        import tiktoken
-
+    if tiktoken is not None:
         # Map common model names to encoding
         encoding_name = "cl100k_base"  # Default for GPT-4, Claude-compatible
 
@@ -42,14 +48,11 @@ def count_tokens(text: str, model: Optional[str] = None) -> int:
             elif "davinci" in model_lower or "curie" in model_lower:
                 encoding_name = "p50k_base"
 
-        encoding = tiktoken.get_encoding(encoding_name)
-        return len(encoding.encode(text))
-
-    except ImportError:
-        # tiktoken not installed, use estimation
-        pass
-    except Exception as e:
-        logger.debug(f"tiktoken encoding failed, using estimation: {e}")
+        try:
+            encoding = tiktoken.get_encoding(encoding_name)
+            return len(encoding.encode(text))
+        except Exception as e:
+            logger.debug(f"tiktoken encoding failed, using estimation: {e}")
 
     # Fallback: estimate based on character count
     return estimate_tokens(text)
