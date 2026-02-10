@@ -77,10 +77,11 @@ class Conversation(BaseModel):
     @classmethod
     def get_workspace_conversations_with_details(cls, workspace_id, limit=50):
         """Get workspace conversations with threads and creator loaded"""
+        from src.models.thread import Thread
         return cls.query.options(
             joinedload(cls.created_by),
             selectinload(cls.threads).options(
-                joinedload("created_by")
+                joinedload(Thread.created_by)
             )
         ).filter(
             cls.workspace_id == workspace_id,

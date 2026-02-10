@@ -11,7 +11,7 @@ from fastapi import HTTPException, status, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, Text, UUID
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, Text
 import logging
 import redis.asyncio as redis
 
@@ -28,7 +28,7 @@ class APIKey(Base):
     """API Key model for public endpoint access"""
     __tablename__ = "api_keys"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=lambda: str(secrets.token_hex(16)))
+    id = Column(String, primary_key=True, default=lambda: secrets.token_hex(16))
     name = Column(String, nullable=False)  # Human readable name
     key_hash = Column(String, nullable=False, unique=True)  # Hashed API key
     key_prefix = Column(String(8), nullable=False)  # First 8 chars for identification 
@@ -47,7 +47,7 @@ class APIKeyUsageLog(Base):
     """API Key usage log model for audit trail"""
     __tablename__ = "api_key_usage_log"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=lambda: str(secrets.token_hex(16)))
+    id = Column(String, primary_key=True, default=lambda: secrets.token_hex(16))
     api_key_id = Column(String, nullable=False)  # Foreign key to api_keys
     endpoint = Column(String(255), nullable=False)  # API endpoint accessed
     method = Column(String(10), nullable=False)  # HTTP method used

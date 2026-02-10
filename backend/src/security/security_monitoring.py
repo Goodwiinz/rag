@@ -12,8 +12,8 @@ from typing import Dict, List, Any, Optional, Callable
 from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict
 from enum import Enum
-from email.mime.text import MimeText
-from email.mime.multipart import MimeMultipart
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import redis
 import psycopg2
 from psycopg2 import sql
@@ -23,8 +23,8 @@ import time
 from collections import defaultdict, deque
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from email.mime.multipart import MimeMultipart
-from email.mime.text import MimeText
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
@@ -621,7 +621,7 @@ class EmailNotifier(NotificationChannel):
     async def send_alert(self, alert: SecurityAlert) -> None:
         """Send email alert"""
         try:
-            msg = MimeMultipart()
+            msg = MIMEMultipart()
             msg["From"] = self.smtp_config.get("sender", "security@rag-system.com")
             msg["To"] = ", ".join(self.smtp_config["recipients"])
             msg["Subject"] = f"[SECURITY ALERT] {alert.title}"
@@ -646,7 +646,7 @@ class EmailNotifier(NotificationChannel):
             )
 
             body = template.render(alert=alert)
-            msg.attach(MimeText(body, "plain"))
+            msg.attach(MIMEText(body, "plain"))
 
             # Send email
             server = smtplib.SMTP(

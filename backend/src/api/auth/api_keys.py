@@ -260,7 +260,7 @@ async def get_api_key_usage(
             raise HTTPException(status_code=404, detail="API key not found")
         
         # Get current hour usage from in-memory tracking
-        current_usage = api_key_auth.get_current_usage(api_key_id)
+        current_usage = await api_key_auth.get_current_usage(api_key_id)
         
         return {
             "api_key": {
