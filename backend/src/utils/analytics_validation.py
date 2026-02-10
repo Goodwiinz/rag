@@ -641,6 +641,7 @@ class AnalyticsInputSanitizer:
         """
         # Sort parameters for consistent key generation
         sorted_params = json.dumps(params, sort_keys=True, default=str)
+        # Use MD5 for non-security cache key generation (usedforsecurity=False)
         return hashlib.md5(sorted_params.encode(), usedforsecurity=False).hexdigest()
 
 

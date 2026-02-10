@@ -515,7 +515,8 @@ def generate_cache_key(prefix: str, request, tenant_id: str) -> str:
     import hashlib
 
     request_str = str(request.dict()) + str(tenant_id)
-    hash_obj = hashlib.md5(request_str.encode())
+    # Use MD5 for non-security cache key generation (usedforsecurity=False)
+    hash_obj = hashlib.md5(request_str.encode(), usedforsecurity=False)
     return f"{prefix}:{hash_obj.hexdigest()}"
 
 
