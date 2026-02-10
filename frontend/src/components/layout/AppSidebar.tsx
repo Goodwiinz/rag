@@ -19,7 +19,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -185,23 +184,18 @@ export function AppSidebar() {
     >
       {/* Header with Logo */}
       <SidebarHeader className="border-b border-[#1A1A1A] px-5 py-4 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:py-2 bg-[#0A0A0A]">
-        <div className="flex items-center justify-between">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center"
-          >
-            <Terminal className="w-8 h-8 text-[#00FF88] flex-shrink-0 group-data-[collapsible=icon]:w-5 group-data-[collapsible=icon]:h-5" />
-            <div className="flex flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
-              <span className="font-mono font-semibold text-[13px] text-[#fafafa] tracking-wider">
-                RAG SYSTEM
-              </span>
-              <span className="font-mono text-[9px] text-[#52525b]">
-                v2.1.0
-              </span>
-            </div>
-          </Link>
-          <SidebarTrigger className="group-data-[collapsible=icon]:hidden hover:text-[#00FF88]" />
-        </div>
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center"
+        >
+          <Terminal className="w-8 h-8 text-[#00FF88] flex-shrink-0 group-data-[collapsible=icon]:w-5 group-data-[collapsible=icon]:h-5" />
+          <div className="flex flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
+            <span className="font-mono font-semibold text-[13px] text-[#fafafa] tracking-wider">
+              RAG SYSTEM
+            </span>
+            <span className="font-mono text-[9px] text-[#52525b]">v2.1.0</span>
+          </div>
+        </Link>
       </SidebarHeader>
 
       <SidebarContent className="flex flex-col justify-between py-6 group-data-[collapsible=icon]:py-2 bg-[#0A0A0A]">
