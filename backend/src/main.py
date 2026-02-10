@@ -445,7 +445,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "src.main:app",
-        host="0.0.0.0",
+        host=os.getenv("API_HOST", "127.0.0.1"),
         port=8000,
         reload=settings.DEBUG,
         log_level=settings.LOG_LEVEL.lower(),

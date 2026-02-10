@@ -478,9 +478,249 @@ export default function SettingsPage() {
                 </motion.div>
               )}
 
-              {/* Add other sections here as needed, maintaining the same pattern */}
-              {/* For brevity, I've refactored the two most visual sections first */}
-              
+              {/* Notifications Section */}
+              {activeSection === 'notifications' && (
+                <motion.div
+                  key="notifications"
+                  initial={{ opacity: 0, x: 5 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -5 }}
+                  className="space-y-6"
+                >
+                  <SettingsSection title="Alert Protocols" icon={Bell}>
+                    <SettingRow label="Email Dispatch" description="Receive alerts via digital mail">
+                      <ToggleSwitch
+                        enabled={settings.emailNotifications}
+                        onChange={(val) => setSettings(prev => ({ ...prev, emailNotifications: val }))}
+                        color={AMBER}
+                      />
+                    </SettingRow>
+
+                    <SettingRow label="Push Signals" description="Browser push notifications">
+                      <ToggleSwitch
+                        enabled={settings.pushNotifications}
+                        onChange={(val) => setSettings(prev => ({ ...prev, pushNotifications: val }))}
+                        color={AMBER}
+                      />
+                    </SettingRow>
+
+                    <SettingRow label="Sonic Alerts" description="Audible notification signals">
+                      <div className="flex items-center gap-3">
+                        {settings.soundEnabled ? (
+                          <Volume2 className="w-4 h-4" style={{ color: AMBER }} />
+                        ) : (
+                          <VolumeX className="w-4 h-4 text-white/30" />
+                        )}
+                        <ToggleSwitch
+                          enabled={settings.soundEnabled}
+                          onChange={(val) => setSettings(prev => ({ ...prev, soundEnabled: val }))}
+                          color={AMBER}
+                        />
+                      </div>
+                    </SettingRow>
+
+                    <SettingRow label="Document Processing Alerts" description="Notify on ingestion completion">
+                      <ToggleSwitch
+                        enabled={settings.documentAlerts}
+                        onChange={(val) => setSettings(prev => ({ ...prev, documentAlerts: val }))}
+                        color={AMBER}
+                      />
+                    </SettingRow>
+
+                    <SettingRow label="Weekly Digest" description="Summarized weekly activity report">
+                      <ToggleSwitch
+                        enabled={settings.weeklyDigest}
+                        onChange={(val) => setSettings(prev => ({ ...prev, weeklyDigest: val }))}
+                        color={AMBER}
+                      />
+                    </SettingRow>
+                  </SettingsSection>
+                </motion.div>
+              )}
+
+              {/* Security Section */}
+              {activeSection === 'security' && (
+                <motion.div
+                  key="security"
+                  initial={{ opacity: 0, x: 5 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -5 }}
+                  className="space-y-6"
+                >
+                  <SettingsSection title="Security Protocols" icon={Shield}>
+                    <SettingRow label="Two-Factor Authentication" description="Secondary verification layer">
+                      <div className="flex items-center gap-3">
+                        <Lock className="w-4 h-4" style={{ color: settings.twoFactor ? PHOSPHOR_GREEN : 'rgba(255,255,255,0.3)' }} />
+                        <ToggleSwitch
+                          enabled={settings.twoFactor}
+                          onChange={(val) => setSettings(prev => ({ ...prev, twoFactor: val }))}
+                          color={PHOSPHOR_GREEN}
+                        />
+                      </div>
+                    </SettingRow>
+
+                    <SettingRow label="Session Timeout" description="Auto-disconnect idle sessions">
+                      <select
+                        value={settings.sessionTimeout}
+                        onChange={(e) => setSettings(prev => ({ ...prev, sessionTimeout: Number(e.target.value) }))}
+                        className="px-3 py-1.5 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)] font-mono text-sm text-[var(--terminal-text)] focus:border-[var(--phosphor-green)]/50 outline-none appearance-none cursor-pointer"
+                      >
+                        <option value={15}>15 minutes</option>
+                        <option value={30}>30 minutes</option>
+                        <option value={60}>1 hour</option>
+                        <option value={240}>4 hours</option>
+                        <option value={480}>8 hours</option>
+                      </select>
+                    </SettingRow>
+                  </SettingsSection>
+                </motion.div>
+              )}
+
+              {/* Data Management Section */}
+              {activeSection === 'data' && (
+                <motion.div
+                  key="data"
+                  initial={{ opacity: 0, x: 5 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -5 }}
+                  className="space-y-6"
+                >
+                  <SettingsSection title="Data Registry" icon={Database}>
+                    <SettingRow label="Auto-Backup" description="Automatic data preservation">
+                      <ToggleSwitch
+                        enabled={settings.autoBackup}
+                        onChange={(val) => setSettings(prev => ({ ...prev, autoBackup: val }))}
+                        color={PHOSPHOR_GREEN}
+                      />
+                    </SettingRow>
+
+                    <SettingRow label="Backup Frequency" description="Automated backup interval">
+                      <select
+                        value={settings.backupFrequency}
+                        onChange={(e) => setSettings(prev => ({ ...prev, backupFrequency: e.target.value }))}
+                        className="px-3 py-1.5 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)] font-mono text-sm text-[var(--terminal-text)] focus:border-[var(--phosphor-green)]/50 outline-none appearance-none cursor-pointer"
+                      >
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                      </select>
+                    </SettingRow>
+
+                    <SettingRow label="Data Retention" description="Record preservation period">
+                      <select
+                        value={settings.retentionDays}
+                        onChange={(e) => setSettings(prev => ({ ...prev, retentionDays: Number(e.target.value) }))}
+                        className="px-3 py-1.5 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)] font-mono text-sm text-[var(--terminal-text)] focus:border-[var(--phosphor-green)]/50 outline-none appearance-none cursor-pointer"
+                      >
+                        <option value={30}>30 days</option>
+                        <option value={90}>90 days</option>
+                        <option value={365}>1 year</option>
+                        <option value={-1}>Forever</option>
+                      </select>
+                    </SettingRow>
+
+                    <SettingRow label="Export Data" description="Download system data archive">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => alert('Data export initiated. You will receive a download link via email.')}
+                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg border font-mono text-xs font-bold transition-all"
+                        style={{
+                          borderColor: `${PHOSPHOR_GREEN}50`,
+                          backgroundColor: `${PHOSPHOR_GREEN}15`,
+                          color: PHOSPHOR_GREEN,
+                        }}
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        EXPORT
+                      </motion.button>
+                    </SettingRow>
+
+                    <SettingRow label="Import Data" description="Restore from external archive">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => alert('Import wizard will open. Please prepare your data archive.')}
+                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg border font-mono text-xs font-bold transition-all"
+                        style={{
+                          borderColor: `${CYAN}50`,
+                          backgroundColor: `${CYAN}15`,
+                          color: CYAN,
+                        }}
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        IMPORT
+                      </motion.button>
+                    </SettingRow>
+                  </SettingsSection>
+                </motion.div>
+              )}
+
+              {/* System Section */}
+              {activeSection === 'system' && (
+                <motion.div
+                  key="system"
+                  initial={{ opacity: 0, x: 5 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -5 }}
+                  className="space-y-6"
+                >
+                  <SettingsSection title="Core Diagnostics" icon={Cpu}>
+                    <SettingRow label="System Status" description="Current operational state">
+                      <div className="flex items-center gap-2">
+                        <span className="relative flex h-2.5 w-2.5">
+                          <span
+                            className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                            style={{ backgroundColor: PHOSPHOR_GREEN }}
+                          />
+                          <span
+                            className="relative inline-flex rounded-full h-2.5 w-2.5"
+                            style={{ backgroundColor: PHOSPHOR_GREEN }}
+                          />
+                        </span>
+                        <span className="font-mono text-sm font-bold" style={{ color: PHOSPHOR_GREEN }}>
+                          Healthy
+                        </span>
+                      </div>
+                    </SettingRow>
+
+                    <SettingRow label="Clear Cache" description="Purge temporary system data">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => alert('Cache cleared successfully.')}
+                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg border font-mono text-xs font-bold transition-all"
+                        style={{
+                          borderColor: `${AMBER}50`,
+                          backgroundColor: `${AMBER}15`,
+                          color: AMBER,
+                        }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        CLEAR
+                      </motion.button>
+                    </SettingRow>
+
+                    <SettingRow label="Run Diagnostics" description="Execute system health check">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => alert('Diagnostics running... All systems nominal.')}
+                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg border font-mono text-xs font-bold transition-all"
+                        style={{
+                          borderColor: `${CYAN}50`,
+                          backgroundColor: `${CYAN}15`,
+                          color: CYAN,
+                        }}
+                      >
+                        <Activity className="w-3.5 h-3.5" />
+                        DIAGNOSE
+                      </motion.button>
+                    </SettingRow>
+                  </SettingsSection>
+                </motion.div>
+              )}
+
             </AnimatePresence>
           </div>
         </div>

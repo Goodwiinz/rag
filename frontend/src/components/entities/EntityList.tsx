@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Edit, Trash2, Eye, ExternalLink, Clock, CheckCircle, Info } from 'lucide-react';
+import { Edit, Trash2, Eye, ExternalLink, Clock, CheckCircle, Info, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -82,9 +82,52 @@ export const EntityList: React.FC<EntityListProps> = ({
 
   if (loading) {
     return (
-      <div className="space-y-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-16 rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)] animate-pulse" />
+      <div className="flex flex-col h-full bg-[var(--terminal-surface)]">
+        {/* Skeleton header bar */}
+        <div className="px-6 py-3 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-4 h-4 rounded bg-[var(--terminal-border)] animate-pulse" />
+            <div className="w-20 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
+          </div>
+          <div className="w-32 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
+        </div>
+
+        {/* Skeleton table header */}
+        <div className="px-6 py-2.5 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30 grid grid-cols-[3rem_1fr_8rem_5rem_1fr_7rem_7rem] gap-4 items-center">
+          <div className="w-4 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
+          <div className="w-24 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
+          <div className="w-20 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
+          <div className="w-16 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
+          <div className="w-28 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
+          <div className="w-20 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
+          <div className="w-20 h-3 rounded bg-[var(--terminal-border)] animate-pulse ml-auto" />
+        </div>
+
+        {/* Skeleton rows */}
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="px-6 py-3.5 border-b border-[var(--terminal-border)] grid grid-cols-[3rem_1fr_8rem_5rem_1fr_7rem_7rem] gap-4 items-center"
+            style={{ animationDelay: `${i * 75}ms` }}
+          >
+            <div className="w-4 h-4 rounded bg-[var(--terminal-border)] animate-pulse" style={{ animationDelay: `${i * 75}ms` }} />
+            <div className="space-y-1.5">
+              <div className="h-4 rounded bg-[var(--terminal-border)] animate-pulse" style={{ width: `${60 + (i % 3) * 15}%`, animationDelay: `${i * 75}ms` }} />
+              <div className="h-2.5 rounded bg-[var(--terminal-border)]/50 animate-pulse" style={{ width: `${30 + (i % 2) * 20}%`, animationDelay: `${i * 75}ms` }} />
+            </div>
+            <div className="h-5 rounded-full bg-[var(--terminal-border)] animate-pulse" style={{ width: `${50 + (i % 4) * 10}%`, animationDelay: `${i * 75}ms` }} />
+            <div className="space-y-1">
+              <div className="h-1.5 rounded-full bg-[var(--terminal-border)] animate-pulse" style={{ animationDelay: `${i * 75}ms` }} />
+              <div className="h-3 w-10 rounded bg-[var(--terminal-border)]/50 animate-pulse" style={{ animationDelay: `${i * 75}ms` }} />
+            </div>
+            <div className="h-3 rounded bg-[var(--terminal-border)]/50 animate-pulse" style={{ width: `${40 + (i % 3) * 20}%`, animationDelay: `${i * 75}ms` }} />
+            <div className="h-3 w-16 rounded bg-[var(--terminal-border)]/50 animate-pulse" style={{ animationDelay: `${i * 75}ms` }} />
+            <div className="flex items-center justify-end gap-1.5">
+              <div className="w-7 h-7 rounded bg-[var(--terminal-border)] animate-pulse" style={{ animationDelay: `${i * 75}ms` }} />
+              <div className="w-7 h-7 rounded bg-[var(--terminal-border)] animate-pulse" style={{ animationDelay: `${i * 75 + 25}ms` }} />
+              <div className="w-7 h-7 rounded bg-[var(--terminal-border)] animate-pulse" style={{ animationDelay: `${i * 75 + 50}ms` }} />
+            </div>
+          </div>
         ))}
       </div>
     );
@@ -125,9 +168,16 @@ export const EntityList: React.FC<EntityListProps> = ({
 
       {/* Table */}
       {entities.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center py-16">
-          <Info className="w-10 h-10 text-[var(--terminal-text-muted)] opacity-20" />
-          <p className="text-sm font-mono text-[var(--terminal-text-dim)]">NO_ENTITIES_RECORDED_IN_DATABASE</p>
+        <div className="flex-1 flex flex-col items-center justify-center py-16 gap-3">
+          <div className="w-14 h-14 rounded-full bg-[var(--terminal-bg)] border border-[var(--terminal-border)] flex items-center justify-center">
+            <Database className="w-7 h-7 text-[var(--terminal-text-muted)] opacity-40" />
+          </div>
+          <p className="text-sm font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-wider">
+            NO_ENTITIES_FOUND
+          </p>
+          <p className="text-xs font-mono text-[var(--terminal-text-muted)] text-center max-w-xs leading-relaxed">
+            No entities match the current filters. Try adjusting your search query, type selections, or confidence range.
+          </p>
         </div>
       ) : (
           <div className="overflow-x-auto terminal-scrollbar">

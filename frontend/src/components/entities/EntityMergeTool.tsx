@@ -3,8 +3,8 @@
  * Identifies and merges duplicate entities in the knowledge graph
  */
 
-import React, { useState, useEffect } from 'react';
-import { GitMerge, Loader2, AlertTriangle, CheckCircle2, Search, Lock } from 'lucide-react';
+import React, { useState } from 'react';
+import { GitMerge, Loader2, AlertTriangle, CheckCircle2, Search, Lock, XCircle, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,7 @@ export const EntityMergeTool: React.FC = () => {
   const [similarityThreshold, setSimilarityThreshold] = useState(0.85);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroups, setSelectedGroups] = useState<Set<number>>(new Set());
+  const [error, setError] = useState<{message: string; context: 'fetch' | 'merge'} | null>(null);
 
   // Show admin-only notice if user lacks permissions
   if (!canBulkEdit) {
@@ -59,10 +60,23 @@ export const EntityMergeTool: React.FC = () => {
   const findDuplicates = async () => {
     try {
       setLoading(true);
-      
-      // Fetch all entities
-      const response = await entityService.getEntities(1000, 0);
-      const entities = response.entities.map((e: any) => ({
+      setError(null);
+
+      // Fetch all entities in paginated batches
+      const PAGE_SIZE = 100;
+      let offset = 0;
+      let allEntities: any[] = [];
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await entityService.getEntities(PAGE_SIZE, offset);
+        const batch = response.entities;
+        allEntities = allEntities.concat(batch);
+        offset += PAGE_SIZE;
+        hasMore = batch.length === PAGE_SIZE;
+      }
+
+      const entities = allEntities.map((e: any) => ({
         id: e.id,
         name: e.name,
         type: e.entity_type,
@@ -77,51 +91,66 @@ export const EntityMergeTool: React.FC = () => {
         source_document_id: e.source_document_id
       }));
 
-      // Find duplicates using name similarity
+      // Find duplicates using hash bucketing by 3-char prefix
       const groups: DuplicateGroup[] = [];
       const processed = new Set<string>();
 
-      for (let i = 0; i < entities.length; i++) {
-        if (processed.has(entities[i].id)) continue;
-
-        const similar: Entity[] = [entities[i]];
-        processed.add(entities[i].id);
-
-        for (let j = i + 1; j < entities.length; j++) {
-          if (processed.has(entities[j].id)) continue;
-
-          const similarity = calculateSimilarity(
-            entities[i].name.toLowerCase(),
-            entities[j].name.toLowerCase()
-          );
-
-          if (similarity >= similarityThreshold) {
-            similar.push(entities[j]);
-            processed.add(entities[j].id);
-          }
+      // Build buckets keyed by 3-char lowercase prefix
+      const buckets = new Map<string, Entity[]>();
+      for (const entity of entities) {
+        const prefix = entity.name.toLowerCase().slice(0, 3).padEnd(3, '_');
+        if (!buckets.has(prefix)) {
+          buckets.set(prefix, []);
         }
+        buckets.get(prefix)!.push(entity);
+      }
 
-        if (similar.length > 1) {
-          // Choose entity with highest confidence as primary
-          const sortedByConfidence = [...similar].sort(
-            (a, b) => (b.confidence || 0) - (a.confidence || 0)
-          );
+      // Compare entities within each bucket
+      for (const [, bucket] of buckets) {
+        for (let i = 0; i < bucket.length; i++) {
+          if (processed.has(bucket[i].id)) continue;
 
-          groups.push({
-            entities: similar,
-            similarity: similar.length > 2 ? 0.9 : calculateSimilarity(
-              similar[0].name.toLowerCase(),
-              similar[1].name.toLowerCase()
-            ),
-            suggested_primary: sortedByConfidence[0].id,
-          });
+          const similar: Entity[] = [bucket[i]];
+          processed.add(bucket[i].id);
+
+          for (let j = i + 1; j < bucket.length; j++) {
+            if (processed.has(bucket[j].id)) continue;
+
+            const similarity = calculateSimilarity(
+              bucket[i].name.toLowerCase(),
+              bucket[j].name.toLowerCase()
+            );
+
+            if (similarity >= similarityThreshold) {
+              similar.push(bucket[j]);
+              processed.add(bucket[j].id);
+            }
+          }
+
+          if (similar.length > 1) {
+            // Choose entity with highest confidence as primary
+            const sortedByConfidence = [...similar].sort(
+              (a, b) => (b.confidence || 0) - (a.confidence || 0)
+            );
+
+            groups.push({
+              entities: similar,
+              similarity: similar.length > 2 ? 0.9 : calculateSimilarity(
+                similar[0].name.toLowerCase(),
+                similar[1].name.toLowerCase()
+              ),
+              suggested_primary: sortedByConfidence[0].id,
+            });
+          }
         }
       }
 
       setDuplicates(groups);
       toast.success(`Found ${groups.length} duplicate groups`);
-    } catch (error) {
-      console.error('Error finding duplicates:', error);
+    } catch (err) {
+      console.error('Error finding duplicates:', err);
+      const message = err instanceof Error ? err.message : 'Failed to find duplicates';
+      setError({ message, context: 'fetch' });
       toast.error('Failed to find duplicates');
     } finally {
       setLoading(false);
@@ -215,8 +244,10 @@ export const EntityMergeTool: React.FC = () => {
 
       // Remove this group from the list
       setDuplicates(prev => prev.filter((_, i) => i !== groupIndex));
-    } catch (error) {
-      console.error('Error merging entities:', error);
+    } catch (err) {
+      console.error('Error merging entities:', err);
+      const message = err instanceof Error ? err.message : 'Failed to merge entities';
+      setError({ message, context: 'merge' });
       toast.error('Failed to merge entities');
     }
   };
@@ -344,6 +375,49 @@ export const EntityMergeTool: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Error Banner */}
+      {error && (
+        <Card className="border-red-500/50 bg-red-950/30">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <XCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-mono font-bold text-red-400">
+                  {error.context === 'fetch' ? 'Scan Failed' : 'Merge Failed'}
+                </p>
+                <p className="text-xs font-mono text-red-400/80 mt-1 break-words">
+                  {error.message}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  onClick={() => {
+                    setError(null);
+                    if (error.context === 'fetch') {
+                      findDuplicates();
+                    }
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="font-mono text-[10px] border-red-500/50 text-red-400 hover:bg-red-950/50"
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  RETRY
+                </Button>
+                <Button
+                  onClick={() => setError(null)}
+                  size="sm"
+                  variant="ghost"
+                  className="font-mono text-[10px] text-red-400/60 hover:text-red-400 hover:bg-red-950/50 px-2"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Duplicate Groups */}
       {filteredDuplicates.length > 0 && (

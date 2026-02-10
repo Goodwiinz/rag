@@ -208,5 +208,5 @@ if __name__ == "__main__":
     port = int(os.getenv("MONITORING_PORT", 8001))
 
     uvicorn.run(
-        "main:app", host="0.0.0.0", port=port, reload=config.debug, log_level="info"
+        "main:app", host=os.getenv("MONITORING_HOST", "127.0.0.1"), port=port, reload=config.debug, log_level="info"
     )
