@@ -6,24 +6,25 @@ including Redis data structures, cache invalidation policies, and performance
 optimizations for high-throughput scenarios (10K+ queries/hour).
 """
 
-import json
+import asyncio
 import gzip
 import hashlib
-import struct
-from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Any, Optional, Union, Tuple, Set
-from dataclasses import dataclass, asdict
-from enum import Enum
+import json
 import logging
-import asyncio
+import struct
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
+
+import mmh3  # MurmurHash3 for fast hashing
 import redis.asyncio as redis
 from redis.asyncio import Redis
-import mmh3  # MurmurHash3 for fast hashing
 
-from ..core.config import settings
-from src.models.ab_testing import Experiment, Variant, ExperimentAssignment
+from src.models.ab_testing import Experiment, ExperimentAssignment, Variant
+
 from ..cache.cache_keys import get_ab_testing_cache_key
-
+from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +33,10 @@ logger = logging.getLogger(__name__)
 # CACHE CONFIGURATION AND POLICIES
 # ============================================================================
 
+
 class CachePolicy(str, Enum):
     """Cache eviction and expiration policies"""
+
     LRU = "lru"  # Least Recently Used
     LFU = "lfu"  # Least Frequently Used
     TTL = "ttl"  # Time To Live
@@ -44,14 +47,16 @@ class CachePolicy(str, Enum):
 
 class CacheTier(str, Enum):
     """Cache tiers for different data types"""
-    HOT = "hot"      # Frequently accessed, small data (assignments)
-    WARM = "warm"    # Moderately accessed (experiment configs)
-    COLD = "cold"    # Infrequently accessed (historical data)
+
+    HOT = "hot"  # Frequently accessed, small data (assignments)
+    WARM = "warm"  # Moderately accessed (experiment configs)
+    COLD = "cold"  # Infrequently accessed (historical data)
 
 
 @dataclass
 class CacheConfig:
     """Configuration for cache settings"""
+
     # Redis configuration
     max_connections: int = 100
     connection_timeout: int = 5
@@ -61,10 +66,10 @@ class CacheConfig:
     # Cache sizes and TTLs
     assignment_cache_size: int = 100000  # 100K assignments
     assignment_ttl: int = 3600  # 1 hour
-    experiment_cache_size: int = 10000   # 10K experiments
-    experiment_ttl: int = 1800   # 30 minutes
-    metrics_cache_size: int = 50000     # 50K metric aggregates
-    metrics_ttl: int = 300      # 5 minutes
+    experiment_cache_size: int = 10000  # 10K experiments
+    experiment_ttl: int = 1800  # 30 minutes
+    metrics_cache_size: int = 50000  # 50K metric aggregates
+    metrics_ttl: int = 300  # 5 minutes
 
     # Performance settings
     batch_size: int = 100
@@ -82,14 +87,19 @@ class CacheConfig:
 # CACHE KEY GENERATION
 # ============================================================================
 
+
 class CacheKeyGenerator:
     """Generates consistent cache keys for different data types"""
 
     def __init__(self, prefix: str = "ab_testing"):
         self.prefix = prefix
 
-    def assignment_key(self, user_id: Optional[str], session_id: Optional[str],
-                      experiment_id: Optional[str] = None) -> str:
+    def assignment_key(
+        self,
+        user_id: Optional[str],
+        session_id: Optional[str],
+        experiment_id: Optional[str] = None,
+    ) -> str:
         """Generate cache key for user assignment"""
         if user_id:
             identifier = f"user:{user_id}"
@@ -116,8 +126,9 @@ class CacheKeyGenerator:
         """Generate cache key for variant configuration"""
         return f"{self.prefix}:config:variant:{variant_id}"
 
-    def metrics_aggregate_key(self, experiment_id: str, metric_type: str,
-                            time_window: str = "hour") -> str:
+    def metrics_aggregate_key(
+        self, experiment_id: str, metric_type: str, time_window: str = "hour"
+    ) -> str:
         """Generate cache key for aggregated metrics"""
         return f"{self.prefix}:metrics:aggregate:{experiment_id}:{metric_type}:{time_window}"
 
@@ -152,6 +163,7 @@ class CacheKeyGenerator:
 # SERIALIZATION AND COMPRESSION
 # ============================================================================
 
+
 class CacheSerializer:
     """Handles secure serialization and compression of cache data using JSON only"""
 
@@ -162,13 +174,15 @@ class CacheSerializer:
         """Serialize data for caching using JSON only (secure)"""
         try:
             # Convert to JSON for all data types
-            serialized = json.dumps(data, default=str, ensure_ascii=False).encode('utf-8')
+            serialized = json.dumps(data, default=str, ensure_ascii=False).encode(
+                "utf-8"
+            )
 
             # Compress if above threshold
             if compress and len(serialized) > self.compression_threshold:
                 serialized = gzip.compress(serialized)
                 # Add compression flag
-                serialized = b'COMP:' + serialized
+                serialized = b"COMP:" + serialized
 
             return serialized
 
@@ -180,11 +194,11 @@ class CacheSerializer:
         """Deserialize cached data using JSON only (secure)"""
         try:
             # Check for compression flag
-            if data.startswith(b'COMP:'):
+            if data.startswith(b"COMP:"):
                 data = gzip.decompress(data[5:])  # Remove 'COMP:' prefix
 
             # Parse JSON
-            return json.loads(data.decode('utf-8'))
+            return json.loads(data.decode("utf-8"))
 
         except Exception as e:
             logger.error(f"Deserialization failed: {e}")
@@ -195,11 +209,16 @@ class CacheSerializer:
 # REDIS DATA STRUCTURES
 # ============================================================================
 
+
 class ABTestingCacheStructures:
     """Redis data structures optimized for A/B testing operations"""
 
-    def __init__(self, redis_client: Redis, key_generator: CacheKeyGenerator,
-                 serializer: CacheSerializer):
+    def __init__(
+        self,
+        redis_client: Redis,
+        key_generator: CacheKeyGenerator,
+        serializer: CacheSerializer,
+    ):
         self.redis = redis_client
         self.keys = key_generator
         self.serializer = serializer
@@ -211,8 +230,7 @@ class ABTestingCacheStructures:
     async def cache_assignment(self, assignment_data: Dict[str, Any], ttl: int = 3600):
         """Cache user assignment with fast lookup"""
         key = self.keys.assignment_key(
-            assignment_data.get("user_id"),
-            assignment_data.get("session_id")
+            assignment_data.get("user_id"), assignment_data.get("session_id")
         )
 
         # Prepare assignment data for hash storage
@@ -220,8 +238,10 @@ class ABTestingCacheStructures:
             "experiment_id": assignment_data.get("experiment_id"),
             "variant_id": assignment_data.get("variant_id"),
             "assignment_type": assignment_data.get("assignment_type", "automatic"),
-            "assigned_at": assignment_data.get("assigned_at", datetime.now(timezone.utc).isoformat()),
-            "user_segment": json.dumps(assignment_data.get("user_segment", {}))
+            "assigned_at": assignment_data.get(
+                "assigned_at", datetime.now(timezone.utc).isoformat()
+            ),
+            "user_segment": json.dumps(assignment_data.get("user_segment", {})),
         }
 
         # Use pipeline for atomic operations
@@ -233,19 +253,33 @@ class ABTestingCacheStructures:
             # Add to experiment's assignment index (for cleanup)
             experiment_id = assignment_data.get("experiment_id")
             if experiment_id:
-                experiment_assignments_key = f"{self.keys.prefix}:assignments:experiment:{experiment_id}"
+                experiment_assignments_key = (
+                    f"{self.keys.prefix}:assignments:experiment:{experiment_id}"
+                )
                 user_id = assignment_data.get("user_id")
                 session_id = assignment_data.get("session_id")
 
                 if user_id:
-                    await pipe.zadd(experiment_assignments_key, {f"user:{user_id}": datetime.now(timezone.utc).timestamp()})
+                    await pipe.zadd(
+                        experiment_assignments_key,
+                        {f"user:{user_id}": datetime.now(timezone.utc).timestamp()},
+                    )
                 if session_id:
-                    await pipe.zadd(experiment_assignments_key, {f"session:{session_id}": datetime.now(timezone.utc).timestamp()})
+                    await pipe.zadd(
+                        experiment_assignments_key,
+                        {
+                            f"session:{session_id}": datetime.now(
+                                timezone.utc
+                            ).timestamp()
+                        },
+                    )
                 await pipe.expire(experiment_assignments_key, ttl)
 
             await pipe.execute()
 
-    async def get_assignment(self, user_id: Optional[str], session_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    async def get_assignment(
+        self, user_id: Optional[str], session_id: Optional[str]
+    ) -> Optional[Dict[str, Any]]:
         """Get cached assignment"""
         key = self.keys.assignment_key(user_id, session_id)
         assignment_data = await self.redis.hgetall(key)
@@ -256,8 +290,8 @@ class ABTestingCacheStructures:
         # Convert bytes to strings and parse JSON
         result = {}
         for field, value in assignment_data.items():
-            field_str = field.decode('utf-8')
-            value_str = value.decode('utf-8')
+            field_str = field.decode("utf-8")
+            value_str = value.decode("utf-8")
 
             if field_str == "user_segment":
                 try:
@@ -269,7 +303,9 @@ class ABTestingCacheStructures:
 
         return result
 
-    async def invalidate_assignment(self, user_id: Optional[str], session_id: Optional[str]):
+    async def invalidate_assignment(
+        self, user_id: Optional[str], session_id: Optional[str]
+    ):
         """Invalidate cached assignment"""
         key = self.keys.assignment_key(user_id, session_id)
         await self.redis.delete(key)
@@ -287,11 +323,15 @@ class ABTestingCacheStructures:
         config_key = self.keys.experiment_config_key(experiment_id)
 
         # Store experiment summary
-        await self.redis.setex(experiment_key, ttl, self.serializer.serialize(experiment_data))
+        await self.redis.setex(
+            experiment_key, ttl, self.serializer.serialize(experiment_data)
+        )
 
         # Store detailed configuration if present
         if "config" in experiment_data:
-            await self.redis.setex(config_key, ttl, self.serializer.serialize(experiment_data["config"]))
+            await self.redis.setex(
+                config_key, ttl, self.serializer.serialize(experiment_data["config"])
+            )
 
         # Add to organization's active experiments
         if experiment_data.get("status") == "running":
@@ -315,14 +355,20 @@ class ABTestingCacheStructures:
         """Get active experiment IDs for organization"""
         key = f"{self.keys.prefix}:active:org:{organization_id}"
         members = await self.redis.smembers(key)
-        return {member.decode('utf-8') for member in members}
+        return {member.decode("utf-8") for member in members}
 
     # ============================================================================
     # METRICS AGGREGATION CACHE (Hash + Sorted Sets)
     # ============================================================================
 
-    async def cache_metric_aggregate(self, experiment_id: str, metric_type: str,
-                                   time_window: str, data: Dict[str, Any], ttl: int = 300):
+    async def cache_metric_aggregate(
+        self,
+        experiment_id: str,
+        metric_type: str,
+        time_window: str,
+        data: Dict[str, Any],
+        ttl: int = 300,
+    ):
         """Cache aggregated metrics"""
         key = self.keys.metrics_aggregate_key(experiment_id, metric_type, time_window)
 
@@ -332,7 +378,7 @@ class ABTestingCacheStructures:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "experiment_id": experiment_id,
             "metric_type": metric_type,
-            "time_window": time_window
+            "time_window": time_window,
         }
 
         await self.redis.hset(key, mapping=aggregate_data)
@@ -344,8 +390,9 @@ class ABTestingCacheStructures:
         await self.redis.zadd(ts_key, {experiment_id: score})
         await self.redis.expire(ts_key, ttl * 2)  # Keep longer for queries
 
-    async def get_metric_aggregate(self, experiment_id: str, metric_type: str,
-                                 time_window: str) -> Optional[Dict[str, Any]]:
+    async def get_metric_aggregate(
+        self, experiment_id: str, metric_type: str, time_window: str
+    ) -> Optional[Dict[str, Any]]:
         """Get cached metric aggregate"""
         key = self.keys.metrics_aggregate_key(experiment_id, metric_type, time_window)
         cached_data = await self.redis.hgetall(key)
@@ -356,11 +403,11 @@ class ABTestingCacheStructures:
         # Deserialize data
         result = {}
         for field, value in cached_data.items():
-            field_str = field.decode('utf-8')
-            value_str = value.decode('utf-8')
+            field_str = field.decode("utf-8")
+            value_str = value.decode("utf-8")
 
             if field_str == "data":
-                result["data"] = self.serializer.deserialize(value_str.encode('utf-8'))
+                result["data"] = self.serializer.deserialize(value_str.encode("utf-8"))
             else:
                 result[field_str] = value_str
 
@@ -370,7 +417,9 @@ class ABTestingCacheStructures:
     # USER SEGMENTS CACHE (Set)
     # ============================================================================
 
-    async def cache_user_segments(self, user_id: str, segments: List[str], ttl: int = 1800):
+    async def cache_user_segments(
+        self, user_id: str, segments: List[str], ttl: int = 1800
+    ):
         """Cache user segments"""
         key = self.keys.user_segments_key(user_id)
         await self.redis.delete(key)  # Clear existing segments
@@ -382,13 +431,15 @@ class ABTestingCacheStructures:
         """Get cached user segments"""
         key = self.keys.user_segments_key(user_id)
         segments = await self.redis.smembers(key)
-        return {segment.decode('utf-8') for segment in segments}
+        return {segment.decode("utf-8") for segment in segments}
 
     # ============================================================================
     # ROUTING TABLE CACHE (String + Bloom Filter)
     # ============================================================================
 
-    async def cache_routing_table(self, organization_id: str, routing_data: Dict[str, Any], ttl: int = 600):
+    async def cache_routing_table(
+        self, organization_id: str, routing_data: Dict[str, Any], ttl: int = 600
+    ):
         """Cache routing table for fast lookup"""
         key = self.keys.routing_table_key(organization_id)
 
@@ -415,7 +466,9 @@ class ABTestingCacheStructures:
 
         return self.serializer.deserialize(cached_data)
 
-    async def experiment_exists_in_routing(self, organization_id: str, experiment_id: str) -> bool:
+    async def experiment_exists_in_routing(
+        self, organization_id: str, experiment_id: str
+    ) -> bool:
         """Quick check if experiment exists in routing table using bloom filter"""
         bloom_key = f"{self.keys.routing_table_key(organization_id)}:bloom"
         return await self._check_bloom_filter(bloom_key, experiment_id)
@@ -424,7 +477,9 @@ class ABTestingCacheStructures:
     # PERFORMANCE STATISTICS CACHE (Sorted Sets)
     # ============================================================================
 
-    async def update_experiment_stats(self, experiment_id: str, stat_type: str, value: float):
+    async def update_experiment_stats(
+        self, experiment_id: str, stat_type: str, value: float
+    ):
         """Update experiment performance statistics"""
         key = self.keys.stats_key(experiment_id, stat_type)
         timestamp = datetime.now(timezone.utc).timestamp()
@@ -438,8 +493,9 @@ class ABTestingCacheStructures:
         # Set expiration
         await self.redis.expire(key, 3600)
 
-    async def get_experiment_stats(self, experiment_id: str, stat_type: str,
-                                 time_range_minutes: int = 60) -> List[Tuple[float, float]]:
+    async def get_experiment_stats(
+        self, experiment_id: str, stat_type: str, time_range_minutes: int = 60
+    ) -> List[Tuple[float, float]]:
         """Get experiment statistics for time range"""
         key = self.keys.stats_key(experiment_id, stat_type)
 
@@ -448,9 +504,14 @@ class ABTestingCacheStructures:
         start_time = now - (time_range_minutes * 60)
 
         # Get data points in range
-        data_points = await self.redis.zrangebyscore(key, start_time, now, withscores=True)
+        data_points = await self.redis.zrangebyscore(
+            key, start_time, now, withscores=True
+        )
 
-        return [(float(score), float(member.decode('utf-8'))) for member, score in data_points]
+        return [
+            (float(score), float(member.decode("utf-8")))
+            for member, score in data_points
+        ]
 
     # ============================================================================
     # BLOOM FILTER IMPLEMENTATION
@@ -507,6 +568,7 @@ class ABTestingCacheStructures:
 # CACHE MANAGER
 # ============================================================================
 
+
 class ABTestingCacheManager:
     """High-level cache management for A/B testing system"""
 
@@ -522,12 +584,7 @@ class ABTestingCacheManager:
         )
 
         # Performance tracking
-        self.cache_stats = {
-            "hits": 0,
-            "misses": 0,
-            "sets": 0,
-            "deletes": 0
-        }
+        self.cache_stats = {"hits": 0, "misses": 0, "sets": 0, "deletes": 0}
 
         # Background tasks
         self.cleanup_task = None
@@ -548,7 +605,9 @@ class ABTestingCacheManager:
                 self.metrics_task = asyncio.create_task(self.collect_metrics())
                 logger.debug("Started metrics collection task")
             else:
-                logger.warning("Metrics collection task already running, skipping start")
+                logger.warning(
+                    "Metrics collection task already running, skipping start"
+                )
 
         logger.info("A/B Testing Cache Manager started")
 
@@ -588,12 +647,14 @@ class ABTestingCacheManager:
         user_id: Optional[str],
         session_id: Optional[str],
         organization_id: str,
-        query_context: Dict[str, Any]
+        query_context: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
         """Get cached assignment or assign new variant"""
         try:
             # Check cache first
-            cached_assignment = await self.structures.get_assignment(user_id, session_id)
+            cached_assignment = await self.structures.get_assignment(
+                user_id, session_id
+            )
             if cached_assignment:
                 self.cache_stats["hits"] += 1
 
@@ -615,9 +676,7 @@ class ABTestingCacheManager:
             return None
 
     async def cache_assignment_result(
-        self,
-        assignment_data: Dict[str, Any],
-        ttl: Optional[int] = None
+        self, assignment_data: Dict[str, Any], ttl: Optional[int] = None
     ):
         """Cache assignment result"""
         try:
@@ -628,7 +687,9 @@ class ABTestingCacheManager:
         except Exception as e:
             logger.error(f"Cache assignment failed: {e}")
 
-    async def invalidate_assignment(self, user_id: Optional[str], session_id: Optional[str]):
+    async def invalidate_assignment(
+        self, user_id: Optional[str], session_id: Optional[str]
+    ):
         """Invalidate cached assignment"""
         try:
             await self.structures.invalidate_assignment(user_id, session_id)
@@ -641,7 +702,9 @@ class ABTestingCacheManager:
         """Warm up cache with frequently accessed data"""
         try:
             # Cache routing table
-            routing_data = await self._build_routing_table(organization_id, experiment_ids)
+            routing_data = await self._build_routing_table(
+                organization_id, experiment_ids
+            )
             await self.structures.cache_routing_table(organization_id, routing_data)
 
             # Cache experiment configurations
@@ -650,7 +713,9 @@ class ABTestingCacheManager:
                 if experiment:
                     await self.structures.cache_experiment(experiment)
 
-            logger.info(f"Cache warm-up completed for {len(experiment_ids)} experiments")
+            logger.info(
+                f"Cache warm-up completed for {len(experiment_ids)} experiments"
+            )
 
         except Exception as e:
             logger.error(f"Cache warm-up failed: {e}")
@@ -701,14 +766,16 @@ class ABTestingCacheManager:
         except Exception:
             return False
 
-    async def _build_routing_table(self, organization_id: str, experiment_ids: List[str]) -> Dict[str, Any]:
+    async def _build_routing_table(
+        self, organization_id: str, experiment_ids: List[str]
+    ) -> Dict[str, Any]:
         """Build routing table for organization"""
         # This would be implemented based on your routing logic
         return {
             "organization_id": organization_id,
             "experiments": experiment_ids,
             "routing_rules": {},
-            "last_updated": datetime.now(timezone.utc).isoformat()
+            "last_updated": datetime.now(timezone.utc).isoformat(),
         }
 
     async def _load_experiment(self, experiment_id: str) -> Optional[Dict[str, Any]]:
@@ -725,12 +792,18 @@ class ABTestingCacheManager:
     async def _report_cache_metrics(self):
         """Report cache performance metrics"""
         total_requests = self.cache_stats["hits"] + self.cache_stats["misses"]
-        hit_rate = (self.cache_stats["hits"] / total_requests * 100) if total_requests > 0 else 0
+        hit_rate = (
+            (self.cache_stats["hits"] / total_requests * 100)
+            if total_requests > 0
+            else 0
+        )
 
-        logger.info(f"Cache Performance - Hit Rate: {hit_rate:.2f}%, "
-                   f"Hits: {self.cache_stats['hits']}, "
-                   f"Misses: {self.cache_stats['misses']}, "
-                   f"Sets: {self.cache_stats['sets']}")
+        logger.info(
+            f"Cache Performance - Hit Rate: {hit_rate:.2f}%, "
+            f"Hits: {self.cache_stats['hits']}, "
+            f"Misses: {self.cache_stats['misses']}, "
+            f"Sets: {self.cache_stats['sets']}"
+        )
 
         # Reset stats
         self.cache_stats = {"hits": 0, "misses": 0, "sets": 0, "deletes": 0}
@@ -740,13 +813,14 @@ class ABTestingCacheManager:
         return {
             "config": asdict(self.config),
             "stats": self.cache_stats.copy(),
-            "status": "running" if self.cleanup_task else "stopped"
+            "status": "running" if self.cleanup_task else "stopped",
         }
 
 
 # ============================================================================
 # CACHE FACTORY
 # ============================================================================
+
 
 class ABTestingCacheFactory:
     """Factory for creating cache instances"""
@@ -758,7 +832,7 @@ class ABTestingCacheFactory:
 
         # Parse Redis URL using proper URL parsing
         redis_url = settings.REDIS_URL
-        if '://' in redis_url:
+        if "://" in redis_url:
             # Use proper connection parameters from URL
             redis_client = Redis.from_url(
                 redis_url,
@@ -766,32 +840,37 @@ class ABTestingCacheFactory:
                 socket_timeout=config.socket_timeout,
                 connection_timeout=config.connection_timeout,
                 retry_on_timeout=True,
-                decode_responses=False  # Keep bytes for consistency
+                decode_responses=False,  # Keep bytes for consistency
             )
         else:
             # Fallback for simple host:port format with IPv4/IPv6 support
             host = "localhost"
             port = 6379
-            
+
             try:
                 # Handle bracketed IPv6 addresses like [::1]:6379
-                if redis_url.startswith('['):
-                    bracket_end = redis_url.find(']')
+                if redis_url.startswith("["):
+                    bracket_end = redis_url.find("]")
                     if bracket_end == -1:
                         raise ValueError(f"Malformed IPv6 address: {redis_url}")
                     host = redis_url[1:bracket_end]
                     # Check for port after bracket
-                    if len(redis_url) > bracket_end + 1 and redis_url[bracket_end + 1] == ':':
-                        port_str = redis_url[bracket_end + 2:]
+                    if (
+                        len(redis_url) > bracket_end + 1
+                        and redis_url[bracket_end + 1] == ":"
+                    ):
+                        port_str = redis_url[bracket_end + 2 :]
                         try:
                             port = int(port_str)
                         except ValueError:
-                            logger.warning(f"Invalid port '{port_str}', using default 6379")
+                            logger.warning(
+                                f"Invalid port '{port_str}', using default 6379"
+                            )
                             port = 6379
                 # Handle regular host:port or IPv6 without brackets
-                elif ':' in redis_url:
+                elif ":" in redis_url:
                     # Use rpartition to split on the last ':' to handle IPv6 like ::1
-                    host_part, sep, port_str = redis_url.rpartition(':')
+                    host_part, sep, port_str = redis_url.rpartition(":")
                     if host_part:
                         # Try to parse port
                         try:
@@ -799,7 +878,9 @@ class ABTestingCacheFactory:
                             host = host_part
                         except ValueError:
                             # Port parsing failed, treat whole string as host (likely IPv6)
-                            logger.warning(f"Could not parse port from '{redis_url}', treating as host-only")
+                            logger.warning(
+                                f"Could not parse port from '{redis_url}', treating as host-only"
+                            )
                             host = redis_url
                             port = 6379
                     else:
@@ -808,13 +889,17 @@ class ABTestingCacheFactory:
                         try:
                             port = int(port_str)
                         except ValueError:
-                            logger.warning(f"Invalid port '{port_str}', using default 6379")
+                            logger.warning(
+                                f"Invalid port '{port_str}', using default 6379"
+                            )
                             port = 6379
                 else:
                     host = redis_url or "localhost"
-                    
+
             except Exception as e:
-                logger.error(f"Error parsing Redis URL '{redis_url}': {e}. Using defaults localhost:6379")
+                logger.error(
+                    f"Error parsing Redis URL '{redis_url}': {e}. Using defaults localhost:6379"
+                )
                 host = "localhost"
                 port = 6379
 
@@ -825,7 +910,7 @@ class ABTestingCacheFactory:
                 socket_timeout=config.socket_timeout,
                 connection_timeout=config.connection_timeout,
                 retry_on_timeout=True,
-                decode_responses=False
+                decode_responses=False,
             )
 
         # Create cache manager
@@ -835,7 +920,9 @@ class ABTestingCacheFactory:
         return cache_manager
 
     @staticmethod
-    async def create_distributed_cache(redis_nodes: List[str], config: CacheConfig = None):
+    async def create_distributed_cache(
+        redis_nodes: List[str], config: CacheConfig = None
+    ):
         """Create distributed cache across multiple Redis nodes"""
         # This would implement Redis Cluster or consistent hashing
         # For now, return single node cache

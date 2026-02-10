@@ -7,15 +7,28 @@ Models for storing health check results and component health status.
 import uuid
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, String, Integer, Float, DateTime, Boolean, Text, JSON, Index, ForeignKey
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from src.models.base import BaseModel
 
 
 class HealthStatus(str, Enum):
     """Health status values"""
+
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
@@ -25,6 +38,7 @@ class HealthStatus(str, Enum):
 
 class CheckType(str, Enum):
     """Health check types"""
+
     DATABASE = "database"
     REDIS = "redis"
     NEO4J = "neo4j"
@@ -39,6 +53,7 @@ class CheckType(str, Enum):
 
 class HealthCheck(BaseModel):
     """Health check definitions"""
+
     __tablename__ = "monitoring_health_checks"
 
     name = Column(String(255), unique=True, nullable=False, index=True)
@@ -67,8 +82,12 @@ class HealthCheck(BaseModel):
 
     # Check settings
     is_active = Column(Boolean, default=True)
-    is_critical = Column(Boolean, default=False)  # Critical checks affect overall system health
-    dependencies = Column(JSONB, default=list)  # List of check names this check depends on
+    is_critical = Column(
+        Boolean, default=False
+    )  # Critical checks affect overall system health
+    dependencies = Column(
+        JSONB, default=list
+    )  # List of check names this check depends on
 
     # Check metadata
     tags = Column(JSONB, default=list)
@@ -76,23 +95,33 @@ class HealthCheck(BaseModel):
     created_by = Column(String(255))
 
     # Relationships
-    results = relationship("HealthCheckResult", back_populates="check", cascade="all, delete-orphan")
+    results = relationship(
+        "HealthCheckResult", back_populates="check", cascade="all, delete-orphan"
+    )
     component_health = relationship("ComponentHealth", back_populates="health_check")
-    history = relationship("HealthCheckHistory", back_populates="check", cascade="all, delete-orphan")
+    history = relationship(
+        "HealthCheckHistory", back_populates="check", cascade="all, delete-orphan"
+    )
 
     # Indexes
     __table_args__ = (
-        Index('idx_health_checks_type_active', 'check_type', 'is_active'),
-        Index('idx_health_checks_component', 'component_name'),
-        Index('idx_health_checks_critical', 'is_critical'),
+        Index("idx_health_checks_type_active", "check_type", "is_active"),
+        Index("idx_health_checks_component", "component_name"),
+        Index("idx_health_checks_critical", "is_critical"),
     )
 
 
 class HealthCheckResult(BaseModel):
     """Individual health check results"""
+
     __tablename__ = "monitoring_health_check_results"
 
-    check_id = Column(UUID(as_uuid=True), ForeignKey("monitoring_health_checks.id"), nullable=False, index=True)
+    check_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("monitoring_health_checks.id"),
+        nullable=False,
+        index=True,
+    )
     check_timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
 
     # Results
@@ -127,17 +156,23 @@ class HealthCheckResult(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_health_results_check_time', 'check_id', 'check_timestamp'),
-        Index('idx_health_results_status_time', 'status', 'check_timestamp'),
-        Index('idx_health_results_success_time', 'success', 'check_timestamp'),
+        Index("idx_health_results_check_time", "check_id", "check_timestamp"),
+        Index("idx_health_results_status_time", "status", "check_timestamp"),
+        Index("idx_health_results_success_time", "success", "check_timestamp"),
     )
 
 
 class HealthCheckHistory(BaseModel):
     """Aggregated health check history"""
+
     __tablename__ = "monitoring_health_check_history"
 
-    check_id = Column(UUID(as_uuid=True), ForeignKey("monitoring_health_checks.id"), nullable=False, index=True)
+    check_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("monitoring_health_checks.id"),
+        nullable=False,
+        index=True,
+    )
     time_bucket = Column(DateTime(timezone=True), nullable=False, index=True)
     bucket_size_minutes = Column(Integer, nullable=False)
 
@@ -172,19 +207,22 @@ class HealthCheckHistory(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_health_history_check_time', 'check_id', 'time_bucket'),
-        Index('idx_health_history_success_rate', 'success_rate_percent'),
-        Index('idx_health_history_availability', 'availability_percent'),
+        Index("idx_health_history_check_time", "check_id", "time_bucket"),
+        Index("idx_health_history_success_rate", "success_rate_percent"),
+        Index("idx_health_history_availability", "availability_percent"),
     )
 
 
 class ComponentHealth(BaseModel):
     """Overall component health status"""
+
     __tablename__ = "monitoring_component_health"
 
     component_name = Column(String(255), nullable=False, index=True)
     component_type = Column(String(100), nullable=False, index=True)
-    health_check_id = Column(UUID(as_uuid=True), ForeignKey("monitoring_health_checks.id"), nullable=False)
+    health_check_id = Column(
+        UUID(as_uuid=True), ForeignKey("monitoring_health_checks.id"), nullable=False
+    )
 
     # Current status
     status = Column(String(50), nullable=False, index=True)
@@ -199,12 +237,14 @@ class ComponentHealth(BaseModel):
     incident_count_7d = Column(Integer, default=0)
 
     # Dependencies
-    dependencies = Column(JSONB, default=list)  # List of component names this depends on
+    dependencies = Column(
+        JSONB, default=list
+    )  # List of component names this depends on
     dependents = Column(JSONB, default=list)  # List of components that depend on this
 
     # Service level indicators
     sli_current = Column(Float)  # Current Service Level Indicator value
-    slo_target = Column(Float)   # Service Level Objective target
+    slo_target = Column(Float)  # Service Level Objective target
     slo_compliance_percent = Column(Float)  # SLO compliance percentage
 
     # Component metadata
@@ -219,7 +259,7 @@ class ComponentHealth(BaseModel):
 
     # Unique constraint on component name
     __table_args__ = (
-        Index('idx_component_health_name_type', 'component_name', 'component_type'),
-        Index('idx_component_health_status_time', 'status', 'last_check_timestamp'),
-        Index('idx_component_health_slo', 'slo_compliance_percent'),
+        Index("idx_component_health_name_type", "component_name", "component_type"),
+        Index("idx_component_health_status_time", "status", "last_check_timestamp"),
+        Index("idx_component_health_slo", "slo_compliance_percent"),
     )

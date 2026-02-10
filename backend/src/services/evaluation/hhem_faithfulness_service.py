@@ -14,10 +14,10 @@ References:
 """
 
 import logging
-from dataclasses import dataclass
-from typing import List, Tuple, Optional
-import time
 import sys
+import time
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ def _get_hhem_model():
 
         logger.info("Loading Vectara HHEM model via CrossEncoder...")
 
-        model_name = 'vectara/hallucination_evaluation_model'
+        model_name = "vectara/hallucination_evaluation_model"
         # HHEM 2.1 has breaking changes with AutoTokenizer
         # Use hhem-1.0-open revision for CrossEncoder compatibility
         revision = "hhem-1.0-open"
@@ -65,6 +65,7 @@ def _get_hhem_model():
 @dataclass
 class FaithfulnessResult:
     """Result from faithfulness evaluation"""
+
     faithfulness_score: float  # 0.0 to 1.0 (higher = more faithful)
     hallucination_probability: float  # 0.0 to 1.0 (higher = more likely hallucinated)
     is_faithful: bool  # True if faithfulness_score >= threshold
@@ -113,7 +114,7 @@ class HHEMFaithfulnessService:
             scores = model.predict(pairs)
 
             # Handle both single value and array returns
-            if hasattr(scores, '__iter__') and not isinstance(scores, str):
+            if hasattr(scores, "__iter__") and not isinstance(scores, str):
                 return [float(s) for s in scores]
             else:
                 return [float(scores)]
@@ -122,50 +123,55 @@ class HHEMFaithfulnessService:
             logger.error(f"HHEM predict failed: {e}")
             return [0.5] * len(pairs)
 
-
-    def evaluate_faithfulness(
-        self, 
-        answer: str, 
-        context: str
-    ) -> FaithfulnessResult:
+    def evaluate_faithfulness(self, answer: str, context: str) -> FaithfulnessResult:
         """Evaluate faithfulness"""
         start_time = time.time()
-        
+
         try:
             # HHEM expects (context, answer) pairs
             scores = self._predict([(context, answer)])
             score = float(scores[0])
-            
+
             elapsed_ms = (time.time() - start_time) * 1000
-            
+
             return FaithfulnessResult(
                 faithfulness_score=score,
                 hallucination_probability=1.0 - score,
                 is_faithful=score >= self.threshold,
-                evaluation_time_ms=elapsed_ms
+                evaluation_time_ms=elapsed_ms,
             )
-            
+
         except Exception as e:
             logger.error(f"HHEM evaluation failed: {e}")
             print(f"DEBUG: Eval error: {e}")
             return FaithfulnessResult(0.5, 0.5, False, 0.0)
 
-    def evaluate_with_multiple_contexts(self, answer: str, contexts: List[str]) -> FaithfulnessResult:
-        if not contexts: return FaithfulnessResult(0.0, 1.0, False, 0.0)
+    def evaluate_with_multiple_contexts(
+        self, answer: str, contexts: List[str]
+    ) -> FaithfulnessResult:
+        if not contexts:
+            return FaithfulnessResult(0.0, 1.0, False, 0.0)
         try:
             pairs = [(ctx, answer) for ctx in contexts]
             scores = self._predict(pairs)
             max_score = float(max(scores))
-            return FaithfulnessResult(max_score, 1.0-max_score, max_score>=self.threshold, 0.0)
-        except: return FaithfulnessResult(0.5, 0.5, False, 0.0)
+            return FaithfulnessResult(
+                max_score, 1.0 - max_score, max_score >= self.threshold, 0.0
+            )
+        except:
+            return FaithfulnessResult(0.5, 0.5, False, 0.0)
 
     def batch_evaluate(self, pairs: List[Tuple[str, str]]) -> List[FaithfulnessResult]:
-        if not pairs: return []
+        if not pairs:
+            return []
         try:
             hhem_pairs = [(ctx, ans) for ans, ctx in pairs]
             scores = self._predict(hhem_pairs)
-            return [FaithfulnessResult(s, 1.0-s, s>=self.threshold, 0.0) for s in scores]
-        except: return [FaithfulnessResult(0.5, 0.5, False, 0.0) for _ in pairs]
+            return [
+                FaithfulnessResult(s, 1.0 - s, s >= self.threshold, 0.0) for s in scores
+            ]
+        except:
+            return [FaithfulnessResult(0.5, 0.5, False, 0.0) for _ in pairs]
 
     def get_hallucination_probability(self, answer: str, context: str) -> float:
         return self.evaluate_faithfulness(answer, context).hallucination_probability
@@ -173,6 +179,7 @@ class HHEMFaithfulnessService:
 
 # Global instance
 _hhem_service: Optional[HHEMFaithfulnessService] = None
+
 
 def get_hhem_service() -> HHEMFaithfulnessService:
     global _hhem_service

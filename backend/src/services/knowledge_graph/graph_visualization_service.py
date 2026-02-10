@@ -5,30 +5,36 @@ Standalone microservice for graph data preparation and layout computation
 
 import asyncio
 import logging
-import uuid
 import math
+import uuid
 from contextlib import asynccontextmanager
-from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 import redis.asyncio as redis
-from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession
+from neo4j import AsyncDriver, AsyncGraphDatabase, AsyncSession
 from sqlalchemy.ext.asyncio import AsyncSession as SQLAsyncSession
 
 from .config.visualization_config import GraphVisualizationConfig
-from .models.visualization_models import (
-    GraphVisualizationRequest, GraphVisualizationResponse,
-    VisualizationNode, VisualizationEdge, GraphLayout,
-    FilterRequest, ProgressiveLoadRequest, InteractiveFilterRequest,
-    LayoutAlgorithm, GraphSizeCategory
-)
-from .core.database import get_async_db
 from .core.auth import get_current_user
 from .core.cache import cache_get, cache_set
-from .services.layout_algorithms import LayoutAlgorithms
+from .core.database import get_async_db
+from .models.visualization_models import (
+    FilterRequest,
+    GraphLayout,
+    GraphSizeCategory,
+    GraphVisualizationRequest,
+    GraphVisualizationResponse,
+    InteractiveFilterRequest,
+    LayoutAlgorithm,
+    ProgressiveLoadRequest,
+    VisualizationEdge,
+    VisualizationNode,
+)
 from .services.data_preprocessor import DataPreprocessor
+from .services.layout_algorithms import LayoutAlgorithms
 from .services.performance_optimizer import PerformanceOptimizer
 
 logger = logging.getLogger(__name__)
@@ -38,6 +44,7 @@ config = GraphVisualizationConfig()
 layout_algorithms = LayoutAlgorithms()
 data_preprocessor = DataPreprocessor()
 performance_optimizer = PerformanceOptimizer()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -50,7 +57,7 @@ async def lifespan(app: FastAPI):
         config.NEO4J_URI,
         auth=(config.NEO4J_USER, config.NEO4J_PASSWORD),
         max_connection_lifetime=3600,
-        max_connection_pool_size=50
+        max_connection_pool_size=50,
     )
 
     # Initialize Redis
@@ -69,6 +76,7 @@ async def lifespan(app: FastAPI):
     await app.state.redis_client.close()
     logger.info("Graph Visualization API Service shutdown complete")
 
+
 async def test_connections(app):
     """Test database connections"""
     try:
@@ -85,13 +93,14 @@ async def test_connections(app):
         logger.error(f"Connection test failed: {e}")
         raise
 
+
 app = FastAPI(
     title="Graph Visualization API Service",
     version="1.0.0",
     description="Graph data preparation and layout computation service",
     lifespan=lifespan,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 # Add CORS middleware
@@ -103,21 +112,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 async def get_neo4j_session(app) -> AsyncSession:
     """Get Neo4j session"""
     return app.state.neo4j_driver.session()
+
 
 async def get_redis_client(app):
     """Get Redis client"""
     return app.state.redis_client
 
+
 # Main Visualization Endpoints
 @app.post("/visualization/prepare", response_model=GraphVisualizationResponse)
 async def prepare_graph_visualization(
     request: GraphVisualizationRequest,
-    current_user = Depends(get_current_user),
-    neo4j_session = Depends(get_neo4j_session),
-    redis_client = Depends(get_redis_client)
+    current_user=Depends(get_current_user),
+    neo4j_session=Depends(get_neo4j_session),
+    redis_client=Depends(get_redis_client),
 ):
     """Prepare graph data for visualization"""
     try:
@@ -173,8 +185,8 @@ async def prepare_graph_visualization(
                 "processing_time": 0.0,  # Would track actual time
                 "size_category": size_category.value,
                 "optimizations_applied": optimizations,
-                "tenant_id": current_user.tenant_id
-            }
+                "tenant_id": current_user.tenant_id,
+            },
         )
 
         # Cache result
@@ -187,16 +199,19 @@ async def prepare_graph_visualization(
         logger.error(f"Error preparing graph visualization: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/visualization/{entity_id}/neighborhood", response_model=GraphVisualizationResponse)
+
+@app.get(
+    "/visualization/{entity_id}/neighborhood", response_model=GraphVisualizationResponse
+)
 async def get_entity_neighborhood(
     entity_id: str,
     depth: int = Query(default=2, ge=1, le=5),
     max_nodes: int = Query(default=100, ge=1, le=1000),
     layout_algorithm: LayoutAlgorithm = Query(default=LayoutAlgorithm.FORCE_DIRECTED),
     include_relationships: bool = Query(default=True),
-    current_user = Depends(get_current_user),
-    neo4j_session = Depends(get_neo4j_session),
-    redis_client = Depends(get_redis_client)
+    current_user=Depends(get_current_user),
+    neo4j_session=Depends(get_neo4j_session),
+    redis_client=Depends(get_redis_client),
 ):
     """Get neighborhood visualization for a specific entity"""
     try:
@@ -209,7 +224,9 @@ async def get_entity_neighborhood(
             return GraphVisualizationResponse(**cached_result)
 
         # Get central entity
-        central_entity = await get_entity_by_id(neo4j_session, entity_id, current_user.tenant_id)
+        central_entity = await get_entity_by_id(
+            neo4j_session, entity_id, current_user.tenant_id
+        )
         if not central_entity:
             raise HTTPException(status_code=404, detail="Entity not found")
 
@@ -224,11 +241,12 @@ async def get_entity_neighborhood(
             id=central_node_id,
             label=central_entity["name"],
             type=central_entity["type"],
-            x=0, y=0,  # Will be positioned by layout algorithm
+            x=0,
+            y=0,  # Will be positioned by layout algorithm
             size=20,  # Central node is larger
             color="#ff6b6b",
             properties=central_entity,
-            is_central=True
+            is_central=True,
         )
 
         # Update edges to use central node ID
@@ -241,7 +259,9 @@ async def get_entity_neighborhood(
             updated_edges.append(VisualizationEdge(**edge))
 
         # Compute layout
-        all_nodes = [central_node] + [VisualizationNode(**node) for node in neighborhood_nodes]
+        all_nodes = [central_node] + [
+            VisualizationNode(**node) for node in neighborhood_nodes
+        ]
         layout_data = await compute_layout(all_nodes, updated_edges, layout_algorithm)
 
         response = GraphVisualizationResponse(
@@ -255,8 +275,8 @@ async def get_entity_neighborhood(
                 "total_nodes": len(all_nodes),
                 "total_edges": len(updated_edges),
                 "layout_algorithm": layout_algorithm,
-                "tenant_id": current_user.tenant_id
-            }
+                "tenant_id": current_user.tenant_id,
+            },
         )
 
         # Cache result
@@ -270,12 +290,13 @@ async def get_entity_neighborhood(
         logger.error(f"Error getting entity neighborhood: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/visualization/progressive-load", response_model=GraphVisualizationResponse)
 async def progressive_graph_load(
     request: ProgressiveLoadRequest,
-    current_user = Depends(get_current_user),
-    neo4j_session = Depends(get_neo4j_session),
-    redis_client = Depends(get_redis_client)
+    current_user=Depends(get_current_user),
+    neo4j_session=Depends(get_neo4j_session),
+    redis_client=Depends(get_redis_client),
 ):
     """Progressively load graph data for large graphs"""
     try:
@@ -292,7 +313,7 @@ async def progressive_graph_load(
                 "loaded_edges": [],
                 "total_nodes": 0,
                 "total_edges": 0,
-                "loaded_batches": []
+                "loaded_batches": [],
             }
 
         # Load next batch
@@ -306,8 +327,12 @@ async def progressive_graph_load(
         cached_session["loaded_batches"].append(request.batch_number)
 
         # Compute layout for new nodes
-        all_nodes = [VisualizationNode(**node) for node in cached_session["loaded_nodes"]]
-        all_edges = [VisualizationEdge(**edge) for edge in cached_session["loaded_edges"]]
+        all_nodes = [
+            VisualizationNode(**node) for node in cached_session["loaded_nodes"]
+        ]
+        all_edges = [
+            VisualizationEdge(**edge) for edge in cached_session["loaded_edges"]
+        ]
 
         # Use incremental layout for progressive loading
         layout_data = await compute_incremental_layout(
@@ -327,8 +352,8 @@ async def progressive_graph_load(
                 "has_more": has_more,
                 "progressive_load": True,
                 "session_id": request.session_id,
-                "tenant_id": current_user.tenant_id
-            }
+                "tenant_id": current_user.tenant_id,
+            },
         )
 
         # Update session cache
@@ -344,12 +369,15 @@ async def progressive_graph_load(
         logger.error(f"Error in progressive graph load: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/visualization/interactive-filter", response_model=GraphVisualizationResponse)
+
+@app.post(
+    "/visualization/interactive-filter", response_model=GraphVisualizationResponse
+)
 async def interactive_filter(
     request: InteractiveFilterRequest,
-    current_user = Depends(get_current_user),
-    neo4j_session = Depends(get_neo4j_session),
-    redis_client = Depends(get_redis_client)
+    current_user=Depends(get_current_user),
+    neo4j_session=Depends(get_neo4j_session),
+    redis_client=Depends(get_redis_client),
 ):
     """Apply interactive filters to graph visualization"""
     try:
@@ -386,8 +414,8 @@ async def interactive_filter(
                 "filtered_nodes": len(filtered_nodes),
                 "filtered_edges": len(filtered_edges),
                 "interactive_filter": True,
-                "tenant_id": current_user.tenant_id
-            }
+                "tenant_id": current_user.tenant_id,
+            },
         )
 
         return response
@@ -398,14 +426,15 @@ async def interactive_filter(
         logger.error(f"Error applying interactive filters: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # Layout Computation Endpoints
 @app.post("/layout/compute")
 async def compute_layout_only(
     nodes: List[Dict[str, Any]],
     edges: List[Dict[str, Any]],
     algorithm: LayoutAlgorithm = LayoutAlgorithm.FORCE_DIRECTED,
-    current_user = Depends(get_current_user),
-    redis_client = Depends(get_redis_client)
+    current_user=Depends(get_current_user),
+    redis_client=Depends(get_redis_client),
 ):
     """Compute layout for provided nodes and edges"""
     try:
@@ -422,15 +451,16 @@ async def compute_layout_only(
             "layout": layout_data,
             "algorithm": algorithm,
             "node_count": len(nodes),
-            "edge_count": len(edges)
+            "edge_count": len(edges),
         }
 
     except Exception as e:
         logger.error(f"Error computing layout: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/layout/algorithms")
-async def get_available_layouts(current_user = Depends(get_current_user)):
+async def get_available_layouts(current_user=Depends(get_current_user)):
     """Get available layout algorithms"""
     return {
         "algorithms": [
@@ -439,38 +469,39 @@ async def get_available_layouts(current_user = Depends(get_current_user)):
                 "name": "Force Directed",
                 "description": "Physics-based force-directed layout",
                 "suitable_for": ["small", "medium"],
-                "performance": "medium"
+                "performance": "medium",
             },
             {
                 "id": LayoutAlgorithm.CIRCULAR,
                 "name": "Circular",
                 "description": "Circular arrangement of nodes",
                 "suitable_for": ["small", "medium"],
-                "performance": "fast"
+                "performance": "fast",
             },
             {
                 "id": LayoutAlgorithm.HIERARCHICAL,
                 "name": "Hierarchical",
                 "description": "Top-down hierarchical layout",
                 "suitable_for": ["small", "medium", "large"],
-                "performance": "medium"
+                "performance": "medium",
             },
             {
                 "id": LayoutAlgorithm.GRID,
                 "name": "Grid",
                 "description": "Grid-based layout",
                 "suitable_for": ["all"],
-                "performance": "fast"
+                "performance": "fast",
             },
             {
                 "id": LayoutAlgorithm.RANDOM,
                 "name": "Random",
                 "description": "Random positioning",
                 "suitable_for": ["all"],
-                "performance": "fast"
-            }
+                "performance": "fast",
+            },
         ]
     }
+
 
 # Utility Functions
 async def verify_tenant_access(tenant_id: str, resource: str):
@@ -478,14 +509,19 @@ async def verify_tenant_access(tenant_id: str, resource: str):
     # This would integrate with tenant service
     return True
 
+
 def generate_cache_key(prefix: str, request, tenant_id: str) -> str:
     """Generate cache key for request"""
     import hashlib
+
     request_str = str(request.dict()) + str(tenant_id)
     hash_obj = hashlib.md5(request_str.encode())
     return f"{prefix}:{hash_obj.hexdigest()}"
 
-async def estimate_graph_size(session: AsyncSession, filters: Dict[str, Any], tenant_id: str) -> int:
+
+async def estimate_graph_size(
+    session: AsyncSession, filters: Dict[str, Any], tenant_id: str
+) -> int:
     """Estimate the size of the graph based on filters"""
     try:
         # Simple estimation query
@@ -493,7 +529,9 @@ async def estimate_graph_size(session: AsyncSession, filters: Dict[str, Any], te
         params = {"tenant_id": tenant_id}
 
         if filters.get("entity_types"):
-            type_filter = " OR ".join([f"e.type = '{etype}'" for etype in filters["entity_types"]])
+            type_filter = " OR ".join(
+                [f"e.type = '{etype}'" for etype in filters["entity_types"]]
+            )
             where_clauses.append(f"({type_filter})")
 
         where_clause = " AND ".join(where_clauses)
@@ -512,6 +550,7 @@ async def estimate_graph_size(session: AsyncSession, filters: Dict[str, Any], te
         logger.error(f"Error estimating graph size: {e}")
         return 1000  # Default estimate
 
+
 def categorize_graph_size(node_count: int) -> GraphSizeCategory:
     """Categorize graph size for performance optimization"""
     if node_count <= 100:
@@ -523,11 +562,14 @@ def categorize_graph_size(node_count: int) -> GraphSizeCategory:
     else:
         return GraphSizeCategory.EXTRA_LARGE
 
+
 def apply_optimizations_to_request(request, optimizations: Dict[str, Any]):
     """Apply performance optimizations to request"""
     # Apply node sampling for large graphs
     if optimizations.get("sample_nodes"):
-        request.max_nodes = min(request.max_nodes or 1000, optimizations["sample_nodes"])
+        request.max_nodes = min(
+            request.max_nodes or 1000, optimizations["sample_nodes"]
+        )
 
     # Apply edge filtering for large graphs
     if optimizations.get("filter_edges"):
@@ -540,10 +582,9 @@ def apply_optimizations_to_request(request, optimizations: Dict[str, Any]):
 
     return request
 
+
 async def extract_graph_data(
-    session: AsyncSession,
-    request: GraphVisualizationRequest,
-    tenant_id: str
+    session: AsyncSession, request: GraphVisualizationRequest, tenant_id: str
 ) -> Tuple[List[Dict], List[Dict]]:
     """Extract graph data from Neo4j"""
     try:
@@ -552,7 +593,9 @@ async def extract_graph_data(
         params = {"tenant_id": tenant_id, "limit": request.max_nodes or 1000}
 
         if request.filters and request.filters.get("entity_types"):
-            type_filter = " OR ".join([f"e.type = '{etype}'" for etype in request.filters["entity_types"]])
+            type_filter = " OR ".join(
+                [f"e.type = '{etype}'" for etype in request.filters["entity_types"]]
+            )
             where_clauses.append(f"({type_filter})")
 
         where_clause = " AND ".join(where_clauses)
@@ -572,13 +615,15 @@ async def extract_graph_data(
         node_result = await session.run(node_query, params)
         nodes = []
         async for record in node_result:
-            nodes.append({
-                "id": record["id"],
-                "label": record["label"],
-                "type": record["type"],
-                "properties": record["properties"],
-                "degree": record["degree"]
-            })
+            nodes.append(
+                {
+                    "id": record["id"],
+                    "label": record["label"],
+                    "type": record["type"],
+                    "properties": record["properties"],
+                    "degree": record["degree"],
+                }
+            )
 
         if not nodes:
             return [], []
@@ -593,20 +638,21 @@ async def extract_graph_data(
         LIMIT $limit
         """
 
-        edge_result = await session.run(edge_query, {
-            "node_ids": node_ids,
-            "limit": request.max_edges or 2000
-        })
+        edge_result = await session.run(
+            edge_query, {"node_ids": node_ids, "limit": request.max_edges or 2000}
+        )
 
         edges = []
         async for record in edge_result:
-            edges.append({
-                "id": record["id"],
-                "source": record["source"],
-                "target": record["target"],
-                "type": record["type"],
-                "properties": record["properties"]
-            })
+            edges.append(
+                {
+                    "id": record["id"],
+                    "source": record["source"],
+                    "target": record["target"],
+                    "type": record["type"],
+                    "properties": record["properties"],
+                }
+            )
 
         return nodes, edges
 
@@ -614,10 +660,11 @@ async def extract_graph_data(
         logger.error(f"Error extracting graph data: {e}")
         return [], []
 
+
 async def compute_layout(
     nodes: List[VisualizationNode],
     edges: List[VisualizationEdge],
-    algorithm: LayoutAlgorithm
+    algorithm: LayoutAlgorithm,
 ) -> GraphLayout:
     """Compute graph layout using specified algorithm"""
     try:
@@ -640,6 +687,7 @@ async def compute_layout(
         # Fallback to simple layout
         return await layout_algorithms.random_layout(nodes, edges)
 
+
 def apply_visual_styling(
     nodes: List[Dict], edges: List[Dict], style_options: Dict[str, Any]
 ) -> Tuple[List[VisualizationNode], List[VisualizationEdge]]:
@@ -657,8 +705,12 @@ def apply_visual_styling(
         if "degree" in node_data:
             # Normalize degree to size range
             max_degree = max([n.get("degree", 1) for n in nodes])
-            normalized_degree = node_data["degree"] / max_degree if max_degree > 0 else 0
-            size = node_size_range[0] + normalized_degree * (node_size_range[1] - node_size_range[0])
+            normalized_degree = (
+                node_data["degree"] / max_degree if max_degree > 0 else 0
+            )
+            size = node_size_range[0] + normalized_degree * (
+                node_size_range[1] - node_size_range[0]
+            )
         else:
             size = (node_size_range[0] + node_size_range[1]) / 2
 
@@ -666,10 +718,11 @@ def apply_visual_styling(
             id=node_data["id"],
             label=node_data["label"],
             type=node_data["type"],
-            x=0, y=0,  # Will be set by layout algorithm
+            x=0,
+            y=0,  # Will be set by layout algorithm
             size=size,
             color=color,
-            properties=node_data.get("properties", {})
+            properties=node_data.get("properties", {}),
         )
         styled_nodes.append(styled_node)
 
@@ -684,7 +737,9 @@ def apply_visual_styling(
 
         # Width based on strength if available
         strength = edge_data.get("properties", {}).get("strength", 1.0)
-        width = edge_width_range[0] + strength * (edge_width_range[1] - edge_width_range[0])
+        width = edge_width_range[0] + strength * (
+            edge_width_range[1] - edge_width_range[0]
+        )
 
         styled_edge = VisualizationEdge(
             id=edge_data["id"],
@@ -694,21 +749,23 @@ def apply_visual_styling(
             weight=edge_data.get("properties", {}).get("strength", 1.0),
             width=width,
             color=color,
-            properties=edge_data.get("properties", {})
+            properties=edge_data.get("properties", {}),
         )
         styled_edges.append(styled_edge)
 
     return styled_nodes, styled_edges
 
+
 def get_cache_ttl(size_category: GraphSizeCategory) -> int:
     """Get cache TTL based on graph size"""
     ttl_map = {
-        GraphSizeCategory.SMALL: 1800,      # 30 minutes
-        GraphSizeCategory.MEDIUM: 3600,     # 1 hour
-        GraphSizeCategory.LARGE: 7200,      # 2 hours
-        GraphSizeCategory.EXTRA_LARGE: 14400 # 4 hours
+        GraphSizeCategory.SMALL: 1800,  # 30 minutes
+        GraphSizeCategory.MEDIUM: 3600,  # 1 hour
+        GraphSizeCategory.LARGE: 7200,  # 2 hours
+        GraphSizeCategory.EXTRA_LARGE: 14400,  # 4 hours
     }
     return ttl_map.get(size_category, 1800)
+
 
 # Health check endpoint
 @app.get("/health")
@@ -727,15 +784,16 @@ async def health_check(app):
             "service": "graph-visualization",
             "port": 8010,
             "neo4j": "connected",
-            "redis": "connected"
+            "redis": "connected",
         }
     except Exception as e:
         return {
             "status": "unhealthy",
             "service": "graph-visualization",
             "port": 8010,
-            "error": str(e)
+            "error": str(e),
         }
+
 
 if __name__ == "__main__":
     import uvicorn
@@ -745,5 +803,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8010,
         reload=config.DEBUG,
-        log_level="info"
+        log_level="info",
     )

@@ -2,10 +2,12 @@
 Database utility types and functions
 """
 
+import json
+
 from sqlalchemy import String
 from sqlalchemy.dialects.postgresql import ARRAY as PostgreSQLARRAY
-from sqlalchemy.types import TypeDecorator, TEXT
-import json
+from sqlalchemy.types import TEXT, TypeDecorator
+
 
 class StringArray(TypeDecorator):
     """Custom Array type that works with both SQLite and PostgreSQL"""
@@ -13,7 +15,7 @@ class StringArray(TypeDecorator):
     impl = TEXT
 
     def load_dialect_impl(self, dialect):
-        if dialect.name == 'postgresql':
+        if dialect.name == "postgresql":
             return dialect.type_descriptor(PostgreSQLARRAY(String))
         else:
             return dialect.type_descriptor(TEXT())
@@ -22,7 +24,7 @@ class StringArray(TypeDecorator):
         if value is None:
             return None
         # Convert list to JSON string for SQLite
-        if dialect.name != 'postgresql':
+        if dialect.name != "postgresql":
             return json.dumps(value)
         return value
 
@@ -30,7 +32,7 @@ class StringArray(TypeDecorator):
         if value is None:
             return None
         # Convert JSON string back to list for SQLite
-        if dialect.name != 'postgresql':
+        if dialect.name != "postgresql":
             try:
                 return json.loads(value)
             except (ValueError, TypeError):

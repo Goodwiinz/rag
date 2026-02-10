@@ -4,45 +4,55 @@ Real-time metrics collection, SLA tracking, and automated alerts
 """
 
 import asyncio
-import time
 import json
-import psutil
 import logging
-from datetime import datetime, timezone as dt_timezone, timedelta
-from typing import Dict, List, Optional, Any, Callable, Union
-from dataclasses import dataclass, field, asdict
-from enum import Enum
+import time
 from collections import defaultdict, deque
-import numpy as np
-import aioredis
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Union
+
+import aioredis
+import numpy as np
+import psutil
 
 logger = logging.getLogger(__name__)
 
+
 class MetricType(Enum):
     """Types of performance metrics"""
+
     COUNTER = "counter"
     GAUGE = "gauge"
     HISTOGRAM = "histogram"
     TIMER = "timer"
 
+
 class AlertSeverity(Enum):
     """Alert severity levels"""
+
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
     CRITICAL = "critical"
 
+
 class SLOStatus(Enum):
     """Service Level Objective status"""
+
     HEALTHY = "healthy"
     WARNING = "warning"
     VIOLATED = "violated"
     UNKNOWN = "unknown"
 
+
 @dataclass
 class MetricDefinition:
     """Definition of a performance metric"""
+
     name: str
     description: str
     metric_type: MetricType
@@ -50,17 +60,21 @@ class MetricDefinition:
     tags: Dict[str, str] = field(default_factory=dict)
     enabled: bool = True
 
+
 @dataclass
 class MetricValue:
     """Single metric value with timestamp"""
+
     metric_name: str
     value: Union[float, int]
     timestamp: datetime
     tags: Dict[str, str] = field(default_factory=dict)
 
+
 @dataclass
 class SLODefinition:
     """Service Level Objective definition"""
+
     name: str
     description: str
     metric_name: str
@@ -70,9 +84,11 @@ class SLODefinition:
     alert_severity: AlertSeverity
     tags: Dict[str, str] = field(default_factory=dict)
 
+
 @dataclass
 class Alert:
     """Performance alert"""
+
     id: str
     slo_name: str
     severity: AlertSeverity
@@ -83,9 +99,11 @@ class Alert:
     resolved_at: Optional[datetime] = None
     tags: Dict[str, str] = field(default_factory=dict)
 
+
 @dataclass
 class PerformanceSnapshot:
     """Snapshot of system performance at a point in time"""
+
     timestamp: datetime
     cpu_percent: float
     memory_percent: float
@@ -95,6 +113,7 @@ class PerformanceSnapshot:
     process_count: int
     active_connections: int
     custom_metrics: Dict[str, MetricValue] = field(default_factory=dict)
+
 
 class MetricsCollector:
     """Collects and stores performance metrics"""
@@ -115,20 +134,61 @@ class MetricsCollector:
     def _initialize_builtin_metrics(self):
         """Initialize built-in metric definitions"""
         builtin_metrics = [
-            MetricDefinition("cpu_usage", "CPU usage percentage", MetricType.GAUGE, "percent"),
-            MetricDefinition("memory_usage", "Memory usage percentage", MetricType.GAUGE, "percent"),
-            MetricDefinition("memory_usage_mb", "Memory usage in MB", MetricType.GAUGE, "megabytes"),
-            MetricDefinition("disk_usage", "Disk usage percentage", MetricType.GAUGE, "percent"),
-            MetricDefinition("network_bytes_sent", "Network bytes sent", MetricType.COUNTER, "bytes"),
-            MetricDefinition("network_bytes_recv", "Network bytes received", MetricType.COUNTER, "bytes"),
-            MetricDefinition("active_connections", "Active network connections", MetricType.GAUGE, "count"),
-            MetricDefinition("response_time_ms", "API response time", MetricType.HISTOGRAM, "milliseconds"),
-            MetricDefinition("query_time_ms", "Database query time", MetricType.HISTOGRAM, "milliseconds"),
-            MetricDefinition("cache_hit_rate", "Cache hit rate", MetricType.GAUGE, "percent"),
+            MetricDefinition(
+                "cpu_usage", "CPU usage percentage", MetricType.GAUGE, "percent"
+            ),
+            MetricDefinition(
+                "memory_usage", "Memory usage percentage", MetricType.GAUGE, "percent"
+            ),
+            MetricDefinition(
+                "memory_usage_mb", "Memory usage in MB", MetricType.GAUGE, "megabytes"
+            ),
+            MetricDefinition(
+                "disk_usage", "Disk usage percentage", MetricType.GAUGE, "percent"
+            ),
+            MetricDefinition(
+                "network_bytes_sent", "Network bytes sent", MetricType.COUNTER, "bytes"
+            ),
+            MetricDefinition(
+                "network_bytes_recv",
+                "Network bytes received",
+                MetricType.COUNTER,
+                "bytes",
+            ),
+            MetricDefinition(
+                "active_connections",
+                "Active network connections",
+                MetricType.GAUGE,
+                "count",
+            ),
+            MetricDefinition(
+                "response_time_ms",
+                "API response time",
+                MetricType.HISTOGRAM,
+                "milliseconds",
+            ),
+            MetricDefinition(
+                "query_time_ms",
+                "Database query time",
+                MetricType.HISTOGRAM,
+                "milliseconds",
+            ),
+            MetricDefinition(
+                "cache_hit_rate", "Cache hit rate", MetricType.GAUGE, "percent"
+            ),
             MetricDefinition("error_rate", "Error rate", MetricType.GAUGE, "percent"),
-            MetricDefinition("request_rate", "Request rate per second", MetricType.GAUGE, "rps"),
-            MetricDefinition("websocket_connections", "WebSocket connections", MetricType.GAUGE, "count"),
-            MetricDefinition("message_rate", "WebSocket messages per second", MetricType.GAUGE, "mps"),
+            MetricDefinition(
+                "request_rate", "Request rate per second", MetricType.GAUGE, "rps"
+            ),
+            MetricDefinition(
+                "websocket_connections",
+                "WebSocket connections",
+                MetricType.GAUGE,
+                "count",
+            ),
+            MetricDefinition(
+                "message_rate", "WebSocket messages per second", MetricType.GAUGE, "mps"
+            ),
         ]
 
         for metric_def in builtin_metrics:
@@ -138,10 +198,14 @@ class MetricsCollector:
         """Define a new custom metric"""
         self.metric_definitions[metric_def.name] = metric_def
 
-    def increment_counter(self, metric_name: str, value: float = 1.0, tags: Dict[str, str] = None):
+    def increment_counter(
+        self, metric_name: str, value: float = 1.0, tags: Dict[str, str] = None
+    ):
         """Increment a counter metric"""
         if metric_name not in self.metric_definitions:
-            self.define_metric(MetricDefinition(metric_name, "", MetricType.COUNTER, "count"))
+            self.define_metric(
+                MetricDefinition(metric_name, "", MetricType.COUNTER, "count")
+            )
 
         self.counters[metric_name] += value
         self._record_metric(metric_name, self.counters[metric_name], tags)
@@ -149,15 +213,21 @@ class MetricsCollector:
     def set_gauge(self, metric_name: str, value: float, tags: Dict[str, str] = None):
         """Set a gauge metric value"""
         if metric_name not in self.metric_definitions:
-            self.define_metric(MetricDefinition(metric_name, "", MetricType.GAUGE, "value"))
+            self.define_metric(
+                MetricDefinition(metric_name, "", MetricType.GAUGE, "value")
+            )
 
         self.gauges[metric_name] = value
         self._record_metric(metric_name, value, tags)
 
-    def record_histogram(self, metric_name: str, value: float, tags: Dict[str, str] = None):
+    def record_histogram(
+        self, metric_name: str, value: float, tags: Dict[str, str] = None
+    ):
         """Record a histogram metric value"""
         if metric_name not in self.metric_definitions:
-            self.define_metric(MetricDefinition(metric_name, "", MetricType.HISTOGRAM, "value"))
+            self.define_metric(
+                MetricDefinition(metric_name, "", MetricType.HISTOGRAM, "value")
+            )
 
         self.histograms[metric_name].append(value)
         # Keep only last 1000 values
@@ -166,10 +236,14 @@ class MetricsCollector:
 
         self._record_metric(metric_name, value, tags)
 
-    def record_timer(self, metric_name: str, duration_ms: float, tags: Dict[str, str] = None):
+    def record_timer(
+        self, metric_name: str, duration_ms: float, tags: Dict[str, str] = None
+    ):
         """Record a timer metric"""
         if metric_name not in self.metric_definitions:
-            self.define_metric(MetricDefinition(metric_name, "", MetricType.TIMER, "milliseconds"))
+            self.define_metric(
+                MetricDefinition(metric_name, "", MetricType.TIMER, "milliseconds")
+            )
 
         self.timers[metric_name].append(duration_ms)
         # Keep only last 1000 values
@@ -178,13 +252,15 @@ class MetricsCollector:
 
         self._record_metric(metric_name, duration_ms, tags)
 
-    def _record_metric(self, metric_name: str, value: float, tags: Dict[str, str] = None):
+    def _record_metric(
+        self, metric_name: str, value: float, tags: Dict[str, str] = None
+    ):
         """Record a metric value with timestamp"""
         metric_value = MetricValue(
             metric_name=metric_name,
             value=value,
             timestamp=datetime.utcnow(),
-            tags=tags or {}
+            tags=tags or {},
         )
 
         self.metrics[metric_name].append(metric_value)
@@ -200,22 +276,27 @@ class MetricsCollector:
             await self.redis_client.setex(
                 key,
                 3600,  # 1 hour TTL
-                json.dumps({
-                    'value': metric_value.value,
-                    'timestamp': metric_value.timestamp.isoformat(),
-                    'tags': metric_value.tags
-                })
+                json.dumps(
+                    {
+                        "value": metric_value.value,
+                        "timestamp": metric_value.timestamp.isoformat(),
+                        "tags": metric_value.tags,
+                    }
+                ),
             )
         except Exception as e:
             logger.error(f"Failed to store metric in Redis: {e}")
 
-    def get_metric_stats(self, metric_name: str, time_window_minutes: int = 5) -> Dict[str, Any]:
+    def get_metric_stats(
+        self, metric_name: str, time_window_minutes: int = 5
+    ) -> Dict[str, Any]:
         """Get statistics for a metric over a time window"""
         cutoff_time = datetime.utcnow() - timedelta(minutes=time_window_minutes)
 
         if metric_name in self.metrics:
             recent_values = [
-                mv.value for mv in self.metrics[metric_name]
+                mv.value
+                for mv in self.metrics[metric_name]
                 if mv.timestamp >= cutoff_time
             ]
         else:
@@ -223,31 +304,32 @@ class MetricsCollector:
 
         if not recent_values:
             return {
-                'count': 0,
-                'min': 0,
-                'max': 0,
-                'avg': 0,
-                'sum': 0,
-                'percentiles': {}
+                "count": 0,
+                "min": 0,
+                "max": 0,
+                "avg": 0,
+                "sum": 0,
+                "percentiles": {},
             }
 
         values_array = np.array(recent_values)
         percentiles = {
-            'p50': float(np.percentile(values_array, 50)),
-            'p90': float(np.percentile(values_array, 90)),
-            'p95': float(np.percentile(values_array, 95)),
-            'p99': float(np.percentile(values_array, 99)),
+            "p50": float(np.percentile(values_array, 50)),
+            "p90": float(np.percentile(values_array, 90)),
+            "p95": float(np.percentile(values_array, 95)),
+            "p99": float(np.percentile(values_array, 99)),
         }
 
         return {
-            'count': len(recent_values),
-            'min': float(np.min(values_array)),
-            'max': float(np.max(values_array)),
-            'avg': float(np.mean(values_array)),
-            'sum': float(np.sum(values_array)),
-            'std': float(np.std(values_array)),
-            'percentiles': percentiles
+            "count": len(recent_values),
+            "min": float(np.min(values_array)),
+            "max": float(np.max(values_array)),
+            "avg": float(np.mean(values_array)),
+            "sum": float(np.sum(values_array)),
+            "std": float(np.std(values_array)),
+            "percentiles": percentiles,
         }
+
 
 class SystemMonitor:
     """Monitors system-level performance metrics"""
@@ -292,10 +374,12 @@ class SystemMonitor:
             # Memory metrics
             memory = psutil.virtual_memory()
             self.metrics_collector.set_gauge("memory_usage", memory.percent)
-            self.metrics_collector.set_gauge("memory_usage_mb", memory.used / (1024 * 1024))
+            self.metrics_collector.set_gauge(
+                "memory_usage_mb", memory.used / (1024 * 1024)
+            )
 
             # Disk metrics
-            disk = psutil.disk_usage('/')
+            disk = psutil.disk_usage("/")
             self.metrics_collector.set_gauge("disk_usage", disk.percent)
 
             # Network metrics
@@ -325,7 +409,7 @@ class SystemMonitor:
         try:
             cpu_percent = psutil.cpu_percent()
             memory = psutil.virtual_memory()
-            disk = psutil.disk_usage('/')
+            disk = psutil.disk_usage("/")
             network_io = psutil.net_io_counters()
             process_count = len(psutil.pids())
 
@@ -336,13 +420,13 @@ class SystemMonitor:
                 memory_usage_mb=memory.used / (1024 * 1024),
                 disk_usage_percent=disk.percent,
                 network_io={
-                    'bytes_sent': network_io.bytes_sent,
-                    'bytes_recv': network_io.bytes_recv,
-                    'packets_sent': network_io.packets_sent,
-                    'packets_recv': network_io.packets_recv,
+                    "bytes_sent": network_io.bytes_sent,
+                    "bytes_recv": network_io.bytes_recv,
+                    "packets_sent": network_io.packets_sent,
+                    "packets_recv": network_io.packets_recv,
                 },
                 process_count=process_count,
-                active_connections=len(psutil.net_connections())
+                active_connections=len(psutil.net_connections()),
             )
         except Exception as e:
             logger.error(f"Error getting system snapshot: {e}")
@@ -354,8 +438,9 @@ class SystemMonitor:
                 disk_usage_percent=0,
                 network_io={},
                 process_count=0,
-                active_connections=0
+                active_connections=0,
             )
+
 
 class SLOMonitor:
     """Monitors Service Level Objectives and generates alerts"""
@@ -382,7 +467,7 @@ class SLOMonitor:
                 target_value=80.0,
                 comparison="lt",
                 time_window_minutes=5,
-                alert_severity=AlertSeverity.WARNING
+                alert_severity=AlertSeverity.WARNING,
             ),
             SLODefinition(
                 name="memory_usage_slo",
@@ -391,7 +476,7 @@ class SLOMonitor:
                 target_value=85.0,
                 comparison="lt",
                 time_window_minutes=5,
-                alert_severity=AlertSeverity.WARNING
+                alert_severity=AlertSeverity.WARNING,
             ),
             SLODefinition(
                 name="response_time_slo",
@@ -400,7 +485,7 @@ class SLOMonitor:
                 target_value=500.0,
                 comparison="lt",
                 time_window_minutes=5,
-                alert_severity=AlertSeverity.ERROR
+                alert_severity=AlertSeverity.ERROR,
             ),
             SLODefinition(
                 name="error_rate_slo",
@@ -409,7 +494,7 @@ class SLOMonitor:
                 target_value=1.0,
                 comparison="lt",
                 time_window_minutes=5,
-                alert_severity=AlertSeverity.ERROR
+                alert_severity=AlertSeverity.ERROR,
             ),
             SLODefinition(
                 name="cache_hit_rate_slo",
@@ -418,7 +503,7 @@ class SLOMonitor:
                 target_value=80.0,
                 comparison="gt",
                 time_window_minutes=10,
-                alert_severity=AlertSeverity.WARNING
+                alert_severity=AlertSeverity.WARNING,
             ),
         ]
 
@@ -467,16 +552,20 @@ class SLOMonitor:
     async def _check_slo(self, slo: SLODefinition):
         """Check a single Service Level Objective"""
         # Get metric statistics for the time window
-        stats = self.metrics_collector.get_metric_stats(slo.metric_name, slo.time_window_minutes)
+        stats = self.metrics_collector.get_metric_stats(
+            slo.metric_name, slo.time_window_minutes
+        )
 
-        if stats['count'] == 0:
+        if stats["count"] == 0:
             return  # No data to evaluate
 
         # Use average for evaluation (could be configurable)
-        metric_value = stats['avg']
+        metric_value = stats["avg"]
 
         # Check SLO condition
-        slo_met = self._evaluate_condition(metric_value, slo.target_value, slo.comparison)
+        slo_met = self._evaluate_condition(
+            metric_value, slo.target_value, slo.comparison
+        )
 
         # Get existing alert for this SLO
         existing_alert = self.active_alerts.get(slo_name)
@@ -491,7 +580,7 @@ class SLOMonitor:
                 metric_value=metric_value,
                 target_value=slo.target_value,
                 triggered_at=datetime.utcnow(),
-                tags=slo.tags
+                tags=slo.tags,
             )
 
             self.active_alerts[slo_name] = alert
@@ -504,7 +593,9 @@ class SLOMonitor:
             del self.active_alerts[slo_name]
             await self._resolve_alert(existing_alert)
 
-    def _evaluate_condition(self, actual: float, target: float, comparison: str) -> bool:
+    def _evaluate_condition(
+        self, actual: float, target: float, comparison: str
+    ) -> bool:
         """Evaluate SLO condition"""
         if comparison == "lt":
             return actual < target
@@ -534,7 +625,7 @@ class SLOMonitor:
                 await self.metrics_collector.redis_client.setex(
                     f"alert:{alert.id}",
                     86400,  # 24 hours
-                    json.dumps(asdict(alert), default=str)
+                    json.dumps(asdict(alert), default=str),
                 )
             except Exception as e:
                 logger.error(f"Failed to store alert in Redis: {e}")
@@ -556,7 +647,7 @@ class SLOMonitor:
                 await self.metrics_collector.redis_client.setex(
                     f"alert:{alert.id}",
                     86400,  # 24 hours
-                    json.dumps(asdict(alert), default=str)
+                    json.dumps(asdict(alert), default=str),
                 )
             except Exception as e:
                 logger.error(f"Failed to update alert in Redis: {e}")
@@ -566,11 +657,15 @@ class SLOMonitor:
         status = {}
 
         for slo_name, slo in self.slos.items():
-            stats = self.metrics_collector.get_metric_stats(slo.metric_name, slo.time_window_minutes)
-            metric_value = stats['avg'] if stats['count'] > 0 else 0
-            slo_met = self._evaluate_condition(metric_value, slo.target_value, slo.comparison)
+            stats = self.metrics_collector.get_metric_stats(
+                slo.metric_name, slo.time_window_minutes
+            )
+            metric_value = stats["avg"] if stats["count"] > 0 else 0
+            slo_met = self._evaluate_condition(
+                metric_value, slo.target_value, slo.comparison
+            )
 
-            if stats['count'] == 0:
+            if stats["count"] == 0:
                 slo_status = SLOStatus.UNKNOWN
             elif slo_met:
                 slo_status = SLOStatus.HEALTHY
@@ -578,17 +673,18 @@ class SLOMonitor:
                 slo_status = SLOStatus.VIOLATED
 
             status[slo_name] = {
-                'description': slo.description,
-                'current_value': metric_value,
-                'target_value': slo.target_value,
-                'comparison': slo.comparison,
-                'status': slo_status.value,
-                'alert_severity': slo.alert_severity.value if not slo_met else None,
-                'active_alert': self.active_alerts.get(slo_name) is not None,
-                'data_points': stats['count']
+                "description": slo.description,
+                "current_value": metric_value,
+                "target_value": slo.target_value,
+                "comparison": slo.comparison,
+                "status": slo_status.value,
+                "alert_severity": slo.alert_severity.value if not slo_met else None,
+                "active_alert": self.active_alerts.get(slo_name) is not None,
+                "data_points": stats["count"],
             }
 
         return status
+
 
 class PerformanceMonitor:
     """Main performance monitoring coordinator"""
@@ -601,11 +697,11 @@ class PerformanceMonitor:
 
         # Performance dashboard data
         self.dashboard_data = {
-            'last_updated': None,
-            'system_metrics': {},
-            'slo_status': {},
-            'active_alerts': [],
-            'performance_trends': {}
+            "last_updated": None,
+            "system_metrics": {},
+            "slo_status": {},
+            "active_alerts": [],
+            "performance_trends": {},
         }
 
     async def start(self):
@@ -623,58 +719,90 @@ class PerformanceMonitor:
     def record_request(self, endpoint: str, duration_ms: float, status_code: int):
         """Record an API request for performance tracking"""
         # Record response time
-        self.metrics_collector.record_timer("response_time_ms", duration_ms, {"endpoint": endpoint})
+        self.metrics_collector.record_timer(
+            "response_time_ms", duration_ms, {"endpoint": endpoint}
+        )
 
         # Record error if applicable
         if status_code >= 400:
-            self.metrics_collector.increment_counter("error_count", 1.0, {"endpoint": endpoint})
+            self.metrics_collector.increment_counter(
+                "error_count", 1.0, {"endpoint": endpoint}
+            )
 
         # Record request
-        self.metrics_collector.increment_counter("request_count", 1.0, {"endpoint": endpoint})
+        self.metrics_collector.increment_counter(
+            "request_count", 1.0, {"endpoint": endpoint}
+        )
 
     def record_database_query(self, query_type: str, duration_ms: float, success: bool):
         """Record a database query"""
-        self.metrics_collector.record_timer("query_time_ms", duration_ms, {"query_type": query_type})
+        self.metrics_collector.record_timer(
+            "query_time_ms", duration_ms, {"query_type": query_type}
+        )
 
         if not success:
-            self.metrics_collector.increment_counter("database_errors", 1.0, {"query_type": query_type})
+            self.metrics_collector.increment_counter(
+                "database_errors", 1.0, {"query_type": query_type}
+            )
 
     def record_cache_operation(self, operation: str, hit: bool):
         """Record a cache operation"""
-        self.metrics_collector.increment_counter("cache_operations", 1.0, {"operation": operation, "hit": str(hit)})
+        self.metrics_collector.increment_counter(
+            "cache_operations", 1.0, {"operation": operation, "hit": str(hit)}
+        )
 
         # Update cache hit rate
-        total_ops = sum(self.metrics_collector.counters.get(k, 0) for k in self.metrics_collector.counters.keys() if k.startswith("cache_operations"))
+        total_ops = sum(
+            self.metrics_collector.counters.get(k, 0)
+            for k in self.metrics_collector.counters.keys()
+            if k.startswith("cache_operations")
+        )
         if total_ops > 0:
-            hits = sum(v for k, v in self.metrics_collector.counters.items() if k.startswith("cache_operations") and "hit=true" in k)
+            hits = sum(
+                v
+                for k, v in self.metrics_collector.counters.items()
+                if k.startswith("cache_operations") and "hit=true" in k
+            )
             hit_rate = (hits / total_ops) * 100
             self.metrics_collector.set_gauge("cache_hit_rate", hit_rate)
 
     def record_websocket_connection(self, action: str):
         """Record WebSocket connection event"""
-        self.metrics_collector.increment_counter("websocket_events", 1.0, {"action": action})
+        self.metrics_collector.increment_counter(
+            "websocket_events", 1.0, {"action": action}
+        )
 
         # Update connection count
         if action == "connect":
             current = self.metrics_collector.gauges.get("websocket_connections", 0)
             self.metrics_collector.set_gauge("websocket_connections", current + 1)
         elif action == "disconnect":
-            current = max(0, self.metrics_collector.gauges.get("websocket_connections", 0) - 1)
+            current = max(
+                0, self.metrics_collector.gauges.get("websocket_connections", 0) - 1
+            )
             self.metrics_collector.set_gauge("websocket_connections", current)
 
     def update_dashboard_data(self):
         """Update performance dashboard data"""
-        self.dashboard_data['last_updated'] = datetime.utcnow()
-        self.dashboard_data['system_metrics'] = self.system_monitor.get_system_snapshot().__dict__
-        self.dashboard_data['slo_status'] = self.slo_monitor.get_slo_status()
-        self.dashboard_data['active_alerts'] = list(self.slo_monitor.active_alerts.values())
+        self.dashboard_data["last_updated"] = datetime.utcnow()
+        self.dashboard_data[
+            "system_metrics"
+        ] = self.system_monitor.get_system_snapshot().__dict__
+        self.dashboard_data["slo_status"] = self.slo_monitor.get_slo_status()
+        self.dashboard_data["active_alerts"] = list(
+            self.slo_monitor.active_alerts.values()
+        )
 
         # Calculate performance trends
-        self.dashboard_data['performance_trends'] = {
-            'cpu_trend': self.metrics_collector.get_metric_stats("cpu_usage", 60),
-            'memory_trend': self.metrics_collector.get_metric_stats("memory_usage", 60),
-            'response_time_trend': self.metrics_collector.get_metric_stats("response_time_ms", 60),
-            'error_rate_trend': self.metrics_collector.get_metric_stats("error_rate", 60),
+        self.dashboard_data["performance_trends"] = {
+            "cpu_trend": self.metrics_collector.get_metric_stats("cpu_usage", 60),
+            "memory_trend": self.metrics_collector.get_metric_stats("memory_usage", 60),
+            "response_time_trend": self.metrics_collector.get_metric_stats(
+                "response_time_ms", 60
+            ),
+            "error_rate_trend": self.metrics_collector.get_metric_stats(
+                "error_rate", 60
+            ),
         }
 
     def get_dashboard_data(self) -> Dict[str, Any]:
@@ -685,20 +813,26 @@ class PerformanceMonitor:
     def get_comprehensive_report(self) -> Dict[str, Any]:
         """Generate comprehensive performance report"""
         return {
-            'timestamp': datetime.utcnow().isoformat(),
-            'system_snapshot': self.system_monitor.get_system_snapshot().__dict__,
-            'metrics_summary': {
+            "timestamp": datetime.utcnow().isoformat(),
+            "system_snapshot": self.system_monitor.get_system_snapshot().__dict__,
+            "metrics_summary": {
                 name: self.metrics_collector.get_metric_stats(name)
                 for name in self.metrics_collector.metrics.keys()
             },
-            'slo_status': self.slo_monitor.get_slo_status(),
-            'active_alerts': [asdict(alert) for alert in self.slo_monitor.active_alerts.values()],
-            'alert_history': [asdict(alert) for alert in self.slo_monitor.alert_history[-100:]],  # Last 100 alerts
-            'performance_trends': self.dashboard_data.get('performance_trends', {}),
+            "slo_status": self.slo_monitor.get_slo_status(),
+            "active_alerts": [
+                asdict(alert) for alert in self.slo_monitor.active_alerts.values()
+            ],
+            "alert_history": [
+                asdict(alert) for alert in self.slo_monitor.alert_history[-100:]
+            ],  # Last 100 alerts
+            "performance_trends": self.dashboard_data.get("performance_trends", {}),
         }
+
 
 # Global performance monitor instance
 _performance_monitor = None
+
 
 def get_performance_monitor(redis_client: aioredis.Redis = None) -> PerformanceMonitor:
     """Get or create the global performance monitor"""

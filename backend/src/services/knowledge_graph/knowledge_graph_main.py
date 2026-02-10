@@ -4,33 +4,41 @@ Standalone microservice for entity extraction and relationship management
 """
 
 import asyncio
+import json
 import logging
 import uuid
-import json
 from contextlib import asynccontextmanager
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 import redis.asyncio as redis
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession
-from sqlalchemy.ext.asyncio import AsyncSession as SQLAsyncSession
+from neo4j import AsyncDriver, AsyncGraphDatabase, AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAsyncSession
 
 from .config.knowledge_graph_config import KnowledgeGraphConfig
+from .core.auth import get_current_user, verify_websocket_token
+from .core.cache import cache_delete, cache_get, cache_set
+from .core.database import get_async_db
 from .models.knowledge_graph_models import (
-    Entity, EntityResponse, CreateEntityRequest, UpdateEntityRequest,
-    Relationship, RelationshipResponse, CreateRelationshipRequest,
-    EntityType, RelationshipType, ExtractionMethod,
-    BatchEntityRequest, BatchEntityResponse
+    BatchEntityRequest,
+    BatchEntityResponse,
+    CreateEntityRequest,
+    CreateRelationshipRequest,
+    Entity,
+    EntityResponse,
+    EntityType,
+    ExtractionMethod,
+    Relationship,
+    RelationshipResponse,
+    RelationshipType,
+    UpdateEntityRequest,
 )
 from .models.postgres_models import EntitySQL, RelationshipSQL
-from .core.database import get_async_db
-from .core.auth import get_current_user, verify_websocket_token
-from .core.cache import cache_get, cache_set, cache_delete
-from .services.websocket_manager import WebSocketManager
 from .services.services.entity_extraction_service import EntityExtractionService
 from .services.tenant_service import TenantService
+from .services.websocket_manager import WebSocketManager
 
 logger = logging.getLogger(__name__)
 config = KnowledgeGraphConfig()
@@ -39,6 +47,7 @@ config = KnowledgeGraphConfig()
 websocket_manager = WebSocketManager()
 entity_extractor = EntityExtractionService()
 tenant_service = TenantService()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -51,7 +60,7 @@ async def lifespan(app: FastAPI):
         config.NEO4J_URI,
         auth=(config.NEO4J_USER, config.NEO4J_PASSWORD),
         max_connection_lifetime=3600,
-        max_connection_pool_size=50
+        max_connection_pool_size=50,
     )
 
     # Initialize Redis
@@ -73,6 +82,7 @@ async def lifespan(app: FastAPI):
     await app.state.redis_client.close()
     logger.info("Knowledge Graph Service shutdown complete")
 
+
 async def test_connections(app):
     """Test database connections"""
     try:
@@ -89,6 +99,7 @@ async def test_connections(app):
         logger.error(f"Connection test failed: {e}")
         raise
 
+
 async def ensure_schema(app):
     """Ensure Neo4j schema constraints and indexes"""
     try:
@@ -99,7 +110,7 @@ async def ensure_schema(app):
                 "CREATE INDEX entity_name_index IF NOT EXISTS FOR (e:Entity) ON (e.name)",
                 "CREATE INDEX entity_type_index IF NOT EXISTS FOR (e:Entity) ON (e.type)",
                 "CREATE INDEX entity_tenant_index IF NOT EXISTS FOR (e:Entity) ON (e.tenant_id)",
-                "CREATE INDEX relationship_strength_index IF NOT EXISTS FOR ()-[r:RELATED_TO]-() ON (r.strength)"
+                "CREATE INDEX relationship_strength_index IF NOT EXISTS FOR ()-[r:RELATED_TO]-() ON (r.strength)",
             ]
 
             for constraint in constraints:
@@ -115,13 +126,14 @@ async def ensure_schema(app):
         logger.error(f"Failed to ensure schema: {e}")
         raise
 
+
 app = FastAPI(
     title="Knowledge Graph Service",
     version="1.0.0",
     description="Entity extraction and relationship management service",
     lifespan=lifespan,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 # Add CORS middleware
@@ -133,13 +145,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 async def get_neo4j_session(app) -> AsyncSession:
     """Get Neo4j session"""
     return app.state.neo4j_driver.session()
 
+
 async def get_redis_client(app):
     """Get Redis client"""
     return app.state.redis_client
+
 
 def parse_metadata(metadata_str: str) -> Dict[str, Any]:
     """Parse metadata string safely using JSON"""
@@ -177,15 +192,17 @@ def safe_extraction_method(value: Optional[str]) -> ExtractionMethod:
 @app.post("/entities", response_model=EntityResponse)
 async def create_entity(
     request: CreateEntityRequest,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: SQLAsyncSession = Depends(get_async_db),
-    neo4j_session = Depends(get_neo4j_session),
-    redis_client = Depends(get_redis_client)
+    neo4j_session=Depends(get_neo4j_session),
+    redis_client=Depends(get_redis_client),
 ):
     """Create a new entity in the knowledge graph"""
     try:
         # Verify tenant access
-        await tenant_service.verify_tenant_access(current_user.tenant_id, "entity:create")
+        await tenant_service.verify_tenant_access(
+            current_user.tenant_id, "entity:create"
+        )
 
         entity_id = str(uuid.uuid4())
 
@@ -208,18 +225,21 @@ async def create_entity(
         RETURN e
         """
 
-        await neo4j_session.run(neo4j_query, {
-            "id": entity_id,
-            "name": request.name,
-            "entity_type": request.entity_type.value,
-            "confidence_score": request.confidence_score,
-            "extraction_method": request.extraction_method.value,
-            "position": request.position,
-            "context": request.context,
-            "metadata": json.dumps(request.metadata) if request.metadata else "{}",
-            "source_document_id": request.source_document_id,
-            "tenant_id": current_user.tenant_id
-        })
+        await neo4j_session.run(
+            neo4j_query,
+            {
+                "id": entity_id,
+                "name": request.name,
+                "entity_type": request.entity_type.value,
+                "confidence_score": request.confidence_score,
+                "extraction_method": request.extraction_method.value,
+                "position": request.position,
+                "context": request.context,
+                "metadata": json.dumps(request.metadata) if request.metadata else "{}",
+                "source_document_id": request.source_document_id,
+                "tenant_id": current_user.tenant_id,
+            },
+        )
 
         # Create in PostgreSQL for additional metadata and search
         entity_sql = EntitySQL(
@@ -230,7 +250,7 @@ async def create_entity(
             extraction_method=request.extraction_method.value,
             metadata=request.metadata,
             source_document_id=request.source_document_id,
-            tenant_id=current_user.tenant_id
+            tenant_id=current_user.tenant_id,
         )
         db.add(entity_sql)
         await db.commit()
@@ -245,7 +265,7 @@ async def create_entity(
             position=request.position,
             context=request.context,
             metadata=request.metadata,
-            source_document_id=request.source_document_id
+            source_document_id=request.source_document_id,
         )
 
         cache_key = f"entity:{entity_id}:tenant:{current_user.tenant_id}"
@@ -254,25 +274,25 @@ async def create_entity(
         # Notify WebSocket clients
         await websocket_manager.broadcast_to_tenant(
             current_user.tenant_id,
-            {
-                "type": "entity_created",
-                "entity": entity_response.dict()
-            }
+            {"type": "entity_created", "entity": entity_response.dict()},
         )
 
-        logger.info(f"Created entity: {request.name} ({entity_id}) for tenant {current_user.tenant_id}")
+        logger.info(
+            f"Created entity: {request.name} ({entity_id}) for tenant {current_user.tenant_id}"
+        )
         return entity_response
 
     except Exception as e:
         logger.error(f"Error creating entity {request.name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/entities/{entity_id}", response_model=EntityResponse)
 async def get_entity(
     entity_id: str,
-    current_user = Depends(get_current_user),
-    redis_client = Depends(get_redis_client),
-    neo4j_session = Depends(get_neo4j_session)
+    current_user=Depends(get_current_user),
+    redis_client=Depends(get_redis_client),
+    neo4j_session=Depends(get_neo4j_session),
 ):
     """Get an entity by ID"""
     try:
@@ -288,10 +308,9 @@ async def get_entity(
         RETURN e
         """
 
-        result = await neo4j_session.run(query, {
-            "entity_id": entity_id,
-            "tenant_id": current_user.tenant_id
-        })
+        result = await neo4j_session.run(
+            query, {"entity_id": entity_id, "tenant_id": current_user.tenant_id}
+        )
         node = await result.single()
 
         if not node:
@@ -307,7 +326,7 @@ async def get_entity(
             position=e.get("position"),
             context=e.get("context"),
             metadata=parse_metadata(e.get("metadata", "{}")),
-            source_document_id=e.get("source_document_id")
+            source_document_id=e.get("source_document_id"),
         )
 
         # Cache the result
@@ -321,14 +340,15 @@ async def get_entity(
         logger.error(f"Error retrieving entity {entity_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.put("/entities/{entity_id}", response_model=EntityResponse)
 async def update_entity(
     entity_id: str,
     request: UpdateEntityRequest,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: SQLAsyncSession = Depends(get_async_db),
-    neo4j_session = Depends(get_neo4j_session),
-    redis_client = Depends(get_redis_client)
+    neo4j_session=Depends(get_neo4j_session),
+    redis_client=Depends(get_redis_client),
 ):
     """Update an existing entity"""
     try:
@@ -337,7 +357,7 @@ async def update_entity(
         params = {
             "entity_id": entity_id,
             "tenant_id": current_user.tenant_id,
-            "updated_at": "datetime()"
+            "updated_at": "datetime()",
         }
 
         if request.name is not None:
@@ -350,10 +370,14 @@ async def update_entity(
 
         if request.metadata is not None:
             update_fields.append("e.metadata = $metadata")
-            params["metadata"] = json.dumps(request.metadata) if request.metadata else "{}"
+            params["metadata"] = (
+                json.dumps(request.metadata) if request.metadata else "{}"
+            )
 
         if not update_fields:
-            return await get_entity(entity_id, current_user, redis_client, neo4j_session)
+            return await get_entity(
+                entity_id, current_user, redis_client, neo4j_session
+            )
 
         update_fields.append("e.updated_at = $updated_at")
         set_clause = ", ".join(update_fields)
@@ -380,7 +404,7 @@ async def update_entity(
             position=e.get("position"),
             context=e.get("context"),
             metadata=parse_metadata(e.get("metadata", "{}")),
-            source_document_id=e.get("source_document_id")
+            source_document_id=e.get("source_document_id"),
         )
 
         # Update PostgreSQL record
@@ -404,10 +428,7 @@ async def update_entity(
         # Notify WebSocket clients
         await websocket_manager.broadcast_to_tenant(
             current_user.tenant_id,
-            {
-                "type": "entity_updated",
-                "entity": entity_response.dict()
-            }
+            {"type": "entity_updated", "entity": entity_response.dict()},
         )
 
         return entity_response
@@ -418,13 +439,14 @@ async def update_entity(
         logger.error(f"Error updating entity {entity_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.delete("/entities/{entity_id}")
 async def delete_entity(
     entity_id: str,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: SQLAsyncSession = Depends(get_async_db),
-    neo4j_session = Depends(get_neo4j_session),
-    redis_client = Depends(get_redis_client)
+    neo4j_session=Depends(get_neo4j_session),
+    redis_client=Depends(get_redis_client),
 ):
     """Delete an entity and all its relationships"""
     try:
@@ -435,10 +457,9 @@ async def delete_entity(
         RETURN count(e) as deleted_count
         """
 
-        result = await neo4j_session.run(query, {
-            "entity_id": entity_id,
-            "tenant_id": current_user.tenant_id
-        })
+        result = await neo4j_session.run(
+            query, {"entity_id": entity_id, "tenant_id": current_user.tenant_id}
+        )
         deleted_count = (await result.single())["deleted_count"]
 
         if deleted_count == 0:
@@ -459,11 +480,7 @@ async def delete_entity(
 
         # Notify WebSocket clients
         await websocket_manager.broadcast_to_tenant(
-            current_user.tenant_id,
-            {
-                "type": "entity_deleted",
-                "entity_id": entity_id
-            }
+            current_user.tenant_id, {"type": "entity_deleted", "entity_id": entity_id}
         )
 
         logger.info(f"Deleted entity {entity_id} for tenant {current_user.tenant_id}")
@@ -475,13 +492,14 @@ async def delete_entity(
         logger.error(f"Error deleting entity {entity_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/entities/batch", response_model=BatchEntityResponse)
 async def batch_create_entities(
     request: BatchEntityRequest,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: SQLAsyncSession = Depends(get_async_db),
-    neo4j_session = Depends(get_neo4j_session),
-    redis_client = Depends(get_redis_client)
+    neo4j_session=Depends(get_neo4j_session),
+    redis_client=Depends(get_redis_client),
 ):
     """Create multiple entities and relationships in a batch"""
     try:
@@ -506,16 +524,18 @@ async def batch_create_entities(
                             extraction_method=entity.extraction_method.value,
                             metadata=entity.metadata,
                             source_document_id=entity.source_document_id,
-                            tenant_id=current_user.tenant_id
+                            tenant_id=current_user.tenant_id,
                         )
                         db.add(entity_sql)
 
                 except Exception as e:
-                    response.errors.append({
-                        "type": "entity_creation_error",
-                        "data": entity_req.dict(),
-                        "error": str(e)
-                    })
+                    response.errors.append(
+                        {
+                            "type": "entity_creation_error",
+                            "data": entity_req.dict(),
+                            "error": str(e),
+                        }
+                    )
 
             # Create relationships
             for rel_req in request.relationships:
@@ -536,16 +556,18 @@ async def batch_create_entities(
                             confidence_score=relationship.confidence_score,
                             metadata=relationship.metadata,
                             source_document_id=relationship.source_document_id,
-                            tenant_id=current_user.tenant_id
+                            tenant_id=current_user.tenant_id,
                         )
                         db.add(relationship_sql)
 
                 except Exception as e:
-                    response.errors.append({
-                        "type": "relationship_creation_error",
-                        "data": rel_req.dict(),
-                        "error": str(e)
-                    })
+                    response.errors.append(
+                        {
+                            "type": "relationship_creation_error",
+                            "data": rel_req.dict(),
+                            "error": str(e),
+                        }
+                    )
 
         await db.commit()
 
@@ -556,12 +578,14 @@ async def batch_create_entities(
                 "type": "batch_operation_completed",
                 "created_entities": len(response.created_entities),
                 "created_relationships": len(response.created_relationships),
-                "errors": len(response.errors)
-            }
+                "errors": len(response.errors),
+            },
         )
 
-        logger.info(f"Batch processing completed for tenant {current_user.tenant_id}: "
-                   f"{len(response.created_entities)} entities, {len(response.created_relationships)} relationships")
+        logger.info(
+            f"Batch processing completed for tenant {current_user.tenant_id}: "
+            f"{len(response.created_entities)} entities, {len(response.created_relationships)} relationships"
+        )
 
         return response
 
@@ -569,7 +593,10 @@ async def batch_create_entities(
         logger.error(f"Error in batch processing: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-async def _create_entity_in_transaction(tx, request: CreateEntityRequest, tenant_id: str) -> Optional[EntityResponse]:
+
+async def _create_entity_in_transaction(
+    tx, request: CreateEntityRequest, tenant_id: str
+) -> Optional[EntityResponse]:
     """Helper to create entity within a transaction"""
     entity_id = str(uuid.uuid4())
     query = f"""
@@ -590,18 +617,21 @@ async def _create_entity_in_transaction(tx, request: CreateEntityRequest, tenant
     RETURN e
     """
 
-    result = await tx.run(query, {
-        "id": entity_id,
-        "name": request.name,
-        "entity_type": request.entity_type.value,
-        "confidence_score": request.confidence_score,
-        "extraction_method": request.extraction_method.value,
-        "position": request.position,
-        "context": request.context,
-        "metadata": json.dumps(request.metadata) if request.metadata else "{}",
-        "source_document_id": request.source_document_id,
-        "tenant_id": tenant_id
-    })
+    result = await tx.run(
+        query,
+        {
+            "id": entity_id,
+            "name": request.name,
+            "entity_type": request.entity_type.value,
+            "confidence_score": request.confidence_score,
+            "extraction_method": request.extraction_method.value,
+            "position": request.position,
+            "context": request.context,
+            "metadata": json.dumps(request.metadata) if request.metadata else "{}",
+            "source_document_id": request.source_document_id,
+            "tenant_id": tenant_id,
+        },
+    )
 
     node = await result.single()
     if not node:
@@ -617,10 +647,13 @@ async def _create_entity_in_transaction(tx, request: CreateEntityRequest, tenant
         position=request.position,
         context=request.context,
         metadata=request.metadata,
-        source_document_id=request.source_document_id
+        source_document_id=request.source_document_id,
     )
 
-async def _create_relationship_in_transaction(tx, request: CreateRelationshipRequest, tenant_id: str) -> Optional[RelationshipResponse]:
+
+async def _create_relationship_in_transaction(
+    tx, request: CreateRelationshipRequest, tenant_id: str
+) -> Optional[RelationshipResponse]:
     """Helper to create relationship within a transaction"""
     relationship_id = str(uuid.uuid4())
     query = """
@@ -642,19 +675,22 @@ async def _create_relationship_in_transaction(tx, request: CreateRelationshipReq
     RETURN r
     """
 
-    result = await tx.run(query, {
-        "id": relationship_id,
-        "source_entity_id": request.source_entity_id,
-        "target_entity_id": request.target_entity_id,
-        "relationship_type": request.relationship_type.value,
-        "strength": request.strength,
-        "confidence_score": request.confidence_score,
-        "context": request.context,
-        "evidence": request.evidence,
-        "metadata": json.dumps(request.metadata) if request.metadata else "{}",
-        "source_document_id": request.source_document_id,
-        "tenant_id": tenant_id
-    })
+    result = await tx.run(
+        query,
+        {
+            "id": relationship_id,
+            "source_entity_id": request.source_entity_id,
+            "target_entity_id": request.target_entity_id,
+            "relationship_type": request.relationship_type.value,
+            "strength": request.strength,
+            "confidence_score": request.confidence_score,
+            "context": request.context,
+            "evidence": request.evidence,
+            "metadata": json.dumps(request.metadata) if request.metadata else "{}",
+            "source_document_id": request.source_document_id,
+            "tenant_id": tenant_id,
+        },
+    )
 
     rel = await result.single()
     if not rel:
@@ -670,21 +706,24 @@ async def _create_relationship_in_transaction(tx, request: CreateRelationshipReq
         context=request.context,
         evidence=request.evidence,
         metadata=request.metadata,
-        source_document_id=request.source_document_id
+        source_document_id=request.source_document_id,
     )
+
 
 @app.post("/documents/{document_id}/extract-entities")
 async def extract_entities_from_document(
     document_id: str,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: SQLAsyncSession = Depends(get_async_db),
-    neo4j_session = Depends(get_neo4j_session)
+    neo4j_session=Depends(get_neo4j_session),
 ):
     """Extract entities from a document and add them to the knowledge graph"""
     try:
         # Get document content (this would integrate with document service)
         # For now, assume we have document content
-        document_content = await get_document_content(document_id, current_user.tenant_id)
+        document_content = await get_document_content(
+            document_id, current_user.tenant_id
+        )
 
         # Extract entities using AI service
         entities_data = await entity_extractor.extract_entities(document_content)
@@ -692,22 +731,24 @@ async def extract_entities_from_document(
         # Convert to batch request
         create_requests = []
         for entity_data in entities_data:
-            create_requests.append(CreateEntityRequest(
-                name=entity_data['name'],
-                entity_type=EntityType(entity_data['entity_type']),
-                confidence_score=entity_data['confidence_score'],
-                extraction_method=ExtractionMethod(entity_data['extraction_method']),
-                position=entity_data.get('position'),
-                context=entity_data.get('context'),
-                metadata=entity_data.get('metadata', {}),
-                source_document_id=document_id
-            ))
+            create_requests.append(
+                CreateEntityRequest(
+                    name=entity_data["name"],
+                    entity_type=EntityType(entity_data["entity_type"]),
+                    confidence_score=entity_data["confidence_score"],
+                    extraction_method=ExtractionMethod(
+                        entity_data["extraction_method"]
+                    ),
+                    position=entity_data.get("position"),
+                    context=entity_data.get("context"),
+                    metadata=entity_data.get("metadata", {}),
+                    source_document_id=document_id,
+                )
+            )
 
         # Create entities in batch
         batch_request = BatchEntityRequest(
-            entities=create_requests,
-            upsert=True,
-            document_id=document_id
+            entities=create_requests, upsert=True, document_id=document_id
         )
 
         result = await batch_create_entities(
@@ -719,12 +760,13 @@ async def extract_entities_from_document(
             "entities_found": len(entities_data),
             "entities_created": len(result.created_entities),
             "errors": len(result.errors),
-            "processing_time": result.processing_time
+            "processing_time": result.processing_time,
         }
 
     except Exception as e:
         logger.error(f"Error extracting entities from document {document_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 async def get_document_content(document_id: str, tenant_id: str) -> str:
     """Get document content from document service"""
@@ -732,13 +774,10 @@ async def get_document_content(document_id: str, tenant_id: str) -> str:
     # For now, return placeholder
     return f"Sample document content for {document_id}"
 
+
 # WebSocket endpoint for real-time updates
 @app.websocket("/ws/{tenant_id}")
-async def websocket_endpoint(
-    websocket: WebSocket,
-    tenant_id: str,
-    token: str = None
-):
+async def websocket_endpoint(websocket: WebSocket, tenant_id: str, token: str = None):
     """WebSocket endpoint for real-time graph updates"""
     if not token:
         await websocket.close(code=4001, reason="Authentication token required")
@@ -761,6 +800,7 @@ async def websocket_endpoint(
     except WebSocketDisconnect:
         websocket_manager.disconnect(websocket, tenant_id)
 
+
 # Health check endpoint
 @app.get("/health")
 async def health_check(app):
@@ -778,15 +818,16 @@ async def health_check(app):
             "service": "knowledge-graph",
             "port": 8003,
             "neo4j": "connected",
-            "redis": "connected"
+            "redis": "connected",
         }
     except Exception as e:
         return {
             "status": "unhealthy",
             "service": "knowledge-graph",
             "port": 8003,
-            "error": str(e)
+            "error": str(e),
         }
+
 
 if __name__ == "__main__":
     import uvicorn
@@ -796,5 +837,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8003,
         reload=config.DEBUG,
-        log_level="info"
+        log_level="info",
     )

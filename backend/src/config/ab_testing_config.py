@@ -7,19 +7,19 @@ high-volume Multimodal Enterprise RAG deployments.
 
 import logging
 import os
-from datetime import timedelta
-from typing import Dict, Any, List
 from dataclasses import dataclass
+from datetime import timedelta
 from enum import Enum
+from typing import Any, Dict, List
 
 from .database_config import DatabaseSettings
-
 
 logger = logging.getLogger(__name__)
 
 
 class Environment(Enum):
     """Environment types for A/B testing"""
+
     DEVELOPMENT = "development"
     STAGING = "staging"
     PRODUCTION = "production"
@@ -28,6 +28,7 @@ class Environment(Enum):
 @dataclass
 class CacheSettings:
     """Redis cache configuration"""
+
     host: str = "localhost"
     port: int = 6379
     db: int = 0
@@ -42,6 +43,7 @@ class CacheSettings:
 @dataclass
 class PerformanceSettings:
     """Performance optimization settings"""
+
     # Batch processing
     batch_size: int = 1000
     batch_flush_interval: int = 30  # seconds
@@ -71,6 +73,7 @@ class PerformanceSettings:
 @dataclass
 class StatisticalSettings:
     """Statistical analysis configuration"""
+
     # Default significance levels
     default_confidence_level: float = 0.95
     default_power_level: float = 0.80
@@ -82,7 +85,9 @@ class StatisticalSettings:
     sample_size_calculation_method: str = "normal_approximation"
 
     # Multiple testing correction
-    multiple_testing_correction: str = "bonferroni"  # bonferroni, holm, benjamini_hochberg
+    multiple_testing_correction: str = (
+        "bonferroni"  # bonferroni, holm, benjamini_hochberg
+    )
     family_wise_error_rate: float = 0.05
 
     # Automated stopping rules
@@ -99,6 +104,7 @@ class StatisticalSettings:
 @dataclass
 class ExperimentSettings:
     """Experiment management configuration"""
+
     # Traffic allocation
     default_traffic_percentage: float = 100.0
     maximum_traffic_percentage: float = 100.0
@@ -128,6 +134,7 @@ class ExperimentSettings:
 @dataclass
 class SecuritySettings:
     """Security and privacy configuration"""
+
     # Data retention
     metrics_retention_days: int = 365
     assignment_retention_days: int = 730
@@ -155,6 +162,7 @@ class SecuritySettings:
 @dataclass
 class MonitoringSettings:
     """Monitoring and alerting configuration"""
+
     # Performance monitoring
     enable_performance_monitoring: bool = True
     slow_query_threshold_ms: int = 1000
@@ -373,7 +381,9 @@ class ABTestingConfig:
             errors.append("Power level must be between 0 and 1")
 
         if self.statistical.minimum_sample_size < 30:
-            errors.append("Minimum sample size should be at least 30 for statistical validity")
+            errors.append(
+                "Minimum sample size should be at least 30 for statistical validity"
+            )
 
         # Validate experiment settings
         if not (0 < self.experiment.default_traffic_percentage <= 100):
@@ -397,10 +407,12 @@ class ABTestingConfig:
 
     def __str__(self) -> str:
         """String representation of configuration"""
-        return f"ABTestingConfig(environment={self.environment.value}, " \
-               f"cache_ttl={self.performance.default_cache_ttl}s, " \
-               f"batch_size={self.performance.batch_size}, " \
-               f"confidence_level={self.statistical.default_confidence_level})"
+        return (
+            f"ABTestingConfig(environment={self.environment.value}, "
+            f"cache_ttl={self.performance.default_cache_ttl}s, "
+            f"batch_size={self.performance.batch_size}, "
+            f"confidence_level={self.statistical.default_confidence_level})"
+        )
 
 
 # Global configuration instance
@@ -410,7 +422,11 @@ def get_config(environment: Environment = None) -> ABTestingConfig:
     """
     if environment is None:
         env_name = os.getenv("AB_TESTING_ENV", "production").lower()
-        environment = Environment(env_name) if env_name in [e.value for e in Environment] else Environment.PRODUCTION
+        environment = (
+            Environment(env_name)
+            if env_name in [e.value for e in Environment]
+            else Environment.PRODUCTION
+        )
 
     return ABTestingConfig(environment)
 

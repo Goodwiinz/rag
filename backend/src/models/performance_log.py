@@ -3,18 +3,32 @@ Performance log model for T3 monitoring
 Tracks system performance metrics and health indicators
 """
 
-from sqlalchemy import Column, String, Text, Integer, Float, DateTime, Boolean, JSON, ForeignKey, Index, Enum
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import relationship
-from datetime import datetime
-import uuid
 import enum
+import uuid
+from datetime import datetime
 
-from .base import BaseModel, GUID
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import relationship
+
+from .base import GUID, BaseModel
 
 
 class MetricCategory(enum.Enum):
     """Performance metric categories"""
+
     SYSTEM = "system"
     DATABASE = "database"
     API = "api"
@@ -28,6 +42,7 @@ class MetricCategory(enum.Enum):
 
 class PerformanceLevel(enum.Enum):
     """Performance level indicators"""
+
     EXCELLENT = "excellent"
     GOOD = "good"
     FAIR = "fair"
@@ -39,6 +54,7 @@ class PerformanceLog(BaseModel):
     """
     System performance monitoring and logging
     """
+
     __tablename__ = "performance_logs"
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
@@ -49,7 +65,9 @@ class PerformanceLog(BaseModel):
     performance_level = Column(Enum(PerformanceLevel), nullable=False, index=True)
 
     # Organization context (for multi-tenant monitoring)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True
+    )
 
     # Metric values
     value = Column(Float, nullable=False)
@@ -85,23 +103,31 @@ class PerformanceLog(BaseModel):
     search_results_count = Column(Integer, nullable=True)
 
     # Context information
-    component = Column(String(100), nullable=True, index=True)  # API endpoint, service name, etc.
+    component = Column(
+        String(100), nullable=True, index=True
+    )  # API endpoint, service name, etc.
     environment = Column(String(50), nullable=True)  # prod, staging, dev
     version = Column(String(50), nullable=True)  # Application version
     node_id = Column(String(100), nullable=True)  # Server/container ID
 
     # Additional metadata
     tags = Column(JSONB, nullable=True)  # Flexible tagging system
-    event_metadata = Column(JSONB, nullable=True)  # Additional context data (renamed from metadata to avoid SQLAlchemy conflict)
+    event_metadata = Column(
+        JSONB, nullable=True
+    )  # Additional context data (renamed from metadata to avoid SQLAlchemy conflict)
     alert_triggered = Column(Boolean, default=False, nullable=False, index=True)
 
     # Temporal data
-    timestamp = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True)
+    timestamp = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True
+    )
     date_hour = Column(String(13), nullable=False, index=True)  # YYYY-MM-DDTHH
-    date_day = Column(String(10), nullable=False, index=True)   # YYYY-MM-DD
+    date_day = Column(String(10), nullable=False, index=True)  # YYYY-MM-DD
 
     # Processing metadata
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
     batch_id = Column(String(100), nullable=True, index=True)
 
     # Relationships
@@ -109,15 +135,20 @@ class PerformanceLog(BaseModel):
 
     # Performance indexes
     __table_args__ = (
-        Index('idx_performance_logs_metric_time', 'metric_name', 'timestamp'),
-        Index('idx_performance_logs_category_time', 'metric_category', 'timestamp'),
-        Index('idx_performance_logs_org_time', 'organization_id', 'timestamp'),
-        Index('idx_performance_logs_level_time', 'performance_level', 'timestamp'),
-        Index('idx_performance_logs_component_time', 'component', 'timestamp'),
-        Index('idx_performance_logs_date_hour', 'date_hour'),
-        Index('idx_performance_logs_date_day', 'date_day'),
-        Index('idx_performance_logs_alert', 'alert_triggered', 'timestamp'),
-        Index('idx_performance_logs_composite', 'metric_category', 'organization_id', 'date_day'),
+        Index("idx_performance_logs_metric_time", "metric_name", "timestamp"),
+        Index("idx_performance_logs_category_time", "metric_category", "timestamp"),
+        Index("idx_performance_logs_org_time", "organization_id", "timestamp"),
+        Index("idx_performance_logs_level_time", "performance_level", "timestamp"),
+        Index("idx_performance_logs_component_time", "component", "timestamp"),
+        Index("idx_performance_logs_date_hour", "date_hour"),
+        Index("idx_performance_logs_date_day", "date_day"),
+        Index("idx_performance_logs_alert", "alert_triggered", "timestamp"),
+        Index(
+            "idx_performance_logs_composite",
+            "metric_category",
+            "organization_id",
+            "date_day",
+        ),
     )
 
     def __repr__(self):
@@ -127,8 +158,8 @@ class PerformanceLog(BaseModel):
         super().__init__(**kwargs)
         # Auto-calculate date fields from timestamp
         if self.timestamp:
-            self.date_day = self.timestamp.strftime('%Y-%m-%d')
-            self.date_hour = self.timestamp.strftime('%Y-%m-%dT%H')
+            self.date_day = self.timestamp.strftime("%Y-%m-%d")
+            self.date_hour = self.timestamp.strftime("%Y-%m-%dT%H")
         # Auto-calculate performance level if not set
         if not self.performance_level:
             self.calculate_performance_level()
@@ -140,7 +171,12 @@ class PerformanceLog(BaseModel):
             return self.performance_level
 
         # For metrics where lower is better (response times, error rates)
-        if self.metric_name in ['response_time', 'error_rate', 'memory_usage', 'cpu_usage']:
+        if self.metric_name in [
+            "response_time",
+            "error_rate",
+            "memory_usage",
+            "cpu_usage",
+        ]:
             if self.threshold_critical and self.value >= self.threshold_critical:
                 self.performance_level = PerformanceLevel.CRITICAL
             elif self.threshold_warning and self.value >= self.threshold_warning:
@@ -175,9 +211,9 @@ class PerformanceLog(BaseModel):
             metric_category=MetricCategory.SYSTEM,
             value=value,
             unit=unit,
-            component=kwargs.get('component', 'system'),
-            environment=kwargs.get('environment', 'production'),
-            **kwargs
+            component=kwargs.get("component", "system"),
+            environment=kwargs.get("environment", "production"),
+            **kwargs,
         )
 
     @classmethod
@@ -207,9 +243,9 @@ class PerformanceLog(BaseModel):
             metadata={
                 "status_code": status_code,
                 "method": kwargs.get("method", "GET"),
-                "endpoint": endpoint
+                "endpoint": endpoint,
             },
-            **kwargs
+            **kwargs,
         )
 
     @classmethod
@@ -219,12 +255,12 @@ class PerformanceLog(BaseModel):
             metric_name=metric_name,
             metric_category=MetricCategory.DATABASE,
             value=value,
-            component=kwargs.get('component', 'database'),
+            component=kwargs.get("component", "database"),
             metadata={
                 "query_type": kwargs.get("query_type", "unknown"),
-                "table_name": kwargs.get("table_name")
+                "table_name": kwargs.get("table_name"),
             },
-            **kwargs
+            **kwargs,
         )
 
     @classmethod
@@ -254,9 +290,9 @@ class PerformanceLog(BaseModel):
             component="search_engine",
             metadata={
                 "query_type": kwargs.get("query_type", "hybrid"),
-                "index_used": kwargs.get("index_used", "default")
+                "index_used": kwargs.get("index_used", "default"),
             },
-            **kwargs
+            **kwargs,
         )
 
     def should_trigger_alert(self):
@@ -290,8 +326,8 @@ class PerformanceLog(BaseModel):
             "current_value": self.value,
             "performance_level": self.performance_level.value,
             "trend_direction": "stable",  # Would be calculated
-            "trend_percentage": 0.0,       # Would be calculated
-            "days_analyzed": days
+            "trend_percentage": 0.0,  # Would be calculated
+            "days_analyzed": days,
         }
 
     def to_dict(self):
@@ -307,13 +343,15 @@ class PerformanceLog(BaseModel):
             "threshold_warning": self.threshold_warning,
             "threshold_critical": self.threshold_critical,
             "component": self.component,
-            "organization_id": str(self.organization_id) if self.organization_id else None,
+            "organization_id": str(self.organization_id)
+            if self.organization_id
+            else None,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "cpu_usage_percent": self.cpu_usage_percent,
             "memory_usage_percent": self.memory_usage_percent,
             "response_time_ms": self.response_time_ms,
             "alert_triggered": self.alert_triggered,
-            "metadata": self.event_metadata  # Map to metadata for API compatibility
+            "metadata": self.event_metadata,  # Map to metadata for API compatibility
         }
 
     @staticmethod

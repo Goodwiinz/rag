@@ -5,8 +5,11 @@ Main Analytics API router
 from fastapi import APIRouter
 
 from .analytics import (
-    dashboards_router, metrics_router, graph_analytics_router,
-    reports_router, realtime_router
+    dashboards_router,
+    graph_analytics_router,
+    metrics_router,
+    realtime_router,
+    reports_router,
 )
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])

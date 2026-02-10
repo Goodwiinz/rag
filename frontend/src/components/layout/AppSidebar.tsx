@@ -112,12 +112,12 @@ export function AppSidebar() {
             {active && (
               <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 rounded-r-full bg-[var(--phosphor-green)] shadow-[0_0_8px_var(--phosphor-green)] transition-opacity duration-200" />
             )}
-            
+
             {/* Icon Box - matches ConversationItem style */}
             <div className={cn(
               "w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all duration-200",
-              active 
-                ? "bg-[var(--phosphor-green)]/10 !text-[var(--phosphor-green)] shadow-[0_0_10px_var(--phosphor-green-glow)]" 
+              active
+                ? "bg-[var(--phosphor-green)]/10 !text-[var(--phosphor-green)] shadow-[0_0_10px_var(--phosphor-green-glow)]"
                 : "text-[var(--terminal-text-subtle)] group-hover/item:text-[var(--terminal-text-muted)] group-hover:bg-[var(--terminal-elevated)]"
             )}>
               <item.icon className="w-3.5 h-3.5" />

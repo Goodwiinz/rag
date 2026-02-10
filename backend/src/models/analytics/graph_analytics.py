@@ -5,20 +5,22 @@ Graph analytics models for Neo4j knowledge graph analysis
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional, Any, Union, Tuple
-from pydantic import BaseModel, Field, validator, ConfigDict
-from sqlalchemy import (
-    Column, String, DateTime, Boolean, Text, JSON, Integer, ForeignKey,
-    Float, Enum as SQLEnum, Numeric, BigInteger
-)
-from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from ..base import BaseModel as SQLBaseModel, GUID
+from pydantic import BaseModel, ConfigDict, Field, validator
+from sqlalchemy import JSON, BigInteger, Boolean, Column, DateTime
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import Float, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import relationship
+
+from ..base import GUID
+from ..base import BaseModel as SQLBaseModel
 
 
 class GraphAlgorithmType(str, Enum):
     """Types of graph algorithms"""
+
     PAGERANK = "pagerank"
     BETWEENNESS_CENTRALITY = "betweenness_centrality"
     CLOSENESS_CENTRALITY = "closeness_centrality"
@@ -38,6 +40,7 @@ class GraphAlgorithmType(str, Enum):
 
 class NodeType(str, Enum):
     """Types of graph nodes"""
+
     ENTITY = "entity"
     DOCUMENT = "document"
     CONCEPT = "concept"
@@ -52,6 +55,7 @@ class NodeType(str, Enum):
 
 class EdgeType(str, Enum):
     """Types of graph edges"""
+
     MENTIONS = "mentions"
     CONTAINS = "contains"
     RELATED_TO = "related_to"
@@ -88,17 +92,29 @@ class GraphAnalyticsResult(SQLBaseModel):
     # Execution metadata
     execution_time_ms = Column(BigInteger, nullable=False)
     memory_usage_mb = Column(Float, nullable=True)
-    status = Column(String(50), default="completed", nullable=False)  # running, completed, failed
+    status = Column(
+        String(50), default="completed", nullable=False
+    )  # running, completed, failed
     error_message = Column(Text, nullable=True)
 
     # Results data
     results = Column(JSON, nullable=False)  # Algorithm-specific results
-    result_metadata = Column(JSON, nullable=True)  # Renamed from 'metadata' to avoid SQLAlchemy conflict
+    result_metadata = Column(
+        JSON, nullable=True
+    )  # Renamed from 'metadata' to avoid SQLAlchemy conflict
 
     # Relationships
-    node_metrics = relationship("NodeMetrics", back_populates="analytics_result", cascade="all, delete-orphan")
-    edge_metrics = relationship("EdgeMetrics", back_populates="analytics_result", cascade="all, delete-orphan")
-    community_metrics = relationship("CommunityMetrics", back_populates="analytics_result", cascade="all, delete-orphan")
+    node_metrics = relationship(
+        "NodeMetrics", back_populates="analytics_result", cascade="all, delete-orphan"
+    )
+    edge_metrics = relationship(
+        "EdgeMetrics", back_populates="analytics_result", cascade="all, delete-orphan"
+    )
+    community_metrics = relationship(
+        "CommunityMetrics",
+        back_populates="analytics_result",
+        cascade="all, delete-orphan",
+    )
 
 
 class NodeMetrics(SQLBaseModel):
@@ -107,7 +123,9 @@ class NodeMetrics(SQLBaseModel):
     __tablename__ = "graph_node_metrics"
 
     # Foreign keys
-    analytics_result_id = Column(GUID(), ForeignKey("graph_analytics_results.id"), nullable=False, index=True)
+    analytics_result_id = Column(
+        GUID(), ForeignKey("graph_analytics_results.id"), nullable=False, index=True
+    )
 
     # Node identification
     node_id = Column(String(255), nullable=False, index=True)  # Neo4j node ID
@@ -136,7 +154,9 @@ class NodeMetrics(SQLBaseModel):
     custom_metrics = Column(JSON, nullable=True)
 
     # Relationships
-    analytics_result = relationship("GraphAnalyticsResult", back_populates="node_metrics")
+    analytics_result = relationship(
+        "GraphAnalyticsResult", back_populates="node_metrics"
+    )
 
 
 class EdgeMetrics(SQLBaseModel):
@@ -145,7 +165,9 @@ class EdgeMetrics(SQLBaseModel):
     __tablename__ = "graph_edge_metrics"
 
     # Foreign keys
-    analytics_result_id = Column(GUID(), ForeignKey("graph_analytics_results.id"), nullable=False, index=True)
+    analytics_result_id = Column(
+        GUID(), ForeignKey("graph_analytics_results.id"), nullable=False, index=True
+    )
 
     # Edge identification
     edge_id = Column(String(255), nullable=False, index=True)  # Neo4j relationship ID
@@ -168,7 +190,9 @@ class EdgeMetrics(SQLBaseModel):
     custom_metrics = Column(JSON, nullable=True)
 
     # Relationships
-    analytics_result = relationship("GraphAnalyticsResult", back_populates="edge_metrics")
+    analytics_result = relationship(
+        "GraphAnalyticsResult", back_populates="edge_metrics"
+    )
 
 
 class CommunityMetrics(SQLBaseModel):
@@ -177,7 +201,9 @@ class CommunityMetrics(SQLBaseModel):
     __tablename__ = "graph_community_metrics"
 
     # Foreign keys
-    analytics_result_id = Column(GUID(), ForeignKey("graph_analytics_results.id"), nullable=False, index=True)
+    analytics_result_id = Column(
+        GUID(), ForeignKey("graph_analytics_results.id"), nullable=False, index=True
+    )
 
     # Community identification
     community_id = Column(String(255), nullable=False, index=True)
@@ -205,10 +231,12 @@ class CommunityMetrics(SQLBaseModel):
 
     # Key nodes
     central_nodes = Column(JSON, nullable=True)  # Most central nodes
-    bridge_nodes = Column(JSON, nullable=True)   # Nodes connecting communities
+    bridge_nodes = Column(JSON, nullable=True)  # Nodes connecting communities
 
     # Relationships
-    analytics_result = relationship("GraphAnalyticsResult", back_populates="community_metrics")
+    analytics_result = relationship(
+        "GraphAnalyticsResult", back_populates="community_metrics"
+    )
 
 
 class PathAnalytics(SQLBaseModel):
@@ -217,7 +245,9 @@ class PathAnalytics(SQLBaseModel):
     __tablename__ = "graph_path_analytics"
 
     # Analysis identification
-    analysis_type = Column(String(50), nullable=False, index=True)  # shortest, all, k_shortest
+    analysis_type = Column(
+        String(50), nullable=False, index=True
+    )  # shortest, all, k_shortest
     source_node_id = Column(String(255), nullable=False, index=True)
     target_node_id = Column(String(255), nullable=False, index=True)
 
@@ -244,8 +274,10 @@ class PathAnalytics(SQLBaseModel):
 
 # Pydantic models for API serialization
 
+
 class GraphMetrics(BaseModel):
     """Overall graph metrics"""
+
     node_count: int
     edge_count: int
     density: Optional[float] = None
@@ -260,6 +292,7 @@ class GraphMetrics(BaseModel):
 
 class NodeMetricData(BaseModel):
     """Node metric data"""
+
     node_id: str
     node_type: NodeType
     node_label: Optional[str] = None
@@ -282,6 +315,7 @@ class NodeMetricData(BaseModel):
 
 class EdgeMetricData(BaseModel):
     """Edge metric data"""
+
     edge_id: str
     source_node_id: str
     target_node_id: str
@@ -300,6 +334,7 @@ class EdgeMetricData(BaseModel):
 
 class CommunityMetricData(BaseModel):
     """Community metric data"""
+
     community_id: str
     community_label: Optional[str] = None
     node_count: int
@@ -322,6 +357,7 @@ class CommunityMetricData(BaseModel):
 
 class PathData(BaseModel):
     """Path data"""
+
     path_id: str
     nodes: List[str]
     edges: List[str]
@@ -334,6 +370,7 @@ class PathData(BaseModel):
 
 class GraphAnalysisRequest(BaseModel):
     """Graph analysis request"""
+
     algorithm: GraphAlgorithmType
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
@@ -350,6 +387,7 @@ class GraphAnalysisRequest(BaseModel):
 
 class PathAnalysisRequest(BaseModel):
     """Path analysis request"""
+
     analysis_type: str = Field(..., pattern="^(shortest|all|k_shortest)$")
     source_node_id: str
     target_node_id: str
@@ -363,6 +401,7 @@ class PathAnalysisRequest(BaseModel):
 
 class GraphAnalysisResponse(BaseModel):
     """Graph analysis response"""
+
     id: uuid.UUID
     analysis_type: GraphAlgorithmType
     analysis_name: str
@@ -383,6 +422,7 @@ class GraphAnalysisResponse(BaseModel):
 
 class PathAnalysisResponse(BaseModel):
     """Path analysis response"""
+
     id: uuid.UUID
     analysis_type: str
     source_node_id: str
@@ -402,6 +442,7 @@ class PathAnalysisResponse(BaseModel):
 
 class GraphStatistics(BaseModel):
     """Graph statistics overview"""
+
     total_nodes: int
     total_edges: int
     node_types: Dict[str, int]
@@ -417,6 +458,7 @@ class GraphStatistics(BaseModel):
 
 class CentralityRanking(BaseModel):
     """Centrality ranking of nodes"""
+
     node_id: str
     node_label: Optional[str] = None
     node_type: NodeType
@@ -429,6 +471,7 @@ class CentralityRanking(BaseModel):
 
 class CentralityAnalysis(BaseModel):
     """Centrality analysis results"""
+
     algorithm: str
     rankings: List[CentralityRanking]
     top_nodes: List[str]

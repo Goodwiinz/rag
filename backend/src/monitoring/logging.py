@@ -3,24 +3,26 @@ Centralized Logging System for Knowledge Graph Analytics Dashboard
 Structured logging with correlation, tracing integration, and log aggregation
 """
 
-import os
+import asyncio
 import json
-import time
 import logging
+import os
+import time
 import traceback
 import uuid
-from typing import Dict, Any, Optional, Union, List
-from datetime import datetime
-from dataclasses import dataclass, field, asdict
 from contextlib import contextmanager
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from functools import wraps
-import asyncio
+from typing import Any, Dict, List, Optional, Union
 
-from .opentelemetry import otel_manager, get_trace_id, get_span_id
+from .opentelemetry import get_span_id, get_trace_id, otel_manager
+
 
 @dataclass
 class LogContext:
     """Log context for correlation and tracing"""
+
     trace_id: Optional[str] = None
     span_id: Optional[str] = None
     user_id: Optional[str] = None
@@ -32,6 +34,7 @@ class LogContext:
     environment: Optional[str] = None
     version: Optional[str] = None
     additional_context: Dict[str, Any] = field(default_factory=dict)
+
 
 class StructuredLogger:
     """Structured logger with correlation and tracing integration"""
@@ -57,7 +60,7 @@ class StructuredLogger:
 
             # Create formatters
             console_formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
             )
             file_formatter = JsonFormatter()
 
@@ -103,7 +106,9 @@ class StructuredLogger:
 
         # Set defaults from environment
         if not log_context.service:
-            log_context.service = os.environ.get("SERVICE_NAME", "knowledge-graph-analytics")
+            log_context.service = os.environ.get(
+                "SERVICE_NAME", "knowledge-graph-analytics"
+            )
         if not log_context.environment:
             log_context.environment = os.environ.get("ENVIRONMENT", "development")
         if not log_context.version:
@@ -117,8 +122,14 @@ class StructuredLogger:
 
         return log_context
 
-    def _create_log_record(self, level: int, message: str, context: Optional[Dict[str, Any]] = None,
-                          error: Optional[Exception] = None, extra_data: Optional[Dict[str, Any]] = None) -> logging.LogRecord:
+    def _create_log_record(
+        self,
+        level: int,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+        error: Optional[Exception] = None,
+        extra_data: Optional[Dict[str, Any]] = None,
+    ) -> logging.LogRecord:
         """Create a structured log record"""
         log_context = self._enrich_context(context)
 
@@ -128,7 +139,7 @@ class StructuredLogger:
             "level": logging.getLevelName(level),
             "logger": self.name,
             "message": message,
-            "context": asdict(log_context)
+            "context": asdict(log_context),
         }
 
         # Add error information if present
@@ -136,7 +147,7 @@ class StructuredLogger:
             log_data["error"] = {
                 "type": type(error).__name__,
                 "message": str(error),
-                "traceback": traceback.format_exc()
+                "traceback": traceback.format_exc(),
             }
 
         # Add extra data
@@ -154,44 +165,80 @@ class StructuredLogger:
             lineno=0,
             msg=json_message,
             args=(),
-            exc_info=None
+            exc_info=None,
         )
 
         return record
 
-    def debug(self, message: str, context: Optional[Dict[str, Any]] = None,
-              error: Optional[Exception] = None, **kwargs):
+    def debug(
+        self,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+        error: Optional[Exception] = None,
+        **kwargs,
+    ):
         """Log debug message"""
         record = self._create_log_record(logging.DEBUG, message, context, error, kwargs)
         self.logger.handle(record)
 
-    def info(self, message: str, context: Optional[Dict[str, Any]] = None,
-             error: Optional[Exception] = None, **kwargs):
+    def info(
+        self,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+        error: Optional[Exception] = None,
+        **kwargs,
+    ):
         """Log info message"""
         record = self._create_log_record(logging.INFO, message, context, error, kwargs)
         self.logger.handle(record)
 
-    def warning(self, message: str, context: Optional[Dict[str, Any]] = None,
-                error: Optional[Exception] = None, **kwargs):
+    def warning(
+        self,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+        error: Optional[Exception] = None,
+        **kwargs,
+    ):
         """Log warning message"""
-        record = self._create_log_record(logging.WARNING, message, context, error, kwargs)
+        record = self._create_log_record(
+            logging.WARNING, message, context, error, kwargs
+        )
         self.logger.handle(record)
 
-    def error(self, message: str, context: Optional[Dict[str, Any]] = None,
-              error: Optional[Exception] = None, **kwargs):
+    def error(
+        self,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+        error: Optional[Exception] = None,
+        **kwargs,
+    ):
         """Log error message"""
         record = self._create_log_record(logging.ERROR, message, context, error, kwargs)
         self.logger.handle(record)
 
-    def critical(self, message: str, context: Optional[Dict[str, Any]] = None,
-                 error: Optional[Exception] = None, **kwargs):
+    def critical(
+        self,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+        error: Optional[Exception] = None,
+        **kwargs,
+    ):
         """Log critical message"""
-        record = self._create_log_record(logging.CRITICAL, message, context, error, kwargs)
+        record = self._create_log_record(
+            logging.CRITICAL, message, context, error, kwargs
+        )
         self.logger.handle(record)
 
-    def log_api_request(self, method: str, path: str, status_code: int,
-                       duration: float, user_id: Optional[str] = None,
-                       request_id: Optional[str] = None, **kwargs):
+    def log_api_request(
+        self,
+        method: str,
+        path: str,
+        status_code: int,
+        duration: float,
+        user_id: Optional[str] = None,
+        request_id: Optional[str] = None,
+        **kwargs,
+    ):
         """Log API request"""
         self.info(
             f"API {method} {path} - {status_code}",
@@ -200,14 +247,21 @@ class StructuredLogger:
                 "request_id": request_id,
                 "method": method,
                 "path": path,
-                "status_code": status_code
+                "status_code": status_code,
             },
             duration=duration,
-            **kwargs
+            **kwargs,
         )
 
-    def log_database_query(self, query_type: str, table: str, duration: float,
-                          rows_affected: Optional[int] = None, error: Optional[Exception] = None, **kwargs):
+    def log_database_query(
+        self,
+        query_type: str,
+        table: str,
+        duration: float,
+        rows_affected: Optional[int] = None,
+        error: Optional[Exception] = None,
+        **kwargs,
+    ):
         """Log database query"""
         level = logging.ERROR if error else logging.DEBUG
 
@@ -223,31 +277,40 @@ class StructuredLogger:
             context={
                 "query_type": query_type,
                 "table": table,
-                "rows_affected": rows_affected
+                "rows_affected": rows_affected,
             },
             error=error,
             duration=duration,
-            **kwargs
+            **kwargs,
         )
         self.logger.handle(record)
 
-    def log_cache_operation(self, operation: str, key: str, hit: bool,
-                           duration: Optional[float] = None, **kwargs):
+    def log_cache_operation(
+        self,
+        operation: str,
+        key: str,
+        hit: bool,
+        duration: Optional[float] = None,
+        **kwargs,
+    ):
         """Log cache operation"""
         self.info(
             f"Cache {operation} - {key} - {'HIT' if hit else 'MISS'}",
-            context={
-                "operation": operation,
-                "key": key,
-                "hit": hit
-            },
+            context={"operation": operation, "key": key, "hit": hit},
             duration=duration,
-            **kwargs
+            **kwargs,
         )
 
-    def log_search_query(self, query: str, results_count: int, duration: float,
-                        precision: Optional[float] = None, recall: Optional[float] = None,
-                        user_id: Optional[str] = None, **kwargs):
+    def log_search_query(
+        self,
+        query: str,
+        results_count: int,
+        duration: float,
+        precision: Optional[float] = None,
+        recall: Optional[float] = None,
+        user_id: Optional[str] = None,
+        **kwargs,
+    ):
         """Log search query"""
         self.info(
             f"Search query executed - {results_count} results",
@@ -256,14 +319,21 @@ class StructuredLogger:
                 "results_count": results_count,
                 "precision": precision,
                 "recall": recall,
-                "user_id": user_id
+                "user_id": user_id,
             },
             duration=duration,
-            **kwargs
+            **kwargs,
         )
 
-    def log_graph_query(self, query_type: str, nodes_returned: int, edges_returned: int,
-                       complexity: int, duration: float, **kwargs):
+    def log_graph_query(
+        self,
+        query_type: str,
+        nodes_returned: int,
+        edges_returned: int,
+        complexity: int,
+        duration: float,
+        **kwargs,
+    ):
         """Log graph query"""
         self.info(
             f"Graph {query_type} query executed",
@@ -271,15 +341,23 @@ class StructuredLogger:
                 "query_type": query_type,
                 "nodes_returned": nodes_returned,
                 "edges_returned": edges_returned,
-                "complexity": complexity
+                "complexity": complexity,
             },
             duration=duration,
-            **kwargs
+            **kwargs,
         )
 
-    def log_ml_inference(self, model_name: str, model_version: str, input_shape: List[int],
-                        output_shape: List[int], duration: float, accuracy: Optional[float] = None,
-                        error: Optional[Exception] = None, **kwargs):
+    def log_ml_inference(
+        self,
+        model_name: str,
+        model_version: str,
+        input_shape: List[int],
+        output_shape: List[int],
+        duration: float,
+        accuracy: Optional[float] = None,
+        error: Optional[Exception] = None,
+        **kwargs,
+    ):
         """Log ML model inference"""
         level = logging.ERROR if error else logging.INFO
 
@@ -295,17 +373,24 @@ class StructuredLogger:
                 "model_version": model_version,
                 "input_shape": input_shape,
                 "output_shape": output_shape,
-                "accuracy": accuracy
+                "accuracy": accuracy,
             },
             error=error,
             duration=duration,
-            **kwargs
+            **kwargs,
         )
         self.logger.handle(record)
 
-    def log_security_event(self, event_type: str, action: str, resource: str,
-                          source_ip: Optional[str] = None, user_id: Optional[str] = None,
-                          success: bool = True, **kwargs):
+    def log_security_event(
+        self,
+        event_type: str,
+        action: str,
+        resource: str,
+        source_ip: Optional[str] = None,
+        user_id: Optional[str] = None,
+        success: bool = True,
+        **kwargs,
+    ):
         """Log security event"""
         level = logging.WARNING if not success else logging.INFO
 
@@ -318,13 +403,19 @@ class StructuredLogger:
                 "resource": resource,
                 "source_ip": source_ip,
                 "user_id": user_id,
-                "success": success
+                "success": success,
             },
-            **kwargs
+            **kwargs,
         )
 
-    def log_performance_metric(self, metric_name: str, value: float, unit: str,
-                              component: Optional[str] = None, **kwargs):
+    def log_performance_metric(
+        self,
+        metric_name: str,
+        value: float,
+        unit: str,
+        component: Optional[str] = None,
+        **kwargs,
+    ):
         """Log performance metric"""
         self.info(
             f"Performance metric: {metric_name} = {value} {unit}",
@@ -332,10 +423,11 @@ class StructuredLogger:
                 "metric_name": metric_name,
                 "metric_value": value,
                 "metric_unit": unit,
-                "component": component
+                "component": component,
             },
-            **kwargs
+            **kwargs,
         )
+
 
 class JsonFormatter(logging.Formatter):
     """JSON formatter for structured logging"""
@@ -354,7 +446,7 @@ class JsonFormatter(logging.Formatter):
                 "message": record.getMessage(),
                 "module": record.module,
                 "function": record.funcName,
-                "line": record.lineno
+                "line": record.lineno,
             }
 
         # Add exception information if present
@@ -362,10 +454,11 @@ class JsonFormatter(logging.Formatter):
             log_data["error"] = {
                 "type": record.exc_info[0].__name__,
                 "message": str(record.exc_info[1]),
-                "traceback": self.formatException(record.exc_info)
+                "traceback": self.formatException(record.exc_info),
             }
 
         return json.dumps(log_data, default=str)
+
 
 class LoggingManager:
     """Centralized logging manager"""
@@ -378,7 +471,7 @@ class LoggingManager:
         """Setup global logging configuration"""
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
 
         # Suppress noisy loggers
@@ -397,22 +490,31 @@ class LoggingManager:
         for logger in self.loggers.values():
             logger.set_default_context(**kwargs)
 
+
 # Global logging manager instance
 logging_manager = LoggingManager()
+
 
 # Convenience functions
 def get_logger(name: str) -> StructuredLogger:
     """Get a structured logger"""
     return logging_manager.get_logger(name)
 
+
 def set_log_context(**kwargs):
     """Set global logging context"""
     logging_manager.set_global_context(**kwargs)
 
+
 # Decorators for automatic logging
-def log_function_calls(logger_name: Optional[str] = None, level: int = logging.DEBUG,
-                      include_args: bool = False, include_result: bool = False):
+def log_function_calls(
+    logger_name: Optional[str] = None,
+    level: int = logging.DEBUG,
+    include_args: bool = False,
+    include_result: bool = False,
+):
     """Decorator to automatically log function calls"""
+
     def decorator(func):
         name = logger_name or f"{func.__module__}.{func.__name__}"
         logger = get_logger(name)
@@ -425,7 +527,7 @@ def log_function_calls(logger_name: Optional[str] = None, level: int = logging.D
             log_data = {
                 "function": function_name,
                 "args_count": len(args),
-                "kwargs_count": len(kwargs)
+                "kwargs_count": len(kwargs),
             }
 
             if include_args:
@@ -441,12 +543,22 @@ def log_function_calls(logger_name: Optional[str] = None, level: int = logging.D
                 if include_result:
                     log_data["result"] = str(result)[:500]  # Limit result length
 
-                logger.log(level, f"Completed {function_name}", context=log_data, duration=duration)
+                logger.log(
+                    level,
+                    f"Completed {function_name}",
+                    context=log_data,
+                    duration=duration,
+                )
                 return result
 
             except Exception as e:
                 duration = time.time() - start_time
-                logger.error(f"Failed {function_name}", context=log_data, error=e, duration=duration)
+                logger.error(
+                    f"Failed {function_name}",
+                    context=log_data,
+                    error=e,
+                    duration=duration,
+                )
                 raise
 
         @wraps(func)
@@ -458,7 +570,7 @@ def log_function_calls(logger_name: Optional[str] = None, level: int = logging.D
                 "function": function_name,
                 "args_count": len(args),
                 "kwargs_count": len(kwargs),
-                "is_async": True
+                "is_async": True,
             }
 
             if include_args:
@@ -474,40 +586,61 @@ def log_function_calls(logger_name: Optional[str] = None, level: int = logging.D
                 if include_result:
                     log_data["result"] = str(result)[:500]  # Limit result length
 
-                logger.log(level, f"Completed async {function_name}", context=log_data, duration=duration)
+                logger.log(
+                    level,
+                    f"Completed async {function_name}",
+                    context=log_data,
+                    duration=duration,
+                )
                 return result
 
             except Exception as e:
                 duration = time.time() - start_time
-                logger.error(f"Failed async {function_name}", context=log_data, error=e, duration=duration)
+                logger.error(
+                    f"Failed async {function_name}",
+                    context=log_data,
+                    error=e,
+                    duration=duration,
+                )
                 raise
 
         return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
+
     return decorator
 
+
 @contextmanager
-def log_context(logger_name: str, operation: str, context: Optional[Dict[str, Any]] = None,
-                level: int = logging.INFO):
+def log_context(
+    logger_name: str,
+    operation: str,
+    context: Optional[Dict[str, Any]] = None,
+    level: int = logging.INFO,
+):
     """Context manager for operation logging"""
     logger = get_logger(logger_name)
 
     start_time = time.time()
-    operation_context = {
-        "operation": operation,
-        **(context or {})
-    }
+    operation_context = {"operation": operation, **(context or {})}
 
     logger.log(level, f"Starting {operation}", context=operation_context)
 
     try:
         yield logger
         duration = time.time() - start_time
-        logger.log(level, f"Completed {operation}", context=operation_context, duration=duration)
+        logger.log(
+            level,
+            f"Completed {operation}",
+            context=operation_context,
+            duration=duration,
+        )
 
     except Exception as e:
         duration = time.time() - start_time
-        logger.error(f"Failed {operation}", context=operation_context, error=e, duration=duration)
+        logger.error(
+            f"Failed {operation}", context=operation_context, error=e, duration=duration
+        )
         raise
+
 
 # Standard loggers for different components
 api_logger = get_logger("knowledge-graph.api")

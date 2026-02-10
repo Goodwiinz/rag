@@ -3,18 +3,19 @@ Redis-based caching system for RAG Analytics
 Provides high-performance caching for analytics queries, metrics, and reports
 """
 
-import json
-import hashlib
-from typing import Any, Optional, Dict, List, Union, Callable
-from datetime import datetime, timedelta
-from functools import wraps
 import asyncio
+import hashlib
+import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from functools import wraps
+from typing import Any, Callable, Dict, List, Optional, Union
 
 try:
-    import redis.asyncio as redis
     import redis
+    import redis.asyncio as redis
+
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
@@ -53,19 +54,19 @@ class CacheTTL:
 
     # Fast changing data - short TTL
     REALTIME_METRICS = 60  # 1 minute
-    DASHBOARD_DATA = 180   # 3 minutes
+    DASHBOARD_DATA = 180  # 3 minutes
 
     # Medium changing data - medium TTL
     AGGREGATED_METRICS = 300  # 5 minutes
-    USER_BEHAVIOR = 600       # 10 minutes
+    USER_BEHAVIOR = 600  # 10 minutes
 
     # Slow changing data - long TTL
-    QUALITY_SCORES = 1800     # 30 minutes
-    PERFORMANCE_SUMMARY = 900 # 15 minutes
+    QUALITY_SCORES = 1800  # 30 minutes
+    PERFORMANCE_SUMMARY = 900  # 15 minutes
 
     # Reports - very long TTL
-    REPORTS = 3600            # 1 hour
-    EXPORTS = 7200            # 2 hours
+    REPORTS = 3600  # 1 hour
+    EXPORTS = 7200  # 2 hours
 
 
 class AnalyticsCache:
@@ -93,7 +94,7 @@ class AnalyticsCache:
                 socket_connect_timeout=5,
                 socket_timeout=5,
                 retry_on_timeout=True,
-                health_check_interval=30
+                health_check_interval=30,
             )
 
             # Test connection
@@ -122,8 +123,7 @@ class AnalyticsCache:
         """Clean up expired fallback cache entries"""
         now = datetime.utcnow()
         expired_keys = [
-            key for key, expiry in self.fallback_cache_expiry.items()
-            if now > expiry
+            key for key, expiry in self.fallback_cache_expiry.items() if now > expiry
         ]
 
         for key in expired_keys:
@@ -142,7 +142,9 @@ class AnalyticsCache:
                         try:
                             return json.loads(value)
                         except (json.JSONDecodeError, TypeError) as e:
-                            logger.warning(f"Failed to deserialize cached value for key {key}: {e}")
+                            logger.warning(
+                                f"Failed to deserialize cached value for key {key}: {e}"
+                            )
                             return None
                 except Exception as e:
                     logger.warning(f"Redis get failed for key {key}: {e}")
@@ -159,7 +161,9 @@ class AnalyticsCache:
             logger.error(f"Cache get error for key {key}: {e}")
             return None
 
-    async def set(self, key: str, value: Any, ttl: int = 300, use_fallback: bool = True) -> bool:
+    async def set(
+        self, key: str, value: Any, ttl: int = 300, use_fallback: bool = True
+    ) -> bool:
         """Set value in cache"""
         try:
             # Try Redis first
@@ -178,7 +182,9 @@ class AnalyticsCache:
                         # Also set in fallback cache
                         fallback_key = self._get_fallback_key(key)
                         self.fallback_cache[fallback_key] = value
-                        self.fallback_cache_expiry[fallback_key] = datetime.utcnow() + timedelta(seconds=ttl)
+                        self.fallback_cache_expiry[
+                            fallback_key
+                        ] = datetime.utcnow() + timedelta(seconds=ttl)
 
                     return True
 
@@ -189,7 +195,9 @@ class AnalyticsCache:
             if use_fallback:
                 fallback_key = self._get_fallback_key(key)
                 self.fallback_cache[fallback_key] = value
-                self.fallback_cache_expiry[fallback_key] = datetime.utcnow() + timedelta(seconds=ttl)
+                self.fallback_cache_expiry[
+                    fallback_key
+                ] = datetime.utcnow() + timedelta(seconds=ttl)
 
                 # Clean up old entries
                 self._cleanup_fallback_cache()
@@ -241,12 +249,13 @@ class AnalyticsCache:
                     logger.warning(f"Redis pattern delete failed: {e}")
 
             # Delete from fallback cache
-            pattern = pattern.replace('*', '.*')
+            pattern = pattern.replace("*", ".*")
             fallback_pattern = f"fallback:{pattern}"
 
             keys_to_delete = [
-                key for key in self.fallback_cache.keys()
-                if fallback_pattern.replace('.*', '') in key
+                key
+                for key in self.fallback_cache.keys()
+                if fallback_pattern.replace(".*", "") in key
             ]
 
             for key in keys_to_delete:
@@ -254,7 +263,9 @@ class AnalyticsCache:
                 self.fallback_cache_expiry.pop(key, None)
                 deleted_count += 1
 
-            logger.info(f"Invalidated {deleted_count} cache entries matching pattern: {pattern}")
+            logger.info(
+                f"Invalidated {deleted_count} cache entries matching pattern: {pattern}"
+            )
             return deleted_count
 
         except Exception as e:
@@ -267,7 +278,7 @@ class AnalyticsCache:
         data_type: str,
         filters: Dict[str, Any],
         time_range: Optional[tuple] = None,
-        ttl: Optional[int] = None
+        ttl: Optional[int] = None,
     ) -> Optional[Any]:
         """Get analytics data from cache"""
         cache_key = CacheKey(
@@ -275,7 +286,7 @@ class AnalyticsCache:
             organization_id=organization_id,
             data_type=data_type,
             filters=filters,
-            time_range=time_range
+            time_range=time_range,
         )
 
         key = cache_key.generate_key()
@@ -292,7 +303,7 @@ class AnalyticsCache:
         data: Any,
         filters: Dict[str, Any],
         time_range: Optional[tuple] = None,
-        ttl: Optional[int] = None
+        ttl: Optional[int] = None,
     ) -> bool:
         """Set analytics data in cache"""
         cache_key = CacheKey(
@@ -300,7 +311,7 @@ class AnalyticsCache:
             organization_id=organization_id,
             data_type=data_type,
             filters=filters,
-            time_range=time_range
+            time_range=time_range,
         )
 
         key = cache_key.generate_key()
@@ -330,7 +341,7 @@ class AnalyticsCache:
             "quality_scores": CacheTTL.QUALITY_SCORES,
             "performance_summary": CacheTTL.PERFORMANCE_SUMMARY,
             "reports": CacheTTL.REPORTS,
-            "exports": CacheTTL.EXPORTS
+            "exports": CacheTTL.EXPORTS,
         }
 
         return ttl_mapping.get(data_type, CacheTTL.AGGREGATED_METRICS)
@@ -340,19 +351,21 @@ class AnalyticsCache:
         stats = {
             "redis_connected": self._connected,
             "fallback_cache_size": len(self.fallback_cache),
-            "fallback_cache_keys": list(self.fallback_cache.keys())
+            "fallback_cache_keys": list(self.fallback_cache.keys()),
         }
 
         if self.redis_client and self._connected:
             try:
                 info = await self.redis_client.info()
-                stats.update({
-                    "redis_used_memory": info.get("used_memory_human"),
-                    "redis_connected_clients": info.get("connected_clients"),
-                    "redis_total_commands": info.get("total_commands_processed"),
-                    "redis_keyspace_hits": info.get("keyspace_hits", 0),
-                    "redis_keyspace_misses": info.get("keyspace_misses", 0)
-                })
+                stats.update(
+                    {
+                        "redis_used_memory": info.get("used_memory_human"),
+                        "redis_connected_clients": info.get("connected_clients"),
+                        "redis_total_commands": info.get("total_commands_processed"),
+                        "redis_keyspace_hits": info.get("keyspace_hits", 0),
+                        "redis_keyspace_misses": info.get("keyspace_misses", 0),
+                    }
+                )
 
                 # Calculate hit rate
                 hits = stats.get("redis_keyspace_hits", 0)
@@ -370,7 +383,7 @@ class AnalyticsCache:
         health = {
             "status": "healthy",
             "redis_connected": self._connected,
-            "fallback_available": True
+            "fallback_available": True,
         }
 
         # Check Redis health
@@ -426,6 +439,7 @@ def get_analytics_cache() -> AnalyticsCache:
 
 def cached_analytics(data_type: str, ttl: Optional[int] = None):
     """Decorator for caching analytics function results"""
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -448,7 +462,7 @@ def cached_analytics(data_type: str, ttl: Optional[int] = None):
                 data_type=data_type,
                 filters=cache_kwargs,
                 time_range=kwargs.get("time_range"),
-                ttl=ttl
+                ttl=ttl,
             )
 
             if cached_result is not None:
@@ -463,16 +477,19 @@ def cached_analytics(data_type: str, ttl: Optional[int] = None):
                 data=result,
                 filters=cache_kwargs,
                 time_range=kwargs.get("time_range"),
-                ttl=ttl
+                ttl=ttl,
             )
 
             return result
 
         return wrapper
+
     return decorator
 
 
-async def invalidate_analytics_cache(organization_id: Optional[str] = None, data_type: Optional[str] = None):
+async def invalidate_analytics_cache(
+    organization_id: Optional[str] = None, data_type: Optional[str] = None
+):
     """Invalidate analytics cache entries"""
     cache = get_analytics_cache()
 
@@ -500,9 +517,9 @@ async def warm_organization_cache(organization_id: str, days: int = 7):
     # Common time ranges
     end_date = datetime.utcnow()
     start_dates = [
-        end_date - timedelta(days=1),    # Last 24 hours
-        end_date - timedelta(days=7),    # Last 7 days
-        end_date - timedelta(days=30),   # Last 30 days
+        end_date - timedelta(days=1),  # Last 24 hours
+        end_date - timedelta(days=7),  # Last 7 days
+        end_date - timedelta(days=30),  # Last 30 days
     ]
 
     # Common filters for different data types
@@ -510,7 +527,7 @@ async def warm_organization_cache(organization_id: str, days: int = 7):
         "quality_metrics",
         "user_behavior",
         "performance_metrics",
-        "dashboard_data"
+        "dashboard_data",
     ]
 
     warmed_count = 0
@@ -519,7 +536,7 @@ async def warm_organization_cache(organization_id: str, days: int = 7):
         for start_date in start_dates:
             filters = {
                 "start_date": start_date.isoformat(),
-                "end_date": end_date.isoformat()
+                "end_date": end_date.isoformat(),
             }
 
             # Pre-populate cache (this would typically trigger the actual data loading)
@@ -528,12 +545,18 @@ async def warm_organization_cache(organization_id: str, days: int = 7):
                 organization_id=organization_id,
                 data_type=data_type,
                 filters=filters,
-                time_range=(start_date.isoformat(), end_date.isoformat())
+                time_range=(start_date.isoformat(), end_date.isoformat()),
             ).generate_key()
 
             # Set empty placeholder to ensure cache key exists
-            await cache.set(key, {"cached": True, "warmed_at": datetime.utcnow().isoformat()}, ttl=300)
+            await cache.set(
+                key,
+                {"cached": True, "warmed_at": datetime.utcnow().isoformat()},
+                ttl=300,
+            )
             warmed_count += 1
 
-    logger.info(f"Warmed {warmed_count} cache entries for organization {organization_id}")
+    logger.info(
+        f"Warmed {warmed_count} cache entries for organization {organization_id}"
+    )
     return warmed_count

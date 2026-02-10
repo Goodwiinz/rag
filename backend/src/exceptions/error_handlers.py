@@ -4,25 +4,26 @@ Provides consistent error responses across the application
 """
 
 import logging
-from typing import Dict, Any
-from fastapi import Request, HTTPException
-from fastapi.responses import JSONResponse
+from typing import Any, Dict
+
+from fastapi import HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.exceptions import RAGException
 from src.exceptions.analytics_exceptions import (
     AnalyticsException,
-    PermissionDeniedException,
-    RateLimitExceededException,
-    DataValidationException,
-    InsufficientDataException,
+    AnalyticsServiceException,
     AnalyticsTimeoutException,
-    ExportFailedException,
     ConfigurationException,
     DataRetentionException,
-    AnalyticsServiceException
+    DataValidationException,
+    ExportFailedException,
+    InsufficientDataException,
+    PermissionDeniedException,
+    RateLimitExceededException,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 async def rag_exception_handler(request: Request, exc: RAGException) -> JSONResponse:
     """
     Handle all RAG system exceptions with consistent error responses.
-    
+
     Logs errors appropriately based on severity and returns
     a structured error response without leaking internal details.
     """
@@ -48,7 +49,7 @@ async def rag_exception_handler(request: Request, exc: RAGException) -> JSONResp
                 "user_id": getattr(request.state, "user_id", None),
                 "organization_id": getattr(request.state, "organization_id", None),
             },
-            exc_info=exc.cause if exc.cause else True
+            exc_info=exc.cause if exc.cause else True,
         )
     else:
         logger.warning(
@@ -59,9 +60,9 @@ async def rag_exception_handler(request: Request, exc: RAGException) -> JSONResp
                 "details": exc.details,
                 "path": str(request.url),
                 "method": request.method,
-            }
+            },
         )
-    
+
     # Build error response
     error_response = {
         "error": {
@@ -72,18 +73,17 @@ async def rag_exception_handler(request: Request, exc: RAGException) -> JSONResp
             "method": request.method,
         }
     }
-    
+
     # Add request ID if available
     if hasattr(request.state, "request_id"):
         error_response["error"]["request_id"] = request.state.request_id
-    
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=error_response
-    )
+
+    return JSONResponse(status_code=exc.status_code, content=error_response)
 
 
-async def analytics_exception_handler(request: Request, exc: AnalyticsException) -> JSONResponse:
+async def analytics_exception_handler(
+    request: Request, exc: AnalyticsException
+) -> JSONResponse:
     """
     Handle all analytics exceptions with consistent error responses
     """
@@ -98,7 +98,7 @@ async def analytics_exception_handler(request: Request, exc: AnalyticsException)
         ConfigurationException: 500,
         DataRetentionException: 403,
         AnalyticsServiceException: 503,
-        AnalyticsException: 500
+        AnalyticsException: 500,
     }
 
     status_code = status_code_map.get(type(exc), 500)
@@ -113,9 +113,9 @@ async def analytics_exception_handler(request: Request, exc: AnalyticsException)
             "path": str(request.url),
             "method": request.method,
             "user_id": getattr(request.state, "user_id", None),
-            "organization_id": getattr(request.state, "organization_id", None)
+            "organization_id": getattr(request.state, "organization_id", None),
         },
-        exc_info=True
+        exc_info=True,
     )
 
     # Build error response
@@ -126,7 +126,7 @@ async def analytics_exception_handler(request: Request, exc: AnalyticsException)
             "details": exc.details,
             "timestamp": exc.timestamp.isoformat() if exc.timestamp else None,
             "path": str(request.url.path),
-            "method": request.method
+            "method": request.method,
         }
     }
 
@@ -140,9 +140,7 @@ async def analytics_exception_handler(request: Request, exc: AnalyticsException)
         headers["Retry-After"] = str(exc.details["retry_after"])
 
     return JSONResponse(
-        status_code=status_code,
-        content=error_response,
-        headers=headers
+        status_code=status_code, content=error_response, headers=headers
     )
 
 
@@ -158,8 +156,8 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
             "detail": exc.detail,
             "path": str(request.url),
             "method": request.method,
-            "user_id": getattr(request.state, "user_id", None)
-        }
+            "user_id": getattr(request.state, "user_id", None),
+        },
     )
 
     # Build error response in consistent format
@@ -170,18 +168,20 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
             "details": getattr(exc, "details", {}),
             "timestamp": None,
             "path": str(request.url.path),
-            "method": request.method
+            "method": request.method,
         }
     }
 
     return JSONResponse(
         status_code=exc.status_code,
         content=error_response,
-        headers=getattr(exc, "headers", {})
+        headers=getattr(exc, "headers", {}),
     )
 
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
     """
     Handle request validation errors
     """
@@ -192,40 +192,35 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "validation_errors": exc.errors(),
             "path": str(request.url),
             "method": request.method,
-            "user_id": getattr(request.state, "user_id", None)
-        }
+            "user_id": getattr(request.state, "user_id", None),
+        },
     )
 
     # Format validation errors for user-friendly response
     formatted_errors = []
     for error in exc.errors():
         field_path = " -> ".join(str(loc) for loc in error["loc"])
-        formatted_errors.append({
-            "field": field_path,
-            "message": error["msg"],
-            "type": error["type"]
-        })
+        formatted_errors.append(
+            {"field": field_path, "message": error["msg"], "type": error["type"]}
+        )
 
     error_response = {
         "error": {
             "code": "VALIDATION_ERROR",
             "message": "Request validation failed. Please check your input.",
-            "details": {
-                "validation_errors": formatted_errors
-            },
+            "details": {"validation_errors": formatted_errors},
             "timestamp": None,
             "path": str(request.url.path),
-            "method": request.method
+            "method": request.method,
         }
     }
 
-    return JSONResponse(
-        status_code=422,
-        content=error_response
-    )
+    return JSONResponse(status_code=422, content=error_response)
 
 
-async def database_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
+async def database_exception_handler(
+    request: Request, exc: SQLAlchemyError
+) -> JSONResponse:
     """
     Handle database errors
     """
@@ -236,28 +231,23 @@ async def database_exception_handler(request: Request, exc: SQLAlchemyError) -> 
             "error_type": type(exc).__name__,
             "path": str(request.url),
             "method": request.method,
-            "user_id": getattr(request.state, "user_id", None)
+            "user_id": getattr(request.state, "user_id", None),
         },
-        exc_info=True
+        exc_info=True,
     )
 
     error_response = {
         "error": {
             "code": "DATABASE_ERROR",
             "message": "A database error occurred. Please try again later.",
-            "details": {
-                "error_type": "DatabaseError"
-            },
+            "details": {"error_type": "DatabaseError"},
             "timestamp": None,
             "path": str(request.url.path),
-            "method": request.method
+            "method": request.method,
         }
     }
 
-    return JSONResponse(
-        status_code=500,
-        content=error_response
-    )
+    return JSONResponse(status_code=500, content=error_response)
 
 
 async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -272,28 +262,23 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
             "message": str(exc),
             "path": str(request.url),
             "method": request.method,
-            "user_id": getattr(request.state, "user_id", None)
+            "user_id": getattr(request.state, "user_id", None),
         },
-        exc_info=True
+        exc_info=True,
     )
 
     error_response = {
         "error": {
             "code": "INTERNAL_SERVER_ERROR",
             "message": "An unexpected error occurred. Please try again later.",
-            "details": {
-                "error_type": type(exc).__name__
-            },
+            "details": {"error_type": type(exc).__name__},
             "timestamp": None,
             "path": str(request.url.path),
-            "method": request.method
+            "method": request.method,
         }
     }
 
-    return JSONResponse(
-        status_code=500,
-        content=error_response
-    )
+    return JSONResponse(status_code=500, content=error_response)
 
 
 def setup_error_handlers(app):
@@ -302,7 +287,7 @@ def setup_error_handlers(app):
     """
     # RAG system exceptions (base class catches all)
     app.add_exception_handler(RAGException, rag_exception_handler)
-    
+
     # Analytics-specific exceptions
     app.add_exception_handler(AnalyticsException, analytics_exception_handler)
     app.add_exception_handler(PermissionDeniedException, analytics_exception_handler)

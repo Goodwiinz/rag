@@ -4,6 +4,7 @@ Configuration for Graph Analytics Service
 
 import os
 from typing import Optional
+
 try:
     from pydantic_settings import BaseSettings
 except ImportError:
@@ -27,8 +28,7 @@ class GraphAnalyticsConfig(BaseSettings):
 
     # PostgreSQL Configuration
     DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql://user:password@localhost:5432/rag_system"
+        "DATABASE_URL", "postgresql://user:password@localhost:5432/rag_system"
     )
 
     # Redis Configuration
@@ -37,7 +37,9 @@ class GraphAnalyticsConfig(BaseSettings):
 
     # Celery Configuration
     CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-    CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/1")
+    CELERY_RESULT_BACKEND: str = os.getenv(
+        "CELERY_RESULT_BACKEND", "redis://localhost:6379/1"
+    )
     CELERY_TASK_SERIALIZER: str = "json"
     CELERY_RESULT_SERIALIZER: str = "json"
     CELERY_ACCEPT_CONTENT: list = ["json"]
@@ -45,22 +47,24 @@ class GraphAnalyticsConfig(BaseSettings):
 
     # Algorithm Configuration
     MAX_GRAPH_SIZE_FOR_CENTRALITY: int = 10000  # Maximum nodes for real-time centrality
-    MAX_GRAPH_SIZE_FOR_COMMUNITIES: int = 50000   # Maximum nodes for community detection
-    MAX_PATH_LENGTH: int = 10                     # Maximum path length for algorithms
-    DEFAULT_CENTRALITY_LIMIT: int = 100           # Default limit for centrality results
-    DEFAULT_COMMUNITY_RESOLUTION: float = 1.0     # Default resolution for Louvain algorithm
+    MAX_GRAPH_SIZE_FOR_COMMUNITIES: int = 50000  # Maximum nodes for community detection
+    MAX_PATH_LENGTH: int = 10  # Maximum path length for algorithms
+    DEFAULT_CENTRALITY_LIMIT: int = 100  # Default limit for centrality results
+    DEFAULT_COMMUNITY_RESOLUTION: float = (
+        1.0  # Default resolution for Louvain algorithm
+    )
 
     # Performance Configuration
-    QUERY_TIMEOUT: int = 300                      # Timeout for graph queries in seconds
-    MAX_CONCURRENT_JOBS: int = 10                 # Maximum concurrent analytics jobs
-    JOB_TIMEOUT: int = 3600                       # Default job timeout in seconds
+    QUERY_TIMEOUT: int = 300  # Timeout for graph queries in seconds
+    MAX_CONCURRENT_JOBS: int = 10  # Maximum concurrent analytics jobs
+    JOB_TIMEOUT: int = 3600  # Default job timeout in seconds
 
     # Cache Configuration
     ENABLE_RESULT_CACHING: bool = True
-    CENTRALITY_CACHE_TTL: int = 3600              # 1 hour
-    PATH_CACHE_TTL: int = 1800                    # 30 minutes
-    COMMUNITY_CACHE_TTL: int = 7200               # 2 hours
-    INSIGHTS_CACHE_TTL: int = 3600                # 1 hour
+    CENTRALITY_CACHE_TTL: int = 3600  # 1 hour
+    PATH_CACHE_TTL: int = 1800  # 30 minutes
+    COMMUNITY_CACHE_TTL: int = 7200  # 2 hours
+    INSIGHTS_CACHE_TTL: int = 3600  # 1 hour
 
     # Background Processing Configuration
     ENABLE_BACKGROUND_PROCESSING: bool = True
@@ -76,7 +80,7 @@ class GraphAnalyticsConfig(BaseSettings):
     # Monitoring Configuration
     ENABLE_METRICS: bool = True
     METRICS_PORT: int = 9009
-    METRICS_COLLECTION_INTERVAL: int = 60        # seconds
+    METRICS_COLLECTION_INTERVAL: int = 60  # seconds
 
     # Algorithm-Specific Settings
     # PageRank

@@ -2,13 +2,15 @@
 Pydantic schemas for quality metrics and analytics
 """
 
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
 
 
 class QualityMetricResponse(BaseModel):
     """Quality metric response"""
+
     id: str
     metric_type: str
     metric_value: float
@@ -25,6 +27,7 @@ class QualityMetricResponse(BaseModel):
 
 class QualityAlertResponse(BaseModel):
     """Quality alert response"""
+
     id: str
     metric_type: Optional[str] = None
     severity: str
@@ -41,6 +44,7 @@ class QualityAlertResponse(BaseModel):
 
 class MetricAggregationResponse(BaseModel):
     """Metric aggregation response"""
+
     id: str
     metric_type: str
     aggregation_type: str
@@ -58,6 +62,7 @@ class MetricAggregationResponse(BaseModel):
 
 class SearchAnalyticsResponse(BaseModel):
     """Search analytics response"""
+
     period: Dict[str, str]
     total_searches: int
     avg_response_time_ms: float
@@ -68,6 +73,7 @@ class SearchAnalyticsResponse(BaseModel):
 
 class QueryAnalytics(BaseModel):
     """Query analytics data"""
+
     query: str
     count: int
     avg_response_time: float
@@ -78,6 +84,7 @@ class QueryAnalytics(BaseModel):
 
 class UserBehaviorAnalytics(BaseModel):
     """User behavior analytics"""
+
     user_id: str
     session_count: int
     total_searches: int
@@ -90,6 +97,7 @@ class UserBehaviorAnalytics(BaseModel):
 
 class ContentUsageAnalytics(BaseModel):
     """Content usage analytics"""
+
     document_id: str
     title: str
     access_count: int
@@ -101,6 +109,7 @@ class ContentUsageAnalytics(BaseModel):
 
 class PerformanceMetrics(BaseModel):
     """System performance metrics"""
+
     cpu_usage: float
     memory_usage: float
     disk_usage: float
@@ -113,10 +122,13 @@ class PerformanceMetrics(BaseModel):
 
 class QualityThresholdCreate(BaseModel):
     """Quality threshold creation request"""
+
     metric_type: str = Field(..., description="Type of metric")
     threshold_min: Optional[float] = Field(None, description="Minimum threshold value")
     threshold_max: Optional[float] = Field(None, description="Maximum threshold value")
-    threshold_target: Optional[float] = Field(None, description="Target threshold value")
+    threshold_target: Optional[float] = Field(
+        None, description="Target threshold value"
+    )
     alert_severity: str = Field("medium", description="Alert severity level")
     is_enabled: bool = Field(True, description="Whether threshold is enabled")
     alert_cooldown_minutes: int = Field(60, description="Alert cooldown in minutes")
@@ -126,6 +138,7 @@ class QualityThresholdCreate(BaseModel):
 
 class QualityThresholdResponse(BaseModel):
     """Quality threshold response"""
+
     id: str
     metric_type: str
     threshold_min: Optional[float] = None
@@ -145,11 +158,13 @@ class QualityThresholdResponse(BaseModel):
 
 class AlertAcknowledgmentRequest(BaseModel):
     """Alert acknowledgment request"""
+
     note: Optional[str] = Field(None, description="Optional acknowledgment note")
 
 
 class SearchEventCreate(BaseModel):
     """Search event creation request"""
+
     session_id: str
     query: str
     search_type: str
@@ -164,6 +179,7 @@ class SearchEventCreate(BaseModel):
 
 class SearchEventUpdate(BaseModel):
     """Search event update request"""
+
     clicked_results: int = Field(0, ge=0)
     clicked_result_ids: Optional[List[str]] = None
     time_to_first_click: Optional[float] = Field(None, ge=0)
@@ -175,6 +191,7 @@ class SearchEventUpdate(BaseModel):
 
 class SessionCreate(BaseModel):
     """Search session creation request"""
+
     session_id: str
     user_id: Optional[str] = None
     user_agent: Optional[str] = None
@@ -184,6 +201,7 @@ class SessionCreate(BaseModel):
 
 class SessionResponse(BaseModel):
     """Search session response"""
+
     id: str
     session_id: str
     user_id: Optional[str] = None
@@ -207,17 +225,23 @@ class SessionResponse(BaseModel):
 
 class QualityReportRequest(BaseModel):
     """Quality report generation request"""
+
     report_type: str = Field(..., description="Type of report to generate")
     start_date: datetime = Field(..., description="Report start date")
     end_date: datetime = Field(..., description="Report end date")
-    metric_types: Optional[List[str]] = Field(None, description="Specific metrics to include")
+    metric_types: Optional[List[str]] = Field(
+        None, description="Specific metrics to include"
+    )
     include_alerts: bool = Field(True, description="Include alerts in report")
-    include_recommendations: bool = Field(True, description="Include improvement recommendations")
+    include_recommendations: bool = Field(
+        True, description="Include improvement recommendations"
+    )
     format: str = Field("json", description="Report format (json, pdf, csv)")
 
 
 class QualityReportResponse(BaseModel):
     """Quality report response"""
+
     report_id: str
     report_type: str
     period: Dict[str, str]
@@ -231,6 +255,7 @@ class QualityReportResponse(BaseModel):
 
 class RecommendationItem(BaseModel):
     """Quality improvement recommendation"""
+
     id: str
     category: str
     priority: str
@@ -247,6 +272,7 @@ class RecommendationItem(BaseModel):
 
 class DashboardWidget(BaseModel):
     """Dashboard widget configuration"""
+
     id: str
     widget_type: str
     title: str
@@ -260,6 +286,7 @@ class DashboardWidget(BaseModel):
 
 class DashboardConfiguration(BaseModel):
     """Dashboard configuration"""
+
     id: str
     name: str
     description: Optional[str] = None
@@ -274,6 +301,7 @@ class DashboardConfiguration(BaseModel):
 
 class MetricThresholdViolation(BaseModel):
     """Metric threshold violation notification"""
+
     metric_id: str
     metric_type: str
     current_value: float
@@ -287,6 +315,7 @@ class MetricThresholdViolation(BaseModel):
 
 class SystemHealthCheck(BaseModel):
     """System health check response"""
+
     status: str
     service: str
     timestamp: str
@@ -299,6 +328,7 @@ class SystemHealthCheck(BaseModel):
 
 class AnalyticsExportRequest(BaseModel):
     """Analytics data export request"""
+
     data_type: str = Field(..., description="Type of data to export")
     start_date: datetime = Field(..., description="Export start date")
     end_date: datetime = Field(..., description="Export end date")
@@ -309,6 +339,7 @@ class AnalyticsExportRequest(BaseModel):
 
 class AnalyticsExportResponse(BaseModel):
     """Analytics export response"""
+
     export_id: str
     status: str
     download_url: Optional[str] = None

@@ -3,16 +3,30 @@ Quality metrics model for search and processing evaluation
 """
 
 import uuid
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Enum, ForeignKey, Text, JSON
-from sqlalchemy.orm import relationship
-from enum import Enum as PyEnum
 from datetime import datetime
+from enum import Enum as PyEnum
 from typing import Optional
 
-from .base import BaseModel, GUID
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.orm import relationship
+
+from .base import GUID, BaseModel
+
 
 class MetricType(PyEnum):
     """Types of quality metrics"""
+
     PRECISION = "precision"
     RECALL = "recall"
     F1_SCORE = "f1_score"
@@ -25,22 +39,27 @@ class MetricType(PyEnum):
     USER_SATISFACTION = "user_satisfaction"
     BUSINESS_IMPACT = "business_impact"
 
+
 class EvaluationType(PyEnum):
     """Types of evaluations"""
+
     AUTOMATED = "automated"
     HUMAN = "human"
     HYBRID = "hybrid"
     A_B_TEST = "ab_test"
     CONTINUOUS = "continuous"
 
+
 class MetricScope(PyEnum):
     """Scope of metrics"""
+
     SYSTEM = "system"
     ORGANIZATION = "organization"
     USER = "user"
     DOCUMENT = "document"
     SEARCH_QUERY = "search_query"
     PROCESSING_JOB = "processing_job"
+
 
 class QualityMetric(BaseModel):
     """Quality metric model for system evaluation"""
@@ -59,7 +78,9 @@ class QualityMetric(BaseModel):
     scope_id = Column(GUID(), nullable=True, index=True)  # ID of scoped entity
 
     # Evaluation details
-    evaluation_parameters = Column(JSON, nullable=True)  # Parameters used for evaluation
+    evaluation_parameters = Column(
+        JSON, nullable=True
+    )  # Parameters used for evaluation
     ground_truth = Column(JSON, nullable=True)  # Ground truth data if available
     predictions = Column(JSON, nullable=True)  # System predictions
     evaluation_metadata = Column(JSON, nullable=True)  # Additional evaluation metadata
@@ -121,7 +142,11 @@ class QualityMetric(BaseModel):
         # Calculate quality based on proximity to target
         if self.target_value is not None:
             # Quality score based on how close to target
-            deviation_ratio = self.deviation_from_target / abs(self.target_value) if self.target_value != 0 else 0
+            deviation_ratio = (
+                self.deviation_from_target / abs(self.target_value)
+                if self.target_value != 0
+                else 0
+            )
             quality = max(0.0, 1.0 - deviation_ratio)
         else:
             # Quality score based on being within thresholds
@@ -141,7 +166,9 @@ class QualityMetric(BaseModel):
         self.passes_threshold = self.is_within_threshold
         return self.quality_score
 
-    def set_thresholds(self, min_value: float = None, max_value: float = None, target: float = None):
+    def set_thresholds(
+        self, min_value: float = None, max_value: float = None, target: float = None
+    ):
         """Set threshold and target values"""
         if min_value is not None:
             self.threshold_min = min_value
@@ -168,48 +195,62 @@ class QualityMetric(BaseModel):
             self.predictions = {}
         self.predictions.update(data)
 
-    def set_confidence_interval(self, lower: float, upper: float, confidence: float = 0.95):
+    def set_confidence_interval(
+        self, lower: float, upper: float, confidence: float = 0.95
+    ):
         """Set statistical confidence interval"""
         self.confidence_interval = {
-            'lower': lower,
-            'upper': upper,
-            'confidence': confidence
+            "lower": lower,
+            "upper": upper,
+            "confidence": confidence,
         }
 
     def is_statistically_significant(self, alpha: float = 0.05) -> bool:
         """Check if result is statistically significant"""
         if not self.confidence_interval:
             return False
-        confidence = self.confidence_interval.get('confidence', 0.95)
+        confidence = self.confidence_interval.get("confidence", 0.95)
         return confidence >= (1 - alpha)
 
     def calculate_improvement(self, previous_metric) -> dict:
         """Calculate improvement compared to a previous metric"""
         if not previous_metric or previous_metric.metric_type != self.metric_type:
-            return {'improvement': 0.0, 'percentage_change': 0.0, 'is_improvement': False}
+            return {
+                "improvement": 0.0,
+                "percentage_change": 0.0,
+                "is_improvement": False,
+            }
 
         change = self.value - previous_metric.value
-        percentage_change = (change / previous_metric.value * 100.0) if previous_metric.value != 0 else 0.0
+        percentage_change = (
+            (change / previous_metric.value * 100.0)
+            if previous_metric.value != 0
+            else 0.0
+        )
 
         # Determine if this is an improvement based on metric type
         metrics_where_higher_is_better = [
-            MetricType.PRECISION, MetricType.RECALL, MetricType.F1_SCORE,
-            MetricType.ACCURACY, MetricType.RELEVANCE, MetricType.COHERENCE,
-            MetricType.THROUGHPUT, MetricType.USER_SATISFACTION, MetricType.BUSINESS_IMPACT
+            MetricType.PRECISION,
+            MetricType.RECALL,
+            MetricType.F1_SCORE,
+            MetricType.ACCURACY,
+            MetricType.RELEVANCE,
+            MetricType.COHERENCE,
+            MetricType.THROUGHPUT,
+            MetricType.USER_SATISFACTION,
+            MetricType.BUSINESS_IMPACT,
         ]
 
         is_improvement = (
             self.metric_type in metrics_where_higher_is_better and change > 0
-        ) or (
-            self.metric_type not in metrics_where_higher_is_better and change < 0
-        )
+        ) or (self.metric_type not in metrics_where_higher_is_better and change < 0)
 
         return {
-            'improvement': change,
-            'percentage_change': percentage_change,
-            'is_improvement': is_improvement,
-            'previous_value': previous_metric.value,
-            'current_value': self.value
+            "improvement": change,
+            "percentage_change": percentage_change,
+            "is_improvement": is_improvement,
+            "previous_value": previous_metric.value,
+            "current_value": self.value,
         }
 
     def to_dict(self) -> dict:
@@ -217,40 +258,45 @@ class QualityMetric(BaseModel):
         data = super().to_dict()
 
         # Convert enum values
-        data['metric_type'] = self.metric_type.value if self.metric_type else None
-        data['evaluation_type'] = self.evaluation_type.value if self.evaluation_type else None
-        data['scope'] = self.scope.value if self.scope else None
+        data["metric_type"] = self.metric_type.value if self.metric_type else None
+        data["evaluation_type"] = (
+            self.evaluation_type.value if self.evaluation_type else None
+        )
+        data["scope"] = self.scope.value if self.scope else None
 
         # Add computed fields
-        data['is_within_threshold'] = self.is_within_threshold
-        data['deviation_from_target'] = self.deviation_from_target
-        data['percentage_of_target'] = self.percentage_of_target
+        data["is_within_threshold"] = self.is_within_threshold
+        data["deviation_from_target"] = self.deviation_from_target
+        data["percentage_of_target"] = self.percentage_of_target
 
         # Ensure quality score is calculated
         if self.quality_score is None:
             self.assess_quality()
-        data['quality_score'] = self.quality_score
+        data["quality_score"] = self.quality_score
 
         return data
 
     @classmethod
-    def get_metrics_by_type(cls, metric_type: MetricType, organization_id: Optional[uuid.UUID] = None) -> list:
+    def get_metrics_by_type(
+        cls, metric_type: MetricType, organization_id: Optional[uuid.UUID] = None
+    ) -> list:
         """Get metrics by type"""
         query = cls.query.filter(
-            cls.metric_type == metric_type,
-            cls.is_deleted == False
+            cls.metric_type == metric_type, cls.is_deleted == False
         )
         if organization_id:
             query = query.filter(cls.organization_id == organization_id)
         return query.all()
 
     @classmethod
-    def get_metrics_by_scope(cls, scope: MetricScope, scope_id: Optional[uuid.UUID] = None, organization_id: Optional[uuid.UUID] = None) -> list:
+    def get_metrics_by_scope(
+        cls,
+        scope: MetricScope,
+        scope_id: Optional[uuid.UUID] = None,
+        organization_id: Optional[uuid.UUID] = None,
+    ) -> list:
         """Get metrics by scope"""
-        query = cls.query.filter(
-            cls.scope == scope,
-            cls.is_deleted == False
-        )
+        query = cls.query.filter(cls.scope == scope, cls.is_deleted == False)
         if scope_id:
             query = query.filter(cls.scope_id == scope_id)
         if organization_id:
@@ -260,43 +306,51 @@ class QualityMetric(BaseModel):
     @classmethod
     def get_failed_metrics(cls, organization_id: Optional[uuid.UUID] = None) -> list:
         """Get metrics that don't meet thresholds"""
-        query = cls.query.filter(
-            cls.passes_threshold == False,
-            cls.is_deleted == False
-        )
+        query = cls.query.filter(cls.passes_threshold == False, cls.is_deleted == False)
         if organization_id:
             query = query.filter(cls.organization_id == organization_id)
         return query.all()
 
     @classmethod
-    def get_metrics_in_period(cls, start_date: datetime, end_date: datetime, organization_id: Optional[uuid.UUID] = None) -> list:
+    def get_metrics_in_period(
+        cls,
+        start_date: datetime,
+        end_date: datetime,
+        organization_id: Optional[uuid.UUID] = None,
+    ) -> list:
         """Get metrics within a time period"""
         query = cls.query.filter(
             cls.evaluation_period_start >= start_date,
             cls.evaluation_period_end <= end_date,
-            cls.is_deleted == False
+            cls.is_deleted == False,
         )
         if organization_id:
             query = query.filter(cls.organization_id == organization_id)
         return query.all()
 
     @classmethod
-    def calculate_aggregate_metrics(cls, metric_type: MetricType, organization_id: Optional[uuid.UUID] = None, period_days: int = 30) -> dict:
+    def calculate_aggregate_metrics(
+        cls,
+        metric_type: MetricType,
+        organization_id: Optional[uuid.UUID] = None,
+        period_days: int = 30,
+    ) -> dict:
         """Calculate aggregate statistics for a metric type"""
-        from sqlalchemy import func
         from datetime import timedelta
+
+        from sqlalchemy import func
 
         cutoff_date = datetime.utcnow() - timedelta(days=period_days)
 
         query = cls.session.query(
-            func.avg(cls.value).label('average'),
-            func.min(cls.value).label('minimum'),
-            func.max(cls.value).label('maximum'),
-            func.count(cls.id).label('count')
+            func.avg(cls.value).label("average"),
+            func.min(cls.value).label("minimum"),
+            func.max(cls.value).label("maximum"),
+            func.count(cls.id).label("count"),
         ).filter(
             cls.metric_type == metric_type,
             cls.created_at >= cutoff_date,
-            cls.is_deleted == False
+            cls.is_deleted == False,
         )
 
         if organization_id:
@@ -305,10 +359,10 @@ class QualityMetric(BaseModel):
         result = query.first()
 
         return {
-            'metric_type': metric_type.value,
-            'period_days': period_days,
-            'average': float(result.average) if result.average else 0.0,
-            'minimum': float(result.minimum) if result.minimum else 0.0,
-            'maximum': float(result.maximum) if result.maximum else 0.0,
-            'count': int(result.count) if result.count else 0
+            "metric_type": metric_type.value,
+            "period_days": period_days,
+            "average": float(result.average) if result.average else 0.0,
+            "minimum": float(result.minimum) if result.minimum else 0.0,
+            "maximum": float(result.maximum) if result.maximum else 0.0,
+            "count": int(result.count) if result.count else 0,
         }

@@ -5,9 +5,10 @@ Fallback when sentence-transformers is not available
 """
 
 import hashlib
-import numpy as np
-from typing import List, Optional, Union
 import logging
+from typing import List, Optional, Union
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +27,13 @@ class SimpleEmbeddingService:
             embedding_dim: Dimension of the embedding vectors
         """
         self.embedding_dim = embedding_dim
-        logger.info(f"Initialized SimpleEmbeddingService with {embedding_dim} dimensions")
+        logger.info(
+            f"Initialized SimpleEmbeddingService with {embedding_dim} dimensions"
+        )
 
-    def encode(self, texts: Union[str, List[str]], batch_size: Optional[int] = None) -> np.ndarray:
+    def encode(
+        self, texts: Union[str, List[str]], batch_size: Optional[int] = None
+    ) -> np.ndarray:
         """
         Generate embeddings for text using deterministic hash functions
 
@@ -63,7 +68,7 @@ class SimpleEmbeddingService:
             List of float values representing the embedding
         """
         # Use SHA256 hash for deterministic but pseudo-random embeddings
-        text_hash = hashlib.sha256(text.encode('utf-8')).hexdigest()
+        text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
 
         # Convert hash to numerical values
         hash_bytes = bytes.fromhex(text_hash)

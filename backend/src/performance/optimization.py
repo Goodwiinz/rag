@@ -3,36 +3,40 @@ Performance optimization utilities and strategies for the RAG system
 """
 
 import asyncio
-import time
 import functools
-import hashlib
-import json
-from typing import Dict, List, Optional, Any, Callable, Union, AsyncGenerator
-from collections import defaultdict
-from dataclasses import dataclass
-from contextlib import asynccontextmanager
-import redis.asyncio as redis
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
-import logging
-import psutil
 import gc
 import gzip
+import hashlib
+import json
+import logging
+import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-import numpy as np
-from fastapi import HTTPException
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Union
+
 import aioredis
+import numpy as np
+import psutil
+import redis.asyncio as redis
+from fastapi import HTTPException
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class CacheConfig:
     """Cache configuration settings"""
+
     ttl: int = 300  # 5 minutes default
     max_size: int = 1000
     compression: bool = True
-    serializer: str = 'json'  # 'json' only for security
-    key_prefix: str = 'rag_cache'
+    serializer: str = "json"  # 'json' only for security
+    key_prefix: str = "rag_cache"
+
 
 class SmartCache:
     """Intelligent multi-level caching system"""
@@ -41,20 +45,20 @@ class SmartCache:
         self.redis_client = redis_client
         self.config = config or CacheConfig()
         self.local_cache: Dict[str, Dict] = {}
-        self.cache_stats = defaultdict(lambda: {'hits': 0, 'misses': 0, 'sets': 0})
+        self.cache_stats = defaultdict(lambda: {"hits": 0, "misses": 0, "sets": 0})
         self.executor = ThreadPoolExecutor(max_workers=4)
         self._last_cleanup = time.time()
         self._cleanup_interval = 60  # Cleanup every minute
 
     def _generate_key(self, key_parts: List[Any]) -> str:
         """Generate consistent cache key from key parts"""
-        key_str = ':'.join(str(part) for part in key_parts)
+        key_str = ":".join(str(part) for part in key_parts)
         key_hash = hashlib.md5(key_str.encode()).hexdigest()
         return f"{self.config.key_prefix}:{key_hash}"
 
     def _serialize_value(self, value: Any) -> bytes:
         """Serialize value for storage using secure JSON"""
-        data = json.dumps(value, default=str, ensure_ascii=False).encode('utf-8')
+        data = json.dumps(value, default=str, ensure_ascii=False).encode("utf-8")
 
         if self.config.compression:
             data = gzip.compress(data)
@@ -67,7 +71,7 @@ class SmartCache:
             if self.config.compression:
                 data = gzip.decompress(data)
 
-            return json.loads(data.decode('utf-8'))
+            return json.loads(data.decode("utf-8"))
 
         except Exception as e:
             logger.error(f"Cache deserialization error: {e}")
@@ -80,9 +84,9 @@ class SmartCache:
         # Check local cache first
         if key in self.local_cache:
             entry = self.local_cache[key]
-            if time.time() < entry['expires']:
-                self.cache_stats[key]['hits'] += 1
-                return entry['value']
+            if time.time() < entry["expires"]:
+                self.cache_stats[key]["hits"] += 1
+                return entry["value"]
             else:
                 del self.local_cache[key]
 
@@ -94,33 +98,32 @@ class SmartCache:
                 if value is not None:
                     # Store in local cache
                     self.local_cache[key] = {
-                        'value': value,
-                        'expires': time.time() + self.config.ttl
+                        "value": value,
+                        "expires": time.time() + self.config.ttl,
                     }
-                    self.cache_stats[key]['hits'] += 1
+                    self.cache_stats[key]["hits"] += 1
                     return value
         except Exception as e:
             logger.error(f"Redis cache get error: {e}")
 
-        self.cache_stats[key]['misses'] += 1
+        self.cache_stats[key]["misses"] += 1
         return None
 
-    async def set(self, key_parts: List[Any], value: Any, ttl: Optional[int] = None) -> bool:
+    async def set(
+        self, key_parts: List[Any], value: Any, ttl: Optional[int] = None
+    ) -> bool:
         """Set value in cache (both local and Redis)"""
         key = self._generate_key(key_parts)
         ttl = ttl or self.config.ttl
 
         # Set in local cache
-        self.local_cache[key] = {
-            'value': value,
-            'expires': time.time() + ttl
-        }
+        self.local_cache[key] = {"value": value, "expires": time.time() + ttl}
 
         # Set in Redis
         try:
             data = self._serialize_value(value)
             await self.redis_client.setex(key, ttl, data)
-            self.cache_stats[key]['sets'] += 1
+            self.cache_stats[key]["sets"] += 1
             return True
         except Exception as e:
             logger.error(f"Redis cache set error: {e}")
@@ -153,10 +156,7 @@ class SmartCache:
                 deleted = 0
 
             # Clear from local cache
-            keys_to_delete = [
-                k for k in self.local_cache.keys()
-                if pattern in k
-            ]
+            keys_to_delete = [k for k in self.local_cache.keys() if pattern in k]
             for k in keys_to_delete:
                 del self.local_cache[k]
 
@@ -172,8 +172,7 @@ class SmartCache:
             return
 
         expired_keys = [
-            k for k, v in self.local_cache.items()
-            if current_time >= v['expires']
+            k for k, v in self.local_cache.items() if current_time >= v["expires"]
         ]
 
         for k in expired_keys:
@@ -185,18 +184,24 @@ class SmartCache:
         """Get cache statistics"""
         return dict(self.cache_stats)
 
+
 def smart_cache(
     cache: SmartCache,
     key_parts: List[Any],
     ttl: Optional[int] = None,
-    cache_on_success: bool = True
+    cache_on_success: bool = True,
 ):
     """Decorator for smart caching function results"""
+
     def decorator(func: Callable):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             # Generate cache key
-            cache_key = key_parts + [str(arg) for arg in args] + [f"{k}:{v}" for k, v in sorted(kwargs.items())]
+            cache_key = (
+                key_parts
+                + [str(arg) for arg in args]
+                + [f"{k}:{v}" for k, v in sorted(kwargs.items())]
+            )
 
             # Try to get from cache
             cached_result = await cache.get(cache_key)
@@ -217,7 +222,9 @@ def smart_cache(
                 raise
 
         return wrapper
+
     return decorator
+
 
 class DatabaseOptimizer:
     """Database query optimization utilities"""
@@ -225,21 +232,23 @@ class DatabaseOptimizer:
     def __init__(self, db_session: AsyncSession, cache: SmartCache):
         self.db_session = db_session
         self.cache = cache
-        self.query_stats = defaultdict(lambda: {
-            'count': 0,
-            'total_time': 0,
-            'avg_time': 0,
-            'slow_queries': 0
-        })
+        self.query_stats = defaultdict(
+            lambda: {"count": 0, "total_time": 0, "avg_time": 0, "slow_queries": 0}
+        )
 
     @asynccontextmanager
-    async def optimized_query(self, query_name: str, cache_key: Optional[List[Any]] = None, cache_ttl: int = 300):
+    async def optimized_query(
+        self,
+        query_name: str,
+        cache_key: Optional[List[Any]] = None,
+        cache_ttl: int = 300,
+    ):
         """Execute optimized database query with caching"""
         start_time = time.time()
 
         # Try cache first if cache_key provided
         if cache_key:
-            cached_result = await self.cache.get(['query'] + cache_key)
+            cached_result = await self.cache.get(["query"] + cache_key)
             if cached_result is not None:
                 yield cached_result
                 return
@@ -251,24 +260,26 @@ class DatabaseOptimizer:
             # Record query statistics
             duration = time.time() - start_time
             stats = self.query_stats[query_name]
-            stats['count'] += 1
-            stats['total_time'] += duration
-            stats['avg_time'] = stats['total_time'] / stats['count']
+            stats["count"] += 1
+            stats["total_time"] += duration
+            stats["avg_time"] = stats["total_time"] / stats["count"]
 
             if duration > 1.0:  # Consider queries over 1s as slow
-                stats['slow_queries'] += 1
-                logger.warning(f"Slow query detected: {query_name} took {duration:.2f}s")
+                stats["slow_queries"] += 1
+                logger.warning(
+                    f"Slow query detected: {query_name} took {duration:.2f}s"
+                )
 
     async def execute_cached_query(
         self,
         query: str,
         params: Dict = None,
         cache_key_parts: Optional[List[Any]] = None,
-        cache_ttl: int = 300
+        cache_ttl: int = 300,
     ) -> List[Dict]:
         """Execute query with result caching"""
         cache_key_parts = cache_key_parts or [query, str(params or {})]
-        cache_key = ['db_query'] + cache_key_parts
+        cache_key = ["db_query"] + cache_key_parts
 
         # Try cache
         cached_result = await self.cache.get(cache_key)
@@ -285,7 +296,9 @@ class DatabaseOptimizer:
             # Cache result
             await self.cache.set(cache_key, result_dicts, cache_ttl)
 
-            logger.debug(f"Query executed in {time.time() - start_time:.3f}s: {query[:100]}...")
+            logger.debug(
+                f"Query executed in {time.time() - start_time:.3f}s: {query[:100]}..."
+            )
             return result_dicts
 
         except Exception as e:
@@ -295,6 +308,7 @@ class DatabaseOptimizer:
     def get_query_stats(self) -> Dict[str, Dict]:
         """Get query performance statistics"""
         return dict(self.query_stats)
+
 
 class AsyncOptimizer:
     """Async processing optimization utilities"""
@@ -313,7 +327,7 @@ class AsyncOptimizer:
         items: List[Any],
         processor: Callable,
         batch_size: int = 10,
-        max_concurrent: int = 5
+        max_concurrent: int = 5,
     ) -> List[Any]:
         """Process items in batches with concurrency control"""
         results = []
@@ -327,7 +341,7 @@ class AsyncOptimizer:
                     return await self.run_in_background(processor, batch)
 
         # Create batches
-        batches = [items[i:i + batch_size] for i in range(0, len(items), batch_size)]
+        batches = [items[i : i + batch_size] for i in range(0, len(items), batch_size)]
 
         # Process batches concurrently
         tasks = [process_batch(batch) for batch in batches]
@@ -338,15 +352,14 @@ class AsyncOptimizer:
             if isinstance(batch_result, Exception):
                 logger.error(f"Batch processing error: {batch_result}")
             else:
-                results.extend(batch_result if isinstance(batch_result, list) else [batch_result])
+                results.extend(
+                    batch_result if isinstance(batch_result, list) else [batch_result]
+                )
 
         return results
 
     async def parallel_map(
-        self,
-        func: Callable,
-        items: List[Any],
-        max_concurrent: int = 10
+        self, func: Callable, items: List[Any], max_concurrent: int = 10
     ) -> List[Any]:
         """Map function over items in parallel"""
         semaphore = asyncio.Semaphore(max_concurrent)
@@ -360,6 +373,7 @@ class AsyncOptimizer:
 
         tasks = [process_item(item) for item in items]
         return await asyncio.gather(*tasks, return_exceptions=True)
+
 
 class MemoryOptimizer:
     """Memory usage optimization utilities"""
@@ -377,10 +391,10 @@ class MemoryOptimizer:
         process_memory = process.memory_info()
 
         return {
-            'collected_objects': collected,
-            'system_memory_percent': memory_info.percent,
-            'process_memory_mb': process_memory.rss / 1024 / 1024,
-            'process_memory_percent': process_memory.percent
+            "collected_objects": collected,
+            "system_memory_percent": memory_info.percent,
+            "process_memory_mb": process_memory.rss / 1024 / 1024,
+            "process_memory_percent": process_memory.percent,
         }
 
     @staticmethod
@@ -391,10 +405,10 @@ class MemoryOptimizer:
         memory_percent = process.memory_percent()
 
         return {
-            'rss_mb': memory_info.rss / 1024 / 1024,
-            'vms_mb': memory_info.vms / 1024 / 1024,
-            'percent': memory_percent,
-            'available_mb': psutil.virtual_memory().available / 1024 / 1024
+            "rss_mb": memory_info.rss / 1024 / 1024,
+            "vms_mb": memory_info.vms / 1024 / 1024,
+            "percent": memory_percent,
+            "available_mb": psutil.virtual_memory().available / 1024 / 1024,
         }
 
     @staticmethod
@@ -404,7 +418,7 @@ class MemoryOptimizer:
             try:
                 memory_usage = MemoryOptimizer.get_memory_usage()
 
-                if memory_usage['rss_mb'] > threshold_mb:
+                if memory_usage["rss_mb"] > threshold_mb:
                     logger.warning(f"Memory usage high: {memory_usage['rss_mb']:.2f}MB")
 
                     # Run garbage collection
@@ -416,16 +430,19 @@ class MemoryOptimizer:
                 logger.error(f"Memory monitoring error: {e}")
                 await asyncio.sleep(check_interval)
 
+
 class VectorOptimizer:
     """Vector operations optimization utilities"""
 
     @staticmethod
-    def batch_normalize(vectors: List[np.ndarray], batch_size: int = 1000) -> List[np.ndarray]:
+    def batch_normalize(
+        vectors: List[np.ndarray], batch_size: int = 1000
+    ) -> List[np.ndarray]:
         """Normalize vectors in batches for better performance"""
         normalized = []
 
         for i in range(0, len(vectors), batch_size):
-            batch = vectors[i:i + batch_size]
+            batch = vectors[i : i + batch_size]
             batch_array = np.array(batch)
 
             # Normalize batch
@@ -441,14 +458,14 @@ class VectorOptimizer:
         query_vector: np.ndarray,
         vectors: np.ndarray,
         top_k: int = 10,
-        batch_size: int = 1000
+        batch_size: int = 1000,
     ) -> List[tuple]:
         """Optimized similarity search with batching"""
         similarities = []
 
         # Calculate similarities in batches
         for i in range(0, len(vectors), batch_size):
-            batch = vectors[i:i + batch_size]
+            batch = vectors[i : i + batch_size]
 
             # Calculate cosine similarity
             query_norm = query_vector / (np.linalg.norm(query_vector) + 1e-8)
@@ -463,22 +480,20 @@ class VectorOptimizer:
         similarities.sort(key=lambda x: x[1], reverse=True)
         return similarities[:top_k]
 
+
 # Global optimization instances
 def create_optimization_instances(redis_client: redis.Redis) -> Dict[str, Any]:
     """Create global optimization instances"""
     cache_config = CacheConfig(
-        ttl=300,
-        max_size=10000,
-        compression=True,
-        serializer='json'
+        ttl=300, max_size=10000, compression=True, serializer="json"
     )
 
     smart_cache = SmartCache(redis_client, cache_config)
     async_optimizer = AsyncOptimizer(max_workers=4)
 
     return {
-        'cache': smart_cache,
-        'async_optimizer': async_optimizer,
-        'memory_optimizer': MemoryOptimizer(),
-        'vector_optimizer': VectorOptimizer()
+        "cache": smart_cache,
+        "async_optimizer": async_optimizer,
+        "memory_optimizer": MemoryOptimizer(),
+        "vector_optimizer": VectorOptimizer(),
     }

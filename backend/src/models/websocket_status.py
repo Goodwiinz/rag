@@ -3,16 +3,32 @@ WebSocket Status Update models for real-time processing updates and notification
 """
 
 import uuid
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Enum, ForeignKey, Text, JSON, Index
-from sqlalchemy.orm import relationship
+from datetime import datetime
+from datetime import timezone as dt_timezone
 from enum import Enum as PyEnum
-from datetime import datetime, timezone as dt_timezone
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from .base import BaseModel, GUID
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.orm import relationship
+
+from .base import GUID, BaseModel
+
 
 class ConnectionStatus(PyEnum):
     """WebSocket connection status"""
+
     CONNECTING = "connecting"
     CONNECTED = "connected"
     DISCONNECTING = "disconnecting"
@@ -20,8 +36,10 @@ class ConnectionStatus(PyEnum):
     ERROR = "error"
     TIMEOUT = "timeout"
 
+
 class UpdateType(PyEnum):
     """Types of real-time updates"""
+
     DOCUMENT_PROCESSING = "document_processing"
     JOB_STATUS = "job_status"
     SYSTEM_STATUS = "system_status"
@@ -31,12 +49,15 @@ class UpdateType(PyEnum):
     SEARCH_PROGRESS = "search_progress"
     BATCH_OPERATION = "batch_operation"
 
+
 class Priority(PyEnum):
     """Update priority levels"""
+
     LOW = "low"
     NORMAL = "normal"
     HIGH = "high"
     CRITICAL = "critical"
+
 
 class WebSocketConnection(BaseModel):
     """Active WebSocket connection tracking"""
@@ -46,13 +67,21 @@ class WebSocketConnection(BaseModel):
     # Connection identification
     connection_id = Column(String(255), nullable=False, unique=True, index=True)
     user_id = Column(GUID(), ForeignKey("users.id"), nullable=False, index=True)
-    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=False, index=True)
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id"), nullable=False, index=True
+    )
     session_id = Column(String(255), nullable=True, index=True)
 
     # Connection details
-    connection_status = Column(Enum(ConnectionStatus), nullable=False, default=ConnectionStatus.CONNECTING)
-    connected_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    last_heartbeat = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    connection_status = Column(
+        Enum(ConnectionStatus), nullable=False, default=ConnectionStatus.CONNECTING
+    )
+    connected_at = Column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
+    last_heartbeat = Column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
     disconnected_at = Column(DateTime(timezone=True), nullable=True)
 
     # Client information
@@ -64,7 +93,9 @@ class WebSocketConnection(BaseModel):
     # Connection configuration
     subscription_channels = Column(JSON, nullable=True)  # Subscribed channels/topics
     update_filter = Column(JSON, nullable=True)  # Filter for received updates
-    max_message_size = Column(Integer, default=1024*1024, nullable=False)  # 1MB default
+    max_message_size = Column(
+        Integer, default=1024 * 1024, nullable=False
+    )  # 1MB default
     heartbeat_interval = Column(Integer, default=30, nullable=False)  # seconds
 
     # Connection metrics
@@ -85,14 +116,18 @@ class WebSocketConnection(BaseModel):
     # Relationships
     user = relationship("User")
     organization = relationship("Organization")
-    status_updates = relationship("StatusUpdate", back_populates="connection", cascade="all, delete-orphan")
-    connection_events = relationship("ConnectionEvent", back_populates="connection", cascade="all, delete-orphan")
+    status_updates = relationship(
+        "StatusUpdate", back_populates="connection", cascade="all, delete-orphan"
+    )
+    connection_events = relationship(
+        "ConnectionEvent", back_populates="connection", cascade="all, delete-orphan"
+    )
 
     # Indexes
     __table_args__ = (
-        Index('idx_ws_connections_user_status', 'user_id', 'connection_status'),
-        Index('idx_ws_connections_heartbeat', 'last_heartbeat'),
-        Index('idx_ws_connections_org', 'organization_id', 'connected_at'),
+        Index("idx_ws_connections_user_status", "user_id", "connection_status"),
+        Index("idx_ws_connections_heartbeat", "last_heartbeat"),
+        Index("idx_ws_connections_org", "organization_id", "connected_at"),
     )
 
     def __repr__(self):
@@ -106,7 +141,9 @@ class WebSocketConnection(BaseModel):
     @property
     def is_stale(self) -> bool:
         """Check if connection is stale (no recent heartbeat)"""
-        heartbeat_timeout = dt_timezone.utc.localize(datetime.utcnow()) - dt_timezone.timedelta(minutes=5)
+        heartbeat_timeout = dt_timezone.utc.localize(
+            datetime.utcnow()
+        ) - dt_timezone.timedelta(minutes=5)
         return self.last_heartbeat < heartbeat_timeout
 
     @property
@@ -118,7 +155,9 @@ class WebSocketConnection(BaseModel):
         """Update connection heartbeat"""
         self.last_heartbeat = datetime.utcnow()
         if self.connected_at:
-            self.connection_duration_seconds = int((self.last_heartbeat - self.connected_at).total_seconds())
+            self.connection_duration_seconds = int(
+                (self.last_heartbeat - self.connected_at).total_seconds()
+            )
 
     def record_message_sent(self, size_bytes: int):
         """Record sent message statistics"""
@@ -173,27 +212,34 @@ class WebSocketConnection(BaseModel):
         data = super().to_dict()
 
         # Convert enum values
-        data['connection_status'] = self.connection_status.value if self.connection_status else None
+        data["connection_status"] = (
+            self.connection_status.value if self.connection_status else None
+        )
 
         # Add computed properties
-        data.update({
-            'is_connected': self.is_connected,
-            'is_stale': self.is_stale,
-            'can_reconnect': self.can_reconnect
-        })
+        data.update(
+            {
+                "is_connected": self.is_connected,
+                "is_stale": self.is_stale,
+                "can_reconnect": self.can_reconnect,
+            }
+        )
 
         # Remove sensitive information
-        data.pop('ip_address', None)
-        data.pop('user_agent', None)
+        data.pop("ip_address", None)
+        data.pop("user_agent", None)
 
         return data
 
     @classmethod
-    def get_active_connections(cls, user_id: Optional[uuid.UUID] = None, organization_id: Optional[uuid.UUID] = None) -> List:
+    def get_active_connections(
+        cls,
+        user_id: Optional[uuid.UUID] = None,
+        organization_id: Optional[uuid.UUID] = None,
+    ) -> List:
         """Get active WebSocket connections"""
         query = cls.query.filter(
-            cls.connection_status == ConnectionStatus.CONNECTED,
-            cls.is_deleted == False
+            cls.connection_status == ConnectionStatus.CONNECTED, cls.is_deleted == False
         )
 
         if user_id:
@@ -210,7 +256,7 @@ class WebSocketConnection(BaseModel):
         return cls.query.filter(
             cls.last_heartbeat < cutoff_time,
             cls.connection_status == ConnectionStatus.CONNECTED,
-            cls.is_deleted == False
+            cls.is_deleted == False,
         ).all()
 
 
@@ -221,9 +267,13 @@ class StatusUpdate(BaseModel):
 
     # Update identification
     update_id = Column(String(255), nullable=False, unique=True, index=True)
-    connection_id = Column(GUID(), ForeignKey("websocket_connections.id"), nullable=False, index=True)
+    connection_id = Column(
+        GUID(), ForeignKey("websocket_connections.id"), nullable=False, index=True
+    )
     update_type = Column(Enum(UpdateType), nullable=False, index=True)
-    priority = Column(Enum(Priority), nullable=False, default=Priority.NORMAL, index=True)
+    priority = Column(
+        Enum(Priority), nullable=False, default=Priority.NORMAL, index=True
+    )
 
     # Update content
     title = Column(String(255), nullable=False)
@@ -237,14 +287,18 @@ class StatusUpdate(BaseModel):
     broadcast_channel = Column(String(100), nullable=True)  # Channel for broadcasting
 
     # Delivery tracking
-    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
     sent_at = Column(DateTime(timezone=True), nullable=True)
     delivered_at = Column(DateTime(timezone=True), nullable=True)
     read_at = Column(DateTime(timezone=True), nullable=True)
     acknowledged_at = Column(DateTime(timezone=True), nullable=True)
 
     # Delivery status
-    delivery_status = Column(String(50), nullable=False, default="pending")  # pending, sent, delivered, read, acknowledged, failed
+    delivery_status = Column(
+        String(50), nullable=False, default="pending"
+    )  # pending, sent, delivered, read, acknowledged, failed
     delivery_attempts = Column(Integer, default=0, nullable=False)
     max_delivery_attempts = Column(Integer, default=3, nullable=False)
     delivery_error = Column(Text, nullable=True)
@@ -266,10 +320,10 @@ class StatusUpdate(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_status_updates_connection_type', 'connection_id', 'update_type'),
-        Index('idx_status_updates_priority_created', 'priority', 'created_at'),
-        Index('idx_status_updates_status', 'delivery_status'),
-        Index('idx_status_updates_expires', 'expires_at'),
+        Index("idx_status_updates_connection_type", "connection_id", "update_type"),
+        Index("idx_status_updates_priority_created", "priority", "created_at"),
+        Index("idx_status_updates_status", "delivery_status"),
+        Index("idx_status_updates_expires", "expires_at"),
     )
 
     def __repr__(self):
@@ -284,9 +338,9 @@ class StatusUpdate(BaseModel):
     def can_retry_delivery(self) -> bool:
         """Check if delivery can be retried"""
         return (
-            self.delivery_status in ["pending", "failed"] and
-            self.delivery_attempts < self.max_delivery_attempts and
-            not self.is_expired
+            self.delivery_status in ["pending", "failed"]
+            and self.delivery_attempts < self.max_delivery_attempts
+            and not self.is_expired
         )
 
     @property
@@ -333,22 +387,26 @@ class StatusUpdate(BaseModel):
         data = super().to_dict()
 
         # Convert enum values
-        data.update({
-            'update_type': self.update_type.value if self.update_type else None,
-            'priority': self.priority.value if self.priority else None
-        })
+        data.update(
+            {
+                "update_type": self.update_type.value if self.update_type else None,
+                "priority": self.priority.value if self.priority else None,
+            }
+        )
 
         # Add computed properties
-        data.update({
-            'is_expired': self.is_expired,
-            'can_retry_delivery': self.can_retry_delivery,
-            'is_pending_delivery': self.is_pending_delivery
-        })
+        data.update(
+            {
+                "is_expired": self.is_expired,
+                "can_retry_delivery": self.can_retry_delivery,
+                "is_pending_delivery": self.is_pending_delivery,
+            }
+        )
 
         # Remove sensitive tracking information
-        data.pop('delivery_error', None)
-        data.pop('target_users', None)
-        data.pop('target_organizations', None)
+        data.pop("delivery_error", None)
+        data.pop("target_users", None)
+        data.pop("target_organizations", None)
 
         return data
 
@@ -356,8 +414,7 @@ class StatusUpdate(BaseModel):
     def get_pending_updates(cls, connection_id: Optional[uuid.UUID] = None) -> List:
         """Get updates pending delivery"""
         query = cls.query.filter(
-            cls.delivery_status.in_(["pending", "sent"]),
-            cls.is_deleted == False
+            cls.delivery_status.in_(["pending", "sent"]), cls.is_deleted == False
         ).order_by(cls.priority.desc(), cls.created_at.asc())
 
         if connection_id:
@@ -371,7 +428,7 @@ class StatusUpdate(BaseModel):
         return cls.query.filter(
             cls.expires_at < datetime.utcnow(),
             cls.delivery_status != "acknowledged",
-            cls.is_deleted == False
+            cls.is_deleted == False,
         ).all()
 
 
@@ -380,12 +437,18 @@ class ConnectionEvent(BaseModel):
 
     __tablename__ = "connection_events"
 
-    connection_id = Column(GUID(), ForeignKey("websocket_connections.id"), nullable=False)
+    connection_id = Column(
+        GUID(), ForeignKey("websocket_connections.id"), nullable=False
+    )
 
     # Event details
-    event_type = Column(String(50), nullable=False)  # connect, disconnect, error, heartbeat, message
+    event_type = Column(
+        String(50), nullable=False
+    )  # connect, disconnect, error, heartbeat, message
     event_data = Column(JSON, nullable=True)  # Event-specific data
-    event_timestamp = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    event_timestamp = Column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
 
     # Event context
     session_id = Column(String(255), nullable=True)
@@ -411,23 +474,31 @@ class ConnectionEvent(BaseModel):
     @classmethod
     def get_recent_events(cls, connection_id: uuid.UUID, limit: int = 50) -> List:
         """Get recent events for a connection"""
-        return cls.query.filter(
-            cls.connection_id == connection_id,
-            cls.is_deleted == False
-        ).order_by(cls.event_timestamp.desc()).limit(limit).all()
+        return (
+            cls.query.filter(
+                cls.connection_id == connection_id, cls.is_deleted == False
+            )
+            .order_by(cls.event_timestamp.desc())
+            .limit(limit)
+            .all()
+        )
 
     @classmethod
-    def get_error_events(cls, organization_id: Optional[uuid.UUID] = None, hours: int = 24) -> List:
+    def get_error_events(
+        cls, organization_id: Optional[uuid.UUID] = None, hours: int = 24
+    ) -> List:
         """Get error events within time window"""
         cutoff_time = datetime.utcnow() - timedelta(hours=hours)
         query = cls.query.filter(
             cls.event_type == "error",
             cls.event_timestamp >= cutoff_time,
-            cls.is_deleted == False
+            cls.is_deleted == False,
         ).order_by(cls.event_timestamp.desc())
 
         if organization_id:
-            query = query.join(WebSocketConnection).filter(WebSocketConnection.organization_id == organization_id)
+            query = query.join(WebSocketConnection).filter(
+                WebSocketConnection.organization_id == organization_id
+            )
 
         return query.all()
 
@@ -455,14 +526,18 @@ class NotificationTemplate(BaseModel):
     default_action_url = Column(String(500), nullable=True)
 
     # Localization
-    supported_languages = Column(JSON, nullable=True)  # List of supported language codes
+    supported_languages = Column(
+        JSON, nullable=True
+    )  # List of supported language codes
     translations = Column(JSON, nullable=True)  # Translated templates
 
     # Usage tracking
     usage_count = Column(Integer, default=0, nullable=False)
     last_used_at = Column(DateTime(timezone=True), nullable=True)
 
-    def render_template(self, data: Dict[str, Any], language: str = "en") -> Dict[str, str]:
+    def render_template(
+        self, data: Dict[str, Any], language: str = "en"
+    ) -> Dict[str, str]:
         """Render template with provided data"""
         # Simple template rendering - in production, use a proper templating engine
         title = self.title_template
@@ -480,10 +555,7 @@ class NotificationTemplate(BaseModel):
             title = title.replace(placeholder, str(value))
             message = message.replace(placeholder, str(value))
 
-        return {
-            "title": title,
-            "message": message
-        }
+        return {"title": title, "message": message}
 
     def record_usage(self):
         """Record template usage"""
@@ -491,9 +563,10 @@ class NotificationTemplate(BaseModel):
         self.last_used_at = datetime.utcnow()
 
     @classmethod
-    def get_template_by_name(cls, template_name: str) -> Optional['NotificationTemplate']:
+    def get_template_by_name(
+        cls, template_name: str
+    ) -> Optional["NotificationTemplate"]:
         """Get template by name"""
         return cls.query.filter(
-            cls.template_name == template_name,
-            cls.is_deleted == False
+            cls.template_name == template_name, cls.is_deleted == False
         ).first()

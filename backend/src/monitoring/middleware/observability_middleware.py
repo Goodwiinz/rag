@@ -5,20 +5,22 @@ Comprehensive middleware that combines logging, tracing, metrics,
 and correlation for complete request observability.
 """
 
+import asyncio
+import logging
 import time
 import uuid
-import logging
-import asyncio
-from typing import Dict, Any, Optional, Callable
 from datetime import datetime
+from typing import Any, Callable, Dict, Optional
+
 from fastapi import Request, Response
 from fastapi.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
 
-from ..services.observability_manager import get_observability_manager
-from ..config.monitoring_config import get_monitoring_config
 from src.auth.rbac_decorator import get_current_user
+
+from ..config.monitoring_config import get_monitoring_config
+from ..services.observability_manager import get_observability_manager
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +44,9 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
         self.observability_manager = get_observability_manager()
         self.monitoring_config = get_monitoring_config()
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         """Process request with full observability instrumentation"""
         # Start timing
         start_time = time.time()
@@ -67,8 +71,8 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                 "client_ip": self._get_client_ip(request),
                 "user_agent": request.headers.get("User-Agent", ""),
                 "path": request.url.path,
-                "query_params": dict(request.query_params)
-            }
+                "query_params": dict(request.query_params),
+            },
         }
 
         # Add context to request state for other middleware
@@ -80,25 +84,31 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
         # Start tracing
         span_context = None
         try:
-            span_context = await self.observability_manager.tracing_collector.start_span(
-                operation_name=f"{request.method} {request.url.path}",
-                service=self.monitoring_config.service_name,
-                component="api",
-                labels={
-                    "http.method": request.method,
-                    "http.path": request.url.path,
-                    "http.scheme": request.url.scheme,
-                    "http.host": request.url.hostname,
-                    "request_id": request_id,
-                    "correlation_id": correlation_id
-                },
-                attributes={
-                    "http.url": str(request.url),
-                    "http.user_agent": request.headers.get("User-Agent", ""),
-                    "http.client_ip": context["request_info"]["client_ip"],
-                    "user.id": user_context.get("user_id") if user_context else None,
-                    "organization.id": user_context.get("organization_id") if user_context else None
-                }
+            span_context = (
+                await self.observability_manager.tracing_collector.start_span(
+                    operation_name=f"{request.method} {request.url.path}",
+                    service=self.monitoring_config.service_name,
+                    component="api",
+                    labels={
+                        "http.method": request.method,
+                        "http.path": request.url.path,
+                        "http.scheme": request.url.scheme,
+                        "http.host": request.url.hostname,
+                        "request_id": request_id,
+                        "correlation_id": correlation_id,
+                    },
+                    attributes={
+                        "http.url": str(request.url),
+                        "http.user_agent": request.headers.get("User-Agent", ""),
+                        "http.client_ip": context["request_info"]["client_ip"],
+                        "user.id": user_context.get("user_id")
+                        if user_context
+                        else None,
+                        "organization.id": user_context.get("organization_id")
+                        if user_context
+                        else None,
+                    },
+                )
             )
 
             # Add trace context to request
@@ -118,7 +128,7 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
             context["response_info"] = {
                 "status_code": response.status_code,
                 "headers": dict(response.headers),
-                "duration_ms": duration_ms
+                "duration_ms": duration_ms,
             }
 
             # Add tracing attributes
@@ -128,8 +138,8 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                     "http.response_start",
                     {
                         "http.status_code": response.status_code,
-                        "response.duration_ms": duration_ms
-                    }
+                        "response.duration_ms": duration_ms,
+                    },
                 )
 
             # Record metrics
@@ -145,8 +155,8 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                     status="ok" if response.status_code < 400 else "error",
                     attributes={
                         "http.status_code": response.status_code,
-                        "response.duration_ms": duration_ms
-                    }
+                        "response.duration_ms": duration_ms,
+                    },
                 )
 
             # Add correlation headers to response
@@ -175,8 +185,8 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                     attributes={
                         "error.type": type(e).__name__,
                         "error.message": str(e),
-                        "request.duration_ms": duration_ms
-                    }
+                        "request.duration_ms": duration_ms,
+                    },
                 )
 
             # Re-raise the exception
@@ -186,13 +196,15 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
         """Extract user context from request"""
         try:
             # Try to get user from authentication
-            if hasattr(request.state, 'user') and request.state.user:
+            if hasattr(request.state, "user") and request.state.user:
                 user = request.state.user
                 return {
-                    "user_id": str(user.id) if hasattr(user, 'id') else None,
-                    "email": getattr(user, 'email', None),
-                    "role": getattr(user, 'role', None),
-                    "organization_id": str(user.organization_id) if hasattr(user, 'organization_id') else None
+                    "user_id": str(user.id) if hasattr(user, "id") else None,
+                    "email": getattr(user, "email", None),
+                    "role": getattr(user, "role", None),
+                    "organization_id": str(user.organization_id)
+                    if hasattr(user, "organization_id")
+                    else None,
                 }
 
             # Try to get from authorization header (simplified)
@@ -233,17 +245,25 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                 "query_params": dict(request.query_params),
                 "client_ip": context["request_info"]["client_ip"],
                 "user_agent": context["request_info"]["user_agent"],
-                "user_id": context["user_context"]["user_id"] if context["user_context"] else None,
-                "organization_id": context["user_context"]["organization_id"] if context["user_context"] else None,
-                "timestamp": datetime.utcnow().isoformat()
+                "user_id": context["user_context"]["user_id"]
+                if context["user_context"]
+                else None,
+                "organization_id": context["user_context"]["organization_id"]
+                if context["user_context"]
+                else None,
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
-            logger.info(f"Request started: {request.method} {request.url.path}", extra=log_data)
+            logger.info(
+                f"Request started: {request.method} {request.url.path}", extra=log_data
+            )
 
         except Exception as e:
             logger.error(f"Error logging request start: {e}")
 
-    async def _log_request_complete(self, request: Request, response: Response, context: Dict[str, Any]):
+    async def _log_request_complete(
+        self, request: Request, response: Response, context: Dict[str, Any]
+    ):
         """Log the completion of request processing"""
         try:
             log_data = {
@@ -255,23 +275,37 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                 "status_code": response.status_code,
                 "duration_ms": context["response_info"]["duration_ms"],
                 "client_ip": context["request_info"]["client_ip"],
-                "user_id": context["user_context"]["user_id"] if context["user_context"] else None,
-                "organization_id": context["user_context"]["organization_id"] if context["user_context"] else None,
-                "timestamp": datetime.utcnow().isoformat()
+                "user_id": context["user_context"]["user_id"]
+                if context["user_context"]
+                else None,
+                "organization_id": context["user_context"]["organization_id"]
+                if context["user_context"]
+                else None,
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
             # Log at appropriate level based on status code
             if response.status_code >= 500:
-                logger.error(f"Request completed with error: {response.status_code}", extra=log_data)
+                logger.error(
+                    f"Request completed with error: {response.status_code}",
+                    extra=log_data,
+                )
             elif response.status_code >= 400:
-                logger.warning(f"Request completed with warning: {response.status_code}", extra=log_data)
+                logger.warning(
+                    f"Request completed with warning: {response.status_code}",
+                    extra=log_data,
+                )
             else:
-                logger.info(f"Request completed: {response.status_code}", extra=log_data)
+                logger.info(
+                    f"Request completed: {response.status_code}", extra=log_data
+                )
 
         except Exception as e:
             logger.error(f"Error logging request complete: {e}")
 
-    async def _log_request_error(self, request: Request, error: Exception, context: Dict[str, Any]):
+    async def _log_request_error(
+        self, request: Request, error: Exception, context: Dict[str, Any]
+    ):
         """Log request processing errors"""
         try:
             log_data = {
@@ -283,24 +317,38 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                 "error_type": type(error).__name__,
                 "error_message": str(error),
                 "client_ip": context["request_info"]["client_ip"],
-                "user_id": context["user_context"]["user_id"] if context["user_context"] else None,
-                "organization_id": context["user_context"]["organization_id"] if context["user_context"] else None,
-                "timestamp": datetime.utcnow().isoformat()
+                "user_id": context["user_context"]["user_id"]
+                if context["user_context"]
+                else None,
+                "organization_id": context["user_context"]["organization_id"]
+                if context["user_context"]
+                else None,
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
-            logger.error(f"Request failed: {type(error).__name__}: {error}", extra=log_data, exc_info=True)
+            logger.error(
+                f"Request failed: {type(error).__name__}: {error}",
+                extra=log_data,
+                exc_info=True,
+            )
 
         except Exception as e:
             logger.error(f"Error logging request error: {e}")
 
-    async def _record_metrics(self, request: Request, response: Response, duration_ms: float, user_context: Optional[Dict[str, Any]]):
+    async def _record_metrics(
+        self,
+        request: Request,
+        response: Response,
+        duration_ms: float,
+        user_context: Optional[Dict[str, Any]],
+    ):
         """Record request metrics"""
         try:
             labels = {
                 "method": request.method,
                 "path": request.url.path,
                 "status_code": str(response.status_code),
-                "service": self.monitoring_config.service_name
+                "service": self.monitoring_config.service_name,
             }
 
             # Add user context labels if available
@@ -312,8 +360,7 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
 
             # Record HTTP request metrics
             await self.observability_manager.metrics_collector.increment_counter(
-                "http_requests_total",
-                labels=labels
+                "http_requests_total", labels=labels
             )
 
             await self.observability_manager.metrics_collector.observe_histogram(
@@ -322,8 +369,8 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                 labels={
                     "method": request.method,
                     "path": request.url.path,
-                    "service": self.monitoring_config.service_name
-                }
+                    "service": self.monitoring_config.service_name,
+                },
             )
 
             # Record error metrics if applicable
@@ -334,21 +381,27 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                         "method": request.method,
                         "path": request.url.path,
                         "status_code": str(response.status_code),
-                        "service": self.monitoring_config.service_name
-                    }
+                        "service": self.monitoring_config.service_name,
+                    },
                 )
 
         except Exception as e:
             logger.error(f"Error recording metrics: {e}")
 
-    async def _record_error_metrics(self, request: Request, error: Exception, duration_ms: float, user_context: Optional[Dict[str, Any]]):
+    async def _record_error_metrics(
+        self,
+        request: Request,
+        error: Exception,
+        duration_ms: float,
+        user_context: Optional[Dict[str, Any]],
+    ):
         """Record error metrics"""
         try:
             labels = {
                 "method": request.method,
                 "path": request.url.path,
                 "error_type": type(error).__name__,
-                "service": self.monitoring_config.service_name
+                "service": self.monitoring_config.service_name,
             }
 
             # Add user context labels if available
@@ -360,8 +413,7 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
 
             # Record error metrics
             await self.observability_manager.metrics_collector.increment_counter(
-                "http_exceptions_total",
-                labels=labels
+                "http_exceptions_total", labels=labels
             )
 
             await self.observability_manager.metrics_collector.observe_histogram(
@@ -370,8 +422,8 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                 labels={
                     "method": request.method,
                     "error_type": type(error).__name__,
-                    "service": self.monitoring_config.service_name
-                }
+                    "service": self.monitoring_config.service_name,
+                },
             )
 
         except Exception as e:

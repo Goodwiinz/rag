@@ -3,17 +3,35 @@ Knowledge Graph models for entity management and relationship tracking
 """
 
 import uuid
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Enum, ForeignKey, Text, JSON, Index, Table
-from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID, ARRAY
+from datetime import datetime
+from datetime import timezone as dt_timezone
 from enum import Enum as PyEnum
-from datetime import datetime, timezone as dt_timezone
-from typing import Optional, List, Dict, Any, Union, Set
+from typing import Any, Dict, List, Optional, Set, Union
 
-from .base import BaseModel, GUID
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Table,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import relationship
+
+from .base import GUID, BaseModel
+
 
 class EntityType(PyEnum):
     """Knowledge graph entity types"""
+
     PERSON = "person"
     ORGANIZATION = "organization"
     LOCATION = "location"
@@ -39,8 +57,10 @@ class EntityType(PyEnum):
     STANDARD = "standard"
     CUSTOM = "custom"
 
+
 class RelationshipType(PyEnum):
     """Knowledge graph relationship types"""
+
     # General relationships
     RELATED_TO = "related_to"
     PART_OF = "part_of"
@@ -88,8 +108,10 @@ class RelationshipType(PyEnum):
     INTEGRATES_WITH = "integrates_with"
     INTERFACES_WITH = "interfaces_with"
 
+
 class EntitySource(PyEnum):
     """Entity extraction sources"""
+
     MANUAL = "manual"
     SPACY = "spacy"
     OPENAI = "openai"
@@ -101,13 +123,16 @@ class EntitySource(PyEnum):
     KNOWLEDGE_GRAPH = "knowledge_graph"
     CUSTOM_EXTRACTOR = "custom_extractor"
 
+
 class ConfidenceLevel(PyEnum):
     """Confidence levels for entities and relationships"""
-    VERY_LOW = "very_low"      # 0.0 - 0.2
-    LOW = "low"               # 0.2 - 0.4
-    MEDIUM = "medium"         # 0.4 - 0.6
-    HIGH = "high"             # 0.6 - 0.8
-    VERY_HIGH = "very_high"   # 0.8 - 1.0
+
+    VERY_LOW = "very_low"  # 0.0 - 0.2
+    LOW = "low"  # 0.2 - 0.4
+    MEDIUM = "medium"  # 0.4 - 0.6
+    HIGH = "high"  # 0.6 - 0.8
+    VERY_HIGH = "very_high"  # 0.8 - 1.0
+
 
 class KnowledgeEntity(BaseModel):
     """Knowledge graph entity with comprehensive metadata"""
@@ -121,8 +146,12 @@ class KnowledgeEntity(BaseModel):
     subtypes = Column(ARRAY(String), nullable=True)  # More specific types
 
     # Entity identity
-    entity_uri = Column(String(1000), nullable=True, unique=True, index=True)  # Unique identifier
-    external_ids = Column(JSON, nullable=True)  # IDs in external systems (Wikidata, etc.)
+    entity_uri = Column(
+        String(1000), nullable=True, unique=True, index=True
+    )  # Unique identifier
+    external_ids = Column(
+        JSON, nullable=True
+    )  # IDs in external systems (Wikidata, etc.)
     aliases = Column(ARRAY(String), nullable=True)  # Alternative names
     abbreviations = Column(ARRAY(String), nullable=True)  # Abbreviations
 
@@ -137,7 +166,9 @@ class KnowledgeEntity(BaseModel):
     extraction_model = Column(String(100), nullable=True)
     extraction_confidence = Column(Float, nullable=False, index=True)
     confidence_level = Column(Enum(ConfidenceLevel), nullable=True, index=True)
-    extracted_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    extracted_at = Column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
 
     # Temporal information
     valid_from = Column(DateTime(timezone=True), nullable=True)
@@ -153,9 +184,13 @@ class KnowledgeEntity(BaseModel):
     city = Column(String(100), nullable=True)
 
     # Organization and ownership
-    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=False, index=True)
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id"), nullable=False, index=True
+    )
     owner_user_id = Column(GUID(), ForeignKey("users.id"), nullable=True)
-    curator_user_id = Column(GUID(), ForeignKey("users.id"), nullable=True)  # Entity curator/manager
+    curator_user_id = Column(
+        GUID(), ForeignKey("users.id"), nullable=True
+    )  # Entity curator/manager
 
     # Validation and verification
     is_verified = Column(Boolean, default=False, nullable=False)
@@ -184,11 +219,15 @@ class KnowledgeEntity(BaseModel):
 
     # Integration with external systems
     neo4j_node_id = Column(String(255), nullable=True, index=True)
-    vector_id = Column(String(255), nullable=True)  # Vector representation for similarity
+    vector_id = Column(
+        String(255), nullable=True
+    )  # Vector representation for similarity
     embedding_model = Column(String(100), nullable=True)
 
     # Entity lifecycle
-    status = Column(String(20), nullable=False, default="active")  # active, inactive, deprecated, merged
+    status = Column(
+        String(20), nullable=False, default="active"
+    )  # active, inactive, deprecated, merged
     merged_into_id = Column(GUID(), ForeignKey("knowledge_entities.id"), nullable=True)
     deprecated_at = Column(DateTime(timezone=True), nullable=True)
     deprecation_reason = Column(Text, nullable=True)
@@ -203,26 +242,42 @@ class KnowledgeEntity(BaseModel):
     owner_user = relationship("User", foreign_keys=[owner_user_id])
     curator_user = relationship("User", foreign_keys=[curator_user_id])
     verified_by_user = relationship("User", foreign_keys=[verified_by_user_id])
-    merged_into = relationship("KnowledgeEntity", remote_side=[id], backref="merged_from")
+    merged_into = relationship(
+        "KnowledgeEntity", remote_side=[id], backref="merged_from"
+    )
 
     # Graph relationships
-    outgoing_relationships = relationship("EntityRelationship", foreign_keys="EntityRelationship.source_entity_id", back_populates="source_entity", cascade="all, delete-orphan")
-    incoming_relationships = relationship("EntityRelationship", foreign_keys="EntityRelationship.target_entity_id", back_populates="target_entity", cascade="all, delete-orphan")
+    outgoing_relationships = relationship(
+        "EntityRelationship",
+        foreign_keys="EntityRelationship.source_entity_id",
+        back_populates="source_entity",
+        cascade="all, delete-orphan",
+    )
+    incoming_relationships = relationship(
+        "EntityRelationship",
+        foreign_keys="EntityRelationship.target_entity_id",
+        back_populates="target_entity",
+        cascade="all, delete-orphan",
+    )
 
     # Content relationships
-    document_mentions = relationship("EntityDocumentMention", back_populates="entity", cascade="all, delete-orphan")
-    entity_validations = relationship("EntityValidation", back_populates="entity", cascade="all, delete-orphan")
+    document_mentions = relationship(
+        "EntityDocumentMention", back_populates="entity", cascade="all, delete-orphan"
+    )
+    entity_validations = relationship(
+        "EntityValidation", back_populates="entity", cascade="all, delete-orphan"
+    )
 
     # Indexes for performance
     __table_args__ = (
-        Index('idx_entities_org_type', 'organization_id', 'entity_type'),
-        Index('idx_entities_name_canonical', 'name', 'canonical_name'),
-        Index('idx_entities_confidence', 'extraction_confidence'),
-        Index('idx_entities_quality', 'quality_score'),
-        Index('idx_entities_status', 'status'),
-        Index('idx_entities_neo4j', 'neo4j_node_id'),
-        Index('idx_entities_coordinates', 'latitude', 'longitude'),
-        Index('idx_entities_temporal', 'valid_from', 'valid_to'),
+        Index("idx_entities_org_type", "organization_id", "entity_type"),
+        Index("idx_entities_name_canonical", "name", "canonical_name"),
+        Index("idx_entities_confidence", "extraction_confidence"),
+        Index("idx_entities_quality", "quality_score"),
+        Index("idx_entities_status", "status"),
+        Index("idx_entities_neo4j", "neo4j_node_id"),
+        Index("idx_entities_coordinates", "latitude", "longitude"),
+        Index("idx_entities_temporal", "valid_from", "valid_to"),
     )
 
     def __repr__(self):
@@ -303,7 +358,12 @@ class KnowledgeEntity(BaseModel):
             return default
         return self.custom_attributes.get(key, default)
 
-    def update_quality_scores(self, completeness: float = None, accuracy: float = None, freshness: float = None):
+    def update_quality_scores(
+        self,
+        completeness: float = None,
+        accuracy: float = None,
+        freshness: float = None,
+    ):
         """Update quality scores"""
         if completeness is not None:
             self.completeness_score = completeness
@@ -317,7 +377,7 @@ class KnowledgeEntity(BaseModel):
             self.completeness_score or 0.5,
             self.accuracy_score or 0.5,
             self.freshness_score or 0.5,
-            self.extraction_confidence
+            self.extraction_confidence,
         ]
         self.quality_score = sum(scores) / len(scores)
 
@@ -337,13 +397,15 @@ class KnowledgeEntity(BaseModel):
         if merge_reason:
             self.deprecation_reason = merge_reason
 
-    def add_mention(self, document_id: uuid.UUID, context: str = None, confidence: float = None):
+    def add_mention(
+        self, document_id: uuid.UUID, context: str = None, confidence: float = None
+    ):
         """Add a document mention (creates mention record)"""
         mention = EntityDocumentMention(
             entity_id=self.id,
             document_id=document_id,
             mention_context=context,
-            confidence=confidence or self.extraction_confidence
+            confidence=confidence or self.extraction_confidence,
         )
         self.mention_count += 1
         self.last_mentioned_at = datetime.utcnow()
@@ -354,51 +416,64 @@ class KnowledgeEntity(BaseModel):
         self.degree_centrality = float(relationship_count)
         # Note: betweenness_centrality and pagerank_score would require graph analysis
 
-    def to_dict(self, include_relationships: bool = False, include_attributes: bool = True) -> Dict[str, Any]:
+    def to_dict(
+        self, include_relationships: bool = False, include_attributes: bool = True
+    ) -> Dict[str, Any]:
         """Convert to dictionary"""
         data = super().to_dict()
 
         # Convert enum values
-        data.update({
-            'entity_type': self.entity_type.value if self.entity_type else None,
-            'source': self.source.value if self.source else None,
-            'confidence_level': self.confidence_level.value if self.confidence_level else None
-        })
+        data.update(
+            {
+                "entity_type": self.entity_type.value if self.entity_type else None,
+                "source": self.source.value if self.source else None,
+                "confidence_level": self.confidence_level.value
+                if self.confidence_level
+                else None,
+            }
+        )
 
         # Add computed properties
-        data.update({
-            'all_names': list(self.all_names),
-            'display_name': self.display_name,
-            'is_active': self.is_active,
-            'confidence_description': self.confidence_description
-        })
+        data.update(
+            {
+                "all_names": list(self.all_names),
+                "display_name": self.display_name,
+                "is_active": self.is_active,
+                "confidence_description": self.confidence_description,
+            }
+        )
 
         # Include/exclude data based on parameters
         if not include_attributes:
-            data.pop('custom_attributes', None)
-            data.pop('key_attributes', None)
+            data.pop("custom_attributes", None)
+            data.pop("key_attributes", None)
 
         if include_relationships:
-            data['relationships'] = {
-                'outgoing': [rel.to_dict() for rel in self.outgoing_relationships],
-                'incoming': [rel.to_dict() for rel in self.incoming_relationships]
+            data["relationships"] = {
+                "outgoing": [rel.to_dict() for rel in self.outgoing_relationships],
+                "incoming": [rel.to_dict() for rel in self.incoming_relationships],
             }
 
         return data
 
     @classmethod
-    def search_entities(cls, search_term: str, organization_id: Optional[uuid.UUID] = None,
-                       entity_types: Optional[List[EntityType]] = None, limit: int = 50) -> List:
+    def search_entities(
+        cls,
+        search_term: str,
+        organization_id: Optional[uuid.UUID] = None,
+        entity_types: Optional[List[EntityType]] = None,
+        limit: int = 50,
+    ) -> List:
         """Search entities by name, aliases, or description"""
         from sqlalchemy import or_
 
         query = cls.query.filter(
             or_(
-                cls.name.ilike(f'%{search_term}%'),
-                cls.canonical_name.ilike(f'%{search_term}%'),
-                cls.description.ilike(f'%{search_term}%')
+                cls.name.ilike(f"%{search_term}%"),
+                cls.canonical_name.ilike(f"%{search_term}%"),
+                cls.description.ilike(f"%{search_term}%"),
             ),
-            cls.is_deleted == False
+            cls.is_deleted == False,
         )
 
         if organization_id:
@@ -410,11 +485,12 @@ class KnowledgeEntity(BaseModel):
         return query.limit(limit).all()
 
     @classmethod
-    def get_entities_by_type(cls, entity_type: EntityType, organization_id: Optional[uuid.UUID] = None) -> List:
+    def get_entities_by_type(
+        cls, entity_type: EntityType, organization_id: Optional[uuid.UUID] = None
+    ) -> List:
         """Get entities by type"""
         query = cls.query.filter(
-            cls.entity_type == entity_type,
-            cls.is_deleted == False
+            cls.entity_type == entity_type, cls.is_deleted == False
         )
 
         if organization_id:
@@ -423,11 +499,13 @@ class KnowledgeEntity(BaseModel):
         return query.all()
 
     @classmethod
-    def get_popular_entities(cls, organization_id: Optional[uuid.UUID] = None, limit: int = 100) -> List:
+    def get_popular_entities(
+        cls, organization_id: Optional[uuid.UUID] = None, limit: int = 100
+    ) -> List:
         """Get most popular entities by mention count"""
-        query = cls.query.filter(
-            cls.is_deleted == False
-        ).order_by(cls.mention_count.desc())
+        query = cls.query.filter(cls.is_deleted == False).order_by(
+            cls.mention_count.desc()
+        )
 
         if organization_id:
             query = query.filter(cls.organization_id == organization_id)
@@ -441,13 +519,19 @@ class EntityRelationship(BaseModel):
     __tablename__ = "entity_relationships"
 
     # Relationship endpoints
-    source_entity_id = Column(GUID(), ForeignKey("knowledge_entities.id"), nullable=False, index=True)
-    target_entity_id = Column(GUID(), ForeignKey("knowledge_entities.id"), nullable=False, index=True)
+    source_entity_id = Column(
+        GUID(), ForeignKey("knowledge_entities.id"), nullable=False, index=True
+    )
+    target_entity_id = Column(
+        GUID(), ForeignKey("knowledge_entities.id"), nullable=False, index=True
+    )
     relationship_type = Column(Enum(RelationshipType), nullable=False, index=True)
 
     # Relationship direction and properties
     is_bidirectional = Column(Boolean, default=False, nullable=False)
-    inverse_relationship_type = Column(Enum(RelationshipType), nullable=True)  # For bidirectional relationships
+    inverse_relationship_type = Column(
+        Enum(RelationshipType), nullable=True
+    )  # For bidirectional relationships
 
     # Relationship attributes
     properties = Column(JSON, nullable=True)  # Relationship-specific attributes
@@ -458,15 +542,21 @@ class EntityRelationship(BaseModel):
     # Temporal information
     valid_from = Column(DateTime(timezone=True), nullable=True)
     valid_to = Column(DateTime(timezone=True), nullable=True)
-    relationship_date = Column(DateTime(timezone=True), nullable=True)  # When the relationship occurred
+    relationship_date = Column(
+        DateTime(timezone=True), nullable=True
+    )  # When the relationship occurred
 
     # Source and extraction information
     source = Column(Enum(EntitySource), nullable=False)
     extraction_model = Column(String(100), nullable=True)
-    extracted_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    extracted_at = Column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
 
     # Context and evidence
-    source_documents = Column(ARRAY(GUID()), nullable=True)  # Documents that support this relationship
+    source_documents = Column(
+        ARRAY(GUID()), nullable=True
+    )  # Documents that support this relationship
     evidence_text = Column(Text, nullable=True)  # Text evidence for relationship
     context = Column(JSON, nullable=True)  # Additional context
 
@@ -485,18 +575,26 @@ class EntityRelationship(BaseModel):
     neo4j_relationship_id = Column(String(255), nullable=True)
 
     # Relationships
-    source_entity = relationship("KnowledgeEntity", foreign_keys=[source_entity_id], back_populates="outgoing_relationships")
-    target_entity = relationship("KnowledgeEntity", foreign_keys=[target_entity_id], back_populates="incoming_relationships")
+    source_entity = relationship(
+        "KnowledgeEntity",
+        foreign_keys=[source_entity_id],
+        back_populates="outgoing_relationships",
+    )
+    target_entity = relationship(
+        "KnowledgeEntity",
+        foreign_keys=[target_entity_id],
+        back_populates="incoming_relationships",
+    )
     verified_by_user = relationship("User", foreign_keys=[verified_by_user_id])
 
     # Indexes for performance
     __table_args__ = (
-        Index('idx_relationships_source_type', 'source_entity_id', 'relationship_type'),
-        Index('idx_relationships_target_type', 'target_entity_id', 'relationship_type'),
-        Index('idx_relationships_confidence', 'confidence'),
-        Index('idx_relationships_weight', 'weight'),
-        Index('idx_relationships_temporal', 'valid_from', 'valid_to'),
-        Index('idx_relationships_neo4j', 'neo4j_relationship_id'),
+        Index("idx_relationships_source_type", "source_entity_id", "relationship_type"),
+        Index("idx_relationships_target_type", "target_entity_id", "relationship_type"),
+        Index("idx_relationships_confidence", "confidence"),
+        Index("idx_relationships_weight", "weight"),
+        Index("idx_relationships_temporal", "valid_from", "valid_to"),
+        Index("idx_relationships_neo4j", "neo4j_relationship_id"),
     )
 
     def __repr__(self):
@@ -532,28 +630,36 @@ class EntityRelationship(BaseModel):
         data = super().to_dict()
 
         # Convert enum values
-        data.update({
-            'relationship_type': self.relationship_type.value if self.relationship_type else None,
-            'confidence_level': self.confidence_level.value if self.confidence_level else None,
-            'source': self.source.value if self.source else None,
-            'inverse_relationship_type': self.inverse_relationship_type.value if self.inverse_relationship_type else None
-        })
+        data.update(
+            {
+                "relationship_type": self.relationship_type.value
+                if self.relationship_type
+                else None,
+                "confidence_level": self.confidence_level.value
+                if self.confidence_level
+                else None,
+                "source": self.source.value if self.source else None,
+                "inverse_relationship_type": self.inverse_relationship_type.value
+                if self.inverse_relationship_type
+                else None,
+            }
+        )
 
         # Add computed properties
-        data['is_valid_now'] = self.is_valid_now
+        data["is_valid_now"] = self.is_valid_now
 
         # Include related entity information
         if self.source_entity:
-            data['source_entity'] = {
-                'id': str(self.source_entity.id),
-                'name': self.source_entity.display_name,
-                'type': self.source_entity.entity_type.value
+            data["source_entity"] = {
+                "id": str(self.source_entity.id),
+                "name": self.source_entity.display_name,
+                "type": self.source_entity.entity_type.value,
             }
         if self.target_entity:
-            data['target_entity'] = {
-                'id': str(self.target_entity.id),
-                'name': self.target_entity.display_name,
-                'type': self.target_entity.entity_type.value
+            data["target_entity"] = {
+                "id": str(self.target_entity.id),
+                "name": self.target_entity.display_name,
+                "type": self.target_entity.entity_type.value,
             }
 
         return data
@@ -564,8 +670,12 @@ class EntityDocumentMention(BaseModel):
 
     __tablename__ = "entity_document_mentions"
 
-    entity_id = Column(GUID(), ForeignKey("knowledge_entities.id"), nullable=False, index=True)
-    document_id = Column(GUID(), ForeignKey("enhanced_documents.id"), nullable=False, index=True)
+    entity_id = Column(
+        GUID(), ForeignKey("knowledge_entities.id"), nullable=False, index=True
+    )
+    document_id = Column(
+        GUID(), ForeignKey("enhanced_documents.id"), nullable=False, index=True
+    )
 
     # Mention location and context
     mention_text = Column(Text, nullable=False)  # Exact text that mentions the entity
@@ -577,11 +687,17 @@ class EntityDocumentMention(BaseModel):
 
     # Mention attributes
     confidence = Column(Float, nullable=False)
-    is_coreference = Column(Boolean, default=False, nullable=False)  # Is this a coreference mention?
-    mention_type = Column(String(50), nullable=True)  # exact, partial, abbreviation, etc.
+    is_coreference = Column(
+        Boolean, default=False, nullable=False
+    )  # Is this a coreference mention?
+    mention_type = Column(
+        String(50), nullable=True
+    )  # exact, partial, abbreviation, etc.
 
     # Extraction information
-    extracted_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    extracted_at = Column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
     extraction_model = Column(String(100), nullable=True)
 
     # Relationships
@@ -590,10 +706,10 @@ class EntityDocumentMention(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_mentions_entity_document', 'entity_id', 'document_id'),
-        Index('idx_mentions_document', 'document_id'),
-        Index('idx_mentions_confidence', 'confidence'),
-        Index('idx_mentions_location', 'mention_start', 'mention_end'),
+        Index("idx_mentions_entity_document", "entity_id", "document_id"),
+        Index("idx_mentions_document", "document_id"),
+        Index("idx_mentions_confidence", "confidence"),
+        Index("idx_mentions_location", "mention_start", "mention_end"),
     )
 
     def __repr__(self):
@@ -609,14 +725,14 @@ class EntityDocumentMention(BaseModel):
         data = super().to_dict()
 
         # Add computed properties
-        data['mention_length'] = self.mention_length
+        data["mention_length"] = self.mention_length
 
         # Include related entity information
         if self.entity:
-            data['entity'] = {
-                'id': str(self.entity.id),
-                'name': self.entity.display_name,
-                'type': self.entity.entity_type.value
+            data["entity"] = {
+                "id": str(self.entity.id),
+                "name": self.entity.display_name,
+                "type": self.entity.entity_type.value,
             }
 
         return data
@@ -630,8 +746,12 @@ class EntityValidation(BaseModel):
     entity_id = Column(GUID(), ForeignKey("knowledge_entities.id"), nullable=False)
 
     # Validation details
-    validation_type = Column(String(50), nullable=False)  # accuracy, completeness, consistency, etc.
-    validation_status = Column(String(20), nullable=False)  # passed, failed, needs_review
+    validation_type = Column(
+        String(50), nullable=False
+    )  # accuracy, completeness, consistency, etc.
+    validation_status = Column(
+        String(20), nullable=False
+    )  # passed, failed, needs_review
     validation_score = Column(Float, nullable=True)
 
     # Validation criteria and results
@@ -642,8 +762,12 @@ class EntityValidation(BaseModel):
 
     # Validation metadata
     validated_by_user_id = Column(GUID(), ForeignKey("users.id"), nullable=True)
-    validated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    validation_method = Column(String(50), nullable=True)  # manual, automated, peer_review
+    validated_at = Column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
+    validation_method = Column(
+        String(50), nullable=True
+    )  # manual, automated, peer_review
     comments = Column(Text, nullable=True)
 
     # Relationships
@@ -653,21 +777,27 @@ class EntityValidation(BaseModel):
 
 # Association table for many-to-many relationships between entities and categories
 entity_categories = Table(
-    'entity_categories',
+    "entity_categories",
     BaseModel.metadata,
-    Column('entity_id', GUID(), ForeignKey('knowledge_entities.id'), primary_key=True),
-    Column('category_id', GUID(), ForeignKey('categories.id'), primary_key=True),
-    Column('confidence', Float, default=1.0, nullable=False),
-    Column('assigned_at', DateTime(timezone=True), server_default='now()', nullable=False)
+    Column("entity_id", GUID(), ForeignKey("knowledge_entities.id"), primary_key=True),
+    Column("category_id", GUID(), ForeignKey("categories.id"), primary_key=True),
+    Column("confidence", Float, default=1.0, nullable=False),
+    Column(
+        "assigned_at", DateTime(timezone=True), server_default="now()", nullable=False
+    ),
 )
 
 # Association table for entity synonyms and variations
 entity_synonyms = Table(
-    'entity_synonyms',
+    "entity_synonyms",
     BaseModel.metadata,
-    Column('entity_id', GUID(), ForeignKey('knowledge_entities.id'), primary_key=True),
-    Column('synonym_text', String(500), primary_key=True),
-    Column('synonym_type', String(50), nullable=False),  # alias, abbreviation, translation, etc.
-    Column('confidence', Float, default=1.0, nullable=False),
-    Column('created_at', DateTime(timezone=True), server_default='now()', nullable=False)
+    Column("entity_id", GUID(), ForeignKey("knowledge_entities.id"), primary_key=True),
+    Column("synonym_text", String(500), primary_key=True),
+    Column(
+        "synonym_type", String(50), nullable=False
+    ),  # alias, abbreviation, translation, etc.
+    Column("confidence", Float, default=1.0, nullable=False),
+    Column(
+        "created_at", DateTime(timezone=True), server_default="now()", nullable=False
+    ),
 )

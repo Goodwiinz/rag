@@ -7,28 +7,35 @@ import asyncio
 import logging
 import uuid
 from contextlib import asynccontextmanager
-from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
 import redis.asyncio as redis
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession
-from sqlalchemy.ext.asyncio import AsyncSession as SQLAsyncSession
 from celery import Celery
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from neo4j import AsyncDriver, AsyncGraphDatabase, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAsyncSession
 
 from .config.analytics_config import GraphAnalyticsConfig
-from .models.analytics_models import (
-    CentralityRequest, CentralityResponse, PathRequest, PathResponse,
-    CommunityRequest, CommunityResponse, AnalyticsJobRequest, AnalyticsJobResponse,
-    GraphInsightsRequest, GraphInsightsResponse
-)
-from .core.database import get_async_db
 from .core.auth import get_current_user
 from .core.cache import analytics_cache, cache_get, cache_set
-from .services.graph_algorithms import GraphAlgorithms
-from .services.background_job_processor import BackgroundJobProcessor
+from .core.database import get_async_db
+from .models.analytics_models import (
+    AnalyticsJobRequest,
+    AnalyticsJobResponse,
+    CentralityRequest,
+    CentralityResponse,
+    CommunityRequest,
+    CommunityResponse,
+    GraphInsightsRequest,
+    GraphInsightsResponse,
+    PathRequest,
+    PathResponse,
+)
 from .services.analytics_scheduler import AnalyticsScheduler
+from .services.background_job_processor import BackgroundJobProcessor
+from .services.graph_algorithms import GraphAlgorithms
 from .services.tenant_service import TenantService
 
 logger = logging.getLogger(__name__)
@@ -36,9 +43,9 @@ config = GraphAnalyticsConfig()
 
 # Initialize Celery for background processing
 celery_app = Celery(
-    'graph_analytics',
+    "graph_analytics",
     broker=config.CELERY_BROKER_URL,
-    backend=config.CELERY_RESULT_BACKEND
+    backend=config.CELERY_RESULT_BACKEND,
 )
 
 # Global services
@@ -46,6 +53,7 @@ graph_algorithms = GraphAlgorithms()
 job_processor = BackgroundJobProcessor()
 analytics_scheduler = AnalyticsScheduler()
 tenant_service = TenantService()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -58,7 +66,7 @@ async def lifespan(app: FastAPI):
         config.NEO4J_URI,
         auth=(config.NEO4J_USER, config.NEO4J_PASSWORD),
         max_connection_lifetime=3600,
-        max_connection_pool_size=50
+        max_connection_pool_size=50,
     )
 
     # Initialize Redis
@@ -83,6 +91,7 @@ async def lifespan(app: FastAPI):
     await app.state.redis_client.close()
     logger.info("Graph Analytics Service shutdown complete")
 
+
 async def test_connections(app):
     """Test database connections"""
     try:
@@ -99,13 +108,14 @@ async def test_connections(app):
         logger.error(f"Connection test failed: {e}")
         raise
 
+
 app = FastAPI(
     title="Graph Analytics Service",
     version="1.0.0",
     description="Graph algorithms and analytics processing service",
     lifespan=lifespan,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 # Add CORS middleware
@@ -117,26 +127,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 async def get_neo4j_session(app) -> AsyncSession:
     """Get Neo4j session"""
     return app.state.neo4j_driver.session()
+
 
 async def get_redis_client(app):
     """Get Redis client"""
     return app.state.redis_client
 
+
 # Centrality Analysis Endpoints
 @app.post("/analytics/centrality", response_model=CentralityResponse)
 async def compute_centrality(
     request: CentralityRequest,
-    current_user = Depends(get_current_user),
-    neo4j_session = Depends(get_neo4j_session),
-    redis_client = Depends(get_redis_client)
+    current_user=Depends(get_current_user),
+    neo4j_session=Depends(get_neo4j_session),
+    redis_client=Depends(get_redis_client),
 ):
     """Compute centrality metrics for nodes"""
     try:
         # Verify tenant access
-        await tenant_service.verify_tenant_access(current_user.tenant_id, "analytics:centrality")
+        await tenant_service.verify_tenant_access(
+            current_user.tenant_id, "analytics:centrality"
+        )
 
         # Check cache first
         cache_key = f"centrality:{request.algorithm}:{request.entity_types}:{current_user.tenant_id}"
@@ -150,38 +165,41 @@ async def compute_centrality(
                 neo4j_session,
                 entity_types=request.entity_types,
                 tenant_id=current_user.tenant_id,
-                limit=request.limit
+                limit=request.limit,
             )
         elif request.algorithm == "betweenness":
             results = await graph_algorithms.compute_betweenness_centrality(
                 neo4j_session,
                 entity_types=request.entity_types,
                 tenant_id=current_user.tenant_id,
-                limit=request.limit
+                limit=request.limit,
             )
         elif request.algorithm == "closeness":
             results = await graph_algorithms.compute_closeness_centrality(
                 neo4j_session,
                 entity_types=request.entity_types,
                 tenant_id=current_user.tenant_id,
-                limit=request.limit
+                limit=request.limit,
             )
         elif request.algorithm == "degree":
             results = await graph_algorithms.compute_degree_centrality(
                 neo4j_session,
                 entity_types=request.entity_types,
                 tenant_id=current_user.tenant_id,
-                limit=request.limit
+                limit=request.limit,
             )
         else:
-            raise HTTPException(status_code=400, detail=f"Unknown centrality algorithm: {request.algorithm}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown centrality algorithm: {request.algorithm}",
+            )
 
         response = CentralityResponse(
             algorithm=request.algorithm,
             results=results,
             computation_time=results.get("computation_time", 0.0),
             node_count=results.get("node_count", 0),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
         # Cache results
@@ -195,16 +213,19 @@ async def compute_centrality(
         logger.error(f"Error computing centrality: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/analytics/paths", response_model=PathResponse)
 async def find_shortest_paths(
     request: PathRequest,
-    current_user = Depends(get_current_user),
-    neo4j_session = Depends(get_neo4j_session),
-    redis_client = Depends(get_redis_client)
+    current_user=Depends(get_current_user),
+    neo4j_session=Depends(get_neo4j_session),
+    redis_client=Depends(get_redis_client),
 ):
     """Find shortest paths between entities"""
     try:
-        await tenant_service.verify_tenant_access(current_user.tenant_id, "analytics:paths")
+        await tenant_service.verify_tenant_access(
+            current_user.tenant_id, "analytics:paths"
+        )
 
         # Check cache
         cache_key = f"paths:{request.source_entity_id}:{request.target_entity_id}:{request.algorithm}:{current_user.tenant_id}"
@@ -220,7 +241,7 @@ async def find_shortest_paths(
                 request.target_entity_id,
                 current_user.tenant_id,
                 weight_property=request.weight_property,
-                max_paths=request.max_paths
+                max_paths=request.max_paths,
             )
         elif request.algorithm == "bfs":
             paths = await graph_algorithms.find_shortest_path_bfs(
@@ -229,10 +250,12 @@ async def find_shortest_paths(
                 request.target_entity_id,
                 current_user.tenant_id,
                 max_depth=request.max_depth,
-                max_paths=request.max_paths
+                max_paths=request.max_paths,
             )
         else:
-            raise HTTPException(status_code=400, detail=f"Unknown path algorithm: {request.algorithm}")
+            raise HTTPException(
+                status_code=400, detail=f"Unknown path algorithm: {request.algorithm}"
+            )
 
         response = PathResponse(
             source_entity_id=request.source_entity_id,
@@ -241,7 +264,7 @@ async def find_shortest_paths(
             paths=paths,
             computation_time=paths.get("computation_time", 0.0),
             path_count=len(paths.get("paths", [])),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
         # Cache results
@@ -255,16 +278,19 @@ async def find_shortest_paths(
         logger.error(f"Error finding shortest paths: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/analytics/communities", response_model=CommunityResponse)
 async def detect_communities(
     request: CommunityRequest,
-    current_user = Depends(get_current_user),
-    neo4j_session = Depends(get_neo4j_session),
-    redis_client = Depends(get_redis_client)
+    current_user=Depends(get_current_user),
+    neo4j_session=Depends(get_neo4j_session),
+    redis_client=Depends(get_redis_client),
 ):
     """Detect communities in the graph"""
     try:
-        await tenant_service.verify_tenant_access(current_user.tenant_id, "analytics:communities")
+        await tenant_service.verify_tenant_access(
+            current_user.tenant_id, "analytics:communities"
+        )
 
         # Check cache
         cache_key = f"communities:{request.algorithm}:{request.entity_types}:{current_user.tenant_id}"
@@ -278,17 +304,20 @@ async def detect_communities(
                 neo4j_session,
                 entity_types=request.entity_types,
                 tenant_id=current_user.tenant_id,
-                resolution=request.resolution
+                resolution=request.resolution,
             )
         elif request.algorithm == "label_propagation":
             communities = await graph_algorithms.detect_communities_label_propagation(
                 neo4j_session,
                 entity_types=request.entity_types,
                 tenant_id=current_user.tenant_id,
-                max_iterations=request.max_iterations
+                max_iterations=request.max_iterations,
             )
         else:
-            raise HTTPException(status_code=400, detail=f"Unknown community detection algorithm: {request.algorithm}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown community detection algorithm: {request.algorithm}",
+            )
 
         response = CommunityResponse(
             algorithm=request.algorithm,
@@ -296,7 +325,7 @@ async def detect_communities(
             computation_time=communities.get("computation_time", 0.0),
             community_count=communities.get("community_count", 0),
             modularity_score=communities.get("modularity_score", 0.0),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
         # Cache results
@@ -310,17 +339,20 @@ async def detect_communities(
         logger.error(f"Error detecting communities: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # Background Job Processing
 @app.post("/analytics/jobs", response_model=AnalyticsJobResponse)
 async def submit_analytics_job(
     request: AnalyticsJobRequest,
     background_tasks: BackgroundTasks,
-    current_user = Depends(get_current_user),
-    db: SQLAsyncSession = Depends(get_async_db)
+    current_user=Depends(get_current_user),
+    db: SQLAsyncSession = Depends(get_async_db),
 ):
     """Submit analytics job for background processing"""
     try:
-        await tenant_service.verify_tenant_access(current_user.tenant_id, "analytics:jobs")
+        await tenant_service.verify_tenant_access(
+            current_user.tenant_id, "analytics:jobs"
+        )
 
         job_id = str(uuid.uuid4())
 
@@ -331,7 +363,7 @@ async def submit_analytics_job(
             status="queued",
             parameters=request.parameters,
             tenant_id=current_user.tenant_id,
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
 
         # Submit background task
@@ -340,7 +372,7 @@ async def submit_analytics_job(
             job_id,
             request.job_type,
             request.parameters,
-            current_user.tenant_id
+            current_user.tenant_id,
         )
 
         return job_response
@@ -349,11 +381,12 @@ async def submit_analytics_job(
         logger.error(f"Error submitting analytics job: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/analytics/jobs/{job_id}", response_model=AnalyticsJobResponse)
 async def get_job_status(
     job_id: str,
-    current_user = Depends(get_current_user),
-    redis_client = Depends(get_redis_client)
+    current_user=Depends(get_current_user),
+    redis_client=Depends(get_redis_client),
 ):
     """Get status of analytics job"""
     try:
@@ -371,12 +404,13 @@ async def get_job_status(
         logger.error(f"Error getting job status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/analytics/jobs", response_model=List[AnalyticsJobResponse])
 async def list_jobs(
-    current_user = Depends(get_current_user),
-    redis_client = Depends(get_redis_client),
+    current_user=Depends(get_current_user),
+    redis_client=Depends(get_redis_client),
     limit: int = 50,
-    status: Optional[str] = None
+    status: Optional[str] = None,
 ):
     """List analytics jobs for tenant"""
     try:
@@ -388,17 +422,20 @@ async def list_jobs(
         logger.error(f"Error listing jobs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # Graph Insights
 @app.post("/analytics/insights", response_model=GraphInsightsResponse)
 async def generate_graph_insights(
     request: GraphInsightsRequest,
-    current_user = Depends(get_current_user),
-    neo4j_session = Depends(get_neo4j_session),
-    redis_client = Depends(get_redis_client)
+    current_user=Depends(get_current_user),
+    neo4j_session=Depends(get_neo4j_session),
+    redis_client=Depends(get_redis_client),
 ):
     """Generate comprehensive graph insights"""
     try:
-        await tenant_service.verify_tenant_access(current_user.tenant_id, "analytics:insights")
+        await tenant_service.verify_tenant_access(
+            current_user.tenant_id, "analytics:insights"
+        )
 
         # Check cache
         cache_key = f"insights:{request.insight_types}:{current_user.tenant_id}"
@@ -415,7 +452,9 @@ async def generate_graph_insights(
                     neo4j_session, current_user.tenant_id
                 )
             elif insight_type == "bridge_entities":
-                insights["bridge_entities"] = await graph_algorithms.find_bridge_entities(
+                insights[
+                    "bridge_entities"
+                ] = await graph_algorithms.find_bridge_entities(
                     neo4j_session, current_user.tenant_id
                 )
             elif insight_type == "clusters":
@@ -427,7 +466,9 @@ async def generate_graph_insights(
                     neo4j_session, current_user.tenant_id
                 )
             elif insight_type == "growth_trends":
-                insights["growth_trends"] = await graph_algorithms.analyze_growth_trends(
+                insights[
+                    "growth_trends"
+                ] = await graph_algorithms.analyze_growth_trends(
                     neo4j_session, current_user.tenant_id
                 )
 
@@ -435,7 +476,7 @@ async def generate_graph_insights(
             insights=insights,
             insight_types=request.insight_types,
             computation_time=insights.get("computation_time", 0.0),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
         # Cache results
@@ -449,46 +490,50 @@ async def generate_graph_insights(
         logger.error(f"Error generating graph insights: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # Scheduled Analytics
 @app.post("/analytics/schedule")
 async def schedule_recurring_analytics(
     job_type: str,
     schedule: str,  # Cron expression
     parameters: Dict[str, Any],
-    current_user = Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
     """Schedule recurring analytics job"""
     try:
-        await tenant_service.verify_tenant_access(current_user.tenant_id, "analytics:schedule")
+        await tenant_service.verify_tenant_access(
+            current_user.tenant_id, "analytics:schedule"
+        )
 
         schedule_id = await analytics_scheduler.schedule_job(
-            job_type,
-            schedule,
-            parameters,
-            current_user.tenant_id
+            job_type, schedule, parameters, current_user.tenant_id
         )
 
         return {
             "schedule_id": schedule_id,
             "job_type": job_type,
             "schedule": schedule,
-            "status": "scheduled"
+            "status": "scheduled",
         }
 
     except Exception as e:
         logger.error(f"Error scheduling analytics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.delete("/analytics/schedule/{schedule_id}")
 async def cancel_scheduled_analytics(
-    schedule_id: str,
-    current_user = Depends(get_current_user)
+    schedule_id: str, current_user=Depends(get_current_user)
 ):
     """Cancel scheduled analytics job"""
     try:
-        await tenant_service.verify_tenant_access(current_user.tenant_id, "analytics:schedule")
+        await tenant_service.verify_tenant_access(
+            current_user.tenant_id, "analytics:schedule"
+        )
 
-        success = await analytics_scheduler.cancel_job(schedule_id, current_user.tenant_id)
+        success = await analytics_scheduler.cancel_job(
+            schedule_id, current_user.tenant_id
+        )
 
         if success:
             return {"message": "Schedule cancelled successfully"}
@@ -500,6 +545,7 @@ async def cancel_scheduled_analytics(
     except Exception as e:
         logger.error(f"Error cancelling scheduled analytics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # Health check endpoint
 @app.get("/health")
@@ -524,15 +570,16 @@ async def health_check(app):
             "neo4j": "connected",
             "redis": "connected",
             "celery": "active" if stats else "inactive",
-            "active_workers": len(stats) if stats else 0
+            "active_workers": len(stats) if stats else 0,
         }
     except Exception as e:
         return {
             "status": "unhealthy",
             "service": "graph-analytics",
             "port": 8009,
-            "error": str(e)
+            "error": str(e),
         }
+
 
 if __name__ == "__main__":
     import uvicorn
@@ -542,5 +589,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8009,
         reload=config.DEBUG,
-        log_level="info"
+        log_level="info",
     )

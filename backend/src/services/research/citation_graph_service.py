@@ -15,7 +15,7 @@ import math
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
-from neo4j import AsyncGraphDatabase, AsyncDriver
+from neo4j import AsyncDriver, AsyncGraphDatabase
 from structlog import get_logger
 
 from src.core.config import settings
@@ -441,9 +441,7 @@ class CitationGraphService:
 
         # Normalize scores to 0-100
         max_score = max(r["raw_score"] for r in records) or 1
-        return {
-            r["id"]: round((r["raw_score"] / max_score) * 100, 2) for r in records
-        }
+        return {r["id"]: round((r["raw_score"] / max_score) * 100, 2) for r in records}
 
     # =========================================================================
     # Layout Computation

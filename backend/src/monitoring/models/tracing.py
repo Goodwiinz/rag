@@ -7,15 +7,28 @@ Models for storing distributed tracing data including traces, spans, and events.
 import uuid
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, String, Float, Integer, DateTime, Boolean, Text, JSON, Index, ForeignKey
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from src.models.base import BaseModel
 
 
 class SpanStatus(str, Enum):
     """Span status codes"""
+
     OK = "ok"
     ERROR = "error"
     CANCELLED = "cancelled"
@@ -36,6 +49,7 @@ class SpanStatus(str, Enum):
 
 class SpanKind(str, Enum):
     """Span kinds"""
+
     INTERNAL = "internal"
     SERVER = "server"
     CLIENT = "client"
@@ -45,6 +59,7 @@ class SpanKind(str, Enum):
 
 class Trace(BaseModel):
     """Trace object containing multiple spans"""
+
     __tablename__ = "monitoring_traces"
 
     trace_id = Column(String(128), unique=True, nullable=False, index=True)
@@ -62,26 +77,36 @@ class Trace(BaseModel):
 
     # Sampling and processing info
     sampled = Column(Boolean, default=True)
-    processing_status = Column(String(50), default="pending")  # pending, processed, failed
+    processing_status = Column(
+        String(50), default="pending"
+    )  # pending, processed, failed
 
     # Relationships
     spans = relationship("Span", back_populates="trace", cascade="all, delete-orphan")
-    errors = relationship("TraceError", back_populates="trace", cascade="all, delete-orphan")
+    errors = relationship(
+        "TraceError", back_populates="trace", cascade="all, delete-orphan"
+    )
 
     # Indexes
     __table_args__ = (
-        Index('idx_traces_service_time', 'service_name', 'start_time'),
-        Index('idx_traces_operation_time', 'operation_name', 'start_time'),
-        Index('idx_traces_status_time', 'status', 'start_time'),
-        Index('idx_traces_duration', 'duration_ms'),
+        Index("idx_traces_service_time", "service_name", "start_time"),
+        Index("idx_traces_operation_time", "operation_name", "start_time"),
+        Index("idx_traces_status_time", "status", "start_time"),
+        Index("idx_traces_duration", "duration_ms"),
     )
 
 
 class Span(BaseModel):
     """Individual span within a trace"""
+
     __tablename__ = "monitoring_spans"
 
-    trace_id = Column(String(128), ForeignKey("monitoring_traces.trace_id"), nullable=False, index=True)
+    trace_id = Column(
+        String(128),
+        ForeignKey("monitoring_traces.trace_id"),
+        nullable=False,
+        index=True,
+    )
     span_id = Column(String(128), unique=True, nullable=False, index=True)
     parent_span_id = Column(String(128))  # Can be null for root spans
     operation_name = Column(String(255), nullable=False)
@@ -108,23 +133,30 @@ class Span(BaseModel):
 
     # Relationships
     trace = relationship("Trace", back_populates="spans")
-    events = relationship("SpanEvent", back_populates="span", cascade="all, delete-orphan")
-    links = relationship("SpanLink", back_populates="span", cascade="all, delete-orphan")
+    events = relationship(
+        "SpanEvent", back_populates="span", cascade="all, delete-orphan"
+    )
+    links = relationship(
+        "SpanLink", back_populates="span", cascade="all, delete-orphan"
+    )
 
     # Indexes
     __table_args__ = (
-        Index('idx_spans_trace_operation', 'trace_id', 'operation_name'),
-        Index('idx_spans_service_time', 'service_name', 'start_time'),
-        Index('idx_spans_parent', 'parent_span_id'),
-        Index('idx_spans_attributes', 'attributes', postgresql_using='gin'),
+        Index("idx_spans_trace_operation", "trace_id", "operation_name"),
+        Index("idx_spans_service_time", "service_name", "start_time"),
+        Index("idx_spans_parent", "parent_span_id"),
+        Index("idx_spans_attributes", "attributes", postgresql_using="gin"),
     )
 
 
 class SpanEvent(BaseModel):
     """Events within a span"""
+
     __tablename__ = "monitoring_span_events"
 
-    span_id = Column(String(128), ForeignKey("monitoring_spans.span_id"), nullable=False, index=True)
+    span_id = Column(
+        String(128), ForeignKey("monitoring_spans.span_id"), nullable=False, index=True
+    )
     name = Column(String(255), nullable=False)
     timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
     attributes = Column(JSONB, default=dict)
@@ -135,16 +167,19 @@ class SpanEvent(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_span_events_span_time', 'span_id', 'timestamp'),
-        Index('idx_span_events_name_time', 'name', 'timestamp'),
+        Index("idx_span_events_span_time", "span_id", "timestamp"),
+        Index("idx_span_events_name_time", "name", "timestamp"),
     )
 
 
 class SpanLink(BaseModel):
     """Links to other spans (cross-trace correlation)"""
+
     __tablename__ = "monitoring_span_links"
 
-    span_id = Column(String(128), ForeignKey("monitoring_spans.span_id"), nullable=False, index=True)
+    span_id = Column(
+        String(128), ForeignKey("monitoring_spans.span_id"), nullable=False, index=True
+    )
     linked_trace_id = Column(String(128), nullable=False)
     linked_span_id = Column(String(128), nullable=False)
     attributes = Column(JSONB, default=dict)
@@ -155,16 +190,22 @@ class SpanLink(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_span_links_span_linked', 'span_id', 'linked_span_id'),
-        Index('idx_span_links_trace', 'linked_trace_id'),
+        Index("idx_span_links_span_linked", "span_id", "linked_span_id"),
+        Index("idx_span_links_trace", "linked_trace_id"),
     )
 
 
 class TraceError(BaseModel):
     """Errors captured in traces"""
+
     __tablename__ = "monitoring_trace_errors"
 
-    trace_id = Column(String(128), ForeignKey("monitoring_traces.trace_id"), nullable=False, index=True)
+    trace_id = Column(
+        String(128),
+        ForeignKey("monitoring_traces.trace_id"),
+        nullable=False,
+        index=True,
+    )
     span_id = Column(String(128), nullable=False, index=True)
     error_type = Column(String(255), nullable=False)
     message = Column(Text, nullable=False)
@@ -183,7 +224,7 @@ class TraceError(BaseModel):
 
     # Indexes
     __table_args__ = (
-        Index('idx_trace_errors_type_time', 'error_type', 'timestamp'),
-        Index('idx_trace_errors_severity_time', 'severity', 'timestamp'),
-        Index('idx_trace_errors_span', 'span_id'),
+        Index("idx_trace_errors_type_time", "error_type", "timestamp"),
+        Index("idx_trace_errors_severity_time", "severity", "timestamp"),
+        Index("idx_trace_errors_span", "span_id"),
     )

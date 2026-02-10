@@ -5,24 +5,29 @@ Quality metrics collection and monitoring service
 import asyncio
 import logging
 import statistics
-from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Tuple
-from dataclasses import dataclass
-from enum import Enum
 import uuid
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
+from sqlalchemy import and_, func, or_, text
 from sqlalchemy.orm import Session
-from sqlalchemy import text, and_, or_, func
 
+from src.core.config import settings
 from src.core.database import get_db
 from src.models.quality import QualityMetric
 from src.models.quality_metrics import (
-    QualityAlert, MetricAggregation,
-    SearchSession, SearchEvent, SystemMetric, QualityThreshold,
-    MetricType, AlertSeverity
+    AlertSeverity,
+    MetricAggregation,
+    MetricType,
+    QualityAlert,
+    QualityThreshold,
+    SearchEvent,
+    SearchSession,
+    SystemMetric,
 )
 from src.models.search_schemas import SearchResponse, SearchResult
-from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +35,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MetricCalculation:
     """Metric calculation result"""
+
     metric_type: str
     value: float
     unit: str
@@ -54,7 +60,7 @@ class QualityMetricsService:
         search_type: str,
         user_id: str,
         organization_id: str,
-        query_id: str = None
+        query_id: str = None,
     ) -> List[QualityMetric]:
         """
         Collect quality metrics for a search query
@@ -87,7 +93,7 @@ class QualityMetricsService:
                     metadata=calc.metadata,
                     threshold_min=threshold.threshold_min if threshold else None,
                     threshold_max=threshold.threshold_max if threshold else None,
-                    measured_at=datetime.utcnow()
+                    measured_at=datetime.utcnow(),
                 )
 
                 # Check for threshold violations
@@ -106,9 +112,7 @@ class QualityMetricsService:
             db.commit()
 
             # Schedule background processing for this metric set
-            task = asyncio.create_task(
-                self._process_metrics_background(metrics)
-            )
+            task = asyncio.create_task(self._process_metrics_background(metrics))
             self.background_tasks.add(task)
             task.add_done_callback(self.background_tasks.discard)
 
@@ -120,10 +124,7 @@ class QualityMetricsService:
             raise
 
     def _calculate_search_quality_metrics(
-        self,
-        search_response: SearchResponse,
-        query: str,
-        search_type: str
+        self, search_response: SearchResponse, query: str, search_type: str
     ) -> List[MetricCalculation]:
         """
         Calculate various quality metrics for search results
@@ -131,64 +132,81 @@ class QualityMetricsService:
         calculations = []
 
         # Response time metric
-        calculations.append(MetricCalculation(
-            metric_type=MetricType.RESPONSE_TIME.value,
-            value=getattr(search_response, 'query_time_ms', 0.0),
-            unit="ms",
-            metadata={"search_type": search_type, "result_count": len(search_response.results)}
-        ))
+        calculations.append(
+            MetricCalculation(
+                metric_type=MetricType.RESPONSE_TIME.value,
+                value=getattr(search_response, "query_time_ms", 0.0),
+                unit="ms",
+                metadata={
+                    "search_type": search_type,
+                    "result_count": len(search_response.results),
+                },
+            )
+        )
 
         # Result count metric
-        calculations.append(MetricCalculation(
-            metric_type="result_count",
-            value=len(search_response.results),
-            unit="count",
-            metadata={"search_type": search_type}
-        ))
+        calculations.append(
+            MetricCalculation(
+                metric_type="result_count",
+                value=len(search_response.results),
+                unit="count",
+                metadata={"search_type": search_type},
+            )
+        )
 
         # Result diversity metric (if we have results)
         if search_response.results:
             diversity_score = self._calculate_result_diversity(search_response.results)
-            calculations.append(MetricCalculation(
-                metric_type=MetricType.RESULT_DIVERSITY.value,
-                value=diversity_score,
-                unit="score",
-                metadata={
-                    "search_type": search_type,
-                    "result_count": len(search_response.results),
-                    "calculation_method": "content_type_diversity"
-                }
-            ))
-
-        # Average relevance score
-        if search_response.results:
-            relevance_scores = [r.relevance_score for r in search_response.results if r.relevance_score is not None]
-            if relevance_scores:
-                avg_relevance = statistics.mean(relevance_scores)
-                calculations.append(MetricCalculation(
-                    metric_type="avg_relevance_score",
-                    value=avg_relevance,
+            calculations.append(
+                MetricCalculation(
+                    metric_type=MetricType.RESULT_DIVERSITY.value,
+                    value=diversity_score,
                     unit="score",
                     metadata={
                         "search_type": search_type,
-                        "result_count": len(relevance_scores),
-                        "min_score": min(relevance_scores),
-                        "max_score": max(relevance_scores)
-                    }
-                ))
+                        "result_count": len(search_response.results),
+                        "calculation_method": "content_type_diversity",
+                    },
+                )
+            )
+
+        # Average relevance score
+        if search_response.results:
+            relevance_scores = [
+                r.relevance_score
+                for r in search_response.results
+                if r.relevance_score is not None
+            ]
+            if relevance_scores:
+                avg_relevance = statistics.mean(relevance_scores)
+                calculations.append(
+                    MetricCalculation(
+                        metric_type="avg_relevance_score",
+                        value=avg_relevance,
+                        unit="score",
+                        metadata={
+                            "search_type": search_type,
+                            "result_count": len(relevance_scores),
+                            "min_score": min(relevance_scores),
+                            "max_score": max(relevance_scores),
+                        },
+                    )
+                )
 
         # Freshness metric (based on document creation dates)
         if search_response.results:
             freshness_score = self._calculate_freshness_score(search_response.results)
-            calculations.append(MetricCalculation(
-                metric_type=MetricType.FRESHNESS.value,
-                value=freshness_score,
-                unit="days",
-                metadata={
-                    "search_type": search_type,
-                    "result_count": len(search_response.results)
-                }
-            ))
+            calculations.append(
+                MetricCalculation(
+                    metric_type=MetricType.FRESHNESS.value,
+                    value=freshness_score,
+                    unit="days",
+                    metadata={
+                        "search_type": search_type,
+                        "result_count": len(search_response.results),
+                    },
+                )
+            )
 
         return calculations
 
@@ -238,34 +256,39 @@ class QualityMetricsService:
         db: Session,
         metric_type: str,
         organization_id: str,
-        search_type: str = None
+        search_type: str = None,
     ) -> Optional[QualityThreshold]:
         """
         Get threshold configuration for a metric
         """
-        return db.query(QualityThreshold).filter(
-            and_(
-                QualityThreshold.metric_type == metric_type,
-                or_(
-                    QualityThreshold.organization_id == organization_id,
-                    QualityThreshold.organization_id.is_(None)
-                ),
-                or_(
-                    QualityThreshold.search_type == search_type,
-                    QualityThreshold.search_type.is_(None)
-                ),
-                QualityThreshold.is_enabled == True
+        return (
+            db.query(QualityThreshold)
+            .filter(
+                and_(
+                    QualityThreshold.metric_type == metric_type,
+                    or_(
+                        QualityThreshold.organization_id == organization_id,
+                        QualityThreshold.organization_id.is_(None),
+                    ),
+                    or_(
+                        QualityThreshold.search_type == search_type,
+                        QualityThreshold.search_type.is_(None),
+                    ),
+                    QualityThreshold.is_enabled == True,
+                )
             )
-        ).order_by(
-            QualityThreshold.organization_id.desc().nullslast(),
-            QualityThreshold.search_type.desc().nullslast()
-        ).first()
+            .order_by(
+                QualityThreshold.organization_id.desc().nullslast(),
+                QualityThreshold.search_type.desc().nullslast(),
+            )
+            .first()
+        )
 
     def _check_threshold_violation(
         self,
         value: float,
         threshold_min: Optional[float],
-        threshold_max: Optional[float]
+        threshold_max: Optional[float],
     ) -> bool:
         """
         Check if a metric value violates threshold conditions
@@ -277,10 +300,7 @@ class QualityMetricsService:
         return False
 
     async def _create_threshold_alert(
-        self,
-        db: Session,
-        metric: QualityMetric,
-        threshold: QualityThreshold
+        self, db: Session, metric: QualityMetric, threshold: QualityThreshold
     ):
         """
         Create an alert for threshold violation
@@ -293,10 +313,16 @@ class QualityMetricsService:
                     return  # Still in cooldown period
 
             # Determine violation type and create message
-            if metric.threshold_min is not None and metric.metric_value < metric.threshold_min:
+            if (
+                metric.threshold_min is not None
+                and metric.metric_value < metric.threshold_min
+            ):
                 violation_type = "below minimum"
                 expected_range = f"≥ {metric.threshold_min}"
-            elif metric.threshold_max is not None and metric.metric_value > metric.threshold_max:
+            elif (
+                metric.threshold_max is not None
+                and metric.metric_value > metric.threshold_max
+            ):
                 violation_type = "above maximum"
                 expected_range = f"≤ {metric.threshold_max}"
             else:
@@ -314,14 +340,16 @@ class QualityMetricsService:
                     f"Query: \"{metric.query[:100]}{'...' if len(metric.query) > 100 else ''}\""
                 ),
                 organization_id=metric.organization_id,
-                status="active"
+                status="active",
             )
 
             db.add(alert)
 
             # Set cooldown
             cooldown_minutes = threshold.alert_cooldown_minutes or 60
-            self.alert_cooldowns[cooldown_key] = datetime.utcnow() + timedelta(minutes=cooldown_minutes)
+            self.alert_cooldowns[cooldown_key] = datetime.utcnow() + timedelta(
+                minutes=cooldown_minutes
+            )
 
             # Log alert
             logger.warning(
@@ -353,28 +381,36 @@ class QualityMetricsService:
         """
         try:
             # Calculate aggregation period (hourly)
-            period_start = metric.measured_at.replace(
-                minute=0, second=0, microsecond=0
-            )
+            period_start = metric.measured_at.replace(minute=0, second=0, microsecond=0)
             period_end = period_start + timedelta(hours=1)
 
             # Check if aggregation exists
-            aggregation = db.query(MetricAggregation).filter(
-                and_(
-                    MetricAggregation.metric_type == metric.metric_type,
-                    MetricAggregation.aggregation_type == "hourly",
-                    MetricAggregation.aggregation_period_start == period_start,
-                    MetricAggregation.organization_id == metric.organization_id,
-                    MetricAggregation.search_type == metric.search_type
+            aggregation = (
+                db.query(MetricAggregation)
+                .filter(
+                    and_(
+                        MetricAggregation.metric_type == metric.metric_type,
+                        MetricAggregation.aggregation_type == "hourly",
+                        MetricAggregation.aggregation_period_start == period_start,
+                        MetricAggregation.organization_id == metric.organization_id,
+                        MetricAggregation.search_type == metric.search_type,
+                    )
                 )
-            ).first()
+                .first()
+            )
 
             if aggregation:
                 # Update existing aggregation
-                values = [aggregation.min_value, aggregation.max_value, metric.metric_value]
+                values = [
+                    aggregation.min_value,
+                    aggregation.max_value,
+                    metric.metric_value,
+                ]
                 aggregation.count_values += 1
                 aggregation.sum_values += metric.metric_value
-                aggregation.avg_value = aggregation.sum_values / aggregation.count_values
+                aggregation.avg_value = (
+                    aggregation.sum_values / aggregation.count_values
+                )
                 aggregation.min_value = min(values)
                 aggregation.max_value = max(values)
                 aggregation.updated_at = datetime.utcnow()
@@ -391,7 +427,7 @@ class QualityMetricsService:
                     count_values=1,
                     sum_values=metric.metric_value,
                     organization_id=metric.organization_id,
-                    search_type=metric.search_type
+                    search_type=metric.search_type,
                 )
                 db.add(aggregation)
 
@@ -405,7 +441,7 @@ class QualityMetricsService:
         organization_id: str,
         user_agent: str = None,
         ip_address: str = None,
-        referrer: str = None
+        referrer: str = None,
     ) -> SearchSession:
         """
         Create or update a search session
@@ -414,9 +450,11 @@ class QualityMetricsService:
             db = next(get_db())
 
             # Look for existing session
-            session = db.query(SearchSession).filter(
-                SearchSession.session_id == session_id
-            ).first()
+            session = (
+                db.query(SearchSession)
+                .filter(SearchSession.session_id == session_id)
+                .first()
+            )
 
             if session:
                 # Update existing session
@@ -430,7 +468,7 @@ class QualityMetricsService:
                     user_agent=user_agent,
                     ip_address=ip_address,
                     referrer=referrer,
-                    start_time=datetime.utcnow()
+                    start_time=datetime.utcnow(),
                 )
                 db.add(session)
 
@@ -455,7 +493,7 @@ class QualityMetricsService:
         search_query_id: str = None,
         page_number: int = 1,
         filters_applied: Dict[str, Any] = None,
-        sort_order: str = None
+        sort_order: str = None,
     ) -> SearchEvent:
         """
         Record a search event for analytics
@@ -475,20 +513,24 @@ class QualityMetricsService:
                 organization_id=organization_id,
                 page_number=page_number,
                 filters_applied=filters_applied,
-                sort_order=sort_order
+                sort_order=sort_order,
             )
 
             db.add(event)
 
             # Update session statistics
-            session = db.query(SearchSession).filter(
-                SearchSession.session_id == session_id
-            ).first()
+            session = (
+                db.query(SearchSession)
+                .filter(SearchSession.session_id == session_id)
+                .first()
+            )
 
             if session:
                 session.search_count += 1
                 session.total_response_time += response_time
-                session.avg_response_time = session.total_response_time / session.search_count
+                session.avg_response_time = (
+                    session.total_response_time / session.search_count
+                )
                 session.updated_at = datetime.utcnow()
 
             db.commit()
@@ -506,7 +548,7 @@ class QualityMetricsService:
         metric_types: List[str] = None,
         start_time: datetime = None,
         end_time: datetime = None,
-        limit: int = 1000
+        limit: int = 1000,
     ) -> List[QualityMetric]:
         """
         Get quality metrics for analytics
@@ -539,7 +581,7 @@ class QualityMetricsService:
         metric_types: List[str] = None,
         aggregation_type: str = "hourly",
         start_time: datetime = None,
-        end_time: datetime = None
+        end_time: datetime = None,
     ) -> List[MetricAggregation]:
         """
         Get aggregated metrics for dashboard
@@ -550,7 +592,7 @@ class QualityMetricsService:
             query = db.query(MetricAggregation).filter(
                 and_(
                     MetricAggregation.organization_id == organization_id,
-                    MetricAggregation.aggregation_type == aggregation_type
+                    MetricAggregation.aggregation_type == aggregation_type,
                 )
             )
 
@@ -558,21 +600,25 @@ class QualityMetricsService:
                 query = query.filter(MetricAggregation.metric_type.in_(metric_types))
 
             if start_time:
-                query = query.filter(MetricAggregation.aggregation_period_start >= start_time)
+                query = query.filter(
+                    MetricAggregation.aggregation_period_start >= start_time
+                )
 
             if end_time:
-                query = query.filter(MetricAggregation.aggregation_period_end <= end_time)
+                query = query.filter(
+                    MetricAggregation.aggregation_period_end <= end_time
+                )
 
-            return query.order_by(MetricAggregation.aggregation_period_start.desc()).all()
+            return query.order_by(
+                MetricAggregation.aggregation_period_start.desc()
+            ).all()
 
         except Exception as e:
             logger.error(f"Error getting metric aggregations: {e}")
             return []
 
     def get_active_alerts(
-        self,
-        organization_id: str,
-        severity: str = None
+        self, organization_id: str, severity: str = None
     ) -> List[QualityAlert]:
         """
         Get active quality alerts
@@ -583,7 +629,7 @@ class QualityMetricsService:
             query = db.query(QualityAlert).filter(
                 and_(
                     QualityAlert.organization_id == organization_id,
-                    QualityAlert.status == "active"
+                    QualityAlert.status == "active",
                 )
             )
 
@@ -596,20 +642,14 @@ class QualityMetricsService:
             logger.error(f"Error getting active alerts: {e}")
             return []
 
-    def acknowledge_alert(
-        self,
-        alert_id: str,
-        acknowledged_by: str
-    ) -> bool:
+    def acknowledge_alert(self, alert_id: str, acknowledged_by: str) -> bool:
         """
         Acknowledge a quality alert
         """
         try:
             db = next(get_db())
 
-            alert = db.query(QualityAlert).filter(
-                QualityAlert.id == alert_id
-            ).first()
+            alert = db.query(QualityAlert).filter(QualityAlert.id == alert_id).first()
 
             if alert:
                 alert.status = "acknowledged"
@@ -631,7 +671,7 @@ class QualityMetricsService:
         self,
         organization_id: str,
         start_time: datetime = None,
-        end_time: datetime = None
+        end_time: datetime = None,
     ) -> Dict[str, Any]:
         """
         Get search analytics summary
@@ -646,69 +686,91 @@ class QualityMetricsService:
                 start_time = end_time - timedelta(days=7)
 
             # Basic search statistics
-            total_searches = db.query(SearchEvent).filter(
-                and_(
-                    SearchEvent.organization_id == organization_id,
-                    SearchEvent.created_at >= start_time,
-                    SearchEvent.created_at <= end_time
+            total_searches = (
+                db.query(SearchEvent)
+                .filter(
+                    and_(
+                        SearchEvent.organization_id == organization_id,
+                        SearchEvent.created_at >= start_time,
+                        SearchEvent.created_at <= end_time,
+                    )
                 )
-            ).count()
+                .count()
+            )
 
             # Average response time
-            avg_response_time = db.query(func.avg(SearchEvent.response_time)).filter(
-                and_(
-                    SearchEvent.organization_id == organization_id,
-                    SearchEvent.created_at >= start_time,
-                    SearchEvent.created_at <= end_time
+            avg_response_time = (
+                db.query(func.avg(SearchEvent.response_time))
+                .filter(
+                    and_(
+                        SearchEvent.organization_id == organization_id,
+                        SearchEvent.created_at >= start_time,
+                        SearchEvent.created_at <= end_time,
+                    )
                 )
-            ).scalar() or 0
+                .scalar()
+                or 0
+            )
 
             # Unique users
-            unique_users = db.query(func.count(func.distinct(SearchEvent.user_id))).filter(
-                and_(
-                    SearchEvent.organization_id == organization_id,
-                    SearchEvent.created_at >= start_time,
-                    SearchEvent.created_at <= end_time,
-                    SearchEvent.user_id.is_not(None)
+            unique_users = (
+                db.query(func.count(func.distinct(SearchEvent.user_id)))
+                .filter(
+                    and_(
+                        SearchEvent.organization_id == organization_id,
+                        SearchEvent.created_at >= start_time,
+                        SearchEvent.created_at <= end_time,
+                        SearchEvent.user_id.is_not(None),
+                    )
                 )
-            ).scalar() or 0
+                .scalar()
+                or 0
+            )
 
             # Top queries
-            top_queries = db.query(
-                SearchEvent.query,
-                func.count(SearchEvent.id).label('count')
-            ).filter(
-                and_(
-                    SearchEvent.organization_id == organization_id,
-                    SearchEvent.created_at >= start_time,
-                    SearchEvent.created_at <= end_time
+            top_queries = (
+                db.query(SearchEvent.query, func.count(SearchEvent.id).label("count"))
+                .filter(
+                    and_(
+                        SearchEvent.organization_id == organization_id,
+                        SearchEvent.created_at >= start_time,
+                        SearchEvent.created_at <= end_time,
+                    )
                 )
-            ).group_by(SearchEvent.query).order_by(
-                func.count(SearchEvent.id).desc()
-            ).limit(10).all()
+                .group_by(SearchEvent.query)
+                .order_by(func.count(SearchEvent.id).desc())
+                .limit(10)
+                .all()
+            )
 
             # Search type distribution
-            search_types = db.query(
-                SearchEvent.search_type,
-                func.count(SearchEvent.id).label('count')
-            ).filter(
-                and_(
-                    SearchEvent.organization_id == organization_id,
-                    SearchEvent.created_at >= start_time,
-                    SearchEvent.created_at <= end_time
+            search_types = (
+                db.query(
+                    SearchEvent.search_type, func.count(SearchEvent.id).label("count")
                 )
-            ).group_by(SearchEvent.search_type).all()
+                .filter(
+                    and_(
+                        SearchEvent.organization_id == organization_id,
+                        SearchEvent.created_at >= start_time,
+                        SearchEvent.created_at <= end_time,
+                    )
+                )
+                .group_by(SearchEvent.search_type)
+                .all()
+            )
 
             return {
                 "period": {
                     "start": start_time.isoformat(),
-                    "end": end_time.isoformat()
+                    "end": end_time.isoformat(),
                 },
                 "total_searches": total_searches,
                 "avg_response_time_ms": float(avg_response_time),
                 "unique_users": unique_users,
                 "top_queries": [{"query": q[0], "count": q[1]} for q in top_queries],
-                "search_types": [{"type": st[0], "count": st[1]} for st in search_types]
+                "search_types": [
+                    {"type": st[0], "count": st[1]} for st in search_types
+                ],
             }
 
         except Exception as e:

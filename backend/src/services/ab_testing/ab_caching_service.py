@@ -4,15 +4,15 @@ Provides comprehensive caching strategy with multiple cache layers and intellige
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import time
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Union, Callable
-from dataclasses import dataclass, field
-from enum import Enum
-import hashlib
 import zlib
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from src.core.config import settings
 from src.services.cache.analytics_cache import analytics_cache
@@ -22,41 +22,46 @@ logger = logging.getLogger(__name__)
 
 class CacheLevel(Enum):
     """Cache levels in hierarchy"""
-    MEMORY = "memory"           # L1: In-memory cache (fastest)
-    REDIS = "redis"             # L2: Redis cache (fast)
-    DATABASE = "database"       # L3: Pre-computed database views (slow)
+
+    MEMORY = "memory"  # L1: In-memory cache (fastest)
+    REDIS = "redis"  # L2: Redis cache (fast)
+    DATABASE = "database"  # L3: Pre-computed database views (slow)
 
 
 class CachePolicy(Enum):
     """Cache eviction policies"""
-    LRU = "lru"                 # Least Recently Used
-    LFU = "lfu"                 # Least Frequently Used
-    TTL = "ttl"                 # Time To Live
-    SIZE_BASED = "size_based"   # Based on cache size
+
+    LRU = "lru"  # Least Recently Used
+    LFU = "lfu"  # Least Frequently Used
+    TTL = "ttl"  # Time To Live
+    SIZE_BASED = "size_based"  # Based on cache size
 
 
 class CacheStrategy(Enum):
     """Caching strategies"""
-    WRITE_THROUGH = "write_through"     # Write to cache and backend
-    WRITE_BEHIND = "write_behind"       # Write to cache, async to backend
-    WRITE_AROUND = "write_around"       # Write directly to backend
-    READ_THROUGH = "read_through"       # Read from cache, load from backend if miss
-    CACHE_ASIDE = "cache_aside"         # Application manages cache
+
+    WRITE_THROUGH = "write_through"  # Write to cache and backend
+    WRITE_BEHIND = "write_behind"  # Write to cache, async to backend
+    WRITE_AROUND = "write_around"  # Write directly to backend
+    READ_THROUGH = "read_through"  # Read from cache, load from backend if miss
+    CACHE_ASIDE = "cache_aside"  # Application manages cache
 
 
 @dataclass
 class CacheConfig:
     """Configuration for cache level"""
-    max_size: int = 1000              # Maximum number of items
-    ttl_seconds: int = 300            # Default TTL in seconds
+
+    max_size: int = 1000  # Maximum number of items
+    ttl_seconds: int = 300  # Default TTL in seconds
     policy: CachePolicy = CachePolicy.LRU
     compression_enabled: bool = True
-    cleanup_interval: int = 60         # Cleanup interval in seconds
+    cleanup_interval: int = 60  # Cleanup interval in seconds
 
 
 @dataclass
 class CacheEntry:
     """Cache entry with metadata"""
+
     key: str
     value: Any
     created_at: datetime
@@ -107,7 +112,7 @@ class MemoryCache:
         key: str,
         value: Any,
         ttl_seconds: Optional[int] = None,
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
     ):
         """Set value in cache"""
         now = datetime.utcnow()
@@ -120,7 +125,7 @@ class MemoryCache:
             last_accessed=now,
             size_bytes=size_bytes,
             ttl_seconds=ttl_seconds or self.config.ttl_seconds,
-            tags=tags or []
+            tags=tags or [],
         )
 
         # Check if we need to evict entries
@@ -147,10 +152,7 @@ class MemoryCache:
     async def clear(self, pattern: Optional[str] = None):
         """Clear cache entries"""
         if pattern:
-            keys_to_delete = [
-                key for key in self.cache.keys()
-                if pattern in key
-            ]
+            keys_to_delete = [key for key in self.cache.keys() if pattern in key]
             for key in keys_to_delete:
                 await self.delete(key)
         else:
@@ -207,10 +209,7 @@ class MemoryCache:
 
     async def cleanup_expired(self):
         """Clean up expired entries"""
-        expired_keys = [
-            key for key, entry in self.cache.items()
-            if entry.is_expired()
-        ]
+        expired_keys = [key for key, entry in self.cache.items() if entry.is_expired()]
 
         for key in expired_keys:
             await self.delete(key)
@@ -223,7 +222,7 @@ class MemoryCache:
             "max_entries": self.config.max_size,
             "total_size_bytes": total_size,
             "hit_rate": 0.0,  # Would need to track hits/misses
-            "policy": self.config.policy.value
+            "policy": self.config.policy.value,
         }
 
 
@@ -239,13 +238,14 @@ class RedisCache:
         """Initialize Redis connection"""
         try:
             import redis.asyncio as redis
+
             self.redis_client = redis.from_url(
                 settings.REDIS_URL,
                 encoding="utf-8",
                 decode_responses=False,  # Handle binary data
                 socket_connect_timeout=5,
                 socket_timeout=5,
-                retry_on_timeout=True
+                retry_on_timeout=True,
             )
             await self.redis_client.ping()
             logger.info("Redis cache initialized")
@@ -274,7 +274,7 @@ class RedisCache:
         key: str,
         value: Any,
         ttl_seconds: Optional[int] = None,
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
     ):
         """Set value in Redis cache"""
         if not self.redis_client:
@@ -354,25 +354,29 @@ class MultiLevelCache:
 
     def __init__(self):
         # Initialize cache levels with different configurations
-        self.memory_cache = MemoryCache(CacheConfig(
-            max_size=500,
-            ttl_seconds=300,  # 5 minutes
-            policy=CachePolicy.LRU,
-            compression_enabled=False  # No compression for memory
-        ))
+        self.memory_cache = MemoryCache(
+            CacheConfig(
+                max_size=500,
+                ttl_seconds=300,  # 5 minutes
+                policy=CachePolicy.LRU,
+                compression_enabled=False,  # No compression for memory
+            )
+        )
 
-        self.redis_cache = RedisCache(CacheConfig(
-            max_size=10000,
-            ttl_seconds=3600,  # 1 hour
-            policy=CachePolicy.TTL,
-            compression_enabled=True
-        ))
+        self.redis_cache = RedisCache(
+            CacheConfig(
+                max_size=10000,
+                ttl_seconds=3600,  # 1 hour
+                policy=CachePolicy.TTL,
+                compression_enabled=True,
+            )
+        )
 
         self.cache_stats = {
             "l1_hits": 0,
             "l2_hits": 0,
             "misses": 0,
-            "total_requests": 0
+            "total_requests": 0,
         }
 
         self._initialized = False
@@ -389,7 +393,9 @@ class MultiLevelCache:
                 self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
                 logger.debug("Started background cleanup task")
             else:
-                logger.warning("Background cleanup task already running, skipping start")
+                logger.warning(
+                    "Background cleanup task already running, skipping start"
+                )
 
             logger.info("Multi-level cache initialized")
 
@@ -424,7 +430,7 @@ class MultiLevelCache:
         value: Any,
         l1_ttl: Optional[int] = None,
         l2_ttl: Optional[int] = None,
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
     ):
         """Set value in cache hierarchy"""
         if not self._initialized:
@@ -433,7 +439,7 @@ class MultiLevelCache:
         # Set in both cache levels
         await asyncio.gather(
             self.memory_cache.set(key, value, ttl_seconds=l1_ttl, tags=tags),
-            self.redis_cache.set(key, value, ttl_seconds=l2_ttl, tags=tags)
+            self.redis_cache.set(key, value, ttl_seconds=l2_ttl, tags=tags),
         )
 
     async def delete(self, key: str):
@@ -442,8 +448,7 @@ class MultiLevelCache:
             await self.initialize()
 
         await asyncio.gather(
-            self.memory_cache.delete(key),
-            self.redis_cache.delete(key)
+            self.memory_cache.delete(key), self.redis_cache.delete(key)
         )
 
     async def invalidate_by_tags(self, tags: List[str]):
@@ -453,7 +458,7 @@ class MultiLevelCache:
 
         await asyncio.gather(
             self.memory_cache.invalidate_by_tags(tags),
-            self.redis_cache.invalidate_by_tags(tags)
+            self.redis_cache.invalidate_by_tags(tags),
         )
 
     async def clear_pattern(self, pattern: str):
@@ -469,8 +474,9 @@ class MultiLevelCache:
         """Get comprehensive cache statistics"""
         total_requests = self.cache_stats["total_requests"]
         hit_rate = (
-            (self.cache_stats["l1_hits"] + self.cache_stats["l2_hits"]) /
-            total_requests if total_requests > 0 else 0
+            (self.cache_stats["l1_hits"] + self.cache_stats["l2_hits"]) / total_requests
+            if total_requests > 0
+            else 0
         )
 
         return {
@@ -481,13 +487,15 @@ class MultiLevelCache:
             "hit_rate": hit_rate,
             "l1_hit_rate": (
                 self.cache_stats["l1_hits"] / total_requests
-                if total_requests > 0 else 0
+                if total_requests > 0
+                else 0
             ),
             "l2_hit_rate": (
                 self.cache_stats["l2_hits"] / total_requests
-                if total_requests > 0 else 0
+                if total_requests > 0
+                else 0
             ),
-            "memory_cache": self.memory_cache.get_stats()
+            "memory_cache": self.memory_cache.get_stats(),
         }
 
     async def _promote_to_l1(self, key: str, value: Any):
@@ -497,7 +505,9 @@ class MultiLevelCache:
             if not self.redis_cache.redis_client:
                 # No Redis available, use default memory cache settings
                 await self.memory_cache.set(key, value)
-                logger.debug(f"Promoted key '{key}' to L1 cache with default TTL (no Redis)")
+                logger.debug(
+                    f"Promoted key '{key}' to L1 cache with default TTL (no Redis)"
+                )
                 return
 
             # Get metadata from L2 cache to preserve TTL and tags
@@ -526,14 +536,20 @@ class MultiLevelCache:
             try:
                 # Look for tag keys that contain this cache key
                 tag_pattern = f"{self.redis_cache.key_prefix}tag:*"
-                async for tag_key in self.redis_cache.redis_client.scan_iter(match=tag_pattern):
-                    if await self.redis_cache.redis_client.sismember(tag_key, redis_key):
+                async for tag_key in self.redis_cache.redis_client.scan_iter(
+                    match=tag_pattern
+                ):
+                    if await self.redis_cache.redis_client.sismember(
+                        tag_key, redis_key
+                    ):
                         # Extract tag name from key, handle both bytes and str
                         if isinstance(tag_key, bytes):
-                            tag_key_str = tag_key.decode('utf-8')
+                            tag_key_str = tag_key.decode("utf-8")
                         else:
                             tag_key_str = tag_key
-                        tag_name = tag_key_str.replace(f"{self.redis_cache.key_prefix}tag:", "")
+                        tag_name = tag_key_str.replace(
+                            f"{self.redis_cache.key_prefix}tag:", ""
+                        )
                         tags.append(tag_name)
             except Exception as tag_error:
                 logger.warning(f"Error retrieving tags for key '{key}': {tag_error}")
@@ -541,7 +557,9 @@ class MultiLevelCache:
 
             # Promote to L1 with appropriate TTL
             await self.memory_cache.set(key, value, ttl_seconds=l1_ttl, tags=tags)
-            logger.debug(f"Promoted key '{key}' to L1 cache with TTL: {l1_ttl}s, tags: {tags}")
+            logger.debug(
+                f"Promoted key '{key}' to L1 cache with TTL: {l1_ttl}s, tags: {tags}"
+            )
 
         except Exception as e:
             logger.error(f"Error promoting key '{key}' to L1 cache: {e}")
@@ -597,7 +615,7 @@ class CacheManager:
             "assignment": self._generate_assignment_key,
             "metrics": self._generate_metrics_key,
             "analysis": self._generate_analysis_key,
-            "user_segments": self._generate_user_segments_key
+            "user_segments": self._generate_user_segments_key,
         }
 
     async def initialize(self):
@@ -610,10 +628,7 @@ class CacheManager:
         return await self.cache.get(key)
 
     async def set_experiment(
-        self,
-        experiment_id: str,
-        data: Dict[str, Any],
-        ttl_seconds: int = 300
+        self, experiment_id: str, data: Dict[str, Any], ttl_seconds: int = 300
     ):
         """Cache experiment data"""
         key = self.key_generators["experiment"](experiment_id)
@@ -623,9 +638,7 @@ class CacheManager:
         await self.cache.set(key, data, l1_ttl=ttl_seconds, l2_ttl=l2_ttl, tags=tags)
 
     async def get_variant_assignment(
-        self,
-        user_id: str,
-        experiment_id: str
+        self, user_id: str, experiment_id: str
     ) -> Optional[Dict[str, Any]]:
         """Get cached variant assignment"""
         key = self.key_generators["assignment"](user_id, experiment_id)
@@ -636,19 +649,19 @@ class CacheManager:
         user_id: str,
         experiment_id: str,
         assignment: Dict[str, Any],
-        ttl_seconds: int = 3600
+        ttl_seconds: int = 3600,
     ):
         """Cache variant assignment"""
         key = self.key_generators["assignment"](user_id, experiment_id)
         tags = ["assignment", f"user:{user_id}", f"experiment:{experiment_id}"]
         # L2 should have longer TTL for persistence (typically 2x L1 TTL for assignments)
         l2_ttl = ttl_seconds * 2
-        await self.cache.set(key, assignment, l1_ttl=ttl_seconds, l2_ttl=l2_ttl, tags=tags)
+        await self.cache.set(
+            key, assignment, l1_ttl=ttl_seconds, l2_ttl=l2_ttl, tags=tags
+        )
 
     async def get_experiment_metrics(
-        self,
-        experiment_id: str,
-        time_range: str = "24h"
+        self, experiment_id: str, time_range: str = "24h"
     ) -> Optional[Dict[str, Any]]:
         """Get cached experiment metrics"""
         key = self.key_generators["metrics"](experiment_id, time_range)
@@ -659,7 +672,7 @@ class CacheManager:
         experiment_id: str,
         metrics: Dict[str, Any],
         time_range: str = "24h",
-        ttl_seconds: int = 600
+        ttl_seconds: int = 600,
     ):
         """Cache experiment metrics"""
         key = self.key_generators["metrics"](experiment_id, time_range)
@@ -669,9 +682,7 @@ class CacheManager:
         await self.cache.set(key, metrics, l1_ttl=ttl_seconds, l2_ttl=l2_ttl, tags=tags)
 
     async def get_analysis_result(
-        self,
-        experiment_id: str,
-        confidence_level: float
+        self, experiment_id: str, confidence_level: float
     ) -> Optional[Dict[str, Any]]:
         """Get cached statistical analysis result"""
         key = self.key_generators["analysis"](experiment_id, confidence_level)
@@ -682,7 +693,7 @@ class CacheManager:
         experiment_id: str,
         confidence_level: float,
         result: Dict[str, Any],
-        ttl_seconds: int = 1800
+        ttl_seconds: int = 1800,
     ):
         """Cache statistical analysis result"""
         key = self.key_generators["analysis"](experiment_id, confidence_level)
@@ -717,7 +728,9 @@ class CacheManager:
         """Generate cache key for metrics"""
         return f"metrics:{experiment_id}:{time_range}"
 
-    def _generate_analysis_key(self, experiment_id: str, confidence_level: float) -> str:
+    def _generate_analysis_key(
+        self, experiment_id: str, confidence_level: float
+    ) -> str:
         """Generate cache key for analysis"""
         return f"analysis:{experiment_id}:{confidence_level}"
 
@@ -736,10 +749,9 @@ cache_manager = CacheManager()
 
 # Decorator for caching function results
 
+
 def cache_result(
-    key_generator: Callable,
-    ttl_seconds: int = 300,
-    cache_levels: List[str] = None
+    key_generator: Callable, ttl_seconds: int = 300, cache_levels: List[str] = None
 ):
     """
     Decorator to cache function results
@@ -762,5 +774,7 @@ def cache_result(
             await cache_manager.cache.set(cache_key, result, ttl_seconds=ttl_seconds)
 
             return result
+
         return wrapper
+
     return decorator
