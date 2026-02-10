@@ -180,7 +180,7 @@ export function AppSidebar() {
   return (
     <Sidebar
       collapsible="icon"
-      className="border-r border-[#1A1A1A] !bg-[#0A0A0A] w-60 z-50"
+      className="border-r border-[#1A1A1A] !bg-[#0A0A0A] z-50"
     >
       {/* Header with Logo */}
       <SidebarHeader className="border-b border-[#1A1A1A] px-5 py-4 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:py-2 bg-[#0A0A0A]">
