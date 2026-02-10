@@ -7,13 +7,24 @@ import asyncio
 import json
 import logging
 import smtplib
+import httpx
+from typing import Dict, List, Any, Optional, Callable
+from datetime import datetime, timedelta
+from dataclasses import dataclass, asdict
+from enum import Enum
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import redis
+import psycopg2
+from psycopg2 import sql
+from collections import defaultdict, deque
 import threading
 import time
 from collections import defaultdict, deque
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from email.mime.multipart import MimeMultipart
-from email.mime.text import MimeText
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
@@ -610,7 +621,7 @@ class EmailNotifier(NotificationChannel):
     async def send_alert(self, alert: SecurityAlert) -> None:
         """Send email alert"""
         try:
-            msg = MimeMultipart()
+            msg = MIMEMultipart()
             msg["From"] = self.smtp_config.get("sender", "security@rag-system.com")
             msg["To"] = ", ".join(self.smtp_config["recipients"])
             msg["Subject"] = f"[SECURITY ALERT] {alert.title}"
@@ -635,7 +646,7 @@ class EmailNotifier(NotificationChannel):
             )
 
             body = template.render(alert=alert)
-            msg.attach(MimeText(body, "plain"))
+            msg.attach(MIMEText(body, "plain"))
 
             # Send email
             server = smtplib.SMTP(
@@ -701,8 +712,9 @@ class SlackNotifier(NotificationChannel):
                 ]
             }
 
-            response = requests.post(self.webhook_url, json=payload)
-            response.raise_for_status()
+            async with httpx.AsyncClient() as client:
+                response = await client.post(self.webhook_url, json=payload)
+                response.raise_for_status()
 
             logger.info(f"Slack alert sent for {alert.id}")
 
@@ -746,12 +758,13 @@ class PagerDutyNotifier(NotificationChannel):
                 },
             }
 
-            response = requests.post(
-                "https://events.pagerduty.com/v2/enqueue",
-                json=payload,
-                headers={"Content-Type": "application/json"},
-            )
-            response.raise_for_status()
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://events.pagerduty.com/v2/enqueue",
+                    json=payload,
+                    headers={"Content-Type": "application/json"}
+                )
+                response.raise_for_status()
 
             logger.info(f"PagerDuty alert sent for {alert.id}")
 

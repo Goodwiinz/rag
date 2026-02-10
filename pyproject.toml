@@ -96,3 +96,15 @@ ignore = [
 "backend/src/tasks/*.py" = ["E402", "F821"]
 "backend/src/websocket/*.py" = ["F401", "F841", "F821"]
 "backend/src/api/**/*.py" = ["F821"]
+
+[dependency-groups]
+dev = [
+    "cryptography>=46.0.4",
+    "fastapi>=0.128.4",
+    "httpx>=0.28.1",
+    "pydantic>=2.12.5",
+    "pyjwt>=2.11.0",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "sqlalchemy>=2.0.46",
+]

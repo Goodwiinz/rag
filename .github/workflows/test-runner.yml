@@ -1,0 +1,18 @@
+name: Test Self-Hosted Runner
+
+on:
+  push:
+    branches: [feature/project-chat-integration]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: [self-hosted, linux]
+    steps:
+      - name: Test runner
+        run: |
+          echo "✅ Self-hosted runner is working!"
+          echo "Runner: $(hostname)"
+          echo "User: $(whoami)"
+          echo "Directory: $(pwd)"
+          uname -a

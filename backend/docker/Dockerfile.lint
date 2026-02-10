@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
-# Minimal image for Python linting - optimized for Depot caching
+# Minimal image for Python linting
 # Contains only lint tools (ruff, mypy, black, isort) - no ML dependencies
 #
-# Build: depot build -f backend/docker/Dockerfile.lint . --load -t rag-lint:test
+# Build: docker build -f backend/docker/Dockerfile.lint . -t rag-lint:test
 # Run:   docker run --rm rag-lint:test ruff check backend/src
 
 ARG PYTHON_VERSION=3.11
@@ -25,8 +25,7 @@ WORKDIR /app
 COPY pyproject.toml ./
 
 # Install ONLY lint tools with pinned versions for reproducibility
-# Using cache mount for faster rebuilds on Depot
-RUN --mount=type=cache,target=/root/.cache/pip \
+RUN \
     pip install --upgrade pip && \
     pip install \
         ruff==0.1.8 \

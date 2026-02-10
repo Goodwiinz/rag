@@ -1,0 +1,80 @@
+# Frontend .gitignore - Browser automation and .brv file management
+
+# Browser revision files
+*.brv
+*.brv.*
+.brv/
+
+# Playwright browser artifacts
+playwright/.brv/
+test-results/
+test-results/**/*.brv
+playwright-report/
+playwright-report/**/*.brv
+
+# Test artifacts by type
+e2e/*.brv
+e2e/**/*.brv
+visual-tests/*.brv
+accessibility-tests/*.brv
+performance-tests/*.brv
+
+# Browser automation screenshots and videos
+test-results/**/screenshots/
+test-results/**/videos/
+test-results/**/traces/
+
+# Development browser sessions
+dev-browser-data/
+dev-sessions/*.brv
+local-storage-dumps/*.brv
+debug-browser-cache/
+
+# Frontend build artifacts
+.next/
+out/
+dist/
+build/
+.nuxt/
+.cache/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Logs
+logs/
+*.log
+
+# TypeScript
+*.tsbuildinfo
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp

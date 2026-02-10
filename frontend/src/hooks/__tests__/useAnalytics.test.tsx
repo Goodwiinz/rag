@@ -1,424 +1,154 @@
-import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { renderHook } from '@testing-library/react';
+import { useAnalyticsStore, useTimeRange, useAnalyticsFilters } from '@/stores/analyticsStore';
+import analyticsService from '@/services/analyticsService';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRAGTriadMetrics, usePerformanceAnalytics, useAnalyticsActions } from '../useAnalytics';
-import { analyticsService } from '@/services/analyticsService';
 
-// Mock analytics service
-jest.mock('@/services/analyticsService');
+jest.mock('@tanstack/react-query', () => ({
+  useQuery: jest.fn(),
+  useMutation: jest.fn(),
+  useQueryClient: jest.fn(),
+}));
+
+jest.mock('@/services/analyticsService', () => ({
+  __esModule: true,
+  default: {
+    getRAGTriadMetrics: jest.fn(),
+    getPerformanceAnalytics: jest.fn(),
+  },
+}));
+
+jest.mock('@/stores/analyticsStore', () => ({
+  useAnalyticsStore: jest.fn(),
+  useTimeRange: jest.fn(),
+  useAnalyticsFilters: jest.fn(),
+}));
+
+const mockUseQuery = useQuery as jest.Mock;
+const mockUseQueryClient = useQueryClient as jest.Mock;
+const mockUseAnalyticsStore = useAnalyticsStore as unknown as jest.Mock;
+const mockUseTimeRange = useTimeRange as unknown as jest.Mock;
+const mockUseAnalyticsFilters = useAnalyticsFilters as unknown as jest.Mock;
 const mockAnalyticsService = analyticsService as jest.Mocked<typeof analyticsService>;
 
-// Mock store with proper implementation
-const mockStoreState = {
-  timeRange: {
-    start: '2024-01-01T00:00:00Z',
-    end: '2024-01-31T23:59:59Z',
-  },
-  filters: {
-    modalities: [],
-    queryTypes: [],
-    userSegments: [],
-    performanceThresholds: {
-      answer_relevancy: 70,
-      faithfulness: 90,
-      contextual_relevancy: 70,
-    },
-  },
-  realTimeMetrics: null,
-  isRealTimeConnected: false,
-  performanceData: null,
-  selectedMetrics: ['answer_relevancy', 'faithfulness', 'contextual_relevancy'],
-  chartView: 'overview',
-  autoRefresh: true,
-  refreshInterval: 30000,
+const storeActions = {
   setTimeRange: jest.fn(),
   setFilters: jest.fn(),
   setRealTimeMetrics: jest.fn(),
   setRealTimeConnection: jest.fn(),
-  setPerformanceData: jest.fn(),
-  updateSelectedMetrics: jest.fn(),
-  setChartView: jest.fn(),
-  toggleAutoRefresh: jest.fn(),
-  setRefreshInterval: jest.fn(),
-  resetFilters: jest.fn(),
 };
 
-jest.mock('@/stores/analyticsStore', () => ({
-  useAnalyticsStore: (selector: (state: typeof mockStoreState) => any) => selector(mockStoreState),
-  useTimeRange: () => mockStoreState.timeRange,
-  useAnalyticsFilters: () => mockStoreState.filters,
-}));
-
-// Test wrapper
-const createTestWrapper = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  );
-};
-
-// Skip this test suite due to complex React Query + Zustand mock interactions
-// These hooks should be tested via integration tests instead
-describe.skip('useAnalytics', () => {
+describe('useAnalytics', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    // Reset store mock functions
-    mockStoreState.setTimeRange.mockClear();
-    mockStoreState.setFilters.mockClear();
-    mockStoreState.setRealTimeMetrics.mockClear();
-    mockStoreState.setRealTimeConnection.mockClear();
-    mockStoreState.setPerformanceData.mockClear();
-    mockStoreState.updateSelectedMetrics.mockClear();
-    mockStoreState.setChartView.mockClear();
-    mockStoreState.toggleAutoRefresh.mockClear();
-    mockStoreState.setRefreshInterval.mockClear();
-    mockStoreState.resetFilters.mockClear();
+
+    mockUseQuery.mockReturnValue({
+      data: undefined,
+      isSuccess: false,
+      isError: false,
+      fetchStatus: 'idle',
+    });
+
+    mockUseQueryClient.mockReturnValue({
+      invalidateQueries: jest.fn(),
+    });
+
+    mockUseTimeRange.mockReturnValue({
+      start: '2024-01-01T00:00:00Z',
+      end: '2024-01-31T23:59:59Z',
+    });
+
+    mockUseAnalyticsFilters.mockReturnValue({
+      modalities: [],
+      queryTypes: [],
+      userSegments: [],
+      performanceThresholds: {
+        answer_relevancy: 70,
+        faithfulness: 90,
+        contextual_relevancy: 70,
+      },
+    });
+
+    mockUseAnalyticsStore.mockReturnValue(storeActions);
   });
 
-  describe('useRAGTriadMetrics', () => {
-    it('fetches RAG triad metrics successfully', async () => {
-      const mockMetrics = {
-        metrics: {
-          answer_relevancy: 85.5,
-          faithfulness: 92.1,
-          contextual_relevancy: 78.9,
-        },
-      };
+  it('configures RAG triad query with valid time range', async () => {
+    useRAGTriadMetrics();
 
-      mockAnalyticsService.getRAGTriadMetrics.mockResolvedValue(mockMetrics);
+    const options = mockUseQuery.mock.calls[0][0];
+    expect(options.queryKey).toEqual([
+      'rag-triad-metrics',
+      { start: '2024-01-01T00:00:00Z', end: '2024-01-31T23:59:59Z' },
+    ]);
+    expect(options.enabled).toBe(true);
 
-      const { result } = renderHook(() => useRAGTriadMetrics(), {
-        wrapper: createTestWrapper(),
-      });
-
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
-      });
-
-      expect(result.current.data).toEqual(mockMetrics.metrics);
-      expect(mockAnalyticsService.getRAGTriadMetrics).toHaveBeenCalledWith({
-        start: '2024-01-01T00:00:00Z',
-        end: '2024-01-31T23:59:59Z',
-      });
-    });
-
-    it('handles fetch errors gracefully', async () => {
-      const error = new Error('Failed to fetch metrics');
-      mockAnalyticsService.getRAGTriadMetrics.mockRejectedValue(error);
-
-      const { result } = renderHook(() => useRAGTriadMetrics(), {
-        wrapper: createTestWrapper(),
-      });
-
-      await waitFor(() => {
-        expect(result.current.isError).toBe(true);
-      });
-
-      expect(result.current.error).toEqual(error);
-    });
-
-    it.skip('does not fetch when time range is invalid', () => {
-      // This test requires dynamic mock state changes which is complex with module-level mocking
-      // The functionality should be tested via integration tests
-    });
-
-    it('caches data appropriately', async () => {
-      const mockMetrics = {
-        metrics: {
-          answer_relevancy: 85.5,
-          faithfulness: 92.1,
-          contextual_relevancy: 78.9,
-        },
-      };
-
-      mockAnalyticsService.getRAGTriadMetrics.mockResolvedValue(mockMetrics);
-
-      const { result, rerender } = renderHook(() => useRAGTriadMetrics(), {
-        wrapper: createTestWrapper(),
-      });
-
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
-      });
-
-      // Reset mock
-      mockAnalyticsService.getRAGTriadMetrics.mockClear();
-
-      // Rerender hook
-      rerender();
-
-      // Should not fetch again due to caching
-      expect(mockAnalyticsService.getRAGTriadMetrics).not.toHaveBeenCalled();
-      expect(result.current.data).toEqual(mockMetrics.metrics);
+    mockAnalyticsService.getRAGTriadMetrics.mockResolvedValue({ metrics: {} } as any);
+    await options.queryFn();
+    expect(mockAnalyticsService.getRAGTriadMetrics).toHaveBeenCalledWith({
+      start: '2024-01-01T00:00:00Z',
+      end: '2024-01-31T23:59:59Z',
     });
   });
 
-  describe('usePerformanceAnalytics', () => {
-    it('fetches and transforms performance analytics', async () => {
-      const mockAnalyticsData = {
-        average_latency_ms: 1500,
-        success_rate: 98.5,
-        answer_relevancy_history: [80, 82, 85, 87],
-        faithfulness_history: [88, 90, 91, 92],
-        contextual_relevancy_history: [75, 77, 78, 79],
-        modalities: {
-          text: 1000,
-          image: 500,
-          audio: 200,
-        },
-      };
+  it('disables RAG triad query with invalid time range', () => {
+    mockUseTimeRange.mockReturnValue({ start: '', end: '' });
 
-      mockAnalyticsService.getPerformanceAnalytics.mockResolvedValue(mockAnalyticsData);
+    useRAGTriadMetrics();
 
-      const { result } = renderHook(() => usePerformanceAnalytics(), {
-        wrapper: createTestWrapper(),
-      });
-
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
-      });
-
-      expect(result.current.data).toHaveProperty('chartData');
-      expect(result.current.data).toHaveProperty('trendData');
-      expect(mockAnalyticsService.getPerformanceAnalytics).toHaveBeenCalledWith(
-        expect.objectContaining({
-          modalities: [],
-          queryTypes: [],
-          userSegments: [],
-        }),
-        {
-          start: '2024-01-01T00:00:00Z',
-          end: '2024-01-31T23:59:59Z',
-        }
-      );
-    });
-
-    it('applies custom filters', async () => {
-      const customFilters = {
-        modalities: ['text', 'image'],
-        queryTypes: ['search'],
-      };
-
-      mockAnalyticsService.getPerformanceAnalytics.mockResolvedValue({});
-
-      renderHook(() => usePerformanceAnalytics(customFilters), {
-        wrapper: createTestWrapper(),
-      });
-
-      await waitFor(() => {
-        expect(mockAnalyticsService.getPerformanceAnalytics).toHaveBeenCalledWith(
-          expect.objectContaining(customFilters),
-          expect.any(Object)
-        );
-      });
-    });
+    const options = mockUseQuery.mock.calls[0][0];
+    expect(options.enabled).toBe(false);
   });
 
-  describe('useAnalyticsActions', () => {
-    it('provides updateTimeRange action', () => {
-      const { result } = renderHook(() => useAnalyticsActions());
+  it('configures performance analytics select transformation', () => {
+    usePerformanceAnalytics();
 
-      // Should have updateTimeRange function
-      expect(typeof result.current.updateTimeRange).toBe('function');
+    const options = mockUseQuery.mock.calls[0][0];
+    expect(options.queryKey[0]).toBe('performance-analytics');
+    expect(options.enabled).toBe(true);
 
-      const newTimeRange = {
-        start: '2024-02-01T00:00:00Z',
-        end: '2024-02-29T23:59:59Z',
-      };
-
-      // Should not throw when called
-      expect(() => result.current.updateTimeRange(newTimeRange)).not.toThrow();
-
-      // Store setTimeRange should be called
-      expect(mockStoreState.setTimeRange).toHaveBeenCalledWith(newTimeRange);
+    const transformed = options.select({
+      answer_relevancy_history: [80, 82, 85, 87],
+      faithfulness_history: [88, 90, 91, 92],
+      contextual_relevancy_history: [75, 77, 78, 79],
+      timestamps: ['2024-01-01', '2024-01-02', '2024-01-03', '2024-01-04'],
+      modalities: ['text', 'image'],
+      modality_counts: [10, 5],
     });
 
-    it('provides updateFilters action', () => {
-      const { result } = renderHook(() => useAnalyticsActions());
-
-      // Should have updateFilters function
-      expect(typeof result.current.updateFilters).toBe('function');
-
-      const newFilters = {
-        modalities: ['text'],
-        performanceThresholds: {
-          answer_relevancy: 80,
-        },
-      };
-
-      // Should not throw when called
-      expect(() => result.current.updateFilters(newFilters)).not.toThrow();
-
-      // Store setFilters should be called
-      expect(mockStoreState.setFilters).toHaveBeenCalledWith(newFilters);
-    });
-
-    it('provides refreshAllAnalytics action', () => {
-      const { result } = renderHook(() => useAnalyticsActions());
-
-      // Should have refreshAllAnalytics function
-      expect(typeof result.current.refreshAllAnalytics).toBe('function');
-
-      // Should not throw when called
-      expect(() => result.current.refreshAllAnalytics()).not.toThrow();
-    });
+    expect(transformed).toHaveProperty('chartData');
+    expect(transformed).toHaveProperty('trendData');
+    expect(transformed.chartData.lineChartData.datasets).toHaveLength(3);
   });
 
-  describe('Data Transformation', () => {
-    it('transforms data for charts correctly', async () => {
-      const mockData = {
-        answer_relevancy_history: [80, 82, 85, 87],
-        faithfulness_history: [88, 90, 91, 92],
-        contextual_relevancy_history: [75, 77, 78, 79],
-        timestamps: ['2024-01-01', '2024-01-02', '2024-01-03', '2024-01-04'],
-      };
+  it('updates time range and invalidates related queries', () => {
+    const invalidateQueries = jest.fn();
+    mockUseQueryClient.mockReturnValue({ invalidateQueries });
 
-      mockAnalyticsService.getPerformanceAnalytics.mockResolvedValue(mockData);
+    const { result } = renderHook(() => useAnalyticsActions());
 
-      const { result } = renderHook(() => usePerformanceAnalytics(), {
-        wrapper: createTestWrapper(),
-      });
+    const range = {
+      start: '2024-02-01T00:00:00Z',
+      end: '2024-02-29T23:59:59Z',
+    };
 
-      await waitFor(() => {
-        expect(result.current.data?.chartData).toBeDefined();
-      });
+    result.current.updateTimeRange(range as any);
 
-      const { chartData } = result.current.data!;
-
-      expect(chartData.lineChartData).toHaveProperty('labels');
-      expect(chartData.lineChartData).toHaveProperty('datasets');
-      expect(chartData.lineChartData.datasets).toHaveLength(3); // Three metrics
-    });
-
-    it('calculates trends correctly', async () => {
-      const mockData = {
-        answer_relevancy_history: [80, 82, 85, 87],
-        faithfulness_history: [92, 91, 90, 89], // Declining
-        contextual_relevancy_history: [78, 78, 79, 78], // Stable
-      };
-
-      mockAnalyticsService.getPerformanceAnalytics.mockResolvedValue(mockData);
-
-      const { result } = renderHook(() => usePerformanceAnalytics(), {
-        wrapper: createTestWrapper(),
-      });
-
-      await waitFor(() => {
-        expect(result.current.data?.trendData).toBeDefined();
-      });
-
-      const { trendData } = result.current.data!;
-
-      expect(trendData.answer_relevancy_trend.direction).toBe('up');
-      expect(trendData.faithfulness_trend.direction).toBe('down');
-      expect(trendData.contextual_relevancy_trend.direction).toBe('stable');
-    });
+    expect(storeActions.setTimeRange).toHaveBeenCalledWith(range);
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['rag-triad-metrics'] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['performance-analytics'] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['usage-analytics'] });
   });
 
-  describe('Real-time Updates', () => {
-    beforeEach(() => {
-      // Mock WebSocket
-      global.WebSocket = jest.fn().mockImplementation(() => ({
-        addEventListener: jest.fn(),
-        close: jest.fn(),
-      })) as any;
-    });
+  it('updates filters and invalidates performance query', () => {
+    const invalidateQueries = jest.fn();
+    mockUseQueryClient.mockReturnValue({ invalidateQueries });
 
-    it('sets up WebSocket connection', () => {
-      renderHook(() => {
-        const RealTimeHook = require('../useAnalytics').useRealTimeMetrics;
-        RealTimeHook();
-      });
+    const { result } = renderHook(() => useAnalyticsActions());
 
-      expect(global.WebSocket).toHaveBeenCalled();
-    });
+    const filters = { modalities: ['text'] };
+    result.current.updateFilters(filters as any);
 
-    it('handles WebSocket messages', () => {
-      const mockAddEventListener = jest.fn();
-      global.WebSocket = jest.fn().mockImplementation(() => ({
-        addEventListener: mockAddEventListener,
-        close: jest.fn(),
-      })) as any;
-
-      renderHook(() => {
-        const RealTimeHook = require('../useAnalytics').useRealTimeMetrics;
-        RealTimeHook();
-      });
-
-      expect(mockAddEventListener).toHaveBeenCalledWith('message', expect.any(Function));
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('handles network errors gracefully', async () => {
-      mockAnalyticsService.getRAGTriadMetrics.mockRejectedValue(
-        new Error('Network error')
-      );
-
-      const { result } = renderHook(() => useRAGTriadMetrics(), {
-        wrapper: createTestWrapper(),
-      });
-
-      await waitFor(() => {
-        expect(result.current.isError).toBe(true);
-      });
-
-      expect(result.current.error).toBeInstanceOf(Error);
-      expect(result.current.error?.message).toBe('Network error');
-    });
-
-    it('handles malformed API responses', async () => {
-      mockAnalyticsService.getRAGTriadMetrics.mockResolvedValue({
-        // Missing required metrics field
-        invalid: 'data',
-      });
-
-      const { result } = renderHook(() => useRAGTriadMetrics(), {
-        wrapper: createTestWrapper(),
-      });
-
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
-      });
-
-      // Should handle missing data gracefully
-      expect(result.current.data).toBeUndefined();
-    });
-  });
-
-  describe('Performance', () => {
-    it('does not cause memory leaks', () => {
-      const { unmount } = renderHook(() => useRAGTriadMetrics(), {
-        wrapper: createTestWrapper(),
-      });
-
-      // Cleanup should not throw errors
-      expect(() => unmount()).not.toThrow();
-    });
-
-    it('handles rapid filter changes', async () => {
-      const { rerender } = renderHook(
-        (filters) => usePerformanceAnalytics(filters),
-        {
-          wrapper: createTestWrapper(),
-          initialProps: {},
-        }
-      );
-
-      // Rapid filter changes
-      for (let i = 0; i < 5; i++) {
-        rerender({ modalities: [`type-${i}`] });
-      }
-
-      // Should handle gracefully
-      expect(mockAnalyticsService.getPerformanceAnalytics).toHaveBeenCalledTimes(5);
-    });
+    expect(storeActions.setFilters).toHaveBeenCalledWith(filters);
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['performance-analytics'] });
   });
 });

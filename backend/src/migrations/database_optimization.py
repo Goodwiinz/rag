@@ -26,25 +26,28 @@ class DatabaseOptimizer:
         Analyze table statistics and provide recommendations
         """
         try:
+            # Validate table name against whitelist
+            allowed_tables = ['documents', 'processing_history', 'multimodal_content', 'document_versions', 
+                            'document_quality_metrics', 'document_access_log', 'processing_jobs', 'users', 'organizations']
+            if table_name not in allowed_tables:
+                raise ValueError(f"Invalid table name: {table_name}")
+            
             # Get table row count
-            count_query = text(f"SELECT COUNT(*) as row_count FROM {table_name}")
+            count_query = text("SELECT COUNT(*) as row_count FROM {}".format(table_name))
             count_result = self.db.execute(count_query).fetchone()
             row_count = count_result.row_count if count_result else 0
 
             # Get table size
-            size_query = text(
-                f"""
+            size_query = text("""
                 SELECT
-                    pg_size_pretty(pg_total_relation_size('{table_name}')) as total_size,
-                    pg_size_pretty(pg_relation_size('{table_name}')) as table_size,
-                    pg_size_pretty(pg_total_relation_size('{table_name}') - pg_relation_size('{table_name}')) as index_size
-            """
-            )
-            size_result = self.db.execute(size_query).fetchone()
+                    pg_size_pretty(pg_total_relation_size(:table_name)) as total_size,
+                    pg_size_pretty(pg_relation_size(:table_name)) as table_size,
+                    pg_size_pretty(pg_total_relation_size(:table_name) - pg_relation_size(:table_name)) as index_size
+            """)
+            size_result = self.db.execute(size_query, {'table_name': table_name}).fetchone()
 
             # Get index usage statistics
-            index_query = text(
-                f"""
+            index_query = text("""
                 SELECT
                     schemaname,
                     tablename,
@@ -53,11 +56,10 @@ class DatabaseOptimizer:
                     idx_tup_fetch,
                     idx_scan
                 FROM pg_stat_user_indexes
-                WHERE tablename = '{table_name}'
+                WHERE tablename = :table_name
                 ORDER BY idx_scan DESC
-            """
-            )
-            index_results = self.db.execute(index_query).fetchall()
+            """)
+            index_results = self.db.execute(index_query, {'table_name': table_name}).fetchall()
 
             return {
                 "table_name": table_name,
@@ -230,14 +232,20 @@ class DatabaseOptimizer:
 
             for table in tables:
                 try:
+                    # Validate table name
+                    allowed_tables = ['documents', 'processing_history', 'document_versions', 'multimodal_content',
+                                    'document_quality_metrics', 'document_access_log', 'processing_jobs']
+                    if table not in allowed_tables:
+                        logger.warning(f"Skipping invalid table: {table}")
+                        continue
+                    
                     # Update table statistics
-                    analyze_query = text(f"ANALYZE {table}")
+                    analyze_query = text("ANALYZE {}".format(table))
                     self.db.execute(analyze_query)
                     results[f"{table}_analyze"] = "completed"
 
                     # Check if table needs vacuum (high bloat)
-                    bloat_query = text(
-                        f"""
+                    bloat_query = text("""
                         SELECT
                             schemaname,
                             tablename,
@@ -279,15 +287,14 @@ class DatabaseOptimizer:
                             JOIN pg_class cc ON cc.relname = rs.tablename
                             JOIN pg_namespace nn ON cc.relnamespace = nn.oid AND nn.nspname = rs.schemaname AND nn.nspname <> 'information_schema'
                         ) AS sml
-                        WHERE tbloat > 1.5 AND tablename = '{table}'
-                    """
-                    )
+                        WHERE tbloat > 1.5 AND tablename = :table_name
+                    """)
 
-                    bloat_result = self.db.execute(bloat_query).fetchone()
+                    bloat_result = self.db.execute(bloat_query, {'table_name': table}).fetchone()
 
                     if bloat_result and bloat_result.tbloat > 1.5:
                         # Run vacuum if significant bloat detected
-                        vacuum_query = text(f"VACUUM ANALYZE {table}")
+                        vacuum_query = text("VACUUM ANALYZE {}".format(table))
                         self.db.execute(vacuum_query)
                         results[
                             f"{table}_vacuum"
