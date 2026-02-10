@@ -639,12 +639,18 @@ async def authenticated_hybrid_search(
         # Force hybrid search type
         search_request.search_type = SearchType.HYBRID
 
+        # Enforce organization scoping — reject API keys without an organization
+        if not api_key.organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="API key is not scoped to an organization"
+            )
+
         # Perform hybrid search with API key context
-        # Use specific organization_id from API key or None for cross-org search based on key permissions
         result = hybrid_search_service.search(
             search_request=search_request,
             user_id=f"api_key:{api_key.id}",
-            organization_id=None  # API keys can access across organizations (controlled by key permissions)
+            organization_id=api_key.organization_id
         )
 
         # Enhanced logging for API key usage

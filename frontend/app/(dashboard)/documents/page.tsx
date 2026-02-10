@@ -162,7 +162,13 @@ export default function DocumentsPage() {
 
         {/* Document List */}
         <DocumentList
-          documents={rawDocuments}
+          documents={rawDocuments.map(doc => ({
+            ...doc,
+            file_type: doc.file_type || '',
+            file_size: doc.file_size || 0,
+            upload_timestamp: doc.upload_timestamp || '',
+            processing_status: doc.processing_status
+          }))}
           loading={loading}
           selectedDocuments={selectedDocuments}
           onSelect={selectDocument}

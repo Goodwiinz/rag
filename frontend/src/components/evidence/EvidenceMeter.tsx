@@ -183,7 +183,7 @@ export function EvidenceMeter({
     if (!data) return [];
     return calculateSegments(data);
   }, [data]);
-  
+
   // Generate accessible description
   const ariaLabel = useMemo(() => {
     if (!data) return 'Loading evidence meter';
