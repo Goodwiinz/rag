@@ -43,16 +43,9 @@ export function useEvidenceMeter({
         params.set('query_id', queryId);
       }
       
-      const response = await api.get<EvidenceMeterData>(
+      return api.get<EvidenceMeterData>(
         `/api/v1/evidence/meter?${params.toString()}`
       );
-      
-      // If the API client returns the data directly (axios style) vs wrapped
-      // Check if response has a data property that matches the expected type
-      if (response && typeof response === 'object' && 'data' in response) {
-          return (response as any).data as EvidenceMeterData;
-      }
-      return response as unknown as EvidenceMeterData;
     },
     enabled: enabled && !!claim,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -79,16 +72,9 @@ export function useEvidenceBreakdown({
         params.set('stance_filter', stanceFilter);
       }
       
-      const response = await api.get<EvidenceBreakdownData>(
+      return api.get<EvidenceBreakdownData>(
         `/api/v1/evidence/breakdown?${params.toString()}`
       );
-      
-      // If the API client returns the data directly (axios style) vs wrapped
-      // Check if response has a data property that matches the expected type
-      if (response && typeof response === 'object' && 'data' in response) {
-          return (response as any).data as EvidenceBreakdownData;
-      }
-      return response as unknown as EvidenceBreakdownData;
     },
     enabled: enabled && !!claimHash,
     staleTime: 5 * 60 * 1000, // 5 minutes

@@ -33,15 +33,22 @@ async def create_api_key(
     Store it securely as it cannot be retrieved later.
     """
     try:
+        # Enforce organization scoping — API keys must be tied to an organization
+        if not current_user.organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot create API key: user is not associated with an organization"
+            )
+
         # Generate API key
         raw_key, key_hash = generate_api_key()
         key_prefix = raw_key[:8]
-        
+
         # Calculate expiration date
         expires_at = None
         if api_key_create.expires_days:
             expires_at = datetime.utcnow() + timedelta(days=api_key_create.expires_days)
-        
+
         # Create API key record
         new_api_key = APIKey(
             name=api_key_create.name,
@@ -52,7 +59,7 @@ async def create_api_key(
             created_by=f"{current_user.email} ({current_user.id})",
             expires_at=expires_at,
             allowed_endpoints=str(api_key_create.allowed_endpoints) if api_key_create.allowed_endpoints else None,
-            organization_id=str(current_user.organization_id) if current_user.organization_id else None
+            organization_id=str(current_user.organization_id)
         )
         
         db.add(new_api_key)

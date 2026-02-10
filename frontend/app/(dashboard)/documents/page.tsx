@@ -166,7 +166,7 @@ export default function DocumentsPage() {
             ...doc,
             file_type: doc.file_type || '',
             file_size: doc.file_size || 0,
-            upload_timestamp: doc.upload_timestamp || new Date().toISOString(),
+            upload_timestamp: doc.upload_timestamp || '',
             processing_status: doc.processing_status
           }))}
           loading={loading}

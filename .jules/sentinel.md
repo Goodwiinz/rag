@@ -34,7 +34,7 @@ Also, testing this endpoint proved difficult because the codebase has side effec
 
 **Prevention:** Consider using a decorator or middleware for rate-limiting sensitive auth endpoints to ensure consistent application, rather than manual checks in each controller. Refactor codebase to remove circular dependencies to enable robust integration testing.
 
-## 2024-05-23 - Critical Authorization Bypass in API Key Search
+## 2026-02-10 - Critical Authorization Bypass in API Key Search
 
 **Vulnerability:** API keys created by administrators were not scoped to their organization. When performing a search via `authenticated_hybrid_search`, the `organization_id` was explicitly set to `None`, bypassing the organization filter in `fulltext_search_service`. This allowed any API key holder to search across ALL organizations (IDOR / Multi-tenancy Isolation Failure).
 
