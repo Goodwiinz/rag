@@ -102,11 +102,12 @@ export function BibliographyExport({
     setIsExporting(true);
     try {
       const citationIds = Array.from(selectedCitations);
+      const extension = selectedFormat === 'bibtex' ? 'bib' : selectedFormat;
       await citationService.downloadBibliography(
         selectedFormat,
         citationIds,
         projectId,
-        `bibliography.${selectedFormat}`
+        `bibliography.${extension}`
       );
 
       onExportComplete?.();

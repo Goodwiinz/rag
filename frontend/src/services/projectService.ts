@@ -10,45 +10,67 @@ export interface Project {
   id: string;
   name: string;
   description?: string;
-  user_id: string;
   workspace_id: string;
+  project_type?: 'research' | 'literature_review' | 'thesis' | 'paper';
+  research_status?: 'active' | 'paused' | 'completed' | 'archived';
+  research_goals?: string;
+  deadline?: string | null;
+  tags?: string[];
+  is_private?: boolean;
+  user_id?: string;
   created_at: string;
   updated_at: string;
   document_count?: number;
   citation_count?: number;
   note_count?: number;
+  draft_count?: number;
 }
 
 export interface ProjectCreate {
   workspace_id: string;
   name: string;
   description?: string;
+  project_type?: 'research' | 'literature_review' | 'thesis' | 'paper';
+  research_goals?: string;
+  deadline?: string;
+  tags?: string[];
 }
 
 export interface ProjectUpdate {
   name?: string;
   description?: string;
+  project_type?: 'research' | 'literature_review' | 'thesis' | 'paper';
+  research_status?: 'active' | 'paused' | 'completed' | 'archived';
+  research_goals?: string;
+  deadline?: string;
+  tags?: string[];
 }
 
 export interface ProjectDocument {
   id: string;
   project_id: string;
   document_id: string;
-  added_at: string;
+  added_at?: string;
+  sort_order?: number;
   document?: {
     id: string;
     title: string;
     filename: string;
     status: string;
-    created_at: string;
+    created_at?: string;
   };
 }
 
 export interface ProjectNote {
   id: string;
   project_id: string;
+  user_id?: string;
   title: string;
   content: string;
+  content_preview?: string;
+  linked_document_ids?: string[];
+  linked_document_count?: number;
+  tags?: string[];
   is_pinned: boolean;
   created_at: string;
   updated_at: string;
@@ -57,18 +79,28 @@ export interface ProjectNote {
 export interface ProjectNoteCreate {
   title: string;
   content: string;
+  linked_document_ids?: string[];
+  tags?: string[];
+  is_pinned?: boolean;
 }
 
 export interface ProjectNoteUpdate {
   title?: string;
   content?: string;
+  linked_document_ids?: string[];
+  tags?: string[];
+  is_pinned?: boolean;
 }
 
 export interface ProjectListResponse {
   projects: Project[];
   total: number;
-  skip: number;
-  limit: number;
+  page?: number;
+  size?: number;
+  has_next?: boolean;
+  has_prev?: boolean;
+  skip?: number;
+  limit?: number;
 }
 
 export interface ProjectDocumentListResponse {
@@ -79,6 +111,8 @@ export interface ProjectDocumentListResponse {
 export interface ProjectNoteListResponse {
   notes: ProjectNote[];
   total: number;
+  page?: number;
+  size?: number;
 }
 
 export interface ProjectBibliography {
@@ -102,6 +136,9 @@ export const projectService = {
     skip?: number;
     limit?: number;
     search?: string;
+    project_status?: 'active' | 'paused' | 'completed' | 'archived';
+    project_type?: 'research' | 'literature_review' | 'thesis' | 'paper';
+    tag?: string;
   }): Promise<ProjectListResponse> {
     return apiClient.get<ProjectListResponse>('/projects', {
       params,
@@ -336,9 +373,15 @@ export const projectService = {
       limit?: number;
     }
   ): Promise<DraftListResponse> {
+    const params = {
+      include_content: options?.includeContent,
+      skip: options?.skip,
+      limit: options?.limit,
+    };
+
     return apiClient.get<DraftListResponse>(
       `/projects/${projectId}/drafts`,
-      { params: options }
+      { params }
     );
   },
 
@@ -397,7 +440,8 @@ export const projectService = {
     projectId: string,
     draftId: string,
     format: 'markdown' | 'latex' = 'markdown',
-    includeBibliography: boolean = true
+    includeBibliography: boolean = true,
+    bibliographyFormat: 'bibtex' | 'biblatex' = 'bibtex'
   ): Promise<DraftExportResponse> {
     return apiClient.post<DraftExportResponse>(
       `/projects/${projectId}/drafts/${draftId}/export`,
@@ -406,6 +450,7 @@ export const projectService = {
         params: {
           format,
           include_bibliography: includeBibliography,
+          bib_format: bibliographyFormat,
         },
       }
     );
@@ -414,17 +459,20 @@ export const projectService = {
   /**
    * Get generation status
    */
-  async getGenerationStatus(projectId: string, taskId: string): Promise<GenerationStatus> {
+  async getGenerationStatus(projectId: string, taskId?: string): Promise<GenerationStatus> {
+    const params = taskId ? { task_id: taskId } : undefined;
     return apiClient.get<GenerationStatus>(
-      `/projects/${projectId}/drafts/status/${taskId}`
+      `/projects/${projectId}/drafts/status`,
+      { params }
     );
   },
 
   /**
    * Cancel ongoing generation
    */
-  async cancelGeneration(projectId: string, taskId: string): Promise<void> {
-    await apiClient.post(`/projects/${projectId}/drafts/cancel/${taskId}`);
+  async cancelGeneration(projectId: string, taskId?: string): Promise<void> {
+    const params = taskId ? { task_id: taskId } : undefined;
+    await apiClient.post(`/projects/${projectId}/drafts/cancel`, null, { params });
   },
 };
 
@@ -457,6 +505,7 @@ export interface DraftGenerationResponse {
 }
 
 export interface GenerationStatus {
+  task_id?: string;
   status: string;
   progress: number;
   current_step: string;

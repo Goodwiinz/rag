@@ -1,147 +1,89 @@
-/**
- * Unit tests for ProjectList component (T115)
- *
- * Tests project rendering, filtering, and search.
- */
+import { fireEvent, render, screen } from '@testing-library/react';
+import { ProjectList } from '@/components/research/ProjectList';
+import type { Project } from '@/services/projectService';
 
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-// Mock projects
-const mockProjects = [
+const mockProjects: Project[] = [
   {
     id: 'p1',
-    name: 'ML Healthcare Project',
+    workspace_id: 'w1',
+    name: 'ML Healthcare',
     description: 'Research on ML in healthcare',
-    researchStatus: 'active',
-    documentCount: 5,
-    deadline: '2024-06-01',
+    research_status: 'active',
+    project_type: 'research',
     tags: ['ml', 'healthcare'],
+    document_count: 3,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
   },
   {
     id: 'p2',
-    name: 'NLP Research',
-    description: 'Natural language processing studies',
-    researchStatus: 'paused',
-    documentCount: 3,
-    tags: ['nlp', 'transformers'],
-  },
-  {
-    id: 'p3',
-    name: 'Computer Vision Survey',
-    description: 'Survey of CV methods',
-    researchStatus: 'completed',
-    documentCount: 10,
-    tags: ['cv', 'survey'],
+    workspace_id: 'w1',
+    name: 'NLP Survey',
+    description: 'Survey papers',
+    research_status: 'paused',
+    project_type: 'literature_review',
+    tags: ['nlp'],
+    document_count: 1,
+    created_at: '2026-01-02T00:00:00Z',
+    updated_at: '2026-01-02T00:00:00Z',
   },
 ];
 
 describe('ProjectList', () => {
-  describe('Rendering', () => {
-    it('test_renders_project_cards', () => {
-      // Test that project grid displays correctly
-      const projects = mockProjects;
+  it('renders projects and opens selected project', () => {
+    const onOpenProject = jest.fn();
 
-      expect(projects.length).toBe(3);
-      projects.forEach((project) => {
-        expect(project).toHaveProperty('id');
-        expect(project).toHaveProperty('name');
-        expect(project).toHaveProperty('researchStatus');
-      });
-    });
+    render(
+      <ProjectList
+        projects={mockProjects}
+        viewMode="grid"
+        onViewModeChange={jest.fn()}
+        onOpenProject={onOpenProject}
+      />
+    );
 
-    it('test_displays_project_metadata', () => {
-      // Test that project cards show name, description, document count
-      const project = mockProjects[0];
+    expect(screen.getByText('ML Healthcare')).toBeInTheDocument();
+    expect(screen.getByText('NLP Survey')).toBeInTheDocument();
 
-      expect(project.name).toBe('ML Healthcare Project');
-      expect(project.documentCount).toBe(5);
-      expect(project.tags).toContain('ml');
-    });
-
-    it('test_shows_status_badge', () => {
-      // Test that status badges are displayed
-      const statuses = mockProjects.map((p) => p.researchStatus);
-
-      expect(statuses).toContain('active');
-      expect(statuses).toContain('paused');
-      expect(statuses).toContain('completed');
-    });
+    fireEvent.click(screen.getByText('ML Healthcare'));
+    expect(onOpenProject).toHaveBeenCalledWith('p1');
   });
 
-  describe('Filtering', () => {
-    it('test_filter_by_status', () => {
-      // Test filtering by active/paused/completed status
-      const filterByStatus = (status: string) =>
-        mockProjects.filter((p) => p.researchStatus === status);
+  it('changes view mode when toggle is clicked', () => {
+    const onViewModeChange = jest.fn();
 
-      const activeProjects = filterByStatus('active');
-      const pausedProjects = filterByStatus('paused');
-      const completedProjects = filterByStatus('completed');
+    render(
+      <ProjectList
+        projects={mockProjects}
+        viewMode="grid"
+        onViewModeChange={onViewModeChange}
+        onOpenProject={jest.fn()}
+      />
+    );
 
-      expect(activeProjects.length).toBe(1);
-      expect(pausedProjects.length).toBe(1);
-      expect(completedProjects.length).toBe(1);
-    });
-
-    it('test_filter_by_tag', () => {
-      // Test filtering by tag
-      const filterByTag = (tag: string) =>
-        mockProjects.filter((p) => p.tags.includes(tag));
-
-      const mlProjects = filterByTag('ml');
-      expect(mlProjects.length).toBe(1);
-      expect(mlProjects[0].name).toBe('ML Healthcare Project');
-    });
+    fireEvent.click(screen.getByRole('button', { name: /list/i }));
+    expect(onViewModeChange).toHaveBeenCalledWith('list');
   });
 
-  describe('Search', () => {
-    it('test_search_projects', () => {
-      // Test searching projects by name
-      const searchProjects = (query: string) =>
-        mockProjects.filter((p) =>
-          p.name.toLowerCase().includes(query.toLowerCase())
-        );
+  it('triggers archive and delete actions', () => {
+    const onArchiveProject = jest.fn();
+    const onDeleteProject = jest.fn();
 
-      const results = searchProjects('NLP');
-      expect(results.length).toBe(1);
-      expect(results[0].name).toBe('NLP Research');
-    });
+    render(
+      <ProjectList
+        projects={mockProjects}
+        viewMode="grid"
+        onViewModeChange={jest.fn()}
+        onOpenProject={jest.fn()}
+        onArchiveProject={onArchiveProject}
+        onDeleteProject={onDeleteProject}
+      />
+    );
 
-    it('test_search_no_results', () => {
-      // Test search with no matching results
-      const searchProjects = (query: string) =>
-        mockProjects.filter((p) =>
-          p.name.toLowerCase().includes(query.toLowerCase())
-        );
+    fireEvent.click(screen.getAllByTitle('Archive project')[0]);
+    fireEvent.click(screen.getAllByTitle('Delete project')[0]);
 
-      const results = searchProjects('quantum computing');
-      expect(results.length).toBe(0);
-    });
-
-    it('test_search_case_insensitive', () => {
-      // Test that search is case-insensitive
-      const searchProjects = (query: string) =>
-        mockProjects.filter((p) =>
-          p.name.toLowerCase().includes(query.toLowerCase())
-        );
-
-      const results1 = searchProjects('healthcare');
-      const results2 = searchProjects('HEALTHCARE');
-      const results3 = searchProjects('Healthcare');
-
-      expect(results1.length).toBe(results2.length);
-      expect(results2.length).toBe(results3.length);
-    });
-  });
-
-  describe('Empty State', () => {
-    it('test_empty_project_list', () => {
-      // Test empty state message
-      const emptyProjects: typeof mockProjects = [];
-
-      expect(emptyProjects.length).toBe(0);
-      // Should show "No projects yet" message
-    });
+    expect(onArchiveProject).toHaveBeenCalledWith('p1');
+    expect(onDeleteProject).toHaveBeenCalledWith('p1');
   });
 });

@@ -6,7 +6,7 @@ This module contains Pydantic schemas for the Research Assistant feature (User S
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, Field, validator
@@ -65,6 +65,35 @@ class CitationAuthor(BaseModel):
     )
 
 
+def _normalize_author_names(
+    authors: Optional[List[Union[str, Dict[str, Any]]]],
+) -> Optional[List[str]]:
+    """Normalize mixed author payloads into a clean list of names."""
+    if authors is None:
+        return None
+
+    normalized: List[str] = []
+    for author in authors:
+        name = ""
+        if isinstance(author, str):
+            name = author.strip()
+        elif isinstance(author, dict):
+            # Support both {"name": "..."} and {"given": "...", "family": "..."} payloads.
+            if author.get("name"):
+                name = str(author["name"]).strip()
+            else:
+                given = str(author.get("given", "")).strip()
+                family = str(author.get("family", "")).strip()
+                name = " ".join(part for part in [given, family] if part).strip()
+        elif author is not None:
+            name = str(author).strip()
+
+        if name:
+            normalized.append(name)
+
+    return normalized
+
+
 class CitationCreate(BaseModel):
     """Create a new citation"""
 
@@ -89,7 +118,7 @@ class CitationCreate(BaseModel):
     rerank_score: Optional[float] = None
 
     # Scholarly metadata
-    authors: Optional[List[Dict[str, Any]]] = Field(
+    authors: Optional[List[str]] = Field(
         default=None, description="List of authors"
     )
     year: Optional[int] = Field(None, ge=1900, le=2100, description="Publication year")
@@ -103,6 +132,12 @@ class CitationCreate(BaseModel):
     needs_review: bool = Field(
         default=False, description="Flag for incomplete metadata"
     )
+
+    @validator("authors", pre=True)
+    def normalize_authors(
+        cls, value: Optional[List[Union[str, Dict[str, Any]]]]
+    ) -> Optional[List[str]]:
+        return _normalize_author_names(value)
 
 
 class CitationResponse(BaseModel):
@@ -126,7 +161,7 @@ class CitationResponse(BaseModel):
     rerankScore: Optional[float] = Field(None, alias="rerank_score")
 
     # Scholarly metadata
-    authors: Optional[List[Dict[str, Any]]] = Field(
+    authors: Optional[List[str]] = Field(
         default=None, description="List of authors"
     )
     year: Optional[int] = Field(None, ge=1900, le=2100, description="Publication year")
@@ -145,6 +180,12 @@ class CitationResponse(BaseModel):
 
     createdAt: datetime = Field(..., alias="created_at")
     updatedAt: datetime = Field(..., alias="updated_at")
+
+    @validator("authors", pre=True)
+    def normalize_authors(
+        cls, value: Optional[List[Union[str, Dict[str, Any]]]]
+    ) -> Optional[List[str]]:
+        return _normalize_author_names(value)
 
     class Config:
         from_attributes = True
@@ -181,7 +222,7 @@ class CitationWithMetadata(BaseModel):
     rerank_score: Optional[float] = None
 
     # Scholarly metadata
-    authors: Optional[List[Dict[str, Any]]] = Field(
+    authors: Optional[List[str]] = Field(
         default=None, description="List of authors"
     )
     year: Optional[int] = Field(None, ge=1900, le=2100, description="Publication year")
@@ -204,6 +245,12 @@ class CitationWithMetadata(BaseModel):
     class Config:
         from_attributes = True
 
+    @validator("authors", pre=True)
+    def normalize_authors(
+        cls, value: Optional[List[Union[str, Dict[str, Any]]]]
+    ) -> Optional[List[str]]:
+        return _normalize_author_names(value)
+
 
 class CitationExtraction(BaseModel):
     """Request to extract citation metadata from external sources"""
@@ -220,7 +267,7 @@ class CitationExtraction(BaseModel):
 class CitationUpdate(BaseModel):
     """Update citation metadata (partial updates allowed)"""
 
-    authors: Optional[List[Dict[str, Any]]] = None
+    authors: Optional[List[str]] = None
     year: Optional[int] = Field(None, ge=1900, le=2100)
     venue: Optional[str] = None
     doi: Optional[str] = None
@@ -228,6 +275,12 @@ class CitationUpdate(BaseModel):
     abstract: Optional[str] = None
     metadata_source: Optional[MetadataSource] = None
     needs_review: Optional[bool] = None
+
+    @validator("authors", pre=True)
+    def normalize_authors(
+        cls, value: Optional[List[Union[str, Dict[str, Any]]]]
+    ) -> Optional[List[str]]:
+        return _normalize_author_names(value)
 
 
 # ============================================================================
@@ -476,7 +529,10 @@ class ProjectResponse(BaseModel):
 class ProjectNoteCreate(BaseModel):
     """Create a new project note"""
 
-    project_id: UUID = Field(..., description="Parent project ID")
+    project_id: Optional[UUID] = Field(
+        None,
+        description="Parent project ID (optional when provided in route path)",
+    )
     title: str = Field(..., min_length=1, max_length=255)
     content: str = Field(..., description="Markdown content")
     linked_document_ids: List[UUID] = Field(default_factory=list)

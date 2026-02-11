@@ -29,7 +29,14 @@ interface ProjectState {
   total: number;
 
   // Project Actions
-  fetchProjects: (params?: { skip?: number; limit?: number; search?: string }) => Promise<void>;
+  fetchProjects: (params?: {
+    skip?: number;
+    limit?: number;
+    search?: string;
+    project_status?: 'active' | 'paused' | 'completed' | 'archived';
+    project_type?: 'research' | 'literature_review' | 'thesis' | 'paper';
+    tag?: string;
+  }) => Promise<void>;
   fetchProject: (projectId: string) => Promise<void>;
   createProject: (data: ProjectCreate) => Promise<Project>;
   updateProject: (projectId: string, data: ProjectUpdate) => Promise<void>;

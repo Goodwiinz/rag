@@ -15,19 +15,16 @@ import {
   Sparkles,
   Plus,
   Trash2,
-  Pin,
-  PinOff,
-  Edit2,
   Download,
   Loader2,
-  Save,
-  X,
   MessageSquare,
 } from 'lucide-react';
-import { DraftGenerator, type GenerationConfig } from '@/components/research/DraftGenerator';
+import { DraftGenerator } from '@/components/research/DraftGenerator';
 import { DraftViewer } from '@/components/research/DraftViewer';
 import { DraftGenerationProgress } from '@/components/research/DraftGenerationProgress';
 import { ProjectChatTab } from '@/components/research/ProjectChatTab';
+import { NoteEditor } from '@/components/research/NoteEditor';
+import { NoteList } from '@/components/research/NoteList';
 import { projectService, type Draft, type GenerationStatus } from '@/services/projectService';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -76,9 +73,7 @@ export default function ProjectDetailPage() {
   // Note editing state
   const [editingNote, setEditingNote] = useState<ProjectNote | null>(null);
   const [showNoteEditor, setShowNoteEditor] = useState(false);
-  const [noteTitle, setNoteTitle] = useState('');
-  const [noteContent, setNoteContent] = useState('');
-  const [savingNote, setSavingNote] = useState(false);
+  const [selectedNoteTag, setSelectedNoteTag] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -113,42 +108,30 @@ export default function ProjectDetailPage() {
 
   const handleCreateNote = () => {
     setEditingNote(null);
-    setNoteTitle('');
-    setNoteContent('');
     setShowNoteEditor(true);
   };
 
   const handleEditNote = (note: ProjectNote) => {
     setEditingNote(note);
-    setNoteTitle(note.title);
-    setNoteContent(note.content);
     setShowNoteEditor(true);
   };
 
-  const handleSaveNote = async () => {
-    if (!noteTitle.trim()) return;
-
-    setSavingNote(true);
+  const handleSaveNote = async (noteData: ProjectNoteCreate) => {
     try {
       if (editingNote) {
         await updateNote(projectId, editingNote.id, {
-          title: noteTitle.trim(),
-          content: noteContent,
+          title: noteData.title.trim(),
+          content: noteData.content,
+          tags: noteData.tags,
+          linked_document_ids: noteData.linked_document_ids,
         });
       } else {
-        await createNote(projectId, {
-          title: noteTitle.trim(),
-          content: noteContent,
-        });
+        await createNote(projectId, noteData);
       }
       setShowNoteEditor(false);
       setEditingNote(null);
-      setNoteTitle('');
-      setNoteContent('');
     } catch (err) {
       console.error('Failed to save note:', err);
-    } finally {
-      setSavingNote(false);
     }
   };
 
@@ -327,7 +310,10 @@ export default function ProjectDetailPage() {
                           {doc.document?.title || doc.document?.filename || 'Untitled'}
                         </p>
                         <p className="text-xs text-gray-500 font-mono">
-                          Added {new Date(doc.added_at).toLocaleDateString()}
+                          Added{' '}
+                          {new Date(
+                            doc.added_at || doc.document?.created_at || Date.now()
+                          ).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
@@ -362,72 +348,19 @@ export default function ProjectDetailPage() {
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-6 w-6 animate-spin text-[#00ff9f]" />
               </div>
-            ) : projectNotes.length === 0 ? (
-              <div className="text-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
-                <StickyNote className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400 font-mono">No notes yet</p>
-                <p className="text-sm text-gray-500 mt-2">
-                  Create notes to organize your research
-                </p>
-              </div>
             ) : (
-              <div className="space-y-3">
-                {/* Pinned notes first */}
-                {projectNotes
-                  .sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0))
-                  .map((note) => (
-                    <div
-                      key={note.id}
-                      className={`p-4 bg-[#0a0a0a] border rounded-lg ${
-                        note.is_pinned ? 'border-[#ffb700]/50' : 'border-[#1a1a1a]'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          {note.is_pinned && (
-                            <Pin className="h-4 w-4 text-[#ffb700]" />
-                          )}
-                          <h3 className="font-mono font-medium text-gray-200">
-                            {note.title}
-                          </h3>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleTogglePin(note.id)}
-                            className="p-1.5 text-gray-500 hover:text-[#ffb700] transition-colors"
-                            title={note.is_pinned ? 'Unpin' : 'Pin'}
-                          >
-                            {note.is_pinned ? (
-                              <PinOff className="h-4 w-4" />
-                            ) : (
-                              <Pin className="h-4 w-4" />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleEditNote(note)}
-                            className="p-1.5 text-gray-500 hover:text-[#00ff9f] transition-colors"
-                            title="Edit"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteNote(note.id)}
-                            className="p-1.5 text-gray-500 hover:text-red-400 transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-400 line-clamp-3 whitespace-pre-wrap">
-                        {note.content}
-                      </p>
-                      <p className="text-xs text-gray-600 font-mono mt-2">
-                        Updated {new Date(note.updated_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                  ))}
-              </div>
+              <NoteList
+                notes={projectNotes}
+                selectedTag={selectedNoteTag}
+                onTagChange={setSelectedNoteTag}
+                onEdit={handleEditNote}
+                onDelete={(noteId) => {
+                  void handleDeleteNote(noteId);
+                }}
+                onTogglePin={(noteId) => {
+                  void handleTogglePin(noteId);
+                }}
+              />
             )}
           </div>
         )}
@@ -603,77 +536,16 @@ export default function ProjectDetailPage() {
         )}
       </div>
 
-      {/* Note Editor Modal */}
-      {showNoteEditor && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg w-full max-w-2xl max-h-[80vh] overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-[#1a1a1a]">
-              <h2 className="text-lg font-mono font-bold text-[#00ff9f]">
-                {editingNote ? 'Edit Note' : 'New Note'}
-              </h2>
-              <button
-                onClick={() => {
-                  setShowNoteEditor(false);
-                  setEditingNote(null);
-                }}
-                className="p-1 text-gray-500 hover:text-gray-300"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
-                  Title *
-                </label>
-                <input
-                  type="text"
-                  value={noteTitle}
-                  onChange={(e) => setNoteTitle(e.target.value)}
-                  placeholder="Note title..."
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#00ff9f]"
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
-                  Content (Markdown supported)
-                </label>
-                <textarea
-                  value={noteContent}
-                  onChange={(e) => setNoteContent(e.target.value)}
-                  placeholder="Write your notes here..."
-                  rows={12}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#00ff9f] resize-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 p-4 border-t border-[#1a1a1a]">
-              <button
-                onClick={() => {
-                  setShowNoteEditor(false);
-                  setEditingNote(null);
-                }}
-                className="px-4 py-2 text-sm font-mono text-gray-400 hover:text-gray-300 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveNote}
-                disabled={!noteTitle.trim() || savingNote}
-                className="flex items-center gap-2 px-4 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors disabled:opacity-50"
-              >
-                {savingNote && <Loader2 className="h-4 w-4 animate-spin" />}
-                <Save className="h-4 w-4" />
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <NoteEditor
+        isOpen={showNoteEditor}
+        initialNote={editingNote}
+        availableDocuments={projectDocuments}
+        onClose={() => {
+          setShowNoteEditor(false);
+          setEditingNote(null);
+        }}
+        onSave={handleSaveNote}
+      />
     </div>
   );
 }
