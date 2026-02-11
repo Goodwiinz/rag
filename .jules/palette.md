@@ -22,3 +22,8 @@
 
 **Learning:** In "terminal-style" or power-user interfaces, users expect keyboard-first navigation (like `/` to focus search) and quick reset capabilities. A search input without a clear button forces users to manually backspace, breaking the flow.
 **Action:** Always implement a clear button and global keyboard shortcut (checking for `activeElement` to avoid conflicts) for primary search inputs in data-heavy applications.
+
+## 2026-02-10 - [Zip Bomb Detection Div-by-Zero]
+
+**Learning:** When analyzing ZIP files for zip bomb detection, a file entry can have `compress_size == 0` (e.g., stored files with no compression). Dividing `file_size / compressed_size` without checking causes a `ZeroDivisionError`.
+**Action:** Always guard division with checks on both numerator and denominator when computing compression ratios.
