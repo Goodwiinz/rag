@@ -32,3 +32,8 @@
 
 **Learning:** Legacy UI components (like the sidebar toggle in `Sidebar.tsx`) often lack semantic HTML and ARIA attributes, relying solely on `div`s and `onClick` handlers. Even if components seem unused in the main flow, they may be imported elsewhere.
 **Action:** When auditing for accessibility, check imported but potentially "legacy" components for missing semantic structure (buttons vs divs) and ensure they are testable.
+
+## 2026-02-10 - [Accessibility: Modal Standardization]
+
+**Learning:** Custom-built modal dialogs often lack critical accessibility features like focus trapping and screen reader support. Replacing them with standardized components (like Shadcn UI Dialog) instantly solves these issues while maintaining visual consistency through custom styling.
+**Action:** Always prioritize using library-provided Dialog components over custom `div` overlays for modal interfaces.

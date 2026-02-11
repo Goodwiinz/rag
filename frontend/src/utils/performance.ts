@@ -52,7 +52,7 @@ export const performance = {
 
 // Performance monitoring hook
 export const usePerformanceMonitor = (componentName: string) => {
-  const renderStartTime = useRef<number>();
+  const renderStartTime = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     renderStartTime.current = window.performance.now();
@@ -418,7 +418,7 @@ export const getOptimizedImageUrl = (
 
 // Request animation frame for smooth animations
 export const useAnimationFrame = (callback: () => void, deps: any[] = []) => {
-  const requestRef = useRef<number>();
+  const requestRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     const animate = () => {
