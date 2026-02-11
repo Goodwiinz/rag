@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom';
 import { TextEncoder, TextDecoder } from 'util';
+import { TransformStream as WebTransformStream } from 'node:stream/web';
 
 Object.assign(global, { TextEncoder, TextDecoder });
 
@@ -7,8 +8,7 @@ Object.assign(global, { TextEncoder, TextDecoder });
 // TransformStream (Node 18+ has it under node:stream/web)
 try {
   if (typeof (global as any).TransformStream === 'undefined') {
-    const WebStream = require('node:stream/web');
-    (global as any).TransformStream = WebStream.TransformStream || class {};
+    (global as any).TransformStream = WebTransformStream || class {};
   }
 } catch {}
 
