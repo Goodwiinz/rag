@@ -44,3 +44,14 @@ Also, testing this endpoint proved difficult because the codebase has side effec
 1.  Always associate API keys with an `organization_id` upon creation.
 2.  Enforce organization scoping at the API entry point by extracting the organization ID from the authenticated credential (token or API key).
 3.  Avoid "superuser" defaults (like `organization_id=None`) in business logic services unless explicitly intended for system admin features.
+
+## 2026-05-24 - Critical Authorization Logic Inversion
+
+**Vulnerability:** The `bulk_delete_documents` endpoint contained inverted logic: `if current_user.has_permission(UserRole.ADMIN): raise Forbidden`. This blocked administrators from performing the action while allowing unauthorized users to bypass the check. A similar issue existed in `reprocess_document`.
+
+**Learning:** Manual permission checks using `if` statements are prone to logic errors (missing `not`). The absence of comprehensive negative test cases (testing that unauthorized users are BLOCKED) allowed this critical vulnerability to persist.
+
+**Prevention:**
+1.  Use a declarative permission system (decorators or middleware) where intent is clearer (e.g., `@require_role(UserRole.ADMIN)`).
+2.  Mandate negative test cases for all authorization logic.
+3.  Perform code reviews specifically targeting authorization logic for double negatives or inverted conditions.
