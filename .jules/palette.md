@@ -27,3 +27,8 @@
 
 **Learning:** When analyzing ZIP files for zip bomb detection, a file entry can have `compress_size == 0` (e.g., stored files with no compression). Dividing `file_size / compressed_size` without checking causes a `ZeroDivisionError`.
 **Action:** Always guard division with checks on both numerator and denominator when computing compression ratios.
+
+## 2026-02-10 - [Sidebar Toggle Accessibility]
+
+**Learning:** Legacy UI components (like the sidebar toggle in `Sidebar.tsx`) often lack semantic HTML and ARIA attributes, relying solely on `div`s and `onClick` handlers. Even if components seem unused in the main flow, they may be imported elsewhere.
+**Action:** When auditing for accessibility, check imported but potentially "legacy" components for missing semantic structure (buttons vs divs) and ensure they are testable.
