@@ -45,6 +45,12 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
+  "overrides": {
+    "undici": "^6.23.0",
+    "@isaacs/brace-expansion": "^5.0.1",
+    "jsonpath": "^1.2.0",
+    "@modelcontextprotocol/sdk": "^1.26.0"
+  },
   "devDependencies": {
     "@types/d3": "^7.4.3",
     "autoprefixer": "^10.4.24",
