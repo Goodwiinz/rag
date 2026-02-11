@@ -5,7 +5,7 @@
  * Form for configuring and generating literature review drafts
  */
 
-import React, { useState } from 'react';
+import React, { useState, useId } from 'react';
 import { Sparkles, Plus, X, Loader2 } from 'lucide-react';
 
 export interface DraftGeneratorProps {
@@ -32,7 +32,12 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
   const [maxSections, setMaxSections] = useState(5);
   const [includeAbstract, setIncludeAbstract] = useState(true);
 
-  const handleAddTheme = () => {
+  // Generate unique IDs for accessibility
+  const themesInputId = useId();
+  const maxSectionsId = useId();
+  const includeAbstractId = useId();
+
+  const handleAddTheme = (): void => {
     const trimmed = themeInput.trim();
     if (trimmed && !themes.includes(trimmed)) {
       setThemes([...themes, trimmed]);
@@ -40,18 +45,18 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
     }
   };
 
-  const handleRemoveTheme = (theme: string) => {
+  const handleRemoveTheme = (theme: string): void => {
     setThemes(themes.filter((t) => t !== theme));
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleAddTheme();
     }
   };
 
-  const handleGenerate = () => {
+  const handleGenerate = (): void => {
     if (themes.length === 0) return;
     onGenerate({
       themes,
@@ -71,11 +76,15 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
       <div className="space-y-5">
         {/* Themes Input */}
         <div>
-          <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2">
+          <label
+            htmlFor={themesInputId}
+            className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2"
+          >
             Themes / Topics *
           </label>
           <div className="flex gap-2 mb-2">
             <input
+              id={themesInputId}
               type="text"
               value={themeInput}
               onChange={(e) => setThemeInput(e.target.value)}
@@ -87,6 +96,7 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
               type="button"
               onClick={handleAddTheme}
               disabled={!themeInput.trim()}
+              aria-label="Add theme"
               className="px-3 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors disabled:opacity-50"
             >
               <Plus className="h-4 w-4" />
@@ -102,6 +112,7 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
                   {theme}
                   <button
                     onClick={() => handleRemoveTheme(theme)}
+                    aria-label={`Remove theme ${theme}`}
                     className="hover:text-red-400 transition-colors"
                   >
                     <X className="h-3 w-3" />
@@ -118,7 +129,7 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
         </div>
 
         {/* Style Selector */}
-        <div>
+        <div role="radiogroup" aria-label="Writing Style">
           <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2">
             Writing Style
           </label>
@@ -126,6 +137,8 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
             {(['academic', 'technical', 'summary'] as const).map((s) => (
               <button
                 key={s}
+                role="radio"
+                aria-checked={style === s}
                 onClick={() => setStyle(s)}
                 className={`flex-1 px-3 py-2 rounded text-sm font-mono transition-colors ${
                   style === s
@@ -141,10 +154,14 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
 
         {/* Max Sections Slider */}
         <div>
-          <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2">
+          <label
+            htmlFor={maxSectionsId}
+            className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2"
+          >
             Max Sections: <span className="text-[#00ff9f]">{maxSections}</span>
           </label>
           <input
+            id={maxSectionsId}
             type="range"
             min={2}
             max={10}
@@ -161,10 +178,16 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
 
         {/* Include Abstract Toggle */}
         <div className="flex items-center justify-between">
-          <label className="text-xs text-gray-500 font-mono uppercase tracking-wide">
+          <label
+            id={includeAbstractId}
+            className="text-xs text-gray-500 font-mono uppercase tracking-wide"
+          >
             Include Abstract
           </label>
           <button
+            role="switch"
+            aria-checked={includeAbstract}
+            aria-labelledby={includeAbstractId}
             onClick={() => setIncludeAbstract(!includeAbstract)}
             className={`relative w-12 h-6 rounded-full transition-colors ${
               includeAbstract
