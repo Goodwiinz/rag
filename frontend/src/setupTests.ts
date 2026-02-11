@@ -6,12 +6,12 @@ Object.assign(global, { TextEncoder, TextDecoder });
 // Polyfills/mocks for browser APIs missing in JSDOM/Node
 // TransformStream (Node 18+ has it under node:stream/web)
 try {
-  // @ts-ignore
-  if (typeof (global as any).TransformStream === 'undefined') {
+  if (typeof (global as unknown as Record<string, unknown>).TransformStream === 'undefined') {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const WebStream = require('node:stream/web');
-    (global as any).TransformStream = WebStream.TransformStream || class {};
+    (global as unknown as Record<string, unknown>).TransformStream = WebStream.TransformStream || class {};
   }
-} catch {}
+} catch {/* ignore if not available */}
 
 // PerformanceObserver
 if (typeof (global as any).PerformanceObserver === 'undefined') {
