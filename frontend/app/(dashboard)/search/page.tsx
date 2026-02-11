@@ -18,6 +18,7 @@ import {
   Search,
   Sparkles,
   Terminal,
+  X,
   Zap,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -50,6 +51,32 @@ export default function SearchPage() {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  const handleClear = () => {
+    setQuery('');
+    inputRef.current?.focus();
+  };
+
+  // Global '/' keyboard shortcut to focus search
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement?.tagName === 'INPUT' ||
+        document.activeElement?.tagName === 'TEXTAREA' ||
+        (document.activeElement as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.key === '/') {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
   // Terminal typing effect for header
@@ -372,6 +399,17 @@ export default function SearchPage() {
                   className="flex-1 bg-transparent text-[var(--terminal-text)] font-mono text-base placeholder:text-[var(--terminal-text-muted)]/30 outline-none"
                   autoFocus
                 />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="p-1 hover:bg-[var(--terminal-border)] rounded-full transition-colors mr-2 text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)]"
+                    aria-label="Clear search"
+                    title="Clear search"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
                 <button
                   onClick={() => handleSearch()}
                   disabled={isLoading || !query.trim()}
