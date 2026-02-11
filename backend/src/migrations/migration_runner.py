@@ -201,7 +201,7 @@ class MigrationRunner:
 
             for table in new_tables:
                 try:
-                    result = db.execute(text(f"SELECT COUNT(*) FROM {table}"))
+                    result = db.execute(text(f"SELECT COUNT(*) FROM {table}"))  # nosec: B608 - table from hardcoded whitelist
                     table_status[table] = "EXISTS"
                 except Exception as e:
                     table_status[table] = f"MISSING: {e}"
@@ -224,7 +224,7 @@ class MigrationRunner:
             column_status = {}
             for column in new_columns:
                 try:
-                    result = db.execute(text(f"SELECT {column} FROM documents LIMIT 1"))
+                    result = db.execute(text(f"SELECT {column} FROM documents LIMIT 1"))  # nosec: B608 - column from hardcoded whitelist
                     column_status[column] = "EXISTS"
                 except Exception as e:
                     column_status[column] = f"MISSING: {e}"

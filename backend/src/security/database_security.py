@@ -435,7 +435,7 @@ class DatabaseAuditor:
                 raise ValueError(f"Invalid table name: {table_name}")
             
             current_data = self.db.execute(
-                text("SELECT * FROM {} WHERE id = :id".format(table_name)),
+                text("SELECT * FROM {} WHERE id = :id".format(table_name)),  # nosec: B608 - table/column names validated against whitelist
                 {'id': record_id}
             ).fetchone()
 
@@ -599,7 +599,7 @@ class DatabaseSecurityManager:
         try:
             columns = ', '.join(encrypted_data.keys())
             placeholders = ', '.join([f':{key}' for key in encrypted_data.keys()])
-            query = text("INSERT INTO {} ({}) VALUES ({})".format(table_name, columns, placeholders))
+            query = text("INSERT INTO {} ({}) VALUES ({})".format(table_name, columns, placeholders))  # nosec: B608 - table/column names validated against whitelist
 
             result = self.db.execute(query, encrypted_data)
             self.db.commit()
@@ -640,7 +640,7 @@ class DatabaseSecurityManager:
                 select_columns = '*'
             
             # Build base query using string formatting for table name (after validation)
-            query = "SELECT {} FROM {}".format(select_columns, table_name)
+            query = "SELECT {} FROM {}".format(select_columns, table_name)  # nosec: B608 - table/column names validated against whitelist
             params = {}
 
             if filters:

@@ -625,9 +625,9 @@ class PostgreSQLTimeSeriesStore:
                 # Validate table name
                 if table not in ["analytics_events_ts", "performance_metrics_ts", "user_sessions_ts"]:
                     continue
-                    
+
                 # Get row count
-                count_sql = "SELECT COUNT(*) as count FROM {}".format(table)
+                count_sql = "SELECT COUNT(*) as count FROM {}".format(table)  # nosec: B608 - table validated against whitelist
                 count_result = db.execute(text(count_sql)).first()
 
                 # Get table size (approximate) - use parameterized query
@@ -668,8 +668,8 @@ class PostgreSQLTimeSeriesStore:
                 # Validate table name
                 if table not in ["analytics_events_ts", "performance_metrics_ts", "user_sessions_ts"]:
                     continue
-                    
-                delete_sql = "DELETE FROM {} WHERE timestamp < :cutoff_date".format(table)
+
+                delete_sql = "DELETE FROM {} WHERE timestamp < :cutoff_date".format(table)  # nosec: B608 - table validated against whitelist
                 result = db.execute(text(delete_sql), {"cutoff_date": cutoff_date})
                 deleted_count += result.rowcount
 

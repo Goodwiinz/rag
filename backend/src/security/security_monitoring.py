@@ -712,7 +712,7 @@ class SlackNotifier(NotificationChannel):
                 ]
             }
 
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(self.webhook_url, json=payload)
                 response.raise_for_status()
 
@@ -758,7 +758,7 @@ class PagerDutyNotifier(NotificationChannel):
                 },
             }
 
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
                     "https://events.pagerduty.com/v2/enqueue",
                     json=payload,

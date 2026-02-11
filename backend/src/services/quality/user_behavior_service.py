@@ -310,7 +310,7 @@ class UserBehaviorService:
 
             # Query session trends
             session_trends = db.execute(
-                text(
+                text(  # nosec: B608 - group_by constrained to enum-derived literal values
                     f"""
                 SELECT
                     DATE_TRUNC('{group_by}', start_time) as period,
@@ -329,7 +329,7 @@ class UserBehaviorService:
 
             # Query search event trends
             event_trends = db.execute(
-                text(
+                text(  # nosec: B608 - group_by constrained to enum-derived literal values
                     f"""
                 SELECT
                     DATE_TRUNC('{group_by}', created_at) as period,
@@ -349,7 +349,7 @@ class UserBehaviorService:
 
             # Query user engagement trends
             engagement_trends = db.execute(
-                text(
+                text(  # nosec: B608 - group_by constrained to enum-derived literal values
                     f"""
                 SELECT
                     DATE_TRUNC('{group_by}', s.start_time) as period,
