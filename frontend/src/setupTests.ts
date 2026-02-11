@@ -1,4 +1,7 @@
 import '@testing-library/jest-dom';
+import { TextEncoder, TextDecoder } from 'util';
+
+Object.assign(global, { TextEncoder, TextDecoder });
 
 // Polyfills/mocks for browser APIs missing in JSDOM/Node
 // TransformStream (Node 18+ has it under node:stream/web)
