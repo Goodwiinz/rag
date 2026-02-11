@@ -862,7 +862,7 @@ async def bulk_delete_documents(
     """
     Bulk delete multiple documents
     """
-    if current_user.has_permission(UserRole.ADMIN):
+    if not current_user.has_permission(UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Bulk delete requires admin privileges",
@@ -977,8 +977,9 @@ async def reprocess_document(
         )
 
     # Check permissions
-    if document.uploaded_by_user_id != current_user.id and current_user.has_permission(
-        UserRole.ADMIN
+    if (
+        document.uploaded_by_user_id != current_user.id
+        and not current_user.has_permission(UserRole.ADMIN)
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
