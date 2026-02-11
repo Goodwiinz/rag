@@ -19,7 +19,9 @@ async def test_extract_hybrid_uses_manual_fallback_when_sources_fail() -> None:
         service, "extract_from_arxiv", AsyncMock(return_value=None)
     ), patch.object(
         service, "extract_from_semantic_scholar", AsyncMock(return_value=None)
-    ), patch.object(service, "extract_from_crossref", AsyncMock(return_value=None)):
+    ), patch.object(
+        service, "extract_from_crossref", AsyncMock(return_value=None)
+    ), patch.object(service, "extract_from_pdf", AsyncMock(return_value=None)):
         citation, source = await service.extract_hybrid(
             arxiv_id="2301.07041",
             title="Sample Research Paper",
@@ -99,6 +101,7 @@ async def test_extract_for_document_uses_metadata_identifiers() -> None:
         doi="10.1234/abcd",
         title="Metadata Paper",
         strategy="auto",
+        document_id=document_id,
     )
 
 
@@ -128,3 +131,174 @@ def test_citation_author_normalization_accepts_dicts_and_strings() -> None:
         }
     )
     assert response_model.authors == ["Alice Doe"]
+
+
+# ============================================================================
+# PDF extraction tests
+# ============================================================================
+
+
+def _make_mock_fitz_doc(
+    metadata: dict | None = None,
+    first_page_text: str = "",
+) -> MagicMock:
+    """Create a mock fitz document with configurable metadata and page text."""
+    doc = MagicMock()
+    doc.metadata = metadata or {}
+    doc.__len__ = MagicMock(return_value=1)
+    page = MagicMock()
+    page.get_text.return_value = first_page_text
+    doc.__getitem__ = MagicMock(return_value=page)
+    doc.close = MagicMock()
+    return doc
+
+
+@pytest.mark.asyncio
+async def test_extract_from_pdf_extracts_metadata() -> None:
+    """PDF extraction should read title, authors, year, DOI from PDF metadata."""
+    document_id = uuid4()
+    db = AsyncMock()
+    service = CitationExtractionService(db)
+
+    document = MagicMock()
+    document.id = document_id
+    document.title = "DB Title"
+    document.file_path = "/data/uploads/paper.pdf"
+
+    query_result = MagicMock()
+    query_result.scalar_one_or_none.return_value = document
+    db.execute = AsyncMock(return_value=query_result)
+
+    mock_doc = _make_mock_fitz_doc(
+        metadata={
+            "title": "Attention Is All You Need",
+            "author": "Vaswani, Ashish; Shazeer, Noam",
+            "creationDate": "D:20170612120000",
+        },
+        first_page_text="Abstract\nhttps://doi.org/10.5555/3295222.3295349\narXiv:1706.03762v7",
+    )
+
+    mock_fitz_module = MagicMock()
+    mock_fitz_module.open.return_value = mock_doc
+
+    with patch.dict("sys.modules", {"fitz": mock_fitz_module}):
+        citation = await service.extract_from_pdf(document_id)
+
+    assert citation is not None
+    assert citation.document_title == "Attention Is All You Need"
+    assert citation.authors == ["Vaswani", "Ashish", "Shazeer", "Noam"]
+    assert citation.year == 2017
+    assert citation.doi == "10.5555/3295222.3295349"
+    assert citation.arxiv_id == "1706.03762v7"
+    assert citation.metadata_source == "pdf"
+    assert citation.needs_review is True
+
+
+@pytest.mark.asyncio
+async def test_extract_from_pdf_returns_none_on_missing_document() -> None:
+    """PDF extraction should return None when document not found in DB."""
+    document_id = uuid4()
+    db = AsyncMock()
+    service = CitationExtractionService(db)
+
+    query_result = MagicMock()
+    query_result.scalar_one_or_none.return_value = None
+    db.execute = AsyncMock(return_value=query_result)
+
+    mock_fitz_module = MagicMock()
+    with patch.dict("sys.modules", {"fitz": mock_fitz_module}):
+        citation = await service.extract_from_pdf(document_id)
+
+    assert citation is None
+
+
+@pytest.mark.asyncio
+async def test_extract_from_pdf_returns_none_on_fitz_error() -> None:
+    """PDF extraction should return None when fitz.open raises."""
+    document_id = uuid4()
+    db = AsyncMock()
+    service = CitationExtractionService(db)
+
+    document = MagicMock()
+    document.id = document_id
+    document.title = "Some Paper"
+    document.file_path = "/data/uploads/corrupted.pdf"
+
+    query_result = MagicMock()
+    query_result.scalar_one_or_none.return_value = document
+    db.execute = AsyncMock(return_value=query_result)
+
+    mock_fitz_module = MagicMock()
+    mock_fitz_module.open.side_effect = RuntimeError("corrupted PDF")
+
+    with patch.dict("sys.modules", {"fitz": mock_fitz_module}):
+        citation = await service.extract_from_pdf(document_id)
+
+    assert citation is None
+
+
+@pytest.mark.asyncio
+async def test_extract_hybrid_auto_tries_pdf_before_manual() -> None:
+    """AUTO strategy should try PDF extraction after CrossRef fails, before manual."""
+    document_id = uuid4()
+    service = CitationExtractionService(AsyncMock())
+    pdf_citation = CitationCreate(
+        document_title="PDF Extracted Title",
+        metadata_source="pdf",
+        needs_review=True,
+    )
+
+    with patch.object(
+        service, "extract_from_arxiv", AsyncMock(return_value=None)
+    ), patch.object(
+        service, "extract_from_semantic_scholar", AsyncMock(return_value=None)
+    ), patch.object(
+        service, "extract_from_crossref", AsyncMock(return_value=None)
+    ), patch.object(
+        service, "extract_from_pdf", AsyncMock(return_value=pdf_citation)
+    ) as pdf_mock:
+        citation, source = await service.extract_hybrid(
+            arxiv_id="2301.07041",
+            title="Some Paper",
+            strategy="auto",
+            document_id=document_id,
+        )
+
+    assert citation is not None
+    assert source == "pdf"
+    assert citation.document_title == "PDF Extracted Title"
+    pdf_mock.assert_awaited_once_with(document_id)
+
+
+@pytest.mark.asyncio
+async def test_extract_hybrid_pdf_strategy() -> None:
+    """Dedicated PDF strategy should call only extract_from_pdf."""
+    document_id = uuid4()
+    service = CitationExtractionService(AsyncMock())
+    pdf_citation = CitationCreate(
+        document_title="PDF Only",
+        metadata_source="pdf",
+        needs_review=True,
+    )
+
+    with patch.object(
+        service, "extract_from_arxiv", AsyncMock(return_value=None)
+    ) as arxiv_mock, patch.object(
+        service, "extract_from_semantic_scholar", AsyncMock(return_value=None)
+    ) as semsch_mock, patch.object(
+        service, "extract_from_crossref", AsyncMock(return_value=None)
+    ) as crossref_mock, patch.object(
+        service, "extract_from_pdf", AsyncMock(return_value=pdf_citation)
+    ) as pdf_mock:
+        citation, source = await service.extract_hybrid(
+            title="Anything",
+            strategy="pdf",
+            document_id=document_id,
+        )
+
+    assert citation is not None
+    assert source == "pdf"
+    arxiv_mock.assert_not_awaited()
+    semsch_mock.assert_not_awaited()
+    crossref_mock.assert_not_awaited()
+    pdf_mock.assert_awaited_once_with(document_id)
