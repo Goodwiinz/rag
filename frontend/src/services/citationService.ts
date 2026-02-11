@@ -169,6 +169,7 @@ export const citationService = {
     filename?: string
   ): Promise<void> {
     const bibliography = await this.exportBibliography(format, citationIds, projectId);
+    const extension = format === 'bibtex' ? 'bib' : format;
 
     // Create blob and download
     const blob = new Blob([bibliography], {
@@ -178,7 +179,7 @@ export const citationService = {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = filename || `bibliography.${format}`;
+    link.download = filename || `bibliography.${extension}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

@@ -5,14 +5,19 @@
  * Modal for exporting drafts to different formats
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Download, FileText, Code, Loader2 } from 'lucide-react';
 
 export interface DraftExportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (format: 'markdown' | 'latex', includeBibliography: boolean) => Promise<void>;
+  onExport: (
+    format: 'markdown' | 'latex',
+    includeBibliography: boolean,
+    bibliographyFormat: 'bibtex' | 'biblatex'
+  ) => Promise<void>;
   draftTitle: string;
+  initialFormat?: 'markdown' | 'latex';
 }
 
 export const DraftExportModal: React.FC<DraftExportModalProps> = ({
@@ -20,17 +25,25 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
   onClose,
   onExport,
   draftTitle,
+  initialFormat = 'markdown',
 }) => {
-  const [format, setFormat] = useState<'markdown' | 'latex'>('markdown');
+  const [format, setFormat] = useState<'markdown' | 'latex'>(initialFormat);
   const [includeBibliography, setIncludeBibliography] = useState(true);
+  const [bibliographyFormat, setBibliographyFormat] = useState<'bibtex' | 'biblatex'>('bibtex');
   const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormat(initialFormat);
+    }
+  }, [initialFormat, isOpen]);
 
   if (!isOpen) return null;
 
   const handleExport = async () => {
     setExporting(true);
     try {
-      await onExport(format, includeBibliography);
+      await onExport(format, includeBibliography, bibliographyFormat);
       onClose();
     } catch (error) {
       console.error('Export failed:', error);
@@ -122,6 +135,25 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
               />
             </button>
           </div>
+
+          {/* Bibliography Format */}
+          {includeBibliography && (
+            <div>
+              <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2">
+                Bibliography Format
+              </label>
+              <select
+                value={bibliographyFormat}
+                onChange={(e) =>
+                  setBibliographyFormat(e.target.value as 'bibtex' | 'biblatex')
+                }
+                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
+              >
+                <option value="bibtex">BibTeX</option>
+                <option value="biblatex">BibLaTeX</option>
+              </select>
+            </div>
+          )}
 
           {/* LaTeX Info */}
           {format === 'latex' && (
