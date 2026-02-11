@@ -3,7 +3,7 @@
 # Core FastAPI and web framework
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-python-multipart==0.0.6
+python-multipart==0.0.22
 
 # Database and graph databases
 neo4j==5.14.1
@@ -16,9 +16,9 @@ redis[asyncio]==5.0.1
 aioredis==2.0.1
 
 # Authentication and security
-python-jose[cryptography]==3.3.0
+python-jose[cryptography]==3.4.0
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.6
+python-multipart==0.0.22
 
 # Data validation and serialization
 pydantic==2.5.0
@@ -31,7 +31,7 @@ aiofiles==23.2.1
 # Natural Language Processing for entity extraction
 spacy==3.7.2
 en-core-web-sm==3.7.1
-nltk==3.8.1
+nltk==3.9
 
 # Text processing and regex
 regex==2023.10.3
