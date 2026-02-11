@@ -40,7 +40,11 @@ def upgrade() -> None:
         sa.Column('generation_params', postgresql.JSONB, nullable=True),
         sa.Column('generation_time_ms', sa.Integer, nullable=True),
         sa.Column('is_current', sa.Boolean, nullable=False, server_default='true'),
+        sa.Column('user_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('users.id'), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('now()')),
+        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('now()')),
+        sa.Column('is_deleted', sa.Boolean, nullable=False, server_default='false'),
+        sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
 
         # Unique constraint for version per project
         sa.UniqueConstraint('project_id', 'version', name='uq_draft_version')
@@ -49,6 +53,7 @@ def upgrade() -> None:
     # Create indexes
     op.create_index('ix_generated_drafts_project_id', 'generated_drafts', ['project_id'])
     op.create_index('ix_generated_drafts_is_current', 'generated_drafts', ['is_current'])
+    op.create_index('ix_generated_drafts_user_id', 'generated_drafts', ['user_id'])
 
     # Create draft_citations table
     op.create_table(
@@ -116,6 +121,7 @@ def downgrade() -> None:
     op.drop_table('draft_citations')
 
     # Drop generated_drafts indexes and table
+    op.drop_index('ix_generated_drafts_user_id', table_name='generated_drafts')
     op.drop_index('ix_generated_drafts_is_current', table_name='generated_drafts')
     op.drop_index('ix_generated_drafts_project_id', table_name='generated_drafts')
     op.drop_table('generated_drafts')

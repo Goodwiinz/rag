@@ -178,7 +178,7 @@ async def list_drafts(
 
 
 # ============================================================================
-# Draft Detail Endpoints (T081)
+# Static path routes (MUST be registered before /{draft_id} catch-all)
 # ============================================================================
 
 
@@ -189,7 +189,6 @@ async def get_current_draft(
     db: AsyncSession = Depends(get_db),
 ):
     """Get the current (latest) draft for a project."""
-    # Validate project ownership
     await _validate_project_ownership(project_id, current_user, db)
 
     service = DraftGenerationService(db)
@@ -213,6 +212,71 @@ async def get_current_draft(
     }
 
 
+@router.get("/compare")
+async def compare_drafts(
+    project_id: UUID,
+    version_a: int = Query(..., description="First version to compare"),
+    version_b: int = Query(..., description="Second version to compare"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Compare two draft versions."""
+    await _validate_project_ownership(project_id, current_user, db)
+
+    service = DraftGenerationService(db)
+
+    result = await service.compare_drafts(project_id, version_a, version_b)
+
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+
+    return result
+
+
+@router.get("/status/{task_id}")
+async def get_generation_status(
+    project_id: UUID,
+    task_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get the status of an ongoing draft generation."""
+    await _validate_project_ownership(project_id, current_user, db)
+
+    gen_status = DraftGenerationService.get_status(task_id)
+
+    if not gen_status:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return gen_status
+
+
+@router.post("/cancel/{task_id}")
+async def cancel_generation(
+    project_id: UUID,
+    task_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel an ongoing draft generation."""
+    await _validate_project_ownership(project_id, current_user, db)
+
+    success = DraftGenerationService.cancel_generation(task_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot cancel: task not found or already completed",
+        )
+
+    return {"message": "Generation cancelled", "task_id": task_id}
+
+
+# ============================================================================
+# Parameterized /{draft_id} routes (AFTER static paths)
+# ============================================================================
+
+
 @router.get("/{draft_id}")
 async def get_draft(
     project_id: UUID,
@@ -221,7 +285,6 @@ async def get_draft(
     db: AsyncSession = Depends(get_db),
 ):
     """Get a specific draft by ID."""
-    # Validate project ownership
     await _validate_project_ownership(project_id, current_user, db)
 
     service = DraftGenerationService(db)
@@ -253,7 +316,6 @@ async def delete_draft(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a specific draft."""
-    # Validate project ownership
     await _validate_project_ownership(project_id, current_user, db)
 
     service = DraftGenerationService(db)
@@ -265,11 +327,6 @@ async def delete_draft(
     return {"message": "Draft deleted", "draft_id": str(draft_id)}
 
 
-# ============================================================================
-# Draft Citations (T082)
-# ============================================================================
-
-
 @router.get("/{draft_id}/citations")
 async def get_draft_citations(
     project_id: UUID,
@@ -278,7 +335,6 @@ async def get_draft_citations(
     db: AsyncSession = Depends(get_db),
 ):
     """Get citations mapped to [Doc N] indices for a draft."""
-    # Validate project ownership
     await _validate_project_ownership(project_id, current_user, db)
 
     service = DraftGenerationService(db)
@@ -301,38 +357,6 @@ async def get_draft_citations(
     }
 
 
-# ============================================================================
-# Draft Comparison (T083)
-# ============================================================================
-
-
-@router.get("/compare")
-async def compare_drafts(
-    project_id: UUID,
-    version_a: int = Query(..., description="First version to compare"),
-    version_b: int = Query(..., description="Second version to compare"),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Compare two draft versions."""
-    # Validate project ownership
-    await _validate_project_ownership(project_id, current_user, db)
-
-    service = DraftGenerationService(db)
-
-    result = await service.compare_drafts(project_id, version_a, version_b)
-
-    if "error" in result:
-        raise HTTPException(status_code=404, detail=result["error"])
-
-    return result
-
-
-# ============================================================================
-# Draft Export (T084)
-# ============================================================================
-
-
 @router.post("/{draft_id}/export")
 async def export_draft(
     project_id: UUID,
@@ -344,7 +368,6 @@ async def export_draft(
     db: AsyncSession = Depends(get_db),
 ):
     """Export draft to LaTeX (.tex + .bib) or Markdown."""
-    # Validate project ownership
     await _validate_project_ownership(project_id, current_user, db)
 
     service = DraftGenerationService(db)
@@ -361,54 +384,3 @@ async def export_draft(
         raise HTTPException(status_code=400, detail=result["error"])
 
     return result
-
-
-# ============================================================================
-# Generation Status (T085)
-# ============================================================================
-
-
-@router.get("/status/{task_id}")
-async def get_generation_status(
-    project_id: UUID,
-    task_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get the status of an ongoing draft generation."""
-    # Validate project ownership
-    await _validate_project_ownership(project_id, current_user, db)
-
-    status = DraftGenerationService.get_status(task_id)
-
-    if not status:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    return status
-
-
-# ============================================================================
-# Cancel Generation (T086)
-# ============================================================================
-
-
-@router.post("/cancel/{task_id}")
-async def cancel_generation(
-    project_id: UUID,
-    task_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Cancel an ongoing draft generation."""
-    # Validate project ownership
-    await _validate_project_ownership(project_id, current_user, db)
-
-    success = DraftGenerationService.cancel_generation(task_id)
-
-    if not success:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot cancel: task not found or already completed",
-        )
-
-    return {"message": "Generation cancelled", "task_id": task_id}

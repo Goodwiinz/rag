@@ -30,6 +30,14 @@ class GeneratedDraft(BaseModel):
         index=True,
     )
 
+    # Owner
+    user_id = Column(
+        GUID(),
+        ForeignKey("users.id"),
+        nullable=True,
+        index=True,
+    )
+
     # Version information
     version = Column(Integer, nullable=False)  # Version number (1, 2, 3, ...)
 
@@ -61,6 +69,7 @@ class GeneratedDraft(BaseModel):
 
     # Relationships
     project = relationship("Collection", backref="drafts")
+    user = relationship("User", backref="drafts")
     citations = relationship(
         "DraftCitation", back_populates="draft", cascade="all, delete-orphan"
     )
@@ -114,18 +123,22 @@ class GeneratedDraft(BaseModel):
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
-    def mark_as_current(self, session):
+    async def mark_as_current(self, session: "AsyncSession") -> None:
         """
         Mark this draft as the current version and unmark all others.
 
         Args:
-            session: SQLAlchemy session
+            session: AsyncSession instance
         """
-        # Unmark all other drafts in the same project as current
-        session.query(GeneratedDraft).filter(
-            GeneratedDraft.project_id == self.project_id, GeneratedDraft.id != self.id
-        ).update({"is_current": False})
+        from sqlalchemy import update
 
-        # Mark this draft as current
+        stmt = (
+            update(GeneratedDraft)
+            .where(
+                GeneratedDraft.project_id == self.project_id,
+                GeneratedDraft.id != self.id,
+            )
+            .values(is_current=False)
+        )
+        await session.execute(stmt)
         self.is_current = True
-        session.commit()

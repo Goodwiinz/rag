@@ -1,156 +1,235 @@
 /**
- * Unit tests for DraftViewer component (T117)
+ * Unit tests for DraftViewer component
  *
- * Tests draft rendering, version selection, and citation links.
+ * Tests draft rendering (title, metadata, themes, content via ReactMarkdown),
+ * citation badge rendering for [Doc N] patterns, version selector,
+ * export button, and "Current" badge display.
  */
 
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { DraftViewer } from '@/components/research/DraftViewer';
+import type { Draft } from '@/services/projectService';
 
-// Mock draft data
-const mockDraft = {
-  id: 'draft-1',
-  projectId: 'project-1',
-  version: 3,
-  title: 'Literature Review: Machine Learning in Healthcare',
-  content: `# Introduction
+// Mock react-markdown since it uses ESM and may not work in the Jest/JSDOM env
+jest.mock('react-markdown', () => {
+  return function MockReactMarkdown({ children }: { children: string }) {
+    return <div data-testid="markdown-content">{children}</div>;
+  };
+});
 
-Machine learning has emerged as a transformative technology in healthcare [Doc 1].
+jest.mock('remark-gfm', () => () => {});
 
-# Methodology
-
-Recent studies have employed various ML techniques [Doc 2]. Deep learning approaches
-have shown particular promise [Doc 3].
-
-# Conclusions
-
-The integration of these techniques [Doc 1, Doc 2] has led to breakthrough results.`,
-  wordCount: 150,
-  citationCount: 5,
-  isCurrent: true,
-  createdAt: '2024-01-15T10:00:00Z',
-};
-
-const mockVersions = [
-  { id: 'draft-3', version: 3, isCurrent: true, createdAt: '2024-01-15T10:00:00Z' },
-  { id: 'draft-2', version: 2, isCurrent: false, createdAt: '2024-01-14T10:00:00Z' },
-  { id: 'draft-1', version: 1, isCurrent: false, createdAt: '2024-01-13T10:00:00Z' },
-];
+// Helper to create a valid Draft object for tests
+function createMockDraft(overrides: Partial<Draft> = {}): Draft {
+  return {
+    id: 'draft-abc-123',
+    project_id: 'project-xyz',
+    version: 2,
+    title: 'Literature Review: Transformer Architectures',
+    content:
+      'This section discusses attention mechanisms [Doc 1] and their applications [Doc 3].',
+    themes: ['transformers', 'attention', 'NLP'],
+    word_count: 2450,
+    citation_count: 8,
+    generation_params: { style: 'academic' },
+    is_current: true,
+    created_at: '2025-03-10T14:30:00Z',
+    ...overrides,
+  };
+}
 
 describe('DraftViewer', () => {
-  describe('Content Rendering', () => {
-    it('test_renders_markdown_content', () => {
-      // Test that draft displays with proper markdown formatting
-      const content = mockDraft.content;
+  it('renders draft title and metadata', () => {
+    const draft = createMockDraft();
+    render(<DraftViewer draft={draft} />);
 
-      expect(content).toContain('# Introduction');
-      expect(content).toContain('# Methodology');
-      expect(content).toContain('# Conclusions');
-    });
+    expect(
+      screen.getByText('Literature Review: Transformer Architectures')
+    ).toBeInTheDocument();
 
-    it('test_displays_draft_metadata', () => {
-      // Test that metadata is shown
-      expect(mockDraft.version).toBe(3);
-      expect(mockDraft.wordCount).toBe(150);
-      expect(mockDraft.citationCount).toBe(5);
-    });
+    // Metadata line: "Version 2 . 2450 words . 8 citations"
+    expect(screen.getByText(/Version 2/)).toBeInTheDocument();
+    expect(screen.getByText(/2450 words/)).toBeInTheDocument();
+    expect(screen.getByText(/8 citations/)).toBeInTheDocument();
   });
 
-  describe('Version Selection', () => {
-    it('test_version_selector', () => {
-      // Test switching between draft versions
-      const versions = mockVersions;
-
-      expect(versions.length).toBe(3);
-      expect(versions[0].version).toBe(3); // Newest first
-
-      // Find current version
-      const currentVersion = versions.find((v) => v.isCurrent);
-      expect(currentVersion?.version).toBe(3);
+  it('renders theme badges', () => {
+    const draft = createMockDraft({
+      themes: ['deep learning', 'computer vision', 'GANs'],
     });
+    render(<DraftViewer draft={draft} />);
 
-    it('test_version_dropdown_options', () => {
-      // Test that version dropdown shows all versions
-      const versionOptions = mockVersions.map(
-        (v) => `Version ${v.version} - ${new Date(v.createdAt).toLocaleDateString()}`
-      );
-
-      expect(versionOptions.length).toBe(3);
-      versionOptions.forEach((option) => {
-        expect(option).toContain('Version');
-      });
-    });
-
-    it('test_select_older_version', () => {
-      // Test selecting an older version
-      const onVersionSelect = jest.fn();
-      const selectedVersion = mockVersions[2]; // Version 1
-
-      onVersionSelect(selectedVersion.id);
-
-      expect(onVersionSelect).toHaveBeenCalledWith('draft-1');
-    });
+    expect(screen.getByText('Themes:')).toBeInTheDocument();
+    expect(screen.getByText('deep learning')).toBeInTheDocument();
+    expect(screen.getByText('computer vision')).toBeInTheDocument();
+    expect(screen.getByText('GANs')).toBeInTheDocument();
   });
 
-  describe('Citation Links', () => {
-    it('test_citation_links_clickable', () => {
-      // Test that [Doc N] links work
-      const content = mockDraft.content;
+  it('does not render themes section when themes array is empty', () => {
+    const draft = createMockDraft({ themes: [] });
+    render(<DraftViewer draft={draft} />);
 
-      // Extract citation patterns
-      const citationPattern = /\[Doc \d+\]/g;
-      const citations = content.match(citationPattern);
-
-      expect(citations).toBeTruthy();
-      expect(citations!.length).toBeGreaterThan(0);
-      expect(citations).toContain('[Doc 1]');
-      expect(citations).toContain('[Doc 2]');
-    });
-
-    it('test_citation_click_handler', () => {
-      // Test clicking a citation
-      const onCitationClick = jest.fn();
-      const citationIndex = 1;
-
-      onCitationClick(citationIndex);
-
-      expect(onCitationClick).toHaveBeenCalledWith(1);
-    });
-
-    it('test_multiple_citations_in_same_bracket', () => {
-      // Test [Doc 1, Doc 2] format
-      const content = mockDraft.content;
-
-      expect(content).toContain('[Doc 1, Doc 2]');
-    });
+    expect(screen.queryByText('Themes:')).not.toBeInTheDocument();
   });
 
-  describe('Export', () => {
-    it('test_export_button_visible', () => {
-      // Test that export button is shown
-      const exportFormats = ['latex', 'markdown'];
-
-      expect(exportFormats.length).toBe(2);
+  it('renders content with ReactMarkdown', () => {
+    const draft = createMockDraft({
+      content: '## Introduction\n\nSome content here.',
     });
+    render(<DraftViewer draft={draft} />);
 
-    it('test_export_triggers_download', () => {
-      // Test export functionality
-      const onExport = jest.fn();
-      const format = 'latex';
-
-      onExport(mockDraft.id, format);
-
-      expect(onExport).toHaveBeenCalledWith('draft-1', 'latex');
-    });
+    const markdownEl = screen.getByTestId('markdown-content');
+    expect(markdownEl).toBeInTheDocument();
+    expect(markdownEl).toHaveTextContent('## Introduction');
+    expect(markdownEl).toHaveTextContent('Some content here.');
   });
 
-  describe('Empty State', () => {
-    it('test_no_draft_message', () => {
-      // Test message when no draft exists
-      const noDraft = null;
-
-      expect(noDraft).toBeNull();
-      // Should show "No draft generated yet" message
+  it('renders [Doc N] citation badges in content', () => {
+    // With the mock ReactMarkdown, the content is rendered as plain text
+    // inside a div. The citation badge rendering happens inside the real
+    // ReactMarkdown components override (p, li). Since we mock ReactMarkdown,
+    // we verify that the content containing [Doc N] is passed through.
+    const draft = createMockDraft({
+      content: 'Evidence shows [Doc 1] and confirms [Doc 5] results.',
     });
+    render(<DraftViewer draft={draft} />);
+
+    const markdownEl = screen.getByTestId('markdown-content');
+    expect(markdownEl).toHaveTextContent('[Doc 1]');
+    expect(markdownEl).toHaveTextContent('[Doc 5]');
+  });
+
+  it('shows version selector when multiple versions are provided', () => {
+    const draft = createMockDraft({ version: 3 });
+    const versions = [
+      { version: 3, created_at: '2025-03-10T14:30:00Z' },
+      { version: 2, created_at: '2025-03-09T10:00:00Z' },
+      { version: 1, created_at: '2025-03-08T08:00:00Z' },
+    ];
+    const onVersionChange = jest.fn();
+
+    render(
+      <DraftViewer
+        draft={draft}
+        versions={versions}
+        onVersionChange={onVersionChange}
+      />
+    );
+
+    const select = screen.getByRole('combobox');
+    expect(select).toBeInTheDocument();
+
+    // Should have 3 options
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(3);
+
+    // Options text should contain version numbers
+    expect(options[0]).toHaveTextContent('v3');
+    expect(options[1]).toHaveTextContent('v2');
+    expect(options[2]).toHaveTextContent('v1');
+  });
+
+  it('does not show version selector when only one version exists', () => {
+    const draft = createMockDraft({ version: 1 });
+    const versions = [{ version: 1, created_at: '2025-03-08T08:00:00Z' }];
+    const onVersionChange = jest.fn();
+
+    render(
+      <DraftViewer
+        draft={draft}
+        versions={versions}
+        onVersionChange={onVersionChange}
+      />
+    );
+
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
+  it('does not show version selector when versions prop is not provided', () => {
+    const draft = createMockDraft();
+    render(<DraftViewer draft={draft} />);
+
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
+  it('calls onVersionChange when a version is selected', () => {
+    const draft = createMockDraft({ version: 3 });
+    const versions = [
+      { version: 3, created_at: '2025-03-10T14:30:00Z' },
+      { version: 2, created_at: '2025-03-09T10:00:00Z' },
+      { version: 1, created_at: '2025-03-08T08:00:00Z' },
+    ];
+    const onVersionChange = jest.fn();
+
+    render(
+      <DraftViewer
+        draft={draft}
+        versions={versions}
+        onVersionChange={onVersionChange}
+      />
+    );
+
+    const select = screen.getByRole('combobox');
+    fireEvent.change(select, { target: { value: '1' } });
+
+    expect(onVersionChange).toHaveBeenCalledTimes(1);
+    expect(onVersionChange).toHaveBeenCalledWith(1);
+  });
+
+  it('calls onExport when export button is clicked', () => {
+    const draft = createMockDraft();
+    const onExport = jest.fn();
+
+    render(<DraftViewer draft={draft} onExport={onExport} />);
+
+    const exportButton = screen.getByRole('button', { name: /export/i });
+    expect(exportButton).toBeInTheDocument();
+
+    fireEvent.click(exportButton);
+
+    expect(onExport).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not render export button when onExport is not provided', () => {
+    const draft = createMockDraft();
+    render(<DraftViewer draft={draft} />);
+
+    expect(
+      screen.queryByRole('button', { name: /export/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows "Current" badge when draft.is_current is true', () => {
+    const draft = createMockDraft({ is_current: true });
+    render(<DraftViewer draft={draft} />);
+
+    expect(screen.getByText('Current')).toBeInTheDocument();
+  });
+
+  it('does not show "Current" badge when draft.is_current is false', () => {
+    const draft = createMockDraft({ is_current: false });
+    render(<DraftViewer draft={draft} />);
+
+    expect(screen.queryByText('Current')).not.toBeInTheDocument();
+  });
+
+  it('renders the created_at date in the footer', () => {
+    const draft = createMockDraft({
+      created_at: '2025-03-10T14:30:00Z',
+    });
+    render(<DraftViewer draft={draft} />);
+
+    // The footer uses new Date(...).toLocaleString(), so we check for "Generated"
+    expect(screen.getByText(/Generated/)).toBeInTheDocument();
+  });
+
+  it('handles empty content gracefully', () => {
+    const draft = createMockDraft({ content: '' });
+    render(<DraftViewer draft={draft} />);
+
+    const markdownEl = screen.getByTestId('markdown-content');
+    expect(markdownEl).toBeInTheDocument();
+    expect(markdownEl).toHaveTextContent('');
   });
 });

@@ -1,189 +1,290 @@
 /**
- * Unit tests for DraftGenerator component (T118)
+ * Unit tests for DraftGenerator component
  *
- * Tests theme input, generation trigger, and progress display.
+ * Tests theme input (Enter key, Plus button, removal), style selection,
+ * max sections slider, abstract toggle, generate button states, and
+ * document count display using @testing-library/react.
  */
 
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-// Mock generation config
-const mockGenerationConfig = {
-  themes: ['introduction', 'methodology', 'results', 'discussion'],
-  style: 'academic',
-  maxSections: 4,
-  includeAbstract: true,
-};
-
-// Mock generation status
-const mockGenerationStatus = {
-  status: 'generating',
-  progress: 0.65,
-  currentStep: 'Synthesizing content',
-  estimatedRemainingSeconds: 15,
-};
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import {
+  DraftGenerator,
+  type GenerationConfig,
+} from '@/components/research/DraftGenerator';
 
 describe('DraftGenerator', () => {
-  describe('Theme Input', () => {
-    it('test_theme_input', () => {
-      // Test adding and removing themes
-      const themes = [...mockGenerationConfig.themes];
+  const defaultOnGenerate = jest.fn();
 
-      expect(themes.length).toBe(4);
-      expect(themes).toContain('introduction');
-      expect(themes).toContain('methodology');
-    });
-
-    it('test_add_theme', () => {
-      // Test adding a new theme
-      const themes = [...mockGenerationConfig.themes];
-      const newTheme = 'conclusions';
-
-      themes.push(newTheme);
-
-      expect(themes).toContain(newTheme);
-      expect(themes.length).toBe(5);
-    });
-
-    it('test_remove_theme', () => {
-      // Test removing a theme
-      const themes = [...mockGenerationConfig.themes];
-      const removeTheme = 'discussion';
-
-      const newThemes = themes.filter((t) => t !== removeTheme);
-
-      expect(newThemes).not.toContain(removeTheme);
-      expect(newThemes.length).toBe(3);
-    });
-
-    it('test_theme_chips_display', () => {
-      // Test that themes display as chips/tags
-      const themes = mockGenerationConfig.themes;
-
-      themes.forEach((theme) => {
-        expect(typeof theme).toBe('string');
-        expect(theme.length).toBeGreaterThan(0);
-      });
-    });
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
-  describe('Generation Trigger', () => {
-    it('test_generate_button_calls_api', () => {
-      // Test that generate button triggers API call
-      const onGenerate = jest.fn();
-      const config = mockGenerationConfig;
+  it('renders the component with generate button', () => {
+    render(<DraftGenerator onGenerate={defaultOnGenerate} />);
 
-      onGenerate(config);
-
-      expect(onGenerate).toHaveBeenCalledWith(config);
-    });
-
-    it('test_generate_button_disabled_no_themes', () => {
-      // Test that button is disabled when no themes selected
-      const emptyThemes: string[] = [];
-      const isDisabled = emptyThemes.length === 0;
-
-      expect(isDisabled).toBe(true);
-    });
-
-    it('test_generate_button_disabled_during_generation', () => {
-      // Test that button is disabled during generation
-      const isGenerating = mockGenerationStatus.status === 'generating';
-      const isDisabled = isGenerating;
-
-      expect(isDisabled).toBe(true);
-    });
+    // The h3 heading and button both say "Generate Literature Review"
+    expect(
+      screen.getAllByText('Generate Literature Review').length
+    ).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Themes / Topics *')).toBeInTheDocument();
+    expect(screen.getByText('Writing Style')).toBeInTheDocument();
+    expect(screen.getByText('Include Abstract')).toBeInTheDocument();
   });
 
-  describe('Progress Display', () => {
-    it('test_progress_display', () => {
-      // Test generation progress display
-      const status = mockGenerationStatus;
+  it('adds a theme via input and Enter key', () => {
+    render(<DraftGenerator onGenerate={defaultOnGenerate} />);
 
-      expect(status.progress).toBe(0.65);
-      expect(status.progress).toBeGreaterThanOrEqual(0);
-      expect(status.progress).toBeLessThanOrEqual(1);
-    });
+    const input = screen.getByPlaceholderText(
+      'Enter a theme and press Enter...'
+    );
 
-    it('test_progress_bar_percentage', () => {
-      // Test progress bar shows percentage
-      const progressPercent = mockGenerationStatus.progress * 100;
+    fireEvent.change(input, { target: { value: 'machine learning' } });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
 
-      expect(progressPercent).toBe(65);
-    });
-
-    it('test_current_step_display', () => {
-      // Test that current step is shown
-      const currentStep = mockGenerationStatus.currentStep;
-
-      expect(currentStep).toBe('Synthesizing content');
-    });
-
-    it('test_estimated_time_display', () => {
-      // Test ETA countdown
-      const eta = mockGenerationStatus.estimatedRemainingSeconds;
-
-      expect(eta).toBe(15);
-      expect(eta).toBeGreaterThanOrEqual(0);
-    });
+    expect(screen.getByText('machine learning')).toBeInTheDocument();
+    // Input should be cleared after adding
+    expect(input).toHaveValue('');
   });
 
-  describe('Style Selection', () => {
-    it('test_style_options', () => {
-      // Test available style options
-      const styles = ['academic', 'technical', 'summary'];
+  it('adds a theme via the Plus button click', () => {
+    render(<DraftGenerator onGenerate={defaultOnGenerate} />);
 
-      expect(styles.length).toBe(3);
-      expect(styles).toContain(mockGenerationConfig.style);
-    });
+    const input = screen.getByPlaceholderText(
+      'Enter a theme and press Enter...'
+    );
 
-    it('test_select_style', () => {
-      // Test selecting a style
-      const onStyleSelect = jest.fn();
-      const selectedStyle = 'technical';
+    fireEvent.change(input, { target: { value: 'deep learning' } });
 
-      onStyleSelect(selectedStyle);
+    // The Plus button is the only non-style, non-generate, non-toggle button
+    // with the Plus icon. It is next to the input in the flex row.
+    const buttons = screen.getAllByRole('button');
+    // The Plus button is the one that is NOT the style buttons, not the
+    // abstract toggle, and not the generate button. It should be the first
+    // button rendered (right after the input).
+    const plusButton = buttons[0];
+    fireEvent.click(plusButton);
 
-      expect(onStyleSelect).toHaveBeenCalledWith('technical');
-    });
+    expect(screen.getByText('deep learning')).toBeInTheDocument();
+    expect(input).toHaveValue('');
   });
 
-  describe('Options', () => {
-    it('test_max_sections_slider', () => {
-      // Test max sections configuration
-      const maxSections = mockGenerationConfig.maxSections;
+  it('removes a theme via the X button on the chip', () => {
+    render(<DraftGenerator onGenerate={defaultOnGenerate} />);
 
-      expect(maxSections).toBe(4);
-      expect(maxSections).toBeGreaterThan(0);
-    });
+    const input = screen.getByPlaceholderText(
+      'Enter a theme and press Enter...'
+    );
 
-    it('test_include_abstract_toggle', () => {
-      // Test abstract inclusion toggle
-      let includeAbstract = mockGenerationConfig.includeAbstract;
+    // Add two themes
+    fireEvent.change(input, { target: { value: 'NLP' } });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
 
-      expect(includeAbstract).toBe(true);
+    fireEvent.change(input, { target: { value: 'Computer Vision' } });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
 
-      includeAbstract = false;
-      expect(includeAbstract).toBe(false);
-    });
+    expect(screen.getByText('NLP')).toBeInTheDocument();
+    expect(screen.getByText('Computer Vision')).toBeInTheDocument();
+
+    // Each theme chip has a remove button (the X icon).
+    // The chip for 'NLP' contains the text 'NLP' and a child button.
+    const nlpChip = screen.getByText('NLP').closest('span');
+    const removeButton = nlpChip?.querySelector('button');
+    expect(removeButton).toBeTruthy();
+    fireEvent.click(removeButton!);
+
+    expect(screen.queryByText('NLP')).not.toBeInTheDocument();
+    expect(screen.getByText('Computer Vision')).toBeInTheDocument();
   });
 
-  describe('Cancel', () => {
-    it('test_cancel_button_during_generation', () => {
-      // Test cancel button visibility during generation
-      const isGenerating = mockGenerationStatus.status === 'generating';
-      const showCancelButton = isGenerating;
+  it('disables the generate button when no themes are added', () => {
+    render(<DraftGenerator onGenerate={defaultOnGenerate} />);
 
-      expect(showCancelButton).toBe(true);
+    const generateButton = screen.getByRole('button', {
+      name: /generate literature review/i,
     });
 
-    it('test_cancel_triggers_api', () => {
-      // Test cancel calls API
-      const onCancel = jest.fn();
+    expect(generateButton).toBeDisabled();
+  });
 
-      onCancel();
+  it('calls onGenerate with the correct config when generate is clicked', () => {
+    const onGenerate = jest.fn();
+    render(<DraftGenerator onGenerate={onGenerate} />);
 
-      expect(onCancel).toHaveBeenCalled();
+    const input = screen.getByPlaceholderText(
+      'Enter a theme and press Enter...'
+    );
+
+    // Add a theme
+    fireEvent.change(input, { target: { value: 'healthcare AI' } });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+
+    // Select 'technical' style
+    const technicalButton = screen.getByRole('button', {
+      name: /technical/i,
     });
+    fireEvent.click(technicalButton);
+
+    // Adjust max sections slider to 7
+    const slider = screen.getByRole('slider');
+    fireEvent.change(slider, { target: { value: '7' } });
+
+    // Toggle abstract off (it defaults to on, so click toggles it off)
+    const abstractToggle = screen
+      .getByText('Include Abstract')
+      .closest('div')
+      ?.querySelector('button');
+    expect(abstractToggle).toBeTruthy();
+    fireEvent.click(abstractToggle!);
+
+    // Click generate
+    const generateButton = screen.getByRole('button', {
+      name: /generate literature review/i,
+    });
+    expect(generateButton).toBeEnabled();
+    fireEvent.click(generateButton);
+
+    expect(onGenerate).toHaveBeenCalledTimes(1);
+    const calledConfig: GenerationConfig = onGenerate.mock.calls[0][0];
+    expect(calledConfig.themes).toEqual(['healthcare AI']);
+    expect(calledConfig.style).toBe('technical');
+    expect(calledConfig.maxSections).toBe(7);
+    expect(calledConfig.includeAbstract).toBe(false);
+  });
+
+  it('shows loading state when loading prop is true', () => {
+    render(<DraftGenerator onGenerate={defaultOnGenerate} loading={true} />);
+
+    expect(screen.getByText('Generating...')).toBeInTheDocument();
+    // The button text changes to "Generating..." but the h3 heading remains
+    const generatingButton = screen
+      .getByText('Generating...')
+      .closest('button');
+    expect(generatingButton).toBeInTheDocument();
+    expect(generatingButton).toBeDisabled();
+  });
+
+  it('disables the generate button when loading even with themes', () => {
+    render(<DraftGenerator onGenerate={defaultOnGenerate} loading={true} />);
+
+    // Add a theme first so the only disable reason would be loading
+    const input = screen.getByPlaceholderText(
+      'Enter a theme and press Enter...'
+    );
+    fireEvent.change(input, { target: { value: 'test theme' } });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+
+    // The button with "Generating..." text should be disabled
+    const generatingButton = screen
+      .getByText('Generating...')
+      .closest('button');
+    expect(generatingButton).toBeDisabled();
+  });
+
+  it('displays document count info when documentCount is provided', () => {
+    render(
+      <DraftGenerator onGenerate={defaultOnGenerate} documentCount={12} />
+    );
+
+    expect(
+      screen.getByText(
+        'The review will analyze 12 documents from this project.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('displays singular "document" when documentCount is 1', () => {
+    render(<DraftGenerator onGenerate={defaultOnGenerate} documentCount={1} />);
+
+    expect(
+      screen.getByText('The review will analyze 1 document from this project.')
+    ).toBeInTheDocument();
+  });
+
+  it('does not display document count info when documentCount is 0', () => {
+    render(<DraftGenerator onGenerate={defaultOnGenerate} documentCount={0} />);
+
+    expect(
+      screen.queryByText(/The review will analyze/)
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not add duplicate themes', () => {
+    render(<DraftGenerator onGenerate={defaultOnGenerate} />);
+
+    const input = screen.getByPlaceholderText(
+      'Enter a theme and press Enter...'
+    );
+
+    fireEvent.change(input, { target: { value: 'robotics' } });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+
+    fireEvent.change(input, { target: { value: 'robotics' } });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+
+    const chips = screen.getAllByText('robotics');
+    expect(chips).toHaveLength(1);
+  });
+
+  it('does not add empty or whitespace-only themes', () => {
+    render(<DraftGenerator onGenerate={defaultOnGenerate} />);
+
+    const input = screen.getByPlaceholderText(
+      'Enter a theme and press Enter...'
+    );
+
+    fireEvent.change(input, { target: { value: '   ' } });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+
+    expect(
+      screen.getByText('Add at least one theme for the review')
+    ).toBeInTheDocument();
+  });
+
+  it('shows the hint text when no themes are added', () => {
+    render(<DraftGenerator onGenerate={defaultOnGenerate} />);
+
+    expect(
+      screen.getByText('Add at least one theme for the review')
+    ).toBeInTheDocument();
+  });
+
+  it('defaults to academic style', () => {
+    render(<DraftGenerator onGenerate={defaultOnGenerate} />);
+
+    const input = screen.getByPlaceholderText(
+      'Enter a theme and press Enter...'
+    );
+    fireEvent.change(input, { target: { value: 'test' } });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+
+    const onGenerate = jest.fn();
+    // Re-render with a fresh mock to check defaults
+    const { unmount } = render(<DraftGenerator onGenerate={onGenerate} />);
+
+    const inputNew = screen.getAllByPlaceholderText(
+      'Enter a theme and press Enter...'
+    )[1];
+    fireEvent.change(inputNew, { target: { value: 'defaults' } });
+    fireEvent.keyDown(inputNew, { key: 'Enter', code: 'Enter' });
+
+    const generateButtons = screen.getAllByRole('button', {
+      name: /generate literature review/i,
+    });
+    fireEvent.click(generateButtons[1]);
+
+    const config: GenerationConfig = onGenerate.mock.calls[0][0];
+    expect(config.style).toBe('academic');
+    expect(config.maxSections).toBe(5);
+    expect(config.includeAbstract).toBe(true);
+
+    unmount();
+  });
+
+  it('displays max sections value in the label', () => {
+    render(<DraftGenerator onGenerate={defaultOnGenerate} />);
+
+    // Default maxSections is 5
+    expect(screen.getByText('5')).toBeInTheDocument();
   });
 });

@@ -2,18 +2,20 @@
 
 /**
  * DraftViewer Component
- * Displays literature review draft content with citations
+ * Displays literature review draft content with citations using ReactMarkdown
  */
 
 import React, { useMemo } from 'react';
-import { Download, FileText, Code, History } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Download, FileText, History } from 'lucide-react';
 import type { Draft } from '@/services/projectService';
 
 export interface DraftViewerProps {
   draft: Draft;
   versions?: Array<{ version: number; created_at: string }>;
   onVersionChange?: (version: number) => void;
-  onExport?: (format: 'markdown' | 'latex') => void;
+  onExport?: ((format: 'markdown' | 'latex') => void) | (() => void);
 }
 
 export const DraftViewer: React.FC<DraftViewerProps> = ({
@@ -22,15 +24,30 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
   onVersionChange,
   onExport,
 }) => {
-  // Convert [Doc N] citations to clickable links
-  const formattedContent = useMemo(() => {
+  // Pre-process content to wrap [Doc N] in special markers for custom rendering
+  const processedContent = useMemo(() => {
     if (!draft.content) return '';
-
-    return draft.content.replace(
-      /\[Doc (\d+)\]/g,
-      '<span class="inline-flex items-center px-1.5 py-0.5 rounded bg-[#00ff9f]/10 text-[#00ff9f] text-xs font-mono cursor-pointer hover:bg-[#00ff9f]/20 transition-colors">[Doc $1]</span>'
-    );
+    return draft.content;
   }, [draft.content]);
+
+  // Custom component to render [Doc N] citation badges inside text
+  const renderTextWithCitations = (text: string) => {
+    const parts = text.split(/(\[Doc \d+\])/g);
+    return parts.map((part, idx) => {
+      const match = part.match(/^\[Doc (\d+)\]$/);
+      if (match) {
+        return (
+          <span
+            key={idx}
+            className="inline-flex items-center px-1.5 py-0.5 rounded bg-[#00ff9f]/10 text-[#00ff9f] text-xs font-mono cursor-pointer hover:bg-[#00ff9f]/20 transition-colors"
+          >
+            [Doc {match[1]}]
+          </span>
+        );
+      }
+      return part;
+    });
+  };
 
   return (
     <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg overflow-hidden">
@@ -65,26 +82,16 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
             </div>
           )}
 
-          {/* Export Buttons */}
+          {/* Export Button */}
           {onExport && (
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => onExport('markdown')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 hover:border-[#00ff9f] hover:text-[#00ff9f] transition-colors"
-                title="Export as Markdown"
-              >
-                <Download className="h-3 w-3" />
-                MD
-              </button>
-              <button
-                onClick={() => onExport('latex')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 hover:border-[#00ff9f] hover:text-[#00ff9f] transition-colors"
-                title="Export as LaTeX"
-              >
-                <Code className="h-3 w-3" />
-                TeX
-              </button>
-            </div>
+            <button
+              onClick={() => (onExport as () => void)()}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 hover:border-[#00ff9f] hover:text-[#00ff9f] transition-colors"
+              title="Export Draft"
+            >
+              <Download className="h-3 w-3" />
+              Export
+            </button>
           )}
         </div>
       </div>
@@ -106,10 +113,44 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
 
       {/* Content */}
       <div className="p-6 max-h-[600px] overflow-y-auto">
-        <div
-          className="prose prose-invert prose-sm max-w-none font-mono text-gray-300"
-          dangerouslySetInnerHTML={{ __html: formatMarkdown(formattedContent) }}
-        />
+        <div className="prose prose-invert prose-sm max-w-none font-mono text-gray-300">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              h2: ({ children }) => (
+                <h2 className="text-lg font-bold text-[#00ff9f] mt-6 mb-3">
+                  {children}
+                </h2>
+              ),
+              h3: ({ children }) => (
+                <h3 className="text-base font-bold text-[#00d4ff] mt-4 mb-2">
+                  {children}
+                </h3>
+              ),
+              p: ({ children }) => {
+                // Process children to render citation badges
+                const processed = React.Children.map(children, (child) => {
+                  if (typeof child === 'string') {
+                    return renderTextWithCitations(child);
+                  }
+                  return child;
+                });
+                return <p className="mb-4">{processed}</p>;
+              },
+              li: ({ children }) => {
+                const processed = React.Children.map(children, (child) => {
+                  if (typeof child === 'string') {
+                    return renderTextWithCitations(child);
+                  }
+                  return child;
+                });
+                return <li className="mb-1">{processed}</li>;
+              },
+            }}
+          >
+            {processedContent}
+          </ReactMarkdown>
+        </div>
       </div>
 
       {/* Footer */}
@@ -124,21 +165,5 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
     </div>
   );
 };
-
-// Simple markdown to HTML conversion
-function formatMarkdown(content: string): string {
-  return content
-    // Headers
-    .replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold text-[#00ff9f] mt-6 mb-3">$1</h2>')
-    .replace(/^### (.+)$/gm, '<h3 class="text-base font-bold text-[#00d4ff] mt-4 mb-2">$1</h3>')
-    // Paragraphs
-    .replace(/\n\n/g, '</p><p class="mb-4">')
-    // Wrap in paragraph
-    .replace(/^(.+)$/gm, '<p class="mb-4">$1</p>')
-    // Clean up
-    .replace(/<p class="mb-4"><h/g, '<h')
-    .replace(/<\/h2><\/p>/g, '</h2>')
-    .replace(/<\/h3><\/p>/g, '</h3>');
-}
 
 export default DraftViewer;

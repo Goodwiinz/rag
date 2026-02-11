@@ -2,7 +2,7 @@
 
 /**
  * Project Detail Page
- * Displays project information with tabs for Documents, Notes, and Bibliography
+ * Displays project information with tabs for Documents, Notes, Bibliography, Drafts, and Chat
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -23,12 +23,20 @@ import {
   Save,
   X,
   MessageSquare,
+  GitCompare,
 } from 'lucide-react';
 import { DraftGenerator, type GenerationConfig } from '@/components/research/DraftGenerator';
 import { DraftViewer } from '@/components/research/DraftViewer';
 import { DraftGenerationProgress } from '@/components/research/DraftGenerationProgress';
+import { DraftComparison } from '@/components/research/DraftComparison';
+import { DraftExportModal } from '@/components/research/DraftExportModal';
 import { ProjectChatTab } from '@/components/research/ProjectChatTab';
-import { projectService, type Draft, type GenerationStatus } from '@/services/projectService';
+import {
+  projectService,
+  type Draft,
+  type GenerationStatus,
+  type DraftComparison as DraftComparisonType,
+} from '@/services/projectService';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/stores/authStore';
 import type { ProjectNote, ProjectNoteCreate } from '@/services/projectService';
@@ -69,9 +77,20 @@ export default function ProjectDetailPage() {
 
   // Draft state
   const [currentDraft, setCurrentDraft] = useState<Draft | null>(null);
+  const [draftVersions, setDraftVersions] = useState<
+    Array<{ version: number; created_at: string; id: string; word_count: number; citation_count: number; themes: string[] }>
+  >([]);
   const [draftsLoading, setDraftsLoading] = useState(false);
   const [generationTaskId, setGenerationTaskId] = useState<string | null>(null);
   const [generationStatus, setGenerationStatus] = useState<GenerationStatus | null>(null);
+
+  // Comparison state
+  const [showComparison, setShowComparison] = useState(false);
+  const [comparisonData, setComparisonData] = useState<DraftComparisonType | null>(null);
+  const [compareVersions, setCompareVersions] = useState<[number, number] | null>(null);
+
+  // Export modal state
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // Note editing state
   const [editingNote, setEditingNote] = useState<ProjectNote | null>(null);
@@ -92,14 +111,50 @@ export default function ProjectDetailPage() {
     }
   }, [mounted, isAuthenticated, projectId, fetchProject, fetchProjectDocuments, fetchProjectNotes]);
 
+  // Load drafts when the Drafts tab is activated
+  const loadDrafts = useCallback(async () => {
+    if (!projectId) return;
+    setDraftsLoading(true);
+    try {
+      const [listResult, currentResult] = await Promise.allSettled([
+        projectService.listDrafts(projectId),
+        projectService.getCurrentDraft(projectId),
+      ]);
+
+      if (listResult.status === 'fulfilled') {
+        setDraftVersions(
+          listResult.value.drafts.map((d) => ({
+            version: d.version,
+            created_at: d.created_at,
+            id: d.id,
+            word_count: d.word_count,
+            citation_count: d.citation_count,
+            themes: d.themes,
+          }))
+        );
+      }
+
+      if (currentResult.status === 'fulfilled') {
+        setCurrentDraft(currentResult.value);
+      }
+    } catch (err) {
+      console.error('Failed to load drafts:', err);
+    } finally {
+      setDraftsLoading(false);
+    }
+  }, [projectId]);
+
   const handleTabChange = useCallback(
     (tab: TabType) => {
       setActiveTab(tab);
       if (tab === 'bibliography' && !bibliography) {
         fetchBibliography(projectId, bibFormat);
       }
+      if (tab === 'drafts') {
+        loadDrafts();
+      }
     },
-    [projectId, bibliography, bibFormat, fetchBibliography]
+    [projectId, bibliography, bibFormat, fetchBibliography, loadDrafts]
   );
 
   const handleRemoveDocument = async (documentId: string) => {
@@ -174,6 +229,71 @@ export default function ProjectDetailPage() {
       await downloadBibliography(projectId, bibFormat);
     } catch (err) {
       console.error('Failed to download bibliography:', err);
+    }
+  };
+
+  // Draft version switching
+  const handleVersionChange = async (version: number) => {
+    const versionInfo = draftVersions.find((v) => v.version === version);
+    if (!versionInfo) return;
+    try {
+      const draft = await projectService.getDraft(projectId, versionInfo.id);
+      setCurrentDraft(draft);
+    } catch (err) {
+      console.error('Failed to load version:', err);
+    }
+  };
+
+  // Draft comparison
+  const handleCompare = async (versionA: number, versionB: number) => {
+    try {
+      const result = await projectService.compareDrafts(projectId, versionA, versionB);
+      setComparisonData(result);
+      setCompareVersions([versionA, versionB]);
+      setShowComparison(true);
+    } catch (err) {
+      console.error('Failed to compare drafts:', err);
+    }
+  };
+
+  // Draft export via modal
+  const handleExportDraft = async (format: 'markdown' | 'latex', includeBibliography: boolean) => {
+    if (!currentDraft) return;
+    try {
+      const result = await projectService.exportDraft(
+        projectId,
+        currentDraft.id,
+        format,
+        includeBibliography
+      );
+
+      if (format === 'latex' && result.files) {
+        // Download each file for LaTeX
+        for (const file of result.files) {
+          const blob = new Blob([file.content], { type: file.mime_type });
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = file.filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        }
+      } else {
+        const content = result.content || '';
+        const blob = new Blob([content], { type: result.mime_type || 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = result.filename || `draft.${format}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error('Export failed:', err);
     }
   };
 
@@ -508,22 +628,33 @@ export default function ProjectDetailPage() {
                 onComplete={async (draftId) => {
                   setGenerationTaskId(null);
                   setGenerationStatus(null);
-                  // Load the new draft
-                  try {
-                    const draft = await projectService.getDraft(projectId, draftId);
-                    setCurrentDraft(draft);
-                  } catch (err) {
-                    console.error('Failed to load draft:', err);
-                  }
+                  // Reload drafts
+                  await loadDrafts();
                 }}
               />
             )}
 
-            {/* Show current draft or generator */}
-            {!generationTaskId && (
+            {/* Show comparison view */}
+            {showComparison && comparisonData && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-mono font-medium text-gray-200">Version Comparison</h3>
+                  <button
+                    onClick={() => setShowComparison(false)}
+                    className="px-3 py-1.5 text-xs font-mono text-gray-400 hover:text-gray-200 border border-[#333] rounded hover:border-[#555] transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+                <DraftComparison comparison={comparisonData} />
+              </div>
+            )}
+
+            {/* Main drafts area */}
+            {!generationTaskId && !showComparison && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Draft Generator */}
-                <div className="lg:col-span-1">
+                <div className="lg:col-span-1 space-y-4">
                   <DraftGenerator
                     loading={draftsLoading}
                     documentCount={projectDocuments.length}
@@ -556,6 +687,67 @@ export default function ProjectDetailPage() {
                       }
                     }}
                   />
+
+                  {/* Version History List */}
+                  {draftVersions.length > 0 && (
+                    <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+                      <h4 className="font-mono font-medium text-gray-200 mb-3 text-sm">
+                        Version History
+                      </h4>
+                      <div className="space-y-2">
+                        {draftVersions.map((v) => (
+                          <div
+                            key={v.version}
+                            className={`p-3 rounded border cursor-pointer transition-colors ${
+                              currentDraft?.version === v.version
+                                ? 'bg-[#00ff9f]/5 border-[#00ff9f]/30'
+                                : 'bg-[#1a1a1a] border-[#333] hover:border-[#555]'
+                            }`}
+                            onClick={() => handleVersionChange(v.version)}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm font-mono text-gray-200">
+                                v{v.version}
+                              </span>
+                              <span className="text-xs text-gray-500 font-mono">
+                                {new Date(v.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-gray-500 font-mono">
+                              <span>{v.word_count} words</span>
+                              <span>{v.citation_count} citations</span>
+                            </div>
+                            {v.themes && v.themes.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {v.themes.slice(0, 3).map((theme, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="px-1.5 py-0.5 bg-[#00ff9f]/5 text-[#00ff9f] text-[10px] font-mono rounded"
+                                  >
+                                    {theme}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Compare Button */}
+                      {draftVersions.length >= 2 && (
+                        <button
+                          onClick={() => {
+                            const versions = draftVersions.map((v) => v.version).sort((a, b) => b - a);
+                            handleCompare(versions[1], versions[0]);
+                          }}
+                          className="w-full mt-3 flex items-center justify-center gap-2 px-3 py-2 bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/30 rounded font-mono text-xs hover:bg-[#00d4ff]/20 transition-colors"
+                        >
+                          <GitCompare className="h-3 w-3" />
+                          Compare Latest Versions
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Draft Viewer */}
@@ -563,25 +755,17 @@ export default function ProjectDetailPage() {
                   {currentDraft ? (
                     <DraftViewer
                       draft={currentDraft}
-                      onExport={async (format) => {
-                        try {
-                          const result = await projectService.exportDraft(projectId, currentDraft.id, format);
-                          // Download the result
-                          const content = result.content || '';
-                          const blob = new Blob([content], { type: 'text/plain' });
-                          const url = window.URL.createObjectURL(blob);
-                          const link = document.createElement('a');
-                          link.href = url;
-                          link.download = result.filename || `draft.${format}`;
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                          window.URL.revokeObjectURL(url);
-                        } catch (err) {
-                          console.error('Export failed:', err);
-                        }
-                      }}
+                      versions={draftVersions.map((v) => ({
+                        version: v.version,
+                        created_at: v.created_at,
+                      }))}
+                      onVersionChange={handleVersionChange}
+                      onExport={() => setShowExportModal(true)}
                     />
+                  ) : draftsLoading ? (
+                    <div className="flex items-center justify-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
+                      <Loader2 className="h-6 w-6 animate-spin text-[#00ff9f]" />
+                    </div>
                   ) : (
                     <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-12 text-center">
                       <Sparkles className="h-12 w-12 text-gray-600 mx-auto mb-4" />
@@ -593,6 +777,16 @@ export default function ProjectDetailPage() {
                   )}
                 </div>
               </div>
+            )}
+
+            {/* Export Modal */}
+            {currentDraft && (
+              <DraftExportModal
+                isOpen={showExportModal}
+                onClose={() => setShowExportModal(false)}
+                onExport={handleExportDraft}
+                draftTitle={currentDraft.title}
+              />
             )}
           </div>
         )}
