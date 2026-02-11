@@ -11,7 +11,7 @@ faker==20.1.0
 black==24.3.0
 ruff==0.1.8
 mypy==1.7.1
-pre-commit==3.6.0
+pre-commit==4.5.1
 
 # Development Tools
 ipython==8.18.1
