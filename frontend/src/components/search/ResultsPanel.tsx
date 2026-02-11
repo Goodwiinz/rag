@@ -1,4 +1,10 @@
 import { cn } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { SearchMetrics, SearchResult, SourceReference } from '@/types/search';
 import {
     ArrowDownTrayIcon,
@@ -60,20 +66,21 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
     }
   }, [rating, comment, onSubmit, onClose]);
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div
-        className="relative z-10 w-full max-w-md p-6 rounded-xl"
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        className="max-w-md p-6 rounded-xl border-0"
         style={{
           background: THEME.colors.card,
           border: `1px solid ${THEME.colors.border}`,
           boxShadow: `0 0 60px ${THEME.colors.primary}10`,
         }}
       >
-        <h3 className="text-lg font-mono font-semibold text-white mb-4">Rate this answer</h3>
+        <DialogHeader>
+          <DialogTitle className="text-lg font-mono font-semibold text-white mb-4">
+            Rate this answer
+          </DialogTitle>
+        </DialogHeader>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-mono text-gray-400 mb-2">
@@ -86,11 +93,14 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
                   type="button"
                   onClick={() => setRating(star)}
                   className="p-1 hover:scale-110 transition-transform"
+                  aria-label={`Rate ${star} stars`}
                 >
                   <StarIcon
                     className={cn(
-                      "h-6 w-6",
-                      star <= rating ? "text-amber-400 fill-amber-400" : "text-gray-600"
+                      'h-6 w-6',
+                      star <= rating
+                        ? 'text-amber-400 fill-amber-400'
+                        : 'text-gray-600'
                     )}
                   />
                 </button>
@@ -133,8 +143,8 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -415,7 +425,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               </span>
               <span className="flex items-center text-gray-500 font-mono text-xs">
                 <ClockIcon className="h-3.5 w-3.5 mr-1" />
-                {formatDate(result.created_at)}
+                {result.created_at ? formatDate(result.created_at) : 'Unknown date'}
               </span>
               <span className="flex items-center font-mono text-xs" style={{ color: THEME.colors.accent }}>
                 <SparklesIcon className="h-3.5 w-3.5 mr-1" />
@@ -492,7 +502,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                     className="p-2 rounded-lg"
                     style={{ background: '#161b22' }}
                   >
-                    {getFileIcon(source.file_type)}
+                    {getFileIcon(source.file_type || '')}
                   </div>
                   <div className="space-y-0.5 min-w-0">
                     <h4
