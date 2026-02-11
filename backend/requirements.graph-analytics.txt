@@ -1,8 +1,8 @@
 # Requirements for Graph Analytics Service (Port 8009)
 
 # Core FastAPI and web framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
+fastapi>=0.118.0,<0.129.0
+uvicorn[standard]>=0.29.0
 python-multipart==0.0.22
 
 # Database and graph databases
