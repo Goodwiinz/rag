@@ -299,11 +299,11 @@ class CitationExtractionService:
     1. ArXiv API - for ArXiv papers (90%+ accuracy)
     2. Semantic Scholar - for citation networks and metadata
     3. CrossRef - for DOI-based lookup
-    4. PDF parsing - for references section (TODO)
+    4. PDF parsing - extract metadata from PDF file
     5. Manual entry - fallback
     """
 
-    VALID_STRATEGIES = {"auto", "arxiv", "semantic_scholar", "crossref", "manual"}
+    VALID_STRATEGIES = {"auto", "arxiv", "semantic_scholar", "crossref", "pdf", "manual"}
 
     def __init__(self, db: AsyncSession):
         """Initialize extraction service.
@@ -448,6 +448,7 @@ class CitationExtractionService:
             doi=doi,
             title=title,
             strategy=strategy,
+            document_id=document_id,
         )
 
         if citation:
@@ -643,12 +644,117 @@ class CitationExtractionService:
             logger.error("crossref_extraction_failed", doi=doi, error=str(e))
             return None
 
+    async def extract_from_pdf(self, document_id: UUID) -> Optional[CitationCreate]:
+        """Extract citation metadata from the PDF file itself using PyMuPDF.
+
+        Reads the PDF's embedded metadata (title, author, creationDate) and
+        scans the first page text for DOI/ArXiv identifiers and year.
+
+        Args:
+            document_id: Database document UUID
+
+        Returns:
+            CitationCreate with needs_review=True, or None on failure
+        """
+        try:
+            import fitz  # PyMuPDF
+        except ImportError:
+            logger.warning("pdf_extraction_fitz_unavailable")
+            return None
+
+        try:
+            query = select(Document).where(Document.id == document_id)
+            result = await self.db.execute(query)
+            document = result.scalar_one_or_none()
+
+            if not document or not document.file_path:
+                logger.debug("pdf_extraction_no_document", document_id=str(document_id))
+                return None
+
+            pdf_doc = fitz.open(document.file_path)
+            try:
+                pdf_metadata = pdf_doc.metadata or {}
+                first_page_text = ""
+                if len(pdf_doc) > 0:
+                    first_page_text = pdf_doc[0].get_text()
+            finally:
+                pdf_doc.close()
+
+            # Title: prefer PDF metadata, fall back to document DB title
+            title = (pdf_metadata.get("title") or "").strip()
+            if not title:
+                title = (document.title or "").strip()
+
+            # Authors: split metadata author on , / ; / " and "
+            raw_author = (pdf_metadata.get("author") or "").strip()
+            authors: List[str] = []
+            if raw_author:
+                for part in re.split(r"[;,]|\band\b", raw_author):
+                    name = part.strip()
+                    if name:
+                        authors.append(name)
+
+            # DOI / ArXiv from first-page text
+            doi = self._extract_doi(first_page_text)
+            arxiv_id = None
+            arxiv_match = re.search(
+                r"arXiv:\s*(\d{4}\.\d{4,5}(?:v\d+)?)", first_page_text
+            )
+            if arxiv_match:
+                arxiv_id = arxiv_match.group(1)
+            if not arxiv_id:
+                # Try arxiv.org URL pattern
+                url_match = re.search(
+                    r"arxiv\.org/abs/(\d{4}\.\d{4,5}(?:v\d+)?)", first_page_text
+                )
+                if url_match:
+                    arxiv_id = url_match.group(1)
+
+            # Year: from PDF creationDate (D:YYYYmmdd...) or first-page text
+            year = None
+            creation_date = pdf_metadata.get("creationDate") or ""
+            date_match = re.search(r"D:(\d{4})", creation_date)
+            if date_match:
+                year = int(date_match.group(1))
+            if not year:
+                # Try 4-digit year near a copyright or date pattern on first page
+                year_match = re.search(r"\b(19|20)\d{2}\b", first_page_text[:2000])
+                if year_match:
+                    year = int(year_match.group(0))
+
+            if not title and not doi and not arxiv_id:
+                return None
+
+            citation = CitationCreate(
+                document_title=title or "Untitled paper",
+                authors=authors or None,
+                year=year,
+                doi=doi,
+                arxiv_id=arxiv_id,
+                metadata_source="pdf",
+                needs_review=True,
+            )
+
+            logger.info(
+                "pdf_extraction_success",
+                document_id=str(document_id),
+                title=(citation.document_title or "")[:50],
+            )
+            return citation
+
+        except Exception as e:
+            logger.error(
+                "pdf_extraction_failed", document_id=str(document_id), error=str(e)
+            )
+            return None
+
     async def extract_hybrid(
         self,
         arxiv_id: Optional[str] = None,
         doi: Optional[str] = None,
         title: Optional[str] = None,
         strategy: str = "auto",
+        document_id: Optional[UUID] = None,
     ) -> Tuple[Optional[CitationCreate], str]:
         """Hybrid extraction using multiple sources.
 
@@ -695,6 +801,10 @@ class CitationExtractionService:
                 title=normalized_title,
             )
             source = "crossref" if result else "none"
+        elif normalized_strategy == "pdf":
+            if document_id:
+                result = await self.extract_from_pdf(document_id)
+                source = "pdf" if result else "none"
         elif normalized_strategy == "manual":
             result = self._manual_fallback(
                 title=normalized_title,
@@ -704,7 +814,7 @@ class CitationExtractionService:
             source = "manual" if result else "none"
         else:
             # AUTO strategy:
-            # 1) ArXiv -> 2) Semantic Scholar -> 3) CrossRef -> 4) Manual fallback
+            # 1) ArXiv -> 2) Semantic Scholar -> 3) CrossRef -> 4) PDF -> 5) Manual
             if normalized_arxiv_id:
                 result = await self.extract_from_arxiv(normalized_arxiv_id)
                 if result:
@@ -727,8 +837,12 @@ class CitationExtractionService:
                 if result:
                     source = "crossref"
 
+            if not result and document_id:
+                result = await self.extract_from_pdf(document_id)
+                if result:
+                    source = "pdf"
+
             if not result:
-                # PDF parsing fallback intentionally left for future work.
                 result = self._manual_fallback(
                     title=normalized_title,
                     arxiv_id=normalized_arxiv_id,
