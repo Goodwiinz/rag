@@ -24,7 +24,7 @@ responses==0.25.0
 aioresponses==0.7.6
 
 # Database Testing
-pytest-postgresql==6.1.0
+pytest-postgresql==8.0.0
 pytest-redis==3.1.2
 freezegun==1.5.1
 sqlalchemy-utils==0.41.2
