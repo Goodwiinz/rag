@@ -7,11 +7,12 @@ Handles:
 - Bibliography export
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from structlog import get_logger
@@ -30,6 +31,34 @@ from src.shared.research_schemas import (
 
 logger = get_logger()
 router = APIRouter(prefix="/api/v1/citations", tags=["citations"])
+
+
+class CitationExtractRequest(BaseModel):
+    """Request payload for citation extraction."""
+
+    document_id: Optional[UUID] = None
+    arxiv_id: Optional[str] = None
+    doi: Optional[str] = None
+    title: Optional[str] = None
+    strategy: str = "auto"
+
+
+class CitationLookupRequest(BaseModel):
+    """Request payload for citation lookup without persistence."""
+
+    document_id: Optional[UUID] = None
+    arxiv_id: Optional[str] = None
+    doi: Optional[str] = None
+    title: Optional[str] = None
+    strategy: str = "auto"
+
+
+class BibliographyExportRequest(BaseModel):
+    """Request payload for bibliography export."""
+
+    format: str = Field(default="bibtex")
+    citation_ids: Optional[List[UUID]] = None
+    project_id: Optional[UUID] = None
 
 
 @router.post("", response_model=CitationResponse, status_code=status.HTTP_201_CREATED)
@@ -220,10 +249,17 @@ async def get_citation(
     "/extract", response_model=CitationResponse, status_code=status.HTTP_201_CREATED
 )
 async def extract_citation(
-    arxiv_id: Optional[str] = None,
-    doi: Optional[str] = None,
-    title: Optional[str] = None,
-    strategy: str = "auto",
+    request: Optional[CitationExtractRequest] = Body(None),
+    document_id: Optional[UUID] = Query(
+        None, description="Document ID to infer arXiv/DOI/title from metadata"
+    ),
+    arxiv_id: Optional[str] = Query(None, description="ArXiv ID"),
+    doi: Optional[str] = Query(None, description="DOI"),
+    title: Optional[str] = Query(None, description="Paper title"),
+    strategy: str = Query(
+        "auto",
+        description="Extraction strategy (auto/arxiv/semantic_scholar/crossref/manual)",
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -240,21 +276,45 @@ async def extract_citation(
     Returns:
         Extracted citation
     """
-    if not arxiv_id and not doi and not title:
+    request_document_id = request.document_id if request else None
+    request_arxiv_id = request.arxiv_id if request else None
+    request_doi = request.doi if request else None
+    request_title = request.title if request else None
+    request_strategy = request.strategy if request and request.strategy else None
+
+    resolved_document_id = request_document_id or document_id
+    resolved_arxiv_id = request_arxiv_id or arxiv_id
+    resolved_doi = request_doi or doi
+    resolved_title = request_title or title
+    resolved_strategy = (request_strategy or strategy or "auto").lower()
+
+    if (
+        not resolved_document_id
+        and not resolved_arxiv_id
+        and not resolved_doi
+        and not resolved_title
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Must provide at least one of: arxiv_id, doi, or title",
+            detail="Must provide at least one of: document_id, arxiv_id, doi, or title",
         )
 
     try:
         extraction_service = CitationExtractionService(db)
 
-        # Extract using hybrid strategy
-        citation_data, source = await extraction_service.extract_hybrid(
-            arxiv_id=arxiv_id,
-            doi=doi,
-            title=title,
-        )
+        if resolved_document_id:
+            citation_data, source = await extraction_service.extract_for_document(
+                document_id=resolved_document_id,
+                strategy=resolved_strategy,
+            )
+        else:
+            # Extract using hybrid strategy
+            citation_data, source = await extraction_service.extract_hybrid(
+                arxiv_id=resolved_arxiv_id,
+                doi=resolved_doi,
+                title=resolved_title,
+                strategy=resolved_strategy,
+            )
 
         if not citation_data:
             raise HTTPException(
@@ -264,15 +324,16 @@ async def extract_citation(
 
         # Create citation in database
         citation = Citation(
-            document_title=citation_data.documentTitle,
+            document_id=resolved_document_id or citation_data.document_id,
+            document_title=citation_data.document_title,
             authors=citation_data.authors,
             year=citation_data.year,
             venue=citation_data.venue,
             doi=citation_data.doi,
-            arxiv_id=citation_data.arxivId,
+            arxiv_id=citation_data.arxiv_id,
             abstract=citation_data.abstract,
             metadata_source=source,
-            needs_review=False,
+            needs_review=bool(citation_data.needs_review),
         )
 
         db.add(citation)
@@ -283,8 +344,10 @@ async def extract_citation(
             "citation_extracted",
             citation_id=str(citation.id),
             source=source,
-            arxiv_id=arxiv_id,
-            doi=doi,
+            strategy=resolved_strategy,
+            document_id=str(resolved_document_id) if resolved_document_id else None,
+            arxiv_id=resolved_arxiv_id,
+            doi=resolved_doi,
         )
 
         return CitationResponse.model_validate(citation)
@@ -302,9 +365,17 @@ async def extract_citation(
 
 @router.post("/lookup", response_model=CitationResponse)
 async def lookup_citation(
-    arxiv_id: Optional[str] = None,
-    doi: Optional[str] = None,
-    title: Optional[str] = None,
+    request: Optional[CitationLookupRequest] = Body(None),
+    document_id: Optional[UUID] = Query(
+        None, description="Document ID to infer arXiv/DOI/title from metadata"
+    ),
+    arxiv_id: Optional[str] = Query(None, description="ArXiv ID"),
+    doi: Optional[str] = Query(None, description="DOI"),
+    title: Optional[str] = Query(None, description="Paper title"),
+    strategy: str = Query(
+        "auto",
+        description="Lookup strategy (auto/arxiv/semantic_scholar/crossref/manual)",
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -320,20 +391,44 @@ async def lookup_citation(
     Returns:
         Citation metadata (not persisted)
     """
-    if not arxiv_id and not doi and not title:
+    request_document_id = request.document_id if request else None
+    request_arxiv_id = request.arxiv_id if request else None
+    request_doi = request.doi if request else None
+    request_title = request.title if request else None
+    request_strategy = request.strategy if request and request.strategy else None
+
+    resolved_document_id = request_document_id or document_id
+    resolved_arxiv_id = request_arxiv_id or arxiv_id
+    resolved_doi = request_doi or doi
+    resolved_title = request_title or title
+    resolved_strategy = (request_strategy or strategy or "auto").lower()
+
+    if (
+        not resolved_document_id
+        and not resolved_arxiv_id
+        and not resolved_doi
+        and not resolved_title
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Must provide at least one of: arxiv_id, doi, or title",
+            detail="Must provide at least one of: document_id, arxiv_id, doi, or title",
         )
 
     try:
         extraction_service = CitationExtractionService(db)
 
-        citation_data, source = await extraction_service.extract_hybrid(
-            arxiv_id=arxiv_id,
-            doi=doi,
-            title=title,
-        )
+        if resolved_document_id:
+            citation_data, source = await extraction_service.extract_for_document(
+                document_id=resolved_document_id,
+                strategy=resolved_strategy,
+            )
+        else:
+            citation_data, source = await extraction_service.extract_hybrid(
+                arxiv_id=resolved_arxiv_id,
+                doi=resolved_doi,
+                title=resolved_title,
+                strategy=resolved_strategy,
+            )
 
         if not citation_data:
             raise HTTPException(
@@ -341,19 +436,25 @@ async def lookup_citation(
             )
 
         # Return citation without persisting
-        return CitationResponse(
-            id="00000000-0000-0000-0000-000000000000",  # Placeholder ID
-            documentTitle=citation_data.documentTitle,
-            authors=citation_data.authors or [],
-            year=citation_data.year,
-            venue=citation_data.venue,
-            doi=citation_data.doi,
-            arxivId=citation_data.arxivId,
-            abstract=citation_data.abstract,
-            metadataSource=source,
-            needsReview=False,
-            createdAt=datetime.now().isoformat(),
-            updatedAt=datetime.now().isoformat(),
+        now = datetime.now(timezone.utc)
+        return CitationResponse.model_validate(
+            {
+                "id": UUID("00000000-0000-0000-0000-000000000000"),  # Placeholder ID
+                "document_id": resolved_document_id or citation_data.document_id,
+                "document_title": citation_data.document_title,
+                "document_type": "paper",
+                "authors": citation_data.authors or [],
+                "year": citation_data.year,
+                "venue": citation_data.venue,
+                "doi": citation_data.doi,
+                "arxiv_id": citation_data.arxiv_id,
+                "abstract": citation_data.abstract,
+                "score": 0.0,
+                "metadata_source": source,
+                "needs_review": bool(citation_data.needs_review),
+                "created_at": now,
+                "updated_at": now,
+            }
         )
 
     except HTTPException:
@@ -368,9 +469,10 @@ async def lookup_citation(
 
 @router.post("/export")
 async def export_bibliography(
-    format: str = "bibtex",
-    citation_ids: Optional[List[UUID]] = None,
-    project_id: Optional[UUID] = None,
+    request: Optional[BibliographyExportRequest] = Body(None),
+    format: str = Query("bibtex"),
+    citation_ids: Optional[List[UUID]] = Query(None),
+    project_id: Optional[UUID] = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -386,7 +488,17 @@ async def export_bibliography(
     Returns:
         Formatted bibliography as plain text
     """
-    if not citation_ids and not project_id:
+    request_format = request.format if request and request.format else None
+    request_citation_ids = request.citation_ids if request else None
+    request_project_id = request.project_id if request else None
+
+    resolved_format = (request_format or format or "bibtex").lower()
+    resolved_citation_ids = (
+        request_citation_ids if request_citation_ids is not None else citation_ids
+    )
+    resolved_project_id = request_project_id or project_id
+
+    if not resolved_citation_ids and not resolved_project_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Must provide either citation_ids or project_id",
@@ -396,12 +508,12 @@ async def export_bibliography(
         # Fetch citations
         query = select(Citation)
 
-        if citation_ids:
-            query = query.where(Citation.id.in_(citation_ids))
-        elif project_id:
+        if resolved_citation_ids:
+            query = query.where(Citation.id.in_(resolved_citation_ids))
+        elif resolved_project_id:
             # Get all document IDs in this project via CollectionDocument junction table
             doc_query = select(CollectionDocument.document_id).where(
-                CollectionDocument.collection_id == project_id
+                CollectionDocument.collection_id == resolved_project_id
             )
             doc_result = await db.execute(doc_query)
             document_ids = [row[0] for row in doc_result.all()]
@@ -425,12 +537,12 @@ async def export_bibliography(
 
         # Format bibliography
         bibliography = BibliographyService.format_bibliography(
-            citations=list(citations), format_type=format
+            citations=list(citations), format_type=resolved_format
         )
 
         logger.info(
             "bibliography_exported",
-            format=format,
+            format=resolved_format,
             citation_count=len(citations),
             user_id=str(current_user.id),
         )
@@ -439,14 +551,16 @@ async def export_bibliography(
         from fastapi.responses import PlainTextResponse
 
         content_type = "text/plain"
-        if format == "bibtex":
+        extension = resolved_format
+        if resolved_format == "bibtex":
             content_type = "application/x-bibtex"
+            extension = "bib"
 
         return PlainTextResponse(
             content=bibliography,
             media_type=content_type,
             headers={
-                "Content-Disposition": f'attachment; filename="bibliography.{format}"'
+                "Content-Disposition": f'attachment; filename="bibliography.{extension}"'
             },
         )
 

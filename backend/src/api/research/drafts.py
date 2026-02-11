@@ -368,23 +368,53 @@ async def export_draft(
 # ============================================================================
 
 
-@router.get("/status/{task_id}")
+@router.get("/status")
 async def get_generation_status(
+    project_id: UUID,
+    task_id: Optional[str] = Query(
+        None, description="Optional task ID. If omitted, returns latest project status"
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get generation status for a task or the latest project generation."""
+    # Validate project ownership
+    await _validate_project_ownership(project_id, current_user, db)
+
+    if task_id:
+        generation_status = DraftGenerationService.get_status(task_id)
+    else:
+        generation_status = DraftGenerationService.get_latest_status(
+            project_id=project_id,
+            user_id=current_user.id,
+        )
+
+    if not generation_status:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if generation_status.get("project_id") != str(project_id):
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if generation_status.get("user_id") != str(current_user.id):
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return generation_status
+
+
+@router.get("/status/{task_id}")
+async def get_generation_status_by_task(
     project_id: UUID,
     task_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get the status of an ongoing draft generation."""
-    # Validate project ownership
-    await _validate_project_ownership(project_id, current_user, db)
-
-    status = DraftGenerationService.get_status(task_id)
-
-    if not status:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    return status
+    """Backward-compatible status endpoint using task_id in path."""
+    return await get_generation_status(
+        project_id=project_id,
+        task_id=task_id,
+        current_user=current_user,
+        db=db,
+    )
 
 
 # ============================================================================
@@ -392,18 +422,35 @@ async def get_generation_status(
 # ============================================================================
 
 
-@router.post("/cancel/{task_id}")
+@router.post("/cancel")
 async def cancel_generation(
     project_id: UUID,
-    task_id: str,
+    task_id: Optional[str] = Query(
+        None, description="Optional task ID. If omitted, cancels latest active generation"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Cancel an ongoing draft generation."""
+    """Cancel a task or latest active generation for the project."""
     # Validate project ownership
     await _validate_project_ownership(project_id, current_user, db)
 
-    success = DraftGenerationService.cancel_generation(task_id)
+    if task_id:
+        generation_status = DraftGenerationService.get_status(task_id)
+        if not generation_status:
+            raise HTTPException(status_code=404, detail="Task not found")
+        if generation_status.get("project_id") != str(project_id):
+            raise HTTPException(status_code=404, detail="Task not found")
+        if generation_status.get("user_id") != str(current_user.id):
+            raise HTTPException(status_code=404, detail="Task not found")
+        success = DraftGenerationService.cancel_generation(task_id)
+    else:
+        cancelled_task_id = DraftGenerationService.cancel_latest_generation(
+            project_id=project_id,
+            user_id=current_user.id,
+        )
+        success = cancelled_task_id is not None
+        task_id = cancelled_task_id or ""
 
     if not success:
         raise HTTPException(
@@ -411,4 +458,20 @@ async def cancel_generation(
             detail="Cannot cancel: task not found or already completed",
         )
 
-    return {"message": "Generation cancelled", "task_id": task_id}
+    return {"message": "Generation cancelled", "task_id": task_id, "cancelled": True}
+
+
+@router.post("/cancel/{task_id}")
+async def cancel_generation_by_task(
+    project_id: UUID,
+    task_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Backward-compatible cancel endpoint using task_id in path."""
+    return await cancel_generation(
+        project_id=project_id,
+        task_id=task_id,
+        current_user=current_user,
+        db=db,
+    )
