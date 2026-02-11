@@ -17,3 +17,8 @@
 
 **Learning:** Shadcn UI `Button` components used as icon-only buttons often lack `aria-label`, requiring explicit addition. Also, the frontend test environment needs `TextEncoder` polyfills for Jest/JSDOM compatibility.
 **Action:** Always add `aria-label` to icon-only buttons. Ensure `TextEncoder` and `TextDecoder` are available in `setupTests.ts` when running Jest tests.
+
+## 2026-02-09 - [Terminal UI Search Patterns]
+
+**Learning:** In "terminal-style" or power-user interfaces, users expect keyboard-first navigation (like `/` to focus search) and quick reset capabilities. A search input without a clear button forces users to manually backspace, breaking the flow.
+**Action:** Always implement a clear button and global keyboard shortcut (checking for `activeElement` to avoid conflicts) for primary search inputs in data-heavy applications.
