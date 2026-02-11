@@ -472,7 +472,7 @@ export default function SearchPage() {
         </motion.div>
 
         {/* Display Area */}
-        <div className="relative min-h-[400px]">
+        <div className="relative min-h-[400px]" aria-live="polite" aria-atomic="false">
           {isLoading && (
             <motion.div
               initial={{ opacity: 0 }}
