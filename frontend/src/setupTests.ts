@@ -4,20 +4,30 @@ import { TransformStream as WebTransformStream } from 'node:stream/web';
 
 Object.assign(global, { TextEncoder, TextDecoder });
 
+type PerformanceObserverLike = new () => {
+  observe(): void;
+  disconnect(): void;
+};
+
+const globalWithPolyfills = globalThis as typeof globalThis & {
+  TransformStream?: typeof WebTransformStream;
+  PerformanceObserver?: PerformanceObserverLike;
+};
+
 // Polyfills/mocks for browser APIs missing in JSDOM/Node
 // TransformStream (Node 18+ has it under node:stream/web)
 try {
-  if (typeof (global as any).TransformStream === 'undefined') {
-    (global as any).TransformStream = WebTransformStream || class {};
+  if (typeof globalWithPolyfills.TransformStream === 'undefined') {
+    globalWithPolyfills.TransformStream = WebTransformStream;
   }
 } catch {}
 
 // PerformanceObserver
-if (typeof (global as any).PerformanceObserver === 'undefined') {
-  (global as any).PerformanceObserver = class {
-    observe() {/* no-op */}
-    disconnect() {/* no-op */}
-  } as any;
+if (typeof globalWithPolyfills.PerformanceObserver === 'undefined') {
+  globalWithPolyfills.PerformanceObserver = class {
+    observe(): void {/* no-op */}
+    disconnect(): void {/* no-op */}
+  };
 }
 
 // Helpful jest mocks
