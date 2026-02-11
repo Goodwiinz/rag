@@ -1,154 +1,133 @@
-/**
- * Unit tests for NoteEditor component (T116)
- *
- * Tests markdown editing, preview, and document linking.
- */
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { NoteEditor } from '@/components/research/NoteEditor';
+import type { ProjectDocument, ProjectNote } from '@/services/projectService';
 
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
+jest.mock('react-markdown', () => ({
+  __esModule: true,
+  default: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
 
-// Mock note data
-const mockNote = {
+jest.mock('remark-gfm', () => ({
+  __esModule: true,
+  default: jest.fn(),
+}));
+
+const mockNote: ProjectNote = {
   id: 'note-1',
-  projectId: 'project-1',
-  title: 'Research Notes',
-  content: '# Key Findings\n\n- Finding 1\n- Finding 2\n- Finding 3',
-  tags: ['methodology', 'results'],
-  linkedDocumentIds: ['doc-1', 'doc-2'],
-  isPinned: false,
+  project_id: 'project-1',
+  user_id: 'user-1',
+  title: 'Initial Title',
+  content: '# Findings\n\nImportant point',
+  tags: ['methodology'],
+  linked_document_ids: ['doc-1'],
+  is_pinned: false,
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
 };
 
+const mockDocuments: ProjectDocument[] = [
+  {
+    id: 'pd-1',
+    project_id: 'project-1',
+    document_id: 'doc-1',
+    added_at: '2026-01-01T00:00:00Z',
+    document: {
+      id: 'doc-1',
+      title: 'Paper One',
+      filename: 'paper-one.pdf',
+      status: 'processed',
+      created_at: '2026-01-01T00:00:00Z',
+    },
+  },
+  {
+    id: 'pd-2',
+    project_id: 'project-1',
+    document_id: 'doc-2',
+    added_at: '2026-01-01T00:00:00Z',
+    document: {
+      id: 'doc-2',
+      title: 'Paper Two',
+      filename: 'paper-two.pdf',
+      status: 'processed',
+      created_at: '2026-01-01T00:00:00Z',
+    },
+  },
+];
+
 describe('NoteEditor', () => {
-  describe('Markdown Preview', () => {
-    it('test_markdown_preview', () => {
-      // Test toggle between edit and preview mode
-      const content = mockNote.content;
+  it('renders initial note fields when editing', () => {
+    render(
+      <NoteEditor
+        isOpen
+        initialNote={mockNote}
+        availableDocuments={mockDocuments}
+        onClose={jest.fn()}
+        onSave={jest.fn().mockResolvedValue(undefined)}
+      />
+    );
 
-      // Verify markdown content
-      expect(content).toContain('# Key Findings');
-      expect(content).toContain('- Finding 1');
-
-      // Preview would render as HTML
-      const expectedHtml = '<h1>Key Findings</h1>';
-      // Markdown parser would convert to HTML
-      expect(content.includes('#')).toBe(true);
-    });
-
-    it('test_supports_common_markdown_elements', () => {
-      // Test various markdown elements
-      const markdownElements = [
-        { input: '# Heading', expected: 'h1' },
-        { input: '**bold**', expected: 'strong' },
-        { input: '*italic*', expected: 'em' },
-        { input: '- list item', expected: 'li' },
-        { input: '`code`', expected: 'code' },
-        { input: '[link](url)', expected: 'a' },
-      ];
-
-      markdownElements.forEach(({ input }) => {
-        expect(input.length).toBeGreaterThan(0);
-      });
-    });
+    expect(screen.getByDisplayValue('Initial Title')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Write note content in markdown...')).toHaveValue(
+      '# Findings\n\nImportant point'
+    );
+    expect(screen.getByText('Paper One')).toBeInTheDocument();
   });
 
-  describe('Save Functionality', () => {
-    it('test_save_note', () => {
-      // Test that save calls API
-      const onSave = jest.fn();
-      const noteData = {
-        title: mockNote.title,
-        content: mockNote.content,
-        tags: mockNote.tags,
-      };
+  it('toggles markdown preview', () => {
+    render(
+      <NoteEditor
+        isOpen
+        initialNote={mockNote}
+        availableDocuments={mockDocuments}
+        onClose={jest.fn()}
+        onSave={jest.fn().mockResolvedValue(undefined)}
+      />
+    );
 
-      onSave(noteData);
+    fireEvent.click(screen.getByRole('button', { name: /preview/i }));
+    expect(screen.getByText(/# Findings/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /edit/i }));
+    expect(screen.getByPlaceholderText('Write note content in markdown...')).toHaveValue(
+      '# Findings\n\nImportant point'
+    );
+  });
 
-      expect(onSave).toHaveBeenCalledWith(noteData);
+  it('submits updated note payload with tags and linked docs', async () => {
+    const onSave = jest.fn().mockResolvedValue(undefined);
+    const onClose = jest.fn();
+
+    render(
+      <NoteEditor
+        isOpen
+        initialNote={mockNote}
+        availableDocuments={mockDocuments}
+        onClose={onClose}
+        onSave={onSave}
+      />
+    );
+
+    fireEvent.change(screen.getByDisplayValue('Initial Title'), {
+      target: { value: 'Updated Title' },
     });
 
-    it('test_save_validates_required_fields', () => {
-      // Test validation before save
-      const validateNote = (note: { title: string; content: string }) => {
-        if (!note.title || note.title.trim() === '') {
-          throw new Error('Title is required');
-        }
-        return true;
-      };
+    fireEvent.change(screen.getByPlaceholderText('Add tag and press Enter'), {
+      target: { value: 'results' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^add$/i }));
 
-      expect(validateNote({ title: 'Test', content: '' })).toBe(true);
-      expect(() => validateNote({ title: '', content: 'content' })).toThrow(
-        'Title is required'
+    fireEvent.click(screen.getByLabelText('Paper Two'));
+    fireEvent.click(screen.getByRole('button', { name: /save note/i }));
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Updated Title',
+          tags: expect.arrayContaining(['methodology', 'results']),
+          linked_document_ids: expect.arrayContaining(['doc-1', 'doc-2']),
+        })
       );
-    });
-  });
-
-  describe('Document Linking', () => {
-    it('test_link_documents', () => {
-      // Test associating documents with note
-      const linkedDocs = mockNote.linkedDocumentIds;
-
-      expect(linkedDocs.length).toBe(2);
-      expect(linkedDocs).toContain('doc-1');
-      expect(linkedDocs).toContain('doc-2');
-    });
-
-    it('test_add_document_link', () => {
-      // Test adding a new document link
-      const currentLinks = [...mockNote.linkedDocumentIds];
-      const newDocId = 'doc-3';
-
-      currentLinks.push(newDocId);
-
-      expect(currentLinks.length).toBe(3);
-      expect(currentLinks).toContain(newDocId);
-    });
-
-    it('test_remove_document_link', () => {
-      // Test removing a document link
-      const currentLinks = [...mockNote.linkedDocumentIds];
-      const removeDocId = 'doc-1';
-
-      const newLinks = currentLinks.filter((id) => id !== removeDocId);
-
-      expect(newLinks.length).toBe(1);
-      expect(newLinks).not.toContain(removeDocId);
-    });
-  });
-
-  describe('Tags', () => {
-    it('test_add_tag', () => {
-      // Test adding a tag
-      const currentTags = [...mockNote.tags];
-      const newTag = 'conclusion';
-
-      currentTags.push(newTag);
-
-      expect(currentTags).toContain(newTag);
-    });
-
-    it('test_remove_tag', () => {
-      // Test removing a tag
-      const currentTags = [...mockNote.tags];
-      const removeTag = 'methodology';
-
-      const newTags = currentTags.filter((tag) => tag !== removeTag);
-
-      expect(newTags).not.toContain(removeTag);
-    });
-  });
-
-  describe('Pinning', () => {
-    it('test_toggle_pin', () => {
-      // Test pinning/unpinning note
-      let isPinned = mockNote.isPinned;
-
-      expect(isPinned).toBe(false);
-
-      isPinned = !isPinned;
-      expect(isPinned).toBe(true);
-
-      isPinned = !isPinned;
-      expect(isPinned).toBe(false);
+      expect(onClose).toHaveBeenCalled();
     });
   });
 });

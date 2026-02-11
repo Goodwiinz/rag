@@ -19,6 +19,7 @@ from structlog import get_logger
 from src.core.database import get_db
 from src.models import Collection, CollectionDocument, Document, ProjectNote, User
 from src.services.research.bibliography_service import BibliographyService
+from src.services.research.project_service import ProjectService
 from src.services.security.user_management import get_current_user
 from src.shared.research_schemas import (
     NoteCreate,
@@ -70,71 +71,25 @@ async def list_projects(
         Paginated list of projects
     """
     try:
-        # Build base query - filter by user's workspaces
-        from src.models import Workspace
-
-        # Get user's workspace IDs
-        workspace_query = select(Workspace.id).where(
-            Workspace.owner_id == current_user.id
+        service = ProjectService(db)
+        result = await service.list_projects(
+            user_id=current_user.id,
+            workspace_id=workspace_id,
+            project_status=project_status,
+            project_type=project_type,
+            tag=tag,
+            search=search,
+            skip=skip,
+            limit=limit,
         )
-        workspace_result = await db.execute(workspace_query)
-        user_workspace_ids = [row[0] for row in workspace_result.all()]
-
-        if not user_workspace_ids:
-            return ProjectListResponse(projects=[], total=0, skip=skip, limit=limit)
-
-        query = select(Collection).where(
-            Collection.workspace_id.in_(user_workspace_ids)
-        )
-
-        # Apply filters
-        filters = []
-        if workspace_id:
-            filters.append(Collection.workspace_id == workspace_id)
-        if project_status:
-            filters.append(Collection.research_status == project_status)
-        if project_type:
-            filters.append(Collection.project_type == project_type)
-        if tag:
-            filters.append(Collection.tags.contains([tag]))
-        if search:
-            filters.append(Collection.name.ilike(f"%{search}%"))
-
-        if filters:
-            query = query.where(and_(*filters))
-
-        # Get total count
-        count_query = select(func.count(Collection.id)).where(
-            Collection.workspace_id.in_(user_workspace_ids)
-        )
-        if filters:
-            count_query = count_query.where(and_(*filters))
-        total_result = await db.execute(count_query)
-        total = total_result.scalar() or 0
-
-        # Apply pagination and ordering
-        query = (
-            query.options(selectinload(Collection.documents))
-            .order_by(Collection.updated_at.desc())
-            .offset(skip)
-            .limit(limit)
-        )
-
-        result = await db.execute(query)
-        projects = result.scalars().all()
-
-        # Calculate pagination values
-        page = (skip // limit) + 1 if limit > 0 else 1
-        has_next = (skip + limit) < total
-        has_prev = skip > 0
 
         return ProjectListResponse(
-            projects=[_to_project_response(p) for p in projects],
-            total=total,
-            page=page,
-            size=limit,
-            has_next=has_next,
-            has_prev=has_prev,
+            projects=[_to_project_response(p) for p in result["projects"]],
+            total=result["total"],
+            page=result["page"],
+            size=result["size"],
+            has_next=result["has_next"],
+            has_prev=result["has_prev"],
         )
 
     except Exception as e:
@@ -162,40 +117,11 @@ async def create_project(
         Created project
     """
     try:
-        # Verify workspace ownership
-        from src.models import Workspace
-
-        workspace_query = select(Workspace).where(
-            and_(
-                Workspace.id == project_data.workspace_id,
-                Workspace.owner_id == current_user.id,
-            )
+        service = ProjectService(db)
+        project = await service.create_project(
+            user_id=current_user.id,
+            project_data=project_data,
         )
-        workspace_result = await db.execute(workspace_query)
-        workspace = workspace_result.scalar_one_or_none()
-
-        if not workspace:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Workspace not found or access denied",
-            )
-
-        # Create project (as Collection with research fields)
-        project = Collection(
-            workspace_id=project_data.workspace_id,
-            name=project_data.name,
-            description=project_data.description,
-            project_type=project_data.project_type or "research",
-            research_status="active",
-            research_goals=project_data.research_goals,
-            deadline=project_data.deadline,
-            tags=project_data.tags or [],
-            is_private=True,  # Always private in Phase 3
-        )
-
-        db.add(project)
-        await db.commit()
-        await db.refresh(project)
 
         logger.info(
             "project_created",
@@ -236,7 +162,11 @@ async def get_project(
         Project details with associated data
     """
     try:
-        project = await _get_project_with_auth(project_id, current_user, db)
+        service = ProjectService(db)
+        project = await service.get_project_for_user(
+            project_id=project_id,
+            user_id=current_user.id,
+        )
 
         # Get documents
         doc_query = (
@@ -303,26 +233,12 @@ async def update_project(
         Updated project
     """
     try:
-        project = await _get_project_with_auth(project_id, current_user, db)
-
-        # Update fields
-        if project_data.name is not None:
-            project.name = project_data.name
-        if project_data.description is not None:
-            project.description = project_data.description
-        if project_data.project_type is not None:
-            project.project_type = project_data.project_type
-        if project_data.research_status is not None:
-            project.research_status = project_data.research_status
-        if project_data.research_goals is not None:
-            project.research_goals = project_data.research_goals
-        if project_data.deadline is not None:
-            project.deadline = project_data.deadline
-        if project_data.tags is not None:
-            project.tags = project_data.tags
-
-        await db.commit()
-        await db.refresh(project)
+        service = ProjectService(db)
+        project = await service.update_project(
+            user_id=current_user.id,
+            project_id=project_id,
+            project_data=project_data,
+        )
 
         logger.info("project_updated", project_id=str(project_id))
 
@@ -353,10 +269,11 @@ async def delete_project(
         db: Database session
     """
     try:
-        project = await _get_project_with_auth(project_id, current_user, db)
-
-        await db.delete(project)
-        await db.commit()
+        service = ProjectService(db)
+        await service.delete_project(
+            user_id=current_user.id,
+            project_id=project_id,
+        )
 
         logger.info("project_deleted", project_id=str(project_id))
 
@@ -404,21 +321,32 @@ async def list_project_documents(
         result = await db.execute(query)
         collection_docs = result.scalars().all()
 
-        return {
-            "documents": [
+        documents = []
+        for cd in collection_docs:
+            if not cd.document:
+                continue
+            documents.append(
                 {
-                    "id": str(cd.document.id),
-                    "filename": cd.document.filename,
-                    "file_type": cd.document.file_type,
-                    "status": cd.document.status,
-                    "file_size": cd.document.file_size,
-                    "created_at": cd.document.created_at.isoformat(),
+                    "id": str(cd.id),
+                    "project_id": str(project_id),
+                    "document_id": str(cd.document_id),
+                    "added_at": cd.created_at.isoformat() if cd.created_at else None,
                     "sort_order": cd.sort_order,
+                    "document": {
+                        "id": str(cd.document.id),
+                        "title": cd.document.title or cd.document.filename,
+                        "filename": cd.document.filename,
+                        "status": cd.document.status,
+                        "created_at": cd.document.created_at.isoformat()
+                        if cd.document.created_at
+                        else None,
+                    },
                 }
-                for cd in collection_docs
-                if cd.document
-            ],
-            "total": len(collection_docs),
+            )
+
+        return {
+            "documents": documents,
+            "total": len(documents),
         }
 
     except HTTPException:
@@ -487,6 +415,7 @@ async def add_document_to_project(
         )
         db.add(collection_doc)
         await db.commit()
+        await db.refresh(collection_doc)
 
         logger.info(
             "document_added_to_project",
@@ -495,10 +424,22 @@ async def add_document_to_project(
         )
 
         return {
+            "id": str(collection_doc.id),
             "project_id": str(project_id),
             "document_id": str(document_id),
+            "added_at": collection_doc.created_at.isoformat()
+            if collection_doc.created_at
+            else None,
             "sort_order": sort_order,
-            "added": True,
+            "document": {
+                "id": str(document.id),
+                "title": document.title or document.filename,
+                "filename": document.filename,
+                "status": document.status,
+                "created_at": document.created_at.isoformat()
+                if document.created_at
+                else None,
+            },
         }
 
     except HTTPException:
@@ -855,10 +796,11 @@ async def toggle_note_pin(
 
         note.is_pinned = not note.is_pinned
         await db.commit()
+        await db.refresh(note)
 
         logger.info("note_pin_toggled", note_id=str(note_id), is_pinned=note.is_pinned)
 
-        return {"note_id": str(note_id), "is_pinned": note.is_pinned}
+        return _to_note_response(note)
 
     except HTTPException:
         raise
@@ -892,12 +834,12 @@ async def get_project_bibliography(
         db: Database session
 
     Returns:
-        Formatted bibliography
+        Formatted bibliography payload
     """
     from src.models import Citation
 
     try:
-        await _get_project_with_auth(project_id, current_user, db)
+        project = await _get_project_with_auth(project_id, current_user, db)
 
         # Get all documents in project
         doc_query = select(CollectionDocument.document_id).where(
@@ -908,10 +850,13 @@ async def get_project_bibliography(
 
         if not document_ids:
             return {
-                "bibliography": "",
+                "project_id": str(project_id),
+                "project_name": project.name,
+                "content": "",
                 "citation_count": 0,
                 "format": format,
                 "message": "No documents in project",
+                "generated_at": datetime.utcnow().isoformat(),
             }
 
         # Get citations for these documents
@@ -921,10 +866,13 @@ async def get_project_bibliography(
 
         if not citations:
             return {
-                "bibliography": "",
+                "project_id": str(project_id),
+                "project_name": project.name,
+                "content": "",
                 "citation_count": 0,
                 "format": format,
                 "message": "No citations found for project documents",
+                "generated_at": datetime.utcnow().isoformat(),
             }
 
         # Format bibliography
@@ -940,15 +888,14 @@ async def get_project_bibliography(
             citation_count=len(citations),
         )
 
-        from fastapi.responses import PlainTextResponse
-
-        return PlainTextResponse(
-            content=bibliography,
-            media_type="application/x-bibtex" if format == "bibtex" else "text/plain",
-            headers={
-                "Content-Disposition": f'attachment; filename="bibliography.{format}"'
-            },
-        )
+        return {
+            "project_id": str(project_id),
+            "project_name": project.name,
+            "format": format,
+            "content": bibliography,
+            "citation_count": len(citations),
+            "generated_at": datetime.utcnow().isoformat(),
+        }
 
     except HTTPException:
         raise

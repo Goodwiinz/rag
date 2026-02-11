@@ -19,6 +19,7 @@ from .export_service import (
     PDFFormatter,
 )
 from .message_citation_service import MessageCitationService
+from .project_service import ProjectService
 
 __all__ = [
     "BibliographyService",
@@ -35,4 +36,5 @@ __all__ = [
     "JSONFormatter",
     "PDFFormatter",
     "MessageCitationService",
+    "ProjectService",
 ]

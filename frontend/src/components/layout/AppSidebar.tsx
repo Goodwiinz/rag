@@ -60,7 +60,7 @@ const documentsNavItems = [
 
 const researchNavItems = [
   { title: 'ArXiv Papers', url: '/arxiv', icon: BookOpen },
-  { title: 'Projects', url: '/projects', icon: FolderKanban },
+  { title: 'Research', url: '/research', icon: FolderKanban },
 ];
 
 const systemNavItems = [

@@ -2,16 +2,20 @@
 
 /**
  * Research Projects List Page
- * Displays all projects with search, create, and management options
+ * Displays all projects with search, filters, and management options.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, FolderOpen, FileText, BookOpen, Loader2, Trash2 } from 'lucide-react';
+import { FolderOpen, Loader2, Plus, Search } from 'lucide-react';
+import { CreateProjectModal } from '@/components/research/CreateProjectModal';
+import { ProjectList } from '@/components/research/ProjectList';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/stores/authStore';
 import { workspaceService } from '@/services/workspaceService';
-import type { Project, ProjectCreate } from '@/services/projectService';
+
+type ProjectStatus = 'active' | 'paused' | 'completed' | 'archived';
+type ProjectType = 'research' | 'literature_review' | 'thesis' | 'paper';
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -23,60 +27,65 @@ export default function ProjectsPage() {
     total,
     fetchProjects,
     createProject,
+    updateProject,
     deleteProject,
     clearError,
   } = useProjectStore();
 
   const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<ProjectStatus | ''>('');
+  const [typeFilter, setTypeFilter] = useState<ProjectType | ''>('');
+  const [tagFilter, setTagFilter] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [newProjectDescription, setNewProjectDescription] = useState('');
-  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (mounted && isAuthenticated) {
-      fetchProjects({ search: searchQuery || undefined });
-    }
-  }, [mounted, isAuthenticated, searchQuery, fetchProjects]);
+    if (!mounted || !isAuthenticated) return;
+    void fetchProjects({
+      search: searchQuery || undefined,
+      project_status: statusFilter || undefined,
+      project_type: typeFilter || undefined,
+      tag: tagFilter || undefined,
+    });
+  }, [mounted, isAuthenticated, searchQuery, statusFilter, typeFilter, tagFilter, fetchProjects]);
 
-  const handleCreateProject = async () => {
-    if (!newProjectName.trim()) return;
+  const allTags = useMemo(() => {
+    return Array.from(
+      new Set(projects.flatMap((project) => project.tags || []))
+    ).sort();
+  }, [projects]);
 
-    setCreating(true);
-    try {
-      // Get or create default workspace for the project
-      const workspace = await workspaceService.getOrCreateDefaultWorkspace();
-
-      const project = await createProject({
-        workspace_id: workspace.id,
-        name: newProjectName.trim(),
-        description: newProjectDescription.trim() || undefined,
-      });
-      setShowCreateModal(false);
-      setNewProjectName('');
-      setNewProjectDescription('');
-      router.push(`/projects/${project.id}`);
-    } catch (err) {
-      console.error('Failed to create project:', err);
-    } finally {
-      setCreating(false);
-    }
+  const handleCreateProject = async (payload: {
+    name: string;
+    description?: string;
+    project_type?: ProjectType;
+    deadline?: string;
+    tags?: string[];
+  }) => {
+    const workspace = await workspaceService.getOrCreateDefaultWorkspace();
+    const project = await createProject({
+      workspace_id: workspace.id,
+      name: payload.name,
+      description: payload.description,
+      project_type: payload.project_type,
+      deadline: payload.deadline,
+      tags: payload.tags,
+    });
+    router.push(`/projects/${project.id}`);
   };
 
-  const handleDeleteProject = async (projectId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDeleteProject = async (projectId: string) => {
     if (!confirm('Are you sure you want to delete this project?')) return;
+    await deleteProject(projectId);
+  };
 
-    try {
-      await deleteProject(projectId);
-    } catch (err) {
-      console.error('Failed to delete project:', err);
-    }
+  const handleArchiveProject = async (projectId: string) => {
+    await updateProject(projectId, { research_status: 'archived' });
   };
 
   if (!mounted) {
@@ -89,7 +98,6 @@ export default function ProjectsPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-mono font-bold text-[#00ff9f]">Research Projects</h1>
@@ -102,13 +110,12 @@ export default function ProjectsPage() {
           className="flex items-center gap-2 px-4 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded-lg font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors"
         >
           <Plus className="h-4 w-4" />
-          New Project
+          Create Project
         </button>
       </div>
 
-      {/* Search */}
-      <div className="mb-6">
-        <div className="relative">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+        <div className="md:col-span-2 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
           <input
             type="text"
@@ -118,29 +125,74 @@ export default function ProjectsPage() {
             className="w-full pl-10 pr-4 py-2 bg-[#1a1a1a] border border-[#333] rounded-lg text-sm font-mono text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#00ff9f]"
           />
         </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as ProjectStatus | '')}
+          className="px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
+        >
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="paused">Paused</option>
+          <option value="completed">Completed</option>
+          <option value="archived">Archived</option>
+        </select>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value as ProjectType | '')}
+          className="px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
+        >
+          <option value="">All types</option>
+          <option value="research">Research</option>
+          <option value="literature_review">Literature Review</option>
+          <option value="thesis">Thesis</option>
+          <option value="paper">Paper</option>
+        </select>
       </div>
 
-      {/* Error Display */}
+      {allTags.length > 0 && (
+        <div className="mb-6 flex items-center flex-wrap gap-2">
+          <span className="text-xs text-gray-500 font-mono">Tags:</span>
+          <button
+            onClick={() => setTagFilter('')}
+            className={`px-2 py-1 border rounded text-xs font-mono ${
+              tagFilter === ''
+                ? 'bg-[#00ff9f]/10 border-[#00ff9f]/30 text-[#00ff9f]'
+                : 'bg-[#1a1a1a] border-[#333] text-gray-400'
+            }`}
+          >
+            All
+          </button>
+          {allTags.map((tag) => (
+            <button
+              key={tag}
+              onClick={() => setTagFilter(tag)}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                tagFilter === tag
+                  ? 'bg-[#00ff9f]/10 border-[#00ff9f]/30 text-[#00ff9f]'
+                  : 'bg-[#1a1a1a] border-[#333] text-gray-400'
+              }`}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      )}
+
       {error && (
         <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
           <p className="text-red-400 font-mono text-sm">{error}</p>
-          <button
-            onClick={clearError}
-            className="mt-2 text-xs text-red-400 underline"
-          >
+          <button onClick={clearError} className="mt-2 text-xs text-red-400 underline">
             Dismiss
           </button>
         </div>
       )}
 
-      {/* Loading State */}
       {loading && (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-[#00ff9f]" />
         </div>
       )}
 
-      {/* Empty State */}
       {!loading && projects.length === 0 && (
         <div className="text-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
           <FolderOpen className="h-12 w-12 text-gray-600 mx-auto mb-4" />
@@ -158,123 +210,32 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Projects Grid */}
       {!loading && projects.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((project) => (
-            <div
-              key={project.id}
-              onClick={() => router.push(`/projects/${project.id}`)}
-              className="group bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 cursor-pointer hover:border-[#00ff9f]/50 transition-colors"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <FolderOpen className="h-5 w-5 text-[#00ff9f]" />
-                  <h3 className="font-mono font-medium text-gray-200 group-hover:text-[#00ff9f] transition-colors">
-                    {project.name}
-                  </h3>
-                </div>
-                <button
-                  onClick={(e) => handleDeleteProject(project.id, e)}
-                  className="p-1 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Delete project"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-
-              {project.description && (
-                <p className="text-sm text-gray-500 mb-3 line-clamp-2">
-                  {project.description}
-                </p>
-              )}
-
-              <div className="flex items-center gap-4 text-xs text-gray-500 font-mono">
-                <div className="flex items-center gap-1">
-                  <FileText className="h-3 w-3" />
-                  <span>{project.document_count || 0} docs</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <BookOpen className="h-3 w-3" />
-                  <span>{project.citation_count || 0} citations</span>
-                </div>
-              </div>
-
-              <div className="mt-3 text-xs text-gray-600 font-mono">
-                Updated {new Date(project.updated_at).toLocaleDateString()}
-              </div>
-            </div>
-          ))}
-        </div>
+        <ProjectList
+          projects={projects}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          onOpenProject={(projectId) => router.push(`/projects/${projectId}`)}
+          onDeleteProject={(projectId) => {
+            void handleDeleteProject(projectId);
+          }}
+          onArchiveProject={(projectId) => {
+            void handleArchiveProject(projectId);
+          }}
+        />
       )}
 
-      {/* Stats */}
       {!loading && total > 0 && (
         <div className="mt-6 text-center text-sm text-gray-500 font-mono">
           Showing {projects.length} of {total} projects
         </div>
       )}
 
-      {/* Create Project Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg w-full max-w-md p-6">
-            <h2 className="text-lg font-mono font-bold text-[#00ff9f] mb-4">
-              Create New Project
-            </h2>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
-                  Project Name *
-                </label>
-                <input
-                  type="text"
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  placeholder="e.g., ML Research 2024"
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#00ff9f]"
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
-                  Description (optional)
-                </label>
-                <textarea
-                  value={newProjectDescription}
-                  onChange={(e) => setNewProjectDescription(e.target.value)}
-                  placeholder="Brief description of your research project..."
-                  rows={3}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#00ff9f] resize-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowCreateModal(false);
-                  setNewProjectName('');
-                  setNewProjectDescription('');
-                }}
-                className="px-4 py-2 text-sm font-mono text-gray-400 hover:text-gray-300 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateProject}
-                disabled={!newProjectName.trim() || creating}
-                className="flex items-center gap-2 px-4 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {creating && <Loader2 className="h-4 w-4 animate-spin" />}
-                Create Project
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CreateProjectModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreate={handleCreateProject}
+      />
     </div>
   );
 }
