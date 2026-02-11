@@ -63,37 +63,6 @@ export const EntityForm: React.FC<EntityFormProps> = ({
   const isEditing = !!entity;
   const hasPermission = isEditing ? canEdit : canCreate;
 
-  // Show locked state when user lacks permission
-  if (!hasPermission) {
-    return (
-      <Card className="bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
-        <CardContent className="flex flex-col items-center justify-center py-12 gap-4">
-          <div className="w-16 h-16 rounded-full bg-[var(--terminal-bg)] border border-[var(--terminal-border)] flex items-center justify-center">
-            <Lock className="w-8 h-8 text-[var(--terminal-text-muted)] opacity-50" />
-          </div>
-          <div className="text-center space-y-2">
-            <h3 className="font-mono text-sm font-bold text-[var(--terminal-text)] uppercase tracking-wider">
-              {isEditing ? 'EDIT_ACCESS_RESTRICTED' : 'CREATE_ACCESS_RESTRICTED'}
-            </h3>
-            <p className="font-mono text-xs text-[var(--terminal-text-muted)] max-w-sm leading-relaxed">
-              {isEditing
-                ? 'You do not have permission to edit entities. Contact an administrator to request edit access.'
-                : 'You do not have permission to create entities. Contact an administrator to request create access.'}
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCancel}
-            className="font-mono text-xs border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text)] mt-2"
-          >
-            DISMISS
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
   // Use available types from props or fall back to defaults
   const entityTypes = (availableTypes || DEFAULT_ENTITY_TYPES) as EntityType[];
   const [formData, setFormData] = useState({
@@ -144,6 +113,37 @@ export const EntityForm: React.FC<EntityFormProps> = ({
       setMetadataFields(fields);
     }
   }, [entity]);
+
+  // Show locked state when user lacks permission
+  if (!hasPermission) {
+    return (
+      <Card className="bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
+        <CardContent className="flex flex-col items-center justify-center py-12 gap-4">
+          <div className="w-16 h-16 rounded-full bg-[var(--terminal-bg)] border border-[var(--terminal-border)] flex items-center justify-center">
+            <Lock className="w-8 h-8 text-[var(--terminal-text-muted)] opacity-50" />
+          </div>
+          <div className="text-center space-y-2">
+            <h3 className="font-mono text-sm font-bold text-[var(--terminal-text)] uppercase tracking-wider">
+              {isEditing ? 'EDIT_ACCESS_RESTRICTED' : 'CREATE_ACCESS_RESTRICTED'}
+            </h3>
+            <p className="font-mono text-xs text-[var(--terminal-text-muted)] max-w-sm leading-relaxed">
+              {isEditing
+                ? 'You do not have permission to edit entities. Contact an administrator to request edit access.'
+                : 'You do not have permission to create entities. Contact an administrator to request create access.'}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            className="font-mono text-xs border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text)] mt-2"
+          >
+            DISMISS
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   /**
    * Check for duplicate entities with the same name and type
