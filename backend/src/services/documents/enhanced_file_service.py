@@ -447,7 +447,7 @@ class EnhancedFileService:
                     compressed_size = info.compress_size
 
                     # Check for extremely high compression ratio
-                    if file_size > 0:
+                    if file_size > 0 and compressed_size > 0:
                         compression_ratio = file_size / compressed_size
                         if compression_ratio > 1000:  # Very high compression ratio
                             return {
