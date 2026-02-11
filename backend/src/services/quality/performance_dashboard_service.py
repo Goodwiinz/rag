@@ -650,7 +650,7 @@ class PerformanceDashboardService:
             # Get aggregated metric data
             if metric_name == "search_volume":
                 data = db.execute(
-                    text(
+                    text(  # nosec: B608 - granularity constrained to enum-derived literal values
                         f"""
                     SELECT
                         DATE_TRUNC('{granularity}', created_at) as period,
@@ -666,7 +666,7 @@ class PerformanceDashboardService:
                 ).fetchall()
             elif metric_name == "response_time":
                 data = db.execute(
-                    text(
+                    text(  # nosec: B608 - granularity constrained to enum-derived literal values
                         f"""
                     SELECT
                         DATE_TRUNC('{granularity}', created_at) as period,
@@ -683,7 +683,7 @@ class PerformanceDashboardService:
                 ).fetchall()
             elif metric_name == "quality_score":
                 data = db.execute(
-                    text(
+                    text(  # nosec: B608 - granularity constrained to enum-derived literal values
                         f"""
                     SELECT
                         DATE_TRUNC('{granularity}', qm.created_at) as period,
@@ -701,7 +701,7 @@ class PerformanceDashboardService:
             else:
                 # Default to system metrics
                 data = db.execute(
-                    text(
+                    text(  # nosec: B608 - granularity constrained to enum-derived literal values
                         f"""
                     SELECT
                         DATE_TRUNC('{granularity}', sm.created_at) as period,

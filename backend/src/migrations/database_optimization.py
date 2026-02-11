@@ -33,7 +33,7 @@ class DatabaseOptimizer:
                 raise ValueError(f"Invalid table name: {table_name}")
             
             # Get table row count
-            count_query = text("SELECT COUNT(*) as row_count FROM {}".format(table_name))
+            count_query = text("SELECT COUNT(*) as row_count FROM {}".format(table_name))  # nosec: B608 - table_name validated against whitelist
             count_result = self.db.execute(count_query).fetchone()
             row_count = count_result.row_count if count_result else 0
 
@@ -240,7 +240,7 @@ class DatabaseOptimizer:
                         continue
                     
                     # Update table statistics
-                    analyze_query = text("ANALYZE {}".format(table))
+                    analyze_query = text("ANALYZE {}".format(table))  # nosec: B608 - table validated against whitelist
                     self.db.execute(analyze_query)
                     results[f"{table}_analyze"] = "completed"
 
@@ -294,7 +294,7 @@ class DatabaseOptimizer:
 
                     if bloat_result and bloat_result.tbloat > 1.5:
                         # Run vacuum if significant bloat detected
-                        vacuum_query = text("VACUUM ANALYZE {}".format(table))
+                        vacuum_query = text("VACUUM ANALYZE {}".format(table))  # nosec: B608 - table validated against whitelist
                         self.db.execute(vacuum_query)
                         results[
                             f"{table}_vacuum"

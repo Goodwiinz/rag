@@ -216,7 +216,7 @@ class DataRetentionManager:
         try:
             # Get count of records to be deleted
             if policy.data_type == "analytics_events":
-                count_query = text(
+                count_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
                     f"""
                     SELECT COUNT(*) FROM {policy.table_name}
                     WHERE created_at < :cutoff_date
@@ -227,7 +227,7 @@ class DataRetentionManager:
 
                 if not dry_run and report.records_processed > 0:
                     # Delete records
-                    delete_query = text(
+                    delete_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
                         f"""
                         DELETE FROM {policy.table_name}
                         WHERE created_at < :cutoff_date
@@ -238,7 +238,7 @@ class DataRetentionManager:
                     report.records_deleted = report.records_processed
 
             elif policy.data_type == "user_sessions":
-                count_query = text(
+                count_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
                     f"""
                     SELECT COUNT(*) FROM {policy.table_name}
                     WHERE created_at < :cutoff_date
@@ -248,7 +248,7 @@ class DataRetentionManager:
                 report.records_processed = result.scalar()
 
                 if not dry_run and report.records_processed > 0:
-                    delete_query = text(
+                    delete_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
                         f"""
                         DELETE FROM {policy.table_name}
                         WHERE created_at < :cutoff_date
@@ -259,7 +259,7 @@ class DataRetentionManager:
                     report.records_deleted = report.records_processed
 
             elif policy.data_type == "performance_logs":
-                count_query = text(
+                count_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
                     f"""
                     SELECT COUNT(*) FROM {policy.table_name}
                     WHERE created_at < :cutoff_date
@@ -269,7 +269,7 @@ class DataRetentionManager:
                 report.records_processed = result.scalar()
 
                 if not dry_run and report.records_processed > 0:
-                    delete_query = text(
+                    delete_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
                         f"""
                         DELETE FROM {policy.table_name}
                         WHERE created_at < :cutoff_date
@@ -316,7 +316,7 @@ class DataRetentionManager:
 
             # Get records to archive
             if policy.data_type == "quality_metrics":
-                count_query = text(
+                count_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
                     f"""
                     SELECT COUNT(*) FROM {policy.table_name}
                     WHERE created_at < :cutoff_date
@@ -327,7 +327,7 @@ class DataRetentionManager:
 
                 if not dry_run and report.records_processed > 0:
                     # Move records to archive table
-                    archive_query = text(
+                    archive_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
                         f"""
                     INSERT INTO {archive_table}
                     SELECT * FROM {policy.table_name}
@@ -337,7 +337,7 @@ class DataRetentionManager:
                     db.execute(archive_query, {"cutoff_date": cutoff_date})
 
                     # Delete from main table
-                    delete_query = text(
+                    delete_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
                         f"""
                     DELETE FROM {policy.table_name}
                     WHERE created_at < :cutoff_date
@@ -367,7 +367,7 @@ class DataRetentionManager:
         try:
             if policy.data_type == "user_sessions_pii" and policy.anonymize_fields:
                 # Get records to anonymize
-                count_query = text(
+                count_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
                     f"""
                     SELECT COUNT(*) FROM {policy.table_name}
                     WHERE created_at < :cutoff_date
@@ -379,7 +379,7 @@ class DataRetentionManager:
 
                 if not dry_run and report.records_processed > 0:
                     # Get records to update
-                    select_query = text(
+                    select_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
                         f"""
                         SELECT id, {', '.join(policy.anonymize_fields)}
                         FROM {policy.table_name}
@@ -419,7 +419,7 @@ class DataRetentionManager:
                         set_clause = ", ".join(
                             [f"{field} = :{field}" for field in policy.anonymize_fields]
                         )
-                        update_query = text(
+                        update_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
                             f"""
                             UPDATE {policy.table_name}
                             SET {set_clause}
@@ -468,7 +468,7 @@ class DataRetentionManager:
                     "quality_metrics",
                 ]:
                     # Get oldest record date
-                    oldest_query = text(
+                    oldest_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
                         f"""
                         SELECT MIN(created_at) as oldest_date,
                                COUNT(*) as total_count,
@@ -538,7 +538,7 @@ class DataRetentionManager:
             db = next(get_db())
             try:
                 # Check for expired data that should have been processed
-                violation_check_query = text(
+                violation_check_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
                     f"""
                     SELECT COUNT(*) as violation_count,
                            MIN(created_at) as oldest_violation
