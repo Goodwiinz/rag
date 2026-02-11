@@ -1,33 +1,33 @@
 # Core Framework
-fastapi==0.104.1
+fastapi==0.128.8
 # starlette>=0.47.2  # Removed to avoid conflict with fastapi 0.104.1 which requires starlette<0.28.0
-uvicorn[standard]==0.24.0
+uvicorn[standard]==0.40.0
 gunicorn==22.0.0
 pydantic>=2.6.1,<3.0.0
 pydantic-settings>=2.1.0,<3.0.0
-email-validator==2.1.0
+email-validator==2.3.0
 
 # Database
 sqlalchemy>=2.0.30
-alembic==1.13.1
-psycopg2-binary==2.9.9
-asyncpg==0.29.0
+alembic==1.18.4
+psycopg2-binary==2.9.11
+asyncpg==0.31.0
 
 # Authentication & Security
-python-jose[cryptography]==3.4.0
+python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
 python-multipart>=0.0.22
 bcrypt==4.1.1
 defusedxml==0.7.1
 
 # Background Tasks
-celery==5.3.4
+celery==5.6.2
 redis==5.0.1
 flower==2.0.1
 
 # AI/ML Libraries
 openai>=1.13.3,<2.0.0
-anthropic==0.8.1
+anthropic==0.79.0
 tiktoken>=0.7.0
 sentence-transformers>=2.3.0
 transformers>=4.36.0
@@ -42,14 +42,14 @@ neo4j==5.15.0
 
 # Multimodal Processing
 pypdf>=6.6.2
-PyMuPDF==1.23.8
-pytesseract==0.3.10
+PyMuPDF==1.27.1
+pytesseract==0.3.13
 pillow==10.3.0
-opencv-python==4.8.1.78
+opencv-python==4.13.0.92
 setuptools>=70.0.0
 
 # NLP
-spacy==3.7.2
+spacy==3.8.11
 
 # Multi-Agent Framework (temporarily disabled due to dependency conflicts)
 # crewai==0.80.0
@@ -61,41 +61,41 @@ spacy==3.7.2
 # deepeval>=1.0.0
 
 # Monitoring & Observability
-prometheus-client==0.19.0
-opentelemetry-api==1.25.0
-opentelemetry-sdk==1.25.0
-opentelemetry-instrumentation-fastapi==0.46b0
-opentelemetry-instrumentation-sqlalchemy==0.46b0
-opentelemetry-instrumentation-redis==0.46b0
-opentelemetry-instrumentation-httpx==0.46b0
+prometheus-client==0.24.1
+opentelemetry-api==1.39.1
+opentelemetry-sdk==1.39.1
+opentelemetry-instrumentation-fastapi==0.60b1
+opentelemetry-instrumentation-sqlalchemy==0.60b1
+opentelemetry-instrumentation-redis==0.60b1
+opentelemetry-instrumentation-httpx==0.60b1
 opentelemetry-exporter-jaeger==1.21.0
-opentelemetry-exporter-otlp==1.25.0
-opentelemetry-exporter-prometheus==0.46b0
-opentelemetry-propagator-b3==1.25.0
-opentelemetry-propagator-jaeger==1.21.0
+opentelemetry-exporter-otlp==1.39.1
+opentelemetry-exporter-prometheus==0.60b1
+opentelemetry-propagator-b3==1.39.1
+opentelemetry-propagator-jaeger==1.39.1
 sentry-sdk[fastapi]>=1.38.0
 structlog==23.2.0
 rich==13.7.0
 psutil==5.9.6
 py-cpuinfo==9.0.0
 memory-profiler==0.61.0
-py-spy==0.3.14
+py-spy==0.4.1
 
 # Utilities
-python-dotenv==1.0.0
-httpx==0.25.2
+python-dotenv==1.2.1
+httpx==0.28.1
 aiohttp>=3.13.3
-aiohttp-retry==2.8.3
+aiohttp-retry==2.9.1
 tenacity==8.2.3
 aiofiles==23.2.1
 python-magic==0.4.27
-email-validator==2.1.0
+email-validator==2.3.0
 sse-starlette==1.6.1
 kagglehub[hf-datasets]>=0.3.0
 setuptools>=70.0.0  # Required for openai-whisper build
 
 # Research Assistant - Citation Management
-pybtex==0.24.0
+pybtex==0.25.1
 
 # Testing
 pytest>=7.4.0
