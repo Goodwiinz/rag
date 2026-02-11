@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Entity } from '@/types/entity';
 import { entityService } from '@/services/entityService';
 import { useEntityPermissions } from '@/hooks/useEntityPermissions';
+import { parseBulkEntitiesFromCsv } from '@/utils/csvEntityImport';
 import toast from 'react-hot-toast';
 
 interface BulkCreateResult {
@@ -85,34 +86,8 @@ export const BulkOperations: React.FC = () => {
   const handleBulkCreateFromCSV = async () => {
     try {
       setLoading(true);
-      
-      // Parse CSV
-      const lines = csvInput.trim().split('\n');
-      if (lines.length < 2) {
-        toast.error('CSV must have at least a header and one data row');
-        return;
-      }
 
-      const headers = lines[0].split(',').map(h => h.trim());
-      const entities = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim());
-        const entity: any = {};
-        
-        headers.forEach((header, index) => {
-          entity[header] = values[index];
-        });
-
-        // Convert to proper entity format
-        entities.push({
-          name: entity.name,
-          entity_type: entity.entity_type || entity.type,
-          confidence_score: parseFloat(entity.confidence_score || '0.8'),
-          extraction_method: entity.extraction_method || 'manual',
-          metadata: {},
-        });
-      }
+      const entities = parseBulkEntitiesFromCsv(csvInput);
 
       const bulkResult = await entityService.batchCreate({
         entities,
