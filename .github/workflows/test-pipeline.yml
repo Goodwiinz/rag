@@ -436,11 +436,17 @@ jobs:
           sudo rm -rf /usr/share/dotnet || true
           sudo rm -rf /opt/ghc || true
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo rm -rf /opt/hostedtoolcache/go || true
+          sudo rm -rf /opt/hostedtoolcache/Ruby || true
+          sudo rm -rf /usr/share/swift || true
+          sudo swapoff -a || true
+          sudo rm -f /swapfile || true
           docker system prune -af || true
           df -h
 
       - name: Build backend image
-        run: docker build --build-arg PYTHON_VERSION=3.11 -t rag-backend:test -f backend/docker/Dockerfile.prod .
+        run: docker build --build-arg PYTHON_VERSION=3.11 --build-arg TORCH_CPU_ONLY=true -t rag-backend:test -f backend/docker/Dockerfile.prod .
 
       - name: Build frontend image
         run: docker build -t rag-frontend:test -f frontend/Dockerfile.prod .
