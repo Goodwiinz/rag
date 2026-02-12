@@ -1,9 +1,9 @@
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from src.services.security.auth_service import AuthService, get_auth_service
-from src.core.security import auth_rate_limiter
+from src.core.security import auth_rate_limiter, get_client_ip
 from src.api.auth.auth import router as auth_router
 
 # Create a minimal app for testing to avoid importing src.main and its heavy dependencies
@@ -42,39 +42,63 @@ def test_login_rate_limit_enforces_ip_check():
     Test that multiple login attempts from the same IP with DIFFERENT emails
     ARE blocked by the IP-based rate limiting.
     """
+    # Use a specific IP for this test suite - simulated by TestClient default behavior
+    # or by forcing a header if we had middleware.
+    # Since we don't have X-Forwarded-For, it falls back to 'testclient' host.
 
-    # Configure rate limiter for the test to have a small limit
-    # We can't easily change the global instance's max_attempts, so we'll rely on
-    # checking if it blocks.
-    # The default is 50 attempts in 15 minutes.
-
-    # We'll use a specific IP
-    client_ip = "192.168.1.100"
-
-    # Try 60 attempts (more than default 50)
     for i in range(60):
         email = f"user{i}@example.com"
-        # Starlette TestClient does not allow setting client host per request easily in methods
-        # It uses 'testclient' by default.
-        # However, passing headers might not affect request.client.host unless behind proxy middleware.
-        # But we are testing the API logic.
-        # If the API uses request.client.host, it will see 'testclient'.
-        # Since all requests come from 'testclient', if IP rate limiting WAS enabled,
-        # it would block after 50 requests.
-
         response = client.post(
             "/api/v1/auth/login",
             json={"email": email, "password": "password123"}
         )
-
-        # If the rate limiter ONLY checks email, then 60 requests with 60 different emails
-        # should all be ALLOWED (status 200 because we mocked success).
-
-        # If the rate limiter checked IP, then after 50 requests, it should be BLOCKED (429).
 
         if i < 50:
             assert response.status_code == 200, f"Request {i} failed with {response.status_code}"
         else:
             assert response.status_code == 429, f"Request {i} should have been blocked"
 
-    print("Vulnerability fixed: requests blocked after limit.")
+def test_get_client_ip():
+    """Test IP extraction logic"""
+    # Case 1: No proxy header
+    req = Mock(spec=Request)
+    req.headers = {}
+    req.client.host = "1.2.3.4"
+    assert get_client_ip(req) == "1.2.3.4"
+
+    # Case 2: X-Forwarded-For present (single proxy)
+    req.headers = {"X-Forwarded-For": "5.6.7.8"}
+    assert get_client_ip(req) == "5.6.7.8"
+
+    # Case 3: X-Forwarded-For present (multiple proxies)
+    req.headers = {"X-Forwarded-For": "10.0.0.1, 10.0.0.2"}
+    assert get_client_ip(req) == "10.0.0.2"
+
+    # Case 4: Spoofing attempt (taking last IP)
+    req.headers = {"X-Forwarded-For": "spoofed_ip, real_ip"}
+    assert get_client_ip(req) == "real_ip"
+
+def test_login_rate_limit_respects_x_forwarded_for():
+    """
+    Test that requests with different X-Forwarded-For headers are treated as different IPs.
+    """
+    blocked_count = 0
+
+    # Reset rate limiter
+    auth_rate_limiter.attempts = {}
+
+    for i in range(60):
+        email = f"user{i}@example.com"
+        # Simulate different users behind a proxy
+        headers = {"X-Forwarded-For": f"10.0.0.{i}"}
+
+        response = client.post(
+            "/api/v1/auth/login",
+            json={"email": email, "password": "password123"},
+            headers=headers
+        )
+
+        if response.status_code == 429:
+            blocked_count += 1
+
+    assert blocked_count == 0, f"Expected 0 blocked requests, got {blocked_count}"

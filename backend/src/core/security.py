@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Union
 
 import bcrypt  # Changed from passlib
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -72,6 +72,33 @@ def generate_password_reset_token() -> str:
 def generate_api_key() -> str:
     """Generate a secure API key"""
     return secrets.token_urlsafe(32)
+
+
+def get_client_ip(request: Request) -> str:
+    """
+    Get client IP address, handling proxies.
+
+    Checks X-Forwarded-For header first. If present, takes the last IP
+    in the list (assuming trusted proxy appends client IP).
+    Falls back to request.client.host if not behind a proxy.
+    """
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        # Get the last IP address in the chain
+        # Format: client, proxy1, proxy2
+        # If we trust the proxy to append the real client IP, we take the last one?
+        # WAIT. Standard practice:
+        # If we are behind a trusted proxy (e.g. Nginx, ALB), it adds the connecting client IP to the END of the list.
+        # But if the client sends X-Forwarded-For: spoofed_ip, and we are behind 1 proxy:
+        # Header becomes: spoofed_ip, real_client_ip.
+        # So the LAST IP is the real client IP (as seen by our proxy).
+        # This is safe against spoofing if we trust our proxy to append.
+
+        # Split by comma and strip whitespace
+        ips = [ip.strip() for ip in forwarded_for.split(",")]
+        return ips[-1]
+
+    return request.client.host if request.client else "unknown"
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
