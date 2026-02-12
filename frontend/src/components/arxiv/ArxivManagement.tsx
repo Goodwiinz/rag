@@ -1,37 +1,29 @@
-"use client";
+'use client';
 
 import { apiClient } from '@/services/apiClient';
 import { cn } from '@/lib/utils';
-import { 
-  Activity, 
-  BarChart3, 
-  BookOpen, 
-  Brain, 
-  CheckCircle, 
-  CheckSquare, 
-  Database, 
-  FileText, 
-  Hash, 
-  Link2, 
-  Loader2, 
-  RefreshCw, 
-  Search, 
-  Square, 
-  TrendingUp, 
-  Upload,
-  ChevronRight,
-  Terminal,
-  AlertTriangle,
-  Zap,
+import {
+  Activity,
+  BarChart3,
+  Brain,
+  CheckSquare,
   Cpu,
+  Database,
+  FileText,
   Globe,
-  Layers
+  Layers,
+  Loader2,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Square,
+  Terminal,
+  TrendingUp,
+  Upload,
+  Zap,
 } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-
-// Using centralized theme constants
-import { THEME } from '@/theme/constants';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 
 interface TrackResult {
   status: string;
@@ -107,64 +99,77 @@ interface IngestionResult {
   status: string;
 }
 
-// Custom Toggle Switch Component
+const CORE_AI_CATEGORIES = ['cs.AI', 'cs.LG', 'cs.CV', 'cs.CL', 'stat.ML'];
+
+const normalizePaperIds = (value: string) =>
+  value
+    .split(/[\s,\n]+/)
+    .map((id) => id.trim())
+    .filter(Boolean);
+
 const ToggleSwitch: React.FC<{
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
-  id?: string;
-  label?: string;
-}> = ({ checked, onCheckedChange, id, label }) => (
-  <div className="flex items-center gap-3 group cursor-pointer" onClick={() => onCheckedChange(!checked)}>
-    <button
-      id={id}
-      type="button"
-      role="switch"
-      aria-checked={checked}
+  label: string;
+}> = ({ checked, onCheckedChange, label }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    aria-label={label}
+    onClick={() => onCheckedChange(!checked)}
+    className={cn(
+      'group flex w-full items-center justify-between rounded-lg border px-2.5 py-2 font-mono text-[10px] font-bold uppercase tracking-wider transition-colors touch-manipulation',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00FF9F]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]',
+      checked
+        ? 'border-[#00FF9F]/50 bg-[#00FF9F]/10 text-[#E5E7EB]'
+        : 'border-[#1A1A1A] bg-[#0A0A0A]/40 text-[#9CA3AF] hover:border-[#333333]'
+    )}
+  >
+    <span className="truncate pr-3 text-left">{label}</span>
+    <span
       className={cn(
-        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-all duration-200 border",
-        checked 
-          ? "bg-[var(--phosphor-green)]/20 border-[var(--phosphor-green)]/50" 
-          : "bg-[var(--terminal-surface)] border-[var(--terminal-border)] group-hover:border-[var(--terminal-border-muted)]"
+        'relative inline-flex h-5 w-9 shrink-0 rounded-full border transition-colors',
+        checked
+          ? 'border-[#00FF9F]/60 bg-[#00FF9F]/20'
+          : 'border-[#1A1A1A] bg-[#111111]'
       )}
+      aria-hidden="true"
     >
       <span
         className={cn(
-          "pointer-events-none block h-3.5 w-3.5 rounded-full transition-transform duration-200 mt-[2px] ml-[2px]",
-          checked 
-            ? "translate-x-4 bg-[var(--phosphor-green)] shadow-[0_0_8px_var(--phosphor-green)]" 
-            : "translate-x-0 bg-[var(--terminal-text-muted)]"
+          'mt-[2px] ml-[2px] block h-3.5 w-3.5 rounded-full transition-transform',
+          checked
+            ? 'translate-x-4 bg-[#00FF9F] shadow-[0_0_8px_rgba(0,255,159,0.65)]'
+            : 'translate-x-0 bg-[#6B7280]'
         )}
       />
-    </button>
-    {label && (
-      <span className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-wider group-hover:text-[var(--terminal-text)] transition-colors">
-        {label}
-      </span>
-    )}
-  </div>
+    </span>
+  </button>
 );
 
-// Custom Progress Bar
-const ProgressBar: React.FC<{ value: number; label?: string }> = ({ value, label }) => (
-  <div className="space-y-1.5 w-full">
+const ProgressBar: React.FC<{ value: number; label?: string }> = ({
+  value,
+  label,
+}) => (
+  <div className="w-full space-y-1.5">
     {label && (
-      <div className="flex justify-between items-center text-[9px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest">
+      <div className="flex items-center justify-between text-[9px] font-mono uppercase tracking-widest text-[#6B7280]">
         <span>{label}</span>
-        <span className="text-[var(--phosphor-green)]">{Math.round(value)}%</span>
+        <span className="font-bold text-[#00FF9F]">{Math.round(value)}%</span>
       </div>
     )}
-    <div className="h-1 w-full rounded-full bg-[var(--terminal-border)] overflow-hidden">
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#1A1A1A]">
       <motion.div
         initial={{ width: 0 }}
         animate={{ width: `${value}%` }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="h-full rounded-full bg-gradient-to-r from-[var(--phosphor-green-dim)] to-[var(--phosphor-green)] shadow-[0_0_10px_var(--phosphor-green-muted)]"
+        transition={{ duration: 0.35, ease: 'easeOut' }}
+        className="h-full rounded-full bg-gradient-to-r from-[#00CC7F] to-[#00FF9F] shadow-[0_0_10px_rgba(0,255,159,0.35)]"
       />
     </div>
   </div>
 );
 
-// Custom Slider Component
 const CustomSlider: React.FC<{
   value: number;
   onChange: (value: number) => void;
@@ -174,25 +179,23 @@ const CustomSlider: React.FC<{
   label: string;
 }> = ({ value, onChange, min, max, step, label }) => (
   <div className="space-y-3">
-    <div className="flex justify-between items-center">
-      <label className="text-[10px] font-mono font-bold text-[var(--terminal-text-muted)] uppercase tracking-widest">
+    <div className="flex items-center justify-between">
+      <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#6B7280]">
         {label}
       </label>
-      <span className="text-[10px] font-mono font-bold text-[var(--phosphor-green)] bg-[var(--phosphor-green)]/10 px-2 py-0.5 rounded border border-[var(--phosphor-green)]/20">
+      <span className="rounded border border-[#00FF9F]/20 bg-[#00FF9F]/10 px-2 py-0.5 text-[10px] font-mono font-bold text-[#00FF9F]">
         {value}
       </span>
     </div>
-    <div className="relative flex items-center h-6">
-      <input
-        type="range"
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        min={min}
-        max={max}
-        step={step}
-        className="w-full h-1 bg-[var(--terminal-border)] rounded-full appearance-none cursor-pointer accent-[var(--phosphor-green)] hover:accent-[var(--phosphor-green-dim)] transition-all"
-      />
-    </div>
+    <input
+      type="range"
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      min={min}
+      max={max}
+      step={step}
+      className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[#1A1A1A] accent-[#00FF9F]"
+    />
   </div>
 );
 
@@ -200,29 +203,35 @@ export default function ArxivManagement() {
   const [isTracking, setIsTracking] = useState(false);
   const [isIngesting, setIsIngesting] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
-  const [trackingResult, setTrackingResult] = useState<TrackResult | null>(null);
+  const [trackingResult, setTrackingResult] = useState<TrackResult | null>(
+    null
+  );
   const [stats, setStats] = useState<StatsResult | null>(null);
-  const [extractionResult, setExtractionResult] = useState<ExtractionResult | null>(null);
+  const [extractionResult, setExtractionResult] =
+    useState<ExtractionResult | null>(null);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState('');
   const [activeTab, setActiveTab] = useState('tracking');
 
-  // Form states
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(['cs.AI', 'cs.LG', 'cs.CV', 'quant-ph']);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([
+    'cs.AI',
+    'cs.LG',
+    'cs.CV',
+    'quant-ph',
+  ]);
   const [daysBack, setDaysBack] = useState(1);
   const [maxResults, setMaxResults] = useState(50);
   const [updateDatabase, setUpdateDatabase] = useState(true);
   const [extractEntities, setExtractEntities] = useState(true);
   const [downloadPdfs, setDownloadPdfs] = useState(false);
 
-  // Ingest Papers search workflow states
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<ArXivPaper[] | null>(null);
   const [selectedPaperIds, setSelectedPaperIds] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [ingestionResult, setIngestionResult] = useState<IngestionResult | null>(null);
+  const [ingestionResult, setIngestionResult] =
+    useState<IngestionResult | null>(null);
 
-  // Extraction form states
   const [extractPaperIds, setExtractPaperIds] = useState('');
   const [extractTopics, setExtractTopics] = useState(true);
   const [extractKeyphrases, setExtractKeyphrases] = useState(true);
@@ -231,18 +240,37 @@ export default function ArxivManagement() {
   const [updateKG, setUpdateKG] = useState(true);
 
   const popularCategories = [
-    'cs.AI', 'cs.LG', 'cs.CV', 'cs.CL', 'cs.RO',
-    'quant-ph', 'stat.ML', 'math.OC', 'physics.data-an', 'eess.IV'
+    'cs.AI',
+    'cs.LG',
+    'cs.CV',
+    'cs.CL',
+    'cs.RO',
+    'quant-ph',
+    'stat.ML',
+    'math.OC',
+    'physics.data-an',
+    'eess.IV',
   ];
 
   const tabs = [
-    { id: 'tracking', label: 'TRACK_CHANGES', icon: TrendingUp },
-    { id: 'ingest', label: 'INGEST_PAPERS', icon: Upload },
-    { id: 'extract', label: 'EXTRACT_FEATURES', icon: Brain },
-    { id: 'stats', label: 'STATISTICS', icon: BarChart3 },
+    { id: 'tracking', label: 'Track Changes', icon: TrendingUp },
+    { id: 'ingest', label: 'Ingest Papers', icon: Upload },
+    { id: 'extract', label: 'Extract Features', icon: Brain },
+    { id: 'stats', label: 'Statistics', icon: BarChart3 },
   ];
 
-  // Fetch statistics
+  const parsedExtractIds = useMemo(
+    () => normalizePaperIds(extractPaperIds),
+    [extractPaperIds]
+  );
+  const hasMessageError = message.startsWith('ERROR:');
+  const hasExtractionFeaturesEnabled =
+    extractEntities ||
+    extractTopics ||
+    extractKeyphrases ||
+    extractCitations ||
+    extractSummaries;
+
   const fetchStats = async () => {
     try {
       const result = await apiClient.get<StatsResult>('/arxiv/tracking/stats');
@@ -256,28 +284,60 @@ export default function ArxivManagement() {
     fetchStats();
   }, []);
 
-  // Handle tracking changes
+  const toggleCategory = (category: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(category)
+        ? prev.filter((item) => item !== category)
+        : [...prev, category]
+    );
+  };
+
+  const applyCategoryPreset = (preset: 'core' | 'all' | 'clear') => {
+    if (preset === 'core') {
+      setSelectedCategories(
+        CORE_AI_CATEGORIES.filter((cat) => popularCategories.includes(cat))
+      );
+      return;
+    }
+
+    if (preset === 'all') {
+      setSelectedCategories(popularCategories);
+      return;
+    }
+
+    setSelectedCategories([]);
+  };
+
   const handleTrackChanges = async () => {
     setIsTracking(true);
-    setMessage(`Tracking changes for ${selectedCategories.length} categories...`);
+    setTrackingResult(null);
+    setMessage(`Tracking changes for ${selectedCategories.length} categories…`);
     setProgress(10);
 
     try {
       setProgress(30);
-      const result = await apiClient.postWithLongTimeout<TrackResult>('/arxiv/tracking/track-categories', {
-        categories: selectedCategories,
-        days_back: daysBack,
-        update_database: updateDatabase
-      });
+      const result = await apiClient.postWithLongTimeout<TrackResult>(
+        '/arxiv/tracking/track-categories',
+        {
+          categories: selectedCategories,
+          days_back: daysBack,
+          update_database: updateDatabase,
+        }
+      );
 
-      setProgress(70);
+      setProgress(75);
       setTrackingResult(result);
 
       if (result.result.applied && updateDatabase) {
-        setMessage(`COMPLETED: Database updated with ${result.result.summary.new} new papers.`);
+        setMessage(
+          `COMPLETED: Database updated with ${result.result.summary.new} new papers.`
+        );
       } else {
-        setMessage(`COMPLETED: Found ${result.result.summary.new} new, ${result.result.summary.updated} updated papers.`);
+        setMessage(
+          `COMPLETED: Found ${result.result.summary.new} new and ${result.result.summary.updated} updated papers.`
+        );
       }
+
       setProgress(100);
       await fetchStats();
     } catch (error: any) {
@@ -291,19 +351,25 @@ export default function ArxivManagement() {
 
   const handleSearchPapers = async () => {
     if (!searchQuery.trim()) return;
+
     setIsSearching(true);
-    setMessage(`Searching arXiv for "${searchQuery}"...`);
+    setIngestionResult(null);
+    setMessage(`Searching arXiv for "${searchQuery}"…`);
     setProgress(10);
     setSearchResults(null);
     setSelectedPaperIds([]);
 
     try {
       setProgress(40);
-      const results = await apiClient.postWithLongTimeout<ArXivPaper[]>('/arxiv/search', {
-        query: searchQuery,
-        max_results: maxResults,
-        categories: selectedCategories.length > 0 ? selectedCategories : null
-      });
+      const results = await apiClient.postWithLongTimeout<ArXivPaper[]>(
+        '/arxiv/search',
+        {
+          query: searchQuery,
+          max_results: maxResults,
+          categories: selectedCategories.length > 0 ? selectedCategories : null,
+        }
+      );
+
       setProgress(100);
       setSearchResults(results);
       setMessage(`Found ${results.length} matching papers.`);
@@ -316,229 +382,483 @@ export default function ArxivManagement() {
     }
   };
 
+  const handleIngestSelected = async () => {
+    if (selectedPaperIds.length === 0) return;
+
+    setIsIngesting(true);
+    setIngestionResult(null);
+    setMessage(
+      `Queueing ingestion for ${selectedPaperIds.length} selected papers…`
+    );
+    setProgress(15);
+
+    try {
+      setProgress(45);
+      const result = await apiClient.postWithLongTimeout<IngestionResult>(
+        '/arxiv/ingest',
+        {
+          paper_ids: selectedPaperIds,
+          download_pdfs: downloadPdfs,
+          extract_content: extractEntities,
+          batch_size: Math.min(20, Math.max(1, selectedPaperIds.length)),
+        }
+      );
+
+      setProgress(100);
+      setIngestionResult(result);
+      setMessage(
+        `COMPLETED: ${result.paper_count} papers queued for background ingestion.`
+      );
+    } catch (error: any) {
+      console.error('Ingestion failed:', error);
+      setProgress(0);
+      setMessage(`ERROR: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setIsIngesting(false);
+    }
+  };
+
+  const handleExtractFeatures = async () => {
+    const paperIds = normalizePaperIds(extractPaperIds);
+
+    if (paperIds.length === 0) {
+      setMessage('ERROR: Add at least one paper ID before extraction.');
+      return;
+    }
+
+    if (!hasExtractionFeaturesEnabled) {
+      setMessage('ERROR: Enable at least one extraction option.');
+      return;
+    }
+
+    setIsExtracting(true);
+    setExtractionResult(null);
+    setMessage(`Extracting features from ${paperIds.length} papers…`);
+    setProgress(10);
+
+    try {
+      setProgress(35);
+      const result = await apiClient.postWithLongTimeout<ExtractionResult>(
+        '/arxiv/extraction/extract-features',
+        {
+          paper_ids: paperIds,
+          extract_entities: extractEntities,
+          extract_topics: extractTopics,
+          extract_citations: extractCitations,
+          extract_keyphrases: extractKeyphrases,
+          extract_summaries: extractSummaries,
+          update_knowledge_graph: updateKG,
+        }
+      );
+
+      setProgress(100);
+      setExtractionResult(result);
+      setMessage(
+        `COMPLETED: Features extracted for ${result.processed_count} papers.`
+      );
+    } catch (error: any) {
+      console.error('Feature extraction failed:', error);
+      setProgress(0);
+      setMessage(`ERROR: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
   return (
-    <div className="space-y-6 pt-4">
-      {/* Header - Unified Style */}
-      <div className="flex items-center justify-between px-2">
-        <div className="flex items-center gap-4">
-          <div className="p-2 rounded-lg bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20 shadow-[0_0_15px_rgba(0,255,159,0.1)]">
-            <Activity className="h-6 w-6 text-[var(--phosphor-green)]" />
+    <div className="mx-auto max-w-7xl space-y-6 p-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex items-start gap-4">
+          <div className="rounded-lg border border-[#1A1A1A] bg-[#0A0A0A] p-2.5">
+            <Activity className="h-6 w-6 text-[#00FF9F]" />
           </div>
           <div>
-            <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter uppercase">
-              ARXIV_MANAGEMENT_TERMINAL
+            <h1 className="text-2xl font-mono font-bold text-[#00FF9F]">
+              ArXiv Research Hub
             </h1>
-            <div className="flex items-center gap-2 mt-0.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)] animate-pulse" />
-              <span className="text-[9px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em]">
-                Neural Research Node :: Connection Optimal
+            <div className="mt-1 flex items-center gap-2">
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-[#00FF9F]"
+                aria-hidden="true"
+              />
+              <span className="text-sm text-gray-500">
+                Track, ingest, and extract insights from ArXiv papers
               </span>
             </div>
           </div>
         </div>
-        
+
         {stats && (
-          <div className="hidden md:flex items-center gap-6 px-4 py-2 rounded-xl bg-[var(--terminal-surface)]/50 border border-[var(--terminal-border)]">
-            <div className="flex flex-col items-end">
-              <span className="text-[8px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest">Global Tracked</span>
-              <span className="text-sm font-mono font-bold text-[var(--phosphor-green)]">{stats.statistics.total_papers_tracked}</span>
-            </div>
-            <div className="w-px h-8 bg-[var(--terminal-border)]" />
-            <div className="flex flex-col items-end">
-              <span className="text-[8px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest">Active Core</span>
-              <span className="text-sm font-mono font-bold text-[var(--cyan)]">{stats.statistics.active_papers}</span>
-            </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              {
+                label: 'Tracked',
+                value: stats.statistics.total_papers_tracked,
+                color: 'text-[#00FF9F]',
+              },
+              {
+                label: 'Active',
+                value: stats.statistics.active_papers,
+                color: 'text-[#00D4FF]',
+              },
+              {
+                label: 'Categories',
+                value: stats.statistics.categories_tracked,
+                color: 'text-[#E5E7EB]',
+              },
+              {
+                label: 'Deleted',
+                value: stats.statistics.deleted_papers,
+                color: 'text-[#FFB700]',
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="min-w-[110px] rounded-lg border border-[#1A1A1A] bg-[#111111] px-3 py-2"
+              >
+                <div className="text-[10px] font-mono uppercase tracking-wide text-gray-500">
+                  {item.label}
+                </div>
+                <div className={cn('text-lg font-mono font-bold', item.color)}>
+                  {item.value}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Main Terminal Chrome */}
-      <div className="relative rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/80 backdrop-blur-xl overflow-hidden shadow-2xl">
-        {/* Tab Header */}
-        <div className="flex items-center justify-between px-4 bg-[var(--terminal-elevated)]/50 border-b border-[var(--terminal-border)] h-12">
-          <div className="flex h-full">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+      <div className="rounded-lg border border-[#1A1A1A] bg-[#0A0A0A]">
+        <div className="border-b border-[#1A1A1A] bg-[#0A0A0A] px-3 py-2 sm:px-4">
+          <div className="overflow-x-auto">
+            <div
+              className="flex min-w-max items-center gap-1"
+              role="tablist"
+              aria-label="ArXiv management sections"
+            >
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+
+                return (
+                  <button
+                    key={tab.id}
+                    id={`tab-${tab.id}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    aria-controls={`panel-${tab.id}`}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      'relative flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-mono transition-colors touch-manipulation',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00FF9F]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]',
+                      isActive
+                        ? 'border-[#00FF9F] text-[#00FF9F]'
+                        : 'border-transparent text-gray-500 hover:text-gray-300'
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {(isTracking ||
+            isSearching ||
+            isIngesting ||
+            isExtracting ||
+            message) && (
+            <div className="mt-3 space-y-2 rounded-lg border border-[#1A1A1A] bg-[#0A0A0A]/60 p-3">
+              {(isTracking || isSearching || isIngesting || isExtracting) && (
+                <ProgressBar
+                  value={progress}
+                  label={
+                    isTracking
+                      ? 'Tracking Progress'
+                      : isSearching
+                        ? 'Search Progress'
+                        : isIngesting
+                          ? 'Ingestion Progress'
+                          : 'Extraction Progress'
+                  }
+                />
+              )}
+              {message && (
+                <div
                   className={cn(
-                    "flex items-center gap-2 px-5 h-full font-mono text-[10px] font-bold uppercase tracking-wider transition-all relative",
-                    isActive 
-                      ? "text-[var(--phosphor-green)]" 
-                      : "text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text-dim)]"
+                    'rounded-md border px-3 py-2 text-[11px] font-mono leading-relaxed',
+                    hasMessageError
+                      ? 'border-[#6B2A2A] bg-[#2B1111] text-[#FFAEAE]'
+                      : 'border-[#1A1A1A] bg-[#151515] text-[#9CA3AF]'
                   )}
                 >
-                  <Icon className={cn("h-3.5 w-3.5", isActive ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text-muted)]")} />
-                  {tab.label}
-                  {isActive && (
-                    <motion.div 
-                      layoutId="activeTabArxiv"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--phosphor-green)] shadow-[0_0_10px_var(--phosphor-green)]"
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <span className="text-[9px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-tighter opacity-50">
-              MODULE_ID: ARX-092
-            </span>
+                  {message}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="sr-only" aria-live="polite">
+            {message}
           </div>
         </div>
 
-        {/* Transmission Line Component (Vertical Decoration) */}
-        <div className="absolute top-12 left-6 bottom-0 w-[1px] bg-gradient-to-b from-[var(--phosphor-green)]/20 via-[var(--terminal-border)] to-transparent pointer-events-none" />
-
-        {/* Content Area */}
-        <div className="p-8 pl-14">
+        <div className="p-4 sm:p-6 lg:p-7">
           <AnimatePresence mode="wait">
-            <motion.div
+            <motion.section
               key={activeTab}
-              initial={{ opacity: 0, x: 10, filter: 'blur(10px)' }}
-              animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, x: -10, filter: 'blur(10px)' }}
-              transition={{ duration: 0.3 }}
-              className="min-h-[400px]"
+              id={`panel-${activeTab}`}
+              role="tabpanel"
+              aria-labelledby={`tab-${activeTab}`}
+              initial={{ opacity: 0, y: 8, filter: 'blur(8px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: -8, filter: 'blur(8px)' }}
+              transition={{ duration: 0.25 }}
+              className="min-h-[420px]"
             >
-              {/* Tab: Tracking */}
               {activeTab === 'tracking' && (
-                <div className="space-y-8 max-w-4xl">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-mono font-bold text-[var(--terminal-text)] flex items-center gap-2 uppercase tracking-tight">
-                      <TrendingUp className="h-4 w-4 text-[var(--amber-gold)]" />
-                      Protocol: Detect_Global_Changes
-                    </h3>
-                    <p className="text-[11px] font-mono text-[var(--terminal-text-muted)] leading-relaxed">
-                      Initialize category-wide system scans to synchronize with ArXiv repository updates.
-                    </p>
+                <div className="space-y-6">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1 rounded-md border border-[#1A1A1A] bg-[#0A0A0A]/50 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-[#9CA3AF]">
+                      <Sparkles className="h-3 w-3 text-[#FFB700]" />
+                      Track New and Updated Papers
+                    </span>
+                    <span className="inline-flex items-center rounded-md border border-[#1A1A1A] bg-[#0A0A0A]/50 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-[#9CA3AF]">
+                      {selectedCategories.length} categories selected
+                    </span>
+                    <span className="inline-flex items-center rounded-md border border-[#1A1A1A] bg-[#0A0A0A]/50 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-[#9CA3AF]">
+                      {daysBack} day depth
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Left Column: Config */}
-                    <div className="space-y-6">
-                      <div className="p-5 rounded-xl bg-[var(--terminal-bg)]/50 border border-[var(--terminal-border)] space-y-5">
-                        <label className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-widest block mb-2">
-                          Neural Category Filter
-                        </label>
-                        <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+                    <div className="space-y-5 xl:col-span-5">
+                      <div className="space-y-4 rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#9CA3AF]">
+                            Category Filter
+                          </h3>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => applyCategoryPreset('core')}
+                              className="rounded-md border border-[#00FF9F]/25 px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-[#00FF9F] hover:bg-[#00FF9F]/10"
+                            >
+                              Core AI
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => applyCategoryPreset('all')}
+                              className="rounded-md border border-[#1A1A1A] px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-[#6B7280] hover:bg-[#151515]"
+                            >
+                              Select All
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => applyCategoryPreset('clear')}
+                              className="rounded-md border border-[#1A1A1A] px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-[#6B7280] hover:bg-[#151515]"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                           {popularCategories.map((category) => (
-                            <div key={category} className="flex items-center gap-2">
-                              <ToggleSwitch
-                                checked={selectedCategories.includes(category)}
-                                onCheckedChange={(checked) => {
-                                  if (checked) setSelectedCategories([...selectedCategories, category]);
-                                  else setSelectedCategories(selectedCategories.filter(c => c !== category));
-                                }}
-                                label={category}
-                              />
-                            </div>
+                            <ToggleSwitch
+                              key={category}
+                              checked={selectedCategories.includes(category)}
+                              onCheckedChange={() => toggleCategory(category)}
+                              label={category}
+                            />
                           ))}
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="text-[9px] font-mono uppercase tracking-wider text-[#6B7280]">
+                            Selected
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {selectedCategories.length > 0 ? (
+                              selectedCategories.map((category) => (
+                                <span
+                                  key={category}
+                                  className="rounded-md border border-[#00FF9F]/20 bg-[#00FF9F]/10 px-2 py-0.5 text-[9px] font-mono uppercase tracking-wide text-[#00FF9F]"
+                                >
+                                  {category}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[10px] font-mono text-[#6B7280]">
+                                No categories selected.
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      <div className="p-5 rounded-xl bg-[var(--terminal-bg)]/50 border border-[var(--terminal-border)] space-y-6">
+                      <div className="space-y-5 rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-4">
                         <CustomSlider
-                          label="Temporal Depth (Days)"
+                          label="Lookback Window (Days)"
                           value={daysBack}
                           onChange={setDaysBack}
                           min={1}
                           max={30}
                           step={1}
                         />
-                        
-                        <div className="pt-2">
-                          <ToggleSwitch
-                            id="update-db"
-                            checked={updateDatabase}
-                            onCheckedChange={setUpdateDatabase}
-                            label="AUTO_UPDATE_DATABASE"
-                          />
-                        </div>
+
+                        <ToggleSwitch
+                          checked={updateDatabase}
+                          onCheckedChange={setUpdateDatabase}
+                          label="Auto Update Database"
+                        />
                       </div>
 
-                      <div className="flex items-center gap-4">
+                      <div className="flex flex-wrap items-center gap-3">
                         <button
+                          type="button"
                           onClick={handleTrackChanges}
-                          disabled={isTracking || selectedCategories.length === 0}
+                          disabled={
+                            isTracking || selectedCategories.length === 0
+                          }
                           className={cn(
-                            "flex items-center gap-2 px-6 py-2.5 rounded-lg font-mono text-[11px] font-bold uppercase transition-all shadow-lg",
-                            "bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_20px_var(--phosphor-green-glow)] active:scale-95 disabled:opacity-40"
+                            'inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-[11px] font-mono font-bold uppercase transition-colors touch-manipulation',
+                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00FF9F]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]',
+                            'bg-[#00FF9F] text-[#0A0A0A] hover:bg-[#00CC7F] disabled:cursor-not-allowed disabled:opacity-45'
                           )}
                         >
-                          {isTracking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                          INITIALIZE_SCAN
+                          {isTracking ? (
+                            <Loader2
+                              className="h-4 w-4 animate-spin"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                          )}
+                          Run Change Scan
                         </button>
-                        
+
                         <button
+                          type="button"
                           onClick={fetchStats}
-                          className="px-6 py-2.5 rounded-lg font-mono text-[11px] font-bold uppercase border border-[var(--terminal-border)] text-[var(--terminal-text-muted)] hover:bg-[var(--terminal-elevated)] transition-all"
+                          className="rounded-lg border border-[#1A1A1A] px-5 py-2.5 text-[11px] font-mono font-bold uppercase text-[#6B7280] transition-colors hover:bg-[#151515]"
                         >
-                          REFRESH_METRICS
+                          Refresh Metrics
                         </button>
                       </div>
                     </div>
 
-                    {/* Right Column: Status & Output */}
-                    <div className="space-y-6">
-                      <div className="p-5 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] min-h-[300px] flex flex-col relative overflow-hidden">
-                        {/* Status Overlay */}
-                        <div className="flex items-center justify-between mb-4 border-b border-[var(--terminal-border)] pb-3">
-                          <span className="text-[9px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-widest">System_Console_Output</span>
-                          <span className="flex items-center gap-1.5 text-[9px] font-mono text-[var(--phosphor-green)]">
-                            <div className="w-1 h-1 rounded-full bg-[var(--phosphor-green)] animate-pulse" />
-                            LIVE
+                    <div className="space-y-5 xl:col-span-7">
+                      <div className="flex min-h-[320px] flex-col rounded-xl border border-[#1A1A1A] bg-[#0A0A0A] p-5">
+                        <div className="mb-4 flex items-center justify-between border-b border-[#1A1A1A] pb-3">
+                          <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-[#9CA3AF]">
+                            Activity Feed
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 text-[9px] font-mono text-[#00FF9F]">
+                            <span
+                              className="h-1.5 w-1.5 rounded-full bg-[#00FF9F]"
+                              aria-hidden="true"
+                            />
+                            Live
                           </span>
                         </div>
 
-                        {/* Progress */}
-                        {(isTracking || message) && (
-                          <div className="space-y-4 mb-6">
-                            <ProgressBar value={progress} label="Scan_Synchronizing" />
-                            <p className="text-[10px] font-mono text-[var(--terminal-text-dim)] bg-[var(--terminal-elevated)] p-2.5 rounded border border-[var(--terminal-border)] italic leading-relaxed">
-                              {"> "} {message}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Results Panel */}
-                        {trackingResult && !isTracking && (
-                          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                            <div className="grid grid-cols-3 gap-2">
+                        {trackingResult ? (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
                               {[
-                                { label: 'NEW', value: trackingResult.result.summary.new, color: 'text-[var(--phosphor-green)]' },
-                                { label: 'UPD', value: trackingResult.result.summary.updated, color: 'text-[var(--cyan)]' },
-                                { label: 'DEL', value: trackingResult.result.summary.deleted, color: 'text-[var(--amber-gold)]' },
-                              ].map((stat) => (
-                                <div key={stat.label} className="p-3 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-center">
-                                  <div className={cn("text-xl font-mono font-bold", stat.color)}>{stat.value}</div>
-                                  <div className="text-[8px] font-mono text-[var(--terminal-text-muted)] uppercase mt-1">{stat.label}</div>
+                                {
+                                  label: 'New',
+                                  value: trackingResult.result.summary.new,
+                                  color: 'text-[#00FF9F]',
+                                },
+                                {
+                                  label: 'Updated',
+                                  value: trackingResult.result.summary.updated,
+                                  color: 'text-[#00D4FF]',
+                                },
+                                {
+                                  label: 'Deleted',
+                                  value: trackingResult.result.summary.deleted,
+                                  color: 'text-[#FFB700]',
+                                },
+                                {
+                                  label: 'Errors',
+                                  value: trackingResult.result.summary.errors,
+                                  color: 'text-[#FFAEAE]',
+                                },
+                              ].map((item) => (
+                                <div
+                                  key={item.label}
+                                  className="rounded-lg border border-[#1A1A1A] bg-[#111111] p-3"
+                                >
+                                  <div
+                                    className={cn(
+                                      'text-lg font-mono font-bold',
+                                      item.color
+                                    )}
+                                  >
+                                    {item.value}
+                                  </div>
+                                  <div className="mt-0.5 text-[9px] font-mono uppercase tracking-wide text-[#6B7280]">
+                                    {item.label}
+                                  </div>
                                 </div>
                               ))}
                             </div>
-                            
-                            {trackingResult.result.applied && (
-                              <div className="p-3 rounded-lg bg-[var(--phosphor-green)]/5 border border-[var(--phosphor-green)]/20 flex items-start gap-3">
-                                <Database className="h-4 w-4 text-[var(--phosphor-green)] shrink-0 mt-0.5" />
-                                <div className="space-y-1">
-                                  <p className="text-[10px] font-mono text-[var(--terminal-text)] font-bold uppercase">KG_LINK_ESTABLISHED</p>
-                                  <p className="text-[9px] font-mono text-[var(--terminal-text-muted)] leading-tight">
-                                    Entity extraction completed. Nodes synchronized with Neo4j graph registry.
-                                  </p>
+
+                            <div className="rounded-lg border border-[#1A1A1A] bg-[#111111] p-3 text-[10px] font-mono text-[#9CA3AF]">
+                              <div className="mb-2 text-[9px] uppercase tracking-wider text-[#6B7280]">
+                                Sync Summary
+                              </div>
+                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                <div>
+                                  <span className="text-[#6B7280]">
+                                    Papers scanned:
+                                  </span>{' '}
+                                  <span className="text-[#E5E7EB]">
+                                    {trackingResult.result.papers_found}
+                                  </span>
                                 </div>
+                                <div>
+                                  <span className="text-[#6B7280]">
+                                    Changes detected:
+                                  </span>{' '}
+                                  <span className="text-[#E5E7EB]">
+                                    {trackingResult.result.changes_detected}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-[#6B7280]">
+                                    DB write:
+                                  </span>{' '}
+                                  <span className="text-[#E5E7EB]">
+                                    {trackingResult.result.applied
+                                      ? 'Enabled'
+                                      : 'Dry Run'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {trackingResult.result.applied && (
+                              <div className="rounded-lg border border-[#00FF9F]/25 bg-[#00FF9F]/5 p-3 text-[10px] font-mono text-[#E5E7EB]">
+                                Knowledge graph synchronization has been queued
+                                for detected updates.
                               </div>
                             )}
                           </div>
-                        )}
-
-                        {!isTracking && !message && !trackingResult && (
-                          <div className="flex-1 flex flex-col items-center justify-center opacity-30">
-                            <Terminal className="h-8 w-8 text-[var(--terminal-text-muted)] mb-3" />
-                            <p className="text-[9px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-[0.2em]">Awaiting Instruction</p>
+                        ) : (
+                          <div className="flex flex-1 flex-col items-center justify-center text-center opacity-50">
+                            <Terminal
+                              className="mb-3 h-8 w-8 text-[#6B7280]"
+                              aria-hidden="true"
+                            />
+                            <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#6B7280]">
+                              Run a scan to view updates and actions
+                            </p>
                           </div>
                         )}
                       </div>
@@ -547,172 +867,674 @@ export default function ArxivManagement() {
                 </div>
               )}
 
-              {/* Ingest Tab - Placeholder for visual parity */}
               {activeTab === 'ingest' && (
-                <div className="space-y-8 max-w-4xl">
+                <div className="space-y-6">
                   <div className="space-y-1">
-                    <h3 className="text-sm font-mono font-bold text-[var(--terminal-text)] flex items-center gap-2 uppercase tracking-tight">
-                      <Upload className="h-4 w-4 text-[var(--cyan)]" />
-                      Protocol: Targeted_Node_Ingestion
+                    <h3 className="flex items-center gap-2 text-sm font-mono font-bold uppercase tracking-tight text-[#E5E7EB]">
+                      <Upload
+                        className="h-4 w-4 text-[#00D4FF]"
+                        aria-hidden="true"
+                      />
+                      Search and Queue Ingestion
                     </h3>
-                    <p className="text-[11px] font-mono text-[var(--terminal-text-muted)] leading-relaxed">
-                      Search and ingest specific research nodes directly into the RAG intelligence grid.
+                    <p className="text-[11px] font-mono leading-relaxed text-[#6B7280]">
+                      Search by topic, select relevant papers, and queue
+                      ingestion in one flow.
                     </p>
                   </div>
 
-                  <div className="flex flex-col gap-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 rounded-xl bg-[var(--terminal-bg)]/50 border border-[var(--terminal-border)]">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-widest">Query Injection</label>
-                        <div className="relative group">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--terminal-text-muted)] group-hover:text-[var(--phosphor-green)] transition-colors" />
-                          <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSearchPapers()}
-                            placeholder="INJECT SEARCH QUERY..."
-                            className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] font-mono text-xs text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)] focus:outline-none focus:border-[var(--phosphor-green)]/50 transition-all"
+                  <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+                    <div className="space-y-4 xl:col-span-5">
+                      <div className="space-y-4 rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-4">
+                        <div className="space-y-2">
+                          <label
+                            htmlFor="arxiv-query"
+                            className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#9CA3AF]"
+                          >
+                            Search Query
+                          </label>
+                          <div className="relative">
+                            <Search
+                              className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#6B7280]"
+                              aria-hidden="true"
+                            />
+                            <input
+                              id="arxiv-query"
+                              name="arxivQuery"
+                              type="text"
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              onKeyDown={(e) =>
+                                e.key === 'Enter' && handleSearchPapers()
+                              }
+                              placeholder="transformer interpretability…"
+                              autoComplete="off"
+                              className="w-full rounded-lg border border-[#1A1A1A] bg-[#111111] py-2.5 pl-10 pr-3 font-mono text-xs text-[#E5E7EB] placeholder:text-[#6B7280] focus:border-[#00FF9F]/50 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <CustomSlider
+                          label="Maximum Results"
+                          value={maxResults}
+                          onChange={setMaxResults}
+                          min={1}
+                          max={100}
+                          step={1}
+                        />
+
+                        <div className="space-y-2 rounded-lg border border-dashed border-[#1A1A1A] bg-[#0A0A0A]/40 p-3">
+                          <ToggleSwitch
+                            checked={extractEntities}
+                            onCheckedChange={setExtractEntities}
+                            label="Extract Text Content"
+                          />
+                          <ToggleSwitch
+                            checked={downloadPdfs}
+                            onCheckedChange={setDownloadPdfs}
+                            label="Download Source PDF"
                           />
                         </div>
-                      </div>
-                      <CustomSlider
-                        label="Maximum Transmission Units"
-                        value={maxResults}
-                        onChange={setMaxResults}
-                        min={1}
-                        max={100}
-                        step={1}
-                      />
-                    </div>
 
-                    <div className="flex items-center gap-6 px-6 py-4 rounded-xl bg-[var(--terminal-bg)]/30 border border-[var(--terminal-border)] border-dashed">
-                      <ToggleSwitch
-                        checked={extractEntities}
-                        onCheckedChange={setExtractEntities}
-                        label="EXTRACT_ENTITIES"
-                      />
-                      <ToggleSwitch
-                        checked={downloadPdfs}
-                        onCheckedChange={setDownloadPdfs}
-                        label="CACHE_SOURCE_PDF"
-                      />
-                    </div>
-
-                    <button
-                      onClick={handleSearchPapers}
-                      disabled={isSearching || !searchQuery.trim()}
-                      className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-lg font-mono text-[11px] font-bold uppercase transition-all bg-[var(--cyan)]/10 border border-[var(--cyan)]/30 text-[var(--cyan)] hover:bg-[var(--cyan)]/20 active:scale-[0.99] disabled:opacity-40"
-                    >
-                      {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                      EXECUTE_SEARCH_QUERY
-                    </button>
-
-                    {/* Progress */}
-                    {(isSearching || isIngesting || message) && (
-                      <ProgressBar value={progress} label="Transmitting_Data" />
-                    )}
-
-                    {/* Search Results Display */}
-                    {searchResults && (
-                      <div className="space-y-4 mt-4 max-h-[400px] overflow-y-auto terminal-scrollbar pr-2">
-                        {searchResults.map((paper) => (
-                          <div 
-                            key={paper.id}
-                            className="p-4 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] hover:border-[var(--phosphor-green)]/30 transition-all group cursor-pointer"
-                            onClick={() => setSelectedPaperIds(prev => 
-                              prev.includes(paper.id) ? prev.filter(id => id !== paper.id) : [...prev, paper.id]
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleSearchPapers}
+                            disabled={isSearching || !searchQuery.trim()}
+                            className={cn(
+                              'inline-flex flex-1 items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-[11px] font-mono font-bold uppercase transition-colors',
+                              'border-[#00D4FF]/30 bg-[#00D4FF]/10 text-[#00D4FF] hover:bg-[#00D4FF]/20 disabled:cursor-not-allowed disabled:opacity-45'
                             )}
                           >
-                            <div className="flex items-start gap-4">
-                              <div className={cn(
-                                "mt-1 p-1.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] transition-colors",
-                                selectedPaperIds.includes(paper.id) ? "text-[var(--phosphor-green)] border-[var(--phosphor-green)]/50" : "text-[var(--terminal-text-muted)]"
-                              )}>
-                                {selectedPaperIds.includes(paper.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                            {isSearching ? (
+                              <Loader2
+                                className="h-4 w-4 animate-spin"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <Search className="h-4 w-4" aria-hidden="true" />
+                            )}
+                            Search Papers
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSearchResults(null);
+                              setSelectedPaperIds([]);
+                              setSearchQuery('');
+                            }}
+                            className="rounded-lg border border-[#1A1A1A] px-4 py-2.5 text-[11px] font-mono font-bold uppercase text-[#6B7280] hover:bg-[#151515]"
+                          >
+                            Clear Search
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-mono uppercase tracking-widest text-[#9CA3AF]">
+                            Selected Papers
+                          </span>
+                          <span className="text-xs font-mono font-bold text-[#00FF9F]">
+                            {selectedPaperIds.length}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleIngestSelected}
+                          disabled={
+                            isIngesting || selectedPaperIds.length === 0
+                          }
+                          className={cn(
+                            'inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[11px] font-mono font-bold uppercase transition-colors',
+                            'bg-[#00FF9F] text-[#0A0A0A] hover:bg-[#00CC7F] disabled:cursor-not-allowed disabled:opacity-45'
+                          )}
+                        >
+                          {isIngesting ? (
+                            <Loader2
+                              className="h-4 w-4 animate-spin"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <Database className="h-4 w-4" aria-hidden="true" />
+                          )}
+                          Queue Ingestion
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedPaperIds.length > 0) {
+                              setExtractPaperIds(selectedPaperIds.join('\n'));
+                              setActiveTab('extract');
+                            }
+                          }}
+                          disabled={selectedPaperIds.length === 0}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#1A1A1A] px-4 py-2.5 text-[11px] font-mono font-bold uppercase text-[#6B7280] hover:bg-[#151515] disabled:cursor-not-allowed disabled:opacity-45"
+                        >
+                          <Brain className="h-4 w-4" aria-hidden="true" />
+                          Send IDs to Extract
+                        </button>
+
+                        {ingestionResult && (
+                          <div className="rounded-lg border border-[#00FF9F]/25 bg-[#00FF9F]/5 p-3 text-[10px] font-mono leading-relaxed text-[#9CA3AF]">
+                            {ingestionResult.message} (
+                            {ingestionResult.paper_count} papers)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 xl:col-span-7">
+                      <div className="rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/40 p-4">
+                        <div className="mb-3 flex items-center justify-between">
+                          <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#9CA3AF]">
+                            Search Results
+                          </h4>
+                          {searchResults && (
+                            <span className="text-[10px] font-mono text-[#6B7280]">
+                              {searchResults.length} papers
+                            </span>
+                          )}
+                        </div>
+
+                        {searchResults ? (
+                          searchResults.length > 0 ? (
+                            <div className="max-h-[560px] space-y-3 overflow-y-auto pr-1 terminal-scrollbar">
+                              {searchResults.map((paper) => {
+                                const isSelected = selectedPaperIds.includes(
+                                  paper.id
+                                );
+
+                                return (
+                                  <button
+                                    key={paper.id}
+                                    type="button"
+                                    aria-pressed={isSelected}
+                                    onClick={() => {
+                                      setSelectedPaperIds((prev) =>
+                                        prev.includes(paper.id)
+                                          ? prev.filter((id) => id !== paper.id)
+                                          : [...prev, paper.id]
+                                      );
+                                    }}
+                                    className={cn(
+                                      'w-full rounded-xl border p-4 text-left transition-colors touch-manipulation',
+                                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00FF9F]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]',
+                                      isSelected
+                                        ? 'border-[#00FF9F]/45 bg-[#00FF9F]/10'
+                                        : 'border-[#1A1A1A] bg-[#0A0A0A] hover:border-[#333333]'
+                                    )}
+                                  >
+                                    <div className="flex items-start gap-3">
+                                      <div
+                                        className={cn(
+                                          'mt-0.5 rounded border p-1.5',
+                                          isSelected
+                                            ? 'border-[#00FF9F]/45 text-[#00FF9F]'
+                                            : 'border-[#1A1A1A] text-[#6B7280]'
+                                        )}
+                                        aria-hidden="true"
+                                      >
+                                        {isSelected ? (
+                                          <CheckSquare className="h-4 w-4" />
+                                        ) : (
+                                          <Square className="h-4 w-4" />
+                                        )}
+                                      </div>
+
+                                      <div className="min-w-0 flex-1 space-y-2">
+                                        <h5 className="line-clamp-2 text-xs font-mono font-bold text-[#E5E7EB]">
+                                          {paper.title}
+                                        </h5>
+                                        <p className="line-clamp-2 text-[10px] font-mono leading-relaxed text-[#6B7280]">
+                                          {paper.abstract}
+                                        </p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          <span className="rounded border border-[#1A1A1A] bg-[#111111] px-2 py-0.5 text-[9px] font-mono text-[#00D4FF]">
+                                            {paper.id}
+                                          </span>
+                                          {paper.categories
+                                            .slice(0, 3)
+                                            .map((category) => (
+                                              <span
+                                                key={category}
+                                                className="rounded border border-[#1A1A1A] bg-[#111111] px-2 py-0.5 text-[9px] font-mono text-[#FFB700]"
+                                              >
+                                                {category}
+                                              </span>
+                                            ))}
+                                          {paper.authors?.[0] && (
+                                            <span className="rounded border border-[#1A1A1A] bg-[#111111] px-2 py-0.5 text-[9px] font-mono text-[#6B7280]">
+                                              {paper.authors[0]}
+                                              {paper.authors.length > 1
+                                                ? ` +${paper.authors.length - 1}`
+                                                : ''}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="rounded-lg border border-[#1A1A1A] bg-[#0A0A0A]/60 p-4 text-center text-[10px] font-mono text-[#6B7280]">
+                              No results found for this query.
+                            </div>
+                          )
+                        ) : (
+                          <div className="rounded-lg border border-[#1A1A1A] bg-[#0A0A0A]/60 p-6 text-center">
+                            <Terminal
+                              className="mx-auto mb-2 h-6 w-6 text-[#6B7280]"
+                              aria-hidden="true"
+                            />
+                            <p className="text-[10px] font-mono uppercase tracking-widest text-[#6B7280]">
+                              Run a search to build your ingestion list
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'extract' && (
+                <div className="space-y-6">
+                  <div className="space-y-1">
+                    <h3 className="flex items-center gap-2 text-sm font-mono font-bold uppercase tracking-tight text-[#E5E7EB]">
+                      <Brain
+                        className="h-4 w-4 text-[#FFB700]"
+                        aria-hidden="true"
+                      />
+                      Extract Research Signals
+                    </h3>
+                    <p className="text-[11px] font-mono leading-relaxed text-[#6B7280]">
+                      Extract entities, topics, keyphrases, citations, and
+                      summaries for specific papers, then optionally sync to the
+                      knowledge graph.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+                    <div className="space-y-4 xl:col-span-5">
+                      <div className="space-y-4 rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-4">
+                        <div className="space-y-2">
+                          <label
+                            htmlFor="extract-paper-ids"
+                            className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#9CA3AF]"
+                          >
+                            Paper IDs (one per line or comma-separated)
+                          </label>
+                          <textarea
+                            id="extract-paper-ids"
+                            name="extractPaperIds"
+                            value={extractPaperIds}
+                            onChange={(e) => setExtractPaperIds(e.target.value)}
+                            placeholder={'2501.12345\n2501.67890…'}
+                            rows={7}
+                            className="w-full rounded-lg border border-[#1A1A1A] bg-[#111111] p-3 font-mono text-xs text-[#E5E7EB] placeholder:text-[#6B7280] focus:border-[#00FF9F]/50 focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-2">
+                          <ToggleSwitch
+                            checked={extractEntities}
+                            onCheckedChange={setExtractEntities}
+                            label="Extract Entities"
+                          />
+                          <ToggleSwitch
+                            checked={extractTopics}
+                            onCheckedChange={setExtractTopics}
+                            label="Extract Topics"
+                          />
+                          <ToggleSwitch
+                            checked={extractKeyphrases}
+                            onCheckedChange={setExtractKeyphrases}
+                            label="Extract Keyphrases"
+                          />
+                          <ToggleSwitch
+                            checked={extractCitations}
+                            onCheckedChange={setExtractCitations}
+                            label="Extract Citations"
+                          />
+                          <ToggleSwitch
+                            checked={extractSummaries}
+                            onCheckedChange={setExtractSummaries}
+                            label="Generate Summaries"
+                          />
+                          <ToggleSwitch
+                            checked={updateKG}
+                            onCheckedChange={setUpdateKG}
+                            label="Update Knowledge Graph"
+                          />
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleExtractFeatures}
+                            disabled={
+                              isExtracting || parsedExtractIds.length === 0
+                            }
+                            className={cn(
+                              'inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[11px] font-mono font-bold uppercase transition-colors',
+                              'bg-[#FFB700]/20 text-[#FFB700] hover:bg-[#FFB700]/30 disabled:cursor-not-allowed disabled:opacity-45'
+                            )}
+                          >
+                            {isExtracting ? (
+                              <Loader2
+                                className="h-4 w-4 animate-spin"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <Zap className="h-4 w-4" aria-hidden="true" />
+                            )}
+                            Extract Features
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExtractPaperIds('');
+                              setExtractionResult(null);
+                            }}
+                            className="rounded-lg border border-[#1A1A1A] px-4 py-2.5 text-[11px] font-mono font-bold uppercase text-[#6B7280] hover:bg-[#151515]"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-4">
+                        <div className="text-[9px] font-mono uppercase tracking-widest text-[#6B7280]">
+                          Paper IDs Ready
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {parsedExtractIds.length > 0 ? (
+                            parsedExtractIds.slice(0, 20).map((paperId) => (
+                              <span
+                                key={paperId}
+                                className="rounded border border-[#1A1A1A] bg-[#111111] px-2 py-0.5 text-[9px] font-mono text-[#9CA3AF]"
+                              >
+                                {paperId}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-[10px] font-mono text-[#6B7280]">
+                              No paper IDs entered yet.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 xl:col-span-7">
+                      <div className="rounded-xl border border-[#1A1A1A] bg-[#0A0A0A] p-5">
+                        <div className="mb-4 flex items-center justify-between border-b border-[#1A1A1A] pb-3">
+                          <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-[#9CA3AF]">
+                            Extraction Results
+                          </span>
+                          <span className="text-[10px] font-mono text-[#6B7280]">
+                            {extractionResult
+                              ? `${extractionResult.processed_count} processed`
+                              : 'Awaiting run'}
+                          </span>
+                        </div>
+
+                        {extractionResult ? (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                              <div className="rounded-lg border border-[#1A1A1A] bg-[#111111] p-3">
+                                <div className="text-[8px] font-mono uppercase tracking-widest text-[#6B7280]">
+                                  Status
+                                </div>
+                                <div className="mt-1 text-sm font-mono font-bold text-[#00FF9F]">
+                                  {extractionResult.status}
+                                </div>
                               </div>
-                              <div className="flex-1 space-y-2">
-                                <h4 className="text-xs font-mono font-bold text-[var(--terminal-text)] group-hover:text-[var(--phosphor-green)] transition-colors">
-                                  {paper.title}
-                                </h4>
-                                <p className="text-[10px] font-mono text-[var(--terminal-text-muted)] line-clamp-2 leading-relaxed">
-                                  {paper.abstract}
-                                </p>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--cyan)]">
-                                    {paper.id}
-                                  </span>
-                                  {paper.categories.slice(0, 2).map(cat => (
-                                    <span key={cat} className="text-[9px] font-mono px-2 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--amber-gold)]">
-                                      {cat}
-                                    </span>
-                                  ))}
+                              <div className="rounded-lg border border-[#1A1A1A] bg-[#111111] p-3">
+                                <div className="text-[8px] font-mono uppercase tracking-widest text-[#6B7280]">
+                                  Papers
+                                </div>
+                                <div className="mt-1 text-sm font-mono font-bold text-[#E5E7EB]">
+                                  {extractionResult.processed_count}
+                                </div>
+                              </div>
+                              <div className="rounded-lg border border-[#1A1A1A] bg-[#111111] p-3">
+                                <div className="text-[8px] font-mono uppercase tracking-widest text-[#6B7280]">
+                                  Enabled Features
+                                </div>
+                                <div className="mt-1 text-sm font-mono font-bold text-[#FFB700]">
+                                  {[
+                                    extractEntities && 'E',
+                                    extractTopics && 'T',
+                                    extractKeyphrases && 'K',
+                                    extractCitations && 'C',
+                                    extractSummaries && 'S',
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' / ')}
                                 </div>
                               </div>
                             </div>
+
+                            <div className="max-h-[480px] space-y-3 overflow-y-auto pr-1 terminal-scrollbar">
+                              {extractionResult.results.map((result) => {
+                                const featureKeys = Object.keys(
+                                  result.features || {}
+                                );
+                                const hasFailed =
+                                  result.extraction_status !== 'completed';
+
+                                return (
+                                  <div
+                                    key={result.paper_id}
+                                    className={cn(
+                                      'rounded-lg border p-3',
+                                      hasFailed
+                                        ? 'border-[#6B2A2A] bg-[#2B1111]/70'
+                                        : 'border-[#1A1A1A] bg-[#111111]'
+                                    )}
+                                  >
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <div className="truncate text-xs font-mono font-bold text-[#E5E7EB]">
+                                          {result.title || result.paper_id}
+                                        </div>
+                                        <div className="mt-1 text-[10px] font-mono text-[#6B7280]">
+                                          {result.paper_id}
+                                        </div>
+                                      </div>
+                                      <span
+                                        className={cn(
+                                          'rounded border px-2 py-0.5 text-[9px] font-mono uppercase tracking-wide',
+                                          hasFailed
+                                            ? 'border-[#A83A3A] text-[#FFAEAE]'
+                                            : 'border-[#00FF9F]/25 text-[#00FF9F]'
+                                        )}
+                                      >
+                                        {result.extraction_status}
+                                      </span>
+                                    </div>
+
+                                    {!hasFailed && featureKeys.length > 0 && (
+                                      <div className="mt-2 flex flex-wrap gap-1.5">
+                                        {featureKeys.map((key) => (
+                                          <span
+                                            key={key}
+                                            className="rounded border border-[#1A1A1A] bg-[#0A0A0A] px-2 py-0.5 text-[9px] font-mono uppercase text-[#9CA3AF]"
+                                          >
+                                            {key}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    {result.error && (
+                                      <div className="mt-2 text-[10px] font-mono text-[#FFAEAE]">
+                                        {result.error}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        ))}
+                        ) : (
+                          <div className="flex min-h-[280px] flex-col items-center justify-center text-center opacity-50">
+                            <Brain
+                              className="mb-3 h-8 w-8 text-[#6B7280]"
+                              aria-hidden="true"
+                            />
+                            <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#6B7280]">
+                              Extraction results will appear here
+                            </p>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Stats Tab */}
               {activeTab === 'stats' && (
-                <div className="space-y-10 max-w-5xl">
-                  {stats && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {[
-                        { label: 'System_Papers', value: stats.statistics.total_papers_tracked, color: 'text-[var(--terminal-text)]', icon: FileText },
-                        { label: 'Active_Transmissions', value: stats.statistics.active_papers, color: 'text-[var(--phosphor-green)]', icon: Activity },
-                        { label: 'Domain_Clusters', value: stats.statistics.categories_tracked, color: 'text-[var(--cyan)]', icon: Layers },
-                        { label: 'Temporal_Sync', value: stats.statistics.recent_changes_week?.new || 0, color: 'text-[var(--amber-gold)]', icon: Zap },
-                      ].map((stat) => (
-                        <div key={stat.label} className="p-5 rounded-xl bg-[var(--terminal-bg)]/50 border border-[var(--terminal-border)] relative overflow-hidden group hover:border-[var(--phosphor-green)]/30 transition-all">
-                          <stat.icon className="absolute -right-2 -top-2 h-16 w-16 text-[var(--terminal-border)] opacity-20 group-hover:opacity-30 transition-all" />
-                          <div className={cn("text-2xl font-mono font-bold mb-1", stat.color)}>{stat.value}</div>
-                          <div className="text-[9px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest">{stat.label}</div>
+                <div className="space-y-8">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="flex items-center gap-2 text-sm font-mono font-bold uppercase tracking-tight text-[#E5E7EB]">
+                      <BarChart3
+                        className="h-4 w-4 text-[#00D4FF]"
+                        aria-hidden="true"
+                      />
+                      System Statistics
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={fetchStats}
+                      className="rounded-lg border border-[#1A1A1A] px-4 py-2 text-[11px] font-mono font-bold uppercase text-[#6B7280] hover:bg-[#151515]"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+
+                  {stats ? (
+                    <>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        {[
+                          {
+                            label: 'System Papers',
+                            value: stats.statistics.total_papers_tracked,
+                            color: 'text-[#E5E7EB]',
+                            icon: FileText,
+                          },
+                          {
+                            label: 'Active Papers',
+                            value: stats.statistics.active_papers,
+                            color: 'text-[#00FF9F]',
+                            icon: Activity,
+                          },
+                          {
+                            label: 'Category Clusters',
+                            value: stats.statistics.categories_tracked,
+                            color: 'text-[#00D4FF]',
+                            icon: Layers,
+                          },
+                          {
+                            label: 'Deleted Papers',
+                            value: stats.statistics.deleted_papers,
+                            color: 'text-[#FFB700]',
+                            icon: Zap,
+                          },
+                        ].map((item) => (
+                          <div
+                            key={item.label}
+                            className="relative overflow-hidden rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-5"
+                          >
+                            <item.icon
+                              className="absolute -right-2 -top-2 h-14 w-14 text-[#1A1A1A] opacity-25"
+                              aria-hidden="true"
+                            />
+                            <div
+                              className={cn(
+                                'text-2xl font-mono font-bold',
+                                item.color
+                              )}
+                            >
+                              {item.value}
+                            </div>
+                            <div className="mt-1 text-[9px] font-mono uppercase tracking-widest text-[#6B7280]">
+                              {item.label}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+                        <div className="rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-5 xl:col-span-8">
+                          <div className="mb-5 flex items-center gap-2">
+                            <Cpu
+                              className="h-4 w-4 text-[#00FF9F]"
+                              aria-hidden="true"
+                            />
+                            <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-[#E5E7EB]">
+                              Category Distribution
+                            </h4>
+                          </div>
+
+                          <div className="space-y-3">
+                            {stats.statistics.top_categories?.map(
+                              ([category, count]) => (
+                                <div key={category} className="space-y-1.5">
+                                  <div className="flex items-center justify-between text-[10px] font-mono uppercase">
+                                    <span className="text-[#9CA3AF]">
+                                      {category}
+                                    </span>
+                                    <span className="font-bold text-[#00FF9F]">
+                                      {count}
+                                    </span>
+                                  </div>
+                                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#1A1A1A]">
+                                    <div
+                                      className="h-full rounded-full bg-[#00FF9F]/40"
+                                      style={{
+                                        width: `${(count / Math.max(stats.statistics.total_papers_tracked, 1)) * 100}%`,
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </div>
                         </div>
-                      ))}
+
+                        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-5 xl:col-span-4">
+                          <Globe
+                            className="h-10 w-10 text-[#1A1A1A]"
+                            aria-hidden="true"
+                          />
+                          <p className="text-center text-[10px] font-mono uppercase tracking-[0.25em] text-[#9CA3AF]">
+                            Grid Status Active
+                          </p>
+                          <p className="text-center text-[10px] font-mono text-[#6B7280]">
+                            Synchronization latency: optimal
+                          </p>
+                          <p className="text-center text-[9px] font-mono text-[#6B7280]">
+                            State file: {stats.statistics.state_file_path}
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-6 text-center text-[11px] font-mono text-[#6B7280]">
+                      Statistics are unavailable right now.
                     </div>
                   )}
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="p-6 rounded-xl bg-[var(--terminal-bg)]/50 border border-[var(--terminal-border)]">
-                      <div className="flex items-center gap-2 mb-6">
-                        <Cpu className="h-4 w-4 text-[var(--phosphor-green)]" />
-                        <h3 className="text-xs font-mono font-bold text-[var(--terminal-text)] uppercase tracking-widest">Category_Distribution_Map</h3>
-                      </div>
-                      <div className="space-y-3">
-                        {stats?.statistics.top_categories?.map(([category, count]) => (
-                          <div key={category} className="space-y-1.5">
-                            <div className="flex justify-between text-[10px] font-mono uppercase">
-                              <span className="text-[var(--terminal-text-dim)]">{category}</span>
-                              <span className="text-[var(--phosphor-green)] font-bold">{count}</span>
-                            </div>
-                            <div className="h-1 w-full bg-[var(--terminal-border)] rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-[var(--phosphor-green)]/40 rounded-full"
-                                style={{ width: `${(count / stats.statistics.total_papers_tracked) * 100}%` }}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="p-6 rounded-xl bg-[var(--terminal-bg)]/50 border border-[var(--terminal-border)] flex flex-col items-center justify-center space-y-4">
-                      <Globe className="h-12 w-12 text-[var(--terminal-border)] animate-pulse" />
-                      <div className="text-center">
-                        <p className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-[0.3em] mb-1">Grid_Status_Active</p>
-                        <p className="text-[9px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest">Synchronization latency: optimal</p>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               )}
-            </motion.div>
+            </motion.section>
           </AnimatePresence>
         </div>
       </div>
