@@ -49,12 +49,20 @@ WORKDIR /app
 # Stage 2: Build dependencies
 FROM base AS dependencies
 
+# When true, install CPU-only PyTorch (saves ~5GB, used in CI)
+ARG TORCH_CPU_ONLY=false
+
 # Copy requirements files
 COPY backend/requirements.txt backend/requirements-minimal.txt ./
 
 # Upgrade pip and install dependencies
+# When TORCH_CPU_ONLY is set, install CPU-only torch first so the full
+# requirements.txt sees it already satisfied and skips the CUDA variant.
 RUN \
     pip install --upgrade pip setuptools wheel && \
+    if [ "$TORCH_CPU_ONLY" = "true" ]; then \
+        pip install torch --index-url https://download.pytorch.org/whl/cpu; \
+    fi && \
     pip install -r requirements.txt
 
 # Stage 3: Build with minimal dependencies
