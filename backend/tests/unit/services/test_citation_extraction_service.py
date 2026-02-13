@@ -186,7 +186,7 @@ async def test_extract_from_pdf_extracts_metadata() -> None:
 
     assert citation is not None
     assert citation.document_title == "Attention Is All You Need"
-    assert citation.authors == ["Vaswani", "Ashish", "Shazeer", "Noam"]
+    assert citation.authors == ["Vaswani, Ashish", "Shazeer, Noam"]
     assert citation.year == 2017
     assert citation.doi == "10.5555/3295222.3295349"
     assert citation.arxiv_id == "1706.03762v7"

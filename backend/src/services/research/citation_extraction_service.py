@@ -685,11 +685,12 @@ class CitationExtractionService:
             if not title:
                 title = (document.title or "").strip()
 
-            # Authors: split metadata author on , / ; / " and "
+            # Authors: split on ; or " and " (author delimiters), keep commas
+            # intact so "Last, First" names stay together.
             raw_author = (pdf_metadata.get("author") or "").strip()
             authors: List[str] = []
             if raw_author:
-                for part in re.split(r"[;,]|\band\b", raw_author):
+                for part in re.split(r";|\band\b", raw_author):
                     name = part.strip()
                     if name:
                         authors.append(name)
