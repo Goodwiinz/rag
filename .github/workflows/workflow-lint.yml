@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install actionlint
         run: |
@@ -22,7 +24,7 @@ jobs:
       - name: Run actionlint
         run: |
           if [ -n "${GITHUB_BASE_REF:-}" ]; then
-            git fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF"
+            git fetch --no-tags origin "$GITHUB_BASE_REF"
             changed_files=$(git diff --name-only "origin/$GITHUB_BASE_REF"...HEAD -- ".github/workflows/*.yml" ".github/workflows/*.yaml")
 
             if [ -z "$changed_files" ]; then
