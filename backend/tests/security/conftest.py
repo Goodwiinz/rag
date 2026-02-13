@@ -3,7 +3,7 @@ Pytest configuration and fixtures for security tests.
 """
 
 import pytest
-import jwt
+from jose import jwt
 import os
 from datetime import datetime, timedelta
 from typing import Dict, Optional
