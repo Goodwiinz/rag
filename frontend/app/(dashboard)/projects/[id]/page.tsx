@@ -22,10 +22,17 @@ import {
 import { DraftGenerator } from '@/components/research/DraftGenerator';
 import { DraftViewer } from '@/components/research/DraftViewer';
 import { DraftGenerationProgress } from '@/components/research/DraftGenerationProgress';
+import { DraftComparison } from '@/components/research/DraftComparison';
+import { DraftExportModal } from '@/components/research/DraftExportModal';
 import { ProjectChatTab } from '@/components/research/ProjectChatTab';
 import { NoteEditor } from '@/components/research/NoteEditor';
 import { NoteList } from '@/components/research/NoteList';
-import { projectService, type Draft, type GenerationStatus } from '@/services/projectService';
+import {
+  projectService,
+  type Draft,
+  type DraftComparison as DraftComparisonData,
+  type GenerationStatus,
+} from '@/services/projectService';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/stores/authStore';
 import type { ProjectNote, ProjectNoteCreate } from '@/services/projectService';
@@ -66,9 +73,27 @@ export default function ProjectDetailPage() {
 
   // Draft state
   const [currentDraft, setCurrentDraft] = useState<Draft | null>(null);
+  const [draftVersions, setDraftVersions] = useState<
+    Array<{
+      id: string;
+      version: number;
+      created_at: string;
+      is_current: boolean;
+    }>
+  >([]);
   const [draftsLoading, setDraftsLoading] = useState(false);
   const [generationTaskId, setGenerationTaskId] = useState<string | null>(null);
   const [generationStatus, setGenerationStatus] = useState<GenerationStatus | null>(null);
+  const [compareVersionA, setCompareVersionA] = useState<number | null>(null);
+  const [compareVersionB, setCompareVersionB] = useState<number | null>(null);
+  const [draftComparison, setDraftComparison] = useState<DraftComparisonData | null>(null);
+  const [comparisonDraftA, setComparisonDraftA] = useState<Draft | null>(null);
+  const [comparisonDraftB, setComparisonDraftB] = useState<Draft | null>(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportInitialFormat, setExportInitialFormat] = useState<'markdown' | 'latex'>(
+    'markdown'
+  );
 
   // Note editing state
   const [editingNote, setEditingNote] = useState<ProjectNote | null>(null);
@@ -86,6 +111,111 @@ export default function ProjectDetailPage() {
       fetchProjectNotes(projectId);
     }
   }, [mounted, isAuthenticated, projectId, fetchProject, fetchProjectDocuments, fetchProjectNotes]);
+
+  const loadDrafts = useCallback(
+    async (preferredVersion?: number) => {
+      setDraftsLoading(true);
+      try {
+        const response = await projectService.listDrafts(projectId, { limit: 50 });
+        const versions = response.drafts.map((draft) => ({
+          id: draft.id,
+          version: draft.version,
+          created_at: draft.created_at,
+          is_current: draft.is_current,
+        }));
+
+        setDraftVersions(versions);
+
+        if (versions.length === 0) {
+          setCurrentDraft(null);
+          setCompareVersionA(null);
+          setCompareVersionB(null);
+          setDraftComparison(null);
+          setComparisonDraftA(null);
+          setComparisonDraftB(null);
+          return;
+        }
+
+        const selectedVersion =
+          preferredVersion ??
+          versions.find((draft) => draft.is_current)?.version ??
+          versions[0].version;
+
+        const selectedDraftMeta =
+          versions.find((draft) => draft.version === selectedVersion) ?? versions[0];
+
+        const selectedDraft = await projectService.getDraft(projectId, selectedDraftMeta.id);
+        setCurrentDraft(selectedDraft);
+
+        setCompareVersionA((previous) => {
+          if (previous && versions.some((draft) => draft.version === previous)) {
+            return previous;
+          }
+          return versions[0].version;
+        });
+
+        setCompareVersionB((previous) => {
+          if (previous && versions.some((draft) => draft.version === previous)) {
+            return previous;
+          }
+          return versions.length > 1 ? versions[1].version : versions[0].version;
+        });
+      } catch (err) {
+        console.error('Failed to load drafts:', err);
+      } finally {
+        setDraftsLoading(false);
+      }
+    },
+    [projectId]
+  );
+
+  useEffect(() => {
+    if (activeTab === 'drafts' && mounted && isAuthenticated && projectId) {
+      void loadDrafts();
+    }
+  }, [activeTab, mounted, isAuthenticated, projectId, loadDrafts]);
+
+  const handleDraftVersionChange = useCallback(
+    async (version: number) => {
+      setDraftComparison(null);
+      setComparisonDraftA(null);
+      setComparisonDraftB(null);
+      await loadDrafts(version);
+    },
+    [loadDrafts]
+  );
+
+  const handleCompareDrafts = useCallback(async () => {
+    if (compareVersionA === null || compareVersionB === null) {
+      return;
+    }
+    if (compareVersionA === compareVersionB) {
+      return;
+    }
+
+    const draftA = draftVersions.find((draft) => draft.version === compareVersionA);
+    const draftB = draftVersions.find((draft) => draft.version === compareVersionB);
+
+    if (!draftA || !draftB) {
+      return;
+    }
+
+    setComparisonLoading(true);
+    try {
+      const [comparison, draftAData, draftBData] = await Promise.all([
+        projectService.compareDrafts(projectId, compareVersionA, compareVersionB),
+        projectService.getDraft(projectId, draftA.id),
+        projectService.getDraft(projectId, draftB.id),
+      ]);
+      setDraftComparison(comparison);
+      setComparisonDraftA(draftAData);
+      setComparisonDraftB(draftBData);
+    } catch (err) {
+      console.error('Failed to compare drafts:', err);
+    } finally {
+      setComparisonLoading(false);
+    }
+  }, [compareVersionA, compareVersionB, draftVersions, projectId]);
 
   const handleTabChange = useCallback(
     (tab: TabType) => {
@@ -441,12 +571,12 @@ export default function ProjectDetailPage() {
                 onComplete={async (draftId) => {
                   setGenerationTaskId(null);
                   setGenerationStatus(null);
-                  // Load the new draft
                   try {
                     const draft = await projectService.getDraft(projectId, draftId);
-                    setCurrentDraft(draft);
+                    await loadDrafts(draft.version);
                   } catch (err) {
                     console.error('Failed to load draft:', err);
+                    await loadDrafts();
                   }
                 }}
               />
@@ -454,77 +584,175 @@ export default function ProjectDetailPage() {
 
             {/* Show current draft or generator */}
             {!generationTaskId && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Draft Generator */}
-                <div className="lg:col-span-1">
-                  <DraftGenerator
-                    loading={draftsLoading}
-                    documentCount={projectDocuments.length}
-                    onGenerate={async (config) => {
-                      setDraftsLoading(true);
-                      try {
-                        const result = await projectService.generateDraft(projectId, config.themes, {
-                          style: config.style,
-                          maxSections: config.maxSections,
-                          includeAbstract: config.includeAbstract,
-                        });
-                        setGenerationTaskId(result.task_id);
-                        // Poll for status
-                        const pollStatus = async () => {
-                          try {
-                            const status = await projectService.getGenerationStatus(projectId, result.task_id);
-                            setGenerationStatus(status);
-                            if (!['completed', 'failed', 'cancelled'].includes(status.status)) {
-                              setTimeout(pollStatus, 1000);
-                            }
-                          } catch (err) {
-                            console.error('Poll error:', err);
-                          }
-                        };
-                        pollStatus();
-                      } catch (err) {
-                        console.error('Generation failed:', err);
-                      } finally {
-                        setDraftsLoading(false);
-                      }
-                    }}
-                  />
-                </div>
-
-                {/* Draft Viewer */}
-                <div className="lg:col-span-2">
-                  {currentDraft ? (
-                    <DraftViewer
-                      draft={currentDraft}
-                      onExport={async (format) => {
+                  <div className="lg:col-span-1 space-y-4">
+                    <DraftGenerator
+                      loading={draftsLoading}
+                      documentCount={projectDocuments.length}
+                      onGenerate={async (config) => {
+                        setDraftsLoading(true);
                         try {
-                          const result = await projectService.exportDraft(projectId, currentDraft.id, format);
-                          // Download the result
-                          const content = result.content || '';
-                          const blob = new Blob([content], { type: 'text/plain' });
-                          const url = window.URL.createObjectURL(blob);
-                          const link = document.createElement('a');
-                          link.href = url;
-                          link.download = result.filename || `draft.${format}`;
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                          window.URL.revokeObjectURL(url);
+                          const result = await projectService.generateDraft(
+                            projectId,
+                            config.themes,
+                            {
+                              style: config.style,
+                              maxSections: config.maxSections,
+                              includeAbstract: config.includeAbstract,
+                            }
+                          );
+                          setGenerationTaskId(result.task_id);
+                          // Poll for status
+                          const pollStatus = async () => {
+                            try {
+                              const status = await projectService.getGenerationStatus(
+                                projectId,
+                                result.task_id
+                              );
+                              setGenerationStatus(status);
+                              if (!['completed', 'failed', 'cancelled'].includes(status.status)) {
+                                setTimeout(pollStatus, 1000);
+                              }
+                            } catch (err) {
+                              console.error('Poll error:', err);
+                            }
+                          };
+                          pollStatus();
                         } catch (err) {
-                          console.error('Export failed:', err);
+                          console.error('Generation failed:', err);
+                        } finally {
+                          setDraftsLoading(false);
                         }
                       }}
                     />
-                  ) : (
-                    <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-12 text-center">
-                      <Sparkles className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-                      <p className="text-gray-400 font-mono">No draft generated yet</p>
-                      <p className="text-sm text-gray-500 mt-2">
-                        Configure themes and generate a literature review draft
-                      </p>
-                    </div>
-                  )}
+
+                    {draftVersions.length > 0 && (
+                      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+                        <h3 className="text-sm font-mono text-gray-300 mb-3">Draft Versions</h3>
+                        <div className="space-y-2 max-h-[220px] overflow-y-auto">
+                          {draftVersions.map((draftVersion) => (
+                            <button
+                              key={draftVersion.id}
+                              onClick={() => {
+                                void handleDraftVersionChange(draftVersion.version);
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded border font-mono text-xs transition-colors ${
+                                currentDraft?.version === draftVersion.version
+                                  ? 'bg-[#00ff9f]/10 border-[#00ff9f]/40 text-[#00ff9f]'
+                                  : 'bg-[#1a1a1a] border-[#333] text-gray-400 hover:border-[#555]'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>Version {draftVersion.version}</span>
+                                {draftVersion.is_current && (
+                                  <span className="text-[10px] uppercase tracking-wide text-[#00ff9f]">
+                                    Current
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-gray-500 mt-1">
+                                {new Date(draftVersion.created_at).toLocaleString()}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {draftVersions.length > 1 && (
+                      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 space-y-3">
+                        <h3 className="text-sm font-mono text-gray-300">Compare Versions</h3>
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            value={compareVersionA ?? ''}
+                            onChange={(e) => {
+                              setCompareVersionA(Number(e.target.value));
+                              setDraftComparison(null);
+                              setComparisonDraftA(null);
+                              setComparisonDraftB(null);
+                            }}
+                            className="px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
+                          >
+                            {draftVersions.map((draftVersion) => (
+                              <option key={`a-${draftVersion.id}`} value={draftVersion.version}>
+                                v{draftVersion.version}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={compareVersionB ?? ''}
+                            onChange={(e) => {
+                              setCompareVersionB(Number(e.target.value));
+                              setDraftComparison(null);
+                              setComparisonDraftA(null);
+                              setComparisonDraftB(null);
+                            }}
+                            className="px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
+                          >
+                            {draftVersions.map((draftVersion) => (
+                              <option key={`b-${draftVersion.id}`} value={draftVersion.version}>
+                                v{draftVersion.version}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <button
+                          onClick={() => {
+                            void handleCompareDrafts();
+                          }}
+                          disabled={
+                            comparisonLoading ||
+                            compareVersionA === null ||
+                            compareVersionB === null ||
+                            compareVersionA === compareVersionB
+                          }
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-xs hover:bg-[#00ff9f]/20 transition-colors disabled:opacity-50"
+                        >
+                          {comparisonLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                          Compare Drafts
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Draft Viewer */}
+                  <div className="lg:col-span-2">
+                    {currentDraft ? (
+                      <DraftViewer
+                        draft={currentDraft}
+                        versions={draftVersions.map((draftVersion) => ({
+                          version: draftVersion.version,
+                          created_at: draftVersion.created_at,
+                        }))}
+                        onVersionChange={(version) => {
+                          void handleDraftVersionChange(version);
+                        }}
+                        onExport={async (format) => {
+                          setExportInitialFormat(format);
+                          setShowExportModal(true);
+                        }}
+                      />
+                    ) : (
+                      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-12 text-center">
+                        <Sparkles className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+                        <p className="text-gray-400 font-mono">No draft generated yet</p>
+                        <p className="text-sm text-gray-500 mt-2">
+                          Configure themes and generate a literature review draft
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {draftComparison && (
+                  <DraftComparison
+                    comparison={draftComparison}
+                    draftA={comparisonDraftA ? { content: comparisonDraftA.content } : undefined}
+                    draftB={comparisonDraftB ? { content: comparisonDraftB.content } : undefined}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -546,6 +774,24 @@ export default function ProjectDetailPage() {
         }}
         onSave={handleSaveNote}
       />
+
+      {currentDraft && (
+        <DraftExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          draftTitle={currentDraft.title}
+          initialFormat={exportInitialFormat}
+          onExport={async (format, includeBibliography, bibliographyFormat) => {
+            await projectService.downloadDraftExport(
+              projectId,
+              currentDraft.id,
+              format,
+              includeBibliography,
+              bibliographyFormat
+            );
+          }}
+        />
+      )}
     </div>
   );
 }
