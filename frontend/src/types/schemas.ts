@@ -25,7 +25,7 @@ export const APIErrorSchema = z.object({
     message: z.string(),
     status_code: z.number().int(),
     type: z.enum(['validation_error', 'processing_error', 'auth_error', 'rate_limit', 'internal_error']),
-    details: z.record(z.any()).optional(),
+    details: z.record(z.string(), z.any()).optional(),
     timestamp: TimestampSchema,
   }),
 });
@@ -48,7 +48,7 @@ export const UserSchema = z.object({
 export const OrganizationSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
-  settings: z.record(z.any()).optional(),
+  settings: z.record(z.string(), z.any()).optional(),
   created_at: TimestampSchema,
 });
 
@@ -84,10 +84,10 @@ export const DocumentSchema = z.object({
   page_count: z.number().int().positive().nullable().optional(),
   duration_seconds: z.number().nonnegative().nullable().optional(),
   extracted_text_preview: z.string().nullable().optional(),
-  metadata: z.record(z.any()).default({}),
+  metadata: z.record(z.string(), z.any()).default({}),
   description: z.string().nullable().optional(),
   tags: z.array(z.string()).default([]),
-  custom_fields: z.record(z.any()).nullable().optional(),
+  custom_fields: z.record(z.string(), z.any()).nullable().optional(),
 });
 
 export const DocumentListResponseSchema = z.object({
@@ -184,7 +184,7 @@ export const SearchResultItemSchema = z.object({
   content: z.string(),
   score: z.number().min(0).max(1),
   highlights: z.array(z.string()).default([]),
-  metadata: z.record(z.any()).default({}),
+  metadata: z.record(z.string(), z.any()).default({}),
   file_type: FileTypeSchema,
   entities: z.array(EntitySchema).default([]),
   thumbnail_url: z.string().url().nullable().optional(),
@@ -195,7 +195,7 @@ export const SearchResultSchema = z.object({
   results: z.array(SearchResultItemSchema),
   total_results: z.number().int().nonnegative(),
   search_time_ms: z.number().nonnegative(),
-  facets: z.record(z.array(z.any())).optional(),
+  facets: z.record(z.string(), z.array(z.any())).optional(),
   query_id: z.string().uuid().optional(),
 });
 
@@ -207,7 +207,7 @@ export const GraphNodeSchema = z.object({
   id: z.string(),
   label: z.string(),
   type: EntityTypeSchema,
-  properties: z.record(z.any()).default({}),
+  properties: z.record(z.string(), z.any()).default({}),
   confidence: z.number().min(0).max(1).optional(),
 });
 
@@ -217,7 +217,7 @@ export const GraphEdgeSchema = z.object({
   target: z.string(),
   label: z.string(),
   type: z.string(),
-  properties: z.record(z.any()).default({}),
+  properties: z.record(z.string(), z.any()).default({}),
   confidence: z.number().min(0).max(1).optional(),
 });
 
