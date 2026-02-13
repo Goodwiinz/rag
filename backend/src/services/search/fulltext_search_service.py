@@ -6,6 +6,7 @@ import logging
 import re
 import time
 import uuid
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import and_, func, not_, or_, text
@@ -348,9 +349,9 @@ class FullTextSearchService:
                 document_type=document_type,
                 content_preview=content_preview,
                 snippets=snippets,
-                relevance_score=float(row.relevance_score)
-                if row.relevance_score
-                else 0.0,
+                relevance_score=(
+                    float(row.relevance_score) if row.relevance_score else 0.0
+                ),
                 file_size_bytes=row.file_size_bytes,
                 created_at=row.created_at,
                 updated_at=row.updated_at,
@@ -414,8 +415,7 @@ class FullTextSearchService:
         """Get search suggestions based on existing documents"""
         try:
             # Simple suggestion based on document titles and content
-            suggestion_query = text(
-                r"""
+            suggestion_query = text(r"""
                 SELECT DISTINCT
                     regexp_replace(regexp_replace(lower(title), '[^a-zA-Z0-9\s]', ' ', 'g'), '\s+', ' ', 'g') as suggestion
                 FROM documents
@@ -423,8 +423,7 @@ class FullTextSearchService:
                     AND processing_status = :completed_status
                     AND lower(title) LIKE lower(:query_pattern)
                 LIMIT 5
-            """
-            )
+            """)
 
             result = db.execute(
                 suggestion_query,
@@ -472,9 +471,11 @@ class FullTextSearchService:
             return None
 
         return {
-            "document_types": [dt.value for dt in filters.document_types]
-            if filters.document_types
-            else None,
+            "document_types": (
+                [dt.value for dt in filters.document_types]
+                if filters.document_types
+                else None
+            ),
             "tags": filters.tags,
             "date_from": filters.date_from.isoformat() if filters.date_from else None,
             "date_to": filters.date_to.isoformat() if filters.date_to else None,
@@ -531,8 +532,7 @@ class FullTextSearchService:
             db = next(get_db())
 
         try:
-            update_query = text(
-                """
+            update_query = text("""
                 UPDATE documents
                 SET search_vector =
                     setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
@@ -540,8 +540,7 @@ class FullTextSearchService:
                     setweight(to_tsvector('english', coalesce(content_summary, '')), 'C') ||
                     setweight(to_tsvector('english', coalesce(array_to_string(tags, ' '), '')), 'D')
                 WHERE id = :document_id
-            """
-            )
+            """)
 
             db.execute(update_query, {"document_id": document_id})
             db.commit()
@@ -560,10 +559,12 @@ class FullTextSearchService:
         """Get search analytics data"""
         try:
             with next(get_db()) as db:
+                # Calculate cutoff date in Python to avoid SQL string interpolation issues
+                cutoff_date = datetime.utcnow() - timedelta(days=days)
+
                 # This is a placeholder - would need search query tracking table
                 # For now, return document statistics
-                stats_query = text(
-                    """
+                stats_query = text("""
                     SELECT
                         COUNT(*) as total_documents,
                         AVG(file_size_bytes) as avg_file_size,
@@ -572,9 +573,8 @@ class FullTextSearchService:
                     FROM documents
                     WHERE is_deleted = false
                         AND processing_status = :completed_status
-                        AND created_at >= NOW() - INTERVAL ':days days'
-                """
-                )
+                        AND created_at >= :cutoff_date
+                """)
 
                 if organization_id:
                     stats_query = text(
@@ -586,7 +586,7 @@ class FullTextSearchService:
                     text(stats_query.compile().string),
                     {
                         "completed_status": ProcessingStatus.COMPLETED.name,
-                        "days": days,
+                        "cutoff_date": cutoff_date,
                         "organization_id": organization_id,
                     },
                 )
@@ -595,9 +595,9 @@ class FullTextSearchService:
 
                 return {
                     "total_documents": row.total_documents if row else 0,
-                    "avg_file_size_bytes": float(row.avg_file_size)
-                    if row and row.avg_file_size
-                    else 0,
+                    "avg_file_size_bytes": (
+                        float(row.avg_file_size) if row and row.avg_file_size else 0
+                    ),
                     "unique_types": row.unique_types if row else 0,
                     "unique_uploaders": row.unique_uploaders if row else 0,
                     "searchable_documents": row.total_documents if row else 0,
