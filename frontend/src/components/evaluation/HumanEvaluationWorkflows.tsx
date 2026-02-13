@@ -1149,14 +1149,11 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
                         data={dashboard.trends.scoreDistribution}
                         cx="50%"
                         cy="50%"
+                        nameKey="range"
                         labelLine={false}
-                        label={({ payload, percent }) => {
-                          const range = (payload as { range?: string } | undefined)?.range || 'N/A';
-                          const percentage =
-                            (payload as { percentage?: number } | undefined)?.percentage ??
-                            ((percent ?? 0) * 100).toFixed(0);
-                          return `${range} (${percentage}%)`;
-                        }}
+                        label={({ name, percent }) =>
+                          `${String(name ?? '')} (${((percent ?? 0) * 100).toFixed(0)}%)`
+                        }
                         outerRadius={80}
                         fill="#8884d8"
                         dataKey="count"
