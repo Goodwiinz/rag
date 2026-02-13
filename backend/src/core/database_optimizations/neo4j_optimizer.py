@@ -15,7 +15,13 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 try:
-    from neo4j import AsyncDriver, AsyncGraphDatabase, AsyncSession
+    from neo4j import (
+        AsyncDriver,
+        AsyncGraphDatabase,
+        AsyncSession,
+        TrustAll,
+        TrustSystemCAs,
+    )
     from neo4j.exceptions import ServiceUnavailable, TransientError
 
     NEO4J_AVAILABLE = True
@@ -89,20 +95,26 @@ class Neo4jOptimizer:
 
     async def initialize(self):
         """Initialize Neo4j driver with optimized settings"""
-        self.driver = AsyncGraphDatabase.driver(
-            self.config.uri,
-            auth=(self.config.user, self.config.password),
-            max_connection_lifetime=self.config.max_connection_lifetime,
-            max_connection_pool_size=self.config.max_connection_pool_size,
-            connection_timeout=self.config.connection_timeout,
-            max_transaction_retry_time=self.config.max_transaction_retry_time,
+        driver_config = {
+            "auth": (self.config.user, self.config.password),
+            "max_connection_lifetime": self.config.max_connection_lifetime,
+            "max_connection_pool_size": self.config.max_connection_pool_size,
+            "connection_timeout": self.config.connection_timeout,
+            "max_transaction_retry_time": self.config.max_transaction_retry_time,
             # Optimized driver settings
-            keep_alive=True,
-            fetch_size=1000,
-            trust="TRUST_ALL_CERTIFICATES"
-            if "localhost" in self.config.uri
-            else "TRUST_SYSTEM_CA_SIGNED_CERTIFICATES",
-        )
+            "keep_alive": True,
+            "fetch_size": 1000,
+        }
+
+        # Neo4j v6 only allows trusted_certificates with non-encrypted schemes.
+        if self.config.uri.startswith(("bolt://", "neo4j://")):
+            driver_config["trusted_certificates"] = (
+                TrustAll()
+                if "localhost" in self.config.uri
+                else TrustSystemCAs()
+            )
+
+        self.driver = AsyncGraphDatabase.driver(self.config.uri, **driver_config)
 
         # Test connection
         await self._verify_connection()

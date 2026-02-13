@@ -27,7 +27,7 @@ qdrant-client==1.16.2
 numpy<2
 
 # Knowledge Graph
-neo4j==5.15.0
+neo4j==6.1.0
 
 # Basic File Processing
 PyMuPDF==1.23.18
