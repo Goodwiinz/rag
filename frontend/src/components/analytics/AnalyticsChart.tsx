@@ -147,13 +147,26 @@ export function AnalyticsChart({
     };
   }, [processedData]);
 
-  const renderChart = () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tooltipFormatter = format?.tooltip
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ? (value: any) => format.tooltip?.(typeof value === 'number' ? value : 0) ?? ''
-      : undefined;
+  const yAxisTickFormatter = format?.yAxis
+    ? (value: number | string | undefined) => {
+        const numericValue =
+          typeof value === 'number' ? value : Number(value ?? 0);
+        return format.yAxis?.(Number.isFinite(numericValue) ? numericValue : 0) ?? '';
+      }
+    : undefined;
 
+  const tooltipValueFormatter = format?.tooltip
+    ? (value: number | string | Array<number | string> | undefined) => {
+        const baseValue = Array.isArray(value) ? value[0] : value;
+        const numericValue =
+          typeof baseValue === 'number' ? baseValue : Number(baseValue ?? 0);
+        return (
+          format.tooltip?.(Number.isFinite(numericValue) ? numericValue : 0) ?? ''
+        );
+      }
+    : undefined;
+
+  const renderChart = () => {
     const commonProps = {
       data: processedData,
       margin: { top: 5, right: 30, left: 20, bottom: 5 },
@@ -172,7 +185,7 @@ export function AnalyticsChart({
             />
             <YAxis
               tickLine={false}
-              tickFormatter={format?.yAxis}
+              tickFormatter={yAxisTickFormatter}
               className="text-xs"
             />
             {showTooltip && (
@@ -182,7 +195,7 @@ export function AnalyticsChart({
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                 }}
-                formatter={tooltipFormatter}
+                formatter={tooltipValueFormatter}
               />
             )}
             {showLegend && <Legend />}
@@ -213,7 +226,7 @@ export function AnalyticsChart({
             />
             <YAxis
               tickLine={false}
-              tickFormatter={format?.yAxis}
+              tickFormatter={yAxisTickFormatter}
               className="text-xs"
             />
             {showTooltip && (
@@ -223,7 +236,7 @@ export function AnalyticsChart({
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                 }}
-                formatter={tooltipFormatter}
+                formatter={tooltipValueFormatter}
               />
             )}
             {showLegend && <Legend />}
@@ -274,7 +287,7 @@ export function AnalyticsChart({
             />
             <YAxis
               tickLine={false}
-              tickFormatter={format?.yAxis}
+              tickFormatter={yAxisTickFormatter}
               className="text-xs"
             />
             {showTooltip && (
@@ -284,7 +297,7 @@ export function AnalyticsChart({
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                 }}
-                formatter={tooltipFormatter}
+                formatter={tooltipValueFormatter}
               />
             )}
             {showLegend && <Legend />}
@@ -311,7 +324,9 @@ export function AnalyticsChart({
               cx="50%"
               cy="50%"
               labelLine={false}
-              label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+              label={({ name, percent }) =>
+                `${String(name ?? '')} ${((percent ?? 0) * 100).toFixed(0)}%`
+              }
               outerRadius={100}
               fill="#8884d8"
               dataKey="value"
@@ -330,7 +345,7 @@ export function AnalyticsChart({
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                 }}
-                formatter={tooltipFormatter}
+                formatter={tooltipValueFormatter}
               />
             )}
             {showLegend && <Legend />}
@@ -345,7 +360,9 @@ export function AnalyticsChart({
               cx="50%"
               cy="50%"
               labelLine={false}
-              label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+              label={({ name, percent }) =>
+                `${String(name ?? '')} ${((percent ?? 0) * 100).toFixed(0)}%`
+              }
               innerRadius={60}
               outerRadius={100}
               fill="#8884d8"
@@ -365,7 +382,7 @@ export function AnalyticsChart({
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                 }}
-                formatter={tooltipFormatter}
+                formatter={tooltipValueFormatter}
               />
             )}
             {showLegend && <Legend />}
@@ -423,7 +440,6 @@ export function AnalyticsChart({
                 variant={chartType === 'line' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setChartType('line')}
-                aria-label={`Show ${title} as line chart`}
                 className="h-7 w-7 p-0"
               >
                 <LineChartIcon className="h-3 w-3" />
@@ -432,7 +448,6 @@ export function AnalyticsChart({
                 variant={chartType === 'bar' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setChartType('bar')}
-                aria-label={`Show ${title} as bar chart`}
                 className="h-7 w-7 p-0"
               >
                 <BarChart3 className="h-3 w-3" />
@@ -441,7 +456,6 @@ export function AnalyticsChart({
                 variant={chartType === 'area' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setChartType('area')}
-                aria-label={`Show ${title} as area chart`}
                 className="h-7 w-7 p-0"
               >
                 <Activity className="h-3 w-3" />
@@ -451,7 +465,6 @@ export function AnalyticsChart({
                   variant={chartType === 'pie' ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => setChartType('pie')}
-                  aria-label={`Show ${title} as pie chart`}
                   className="h-7 w-7 p-0"
                 >
                   <PieChartIcon className="h-3 w-3" />
@@ -463,10 +476,7 @@ export function AnalyticsChart({
 
             {/* Time Range Selector */}
             <Select value={timeRange} onValueChange={setTimeRange}>
-              <SelectTrigger
-                className="h-7 w-[80px]"
-                aria-label={`${title} time range`}
-              >
+              <SelectTrigger className="h-7 w-[80px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -486,7 +496,6 @@ export function AnalyticsChart({
                     variant="ghost"
                     size="sm"
                     onClick={actions.onExport}
-                    aria-label={`Export ${title} chart data`}
                     className="h-7 w-7 p-0"
                   >
                     <Download className="h-3 w-3" />
@@ -497,7 +506,6 @@ export function AnalyticsChart({
                     variant="ghost"
                     size="sm"
                     onClick={actions.onSettings}
-                    aria-label={`${title} chart settings`}
                     className="h-7 w-7 p-0"
                   >
                     <Settings className="h-3 w-3" />
