@@ -48,6 +48,7 @@ class MetadataSource(str, Enum):
     ARXIV = "arxiv"
     SEMANTIC_SCHOLAR = "semantic_scholar"
     CROSSREF = "crossref"
+    PDF = "pdf"
     MANUAL = "manual"
 
 
