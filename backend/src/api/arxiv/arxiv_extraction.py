@@ -2,7 +2,10 @@
 ArXiv Paper Feature Extraction API endpoints
 """
 
+import inspect
 import logging
+import uuid
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -12,9 +15,6 @@ from src.core.dependencies import get_current_user
 from src.services.arxiv.arxiv_kg_integration import ArXivKnowledgeGraphIntegration
 from src.services.arxiv.arxiv_service import ArXivIngestionService
 from src.services.processing.entity_extraction_service import EntityExtractionService
-from src.services.processing.multimodal_processing_service import (
-    MultimodalProcessingService,
-)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -45,6 +45,41 @@ class ExtractionResponse(BaseModel):
     results: List[Dict[str, Any]]
 
 
+def _get_organization_id(current_user: Dict[str, Any]) -> str:
+    """Resolve organization ID from token payload with a deterministic fallback."""
+    organization_id = (
+        current_user.get("organization_id")
+        or (current_user.get("organization") or {}).get("id")
+        or current_user.get("org_id")
+    )
+    return str(organization_id) if organization_id else str(uuid.uuid4())
+
+
+def _serialize_entities(entities: List[Any]) -> Dict[str, Any]:
+    """Convert SQLAlchemy entity models into API-safe dictionaries."""
+    serialized: List[Dict[str, Any]] = []
+
+    for entity in entities:
+        if hasattr(entity, "to_dict"):
+            entity_dict = entity.to_dict()
+        elif isinstance(entity, dict):
+            entity_dict = entity
+        else:
+            continue
+
+        serialized.append(
+            {
+                "id": entity_dict.get("id"),
+                "name": entity_dict.get("name", ""),
+                "type": (entity_dict.get("entity_type") or "OTHER").upper(),
+                "confidence": entity_dict.get("confidence", 0.0),
+                "properties": entity_dict.get("properties") or {},
+            }
+        )
+
+    return {"entities": serialized, "relationships": [], "count": len(serialized)}
+
+
 @router.post("/extract-features")
 async def extract_paper_features(
     request: ExtractionRequest,
@@ -66,6 +101,17 @@ async def extract_paper_features(
     try:
         logger.info(f"Starting feature extraction for {len(request.paper_ids)} papers")
 
+        organization_id = _get_organization_id(current_user)
+        entity_service = None
+        entity_service_error = None
+
+        if request.extract_entities:
+            try:
+                entity_service = EntityExtractionService()
+            except Exception as entity_error:
+                entity_service_error = str(entity_error)
+                logger.error(f"Failed to initialize entity extraction service: {entity_error}")
+
         # Initialize services
         async with ArXivIngestionService() as arxiv_service:
             extraction_results = []
@@ -80,6 +126,14 @@ async def extract_paper_features(
 
                     if not papers:
                         logger.warning(f"Paper {paper_id} not found")
+                        extraction_results.append(
+                            {
+                                "paper_id": paper_id,
+                                "extraction_status": "failed",
+                                "error": "Paper not found in arXiv index",
+                                "features": {},
+                            }
+                        )
                         continue
 
                     paper = papers[0]
@@ -97,39 +151,35 @@ async def extract_paper_features(
 
                     # Extract entities
                     if request.extract_entities:
-                        try:
-                            entity_service = EntityExtractionService()
-                            # Create a minimal Document object
-                            from datetime import datetime
-
-                            from src.models.document import Document, DocumentType
-
-                            doc = Document(
-                                id=None,
-                                title=paper.get("title", ""),
-                                content=text_content,
-                                document_type=DocumentType.PDF,
-                                metadata={
-                                    "paper_id": paper_id,
-                                    "source": "arxiv",
-                                    "authors": paper.get("authors", []),
-                                    "categories": paper.get("categories", []),
-                                },
-                                created_at=datetime.now(),
-                                updated_at=datetime.now(),
-                            )
-
-                            entities = entity_service.extract_entities_from_text(
-                                document=doc, text=text_content
-                            )
-                            extraction_result["features"]["entities"] = entities
-                        except Exception as e:
-                            logger.error(
-                                f"Entity extraction failed for {paper_id}: {e}"
-                            )
+                        if entity_service_error:
                             extraction_result["features"]["entities"] = {
-                                "error": str(e)
+                                "error": entity_service_error
                             }
+                        elif not text_content:
+                            extraction_result["features"]["entities"] = {
+                                "error": "No text available for entity extraction"
+                            }
+                        else:
+                            try:
+                                # EntityExtractionService only needs document id + organization_id.
+                                document_stub = SimpleNamespace(
+                                    id=str(uuid.uuid4()),
+                                    organization_id=organization_id,
+                                )
+
+                                entities = entity_service.extract_entities_from_text(
+                                    document=document_stub, text=text_content
+                                )
+                                extraction_result["features"]["entities"] = _serialize_entities(
+                                    entities
+                                )
+                            except Exception as e:
+                                logger.error(
+                                    f"Entity extraction failed for {paper_id}: {e}"
+                                )
+                                extraction_result["features"]["entities"] = {
+                                    "error": str(e)
+                                }
 
                     # Extract topics using LLM
                     if request.extract_topics and text_content:
@@ -137,7 +187,9 @@ async def extract_paper_features(
                             topics = await _extract_topics_with_llm(text_content)
                             extraction_result["features"]["topics"] = topics
                         except Exception as e:
-                            logger.error(f"Topic extraction failed for {paper_id}: {e}")
+                            logger.error(
+                                f"Topic extraction failed for {paper_id}: {e}"
+                            )
                             extraction_result["features"]["topics"] = {"error": str(e)}
 
                     # Extract key phrases
@@ -187,14 +239,18 @@ async def extract_paper_features(
                             "paper_id": paper_id,
                             "extraction_status": "failed",
                             "error": str(e),
+                            "features": {},
                         }
                     )
 
             # Update knowledge graph if requested
             if request.update_knowledge_graph and processed_count > 0:
-                background_tasks.add_task(
-                    _update_knowledge_graph_with_extractions, extraction_results
-                )
+                if background_tasks:
+                    background_tasks.add_task(
+                        _update_knowledge_graph_with_extractions, extraction_results
+                    )
+                else:
+                    await _update_knowledge_graph_with_extractions(extraction_results)
 
             return ExtractionResponse(
                 status="success",
@@ -232,7 +288,7 @@ async def get_extracted_features(
             # Build query
             stmt = select(Document).where(
                 Document.external_id.isnot(None),
-                Document.document_metadata.contains_key({"extracted_features": True}),
+                Document.document_metadata.isnot(None),
             )
 
             if paper_id:
@@ -244,14 +300,16 @@ async def get_extracted_features(
             documents = result.scalars().all()
 
             for doc in documents:
+                metadata = doc.document_metadata or {}
+                if "extracted_features" not in metadata:
+                    continue
+
                 extracted_features.append(
                     {
                         "paper_id": doc.external_id,
                         "title": doc.title,
-                        "features": doc.document_metadata.get("extracted_features", {}),
-                        "extracted_at": doc.document_metadata.get(
-                            "features_extracted_at"
-                        ),
+                        "features": metadata.get("extracted_features", {}),
+                        "extracted_at": metadata.get("features_extracted_at"),
                     }
                 )
 
@@ -308,9 +366,18 @@ async def bulk_extract_features(
         )
 
         # Process extraction
+        bulk_background_tasks = BackgroundTasks()
         result = await extract_paper_features(
-            request=extraction_request, background_tasks=None, current_user=current_user
+            request=extraction_request,
+            background_tasks=bulk_background_tasks,
+            current_user=current_user,
         )
+
+        # Execute queued background tasks since this endpoint invokes extraction directly.
+        for task in bulk_background_tasks.tasks:
+            maybe_awaitable = task.func(*task.args, **task.kwargs)
+            if inspect.isawaitable(maybe_awaitable):
+                await maybe_awaitable
 
         return {
             "status": "success",
@@ -414,19 +481,25 @@ async def _update_knowledge_graph_with_extractions(
 ):
     """Background task to update knowledge graph with extracted features"""
     try:
+        from src.models.graph import (
+            CreateEntityRequest,
+            CreateRelationshipRequest,
+            EntityType,
+            ExtractionMethod,
+            RelationshipType,
+        )
+
         async with ArXivKnowledgeGraphIntegration() as kg:
+            synced_count = 0
+
             for result in extraction_results:
-                if result.get("extraction_status") == "completed":
-                    features = result.get("features", {})
-                    paper_id = result.get("paper_id")
+                if result.get("extraction_status") != "completed":
+                    continue
 
-                    # Create document entity for the paper
-                    from src.models.graph import (
-                        CreateEntityRequest,
-                        EntityType,
-                        ExtractionMethod,
-                    )
+                paper_id = result.get("paper_id")
+                features = result.get("features") or {}
 
+                try:
                     doc_entity_request = CreateEntityRequest(
                         entity_type=EntityType.DOCUMENT,
                         name=result.get("title", f"ArXiv Paper: {paper_id}"),
@@ -438,24 +511,35 @@ async def _update_knowledge_graph_with_extractions(
 
                     if not doc_entity:
                         logger.error(f"Failed to create document entity for {paper_id}")
-                        return
+                        continue
 
-                    # Update KG with entities
-                    if "entities" in features:
-                        for entity in features["entities"].get("entities", []):
+                    entities_payload = features.get("entities")
+                    if isinstance(entities_payload, dict):
+                        for entity in entities_payload.get("entities", []):
+                            raw_entity_type = str(
+                                entity.get("type") or "OTHER"
+                            ).upper()
+                            if raw_entity_type == "CUSTOM":
+                                raw_entity_type = "OTHER"
+                            mapped_entity_type = EntityType.__members__.get(
+                                raw_entity_type, EntityType.OTHER
+                            )
+
                             entity_request = CreateEntityRequest(
-                                entity_type=EntityType(entity.get("type", "OTHER")),
+                                entity_type=mapped_entity_type,
                                 name=entity.get("name", ""),
-                                confidence_score=entity.get("properties", {}).get(
-                                    "confidence", 0.5
+                                confidence_score=float(
+                                    entity.get("confidence")
+                                    or entity.get("properties", {}).get(
+                                        "confidence", 0.5
+                                    )
                                 ),
                                 extraction_method=ExtractionMethod.SPACY_NER,
                                 metadata=entity.get("properties", {}),
                             )
                             kg.kg_service.create_entity(entity_request)
 
-                    # Update KG with topics
-                    if "topics" in features and isinstance(features["topics"], list):
+                    if isinstance(features.get("topics"), list):
                         for topic in features["topics"]:
                             topic_request = CreateEntityRequest(
                                 entity_type=EntityType.CONCEPT,
@@ -469,10 +553,7 @@ async def _update_knowledge_graph_with_extractions(
                             )
                             kg.kg_service.create_entity(topic_request)
 
-                    # Update KG with keyphrases
-                    if "keyphrases" in features and isinstance(
-                        features["keyphrases"], list
-                    ):
+                    if isinstance(features.get("keyphrases"), list):
                         for keyphrase in features["keyphrases"]:
                             kp_request = CreateEntityRequest(
                                 entity_type=EntityType.CONCEPT,
@@ -486,38 +567,44 @@ async def _update_knowledge_graph_with_extractions(
                             )
                             kg.kg_service.create_entity(kp_request)
 
-                    # Update KG with relationships
-                    if (
-                        "entities" in features
-                        and "relationships" in features["entities"]
-                    ):
-                        from src.models.graph import (
-                            CreateRelationshipRequest,
-                            RelationshipType,
+                    relationships = []
+                    if isinstance(entities_payload, dict):
+                        relationships = entities_payload.get("relationships", [])
+
+                    for rel in relationships:
+                        source_name = rel.get("source") or rel.get("source_entity") or ""
+                        target_name = rel.get("target") or rel.get("target_entity") or ""
+
+                        if not source_name or not target_name:
+                            continue
+
+                        source_entities = kg.kg_service.search_entities(
+                            query=source_name, limit=1
+                        )
+                        target_entities = kg.kg_service.search_entities(
+                            query=target_name, limit=1
                         )
 
-                        for rel in features["entities"]["relationships"]:
-                            # Find entity IDs by name
-                            source_entities = kg.kg_service.search_entities(
-                                query=rel.get("source", ""), limit=1
+                        if source_entities and target_entities:
+                            rel_request = CreateRelationshipRequest(
+                                source_entity_id=source_entities[0].id,
+                                target_entity_id=target_entities[0].id,
+                                relationship_type=RelationshipType.RELATED_TO,
+                                confidence_score=float(
+                                    rel.get("properties", {}).get("confidence", 0.5)
+                                ),
+                                metadata=rel.get("properties", {}),
                             )
-                            target_entities = kg.kg_service.search_entities(
-                                query=rel.get("target", ""), limit=1
-                            )
+                            kg.kg_service.create_relationship(rel_request)
 
-                            if source_entities and target_entities:
-                                rel_request = CreateRelationshipRequest(
-                                    source_entity_id=source_entities[0].id,
-                                    target_entity_id=target_entities[0].id,
-                                    relationship_type=RelationshipType.RELATED_TO,
-                                    confidence_score=rel.get("properties", {}).get(
-                                        "confidence", 0.5
-                                    ),
-                                    metadata=rel.get("properties", {}),
-                                )
-                                kg.kg_service.create_relationship(rel_request)
+                    synced_count += 1
+                except Exception as paper_error:
+                    logger.error(
+                        f"Knowledge graph update failed for paper {paper_id}: {paper_error}"
+                    )
+                    continue
 
-        logger.info(f"Knowledge graph updated for {len(extraction_results)} papers")
+        logger.info(f"Knowledge graph updated for {synced_count} papers")
 
     except Exception as e:
         logger.error(f"Failed to update knowledge graph: {e}")
