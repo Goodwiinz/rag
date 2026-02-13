@@ -12,10 +12,6 @@ on:
         required: false
         type: string
 
-env:
-  NPM_CONFIG_CACHE: ${{ runner.temp }}/npm-cache
-  PIP_CACHE_DIR: ${{ runner.temp }}/pip-cache
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -23,8 +19,11 @@ concurrency:
 jobs:
   lint:
     name: Lint (Fast)
-    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest-m' }}
+    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
     continue-on-error: true
+    env:
+      NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
+      PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
       - uses: actions/checkout@v4
       
@@ -51,8 +50,11 @@ jobs:
 
   test-backend:
     name: Backend Tests (Fast)
-    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest-m' }}
+    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
     continue-on-error: true
+    env:
+      NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
+      PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
       - uses: actions/checkout@v4
       
@@ -71,8 +73,11 @@ jobs:
 
   test-frontend:
     name: Frontend Tests (Fast)
-    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest-m' }}
+    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
     continue-on-error: true
+    env:
+      NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
+      PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
       - uses: actions/checkout@v4
       
@@ -86,13 +91,13 @@ jobs:
 
   summary:
     name: CI Summary
-    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest-m' }}
+    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
     needs: [lint, test-backend, test-frontend]
     if: always()
     env:
-      RUNNER_LABEL: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest-m' }}
+      RUNNER_LABEL: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - name: Summary
         run: |
-          echo "## ✅ Fast CI Complete" >> $GITHUB_STEP_SUMMARY
-          echo "All jobs finished on ${RUNNER_LABEL}" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Fast CI Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "All jobs finished on ${RUNNER_LABEL}" >> "$GITHUB_STEP_SUMMARY"

@@ -993,6 +993,12 @@ async def _get_note(
 
 def _to_project_response(project: Collection) -> ProjectResponse:
     """Convert Collection to ProjectResponse."""
+    # Avoid async lazy-loading of relationship attributes in response serialization.
+    # Accessing `project.documents` when it wasn't eagerly loaded can raise:
+    # "greenlet_spawn has not been called; can't call await_only() here."
+    documents = project.__dict__.get("documents")
+    document_count = len(documents) if documents else 0
+
     return ProjectResponse(
         id=project.id,
         workspace_id=project.workspace_id,
@@ -1004,7 +1010,7 @@ def _to_project_response(project: Collection) -> ProjectResponse:
         deadline=project.deadline,
         tags=project.tags or [],
         is_private=project.is_private,
-        document_count=len(project.documents) if project.documents else 0,
+        document_count=document_count,
         created_at=project.created_at,
         updated_at=project.updated_at,
     )

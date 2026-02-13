@@ -5,10 +5,13 @@ Literature review draft generation and management endpoints
 Security: All endpoints validate project ownership before granting access.
 """
 
+import io
+import zipfile
 from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from structlog import get_logger
@@ -213,7 +216,7 @@ async def get_current_draft(
     }
 
 
-@router.get("/{draft_id}")
+@router.get("/{draft_id:uuid}")
 async def get_draft(
     project_id: UUID,
     draft_id: UUID,
@@ -245,7 +248,7 @@ async def get_draft(
     }
 
 
-@router.delete("/{draft_id}")
+@router.delete("/{draft_id:uuid}")
 async def delete_draft(
     project_id: UUID,
     draft_id: UUID,
@@ -270,7 +273,7 @@ async def delete_draft(
 # ============================================================================
 
 
-@router.get("/{draft_id}/citations")
+@router.get("/{draft_id:uuid}/citations")
 async def get_draft_citations(
     project_id: UUID,
     draft_id: UUID,
@@ -333,7 +336,7 @@ async def compare_drafts(
 # ============================================================================
 
 
-@router.post("/{draft_id}/export")
+@router.post("/{draft_id:uuid}/export")
 async def export_draft(
     project_id: UUID,
     draft_id: UUID,
@@ -359,6 +362,36 @@ async def export_draft(
 
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
+
+    if result.get("format") == "markdown":
+        filename = result.get("filename") or "draft.md"
+        return PlainTextResponse(
+            content=result.get("content", ""),
+            media_type=result.get("mime_type", "text/markdown"),
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    if result.get("format") == "latex":
+        files = result.get("files") or []
+        if not files:
+            raise HTTPException(status_code=500, detail="No LaTeX files generated")
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+            for file_data in files:
+                name = file_data.get("filename")
+                content = file_data.get("content", "")
+                if not name:
+                    continue
+                zip_file.writestr(name, content)
+
+        zip_buffer.seek(0)
+        filename = (result.get("files", [{}])[0].get("filename", "draft.tex")).replace(".tex", ".zip")
+        return Response(
+            content=zip_buffer.getvalue(),
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
     return result
 

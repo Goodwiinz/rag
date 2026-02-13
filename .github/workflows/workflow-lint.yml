@@ -1,0 +1,44 @@
+name: Workflow Lint
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+jobs:
+  actionlint:
+    name: Validate GitHub Actions Workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install actionlint
+        run: |
+          mkdir -p "$PWD/bin"
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) latest "$PWD/bin"
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+
+      - name: Run actionlint
+        run: |
+          if [ -n "${GITHUB_BASE_REF:-}" ]; then
+            git fetch --no-tags origin "$GITHUB_BASE_REF"
+            changed_files=$(git diff --name-only "origin/$GITHUB_BASE_REF"...HEAD -- ".github/workflows/*.yml" ".github/workflows/*.yaml")
+
+            if [ -z "$changed_files" ]; then
+              echo "No workflow file changes detected."
+              exit 0
+            fi
+
+            echo "Linting changed workflow files:"
+            printf '%s\n' "$changed_files"
+
+            while IFS= read -r file; do
+              [ -n "$file" ] || continue
+              actionlint "$file"
+            done <<< "$changed_files"
+          else
+            actionlint
+          fi
