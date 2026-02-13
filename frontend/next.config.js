@@ -1,3 +1,5 @@
+const path = require('path');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Enable React strict mode
@@ -9,8 +11,8 @@ const nextConfig = {
   // Standalone output for Docker deployments
   output: 'standalone',
 
-  // Output file tracing root to resolve workspace warning
-  outputFileTracingRoot: '/home/clawdbot/clawd',
+  // Output file tracing root for monorepo (must be relative for Docker compatibility)
+  outputFileTracingRoot: path.join(__dirname, '..'),
 
   // Ignore TypeScript build errors temporarily
   typescript: {
@@ -88,7 +90,8 @@ const nextConfig = {
 
   // Environment variables
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+    NEXT_PUBLIC_API_URL:
+      process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
     NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000',
   },
 
@@ -99,8 +102,14 @@ const nextConfig = {
         source: '/api/:path*',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, POST, PUT, DELETE, OPTIONS',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization',
+          },
         ],
       },
       {
