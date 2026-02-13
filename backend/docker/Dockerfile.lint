@@ -5,7 +5,7 @@
 # Build: docker build -f backend/docker/Dockerfile.lint . -t rag-lint:test
 # Run:   docker run --rm rag-lint:test ruff check backend/src
 
-ARG PYTHON_VERSION=3.11
+ARG PYTHON_VERSION=3.14
 FROM python:${PYTHON_VERSION}-slim AS lint
 
 # Install git (required by some lint tools for config detection)
