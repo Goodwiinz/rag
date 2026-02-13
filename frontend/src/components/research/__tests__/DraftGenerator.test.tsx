@@ -20,7 +20,9 @@ describe('DraftGenerator', () => {
     const onGenerate = jest.fn();
     render(<DraftGenerator onGenerate={onGenerate} />);
 
-    const themeInput = screen.getByPlaceholderText('Enter a theme and press Enter...');
+    const themeInput = screen.getByPlaceholderText(
+      'Enter a theme and press Enter...'
+    );
     fireEvent.change(themeInput, { target: { value: 'methodology' } });
     fireEvent.keyDown(themeInput, { key: 'Enter' });
 
@@ -34,23 +36,22 @@ describe('DraftGenerator', () => {
     const onGenerate = jest.fn();
     render(<DraftGenerator onGenerate={onGenerate} />);
 
-    const themeInput = screen.getByPlaceholderText('Enter a theme and press Enter...');
+    const themeInput = screen.getByPlaceholderText(
+      'Enter a theme and press Enter...'
+    );
     fireEvent.change(themeInput, { target: { value: 'findings' } });
     fireEvent.keyDown(themeInput, { key: 'Enter' });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Technical' }));
+    fireEvent.click(screen.getByRole('radio', { name: /technical/i }));
 
     const slider = screen.getByRole('slider');
     fireEvent.change(slider, { target: { value: '7' } });
 
-    const includeAbstractLabel = screen.getByText(/include abstract/i);
-    const includeAbstractToggle = includeAbstractLabel.parentElement?.querySelector('button');
-    expect(includeAbstractToggle).toBeTruthy();
-    if (includeAbstractToggle) {
-      fireEvent.click(includeAbstractToggle);
-    }
+    fireEvent.click(screen.getByRole('switch', { name: /include abstract/i }));
 
-    fireEvent.click(screen.getByRole('button', { name: /generate literature review/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /generate literature review/i })
+    );
 
     expect(onGenerate).toHaveBeenCalledWith({
       themes: ['findings'],
