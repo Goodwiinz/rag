@@ -121,12 +121,18 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up Multimodal RAG System...")
 
     # Create database tables
+    # Note: With multiple Gunicorn workers, create_all may race on PostgreSQL
+    # ENUM type creation. We catch IntegrityError from duplicate types and
+    # retry, since the first worker will have created them successfully.
     try:
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")
     except Exception as e:
-        logger.error(f"Failed to create database tables: {e}")
-        raise
+        if "already exists" in str(e):
+            logger.info("Database tables already created by another worker")
+        else:
+            logger.error(f"Failed to create database tables: {e}")
+            raise
 
     # Check Redis connection
     if redis_client:
