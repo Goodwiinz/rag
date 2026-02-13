@@ -55,3 +55,8 @@ Also, testing this endpoint proved difficult because the codebase has side effec
 1.  Use a declarative permission system (decorators or middleware) where intent is clearer (e.g., `@require_role(UserRole.ADMIN)`).
 2.  Mandate negative test cases for all authorization logic.
 3.  Perform code reviews specifically targeting authorization logic for double negatives or inverted conditions.
+
+## 2024-05-22 - [Rate Limiting IP Spoofing]
+**Vulnerability:** Rate limiting relied on `request.client.host`, which returns the load balancer's IP in production, causing global rate limiting instead of per-user.
+**Learning:** In containerized environments with reverse proxies (Traefik/Nginx), the real client IP is in `X-Forwarded-For`. The last IP in this list is the only one guaranteed to be the connecting client (added by the trusted proxy).
+**Prevention:** Use a centralized `get_client_ip` utility that parses `X-Forwarded-For` (taking the last entry) before falling back to `request.client.host`.
