@@ -9,8 +9,8 @@ A single bash script (`run-ci.sh`) at the project root that mirrors the GitHub A
 ## Technical Context
 
 **Runtime**: Bash 4+ (POSIX-compatible where possible)
-**CI Source of Truth**: `.github/workflows/test-pipeline.yml` (11 jobs)
-**Docker**: Required for lint-backend, e2e-tests; optional for other stages
+**CI Source of Truth**: `.github/workflows/test-pipeline.yml` (11 jobs; 9 mapped to local stages — performance-tests excluded per spec, test-summary is CI-only)
+**Docker**: Required for lint-backend, integration-tests, api-contract-tests, e2e-tests; optional for other stages
 **Node.js**: Required for frontend stages (lint-frontend, frontend-tests)
 **Python**: Required for backend stages (unit-tests, security-scan, integration-tests, resilience-tests, api-contract-tests)
 **Key files**:
