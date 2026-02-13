@@ -141,6 +141,33 @@ describe('ArxivManagement', () => {
     expect(successMessages.length).toBeGreaterThan(0);
   });
 
+  it('allows searching without category filters', async () => {
+    mockApiClient.postWithLongTimeout.mockResolvedValue([] as never);
+
+    render(<ArxivManagement />);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Ingest Papers' }));
+
+    fireEvent.click(
+      screen.getByRole('switch', { name: /Filter by selected categories/i })
+    );
+
+    fireEvent.change(screen.getByLabelText('Search Query'), {
+      target: { value: 'graph neural networks' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Search Papers' }));
+
+    await waitFor(() => {
+      expect(mockApiClient.postWithLongTimeout).toHaveBeenCalledWith(
+        '/arxiv/search',
+        expect.objectContaining({
+          query: 'graph neural networks',
+          categories: null,
+        })
+      );
+    });
+  });
+
   it('extracts features from paper IDs in the extract tab', async () => {
     mockApiClient.postWithLongTimeout.mockImplementation(
       async (url: string) => {
@@ -212,5 +239,38 @@ describe('ArxivManagement', () => {
         'BERT: Pre-training of Deep Bidirectional Transformers'
       )
     ).toBeInTheDocument();
+  });
+
+  it('normalizes extraction IDs from urls and prefixes before request', async () => {
+    mockApiClient.postWithLongTimeout.mockResolvedValue({
+      status: 'success',
+      message: 'Extraction complete',
+      processed_count: 2,
+      results: [],
+    } as never);
+
+    render(<ArxivManagement />);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Extract Features' }));
+    fireEvent.change(
+      screen.getByLabelText('Paper IDs (one per line or comma-separated)'),
+      {
+        target: {
+          value:
+            'https://arxiv.org/abs/1706.03762 arXiv:1706.03762,1810.04805v2',
+        },
+      }
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Extract Features' }));
+
+    await waitFor(() => {
+      expect(mockApiClient.postWithLongTimeout).toHaveBeenCalledWith(
+        '/arxiv/extraction/extract-features',
+        expect.objectContaining({
+          paper_ids: ['1706.03762', '1810.04805v2'],
+        })
+      );
+    });
   });
 });

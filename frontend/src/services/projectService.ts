@@ -442,8 +442,27 @@ export const projectService = {
     format: 'markdown' | 'latex' = 'markdown',
     includeBibliography: boolean = true,
     bibliographyFormat: 'bibtex' | 'biblatex' = 'bibtex'
-  ): Promise<DraftExportResponse> {
-    return apiClient.post<DraftExportResponse>(
+  ): Promise<void> {
+    await this.downloadDraftExport(
+      projectId,
+      draftId,
+      format,
+      includeBibliography,
+      bibliographyFormat
+    );
+  },
+
+  /**
+   * Download draft export as file (markdown or latex zip)
+   */
+  async downloadDraftExport(
+    projectId: string,
+    draftId: string,
+    format: 'markdown' | 'latex' = 'markdown',
+    includeBibliography: boolean = true,
+    bibliographyFormat: 'bibtex' | 'biblatex' = 'bibtex'
+  ): Promise<void> {
+    const response = await apiClient.client.post(
       `/projects/${projectId}/drafts/${draftId}/export`,
       null,
       {
@@ -452,8 +471,27 @@ export const projectService = {
           include_bibliography: includeBibliography,
           bib_format: bibliographyFormat,
         },
+        responseType: 'blob',
       }
     );
+
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const filenameMatch = disposition?.match(/filename=\"?([^\";]+)\"?/i);
+    const fallbackName = format === 'latex' ? 'draft.zip' : 'draft.md';
+    const filename = filenameMatch?.[1] || fallbackName;
+    const contentType =
+      (response.headers['content-type'] as string | undefined) ||
+      (format === 'latex' ? 'application/zip' : 'text/markdown');
+
+    const blob = new Blob([response.data], { type: contentType });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
   },
 
   /**
