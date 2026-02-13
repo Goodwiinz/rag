@@ -99,5 +99,5 @@ jobs:
     steps:
       - name: Summary
         run: |
-          echo "## ✅ Fast CI Complete" >> $GITHUB_STEP_SUMMARY
-          echo "All jobs finished on ${RUNNER_LABEL}" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Fast CI Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "All jobs finished on ${RUNNER_LABEL}" >> "$GITHUB_STEP_SUMMARY"
