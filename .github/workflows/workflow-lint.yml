@@ -20,4 +20,23 @@ jobs:
           echo "$PWD/bin" >> "$GITHUB_PATH"
 
       - name: Run actionlint
-        run: actionlint
+        run: |
+          if [ -n "${GITHUB_BASE_REF:-}" ]; then
+            git fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF"
+            changed_files=$(git diff --name-only "origin/$GITHUB_BASE_REF"...HEAD -- ".github/workflows/*.yml" ".github/workflows/*.yaml")
+
+            if [ -z "$changed_files" ]; then
+              echo "No workflow file changes detected."
+              exit 0
+            fi
+
+            echo "Linting changed workflow files:"
+            printf '%s\n' "$changed_files"
+
+            while IFS= read -r file; do
+              [ -n "$file" ] || continue
+              actionlint "$file"
+            done <<< "$changed_files"
+          else
+            actionlint
+          fi
