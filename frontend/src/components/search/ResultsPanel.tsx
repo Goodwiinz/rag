@@ -108,10 +108,11 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
             </div>
           </div>
           <div>
-            <label className="block text-sm font-mono text-gray-400 mb-2">
+            <label htmlFor="feedback-comment" className="block text-sm font-mono text-gray-400 mb-2">
               Additional feedback (optional)
             </label>
             <textarea
+              id="feedback-comment"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               placeholder="Tell us more..."
@@ -446,6 +447,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                 onClick={action.onClick}
                 className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
                 title={action.title}
+                aria-label={action.title}
               >
                 <action.icon className={cn("h-4 w-4", copiedAnswer && i === 0 && "text-green-500")} />
               </button>
@@ -553,6 +555,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                     onClick={(e) => { e.stopPropagation(); handleDocumentPreview(source); }}
                     className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
                     title="Preview"
+                    aria-label="Preview document"
                   >
                     <EyeIcon className="h-3.5 w-3.5" />
                   </button>
@@ -560,6 +563,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                     onClick={(e) => { e.stopPropagation(); handleCopySource(source); }}
                     className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
                     title="Copy"
+                    aria-label="Copy source snippet"
                   >
                     <ClipboardDocumentIcon className="h-3.5 w-3.5" />
                   </button>
