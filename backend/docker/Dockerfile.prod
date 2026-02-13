@@ -56,14 +56,19 @@ ARG TORCH_CPU_ONLY=false
 COPY backend/requirements.txt backend/requirements-minimal.txt ./
 
 # Upgrade pip and install dependencies
-# When TORCH_CPU_ONLY is set, install CPU-only torch first so the full
-# requirements.txt sees it already satisfied and skips the CUDA variant.
+# When TORCH_CPU_ONLY is set, strip torch/torchvision/torchaudio from
+# requirements.txt and install CPU-only variants separately. This prevents
+# pip from pulling ~5GB of NVIDIA CUDA packages that exhaust CI disk space.
 RUN \
     pip install --upgrade pip setuptools wheel && \
     if [ "$TORCH_CPU_ONLY" = "true" ]; then \
-        pip install torch --index-url https://download.pytorch.org/whl/cpu; \
-    fi && \
-    pip install -r requirements.txt
+        grep -viE '^(torch|torchvision|torchaudio)' requirements.txt > requirements-no-torch.txt && \
+        pip install torch --index-url https://download.pytorch.org/whl/cpu && \
+        pip install -r requirements-no-torch.txt && \
+        rm requirements-no-torch.txt; \
+    else \
+        pip install -r requirements.txt; \
+    fi
 
 # Stage 3: Build with minimal dependencies
 FROM base AS production
