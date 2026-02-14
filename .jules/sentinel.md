@@ -60,3 +60,25 @@ Also, testing this endpoint proved difficult because the codebase has side effec
 **Vulnerability:** Rate limiting relied on `request.client.host`, which returns the load balancer's IP in production, causing global rate limiting instead of per-user.
 **Learning:** In containerized environments with reverse proxies (Traefik/Nginx), the real client IP is in `X-Forwarded-For`. The last IP in this list is the only one guaranteed to be the connecting client (added by the trusted proxy).
 **Prevention:** Use a centralized `get_client_ip` utility that parses `X-Forwarded-For` (taking the last entry) before falling back to `request.client.host`.
+
+## 2026-10-27 - Information Leakage via Error Messages
+
+**Vulnerability:** The Search API endpoints were catching all exceptions and returning `str(e)` in the `detail` field of `HTTPException` (or JSON response for health checks). This could leak sensitive internal details (e.g., database connection strings, passwords, partial SQL queries) to the client.
+
+**Learning:** Developers often default to returning the exception message for debugging convenience, but this is dangerous in production. `str(e)` can contain anything.
+
+**Prevention:**
+1.  Always use generic error messages (e.g., "Internal server error") for 500 responses exposed to clients.
+2.  Log the full exception details on the server side for debugging.
+3.  Implement a global exception handler or middleware to catch unhandled exceptions and return safe responses, ensuring consistent behavior across all endpoints.
+
+## 2026-10-27 - SQL Injection Risk via Invalid Binding
+
+**Vulnerability:** The `fulltext_search_service.get_search_analytics` method was attempting to bind a parameter inside a string literal (`INTERVAL ':days days'`). While this specific instance resulted in a syntax error (preventing execution) rather than direct injection (due to type validation), it represents a dangerous pattern that could lead to injection if types were not strictly validated or if the database driver behavior differed.
+
+**Learning:** SQLAlchemy (and most ORMs/drivers) cannot bind parameters inside string literals. The placeholder `:param` is treated as literal text.
+
+**Prevention:**
+1.  Never place bind parameters inside quotes in SQL strings.
+2.  Perform calculations (like date arithmetic) in Python and bind the resulting value.
+3.  Use linting tools or static analysis that can detect SQL injection patterns.

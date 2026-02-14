@@ -110,7 +110,7 @@ async def search_documents(
 
     except Exception as e:
         logger.error(f"Error performing search: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/hybrid", response_model=SearchResponse)
@@ -149,7 +149,7 @@ async def hybrid_search(
 
     except Exception as e:
         logger.error(f"Error performing hybrid search: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/suggestions")
@@ -182,7 +182,7 @@ async def get_search_suggestions(
 
     except Exception as e:
         logger.error(f"Error getting search suggestions: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/history")
@@ -248,7 +248,7 @@ async def get_search_analytics(
 
     except Exception as e:
         logger.error(f"Error getting search analytics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/indexes/rebuild")
@@ -299,7 +299,7 @@ async def rebuild_search_indexes(
 
     except Exception as e:
         logger.error(f"Error rebuilding search indexes: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/indexes", response_model=List[SearchIndex])
@@ -345,7 +345,7 @@ async def get_search_indexes(
 
     except Exception as e:
         logger.error(f"Error getting search indexes: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/documents/{document_id}/reindex")
@@ -385,7 +385,7 @@ async def reindex_document(
         raise
     except Exception as e:
         logger.error(f"Error reindexing document {document_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/popular")
@@ -405,7 +405,7 @@ async def get_popular_searches(
 
     except Exception as e:
         logger.error(f"Error getting popular searches: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/similar")
@@ -459,7 +459,7 @@ async def submit_search_feedback(
 
     except Exception as e:
         logger.error(f"Error submitting search feedback: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/health")
@@ -497,7 +497,7 @@ async def search_health_check(
         except Exception as e:
             health_status["services"]["fulltext"] = {
                 "status": "unhealthy",
-                "error": str(e),
+                "error": "Service unhealthy",
             }
             logger.error(f"Full-text search health check failed: {e}")
 
@@ -522,7 +522,7 @@ async def search_health_check(
         except Exception as e:
             health_status["services"]["hybrid"] = {
                 "status": "unhealthy",
-                "error": str(e),
+                "error": "Service unhealthy",
             }
             logger.error(f"Hybrid search health check failed: {e}")
 
@@ -541,7 +541,7 @@ async def search_health_check(
                 "indexes_available": index_count > 0,
             }
         except Exception as e:
-            health_status["indexes"] = {"status": "unhealthy", "error": str(e)}
+            health_status["indexes"] = {"status": "unhealthy", "error": "Database check failed"}
 
         # Check external service availability (vector DB, knowledge graph)
         health_status["external_services"] = {}
@@ -567,7 +567,7 @@ async def search_health_check(
         except Exception as e:
             health_status["external_services"]["qdrant"] = {
                 "status": "unhealthy",
-                "error": str(e),
+                "error": "Service unavailable",
             }
 
         # Test Neo4j (knowledge graph)
@@ -593,7 +593,7 @@ async def search_health_check(
         except Exception as e:
             health_status["external_services"]["neo4j"] = {
                 "status": "unhealthy",
-                "error": str(e),
+                "error": "Service unavailable",
             }
 
         # Determine overall status
@@ -612,7 +612,7 @@ async def search_health_check(
             status_code=503,
             content={
                 "status": "unhealthy",
-                "error": str(e),
+                "error": "Health check failed",
                 "timestamp": datetime.utcnow().isoformat(),
             },
         )
@@ -696,7 +696,7 @@ async def authenticated_hybrid_search(
             {"error": str(e), "query_length": len(search_request.query)}
         )
         
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/authenticated/health")
@@ -737,7 +737,7 @@ async def authenticated_search_health_check(
         except Exception as e:
             health_status["services"]["hybrid_search"] = {
                 "status": "unhealthy",
-                "error": str(e),
+                "error": "Service unhealthy",
             }
 
         # Log API access
@@ -767,7 +767,7 @@ async def authenticated_search_health_check(
             status_code=503,
             content={
                 "status": "unhealthy",
-                "error": str(e),
+                "error": "Health check failed",
                 "timestamp": datetime.utcnow().isoformat(),
             },
         )
