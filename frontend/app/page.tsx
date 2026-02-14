@@ -160,6 +160,7 @@ export default function HomePage() {
         </div>
       </nav>
 
+      <main id="main-content">
       {/* Hero Section */}
       <section className="relative z-10 pt-32 pb-24 md:pt-48 md:pb-32 px-6 overflow-visible">
          {/* Background Glow */}
@@ -448,6 +449,8 @@ export default function HomePage() {
              </Link>
          </div>
       </section>
+
+      </main>
 
       {/* Footer */}
       <footer className="bg-[var(--terminal-bg)] pt-20 pb-10 border-t border-[var(--terminal-border)]">

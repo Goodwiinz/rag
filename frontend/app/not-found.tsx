@@ -5,7 +5,7 @@ import { Home, Search } from 'lucide-react';
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+    <main id="main-content" className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
       <div className="max-w-2xl mx-auto px-6 py-20 text-center">
         <div className="mb-8">
           <h1 className="text-[120px] font-bold text-[var(--phosphor-green)] font-mono leading-none mb-4">
@@ -39,6 +39,6 @@ export default function NotFound() {
           </Link>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

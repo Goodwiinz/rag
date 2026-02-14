@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono, Outfit } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
+import { SkipLink } from '@/components/ui/skip-link';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const jetbrainsMono = JetBrains_Mono({
@@ -27,6 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable} ${outfit.variable} bg-[var(--terminal-bg)]`}>
       <body className={`${inter.className} antialiased bg-[var(--terminal-bg)] text-[var(--terminal-text)]`} suppressHydrationWarning>
+        <SkipLink />
         <Providers>
           {children}
         </Providers>
