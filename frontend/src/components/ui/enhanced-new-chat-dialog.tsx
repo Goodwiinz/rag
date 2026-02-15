@@ -93,9 +93,12 @@ const EnhancedAssistantCard = React.forwardRef<
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
       layout
     >
-      <div
+      <button
+        type="button"
         onClick={onSelect}
+        aria-pressed={isSelected}
         className={cn(
+          "w-full text-left appearance-none focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-orange-500",
           "relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 border-2",
           "backdrop-blur-md bg-white/10 dark:bg-black/10",
           "hover:bg-white/20 dark:hover:bg-black/20",
@@ -258,7 +261,7 @@ const EnhancedAssistantCard = React.forwardRef<
             />
           )}
         </AnimatePresence>
-      </div>
+      </button>
     </motion.div>
   )
 })
@@ -293,7 +296,7 @@ export function EnhancedNewChatDialog({
     } else {
       controls.start("exit")
       setSelectedAssistant(null)
-      setSearchQuery(null)
+      setSearchQuery("")
       setSelectedCategory(null)
     }
   }, [open, controls, recentlyUsed, selectedAssistant])
@@ -400,6 +403,7 @@ export function EnhancedNewChatDialog({
               >
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
+                  aria-label="Search assistants"
                   placeholder="Search by name, capability, or category..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -407,6 +411,7 @@ export function EnhancedNewChatDialog({
                 />
                 {searchQuery && (
                   <Button
+                    aria-label="Clear search"
                     variant="ghost"
                     size="sm"
                     onClick={() => setSearchQuery("")}
@@ -426,6 +431,7 @@ export function EnhancedNewChatDialog({
                   className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide"
                 >
                   <Button
+                    aria-pressed={!selectedCategory}
                     variant={!selectedCategory ? "default" : "outline"}
                     size="sm"
                     onClick={() => setSelectedCategory(null)}
@@ -439,6 +445,7 @@ export function EnhancedNewChatDialog({
                     return (
                       <Button
                         key={category.id}
+                        aria-pressed={selectedCategory === category.id}
                         variant={selectedCategory === category.id ? "default" : "outline"}
                         size="sm"
                         onClick={() => setSelectedCategory(category.id)}
