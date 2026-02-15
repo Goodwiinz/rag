@@ -60,3 +60,10 @@ Also, testing this endpoint proved difficult because the codebase has side effec
 **Vulnerability:** Rate limiting relied on `request.client.host`, which returns the load balancer's IP in production, causing global rate limiting instead of per-user.
 **Learning:** In containerized environments with reverse proxies (Traefik/Nginx), the real client IP is in `X-Forwarded-For`. The last IP in this list is the only one guaranteed to be the connecting client (added by the trusted proxy).
 **Prevention:** Use a centralized `get_client_ip` utility that parses `X-Forwarded-For` (taking the last entry) before falling back to `request.client.host`.
+
+## 2026-06-15 - SQL Injection and Information Leak in Search Analytics
+**Vulnerability:** The `FullTextSearchService.get_search_analytics` method used `INTERVAL ':days days'` in a raw SQL query. This is invalid SQL syntax when using parameter binding, but if parameters were string-formatted, it would be an SQL injection vector. Additionally, the API endpoint caught exceptions and returned `str(e)` to the client, leaking internal database error messages.
+**Learning:** Using SQLAlchemy `text()` requires careful parameter binding. Parameters cannot be bound inside string literals (quotes). Also, catch-all exception handlers that return the exception message are a common source of information leakage.
+**Prevention:**
+1.  Calculate values (like dates) in Python and pass them as bind parameters, rather than relying on database-side date arithmetic with interpolated strings.
+2.  Use generic error messages (e.g., "Internal server error") in API responses and log the specific details server-side.
