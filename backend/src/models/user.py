@@ -109,6 +109,11 @@ class User(BaseModel):
 
     def has_permission(self, required_role: UserRole) -> bool:
         """Check if user has required or higher permission level"""
+        # Security enhancement: Ensure required_role is an enum member to prevent
+        # privilege escalation via string type confusion (e.g. "admin" string).
+        if not isinstance(required_role, UserRole):
+            return False
+
         role_hierarchy = {
             UserRole.USER: 0,
             UserRole.ANALYST: 1,
@@ -116,7 +121,12 @@ class User(BaseModel):
             UserRole.ADMIN: 3,
         }
 
-        return role_hierarchy.get(self.role, 0) >= role_hierarchy.get(required_role, 0)
+        # Use safe defaults: -1 for unknown user role (no access),
+        # 999 for unknown required role (impossible to reach).
+        user_level = role_hierarchy.get(self.role, -1)
+        required_level = role_hierarchy.get(required_role, 999)
+
+        return user_level >= required_level
 
     def can_upload_documents(self) -> bool:
         """Check if user can upload documents"""

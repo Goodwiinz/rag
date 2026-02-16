@@ -217,6 +217,18 @@ class TestUser:
         assert sample_user.has_permission(UserRole.USER) is True
         assert sample_user.has_permission(UserRole.ANALYST) is True
         assert sample_user.has_permission(UserRole.ADMIN) is True
+
+    def test_permission_string_type_confusion_fix(self, sample_user):
+        """Test that passing strings to has_permission returns False (security fix)"""
+        sample_user.role = UserRole.USER
+
+        # This was the vulnerability: passing "admin" string returned True
+        assert sample_user.has_permission("admin") is False
+        assert sample_user.has_permission("user") is False
+        assert sample_user.has_permission(None) is False
+
+        # Verify legitimate enum usage still works
+        assert sample_user.has_permission(UserRole.USER) is True
     
     def test_specific_permissions(self, sample_user):
         """Test specific permission methods"""
