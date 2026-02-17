@@ -375,6 +375,8 @@ async def delete_entity_vectors(
 async def reindex_organization_content(
     organization_id: str,
     batch_size: int = Query(default=100, ge=10, le=1000),
+    arxiv_only: bool = Query(default=False),
+    dry_run: bool = Query(default=False),
     current_user: User = Depends(get_current_user),
 ):
     """Reindex all content for an organization"""
@@ -384,7 +386,10 @@ async def reindex_organization_content(
             raise HTTPException(status_code=403, detail="Admin access required")
 
         result = vector_search_service.reindex_all_content(
-            organization_id=organization_id, batch_size=batch_size
+            organization_id=organization_id,
+            batch_size=batch_size,
+            arxiv_only=arxiv_only,
+            dry_run=dry_run,
         )
         return result
     except HTTPException:

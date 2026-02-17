@@ -13,7 +13,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from src.core.database import get_db
+from src.core.database import get_db, get_db_sync
 from src.core.dependencies import get_current_user
 from src.models.search_schemas import SearchQuery, SearchType
 from src.models.user import User
@@ -107,7 +107,7 @@ async def multi_agent_search(
     request: MultiAgentSearchRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     Perform multi-agent search with AI-powered collaboration

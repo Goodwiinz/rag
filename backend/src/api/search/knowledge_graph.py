@@ -5,10 +5,13 @@ Knowledge Graph API endpoints
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
+from neo4j.exceptions import ServiceUnavailable as Neo4jServiceUnavailable
+from pydantic import BaseModel, Field
 
-from src.core.database import get_db
+from src.core.circuit_breaker import ServiceUnavailableError as CircuitBreakerError
+from src.core.database import get_db_sync
 from src.core.dependencies import get_current_user
 from src.models.document import Document
 from src.models.graph import (
@@ -35,12 +38,39 @@ from src.models.graph import (
     UpdateEntityRequest,
 )
 from src.models.user import User, UserRole
+from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
 from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
 from src.services.processing.entity_extraction_service import EntityExtractionService
+from src.tasks.processing_tasks import kg_extract_entities_job, kg_merge_entities_job
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/knowledge-graph", tags=["knowledge-graph"])
+
+
+def _is_neo4j_unavailable_error(error: Exception) -> bool:
+    if isinstance(error, (CircuitBreakerError, Neo4jServiceUnavailable)):
+        return True
+    message = str(error).lower()
+    return "circuit breaker is open" in message or "service unavailable" in message
+
+
+class MergeJobEntityRef(BaseModel):
+    id: str
+    name: str
+
+
+class MergeJobGroupRequest(BaseModel):
+    entities: List[MergeJobEntityRef] = Field(default_factory=list)
+    suggested_primary: str
+
+
+class CreateMergeJobRequest(BaseModel):
+    groups: List[MergeJobGroupRequest] = Field(default_factory=list)
+
+
+class CreateExtractionJobRequest(BaseModel):
+    document_ids: List[str] = Field(default_factory=list)
 
 
 # Entity Management Endpoints
@@ -112,6 +142,8 @@ async def get_all_entities(
         )
     except Exception as e:
         logger.error(f"Error getting entities: {e}")
+        if _is_neo4j_unavailable_error(e):
+            raise HTTPException(status_code=503, detail=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -338,10 +370,152 @@ async def batch_create_entities(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/merge-jobs", status_code=status.HTTP_202_ACCEPTED)
+async def create_merge_job(
+    request: CreateMergeJobRequest,
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
+):
+    """Queue a background merge job for selected duplicate groups."""
+    if not request.groups:
+        raise HTTPException(status_code=400, detail="At least one merge group is required")
+
+    # Validate that all entity IDs belong to documents in the caller's organization.
+    entity_ids = set()
+    for group in request.groups:
+        if group.suggested_primary:
+            entity_ids.add(group.suggested_primary)
+        for entity in group.entities:
+            if entity.id:
+                entity_ids.add(entity.id)
+
+    if not entity_ids:
+        raise HTTPException(status_code=400, detail="At least one entity ID is required")
+
+    entity_source_docs: Dict[str, str] = {}
+    for entity_id in entity_ids:
+        entity = knowledge_graph_service.get_entity(entity_id)
+        if not entity:
+            raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+
+        source_document_id = getattr(entity, "source_document_id", None)
+        if not source_document_id:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Entity {entity_id} has no source document and cannot be merged safely",
+            )
+        entity_source_docs[entity_id] = str(source_document_id)
+
+    source_doc_ids = sorted(set(entity_source_docs.values()))
+    docs = (
+        db.query(Document)
+        .filter(
+            Document.id.in_(source_doc_ids),
+            Document.organization_id == current_user.organization_id,
+            Document.is_deleted == False,
+        )
+        .all()
+    )
+    found_doc_ids = {str(doc.id) for doc in docs}
+    unauthorized_entities = [
+        entity_id
+        for entity_id, doc_id in entity_source_docs.items()
+        if doc_id not in found_doc_ids
+    ]
+    if unauthorized_entities:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "One or more entities are outside your organization: "
+                f"{unauthorized_entities}"
+            ),
+        )
+
+    job = ProcessingJob(
+        job_type=JobType.BATCH_PROCESSING,
+        status=JobStatus.PENDING,
+        priority=JobPriority.NORMAL,
+        organization_id=current_user.organization_id,
+        created_by_user_id=current_user.id,
+        parameters={
+            "operation": "entity_merge",
+            "groups": [group.dict() for group in request.groups],
+        },
+        total_steps=len(request.groups),
+        queue_name="graph_processing",
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    task = kg_merge_entities_job.apply_async(
+        args=[str(job.id)],
+        queue="graph_processing",
+    )
+    job.celery_task_id = task.id
+    job.queue_job(queue_name="graph_processing")
+    db.commit()
+
+    return {"job_id": str(job.id), "status": job.status.value}
+
+
+@router.post("/extraction-jobs", status_code=status.HTTP_202_ACCEPTED)
+async def create_extraction_job(
+    request: CreateExtractionJobRequest,
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
+):
+    """Queue a background entity extraction job for one or more documents."""
+    if not request.document_ids:
+        raise HTTPException(status_code=400, detail="At least one document ID is required")
+
+    # Ensure all requested documents belong to the current organization
+    docs = (
+        db.query(Document)
+        .filter(
+            Document.id.in_(request.document_ids),
+            Document.organization_id == current_user.organization_id,
+            Document.is_deleted == False,
+        )
+        .all()
+    )
+    found_ids = {str(doc.id) for doc in docs}
+    missing = [doc_id for doc_id in request.document_ids if str(doc_id) not in found_ids]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"Documents not found: {missing}")
+
+    job = ProcessingJob(
+        job_type=JobType.ENTITY_EXTRACTION,
+        status=JobStatus.PENDING,
+        priority=JobPriority.NORMAL,
+        organization_id=current_user.organization_id,
+        created_by_user_id=current_user.id,
+        parameters={
+            "operation": "document_entity_extraction",
+            "document_ids": [str(doc_id) for doc_id in request.document_ids],
+        },
+        total_steps=len(request.document_ids),
+        queue_name="entity_processing",
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    task = kg_extract_entities_job.apply_async(
+        args=[str(job.id)],
+        queue="entity_processing",
+    )
+    job.celery_task_id = task.id
+    job.queue_job(queue_name="entity_processing")
+    db.commit()
+
+    return {"job_id": str(job.id), "status": job.status.value}
+
+
 # Document Integration Endpoints
 @router.post("/documents/{document_id}/extract-entities", response_model=Dict[str, Any])
 async def extract_entities_from_document(
-    document_id: str, current_user: User = Depends(get_current_user), db=Depends(get_db)
+    document_id: str, current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
 ):
     """Extract entities from a document and add them to the knowledge graph"""
     try:

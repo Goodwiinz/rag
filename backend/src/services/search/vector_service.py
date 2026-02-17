@@ -286,12 +286,20 @@ class VectorService:
             }
 
             if filter_conditions:
-                # Convert Filter model to dict
-                # model_dump for Pydantic v2, dict for v1
+                # Convert Filter model to dict, stripping null values
+                # to avoid Qdrant v1.7 rejecting unknown fields like min_should
+                def _strip_nulls(obj):
+                    if isinstance(obj, dict):
+                        return {k: _strip_nulls(v) for k, v in obj.items() if v is not None}
+                    if isinstance(obj, list):
+                        return [_strip_nulls(i) for i in obj]
+                    return obj
+
                 if hasattr(query_filter, "model_dump"):
-                    payload["filter"] = query_filter.model_dump()
+                    raw = query_filter.model_dump()
                 else:
-                    payload["filter"] = query_filter.dict()
+                    raw = query_filter.dict()
+                payload["filter"] = _strip_nulls(raw)
             
             # Keep this path synchronous to match the service method contract.
             with httpx.Client(timeout=10.0) as client:
@@ -385,6 +393,80 @@ class VectorService:
                 message=f"Failed to delete vectors",
                 error=str(e),
                 processing_time=processing_time,
+            )
+
+    def _scroll_point_ids_by_document_id(
+        self,
+        collection_type: VectorCollectionType,
+        document_id: str,
+        page_size: int = 256,
+    ) -> List[Union[str, int]]:
+        """Fetch point IDs for a document using Qdrant scroll API."""
+        collection_name = collection_type.value
+        url = f"{settings.QDRANT_URL}/collections/{collection_name}/points/scroll"
+        headers = {"Content-Type": "application/json"}
+        if settings.QDRANT_API_KEY:
+            headers["api-key"] = settings.QDRANT_API_KEY
+
+        all_ids: List[Union[str, int]] = []
+        next_offset = None
+
+        with httpx.Client(timeout=10.0) as client:
+            while True:
+                payload: Dict[str, Any] = {
+                    "limit": page_size,
+                    "with_payload": False,
+                    "with_vector": False,
+                    "filter": {
+                        "must": [
+                            {
+                                "key": "document_id",
+                                "match": {"value": document_id},
+                            }
+                        ]
+                    },
+                }
+                if next_offset is not None:
+                    payload["offset"] = next_offset
+
+                response = client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                body = response.json().get("result", {})
+                points = body.get("points", [])
+                all_ids.extend(
+                    [p.get("id") for p in points if isinstance(p, dict) and "id" in p]
+                )
+
+                next_offset = body.get("next_page_offset")
+                if next_offset is None or not points:
+                    break
+
+        return all_ids
+
+    def delete_vectors_by_document(
+        self, collection_type: VectorCollectionType, document_id: str
+    ) -> VectorOperationResult:
+        """Delete all vectors belonging to a specific document."""
+        start_time = time.time()
+        try:
+            point_ids = self._scroll_point_ids_by_document_id(collection_type, document_id)
+            if not point_ids:
+                return VectorOperationResult(
+                    success=True,
+                    message=f"No vectors found for document {document_id}",
+                    processing_time=time.time() - start_time,
+                )
+
+            return self.delete_vectors(
+                collection_type=collection_type,
+                vector_ids=[str(point_id) for point_id in point_ids],
+            )
+        except Exception as e:
+            return VectorOperationResult(
+                success=False,
+                message=f"Failed to delete vectors for document {document_id}",
+                error=str(e),
+                processing_time=time.time() - start_time,
             )
 
     def get_collection_stats(

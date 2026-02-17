@@ -222,14 +222,25 @@ class VectorSearchService:
     ) -> VectorSearchResponse:
         """Search for similar documents"""
         try:
-            # Generate embedding for query - use Azure OpenAI to match indexed vectors (1536d)
-            # Force Azure provider since indexed vectors are 1536d from Azure OpenAI
-            embedding_request = EmbeddingRequest(text=query, provider="azure_openai")
-            embedding_response = asyncio.run(
-                self.embedding_service.generate_embedding(embedding_request)
-            )
+            # Generate embedding synchronously via Azure OpenAI client (avoids asyncio.run issues in thread pool)
+            from src.services.infrastructure.azure_openai_service import azure_openai_service
 
-            if not embedding_response.embedding:
+            if azure_openai_service.is_embedding_available():
+                deployment = azure_openai_service.get_embedding_deployment()
+                response = azure_openai_service.embedding_client.embeddings.create(
+                    input=[query],
+                    model=deployment,
+                )
+                query_embedding = response.data[0].embedding
+            else:
+                # Fallback to async path
+                embedding_request = EmbeddingRequest(text=query, provider="azure_openai")
+                embedding_response = asyncio.run(
+                    self.embedding_service.generate_embedding(embedding_request)
+                )
+                query_embedding = embedding_response.embedding
+
+            if not query_embedding:
                 return VectorSearchResponse(
                     results=[],
                     total_found=0,
@@ -250,7 +261,7 @@ class VectorSearchService:
 
             # Search in vector database
             result = self.vector_service.search_vectors(
-                request=search_request, query_vector=embedding_response.embedding
+                request=search_request, query_vector=query_embedding
             )
 
             return result
@@ -436,13 +447,9 @@ class VectorSearchService:
     def delete_document_vectors(self, document_id: str) -> VectorOperationResult:
         """Delete all vectors associated with a document"""
         try:
-            # This is a simplified approach - in practice you might want to
-            # search for vectors by document_id and delete them
-            # For now, we'll return success as the concept is implemented
-            return VectorOperationResult(
-                success=True,
-                message=f"Document vectors deletion implemented (need document_id search)",
-                processing_time=0.0,
+            return self.vector_service.delete_vectors_by_document(
+                collection_type=VectorCollectionType.DOCUMENT_CHUNKS,
+                document_id=document_id,
             )
 
         except Exception as e:
@@ -483,21 +490,145 @@ class VectorSearchService:
         """Get vector database health status"""
         return self.vector_service.get_health_status().dict()
 
-    def reindex_all_content(
-        self, organization_id: str, batch_size: int = 100
-    ) -> Dict[str, Any]:
-        """Reindex all content for an organization (placeholder implementation)"""
-        # This would typically involve:
-        # 1. Fetching all documents from the database
-        # 2. Clearing existing vectors for the organization
-        # 3. Re-indexing all content with current embedding model
+    def _load_documents_for_reindex(self, organization_id: str) -> List[Any]:
+        """Load candidate documents for reindexing from the database."""
+        from src.core.database import get_db_sync
+        from src.models.document import Document, ProcessingStatus
 
-        return {
+        db = next(get_db_sync())
+        try:
+            return (
+                db.query(Document)
+                .filter(
+                    Document.organization_id == organization_id,
+                    Document.is_deleted.is_(False),
+                    Document.processing_status == ProcessingStatus.COMPLETED,
+                )
+                .order_by(Document.created_at.desc())
+                .all()
+            )
+        finally:
+            db.close()
+
+    def _is_arxiv_document(self, document: Any) -> bool:
+        """Heuristic check for arXiv-origin documents."""
+        metadata = getattr(document, "document_metadata", {}) or {}
+        source = str(metadata.get("source", "")).lower()
+        title = str(getattr(document, "title", "")).lower()
+        filename = str(getattr(document, "filename", "")).lower()
+
+        return bool(
+            metadata.get("arxiv_id")
+            or "arxiv" in source
+            or title.startswith("arxiv")
+            or "arxiv" in filename
+        )
+
+    def reindex_all_content(
+        self,
+        organization_id: str,
+        batch_size: int = 100,
+        arxiv_only: bool = False,
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """Reindex organization content with current embedding model."""
+        started_at = datetime.utcnow()
+        documents = self._load_documents_for_reindex(organization_id)
+        if arxiv_only:
+            documents = [doc for doc in documents if self._is_arxiv_document(doc)]
+
+        model_info = self.get_embedding_model_info()
+        embedding_model = model_info.get("model", "unknown")
+
+        result = {
             "success": True,
-            "message": "Reindexing workflow implemented",
             "organization_id": organization_id,
             "batch_size": batch_size,
+            "arxiv_only": arxiv_only,
+            "dry_run": dry_run,
+            "embedding_model": embedding_model,
+            "total_candidates": len(documents),
+            "processed": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "skipped_no_content": 0,
+            "failures": [],
+            "started_at": started_at.isoformat(),
         }
+
+        if dry_run:
+            result["message"] = (
+                f"Dry run completed for {len(documents)} candidate documents"
+            )
+            result["finished_at"] = datetime.utcnow().isoformat()
+            return result
+
+        for index, document in enumerate(documents, start=1):
+            content_text = (getattr(document, "content_text", "") or "").strip()
+            if not content_text:
+                result["skipped_no_content"] += 1
+                continue
+
+            document_id = str(getattr(document, "id"))
+            document_metadata = getattr(document, "document_metadata", {}) or {}
+            source_type = document_metadata.get("source", "document")
+            content_type = (
+                document.document_type.value
+                if hasattr(document.document_type, "value")
+                else str(getattr(document, "document_type", "text"))
+            )
+
+            delete_result = self.delete_document_vectors(document_id)
+            if not delete_result.success:
+                result["failed"] += 1
+                result["failures"].append(
+                    {
+                        "document_id": document_id,
+                        "stage": "delete",
+                        "error": delete_result.error or delete_result.message,
+                    }
+                )
+                continue
+
+            index_result = self.index_document(
+                document_id=document_id,
+                text=content_text,
+                organization_id=organization_id,
+                content_type=content_type,
+                source_type=source_type,
+                metadata={
+                    **document_metadata,
+                    "title": getattr(document, "title", ""),
+                    "reindexed_at": datetime.utcnow().isoformat(),
+                    "reindexed_with_model": embedding_model,
+                },
+            )
+
+            result["processed"] += 1
+            if index_result.success:
+                result["succeeded"] += 1
+            else:
+                result["failed"] += 1
+                result["failures"].append(
+                    {
+                        "document_id": document_id,
+                        "stage": "index",
+                        "error": index_result.error or index_result.message,
+                    }
+                )
+
+            if index % batch_size == 0:
+                logger.info(
+                    f"Reindex progress for org {organization_id}: "
+                    f"{index}/{len(documents)} candidates processed"
+                )
+
+        result["finished_at"] = datetime.utcnow().isoformat()
+        result["message"] = (
+            f"Reindexed {result['succeeded']} of {result['processed']} processed documents"
+        )
+        result["success"] = result["failed"] == 0
+        return result
 
     def update_document_index(
         self,

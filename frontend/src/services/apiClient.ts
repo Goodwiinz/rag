@@ -179,6 +179,11 @@ class ApiClient {
 
           // If it has the nested error property, use it directly
           if (errorData.error && typeof errorData.error === 'object' && !Array.isArray(errorData.error)) {
+            const normalizedMessage = (errorData.error.message || error.message || '').toLowerCase();
+            const isServiceUnavailable =
+              (errorData.error.status_code || error.response.status || 500) === 503 ||
+              normalizedMessage.includes('service unavailable') ||
+              normalizedMessage.includes('circuit breaker');
             // Ensure mandatory fields are present
             const errorPayload = {
               message: errorData.error.message || 'An error occurred',
@@ -186,7 +191,7 @@ class ApiClient {
               type: errorData.error.type || 'http_error',
               details: errorData.error.details,
               timestamp: errorData.error.timestamp,
-              silent: errorData.error.silent
+              silent: errorData.error.silent ?? isServiceUnavailable
             };
             return Promise.reject(new APIErrorClass(errorPayload));
           }
@@ -298,13 +303,18 @@ class ApiClient {
           
           // If it has the nested error property, use it directly (matching main client logic)
           if (errorData.error && typeof errorData.error === 'object' && !Array.isArray(errorData.error)) {
-             const errorPayload = {
+            const normalizedMessage = (errorData.error.message || error.message || '').toLowerCase();
+            const isServiceUnavailable =
+              (errorData.error.status_code || error.response.status || 500) === 503 ||
+              normalizedMessage.includes('service unavailable') ||
+              normalizedMessage.includes('circuit breaker');
+            const errorPayload = {
               message: errorData.error.message || 'An error occurred',
               status_code: errorData.error.status_code || error.response.status || 500,
               type: errorData.error.type || 'http_error',
               details: errorData.error.details,
               timestamp: errorData.error.timestamp,
-              silent: errorData.error.silent
+              silent: errorData.error.silent ?? isServiceUnavailable
             };
             return Promise.reject(new APIErrorClass(errorPayload));
           }

@@ -4,6 +4,7 @@ Hybrid Search Service that combines vector, graph, and full-text search results
 
 import asyncio
 import logging
+import statistics
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -151,6 +152,198 @@ class HybridSearchService:
             logger.error(f"Error performing hybrid search: {e}")
             # Fallback to full-text search if hybrid fails
             return self._fallback_to_fulltext(search_request, user_id, organization_id)
+
+    def search_with_diagnostics(
+        self,
+        search_request: SearchQuery,
+        user_id: str = None,
+        organization_id: str = None,
+        db: Session = None,
+        weights_override: Optional[Dict[str, float]] = None,
+    ) -> Tuple[SearchResponse, "RetrievalTrace"]:
+        """
+        Perform hybrid search with full diagnostic instrumentation.
+
+        Same pipeline as search() but captures per-source timing, fusion stats,
+        reranking deltas, and returns a RetrievalTrace alongside the response.
+
+        Args:
+            search_request: Search query and parameters
+            user_id: ID of user performing search
+            organization_id: ID of organization for filtering
+            db: Database session
+            weights_override: Optional dict of {fulltext, vector, knowledge_graph} weights
+                              for experimentation. Must sum to 1.0.
+
+        Returns:
+            Tuple of (SearchResponse, RetrievalTrace)
+        """
+        from src.services.diagnostics.retrieval_diagnostics import (
+            FusionDiagnostics,
+            RerankDiagnostics,
+            RetrievalTrace,
+            SourceDiagnostics,
+        )
+
+        start_time = time.time()
+        trace = RetrievalTrace(query=search_request.query, search_type=search_request.search_type or "hybrid")
+
+        effective_weights = {
+            "fulltext": self.fulltext_weight,
+            "vector": self.vector_weight,
+            "knowledge_graph": self.knowledge_graph_weight,
+        }
+        if weights_override:
+            effective_weights = {
+                "fulltext": weights_override.get("fulltext", self.fulltext_weight),
+                "vector": weights_override.get("vector", self.vector_weight),
+                "knowledge_graph": weights_override.get(
+                    "knowledge_graph", self.knowledge_graph_weight
+                ),
+            }
+
+        try:
+            # Step 1: Route query
+            search_sources = self._route_search_query(search_request)
+
+            # Step 2: Execute parallel searches with per-source diagnostics
+            source_results = self._execute_parallel_searches(
+                search_request, search_sources, user_id, organization_id, db
+            )
+
+            for source_type, source_result in source_results.items():
+                scores = [r.relevance_score for r in source_result.results]
+                trace.sources.append(
+                    SourceDiagnostics(
+                        source_type=source_type.value,
+                        search_time_ms=source_result.search_time_ms,
+                        result_count=len(source_result.results),
+                        total_available=source_result.total_available,
+                        success=source_result.success,
+                        error=source_result.error,
+                        top_scores=sorted(scores, reverse=True)[:5],
+                        avg_score=round(statistics.mean(scores), 4) if scores else 0.0,
+                    )
+                )
+
+            # Step 3: Fuse results with diagnostics
+            fusion_start = time.time()
+            fused_results = self._fuse_search_results(
+                source_results,
+                search_request,
+                source_weights=effective_weights,
+            )
+            fusion_time = (time.time() - fusion_start) * 1000
+
+            # Count raw input docs and multi-source docs
+            raw_input_count = sum(
+                len(sr.results) for sr in source_results.values() if sr.success
+            )
+            # Count docs appearing in multiple sources
+            doc_sources: Dict[str, int] = {}
+            for sr in source_results.values():
+                if sr.success:
+                    for r in sr.results:
+                        doc_sources[r.document_id] = doc_sources.get(r.document_id, 0) + 1
+            multi_source_count = sum(1 for c in doc_sources.values() if c > 1)
+
+            fused_scores = [r.relevance_score for r in fused_results]
+            score_dist = {}
+            if fused_scores:
+                score_dist = {
+                    "min": round(min(fused_scores), 4),
+                    "max": round(max(fused_scores), 4),
+                    "mean": round(statistics.mean(fused_scores), 4),
+                    "median": round(statistics.median(fused_scores), 4),
+                }
+
+            trace.fusion = FusionDiagnostics(
+                input_count=raw_input_count,
+                output_count=len(fused_results),
+                multi_source_count=multi_source_count,
+                weights_used=effective_weights,
+                score_distribution=score_dist,
+                fusion_time_ms=round(fusion_time, 2),
+            )
+
+            # Step 4: Rerank with diagnostics
+            if cohere_rerank_service.is_enabled and fused_results:
+                rerank_start = time.time()
+                pre_rerank_scores = {r.document_id: r.relevance_score for r in fused_results}
+
+                try:
+                    reranked = self._apply_cohere_reranking(
+                        search_request.query,
+                        fused_results,
+                        search_request.limit * 2,
+                    )
+                    rerank_time = (time.time() - rerank_start) * 1000
+
+                    score_deltas = []
+                    for r in reranked:
+                        before = pre_rerank_scores.get(r.document_id, 0.0)
+                        after = r.relevance_score
+                        score_deltas.append(
+                            {
+                                "doc_id": r.document_id,
+                                "before": round(before, 4),
+                                "after": round(after, 4),
+                                "delta": round(after - before, 4),
+                            }
+                        )
+
+                    trace.rerank = RerankDiagnostics(
+                        enabled=True,
+                        rerank_time_ms=round(rerank_time, 2),
+                        input_count=len(fused_results),
+                        output_count=len(reranked),
+                        score_deltas=score_deltas,
+                        fallback_used=False,
+                    )
+                    fused_results = reranked
+                except Exception as e:
+                    rerank_time = (time.time() - rerank_start) * 1000
+                    trace.rerank = RerankDiagnostics(
+                        enabled=True,
+                        rerank_time_ms=round(rerank_time, 2),
+                        input_count=len(fused_results),
+                        output_count=len(fused_results),
+                        fallback_used=True,
+                        error=str(e),
+                    )
+            else:
+                trace.rerank = RerankDiagnostics(enabled=False)
+
+            # Step 5: Final filtering
+            final_results = self._apply_final_filtering(
+                fused_results, search_request, organization_id
+            )
+
+            search_time_ms = (time.time() - start_time) * 1000
+            trace.total_time_ms = round(search_time_ms, 2)
+            trace.final_result_count = len(final_results)
+
+            response = SearchResponse(
+                query=search_request.query,
+                search_id=str(uuid.uuid4()),
+                search_type=SearchType.HYBRID,
+                results=final_results,
+                total_results=len(final_results),
+                returned_results=len(final_results),
+                search_time_ms=search_time_ms,
+                limit=search_request.limit,
+                offset=search_request.offset,
+                has_more=len(final_results) >= search_request.limit,
+                suggestions=self._get_hybrid_suggestions(search_request, source_results),
+            )
+
+            return response, trace
+
+        except Exception as e:
+            logger.error(f"Error in search_with_diagnostics: {e}")
+            trace.total_time_ms = round((time.time() - start_time) * 1000, 2)
+            fallback = self._fallback_to_fulltext(search_request, user_id, organization_id)
+            return fallback, trace
 
     def _route_search_query(
         self, search_request: SearchQuery
@@ -377,12 +570,18 @@ class HybridSearchService:
             # Convert to raw results
             raw_results = []
             for result in vector_result.results:
+                full_text = result.text or ""
+                result_metadata = dict(result.metadata.additional_data or {})
+                result_metadata.setdefault("full_text", full_text)
+                result_metadata.setdefault("text", full_text)
+                result_metadata.setdefault("source_type", "vector")
+
                 # Create SearchResult from VectorSearchResult
                 search_result = SearchResult(
                     document_id=result.metadata.document_id,
                     title=result.text[:100],  # Use text as title preview
                     document_type=DocumentType.TEXT,  # Default type
-                    content_preview=result.text[:300],
+                    content_preview=full_text[:300],
                     snippets=[],
                     relevance_score=result.score,
                     file_size_bytes=0,
@@ -395,7 +594,7 @@ class HybridSearchService:
                     organization_id=result.metadata.organization_id
                     or organization_id
                     or "",
-                    metadata=result.metadata.additional_data or {},
+                    metadata=result_metadata,
                 )
 
                 raw_results.append(
@@ -515,6 +714,7 @@ class HybridSearchService:
         self,
         source_results: Dict[SearchSourceType, SearchSourceResult],
         search_request: SearchQuery,
+        source_weights: Optional[Dict[str, float]] = None,
     ) -> List[RawSearchResult]:
         """
         Fuse results from multiple search sources using weighted scoring
@@ -546,7 +746,7 @@ class HybridSearchService:
                     }
 
                 # Add source-specific score
-                weight = self._get_source_weight(source_type)
+                weight = self._get_source_weight(source_type, source_weights=source_weights)
                 normalized_score = self._normalize_score(
                     result.relevance_score, source_type
                 )
@@ -602,14 +802,21 @@ class HybridSearchService:
 
         return fused_results
 
-    def _get_source_weight(self, source_type: SearchSourceType) -> float:
+    def _get_source_weight(
+        self,
+        source_type: SearchSourceType,
+        source_weights: Optional[Dict[str, float]] = None,
+    ) -> float:
         """Get weight for a specific search source"""
-        weights = {
+        if source_weights:
+            return source_weights.get(source_type.value, 0.33)
+
+        default_weights = {
             SearchSourceType.FULLTEXT: self.fulltext_weight,
             SearchSourceType.VECTOR: self.vector_weight,
             SearchSourceType.KNOWLEDGE_GRAPH: self.knowledge_graph_weight,
         }
-        return weights.get(source_type, 0.33)
+        return default_weights.get(source_type, 0.33)
 
     def _normalize_score(self, score: float, source_type: SearchSourceType) -> float:
         """Normalize score to 0-1 range for fusion"""
@@ -670,8 +877,11 @@ class HybridSearchService:
             for result in fused_results:
                 content = ""
                 if result.search_result:
+                    metadata = result.search_result.metadata or {}
                     content = (
-                        result.search_result.content_preview
+                        metadata.get("full_text")
+                        or metadata.get("text")
+                        or result.search_result.content_preview
                         or result.search_result.title
                         or ""
                     )
@@ -701,6 +911,21 @@ class HybridSearchService:
                     original.metadata["cohere_score"] = rr.relevance_score
                     original.metadata["original_score"] = rr.original_score
                     reranked.append(original)
+
+            fallback_info = cohere_rerank_service.last_failure
+            if fallback_info:
+                for result in reranked:
+                    result.metadata["cohere_fallback_used"] = True
+                    result.metadata["cohere_fallback_reason"] = fallback_info.get(
+                        "reason"
+                    )
+                    if "status_code" in fallback_info:
+                        result.metadata["cohere_status_code"] = fallback_info.get(
+                            "status_code"
+                        )
+            else:
+                for result in reranked:
+                    result.metadata["cohere_fallback_used"] = False
 
             logger.info(
                 f"Cohere reranking complete: {len(fused_results)} -> {len(reranked)} results"

@@ -102,7 +102,22 @@ export async function* streamChatMessage(
   options?: StreamChatOptions,
   signal?: AbortSignal
 ): AsyncGenerator<StreamEvent> {
-  const token = localStorage.getItem('auth-token');
+  // Read auth token from Zustand persisted storage, falling back to legacy keys
+  let token: string | null = null;
+  try {
+    const authStorage = localStorage.getItem('auth-storage');
+    if (authStorage) {
+      const auth = JSON.parse(authStorage);
+      token = auth.state?.token ?? null;
+    }
+  } catch {
+    // ignore parse errors
+  }
+  if (!token) {
+    token =
+      localStorage.getItem('access_token') ||
+      localStorage.getItem('auth-token');
+  }
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
