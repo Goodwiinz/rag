@@ -78,6 +78,14 @@ from .user import User, UserRole
 # Analytics models (import after base models to avoid circular dependencies)
 from .user_session import SessionStatus, UserSession
 
+# Research Engine models
+from .research_blueprint import ResearchBlueprint
+from .research_evidence import GroundingStatus, ResearchEvidence
+from .research_project import ResearchProject
+from .research_run import ResearchRun, RunStatus
+from .research_source import ResearchSource
+from .research_step import ExecutionMode, ResearchStep, StepType
+
 # Thread-centric chat models (Terminal Observatory)
 from .workspace import Workspace, WorkspaceMember, WorkspaceRole
 
@@ -179,4 +187,15 @@ __all__ = [
     "ExperimentAssignment",
     "ExperimentMetric",
     "ExperimentSegment",
+    # Research Engine models
+    "ResearchProject",
+    "ResearchBlueprint",
+    "ResearchRun",
+    "RunStatus",
+    "ResearchStep",
+    "StepType",
+    "ExecutionMode",
+    "ResearchSource",
+    "ResearchEvidence",
+    "GroundingStatus",
 ]
