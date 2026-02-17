@@ -1,0 +1,53 @@
+name: "Data Extraction"
+description: "Extract structured data from the RAG store according to a user-defined schema, validate against the schema and source grounding, and export as a JSON dataset."
+parameters:
+  query: ""
+  source: rag_store
+  extraction_schema: {}
+  max_documents: 20
+
+steps:
+  - type: search
+    name: "RAG Store Search"
+    description: "Search the internal RAG document store for documents matching the query."
+    parameters:
+      source: rag_store
+      max_results: 20
+    model_id: null
+    mode: deterministic
+    system_prompt_template: null
+
+  - type: extract
+    name: "Structured Data Extraction"
+    description: "Extract structured data from each document according to the user-defined extraction schema."
+    parameters:
+      schema: "{extraction_schema}"
+    model_id: "claude-sonnet-4-6"
+    mode: deterministic
+    system_prompt_template: >
+      Extract data from the document according to this schema: {extraction_schema}.
+      Return a JSON object matching the schema exactly.
+      If a field cannot be determined, use null.
+
+  - type: verify
+    name: "Schema and Grounding Validation"
+    description: "Validate that extracted data conforms to the schema and that values are grounded in source text."
+    parameters:
+      validate_schema: true
+      validate_grounding: true
+    model_id: "claude-sonnet-4-6"
+    mode: deterministic
+    system_prompt_template: >
+      Validate the extracted data:
+      1. Check each field against the schema for type and format correctness.
+      2. Verify each extracted value is grounded in the source document.
+      Flag any validation failures with field name, expected, and actual values.
+
+  - type: export
+    name: "JSON Dataset Export"
+    description: "Export all validated extracted data as a structured JSON dataset."
+    parameters:
+      format: json
+    model_id: null
+    mode: deterministic
+    system_prompt_template: null
