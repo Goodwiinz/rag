@@ -98,8 +98,10 @@ def generate_api_key() -> tuple[str, str]:
     return raw_key, key_hash
 
 def verify_api_key(raw_key: str, key_hash: str) -> bool:
-    """Verify API key against hash"""
-    return hashlib.sha256(raw_key.encode()).hexdigest() == key_hash
+    """Verify API key against hash using constant-time comparison"""
+    return secrets.compare_digest(
+        hashlib.sha256(raw_key.encode()).hexdigest(), key_hash
+    )
 
 # Rate limiter for API key endpoints
 api_key_rate_limiter = RateLimiter(max_attempts=1000, window_minutes=60)
