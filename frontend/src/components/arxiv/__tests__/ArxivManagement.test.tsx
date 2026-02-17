@@ -1,7 +1,6 @@
-import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ArxivManagement from '@/components/arxiv/ArxivManagement';
 import { apiClient } from '@/services/apiClient';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 jest.mock('@/services/apiClient', () => ({
   apiClient: {

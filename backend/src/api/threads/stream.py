@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.research.chat import RAG_SYSTEM_PROMPT, build_context_prompt, retrieve_context
-from src.core.database import get_db
+from src.core.database import AsyncSessionLocal, get_db
 from src.core.dependencies import get_current_user
 from src.models.user import User
 from src.services.infrastructure.azure_openai_service import azure_openai_service
@@ -71,7 +71,6 @@ async def stream_thread_chat(
     body: StreamRequest,
     request: Request,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
     """
     Stream an LLM response for a thread message via Server-Sent Events.
@@ -81,6 +80,10 @@ async def stream_thread_chat(
     3. Streams LLM tokens as SSE events
     4. Persists the assistant response
     5. Broadcasts ``message_created`` via WebSocket
+
+    NOTE: The database session is created inside the async generator rather than
+    via Depends(get_db). FastAPI's dependency cleanup can close the session while
+    the streaming generator is still running, causing MissingGreenlet errors.
     """
 
     # ---- Concurrent-stream guard ----
@@ -90,70 +93,72 @@ async def stream_thread_chat(
             detail="A stream is already active on this thread.",
         )
 
-    # ---- Build services ----
-    chat_service = ChatService(db)
-    stream_service = StreamService(
-        chat_service=chat_service,
-        openai_service=azure_openai_service,
-        retrieve_context_fn=retrieve_context,
-        build_context_prompt_fn=build_context_prompt,
-        rag_system_prompt=RAG_SYSTEM_PROMPT,
-    )
-
     # ---- Inner async generator ----
+    # The DB session is created here (not via Depends) so its lifecycle is
+    # fully controlled within the generator, preventing MissingGreenlet errors.
     async def _event_generator():
         _active_streams.add(thread_id)
-        try:
-            async for sse_event in stream_service.stream_response(
-                thread_id=thread_id,
-                user_id=current_user.id,
-                content=body.content,
-                use_rag=body.use_rag,
-                temperature=body.temperature,
-                max_tokens=body.max_tokens,
-            ):
-                # Check for client disconnect
-                if await request.is_disconnected():
-                    logger.info(
-                        f"Client disconnected from stream on thread {thread_id}"
-                    )
-                    break
+        async with AsyncSessionLocal() as db:
+            chat_service = ChatService(db)
+            stream_service = StreamService(
+                chat_service=chat_service,
+                openai_service=azure_openai_service,
+                retrieve_context_fn=retrieve_context,
+                build_context_prompt_fn=build_context_prompt,
+                rag_system_prompt=RAG_SYSTEM_PROMPT,
+            )
 
-                yield sse_event.format()
-
-                # After the final message_done event, broadcast via WebSocket
-                if sse_event.event == "message_done":
-                    try:
-                        thread = await chat_service.get_thread(
-                            thread_id, current_user.id
+            try:
+                async for sse_event in stream_service.stream_response(
+                    thread_id=thread_id,
+                    user_id=current_user.id,
+                    content=body.content,
+                    use_rag=body.use_rag,
+                    temperature=body.temperature,
+                    max_tokens=body.max_tokens,
+                ):
+                    # Check for client disconnect
+                    if await request.is_disconnected():
+                        logger.info(
+                            f"Client disconnected from stream on thread {thread_id}"
                         )
-                        if thread:
-                            await thread_event_service.broadcast_message_created(
-                                message_id=sse_event.data.get("message_id", ""),
-                                thread_id=str(thread_id),
-                                conversation_id=str(thread.conversation_id),
-                                user_id=str(current_user.id),
-                                role="assistant",
-                                content_preview=None,
-                                has_citations=False,
+                        break
+
+                    yield sse_event.format()
+
+                    # After the final message_done event, broadcast via WebSocket
+                    if sse_event.event == "message_done":
+                        try:
+                            thread = await chat_service.get_thread(
+                                thread_id, current_user.id
                             )
-                    except Exception as exc:
-                        logger.error(
-                            f"Failed to broadcast message_created event: {exc}"
-                        )
+                            if thread:
+                                await thread_event_service.broadcast_message_created(
+                                    message_id=sse_event.data.get("message_id", ""),
+                                    thread_id=str(thread_id),
+                                    conversation_id=str(thread.conversation_id),
+                                    user_id=str(current_user.id),
+                                    role="assistant",
+                                    content_preview=None,
+                                    has_citations=False,
+                                )
+                        except Exception as exc:
+                            logger.error(
+                                f"Failed to broadcast message_created event: {exc}"
+                            )
 
-        except Exception as exc:
-            logger.error(
-                f"Unexpected error during stream on thread {thread_id}: {exc}",
-                exc_info=True,
-            )
-            error_event = SSEEvent(
-                event="error",
-                data={"code": "stream_error", "message": str(exc)},
-            )
-            yield error_event.format()
-        finally:
-            _active_streams.discard(thread_id)
+            except Exception as exc:
+                logger.error(
+                    f"Unexpected error during stream on thread {thread_id}: {exc}",
+                    exc_info=True,
+                )
+                error_event = SSEEvent(
+                    event="error",
+                    data={"code": "stream_error", "message": str(exc)},
+                )
+                yield error_event.format()
+            finally:
+                _active_streams.discard(thread_id)
 
     return StreamingResponse(
         _event_generator(),

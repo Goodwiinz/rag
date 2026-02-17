@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from src.core.database import get_db
+from src.core.database import get_db, get_db_sync
 from src.core.dependencies import get_current_user
 from src.core.api_key_auth import get_api_key_data, APIKeyData, APIKeyUsageLog
 from src.services.search.fulltext_search_service import fulltext_search_service
@@ -40,7 +40,7 @@ async def search_documents(
     search_request: SearchQuery,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     Perform search on documents with multiple search modalities
@@ -118,7 +118,7 @@ async def hybrid_search(
     search_request: SearchQuery,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     Perform hybrid search combining vector, full-text, and knowledge graph search
@@ -159,7 +159,7 @@ async def get_search_suggestions(
     ),
     limit: int = Query(default=5, ge=1, le=20, description="Number of suggestions"),
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     Get search suggestions for auto-completion
@@ -253,7 +253,7 @@ async def get_search_analytics(
 
 @router.post("/indexes/rebuild")
 async def rebuild_search_indexes(
-    current_user: User = Depends(get_current_user), db=Depends(get_db)
+    current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
 ):
     """
     Rebuild full-text search indexes (admin only)
@@ -304,7 +304,7 @@ async def rebuild_search_indexes(
 
 @router.get("/indexes", response_model=List[SearchIndex])
 async def get_search_indexes(
-    current_user: User = Depends(get_current_user), db=Depends(get_db)
+    current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
 ):
     """
     Get information about search indexes
@@ -350,7 +350,7 @@ async def get_search_indexes(
 
 @router.post("/documents/{document_id}/reindex")
 async def reindex_document(
-    document_id: str, current_user: User = Depends(get_current_user), db=Depends(get_db)
+    document_id: str, current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
 ):
     """
     Rebuild search vector for a specific document
@@ -464,7 +464,7 @@ async def submit_search_feedback(
 
 @router.get("/health")
 async def search_health_check(
-    current_user: User = Depends(get_current_user), db=Depends(get_db)
+    current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
 ):
     """
     Health check for all search functionality including hybrid search

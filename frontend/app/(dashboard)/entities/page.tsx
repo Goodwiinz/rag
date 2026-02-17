@@ -34,8 +34,31 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useEntityPermissions } from '@/hooks/useEntityPermissions';
 import { Entity, EntityType, GraphEdge } from '@/types/entity';
 import { entityService, PaginatedEntitiesResponse } from '@/services/entityService';
+import { APIErrorClass } from '@/types/api';
 import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
+
+const isServiceUnavailableError = (error: unknown): boolean => {
+  if (error instanceof APIErrorClass) {
+    const message = error.error.message?.toLowerCase() || '';
+    return (
+      error.error.status_code >= 500 ||
+      message.includes('service unavailable') ||
+      message.includes('circuit breaker')
+    );
+  }
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return message.includes('service unavailable') || message.includes('circuit breaker');
+};
+
+const logEntityPageError = (context: string, error: unknown) => {
+  if (isServiceUnavailableError(error)) {
+    console.warn(`${context}:`, error);
+    return;
+  }
+  console.error(`${context}:`, error);
+};
 
 function EntityManagementContent() {
   const router = useRouter();
@@ -120,7 +143,7 @@ function EntityManagementContent() {
         setAvailableRelationshipTypes(relationshipTypes);
         setTypeCounts(analytics.entity_type_counts || {});
       } catch (error) {
-        console.error('Error fetching types and analytics:', error);
+        logEntityPageError('Error fetching types and analytics', error);
         toast.error('Failed to load entity types and analytics');
       }
     };
@@ -160,7 +183,7 @@ function EntityManagementContent() {
       setEntities(convertedEntities);
       setTotalEntities(paginatedResponse.total);
     } catch (error) {
-      console.error('Error fetching entities:', error);
+      logEntityPageError('Error fetching entities', error);
       toast.error('Failed to fetch entities');
       setEntities([]);
       setTotalEntities(0);
@@ -176,7 +199,7 @@ function EntityManagementContent() {
       const rels = await entityService.getAllRelationships(500);
       setRelationships(rels);
     } catch (error) {
-      console.error('Error fetching relationships:', error);
+      logEntityPageError('Error fetching relationships', error);
       setRelationships([]);
     } finally {
       setRelationshipsLoading(false);
@@ -323,7 +346,7 @@ function EntityManagementContent() {
       setEditDialogOpen(false);
       toast.success('Entity updated successfully');
     } catch (error) {
-      console.error('Error updating entity:', error);
+      logEntityPageError('Error updating entity', error);
       toast.error('Failed to update entity');
     }
   };
@@ -338,7 +361,7 @@ function EntityManagementContent() {
       await fetchEntities();
       toast.success('Entity deleted successfully');
     } catch (error) {
-      console.error('Error deleting entity:', error);
+      logEntityPageError('Error deleting entity', error);
       toast.error('Failed to delete entity');
     }
   };
@@ -378,7 +401,7 @@ function EntityManagementContent() {
         fetchRelationships();
       }
     } catch (error) {
-      console.error('Error creating relationship:', error);
+      logEntityPageError('Error creating relationship', error);
       toast.error('Failed to create relationship');
     }
   };
@@ -752,7 +775,7 @@ function EntityManagementContent() {
                     setEditDialogOpen(false);
                     fetchEntities();
                   } catch (error) {
-                    console.error('Error creating entity:', error);
+                    logEntityPageError('Error creating entity', error);
                     toast.error('Failed to create entity');
                   }
                 }

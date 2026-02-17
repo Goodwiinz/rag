@@ -4,12 +4,13 @@ Processing pipeline API endpoints
 
 from datetime import datetime, timedelta
 from typing import List, Optional
+from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.core.database import get_db
+from src.core.database import get_db_sync
 from src.core.dependencies import (
     get_current_organization,
     get_current_user,
@@ -29,16 +30,17 @@ router = APIRouter(prefix="/processing", tags=["processing"])
 
 # Request/Response Models
 class ProcessingJobResponse(BaseModel):
-    id: str
+    id: UUID
     job_type: str
     status: str
     progress_percentage: float
     current_step: Optional[str]
-    created_at: str
-    started_at: Optional[str]
-    completed_at: Optional[str]
+    created_at: datetime
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
     duration_seconds: Optional[float]
     error_message: Optional[str]
+    result: Optional[dict] = None
 
 
 class ProcessingStatusResponse(BaseModel):
@@ -121,7 +123,7 @@ async def get_processing_job_status(
     job_id: str,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     """Get status of a specific processing job"""
     job = (
@@ -142,27 +144,27 @@ async def get_processing_job_status(
 
 @router.get("/jobs")
 async def list_processing_jobs(
-    status: Optional[str] = None,
+    status_filter: Optional[str] = Query(default=None, alias="status"),
     job_type: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     """List processing jobs for the organization"""
     query = db.query(ProcessingJob).filter(
         ProcessingJob.organization_id == organization.id
     )
 
-    if status:
+    if status_filter:
         try:
-            job_status = JobStatus(status)
+            job_status = JobStatus(status_filter)
             query = query.filter(ProcessingJob.status == job_status)
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid status: {status}",
+                detail=f"Invalid status: {status_filter}",
             )
 
     if job_type:
@@ -307,7 +309,7 @@ async def cancel_processing_job(
     job_id: str,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     """Cancel a processing job"""
     job = (
@@ -453,7 +455,7 @@ async def cleanup_old_jobs(
     days: int = 30,
     current_user: User = Depends(require_admin),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     """Clean up old processing jobs (admin only)"""
     try:

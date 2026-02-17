@@ -8,7 +8,7 @@ import os
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import tiktoken
-from openai import AzureOpenAI
+from openai import AzureOpenAI, OpenAI
 
 from src.core.config import settings
 
@@ -24,6 +24,11 @@ class AzureOpenAIService:
         self.chat_client = None
         self._initialize_clients()
 
+    @staticmethod
+    def _is_openai_compatible(endpoint: str) -> bool:
+        """Check if endpoint uses OpenAI-compatible format (e.g. Azure AI Services /v1/)"""
+        return "/v1" in endpoint or "services.ai.azure.com" in endpoint
+
     def _initialize_clients(self):
         """Initialize Azure OpenAI clients with separate endpoints for chat and embeddings"""
         try:
@@ -36,12 +41,19 @@ class AzureOpenAIService:
             )
 
             if chat_endpoint and chat_api_key:
-                self.client = AzureOpenAI(
-                    api_key=chat_api_key,
-                    azure_endpoint=chat_endpoint,
-                    api_version=settings.AZURE_OPENAI_CHAT_API_VERSION,
-                )
-                logger.info(f"Chat client initialized with endpoint: {chat_endpoint}")
+                if self._is_openai_compatible(chat_endpoint):
+                    self.client = OpenAI(
+                        api_key=chat_api_key,
+                        base_url=chat_endpoint,
+                    )
+                    logger.info(f"Chat client initialized (OpenAI-compat) with endpoint: {chat_endpoint}")
+                else:
+                    self.client = AzureOpenAI(
+                        api_key=chat_api_key,
+                        azure_endpoint=chat_endpoint,
+                        api_version=settings.AZURE_OPENAI_CHAT_API_VERSION,
+                    )
+                    logger.info(f"Chat client initialized (Azure) with endpoint: {chat_endpoint}")
 
             # Initialize embedding client with embedding endpoint and API key
             embedding_endpoint = (
@@ -53,22 +65,37 @@ class AzureOpenAIService:
             )
 
             if embedding_endpoint and embedding_api_key:
-                self.embedding_client = AzureOpenAI(
-                    api_key=embedding_api_key,
-                    azure_endpoint=embedding_endpoint,
-                    api_version=settings.AZURE_OPENAI_EMBEDDING_API_VERSION,
-                )
-                logger.info(
-                    f"Embedding client initialized with endpoint: {embedding_endpoint}"
-                )
+                if self._is_openai_compatible(embedding_endpoint):
+                    self.embedding_client = OpenAI(
+                        api_key=embedding_api_key,
+                        base_url=embedding_endpoint,
+                    )
+                    logger.info(
+                        f"Embedding client initialized (OpenAI-compat) with endpoint: {embedding_endpoint}"
+                    )
+                else:
+                    self.embedding_client = AzureOpenAI(
+                        api_key=embedding_api_key,
+                        azure_endpoint=embedding_endpoint,
+                        api_version=settings.AZURE_OPENAI_EMBEDDING_API_VERSION,
+                    )
+                    logger.info(
+                        f"Embedding client initialized (Azure) with endpoint: {embedding_endpoint}"
+                    )
 
             # For backwards compatibility, also initialize a general client
             if settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_API_KEY:
-                self.chat_client = AzureOpenAI(
-                    api_key=settings.AZURE_OPENAI_API_KEY,
-                    azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-                    api_version=settings.AZURE_OPENAI_API_VERSION,
-                )
+                if self._is_openai_compatible(settings.AZURE_OPENAI_ENDPOINT):
+                    self.chat_client = OpenAI(
+                        api_key=settings.AZURE_OPENAI_API_KEY,
+                        base_url=settings.AZURE_OPENAI_ENDPOINT,
+                    )
+                else:
+                    self.chat_client = AzureOpenAI(
+                        api_key=settings.AZURE_OPENAI_API_KEY,
+                        azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+                        api_version=settings.AZURE_OPENAI_API_VERSION,
+                    )
                 logger.info(
                     f"General client initialized with endpoint: {settings.AZURE_OPENAI_ENDPOINT}"
                 )
@@ -129,7 +156,7 @@ class AzureOpenAIService:
             embeddings = []
             for text in texts:
                 response = self.embedding_client.embeddings.create(
-                    input=text,
+                    input=[text],
                     model=deployment_name,  # In Azure OpenAI, this is the deployment name
                 )
                 embeddings.append(response.data[0].embedding)
