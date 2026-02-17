@@ -24,6 +24,8 @@ export interface ChatMessageProps {
   index: number;
   modelName?: string;
   isTyping?: boolean;
+  isStreaming?: boolean;
+  streamingContent?: string;
   onRetry?: () => void;
   onCitationClick?: (citations: Citation[], clickedCitation: Citation) => void;
 }
@@ -37,6 +39,8 @@ export function ChatMessage({
   index,
   modelName,
   isTyping,
+  isStreaming,
+  streamingContent,
   onRetry,
   onCitationClick,
 }: ChatMessageProps) {
@@ -63,9 +67,12 @@ export function ChatMessage({
       transition={{
         duration: 0.4,
         delay: index * 0.03,
-        ease: [0.25, 0.46, 0.45, 0.94]
+        ease: [0.25, 0.46, 0.45, 0.94],
       }}
-      className={cn('group relative mb-6', isUser ? 'ml-12 sm:ml-16' : 'mr-12 sm:mr-16')}
+      className={cn(
+        'group relative mb-6',
+        isUser ? 'ml-12 sm:ml-16' : 'mr-12 sm:mr-16'
+      )}
     >
       {/* Transmission Line with glow effect */}
       <div
@@ -89,16 +96,20 @@ export function ChatMessage({
         {!isUser && (
           <>
             <div className="flex items-center gap-2">
-              <div className={cn(
-                "w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)]",
-                isTyping ? "animate-pulse" : "signal-active"
-              )} />
+              <div
+                className={cn(
+                  'w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)]',
+                  isTyping || isStreaming ? 'animate-pulse' : 'signal-active'
+                )}
+              />
               <span className="text-[var(--phosphor-green)] uppercase tracking-wider">
-                {isTyping ? 'STREAMING' : 'RESPONSE'}
+                {isTyping || isStreaming ? 'STREAMING' : 'RESPONSE'}
               </span>
             </div>
             {modelName && (
-              <span className="text-[var(--terminal-text-muted)]">[{modelName}]</span>
+              <span className="text-[var(--terminal-text-muted)]">
+                [{modelName}]
+              </span>
             )}
           </>
         )}
@@ -114,12 +125,18 @@ export function ChatMessage({
           <button
             onClick={handleCopy}
             className={cn(
-              "p-1 rounded hover:bg-[var(--terminal-elevated)] transition-all",
-              copied ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)]"
+              'p-1 rounded hover:bg-[var(--terminal-elevated)] transition-all',
+              copied
+                ? 'text-[var(--phosphor-green)]'
+                : 'text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)]'
             )}
-            title={copied ? "Copied!" : "Copy message"}
+            title={copied ? 'Copied!' : 'Copy message'}
           >
-            {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            {copied ? (
+              <Check className="w-3 h-3" />
+            ) : (
+              <Copy className="w-3 h-3" />
+            )}
           </button>
           {isUser && onRetry && (
             <button
@@ -145,15 +162,41 @@ export function ChatMessage({
         <div className="absolute inset-0 holo-shimmer opacity-30" />
 
         <div className="relative p-4">
-          {isTyping && !message.content ? (
+          {isStreaming && !streamingContent ? (
+            /* Streaming: waiting for first token - show pulsing cursor */
+            <div
+              className="text-sm leading-relaxed text-[var(--terminal-text)]"
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            >
+              <span className="inline-block w-2 h-4 bg-[#00ff9f] animate-pulse ml-0.5" />
+            </div>
+          ) : isStreaming && streamingContent ? (
+            /* Streaming: rendering incoming tokens with cursor */
+            <div
+              className="text-sm leading-relaxed text-[var(--terminal-text)]"
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            >
+              <span className="whitespace-pre-wrap">{streamingContent}</span>
+              <span className="inline-block w-2 h-4 bg-[#00ff9f] animate-pulse ml-0.5" />
+            </div>
+          ) : isTyping && !message.content ? (
             <div
               className="flex items-center gap-3 text-[var(--phosphor-green)] text-sm"
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
               <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span
+                  className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-bounce"
+                  style={{ animationDelay: '0ms' }}
+                />
+                <span
+                  className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-bounce"
+                  style={{ animationDelay: '150ms' }}
+                />
+                <span
+                  className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-bounce"
+                  style={{ animationDelay: '300ms' }}
+                />
               </div>
               <span className="opacity-70">Generating response...</span>
             </div>
@@ -173,7 +216,10 @@ export function ChatMessage({
                   citations={message.citations as Citation[]}
                   onCitationClick={(citation) => {
                     if (onCitationClick && message.citations) {
-                      onCitationClick(message.citations as Citation[], citation);
+                      onCitationClick(
+                        message.citations as Citation[],
+                        citation
+                      );
                     }
                   }}
                 />
