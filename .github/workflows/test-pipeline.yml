@@ -436,13 +436,16 @@ jobs:
           sudo rm -rf /usr/share/dotnet || true
           sudo rm -rf /opt/ghc || true
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /opt/hostedtoolcache/PyPy || true
           sudo rm -rf /usr/local/share/boost || true
           sudo rm -rf /opt/hostedtoolcache/go || true
           sudo rm -rf /opt/hostedtoolcache/Ruby || true
           sudo rm -rf /usr/share/swift || true
+          sudo rm -rf /var/lib/snapd || true
+          sudo rm -rf /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk || true
           sudo swapoff -a || true
           sudo rm -f /swapfile || true
-          docker system prune -af || true
+          docker system prune -af --volumes || true
           df -h
 
       - name: Build backend image
