@@ -5,7 +5,7 @@ Provides support for Azure OpenAI models alongside existing OpenAI and Anthropic
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import tiktoken
 from openai import AzureOpenAI
@@ -206,6 +206,40 @@ class AzureOpenAIService:
         except Exception as e:
             logger.error(f"Error getting chat completion from Azure OpenAI: {str(e)}")
             raise
+
+    async def stream_chat_completion(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+    ) -> AsyncGenerator[str, None]:
+        """
+        Async generator that streams chat completion tokens from Azure OpenAI.
+
+        Calls the existing chat_completion() method with stream=True and yields
+        each non-empty content string from the streamed chunks.
+
+        Args:
+            messages: List of message dictionaries with 'role' and 'content'
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens to generate
+
+        Yields:
+            Individual content strings from the streaming response
+        """
+        response = await self.chat_completion(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=True,
+        )
+
+        for chunk in response:
+            if not chunk.choices:
+                continue
+            content = chunk.choices[0].delta.content
+            if content:
+                yield content
 
     def count_tokens(self, text: str, model: str = "gpt-4") -> int:
         """

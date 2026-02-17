@@ -1,0 +1,141 @@
+"""Unit tests for AzureOpenAIService.stream_chat_completion()."""
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from src.services.infrastructure.azure_openai_service import AzureOpenAIService
+
+
+def _make_chunk(content: str | None) -> MagicMock:
+    """Create a mock OpenAI streaming chunk with the given delta content."""
+    chunk = MagicMock()
+    choice = MagicMock()
+    choice.delta.content = content
+    chunk.choices = [choice]
+    return chunk
+
+
+def _make_empty_choices_chunk() -> MagicMock:
+    """Create a mock chunk with an empty choices list (e.g. final chunk)."""
+    chunk = MagicMock()
+    chunk.choices = []
+    return chunk
+
+
+@pytest.fixture
+def service() -> AzureOpenAIService:
+    """Create an AzureOpenAIService with mocked clients so it doesn't hit real Azure."""
+    with patch.object(AzureOpenAIService, "_initialize_clients"):
+        svc = AzureOpenAIService()
+        svc.client = MagicMock()
+        svc.chat_client = None
+        svc.embedding_client = None
+    return svc
+
+
+@pytest.mark.asyncio
+async def test_yields_content_strings(service: AzureOpenAIService) -> None:
+    """stream_chat_completion should yield each non-empty content string from chunks."""
+    chunks = [
+        _make_chunk("Hello"),
+        _make_chunk(", "),
+        _make_chunk("world!"),
+    ]
+
+    with patch.object(
+        service,
+        "chat_completion",
+        new_callable=AsyncMock,
+        return_value=iter(chunks),
+    ):
+        results = []
+        async for token in service.stream_chat_completion(
+            messages=[{"role": "user", "content": "Hi"}],
+        ):
+            results.append(token)
+
+    assert results == ["Hello", ", ", "world!"]
+
+
+@pytest.mark.asyncio
+async def test_skips_empty_and_none_content(service: AzureOpenAIService) -> None:
+    """stream_chat_completion should skip chunks with empty or None content."""
+    chunks = [
+        _make_chunk("Hello"),
+        _make_chunk(None),
+        _make_chunk(""),
+        _make_chunk(" "),
+        _make_chunk("world"),
+        _make_empty_choices_chunk(),
+    ]
+
+    with patch.object(
+        service,
+        "chat_completion",
+        new_callable=AsyncMock,
+        return_value=iter(chunks),
+    ):
+        results = []
+        async for token in service.stream_chat_completion(
+            messages=[{"role": "user", "content": "Hi"}],
+        ):
+            results.append(token)
+
+    # " " is a non-empty string and should be yielded; None and "" should be skipped.
+    # The empty-choices chunk should also be skipped.
+    assert results == ["Hello", " ", "world"]
+
+
+@pytest.mark.asyncio
+async def test_passes_stream_true(service: AzureOpenAIService) -> None:
+    """stream_chat_completion must call chat_completion with stream=True."""
+    chunks = [_make_chunk("ok")]
+
+    mock_chat = AsyncMock(return_value=iter(chunks))
+    with patch.object(service, "chat_completion", mock_chat):
+        async for _ in service.stream_chat_completion(
+            messages=[{"role": "user", "content": "Hi"}],
+            temperature=0.5,
+            max_tokens=100,
+        ):
+            pass
+
+    mock_chat.assert_called_once_with(
+        messages=[{"role": "user", "content": "Hi"}],
+        temperature=0.5,
+        max_tokens=100,
+        stream=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_forwards_default_parameters(service: AzureOpenAIService) -> None:
+    """stream_chat_completion should forward temperature and max_tokens defaults."""
+    chunks = [_make_chunk("x")]
+
+    mock_chat = AsyncMock(return_value=iter(chunks))
+    with patch.object(service, "chat_completion", mock_chat):
+        async for _ in service.stream_chat_completion(
+            messages=[{"role": "user", "content": "Hi"}],
+        ):
+            pass
+
+    mock_chat.assert_called_once_with(
+        messages=[{"role": "user", "content": "Hi"}],
+        temperature=0.7,
+        max_tokens=None,
+        stream=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_propagates_exception(service: AzureOpenAIService) -> None:
+    """stream_chat_completion should propagate exceptions from chat_completion."""
+    mock_chat = AsyncMock(side_effect=ValueError("client not initialized"))
+    with patch.object(service, "chat_completion", mock_chat):
+        with pytest.raises(ValueError, match="client not initialized"):
+            async for _ in service.stream_chat_completion(
+                messages=[{"role": "user", "content": "Hi"}],
+            ):
+                pass
