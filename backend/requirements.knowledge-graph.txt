@@ -38,7 +38,7 @@ regex==2023.10.3
 textdistance==4.6.0
 
 # Logging and monitoring
-structlog==23.2.0
+structlog==25.5.0
 python-json-logger==2.0.7
 
 # Development and testing
