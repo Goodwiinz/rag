@@ -148,8 +148,10 @@ export function AnalyticsChart({
   }, [processedData]);
 
   const renderChart = () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tooltipFormatter = format?.tooltip
-      ? (value: number | undefined) => format.tooltip?.(value ?? 0) ?? ''
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ? (value: any) => format.tooltip?.(typeof value === 'number' ? value : 0) ?? ''
       : undefined;
 
     const commonProps = {
