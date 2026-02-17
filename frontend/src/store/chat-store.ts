@@ -156,6 +156,13 @@ interface ChatState {
   // Bulk selection state
   selectedThreadIds: Set<string>;
   isSelectMode: boolean;
+
+  // Streaming state
+  isStreaming: boolean;
+  streamingContent: string;
+  streamingMessageId: string | null;
+  streamingCitations: Array<Record<string, unknown>>;
+  abortController: AbortController | null;
 }
 
 interface ChatActions {
@@ -167,13 +174,21 @@ interface ChatActions {
   // Workspace actions
   loadWorkspaces: () => Promise<void>;
   createWorkspace: (data: WorkspaceCreate) => Promise<Workspace | null>;
-  updateWorkspace: (id: string, data: WorkspaceUpdate) => Promise<Workspace | null>;
+  updateWorkspace: (
+    id: string,
+    data: WorkspaceUpdate
+  ) => Promise<Workspace | null>;
   deleteWorkspace: (id: string) => Promise<boolean>;
 
   // Conversation actions
   loadConversations: (workspaceId: string) => Promise<void>;
-  createConversation: (data: ConversationCreate) => Promise<Conversation | null>;
-  updateConversation: (id: string, data: ConversationUpdate) => Promise<Conversation | null>;
+  createConversation: (
+    data: ConversationCreate
+  ) => Promise<Conversation | null>;
+  updateConversation: (
+    id: string,
+    data: ConversationUpdate
+  ) => Promise<Conversation | null>;
   deleteConversation: (id: string) => Promise<boolean>;
 
   // Thread actions
@@ -196,15 +211,25 @@ interface ChatActions {
 
   // Message actions
   loadMessages: (threadId: string) => Promise<void>;
-  sendMessage: (content: string, threadId?: string) => Promise<ChatMessage | null>;
+  sendMessage: (
+    content: string,
+    threadId?: string
+  ) => Promise<ChatMessage | null>;
   addMessageToStore: (threadId: string, message: ChatMessage) => void;
-  updateMessageFeedback: (id: string, data: ChatMessageUpdate) => Promise<ChatMessage | null>;
+  updateMessageFeedback: (
+    id: string,
+    data: ChatMessageUpdate
+  ) => Promise<ChatMessage | null>;
   deleteMessage: (id: string) => Promise<boolean>;
 
   // UI actions
   setShortcutsDialogOpen: (open: boolean) => void;
   setCopiedMessageId: (id: string | null) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
+
+  // Streaming actions
+  streamMessage: (content: string, threadId?: string) => Promise<void>;
+  stopStreaming: () => void;
 
   // Utility actions
   clearError: () => void;
@@ -222,12 +247,14 @@ type ChatStore = ChatState & ChatActions;
 const MAX_REINIT_RETRIES = 3;
 
 // Helper type for the recovery handler
-type RecoveryResult = { shouldProceed: false } | { shouldProceed: true; triggerReinit: () => void };
+type RecoveryResult =
+  | { shouldProceed: false }
+  | { shouldProceed: true; triggerReinit: () => void };
 
 /**
  * Helper to handle stale data recovery (404 errors) atomically.
  * Performs guard check and state update in a single set() call to prevent race conditions.
- * 
+ *
  * @param get - Zustand get function
  * @param set - Zustand set function (immer-wrapped)
  * @param context - Context string for logging
@@ -240,19 +267,27 @@ function handleStaleDataRecovery(
   context: string,
   options: {
     clearWorkspaces?: boolean;
-    loadingKey?: 'isLoadingConversations' | 'isLoadingThreads' | 'isLoadingMessages';
+    loadingKey?:
+      | 'isLoadingConversations'
+      | 'isLoadingThreads'
+      | 'isLoadingMessages';
   } = {}
 ): RecoveryResult {
   const { clearWorkspaces = true, loadingKey } = options;
-  
+
   let shouldReinit = false;
   let maxRetriesReached = false;
-  
+
   // Perform guard check AND state update atomically in a single set() call
   set((state) => {
     // Guard against concurrent/repeated reinitialization and infinite loops
-    if (state.isReinitializing || state.reinitRetryCount >= MAX_REINIT_RETRIES) {
-      console.warn(`[ChatStore] Skipping reinitialization for ${context} (already in progress or max retries reached)`);
+    if (
+      state.isReinitializing ||
+      state.reinitRetryCount >= MAX_REINIT_RETRIES
+    ) {
+      console.warn(
+        `[ChatStore] Skipping reinitialization for ${context} (already in progress or max retries reached)`
+      );
       maxRetriesReached = state.reinitRetryCount >= MAX_REINIT_RETRIES;
       if (loadingKey) {
         state[loadingKey] = false;
@@ -262,7 +297,7 @@ function handleStaleDataRecovery(
       }
       return;
     }
-    
+
     // Clear stale data and set reinitialization flag atomically
     shouldReinit = true;
     state.currentWorkspaceId = null;
@@ -278,11 +313,11 @@ function handleStaleDataRecovery(
     state.reinitRetryCount += 1;
     state.error = null;
   });
-  
+
   if (!shouldReinit) {
     return { shouldProceed: false };
   }
-  
+
   // Return a trigger function that the caller can use to start reinitialization
   return {
     shouldProceed: true,
@@ -292,14 +327,17 @@ function handleStaleDataRecovery(
         try {
           await get().initializeDefaultWorkspace();
         } catch (err) {
-          console.error(`[ChatStore] Reinitialization failed for ${context}:`, err);
+          console.error(
+            `[ChatStore] Reinitialization failed for ${context}:`,
+            err
+          );
         } finally {
           set((state) => {
             state.isReinitializing = false;
           });
         }
       })();
-    }
+    },
   };
 }
 
@@ -328,6 +366,12 @@ const initialState: ChatState = {
   sidebarCollapsed: false,
   selectedThreadIds: new Set<string>(),
   isSelectMode: false,
+  // Streaming state
+  isStreaming: false,
+  streamingContent: '',
+  streamingMessageId: null,
+  streamingCitations: [],
+  abortController: null,
 };
 
 // ============================================================================
@@ -473,7 +517,8 @@ export const useChatStore = create<ChatStore>()(
         });
 
         try {
-          const response = await workspaceService.listConversations(workspaceId);
+          const response =
+            await workspaceService.listConversations(workspaceId);
           set((state) => {
             state.conversations[workspaceId] = response.conversations;
             // Populate reverse index for O(1) lookup (GOO-86)
@@ -487,11 +532,18 @@ export const useChatStore = create<ChatStore>()(
 
           // Handle 404 - workspace not found (stale data)
           if (error?.response?.status === 404) {
-            console.warn('[ChatStore] Workspace not found (404) - clearing stale data');
-            const result = handleStaleDataRecovery(get, set, 'loadConversations', {
-              clearWorkspaces: true,
-              loadingKey: 'isLoadingConversations'
-            });
+            console.warn(
+              '[ChatStore] Workspace not found (404) - clearing stale data'
+            );
+            const result = handleStaleDataRecovery(
+              get,
+              set,
+              'loadConversations',
+              {
+                clearWorkspaces: true,
+                loadingKey: 'isLoadingConversations',
+              }
+            );
             if (result.shouldProceed) {
               result.triggerReinit();
             }
@@ -523,10 +575,17 @@ export const useChatStore = create<ChatStore>()(
 
           // Handle 404 - workspace not found (stale data)
           if (error?.response?.status === 404) {
-            console.warn('[ChatStore] Workspace not found (404) while creating conversation - clearing stale data');
-            const result = handleStaleDataRecovery(get, set, 'createConversation', {
-              clearWorkspaces: true
-            });
+            console.warn(
+              '[ChatStore] Workspace not found (404) while creating conversation - clearing stale data'
+            );
+            const result = handleStaleDataRecovery(
+              get,
+              set,
+              'createConversation',
+              {
+                clearWorkspaces: true,
+              }
+            );
             if (result.shouldProceed) {
               result.triggerReinit();
             }
@@ -542,7 +601,10 @@ export const useChatStore = create<ChatStore>()(
 
       updateConversation: async (id, data) => {
         try {
-          const conversation = await workspaceService.updateConversation(id, data);
+          const conversation = await workspaceService.updateConversation(
+            id,
+            data
+          );
           set((state) => {
             const workspaceId = conversation.workspace_id;
             const convs = state.conversations[workspaceId] || [];
@@ -566,7 +628,11 @@ export const useChatStore = create<ChatStore>()(
           await workspaceService.deleteConversation(id);
           set((state) => {
             // Use O(1) reverse index lookup (GOO-86)
-            removeItemFromRecord(state.conversations, id, state.conversationToWorkspace);
+            removeItemFromRecord(
+              state.conversations,
+              id,
+              state.conversationToWorkspace
+            );
             if (state.currentConversationId === id) {
               state.currentConversationId = null;
               state.currentThreadId = null;
@@ -593,9 +659,16 @@ export const useChatStore = create<ChatStore>()(
         });
 
         try {
-          console.log('[ChatStore] Loading threads for conversation:', conversationId);
+          console.log(
+            '[ChatStore] Loading threads for conversation:',
+            conversationId
+          );
           const response = await workspaceService.listThreads(conversationId);
-          console.log('[ChatStore] Loaded threads:', response.threads.length, response.threads);
+          console.log(
+            '[ChatStore] Loaded threads:',
+            response.threads.length,
+            response.threads
+          );
           set((state) => {
             state.threads[conversationId] = response.threads;
             // Populate reverse index for O(1) lookup (GOO-86)
@@ -609,11 +682,13 @@ export const useChatStore = create<ChatStore>()(
 
           // Handle 404 - conversation not found (stale data)
           if (error?.response?.status === 404) {
-            console.warn('[ChatStore] Conversation not found (404) - clearing stale data');
+            console.warn(
+              '[ChatStore] Conversation not found (404) - clearing stale data'
+            );
             // Clear workspaces for consistency with loadConversations since we're triggering full reinit
             const result = handleStaleDataRecovery(get, set, 'loadThreads', {
               clearWorkspaces: true,
-              loadingKey: 'isLoadingThreads'
+              loadingKey: 'isLoadingThreads',
             });
             if (result.shouldProceed) {
               result.triggerReinit();
@@ -756,7 +831,12 @@ export const useChatStore = create<ChatStore>()(
             for (const result of response.results) {
               if (result.success && result.thread) {
                 // Use O(1) reverse index lookup (GOO-86)
-                updateItemInRecord(state.threads, result.thread_id, result.thread, state.threadToConversation);
+                updateItemInRecord(
+                  state.threads,
+                  result.thread_id,
+                  result.thread,
+                  state.threadToConversation
+                );
               }
             }
             state.selectedThreadIds = new Set();
@@ -785,7 +865,12 @@ export const useChatStore = create<ChatStore>()(
             for (const result of response.results) {
               if (result.success && result.thread) {
                 // Use O(1) reverse index lookup (GOO-86)
-                updateItemInRecord(state.threads, result.thread_id, result.thread, state.threadToConversation);
+                updateItemInRecord(
+                  state.threads,
+                  result.thread_id,
+                  result.thread,
+                  state.threadToConversation
+                );
               }
             }
             state.selectedThreadIds = new Set();
@@ -808,7 +893,8 @@ export const useChatStore = create<ChatStore>()(
         if (threadIds.length === 0) return null;
 
         try {
-          const response = await workspaceService.bulkSummarizeThreads(threadIds);
+          const response =
+            await workspaceService.bulkSummarizeThreads(threadIds);
 
           // Summarization is async, so we just clear selection and wait for WebSocket updates
           // or return the response so the UI can show a toast
@@ -839,12 +925,19 @@ export const useChatStore = create<ChatStore>()(
             for (const result of response.results) {
               if (result.success) {
                 // Use O(1) reverse index lookup + cleanup (GOO-86)
-                removeItemFromRecord(state.threads, result.thread_id, state.threadToConversation);
+                removeItemFromRecord(
+                  state.threads,
+                  result.thread_id,
+                  state.threadToConversation
+                );
               }
             }
 
             // Clear current thread if it was deleted
-            if (state.currentThreadId && threadIds.includes(state.currentThreadId)) {
+            if (
+              state.currentThreadId &&
+              threadIds.includes(state.currentThreadId)
+            ) {
               state.currentThreadId = null;
             }
 
@@ -940,15 +1033,29 @@ export const useChatStore = create<ChatStore>()(
             state.messages[threadId] = [];
           }
           // Check if message already exists to prevent duplicates
-          const existingIndex = state.messages[threadId].findIndex(m => m.id === message.id);
+          const existingIndex = state.messages[threadId].findIndex(
+            (m) => m.id === message.id
+          );
           if (existingIndex === -1) {
             state.messages[threadId].push(message);
             state.messageToThread[message.id] = threadId;
-            console.log('[ChatStore] Added message to store:', message.id, 'with', message.citations?.length || 0, 'citations');
+            console.log(
+              '[ChatStore] Added message to store:',
+              message.id,
+              'with',
+              message.citations?.length || 0,
+              'citations'
+            );
           } else {
             // Update existing message (e.g., when citations are added later)
             state.messages[threadId][existingIndex] = message;
-            console.log('[ChatStore] Updated message in store:', message.id, 'with', message.citations?.length || 0, 'citations');
+            console.log(
+              '[ChatStore] Updated message in store:',
+              message.id,
+              'with',
+              message.citations?.length || 0,
+              'citations'
+            );
           }
         });
       },
@@ -1014,6 +1121,109 @@ export const useChatStore = create<ChatStore>()(
       },
 
       // ========================================================================
+      // Streaming Actions
+      // ========================================================================
+
+      streamMessage: async (content, threadId) => {
+        const state = get();
+        const targetThreadId = threadId || state.currentThreadId;
+
+        if (!targetThreadId) {
+          console.error('[ChatStore] No thread selected for streaming message');
+          return;
+        }
+
+        const controller = new AbortController();
+
+        set((state) => {
+          state.isStreaming = true;
+          state.streamingContent = '';
+          state.streamingMessageId = null;
+          state.streamingCitations = [];
+          state.abortController = controller as any;
+          state.error = null;
+        });
+
+        try {
+          const { streamChatMessage } =
+            await import('@/services/streamingService');
+
+          for await (const event of streamChatMessage(
+            targetThreadId,
+            content,
+            {},
+            controller.signal
+          )) {
+            switch (event.type) {
+              case 'message_start':
+                set((state) => {
+                  state.streamingMessageId =
+                    (event.data.message_id as string) ?? null;
+                });
+                break;
+
+              case 'rag_context':
+                set((state) => {
+                  state.streamingCitations =
+                    (event.data.citations as Array<Record<string, unknown>>) ??
+                    [];
+                });
+                break;
+
+              case 'token':
+                set((state) => {
+                  state.streamingContent +=
+                    (event.data.content as string) ?? '';
+                });
+                break;
+
+              case 'message_done':
+                await get().loadMessages(targetThreadId);
+                break;
+
+              case 'error':
+                set((state) => {
+                  state.error =
+                    (event.data.message as string) ??
+                    'An error occurred during streaming';
+                });
+                break;
+            }
+          }
+        } catch (err: any) {
+          // Silently catch AbortError (user clicked stop)
+          if (err?.name !== 'AbortError') {
+            console.error('[ChatStore] Error streaming message:', err);
+            set((state) => {
+              state.error = 'Failed to stream message';
+            });
+          }
+        } finally {
+          set((state) => {
+            state.isStreaming = false;
+            state.streamingContent = '';
+            state.streamingMessageId = null;
+            state.streamingCitations = [];
+            state.abortController = null;
+          });
+        }
+      },
+
+      stopStreaming: () => {
+        const { abortController } = get();
+        if (abortController) {
+          abortController.abort();
+        }
+        set((state) => {
+          state.isStreaming = false;
+          state.streamingContent = '';
+          state.streamingMessageId = null;
+          state.streamingCitations = [];
+          state.abortController = null;
+        });
+      },
+
+      // ========================================================================
       // Utility Actions
       // ========================================================================
 
@@ -1031,18 +1241,22 @@ export const useChatStore = create<ChatStore>()(
         try {
           console.log('[ChatStore] Initializing default workspace...');
           const { currentWorkspaceId } = get();
-          const workspace = await workspaceService.getOrCreateDefaultWorkspace();
+          const workspace =
+            await workspaceService.getOrCreateDefaultWorkspace();
 
           // Keep local workspace list in sync with bootstrap result.
           set((state) => {
-            if (!state.workspaces.some(w => w.id === workspace.id)) {
+            if (!state.workspaces.some((w) => w.id === workspace.id)) {
               state.workspaces.unshift(workspace);
             }
           });
 
           // Clear stale IDs if current workspace no longer exists.
           if (currentWorkspaceId && currentWorkspaceId !== workspace.id) {
-            console.warn('[ChatStore] Clearing stale workspace ID:', currentWorkspaceId);
+            console.warn(
+              '[ChatStore] Clearing stale workspace ID:',
+              currentWorkspaceId
+            );
             set((s) => {
               s.currentWorkspaceId = null;
               s.currentConversationId = null;
@@ -1050,7 +1264,11 @@ export const useChatStore = create<ChatStore>()(
             });
           }
 
-          console.log('[ChatStore] Using workspace:', workspace.id, workspace.name);
+          console.log(
+            '[ChatStore] Using workspace:',
+            workspace.id,
+            workspace.name
+          );
 
           // Set current workspace (this will trigger loadConversations)
           get().setCurrentWorkspace(workspace.id);
@@ -1060,7 +1278,10 @@ export const useChatStore = create<ChatStore>()(
             s.reinitRetryCount = 0;
           });
         } catch (error) {
-          console.error('[ChatStore] Error initializing default workspace:', error);
+          console.error(
+            '[ChatStore] Error initializing default workspace:',
+            error
+          );
           set((state) => {
             state.error = 'Failed to initialize workspace';
           });
@@ -1091,7 +1312,9 @@ export const selectCurrentWorkspace = (state: ChatStore) =>
 export const selectCurrentConversation = (state: ChatStore) => {
   if (!state.currentWorkspaceId || !state.currentConversationId) return null;
   const conversations = state.conversations[state.currentWorkspaceId] || [];
-  return conversations.find((c) => c.id === state.currentConversationId) || null;
+  return (
+    conversations.find((c) => c.id === state.currentConversationId) || null
+  );
 };
 
 export const selectCurrentThread = (state: ChatStore) => {
