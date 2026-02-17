@@ -32,6 +32,49 @@ import {
 } from '@/types/workspace';
 import axios, { AxiosInstance } from 'axios';
 
+const getAuthContext = (): { token: string | null; organizationId: string | null } => {
+  if (typeof window === 'undefined') {
+    return { token: null, organizationId: null };
+  }
+
+  let token: string | null = null;
+  let organizationId: string | null = null;
+
+  try {
+    const authStorage = localStorage.getItem('auth-storage');
+    if (authStorage) {
+      const auth = JSON.parse(authStorage);
+      token = auth.state?.token || null;
+      organizationId =
+        auth.state?.organization?.id ||
+        auth.state?.user?.organization_id ||
+        null;
+    }
+
+    if (!token) {
+      token = localStorage.getItem('access_token');
+    }
+
+    if (!organizationId) {
+      const userData = localStorage.getItem('user_data');
+      if (userData) {
+        const user = JSON.parse(userData);
+        organizationId = user?.organization_id || null;
+      }
+    }
+  } catch (e) {
+    console.warn('[WorkspaceService] Failed to parse auth context:', e);
+  }
+
+  return { token, organizationId };
+};
+
+const getDirectApiBaseUrl = (): string | null => {
+  const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (!configured) return null;
+  return configured.replace(/\/$/, '');
+};
+
 // Create a dedicated axios instance for v2 API
 // Use empty baseURL to work with relative paths (goes through Next.js proxy)
 // The API_PREFIX handles the /api/v2 path
@@ -50,27 +93,8 @@ v2Client.interceptors.request.use((config) => {
     return config;
   }
 
-  let token: string | null = null;
-  let organizationId: string | null = null;
-
   try {
-    // Try Zustand persist storage first (auth-storage)
-    const authStorage = localStorage.getItem('auth-storage');
-    if (authStorage) {
-      const auth = JSON.parse(authStorage);
-      token = auth.state?.token;
-      organizationId = auth.state?.organization?.id || auth.state?.user?.organization_id;
-    }
-
-    // Fallback to legacy localStorage keys
-    if (!token) {
-      token = localStorage.getItem('access_token');
-      const userData = localStorage.getItem('user_data');
-      if (userData) {
-        const user = JSON.parse(userData);
-        organizationId = organizationId || user.organization_id;
-      }
-    }
+    const { token, organizationId } = getAuthContext();
 
     console.debug('[WorkspaceService] Token:', token ? `${token.substring(0, 20)}...` : 'none');
     console.debug('[WorkspaceService] Org ID:', organizationId || 'none');
@@ -90,10 +114,34 @@ v2Client.interceptors.request.use((config) => {
 // Add response interceptor for better error handling
 v2Client.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    // Fallback: if Next.js rewrite/proxy path fails at network layer, retry once
+    // directly against NEXT_PUBLIC_API_URL.
+    const isNetworkError = !error.response && (error.code === 'ERR_NETWORK' || /Network Error/i.test(error.message || ''));
+    const originalConfig = error.config as (typeof error.config & { _retryDirect?: boolean }) | undefined;
+    const directApiBaseUrl = getDirectApiBaseUrl();
+
+    if (
+      isNetworkError &&
+      originalConfig &&
+      !originalConfig._retryDirect &&
+      directApiBaseUrl &&
+      typeof originalConfig.url === 'string' &&
+      originalConfig.url.startsWith('/api/v2/')
+    ) {
+      originalConfig._retryDirect = true;
+      originalConfig.baseURL = directApiBaseUrl;
+      console.warn(
+        '[WorkspaceService] Proxy request failed, retrying direct API URL:',
+        `${directApiBaseUrl}${originalConfig.url}`
+      );
+      return v2Client.request(originalConfig);
+    }
+
     // Log detailed error info to help diagnose "Network Error" issues
     const errorInfo = {
       url: error.config?.url,
+      baseURL: error.config?.baseURL,
       method: error.config?.method,
       status: error.response?.status,
       statusText: error.response?.statusText,
@@ -141,7 +189,12 @@ export const workspaceService = {
   },
 
   async createWorkspace(data: WorkspaceCreate): Promise<Workspace> {
-    const response = await v2Client.post<Workspace>(`${API_PREFIX}/workspaces`, data);
+    const { organizationId } = getAuthContext();
+    const payload: WorkspaceCreate = {
+      ...data,
+      organization_id: data.organization_id || organizationId || undefined,
+    };
+    const response = await v2Client.post<Workspace>(`${API_PREFIX}/workspaces`, payload);
     return response.data;
   },
 
