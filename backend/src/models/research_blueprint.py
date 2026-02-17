@@ -14,9 +14,7 @@ class ResearchBlueprint(BaseModel):
 
     __tablename__ = "research_blueprints"
 
-    project_id = Column(
-        GUID(), ForeignKey("research_projects.id"), nullable=False
-    )
+    project_id = Column(GUID(), ForeignKey("research_projects.id"), nullable=False)
     name = Column(String(255), nullable=False)
     template_source = Column(String(100), nullable=True)
     version = Column(Integer, nullable=False, default=1)
