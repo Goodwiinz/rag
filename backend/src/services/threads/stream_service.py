@@ -156,7 +156,14 @@ class StreamService:
         # -----------------------------------------------------------------
         if use_rag and self.retrieve_context_fn is not None:
             try:
-                contexts = await self.retrieve_context_fn(content, max_context_docs)
+                result = await self.retrieve_context_fn(content, max_context_docs)
+
+                # retrieve_context now returns (contexts, diagnostics_trace_id)
+                if isinstance(result, tuple):
+                    contexts, diagnostics_trace_id = result
+                else:
+                    contexts = result
+                    diagnostics_trace_id = None
 
                 # Build citation dicts for persistence
                 citations = [
@@ -169,21 +176,23 @@ class StreamService:
                     for ctx in contexts
                 ]
 
+                rag_context_data = {
+                    "citations": [
+                        {
+                            "document_id": getattr(ctx, "document_id", None),
+                            "title": getattr(ctx, "title", "Untitled"),
+                            "score": float(getattr(ctx, "score", 0.0)),
+                        }
+                        for ctx in contexts
+                    ],
+                    "search_type": "hybrid",
+                }
+                if diagnostics_trace_id:
+                    rag_context_data["diagnostics_trace_id"] = diagnostics_trace_id
+
                 yield SSEEvent(
                     event="rag_context",
-                    data={
-                        "citations": [
-                            {
-                                "document_id": str(
-                                    getattr(ctx, "document_id", "unknown")
-                                ),
-                                "title": getattr(ctx, "title", "Untitled"),
-                                "score": float(getattr(ctx, "score", 0.0)),
-                            }
-                            for ctx in contexts
-                        ],
-                        "search_type": "hybrid",
-                    },
+                    data=rag_context_data,
                 )
             except Exception as exc:
                 logger.warning(f"RAG retrieval failed, continuing without: {exc}")

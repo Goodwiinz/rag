@@ -17,6 +17,7 @@ import {
 import { usePathname } from 'next/navigation';
 import * as React from 'react';
 import dynamic from 'next/dynamic';
+import { GlobalJobCenter } from './GlobalJobCenter';
 
 const AppSidebar = dynamic(
   () => import('./AppSidebar').then((mod) => mod.AppSidebar),
@@ -53,6 +54,7 @@ const pathNameMap: Record<string, string> = {
   upload: 'Upload',
   arxiv: 'ArXiv Papers',
   analytics: 'Analytics',
+  diagnostics: 'Diagnostics',
   entities: 'Entities',
   projects: 'Projects',
   realtime: 'Real-time',
@@ -149,10 +151,13 @@ export function SidebarLayout({
             )}
 
             {/* Page Title (mobile) */}
-            <div className="ml-auto md:hidden">
+            <div className="ml-auto flex items-center gap-2">
+              <GlobalJobCenter />
+              <div className="md:hidden">
               <span className="text-sm font-mono text-[#fafafa]">
                 {currentPage}
               </span>
+              </div>
             </div>
           </header>
         )}

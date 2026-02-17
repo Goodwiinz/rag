@@ -3,8 +3,18 @@
  * Identifies and merges duplicate entities in the knowledge graph
  */
 
-import React, { useState } from 'react';
-import { GitMerge, Loader2, AlertTriangle, CheckCircle2, Search, Lock, XCircle, RefreshCw, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import {
+  GitMerge,
+  Loader2,
+  AlertTriangle,
+  CheckCircle2,
+  Search,
+  Lock,
+  XCircle,
+  RefreshCw,
+  X,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,6 +24,7 @@ import { Label } from '@/components/ui/label';
 import { Entity } from '@/types/entity';
 import { entityService } from '@/services/entityService';
 import { useEntityPermissions } from '@/hooks/useEntityPermissions';
+import { APIErrorClass } from '@/types/api';
 import toast from 'react-hot-toast';
 
 interface DuplicateGroup {
@@ -22,17 +33,79 @@ interface DuplicateGroup {
   suggested_primary: string;
 }
 
+const isServiceUnavailableError = (error: unknown): boolean => {
+  if (!(error instanceof APIErrorClass)) return false;
+  const message = error.error.message?.toLowerCase() || '';
+  return (
+    error.error.status_code >= 500 ||
+    message.includes('service unavailable') ||
+    message.includes('circuit breaker')
+  );
+};
+
+const isRetryablePollError = (error: unknown): boolean => {
+  if (error instanceof APIErrorClass) {
+    const statusCode = error.error.status_code;
+    return [404, 429, 500, 502, 503, 504].includes(statusCode);
+  }
+  return true;
+};
+
 export const EntityMergeTool: React.FC = () => {
-  const { canBulkEdit, isAdmin } = useEntityPermissions();
+  const { canBulkEdit } = useEntityPermissions();
   const [loading, setLoading] = useState(false);
-  const [searchLoading, setSearchLoading] = useState(false);
   const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
   const [similarityThreshold, setSimilarityThreshold] = useState(0.85);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroups, setSelectedGroups] = useState<Set<number>>(new Set());
-  const [error, setError] = useState<{message: string; context: 'fetch' | 'merge'} | null>(null);
+  const [error, setError] = useState<{ message: string; context: 'fetch' | 'merge' } | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [jobProgress, setJobProgress] = useState(0);
+  const [jobStep, setJobStep] = useState('');
 
-  // Show admin-only notice if user lacks permissions
+  useEffect(() => {
+    if (!activeJobId) return;
+    let consecutivePollFailures = 0;
+
+    const poll = setInterval(async () => {
+      try {
+        const job = await entityService.getProcessingJob(activeJobId);
+        consecutivePollFailures = 0;
+        setJobProgress(job.progress_percentage || 0);
+        setJobStep(job.current_step || 'Processing merge job');
+
+        if (job.status === 'completed') {
+          clearInterval(poll);
+          setActiveJobId(null);
+          setSelectedGroups(new Set());
+          toast.success('Merge job completed');
+          findDuplicates();
+        }
+
+        if (job.status === 'failed' || job.status === 'cancelled') {
+          clearInterval(poll);
+          setActiveJobId(null);
+          setError({
+            message: job.error_message || 'Merge job failed',
+            context: 'merge',
+          });
+          toast.error('Merge job failed');
+        }
+      } catch (pollError) {
+        if (isRetryablePollError(pollError) && consecutivePollFailures < 10) {
+          consecutivePollFailures += 1;
+          setJobStep('Waiting for job status...');
+          return;
+        }
+        clearInterval(poll);
+        setActiveJobId(null);
+        setError({ message: 'Failed to fetch merge job status', context: 'merge' });
+      }
+    }, 2000);
+
+    return () => clearInterval(poll);
+  }, [activeJobId]);
+
   if (!canBulkEdit) {
     return (
       <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
@@ -48,9 +121,6 @@ export const EntityMergeTool: React.FC = () => {
             <p className="text-sm font-mono text-[var(--terminal-text-dim)]">
               Entity merging is restricted to administrators only.
             </p>
-            <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-2">
-              Contact your system administrator for access.
-            </p>
           </div>
         </CardContent>
       </Card>
@@ -62,7 +132,6 @@ export const EntityMergeTool: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch all entities in paginated batches
       const PAGE_SIZE = 100;
       let offset = 0;
       let allEntities: any[] = [];
@@ -88,24 +157,19 @@ export const EntityMergeTool: React.FC = () => {
         metadata: e.metadata,
         created_at: e.created_at,
         updated_at: e.updated_at,
-        source_document_id: e.source_document_id
+        source_document_id: e.source_document_id,
       }));
 
-      // Find duplicates using hash bucketing by 3-char prefix
       const groups: DuplicateGroup[] = [];
       const processed = new Set<string>();
-
-      // Build buckets keyed by 3-char lowercase prefix
       const buckets = new Map<string, Entity[]>();
+
       for (const entity of entities) {
         const prefix = entity.name.toLowerCase().slice(0, 3).padEnd(3, '_');
-        if (!buckets.has(prefix)) {
-          buckets.set(prefix, []);
-        }
+        if (!buckets.has(prefix)) buckets.set(prefix, []);
         buckets.get(prefix)!.push(entity);
       }
 
-      // Compare entities within each bucket
       for (const [, bucket] of buckets) {
         for (let i = 0; i < bucket.length; i++) {
           if (processed.has(bucket[i].id)) continue;
@@ -128,17 +192,19 @@ export const EntityMergeTool: React.FC = () => {
           }
 
           if (similar.length > 1) {
-            // Choose entity with highest confidence as primary
             const sortedByConfidence = [...similar].sort(
               (a, b) => (b.confidence || 0) - (a.confidence || 0)
             );
 
             groups.push({
               entities: similar,
-              similarity: similar.length > 2 ? 0.9 : calculateSimilarity(
-                similar[0].name.toLowerCase(),
-                similar[1].name.toLowerCase()
-              ),
+              similarity:
+                similar.length > 2
+                  ? 0.9
+                  : calculateSimilarity(
+                      similar[0].name.toLowerCase(),
+                      similar[1].name.toLowerCase()
+                    ),
               suggested_primary: sortedByConfidence[0].id,
             });
           }
@@ -146,10 +212,20 @@ export const EntityMergeTool: React.FC = () => {
       }
 
       setDuplicates(groups);
+      setSelectedGroups(new Set());
       toast.success(`Found ${groups.length} duplicate groups`);
     } catch (err) {
-      console.error('Error finding duplicates:', err);
-      const message = err instanceof Error ? err.message : 'Failed to find duplicates';
+      if (isServiceUnavailableError(err)) {
+        console.warn('Duplicate scan unavailable:', err);
+      } else {
+        console.error('Error finding duplicates:', err);
+      }
+      const message =
+        isServiceUnavailableError(err)
+          ? 'Knowledge graph is temporarily unavailable. Please try again shortly.'
+          : err instanceof Error
+          ? err.message
+          : 'Failed to find duplicates';
       setError({ message, context: 'fetch' });
       toast.error('Failed to find duplicates');
     } finally {
@@ -158,12 +234,11 @@ export const EntityMergeTool: React.FC = () => {
   };
 
   const calculateSimilarity = (str1: string, str2: string): number => {
-    // Levenshtein distance-based similarity
     const longer = str1.length > str2.length ? str1 : str2;
     const shorter = str1.length > str2.length ? str2 : str1;
-    
+
     if (longer.length === 0) return 1.0;
-    
+
     const editDistance = levenshteinDistance(longer, shorter);
     return (longer.length - editDistance) / longer.length;
   };
@@ -171,13 +246,8 @@ export const EntityMergeTool: React.FC = () => {
   const levenshteinDistance = (str1: string, str2: string): number => {
     const matrix: number[][] = [];
 
-    for (let i = 0; i <= str2.length; i++) {
-      matrix[i] = [i];
-    }
-
-    for (let j = 0; j <= str1.length; j++) {
-      matrix[0][j] = j;
-    }
+    for (let i = 0; i <= str2.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= str1.length; j++) matrix[0][j] = j;
 
     for (let i = 1; i <= str2.length; i++) {
       for (let j = 1; j <= str1.length; j++) {
@@ -196,71 +266,54 @@ export const EntityMergeTool: React.FC = () => {
     return matrix[str2.length][str1.length];
   };
 
-  const handleMergeGroup = async (group: DuplicateGroup, groupIndex: number) => {
-    const confirmed = window.confirm(
-      `Merge ${group.entities.length} entities into "${
-        group.entities.find(e => e.id === group.suggested_primary)?.name
-      }"?\n\nThis will:\n- Keep the primary entity\n- Transfer all relationships\n- Delete duplicate entities\n\nThis action cannot be undone.`
-    );
-
-    if (!confirmed) return;
-
+  const enqueueMergeJob = async (groups: DuplicateGroup[]) => {
     try {
-      const primaryEntity = group.entities.find(e => e.id === group.suggested_primary);
-      const duplicateIds = group.entities
-        .filter(e => e.id !== group.suggested_primary)
-        .map(e => e.id);
+      const payload = groups.map((group) => ({
+        entities: group.entities.map((entity) => ({ id: entity.id, name: entity.name })),
+        suggested_primary: group.suggested_primary,
+      }));
 
-      // For each duplicate, transfer relationships and delete
-      for (const duplicateId of duplicateIds) {
-        // Get relationships of duplicate
-        const relationships = await entityService.getEntityRelationships(duplicateId);
-
-        // Create new relationships pointing to primary
-        for (const rel of relationships) {
-          const newRelData: any = {
-            source_entity_id: rel.source === duplicateId ? group.suggested_primary : rel.source,
-            target_entity_id: rel.target === duplicateId ? group.suggested_primary : rel.target,
-            relationship_type: rel.type,
-            strength: rel.strength,
-            confidence_score: rel.confidence,
-            context: rel.context,
-            metadata: rel.metadata,
-          };
-
-          try {
-            await entityService.createRelationship(newRelData);
-          } catch (error) {
-            // Ignore duplicate relationship errors
-            console.warn('Duplicate relationship:', error);
-          }
-        }
-
-        // Delete the duplicate entity
-        await entityService.deleteEntity(duplicateId);
+      const response = await entityService.createMergeJob(payload);
+      if (!response.job_id || response.job_id === 'None') {
+        throw new Error('Merge job was not created. Please retry.');
       }
-
-      toast.success(`Merged ${group.entities.length} entities successfully`);
-
-      // Remove this group from the list
-      setDuplicates(prev => prev.filter((_, i) => i !== groupIndex));
+      setActiveJobId(response.job_id);
+      setJobProgress(0);
+      setJobStep('Merge job queued');
+      toast.success('Merge job queued');
     } catch (err) {
-      console.error('Error merging entities:', err);
-      const message = err instanceof Error ? err.message : 'Failed to merge entities';
-      setError({ message, context: 'merge' });
-      toast.error('Failed to merge entities');
+      if (isServiceUnavailableError(err)) {
+        console.warn('Merge unavailable:', err);
+      } else {
+        console.error('Error queueing merge job:', err);
+      }
+      setError({
+        message:
+          err instanceof Error
+            ? err.message
+            : 'Failed to queue merge job',
+        context: 'merge',
+      });
+      toast.error('Failed to queue merge job');
     }
   };
 
+  const handleMergeGroup = async (group: DuplicateGroup) => {
+    const confirmed = window.confirm(
+      `Merge ${group.entities.length} entities into "${
+        group.entities.find((e) => e.id === group.suggested_primary)?.name
+      }"?\n\nThis action cannot be undone.`
+    );
+    if (!confirmed) return;
+    await enqueueMergeJob([group]);
+  };
+
   const toggleGroupSelection = (index: number) => {
-    setSelectedGroups(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(index)) {
-        newSet.delete(index);
-      } else {
-        newSet.add(index);
-      }
-      return newSet;
+    setSelectedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
     });
   };
 
@@ -273,34 +326,46 @@ export const EntityMergeTool: React.FC = () => {
     const confirmed = window.confirm(
       `Merge ${selectedGroups.size} selected groups?\n\nThis action cannot be undone.`
     );
-
     if (!confirmed) return;
 
-    let successCount = 0;
-    let errorCount = 0;
+    const selected = Array.from(selectedGroups)
+      .sort((a, b) => a - b)
+      .map((index) => duplicates[index])
+      .filter(Boolean);
 
-    for (const index of Array.from(selectedGroups).sort((a, b) => b - a)) {
-      try {
-        await handleMergeGroup(duplicates[index], index);
-        successCount++;
-      } catch (error) {
-        errorCount++;
-      }
-    }
-
-    toast.success(`Batch merge complete: ${successCount} succeeded, ${errorCount} failed`);
-    setSelectedGroups(new Set());
+    await enqueueMergeJob(selected);
   };
 
-  const filteredDuplicates = duplicates.filter(group =>
-    group.entities.some(e =>
-      e.name.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+  const filteredDuplicates = duplicates
+    .map((group, index) => ({ group, index }))
+    .filter(({ group }) =>
+      group.entities.some((e) =>
+        e.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    );
+
+  const visibleSelectedCount = filteredDuplicates.reduce(
+    (count, { index }) => count + (selectedGroups.has(index) ? 1 : 0),
+    0
   );
+  const allVisibleSelected =
+    filteredDuplicates.length > 0 &&
+    visibleSelectedCount === filteredDuplicates.length;
+
+  const handleToggleSelectAllVisible = () => {
+    setSelectedGroups((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        filteredDuplicates.forEach(({ index }) => next.delete(index));
+      } else {
+        filteredDuplicates.forEach(({ index }) => next.add(index));
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-4">
-      {/* Controls */}
       <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
         <CardHeader className="border-b border-[var(--terminal-border)] py-3">
           <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
@@ -309,7 +374,6 @@ export const EntityMergeTool: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4 space-y-4">
-          {/* Similarity Threshold */}
           <div className="space-y-2">
             <Label className="text-xs font-mono text-[var(--terminal-text-dim)]">
               Similarity Threshold: {(similarityThreshold * 100).toFixed(0)}%
@@ -322,12 +386,8 @@ export const EntityMergeTool: React.FC = () => {
               step={5}
               className="w-full"
             />
-            <p className="text-xs font-mono text-[var(--terminal-text-dim)]">
-              Higher threshold = stricter matching (fewer duplicates)
-            </p>
           </div>
 
-          {/* Search Bar */}
           {duplicates.length > 0 && (
             <div className="space-y-2">
               <Label className="text-xs font-mono text-[var(--terminal-text-dim)]">
@@ -342,12 +402,19 @@ export const EntityMergeTool: React.FC = () => {
             </div>
           )}
 
-          {/* Action Buttons */}
+          {activeJobId && (
+            <div className="text-xs font-mono text-[var(--terminal-text-dim)] border border-[var(--terminal-border)] rounded-md p-2">
+              <p>MERGE_JOB: {activeJobId}</p>
+              <p>STATUS: {jobStep || 'Running'}</p>
+              <p>PROGRESS: {Math.round(jobProgress)}%</p>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <Button
               onClick={findDuplicates}
-              disabled={loading}
-              className="font-mono text-xs font-bold bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_15px_var(--phosphor-green-glow)]"
+              disabled={loading || !!activeJobId}
+              className="font-mono text-xs font-bold bg-[var(--phosphor-green)] text-[var(--terminal-bg)]"
             >
               {loading ? (
                 <>
@@ -362,11 +429,23 @@ export const EntityMergeTool: React.FC = () => {
               )}
             </Button>
 
+            {filteredDuplicates.length > 0 && (
+              <Button
+                onClick={handleToggleSelectAllVisible}
+                variant="outline"
+                disabled={!!activeJobId}
+                className="font-mono text-xs font-bold border-[var(--terminal-border)]"
+              >
+                {allVisibleSelected ? 'DESELECT_ALL' : 'SELECT_ALL'}
+              </Button>
+            )}
+
             {duplicates.length > 0 && selectedGroups.size > 0 && (
               <Button
                 onClick={handleBatchMerge}
                 variant="outline"
-                className="font-mono text-xs font-bold border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]"
+                disabled={!!activeJobId}
+                className="font-mono text-xs font-bold border-[var(--terminal-border)]"
               >
                 <GitMerge className="w-4 h-4 mr-2" />
                 MERGE_SELECTED ({selectedGroups.size})
@@ -376,7 +455,6 @@ export const EntityMergeTool: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Error Banner */}
       {error && (
         <Card className="border-red-500/50 bg-red-950/30">
           <CardContent className="p-4">
@@ -394,13 +472,11 @@ export const EntityMergeTool: React.FC = () => {
                 <Button
                   onClick={() => {
                     setError(null);
-                    if (error.context === 'fetch') {
-                      findDuplicates();
-                    }
+                    if (error.context === 'fetch') findDuplicates();
                   }}
                   size="sm"
                   variant="outline"
-                  className="font-mono text-[10px] border-red-500/50 text-red-400 hover:bg-red-950/50"
+                  className="font-mono text-[10px] border-red-500/50 text-red-400"
                 >
                   <RefreshCw className="w-3 h-3 mr-1" />
                   RETRY
@@ -409,7 +485,7 @@ export const EntityMergeTool: React.FC = () => {
                   onClick={() => setError(null)}
                   size="sm"
                   variant="ghost"
-                  className="font-mono text-[10px] text-red-400/60 hover:text-red-400 hover:bg-red-950/50 px-2"
+                  className="font-mono text-[10px] text-red-400/60 px-2"
                 >
                   <X className="w-3 h-3" />
                 </Button>
@@ -419,43 +495,38 @@ export const EntityMergeTool: React.FC = () => {
         </Card>
       )}
 
-      {/* Duplicate Groups */}
       {filteredDuplicates.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-mono font-bold text-[var(--terminal-text)]">
-              Found {filteredDuplicates.length} Duplicate Group{filteredDuplicates.length > 1 ? 's' : ''}
+              Found {filteredDuplicates.length} Duplicate Group
+              {filteredDuplicates.length > 1 ? 's' : ''}
             </h3>
           </div>
 
-          {filteredDuplicates.map((group, groupIndex) => (
-            <Card
-              key={groupIndex}
-              className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
-            >
+          {filteredDuplicates.map(({ group, index }) => (
+            <Card key={index} className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <input
                       type="checkbox"
-                      checked={selectedGroups.has(groupIndex)}
-                      onChange={() => toggleGroupSelection(groupIndex)}
+                      checked={selectedGroups.has(index)}
+                      onChange={() => toggleGroupSelection(index)}
                       className="w-4 h-4"
                     />
                     <AlertTriangle className="w-4 h-4 text-[var(--amber-gold)]" />
                     <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
                       {group.entities.length} similar entities
                     </span>
-                    <Badge
-                      variant="outline"
-                      className="font-mono text-[10px] border-[var(--terminal-border)]"
-                    >
+                    <Badge variant="outline" className="font-mono text-[10px] border-[var(--terminal-border)]">
                       {(group.similarity * 100).toFixed(0)}% match
                     </Badge>
                   </div>
                   <Button
-                    onClick={() => handleMergeGroup(group, groupIndex)}
+                    onClick={() => handleMergeGroup(group)}
                     size="sm"
+                    disabled={!!activeJobId}
                     className="font-mono text-[10px] bg-[var(--phosphor-green)] text-[var(--terminal-bg)]"
                   >
                     <GitMerge className="w-3 h-3 mr-1" />
@@ -492,7 +563,9 @@ export const EntityMergeTool: React.FC = () => {
                           <div className="flex items-center gap-3 mt-1 text-xs font-mono text-[var(--terminal-text-dim)]">
                             <span>{entity.type}</span>
                             <span>•</span>
-                            <span>Confidence: {((entity.confidence || 0) * 100).toFixed(0)}%</span>
+                            <span>
+                              Confidence: {((entity.confidence || 0) * 100).toFixed(0)}%
+                            </span>
                             <span>•</span>
                             <span>{new Date(entity.created_at).toLocaleDateString()}</span>
                           </div>
@@ -507,14 +580,11 @@ export const EntityMergeTool: React.FC = () => {
         </div>
       )}
 
-      {/* Empty State */}
       {!loading && duplicates.length === 0 && (
         <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
           <CardContent className="p-8 text-center">
             <GitMerge className="w-12 h-12 mx-auto mb-4 text-[var(--terminal-text-dim)]" />
-            <p className="text-sm font-mono text-[var(--terminal-text)]">
-              No duplicates found
-            </p>
+            <p className="text-sm font-mono text-[var(--terminal-text)]">No duplicates found</p>
             <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-2">
               Click FIND_DUPLICATES to scan for similar entities
             </p>

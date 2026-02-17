@@ -1,6 +1,8 @@
 import {
+  Activity,
   BarChart3,
   ClipboardList,
+  Database,
   FileText,
   FlaskConical,
   HelpCircle,
@@ -12,7 +14,6 @@ import {
   Search,
   Settings,
   TrendingUp,
-  Database,
 } from 'lucide-react';
 
 export interface NavigationItem {
@@ -35,6 +36,7 @@ export const mainNavigation: NavigationItem[] = [
   { name: 'Knowledge Graph', href: '/graph', icon: Network },
   { name: 'Analytics', href: '/analytics/overview', icon: BarChart3 },
   { name: 'Evaluations', href: '/evaluation', icon: ClipboardList },
+  { name: 'Diagnostics', href: '/diagnostics', icon: Activity },
   { name: 'A/B Testing', href: '/ab-testing', icon: FlaskConical },
   { name: 'Search Analytics', href: '/search-analytics', icon: TrendingUp },
   { name: 'ArXiv', href: '/arxiv', icon: Database },

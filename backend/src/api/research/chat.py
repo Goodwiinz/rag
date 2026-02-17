@@ -10,7 +10,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from src.core.dependencies import get_current_user, require_admin
@@ -38,7 +38,7 @@ class ChatMessage(BaseModel):
 class RetrievedContext(BaseModel):
     """Retrieved document context"""
 
-    document_id: str
+    document_id: Optional[str] = None
     title: str
     content: str
     score: float
@@ -49,7 +49,7 @@ class ChatCompletionRequest(BaseModel):
     """Request for chat completion"""
 
     messages: List[ChatMessage] = Field(..., description="Conversation history")
-    model: str = Field(default="gpt-4o-mini", description="Model to use")
+    model: str = Field(default="gpt-4o", description="Model to use")
     temperature: float = Field(
         default=0.7, ge=0.0, le=2.0, description="Sampling temperature"
     )
@@ -62,7 +62,7 @@ class ChatCompletionRequest(BaseModel):
     )
     # RAG settings
     use_rag: bool = Field(
-        default=False,
+        default=True,
         description="Enable RAG to retrieve context from indexed documents",
     )
     max_context_docs: int = Field(
@@ -81,6 +81,7 @@ class ChatCompletionResponse(BaseModel):
     # RAG info
     rag_enabled: bool = False
     retrieved_contexts: Optional[List[RetrievedContext]] = None
+    diagnostics_trace_id: Optional[str] = None
 
 
 RAG_SYSTEM_PROMPT = """You are an AI research assistant with access to a knowledge base of academic papers and documents.
@@ -103,18 +104,26 @@ If the context doesn't contain relevant information, say so clearly.
 Always be precise and ensure EVERY factual claim is properly cited using [Doc N] format."""
 
 
-async def retrieve_context(query: str, max_docs: int = 5) -> List[RetrievedContext]:
-    """Retrieve relevant context from indexed documents using hybrid search"""
+async def retrieve_context(
+    query: str, max_docs: int = 5
+) -> tuple[List[RetrievedContext], Optional[str]]:
+    """
+    Retrieve relevant context from indexed documents using hybrid search.
+
+    Returns:
+        Tuple of (contexts, diagnostics_trace_id).
+        diagnostics_trace_id is None if diagnostics storage fails.
+    """
     try:
         search_request = SearchQuery(query=query, limit=max_docs, search_type="hybrid")
 
-        # Execute hybrid search (sync method, run in thread pool)
+        # Execute hybrid search with diagnostics (sync method, run in thread pool)
         import asyncio
 
         loop = asyncio.get_event_loop()
-        search_response = await loop.run_in_executor(
+        search_response, trace = await loop.run_in_executor(
             None,
-            lambda: hybrid_search_service.search(
+            lambda: hybrid_search_service.search_with_diagnostics(
                 search_request=search_request, user_id=None, organization_id=None
             ),
         )
@@ -122,19 +131,18 @@ async def retrieve_context(query: str, max_docs: int = 5) -> List[RetrievedConte
         logger.info(f"Hybrid search returned {len(search_response.results)} results")
 
         contexts = []
+        total_chars_before = 0
+        total_chars_after = 0
+        truncated_docs = []
+
         for result in search_response.results[:max_docs]:
-            # Extract fields from SearchResult object
-            # Note: API returns document_id, content_preview/content_snippet, not id/content
-            doc_id = getattr(result, "document_id", "unknown")
+            doc_id = getattr(result, "document_id", None)
             title = getattr(result, "title", "Untitled")
 
-            # Get metadata - it often contains the full text
             metadata = getattr(result, "metadata", {}) or {}
+            # Prefer full chunk text when available; preview fields are fallbacks only.
+            content = metadata.get("full_text") or metadata.get("text", "")
 
-            # Try to get full content from metadata.text first (contains full chunk)
-            content = metadata.get("text", "")
-
-            # Fallback to content_preview or content_snippet
             if not content:
                 content = getattr(result, "content_preview", None)
             if not content:
@@ -142,11 +150,9 @@ async def retrieve_context(query: str, max_docs: int = 5) -> List[RetrievedConte
             if not content:
                 content = getattr(result, "content", "")
 
-            # Ensure content is a string
             if content is None:
                 content = ""
 
-            # Get title from metadata if not in main object
             if not title or title == "Untitled":
                 additional_data = (
                     metadata.get("additional_data", {})
@@ -155,19 +161,26 @@ async def retrieve_context(query: str, max_docs: int = 5) -> List[RetrievedConte
                 )
                 title = additional_data.get("title", metadata.get("title", "Untitled"))
 
-            # Limit content length to fit in context window
-            if len(content) > 3000:
+            # Track truncation for diagnostics
+            original_len = len(content)
+            total_chars_before += original_len
+
+            if original_len > 3000:
                 content = content[:3000] + "..."
+                truncated_docs.append(
+                    {"doc_id": str(doc_id), "before": original_len, "after": 3000}
+                )
+
+            total_chars_after += len(content)
 
             score = getattr(result, "relevance_score", 0.0)
 
-            # Get source info from metadata
             metadata = getattr(result, "metadata", {}) or {}
             source = metadata.get("source_type") or metadata.get("source", "unknown")
 
             contexts.append(
                 RetrievedContext(
-                    document_id=str(doc_id),
+                    document_id=str(doc_id) if doc_id else None,
                     title=title,
                     content=content,
                     score=float(score),
@@ -179,11 +192,87 @@ async def retrieve_context(query: str, max_docs: int = 5) -> List[RetrievedConte
                 f"Retrieved context: {doc_id} - {title[:30]}... (score: {score:.3f})"
             )
 
-        return contexts
+        # Populate context diagnostics on the trace
+        from src.services.diagnostics.retrieval_diagnostics import ContextDiagnostics
+
+        trace.context = ContextDiagnostics(
+            docs_retrieved=len(search_response.results),
+            docs_with_content=sum(1 for c in contexts if c.content),
+            total_chars_before_truncation=total_chars_before,
+            total_chars_after_truncation=total_chars_after,
+            truncated_docs=truncated_docs,
+            truncation_ratio=round(
+                (total_chars_before - total_chars_after) / total_chars_before, 4
+            )
+            if total_chars_before > 0
+            else 0.0,
+        )
+
+        # Store the trace
+        trace_id = trace.trace_id
+        try:
+            from src.services.diagnostics.diagnostics_store import diagnostics_store
+
+            await diagnostics_store.store_trace(trace)
+        except Exception as store_err:
+            logger.warning(f"Failed to store diagnostics trace: {store_err}")
+            trace_id = None
+
+        return contexts, trace_id
 
     except Exception as e:
         logger.warning(f"Failed to retrieve context: {str(e)}", exc_info=True)
-        return []
+        return [], None
+
+
+async def _background_evaluate_rag(
+    query: str,
+    answer: str,
+    contexts: List[RetrievedContext],
+    trace_id: str,
+) -> None:
+    """Background task: evaluate RAG response quality and link to diagnostics trace."""
+    try:
+        from src.services.diagnostics.diagnostics_store import diagnostics_store
+        from src.services.evaluation.rag_evaluation_service import (
+            RAGEvaluationInput,
+            rag_evaluation_service,
+        )
+
+        evaluation_input = RAGEvaluationInput(
+            query=query,
+            generated_answer=answer,
+            retrieved_context=[ctx.content for ctx in contexts],
+            document_ids=[ctx.document_id for ctx in contexts],
+            search_type="hybrid",
+            metadata={"trace_id": trace_id, "context_count": len(contexts)},
+        )
+
+        from src.core.database import get_db_sync
+
+        db = next(get_db_sync())
+        try:
+            metrics = await rag_evaluation_service.run_rag_triad_evaluation(
+                evaluation_input, None, None, db
+            )
+            scores = {
+                "answer_relevancy": metrics.answer_relevancy,
+                "faithfulness": metrics.faithfulness,
+                "contextual_relevancy": metrics.contextual_relevancy,
+                "overall_score": metrics.overall_score,
+                "hallucination_rate": metrics.hallucination_rate,
+            }
+            await diagnostics_store.update_trace_evaluation(
+                trace_id, evaluation_id=f"eval-{trace_id}", scores=scores
+            )
+            logger.info(
+                f"Background RAG evaluation completed for trace {trace_id}: "
+                f"overall={metrics.overall_score:.3f}"
+            )
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"Background RAG evaluation failed for trace {trace_id}: {e}")
 
 
 def build_context_prompt(contexts: List[RetrievedContext]) -> str:
@@ -210,7 +299,9 @@ def build_context_prompt(contexts: List[RetrievedContext]) -> str:
 
 
 @router.post("/completions", response_model=ChatCompletionResponse)
-async def chat_completions(request: ChatCompletionRequest):
+async def chat_completions(
+    request: ChatCompletionRequest, background_tasks: BackgroundTasks
+):
     """
     Get chat completion from Azure OpenAI.
 
@@ -227,6 +318,7 @@ async def chat_completions(request: ChatCompletionRequest):
             )
 
         retrieved_contexts = []
+        diagnostics_trace_id = None
 
         # Get the last user message for caching and RAG
         user_messages = [m for m in request.messages if m.role == "user"]
@@ -235,7 +327,7 @@ async def chat_completions(request: ChatCompletionRequest):
         # If RAG is enabled, retrieve context based on the last user message
         if request.use_rag:
             if last_query:
-                retrieved_contexts = await retrieve_context(
+                retrieved_contexts, diagnostics_trace_id = await retrieve_context(
                     last_query, request.max_context_docs
                 )
                 logger.info(f"Retrieved {len(retrieved_contexts)} documents for RAG")
@@ -346,6 +438,7 @@ async def chat_completions(request: ChatCompletionRequest):
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 rag_enabled=request.use_rag,
                 retrieved_contexts=cached_contexts if request.use_rag else None,
+                diagnostics_trace_id=diagnostics_trace_id,
             )
 
         # Get completion from Azure OpenAI
@@ -387,6 +480,16 @@ async def chat_completions(request: ChatCompletionRequest):
                 retrieved_contexts=contexts_for_cache,
             )
 
+        # Trigger background RAG evaluation if RAG was used
+        if request.use_rag and diagnostics_trace_id and retrieved_contexts:
+            background_tasks.add_task(
+                _background_evaluate_rag,
+                query=last_query,
+                answer=response["content"],
+                contexts=retrieved_contexts,
+                trace_id=diagnostics_trace_id,
+            )
+
         # Build response
         return ChatCompletionResponse(
             message=ChatMessage(role="assistant", content=response["content"]),
@@ -398,6 +501,7 @@ async def chat_completions(request: ChatCompletionRequest):
             timestamp=datetime.now(timezone.utc).isoformat(),
             rag_enabled=request.use_rag,
             retrieved_contexts=retrieved_contexts if request.use_rag else None,
+            diagnostics_trace_id=diagnostics_trace_id,
         )
 
     except HTTPException:
@@ -435,11 +539,11 @@ async def list_available_models():
         deployment = azure_openai_service.get_chat_deployment()
         models.append(
             {
-                "id": "gpt-4o-mini",
-                "name": "GPT-4O Mini",
+                "id": "gpt-4o",
+                "name": "GPT-4O",
                 "provider": "azure_openai",
                 "deployment": deployment,
-                "description": "OpenAI flagship mini model with superior reasoning capabilities",
+                "description": "OpenAI flagship model with superior reasoning and multimodal capabilities",
                 "available": True,
                 "supports_rag": True,
             }

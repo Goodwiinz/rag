@@ -8,6 +8,7 @@
 import { Entity, EntityResponse, EntityType, GraphEdge } from '@/types/entity';
 import { EntityDetails, GraphNode } from '@/types/graph-api';
 import { apiClient } from './apiClient';
+import { APIErrorClass } from '@/types/api';
 
 /**
  * Retry wrapper utility for API calls
@@ -33,6 +34,29 @@ async function withRetry<T>(
 
   throw lastError;
 }
+
+const isExpectedApiFailure = (error: unknown): boolean => {
+  if (error instanceof APIErrorClass) {
+    const message = error.error.message?.toLowerCase() || '';
+    return (
+      !!error.error.silent ||
+      error.error.status_code === 401 ||
+      error.error.status_code === 403 ||
+      error.error.status_code === 503 ||
+      message.includes('service unavailable') ||
+      message.includes('circuit breaker')
+    );
+  }
+  return false;
+};
+
+const logEntityServiceError = (context: string, error: unknown): void => {
+  if (isExpectedApiFailure(error)) {
+    console.warn(`${context}:`, error);
+    return;
+  }
+  console.error(`${context}:`, error);
+};
 
 export interface EntityUpdateRequest {
   name?: string;
@@ -63,6 +87,27 @@ export interface EntityTimeline {
     description: string;
     metadata?: Record<string, any>;
   }>;
+}
+
+export interface ProcessingJobStatus {
+  id: string;
+  job_type: string;
+  status: string;
+  progress_percentage: number;
+  current_step?: string;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  duration_seconds?: number;
+  error_message?: string;
+  result?: Record<string, any>;
+}
+
+export interface ProcessingJobsListResponse {
+  jobs: ProcessingJobStatus[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 class EntityService {
@@ -108,7 +153,7 @@ class EntityService {
         metadata: rel.metadata
       }));
     } catch (error) {
-      console.error('Error in getAllRelationships:', error);
+      logEntityServiceError('Error in getAllRelationships', error);
       return [];
     }
   }
@@ -230,6 +275,35 @@ class EntityService {
     return response;
   }
 
+  async createMergeJob(groups: Array<{ entities: Array<{ id: string; name: string }>; suggested_primary: string }>): Promise<{ job_id: string; status: string }> {
+    return apiClient.post<{ job_id: string; status: string }>(
+      `${this.baseUrl}/merge-jobs`,
+      { groups }
+    );
+  }
+
+  async createExtractionJob(documentIds: string[]): Promise<{ job_id: string; status: string }> {
+    return apiClient.post<{ job_id: string; status: string }>(
+      `${this.baseUrl}/extraction-jobs`,
+      { document_ids: documentIds }
+    );
+  }
+
+  async getProcessingJob(jobId: string): Promise<ProcessingJobStatus> {
+    return apiClient.get<ProcessingJobStatus>(`processing/jobs/${jobId}`);
+  }
+
+  async listProcessingJobs(params?: {
+    status?: string;
+    job_type?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ProcessingJobsListResponse> {
+    return apiClient.get<ProcessingJobsListResponse>('processing/jobs', {
+      params,
+    });
+  }
+
   /**
    * Find similar entities based on embedding similarity
    */
@@ -269,7 +343,7 @@ class EntityService {
         return response;
       });
     } catch (error) {
-      console.error('Error fetching entity types:', error);
+      logEntityServiceError('Error fetching entity types', error);
       // Return fallback hardcoded types if API fails after retry
       return [
         'PERSON', 'ORGANIZATION', 'LOCATION', 'CONCEPT', 'EVENT',
@@ -288,7 +362,7 @@ class EntityService {
       );
       return response;
     } catch (error) {
-      console.error('Error fetching relationship types:', error);
+      logEntityServiceError('Error fetching relationship types', error);
       // Return fallback types matching backend RelationshipType enum
       return [
         'WORKS_FOR', 'KNOWS', 'RELATED_TO', 'LOCATED_IN', 'PART_OF',
@@ -316,7 +390,7 @@ class EntityService {
       );
       return response;
     } catch (error) {
-      console.error('Error fetching visualization data:', error);
+      logEntityServiceError('Error fetching visualization data', error);
       throw error;
     }
   }
@@ -339,7 +413,7 @@ class EntityService {
       );
       return response;
     } catch (error) {
-      console.error('Error performing graph search:', error);
+      logEntityServiceError('Error performing graph search', error);
       throw error;
     }
   }
@@ -359,7 +433,7 @@ class EntityService {
       );
       return response;
     } catch (error) {
-      console.error('Error in batch create:', error);
+      logEntityServiceError('Error in batch create', error);
       throw error;
     }
   }

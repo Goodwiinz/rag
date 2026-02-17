@@ -206,6 +206,7 @@ interface Message {
   content: string;
   timestamp: number;
   citations?: Citation[];
+  diagnosticsTraceId?: string;
 }
 
 // UI Conversation type (mapped from DB Thread)
@@ -226,15 +227,15 @@ interface Conversation {
 
 const AVAILABLE_MODELS: ExtendedModel[] = [
   {
-    id: 'gpt-4o-mini',
-    name: 'GPT-4O-MINI',
+    id: 'gpt-4o',
+    name: 'GPT-4O',
     description:
-      'OpenAI flagship mini model with superior reasoning capabilities',
+      'OpenAI flagship model with superior reasoning and multimodal capabilities',
     size: 'Cloud',
     parameters: 'Cloud API',
     ram: 'N/A',
-    speed: 'Very Fast',
-    accuracy: 95,
+    speed: 'Fast',
+    accuracy: 97,
     features: [
       'Advanced Reasoning',
       'Code Generation',
@@ -246,7 +247,7 @@ const AVAILABLE_MODELS: ExtendedModel[] = [
     isFeatured: true,
     isCloud: true,
     provider: 'openai',
-    benchmarks: { reasoning: 94, coding: 92, math: 91, language: 96 },
+    benchmarks: { reasoning: 96, coding: 95, math: 94, language: 97 },
   },
   {
     id: 'Llama-3.2-1B-Instruct-q4f32_1-MLC',
@@ -579,7 +580,7 @@ function ChatMessage({
         {/* Citations Footer */}
         {!isUser && message.citations && message.citations.length > 0 && (
           <div className="relative border-t border-[var(--terminal-border)] p-2.5 bg-[var(--terminal-bg)]/30">
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               {message.citations.map((citation, idx) => (
                 <button
                   key={idx}
@@ -595,6 +596,17 @@ function ChatMessage({
                   </span>
                 </button>
               ))}
+              {message.diagnosticsTraceId && (
+                <a
+                  href={`/diagnostics?trace=${message.diagnosticsTraceId}`}
+                  className="ml-auto flex items-center gap-1 px-2 py-1 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] hover:border-[var(--cyan-pulse)]/40 hover:bg-[var(--terminal-elevated)] text-[9px] text-[var(--cyan-pulse)] transition-all"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  title="View retrieval diagnostics"
+                >
+                  <Activity className="w-3 h-3" />
+                  <span>DIAG</span>
+                </a>
+              )}
             </div>
           </div>
         )}
@@ -825,16 +837,15 @@ function ChatInput({
                 onModelChange={onModelChange}
                 isLoading={isModelLoading}
               />
-              {/* RAG Toggle - Show for local models only */}
-              {selectedModel &&
-                !models.find((m) => m.id === selectedModel)?.isCloud && (
-                  <RAGToggle
-                    enabled={enableRAG}
-                    onToggle={onRAGToggle}
-                    isLoading={isRAGLoading}
-                    disabled={isLoading}
-                  />
-                )}
+              {/* RAG Toggle - Show for all models */}
+              {selectedModel && (
+                <RAGToggle
+                  enabled={enableRAG}
+                  onToggle={onRAGToggle}
+                  isLoading={isRAGLoading}
+                  disabled={isLoading}
+                />
+              )}
             </div>
             <div className="flex items-center gap-3">
               {/* RAG loading indicator */}
@@ -1184,7 +1195,7 @@ function ChatPageContent() {
   >(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [selectedModel, setSelectedModel] = useState<string>('gpt-4o');
 
   // Database state
   const [_workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -1215,6 +1226,7 @@ function ChatPageContent() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isHydratedRef = useRef(false);
   const hasRestoredThreadRef = useRef(false);
+  const lastStreamedContentRef = useRef<string>('');
 
   // Scroll state
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -1247,6 +1259,13 @@ function ChatPageContent() {
   const _storeStreamingCitations = useChatStore(
     (state) => state.streamingCitations
   );
+
+  // Track streaming content in a ref for post-stream fallback
+  useEffect(() => {
+    if (storeStreamingContent) {
+      lastStreamedContentRef.current = storeStreamingContent;
+    }
+  }, [storeStreamingContent]);
 
   // Navigation detection
   const _pathname = usePathname();
@@ -1795,16 +1814,22 @@ function ChatPageContent() {
       let assistantMessage = '';
 
       if (isCloudModel) {
-        // Use SSE streaming for cloud models (GPT-4o mini via Azure OpenAI)
+        // Use SSE streaming for cloud models (GPT-4o via Azure OpenAI)
         // streamMessage handles the full lifecycle: stream tokens, then loadMessages on completion.
         // The virtual streaming message is rendered in the message list via storeIsStreaming/storeStreamingContent.
-        // After streaming completes (message_done), the store refreshes messages from DB,
-        // and we sync local state below via the effect that watches storeMessages.
+        // IMPORTANT: streamMessage does NOT clear isStreaming/streamingContent on success —
+        // we clear them here AFTER syncing local state to avoid a flash where the
+        // virtual streaming message disappears before the final messages are displayed.
         console.log(
           '[Chat] Starting SSE stream for cloud model, thread:',
           currentThreadId
         );
-        await storeStreamMessage(input.trim(), currentThreadId || undefined);
+        lastStreamedContentRef.current = '';
+        await storeStreamMessage(
+          input.trim(),
+          currentThreadId || undefined,
+          enableRAG
+        );
 
         // After streaming completes, the store has refreshed messages via loadMessages.
         // Sync the store messages back to local state for display.
@@ -1838,8 +1863,39 @@ function ChatPageContent() {
                   : conv
               )
             );
+          } else if (lastStreamedContentRef.current) {
+            // Fallback: store loadMessages returned empty (e.g. network hiccup).
+            // Construct the assistant message from captured streaming content.
+            console.warn(
+              '[Chat] Store messages empty after stream, using captured content fallback'
+            );
+            const fallbackMessages: Message[] = [
+              ...newMessages,
+              {
+                role: 'assistant' as const,
+                content: lastStreamedContentRef.current,
+                timestamp: Date.now(),
+              },
+            ];
+            setMessages(fallbackMessages);
+            setConversations((prev) =>
+              prev.map((conv) =>
+                conv.id === currentConversationId
+                  ? {
+                      ...conv,
+                      messages: fallbackMessages,
+                      updatedAt: Date.now(),
+                    }
+                  : conv
+              )
+            );
           }
         }
+
+        // NOW clear streaming state — the virtual message disappears only
+        // after local messages are already set with the final response.
+        storeStopStreaming();
+        lastStreamedContentRef.current = '';
       } else {
         // Use local WebLLM engine for browser-based models
         let ragContexts: RAGContextItem[] = [];
@@ -2033,6 +2089,13 @@ function ChatPageContent() {
       ]);
     } finally {
       setIsLoading(false);
+      // Safety: ensure streaming state is always cleared.
+      // On success, storeStopStreaming() was already called above.
+      // On error, the catch in streamMessage clears it. But if the sync
+      // code in handleSubmit itself throws, we need this safety net.
+      if (useChatStore.getState().isStreaming) {
+        storeStopStreaming();
+      }
     }
   };
 

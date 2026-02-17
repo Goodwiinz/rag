@@ -30,7 +30,20 @@ from src.core.config import settings
 from src.core.database import get_db
 from src.models.document import Document, ProcessingStatus
 from src.models.entity import Entity
+from src.models.graph import (
+    BatchEntityRequest,
+    CreateEntityRequest,
+    CreateRelationshipRequest,
+    EntityType as GraphEntityType,
+    ExtractionMethod as GraphExtractionMethod,
+    RelationshipType as GraphRelationshipType,
+)
 from src.models.processing import JobStatus, ProcessingJob
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+from src.services.processing.entity_extraction_service import (
+    EntityExtractionService,
+    EntityType as ProcessingEntityType,
+)
 from src.services.processing.processing_service import ProcessingPipeline
 from src.services.search.fulltext_search_service import fulltext_search_service
 
@@ -66,6 +79,34 @@ class ProcessingTask(Task):
                 logger.error(f"Failed to update job status: {str(e)}")
             finally:
                 db.close()
+
+
+def _map_processing_entity_type_to_graph(
+    entity_type: ProcessingEntityType,
+) -> GraphEntityType:
+    mapping = {
+        "person": GraphEntityType.PERSON,
+        "organization": GraphEntityType.ORGANIZATION,
+        "location": GraphEntityType.LOCATION,
+        "product": GraphEntityType.PRODUCT,
+        "concept": GraphEntityType.CONCEPT,
+        "date": GraphEntityType.DATE,
+        "number": GraphEntityType.OTHER,
+        "email": GraphEntityType.EMAIL,
+        "phone": GraphEntityType.PHONE,
+        "url": GraphEntityType.URL,
+        "custom": GraphEntityType.OTHER,
+    }
+    return mapping.get(entity_type.value, GraphEntityType.OTHER)
+
+
+def _safe_relationship_type(raw_type: str) -> GraphRelationshipType:
+    if not raw_type:
+        return GraphRelationshipType.RELATED_TO
+    try:
+        return GraphRelationshipType(raw_type)
+    except ValueError:
+        return GraphRelationshipType.RELATED_TO
 
 
 @current_app.task(base=ProcessingTask, bind=True)
@@ -469,6 +510,183 @@ def index_in_graph(self, job_id: str):
             db.commit()
         raise
 
+    finally:
+        db.close()
+
+
+@current_app.task(base=ProcessingTask, bind=True, name="kg_extract_entities_job")
+def kg_extract_entities_job(self, job_id: str):
+    """Extract entities from a document and index them into knowledge graph."""
+    db = SessionLocal()
+    try:
+        job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
+        if not job:
+            raise ValueError(f"Job {job_id} not found")
+
+        job.start_job(worker_id=self.request.id, celery_task_id=self.request.id)
+        db.commit()
+
+        extractor = EntityExtractionService()
+        document_ids = []
+        if job.parameters:
+            if job.parameters.get("document_ids"):
+                document_ids = [str(doc_id) for doc_id in job.parameters.get("document_ids", [])]
+            elif job.parameters.get("document_id"):
+                document_ids = [str(job.parameters.get("document_id"))]
+        if not document_ids:
+            raise ValueError("Missing document_id(s) in job parameters")
+
+        entities_found_total = 0
+        entities_created_total = 0
+        errors_total = 0
+
+        total_docs = len(document_ids)
+        for index, document_id in enumerate(document_ids):
+            document = db.query(Document).filter(Document.id == document_id).first()
+            if not document:
+                errors_total += 1
+                continue
+
+            content = document.content_text or ""
+            if not content.strip():
+                errors_total += 1
+                continue
+
+            job.update_progress(
+                f"Extracting entities ({index + 1}/{total_docs})",
+                min(80.0, ((index + 1) / max(total_docs, 1)) * 70.0),
+            )
+            db.commit()
+
+            extracted = extractor.extract_entities_from_text(document, content)
+            entities_found_total += len(extracted)
+
+            create_requests = []
+            for ent in extracted:
+                create_requests.append(
+                    CreateEntityRequest(
+                        name=ent.name,
+                        entity_type=_map_processing_entity_type_to_graph(ent.entity_type),
+                        confidence_score=min(1.0, max(0.0, ent.confidence or 0.8)),
+                        extraction_method=GraphExtractionMethod.MANUAL,
+                        position=None,
+                        context=ent.description,
+                        metadata={
+                            "source": "background_extraction_job",
+                            "document_id": str(document.id),
+                        },
+                        source_document_id=str(document.id),
+                    )
+                )
+
+            result = knowledge_graph_service.create_entities_batch(
+                BatchEntityRequest(
+                    entities=create_requests,
+                    relationships=[],
+                    upsert=True,
+                    document_id=str(document.id),
+                )
+            )
+            entities_created_total += len(result.created_entities)
+            errors_total += len(result.errors)
+
+        job.update_progress("Finalizing extraction job", 90)
+
+        job.complete_job(
+            result={
+                "document_ids": document_ids,
+                "entities_found": entities_found_total,
+                "entities_created": entities_created_total,
+                "errors": errors_total,
+            }
+        )
+        db.commit()
+        return {"status": "completed", "job_id": job_id}
+    except Exception as e:
+        if "job" in locals() and job:
+            job.fail_job(str(e), error_type=type(e).__name__)
+            db.commit()
+        raise
+    finally:
+        db.close()
+
+
+@current_app.task(base=ProcessingTask, bind=True, name="kg_merge_entities_job")
+def kg_merge_entities_job(self, job_id: str):
+    """Merge duplicate entity groups into suggested primary entities."""
+    db = SessionLocal()
+    try:
+        job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
+        if not job:
+            raise ValueError(f"Job {job_id} not found")
+
+        groups = (job.parameters or {}).get("groups", [])
+        if not groups:
+            raise ValueError("No groups provided for merge job")
+
+        job.start_job(worker_id=self.request.id, celery_task_id=self.request.id)
+        db.commit()
+
+        success_count = 0
+        failure_count = 0
+
+        total_groups = len(groups)
+        for index, group in enumerate(groups):
+            group_entities = group.get("entities", [])
+            primary_id = group.get("suggested_primary")
+            if not primary_id or not group_entities:
+                failure_count += 1
+                continue
+
+            duplicate_ids = [e.get("id") for e in group_entities if e.get("id") and e.get("id") != primary_id]
+            step_message = f"Merging group {index + 1}/{total_groups}"
+            job.update_progress(step_message, min(90.0, ((index + 1) / max(total_groups, 1)) * 85.0))
+            db.commit()
+
+            try:
+                for duplicate_id in duplicate_ids:
+                    relationships = knowledge_graph_service.get_relationships(duplicate_id)
+                    for rel in relationships:
+                        create_request = CreateRelationshipRequest(
+                            source_entity_id=primary_id if rel.source_entity_id == duplicate_id else rel.source_entity_id,
+                            target_entity_id=primary_id if rel.target_entity_id == duplicate_id else rel.target_entity_id,
+                            relationship_type=_safe_relationship_type(
+                                getattr(rel.relationship_type, "value", rel.relationship_type)
+                            ),
+                            strength=rel.strength,
+                            confidence_score=rel.confidence_score,
+                            context=rel.context,
+                            evidence=rel.evidence or [],
+                            metadata=rel.metadata or {},
+                            source_document_id=rel.source_document_id,
+                        )
+                        try:
+                            knowledge_graph_service.create_relationship(create_request)
+                        except Exception:
+                            # Ignore duplicate relationship insertion errors
+                            pass
+
+                    knowledge_graph_service.delete_entity(duplicate_id)
+
+                success_count += 1
+            except Exception:
+                failure_count += 1
+
+        job.update_progress("Finalizing merge job", 95)
+        job.complete_job(
+            result={
+                "total_groups": total_groups,
+                "merged_groups": success_count,
+                "failed_groups": failure_count,
+            }
+        )
+        db.commit()
+        return {"status": "completed", "job_id": job_id}
+    except Exception as e:
+        if "job" in locals() and job:
+            job.fail_job(str(e), error_type=type(e).__name__)
+            db.commit()
+        raise
     finally:
         db.close()
 

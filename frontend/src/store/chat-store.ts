@@ -162,6 +162,7 @@ interface ChatState {
   streamingContent: string;
   streamingMessageId: string | null;
   streamingCitations: Array<Record<string, unknown>>;
+  streamingDiagnosticsTraceId: string | null;
   abortController: AbortController | null;
 }
 
@@ -228,7 +229,11 @@ interface ChatActions {
   setSidebarCollapsed: (collapsed: boolean) => void;
 
   // Streaming actions
-  streamMessage: (content: string, threadId?: string) => Promise<void>;
+  streamMessage: (
+    content: string,
+    threadId?: string,
+    useRag?: boolean
+  ) => Promise<void>;
   stopStreaming: () => void;
 
   // Utility actions
@@ -371,6 +376,7 @@ const initialState: ChatState = {
   streamingContent: '',
   streamingMessageId: null,
   streamingCitations: [],
+  streamingDiagnosticsTraceId: null,
   abortController: null,
 };
 
@@ -1124,7 +1130,7 @@ export const useChatStore = create<ChatStore>()(
       // Streaming Actions
       // ========================================================================
 
-      streamMessage: async (content, threadId) => {
+      streamMessage: async (content, threadId, useRag = true) => {
         const state = get();
         const targetThreadId = threadId || state.currentThreadId;
 
@@ -1140,6 +1146,7 @@ export const useChatStore = create<ChatStore>()(
           state.streamingContent = '';
           state.streamingMessageId = null;
           state.streamingCitations = [];
+          state.streamingDiagnosticsTraceId = null;
           state.abortController = controller as any;
           state.error = null;
         });
@@ -1151,7 +1158,7 @@ export const useChatStore = create<ChatStore>()(
           for await (const event of streamChatMessage(
             targetThreadId,
             content,
-            {},
+            { useRag },
             controller.signal
           )) {
             switch (event.type) {
@@ -1167,6 +1174,8 @@ export const useChatStore = create<ChatStore>()(
                   state.streamingCitations =
                     (event.data.citations as Array<Record<string, unknown>>) ??
                     [];
+                  state.streamingDiagnosticsTraceId =
+                    (event.data.diagnostics_trace_id as string) ?? null;
                 });
                 break;
 
@@ -1198,12 +1207,25 @@ export const useChatStore = create<ChatStore>()(
               state.error = 'Failed to stream message';
             });
           }
-        } finally {
+          // On error/abort, clear streaming state immediately.
+          // (For normal completion, the caller — handleSubmit — clears
+          // streaming state AFTER syncing local messages to avoid a flash
+          // where the virtual streaming message disappears before the
+          // final messages are displayed.)
           set((state) => {
             state.isStreaming = false;
             state.streamingContent = '';
             state.streamingMessageId = null;
             state.streamingCitations = [];
+            state.streamingDiagnosticsTraceId = null;
+            state.abortController = null;
+          });
+        } finally {
+          // Only clear abortController here. Streaming display state
+          // (isStreaming, streamingContent, etc.) is cleared either by
+          // the catch block (on error) or by the caller after syncing
+          // local message state (on success).
+          set((state) => {
             state.abortController = null;
           });
         }
@@ -1219,6 +1241,7 @@ export const useChatStore = create<ChatStore>()(
           state.streamingContent = '';
           state.streamingMessageId = null;
           state.streamingCitations = [];
+          state.streamingDiagnosticsTraceId = null;
           state.abortController = null;
         });
       },

@@ -23,6 +23,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import {
+  Activity,
   BarChart3,
   Bell,
   BookOpen,
@@ -65,6 +66,7 @@ const researchNavItems = [
 
 const systemNavItems = [
   { title: 'Analytics', url: '/analytics', icon: BarChart3 },
+  { title: 'Diagnostics', url: '/diagnostics', icon: Activity },
   { title: 'Settings', url: '/settings', icon: Settings },
 ];
 
