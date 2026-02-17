@@ -1,4 +1,4 @@
 # CI build constraints for source-built packages.
 # openai-whisper's build backend imports pkg_resources, which is not
 # available in newer setuptools releases.
-setuptools<81
+setuptools<83
