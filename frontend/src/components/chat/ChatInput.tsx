@@ -3,25 +3,23 @@
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { Textarea } from '@/components/ui/textarea';
-import {
-    TooltipProvider
-} from '@/components/ui/tooltip';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-    Bold,
-    Code,
-    Italic,
-    Link2,
-    List,
-    ListOrdered,
-    Mic,
-    Paperclip,
-    Quote,
-    Send,
-    Settings,
-    Square,
-    Trash2
+  Bold,
+  Code,
+  Italic,
+  Link2,
+  List,
+  ListOrdered,
+  Mic,
+  Paperclip,
+  Quote,
+  Send,
+  Settings,
+  Square,
+  Trash2,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -31,6 +29,7 @@ interface ChatInputProps {
   onSubmit: () => void;
   onStop?: () => void;
   isLoading?: boolean;
+  isStreaming?: boolean;
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
@@ -56,8 +55,9 @@ export function ChatInput({
   onSubmit,
   onStop,
   isLoading = false,
+  isStreaming = false,
   disabled = false,
-  placeholder = "Type your message...",
+  placeholder = 'Type your message...',
   maxLength = 4000,
   showWordCount = true,
   showToolbar = true,
@@ -129,7 +129,8 @@ export function ChatInput({
     const selectedText = value.substring(start, end);
     const formattedText = `${prefix}${selectedText}${suffix}`;
 
-    const newValue = value.substring(0, start) + formattedText + value.substring(end);
+    const newValue =
+      value.substring(0, start) + formattedText + value.substring(end);
     onChange(newValue);
 
     // Restore cursor position
@@ -212,7 +213,7 @@ export function ChatInput({
         if (onVoiceRecord) {
           onVoiceRecord(blob);
         }
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
       };
 
       mediaRecorder.start();
@@ -222,7 +223,7 @@ export function ChatInput({
 
       // Update recording time
       recordingIntervalRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
+        setRecordingTime((prev) => prev + 1);
       }, 1000);
     } catch (error) {
       console.error('Error accessing microphone:', error);
@@ -261,15 +262,21 @@ export function ChatInput({
   };
 
   // Count words and characters
-  const wordCount = value.trim().split(/\s+/).filter(word => word.length > 0).length;
+  const wordCount = value
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word.length > 0).length;
   // Character count logic
   const charCount = value.length;
   const charPercentage = (charCount / maxLength) * 100;
-  const showCharCount = showWordCount && (charPercentage > 70 || (textareaRef.current && document.activeElement === textareaRef.current));
+  const showCharCount =
+    showWordCount &&
+    (charPercentage > 70 ||
+      (textareaRef.current && document.activeElement === textareaRef.current));
 
   return (
     <TooltipProvider>
-      <div className={cn("relative w-full", className)}>
+      <div className={cn('relative w-full', className)}>
         {/* Formatting Toolbar */}
         <AnimatePresence>
           {isToolbarOpen && showToolbar && (
@@ -313,13 +320,13 @@ export function ChatInput({
             value={value}
             onChange={(e) => onChange(e.target.value.slice(0, maxLength))}
             onKeyDown={handleKeyDown}
-            placeholder={disabled ? "Disabled..." : placeholder}
-            disabled={disabled || isLoading || isRecording}
+            placeholder={disabled ? 'Disabled...' : placeholder}
+            disabled={disabled || isLoading || isStreaming || isRecording}
             className={cn(
-              "min-h-[60px] max-h-[200px] resize-none pr-28 transition-all",
-              "border-2 shadow-sm focus:shadow-md",
-              "focus:ring-2 focus:ring-[#00ff9f]/20 focus:border-[#00ff9f]",
-              disabled && "opacity-50 cursor-not-allowed"
+              'min-h-[60px] max-h-[200px] resize-none pr-28 transition-all',
+              'border-2 shadow-sm focus:shadow-md',
+              'focus:ring-2 focus:ring-[#00ff9f]/20 focus:border-[#00ff9f]',
+              disabled && 'opacity-50 cursor-not-allowed'
             )}
             rows={1}
           />
@@ -332,9 +339,9 @@ export function ChatInput({
                 icon={<Settings className="w-3 h-3" />}
                 label="Formatting tools"
                 className={cn(
-                  "h-7 w-7 transition-opacity",
-                  "opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100",
-                  isToolbarOpen && "opacity-100"
+                  'h-7 w-7 transition-opacity',
+                  'opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100',
+                  isToolbarOpen && 'opacity-100'
                 )}
                 onClick={() => setIsToolbarOpen(!isToolbarOpen)}
                 disabled={disabled || isLoading}
@@ -347,8 +354,8 @@ export function ChatInput({
                 icon={<Paperclip className="w-3 h-3" />}
                 label="Attach files"
                 className={cn(
-                  "h-7 w-7 transition-opacity",
-                  "opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100"
+                  'h-7 w-7 transition-opacity',
+                  'opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100'
                 )}
                 onClick={() => fileInputRef.current?.click()}
                 disabled={disabled || isLoading || isRecording}
@@ -366,7 +373,9 @@ export function ChatInput({
                     className="flex items-center gap-2 bg-red-500 text-white px-2 py-1 rounded-full"
                   >
                     <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                    <span className="text-xs font-medium">{formatTime(recordingTime)}</span>
+                    <span className="text-xs font-medium">
+                      {formatTime(recordingTime)}
+                    </span>
                     <Button
                       type="button"
                       variant="ghost"
@@ -383,8 +392,8 @@ export function ChatInput({
                     icon={<Mic className="w-3 h-3" />}
                     label="Voice input"
                     className={cn(
-                      "h-7 w-7 transition-opacity",
-                      "opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100"
+                      'h-7 w-7 transition-opacity',
+                      'opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100'
                     )}
                     onClick={startRecording}
                     disabled={disabled || isLoading}
@@ -416,41 +425,56 @@ export function ChatInput({
             )}
 
             {/* Send/Stop Button */}
-            <Button
-              type="button"
-              onClick={isLoading && onStop ? onStop : onSubmit}
-              disabled={
-                disabled ||
-                (!isLoading && !value.trim()) ||
-                isRecording
-              }
-              size="sm"
-              aria-label={isLoading ? "Stop generation" : "Send message"}
-              className={cn(
-                "h-8 min-w-[32px] transition-all shadow-lg",
-                isLoading
-                  ? "bg-red-500 hover:bg-red-600 text-white"
-                  : "bg-gradient-to-r from-[#00ff9f] to-[#00cc7a] hover:from-[#00cc7a] hover:to-[#00994d] text-[#0a0a0f] font-medium hover:shadow-[0_0_20px_rgba(0,255,159,0.3)]"
-              )}
-            >
-              {isLoading ? (
+            {isStreaming ? (
+              <Button
+                type="button"
+                onClick={onStop}
+                size="sm"
+                aria-label="Stop generating"
+                className={cn(
+                  'h-8 min-w-[32px] transition-all shadow-lg',
+                  'bg-red-500 hover:bg-red-600 text-white'
+                )}
+              >
                 <Square className="w-4 h-4" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-            </Button>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={isLoading && onStop ? onStop : onSubmit}
+                disabled={
+                  disabled || (!isLoading && !value.trim()) || isRecording
+                }
+                size="sm"
+                aria-label={isLoading ? 'Stop generation' : 'Send message'}
+                className={cn(
+                  'h-8 min-w-[32px] transition-all shadow-lg',
+                  isLoading
+                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                    : 'bg-gradient-to-r from-[#00ff9f] to-[#00cc7a] hover:from-[#00cc7a] hover:to-[#00994d] text-[#0a0a0f] font-medium hover:shadow-[0_0_20px_rgba(0,255,159,0.3)]'
+                )}
+              >
+                {isLoading ? (
+                  <Square className="w-4 h-4" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </Button>
+            )}
           </div>
 
           {/* Character Count Indicator */}
           <div
             className={cn(
-              "absolute -top-6 right-0 text-xs transition-all duration-200",
-              showCharCount || charPercentage > 70 ? "opacity-100" : "opacity-0",
+              'absolute -top-6 right-0 text-xs transition-all duration-200',
+              showCharCount || charPercentage > 70
+                ? 'opacity-100'
+                : 'opacity-0',
               charPercentage > 90
-                ? "text-destructive font-medium"
+                ? 'text-destructive font-medium'
                 : charPercentage > 70
-                ? "text-amber-500"
-                : "text-muted-foreground"
+                  ? 'text-amber-500'
+                  : 'text-muted-foreground'
             )}
             aria-live="polite"
             aria-atomic="true"
