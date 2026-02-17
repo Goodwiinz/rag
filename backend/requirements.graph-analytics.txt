@@ -61,5 +61,5 @@ typing-extensions==4.8.0
 asyncio-mqtt==0.16.1
 
 # Performance monitoring
-psutil==5.9.6
+psutil==7.2.2
 memory-profiler==0.61.0
