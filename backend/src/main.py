@@ -62,6 +62,7 @@ from src.api.search import (
 )
 from src.api.security import compliance_router, encryption_router, rbac_router
 from src.api.threads import (
+    stream_router,
     thread_search_router,
     threads_router,
     workspaces_router,
@@ -321,6 +322,9 @@ app.include_router(
 app.include_router(
     threads_router, prefix="/api/v2"
 )  # Thread management endpoints (includes bulk operations)
+app.include_router(
+    stream_router, prefix="/api/v2"
+)  # SSE streaming chat endpoint
 app.include_router(
     workspaces_standalone_router
 )  # Flat API routes for workspaces (used by frontend)
