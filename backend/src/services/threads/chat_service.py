@@ -876,24 +876,41 @@ class ChatService:
         # Add citations if provided
         if citations:
             for cit in citations:
-                citation = Citation(
-                    message_id=message.id,
-                    document_id=cit.get("document_id"),
-                    external_reference_id=cit.get("external_reference_id"),
-                    chunk_index=cit.get("chunk_index"),
-                    chunk_id=cit.get("chunk_id"),
-                    snippet=cit.get("snippet"),
-                    snippet_preview=cit.get("snippet_preview"),
-                    page_number=cit.get("page_number"),
-                    score=cit.get("score"),
-                    rerank_score=cit.get("rerank_score"),
-                    document_title=cit.get("document_title"),
-                    document_type=cit.get("document_type"),
-                )
-                self.db.add(citation)
+                # Validate document_id is a valid UUID, otherwise set to None
+                doc_id = cit.get("document_id")
+                if doc_id:
+                    try:
+                        import uuid as _uuid
+                        _uuid.UUID(str(doc_id))
+                    except (ValueError, AttributeError):
+                        logger.warning(f"Invalid document_id '{doc_id}', setting to None")
+                        doc_id = None
 
-        # Update thread stats
-        stmt = select(Thread).where(Thread.id == thread_id)
+                try:
+                    citation = Citation(
+                        message_id=message.id,
+                        document_id=doc_id,
+                        external_reference_id=cit.get("external_reference_id"),
+                        chunk_index=cit.get("chunk_index"),
+                        chunk_id=cit.get("chunk_id"),
+                        snippet=cit.get("snippet"),
+                        page_number=cit.get("page_number"),
+                        score=cit.get("score"),
+                        rerank_score=cit.get("rerank_score"),
+                        document_title=cit.get("document_title"),
+                        document_type=cit.get("document_type"),
+                    )
+                    self.db.add(citation)
+                except Exception as cit_exc:
+                    logger.warning(f"Failed to create citation: {cit_exc}")
+
+        # Update thread stats (eagerly load conversation to avoid lazy-load
+        # MissingGreenlet errors in async context)
+        stmt = (
+            select(Thread)
+            .options(selectinload(Thread.conversation))
+            .where(Thread.id == thread_id)
+        )
         result = await self.db.execute(stmt)
         thread = result.scalars().first()
         if thread:

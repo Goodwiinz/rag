@@ -42,6 +42,7 @@ class CohereRerankService:
         self.model = settings.COHERE_RERANK_MODEL
         self.default_top_n = settings.COHERE_RERANK_TOP_N
         self._enabled = bool(self.endpoint and self.api_key)
+        self.last_failure: Optional[Dict[str, Any]] = None
 
         if self._enabled:
             logger.info(f"Cohere reranking enabled with model: {self.model}")
@@ -72,8 +73,11 @@ class CohereRerankService:
         Returns:
             List of RerankResult sorted by relevance score (highest first)
         """
+        self.last_failure = None
+
         if not self._enabled:
             logger.debug("Reranking disabled, returning original order")
+            self.last_failure = {"reason": "service_disabled"}
             return self._fallback_rerank(documents, top_n)
 
         if not documents:
@@ -83,6 +87,7 @@ class CohereRerankService:
         breaker = get_circuit_breaker("cohere")
         if breaker and not breaker.can_execute():
             logger.warning("Cohere circuit breaker is open - using fallback reranking")
+            self.last_failure = {"reason": "circuit_open"}
             return self._fallback_rerank(documents, top_n)
 
         top_n = top_n or self.default_top_n
@@ -153,10 +158,20 @@ class CohereRerankService:
             # Record circuit breaker success
             if breaker:
                 breaker.record_success()
+            self.last_failure = None
 
             return rerank_results
 
         except httpx.HTTPStatusError as e:
+            status_code = e.response.status_code if e.response else None
+            failure_reason = (
+                "endpoint_not_found" if status_code == 404 else "upstream_http_error"
+            )
+            self.last_failure = {
+                "reason": failure_reason,
+                "status_code": status_code,
+                "response_text": (e.response.text if e.response else "")[:500],
+            }
             logger.error(
                 f"Cohere API error: {e.response.status_code} - {e.response.text}"
             )
@@ -167,6 +182,7 @@ class CohereRerankService:
 
         except Exception as e:
             logger.error(f"Cohere rerank failed: {e}")
+            self.last_failure = {"reason": "unexpected_error", "error": str(e)}
             # Record circuit breaker failure
             if breaker:
                 breaker.record_failure(e)
@@ -212,8 +228,11 @@ class CohereRerankService:
         Returns:
             List of RerankResult sorted by relevance score (highest first)
         """
+        self.last_failure = None
+
         if not self._enabled:
             logger.debug("Reranking disabled, returning original order")
+            self.last_failure = {"reason": "service_disabled"}
             return self._fallback_rerank(documents, top_n)
 
         if not documents:
@@ -223,6 +242,7 @@ class CohereRerankService:
         breaker = get_circuit_breaker("cohere")
         if breaker and not breaker.can_execute():
             logger.warning("Cohere circuit breaker is open - using fallback reranking")
+            self.last_failure = {"reason": "circuit_open"}
             return self._fallback_rerank(documents, top_n)
 
         top_n = top_n or self.default_top_n
@@ -291,10 +311,20 @@ class CohereRerankService:
             # Record circuit breaker success
             if breaker:
                 breaker.record_success()
+            self.last_failure = None
 
             return rerank_results
 
         except httpx.HTTPStatusError as e:
+            status_code = e.response.status_code if e.response else None
+            failure_reason = (
+                "endpoint_not_found" if status_code == 404 else "upstream_http_error"
+            )
+            self.last_failure = {
+                "reason": failure_reason,
+                "status_code": status_code,
+                "response_text": (e.response.text if e.response else "")[:500],
+            }
             logger.error(
                 f"Cohere API error: {e.response.status_code} - {e.response.text}"
             )
@@ -305,6 +335,7 @@ class CohereRerankService:
 
         except Exception as e:
             logger.error(f"Cohere rerank (sync) failed: {e}")
+            self.last_failure = {"reason": "unexpected_error", "error": str(e)}
             # Record circuit breaker failure
             if breaker:
                 breaker.record_failure(e)

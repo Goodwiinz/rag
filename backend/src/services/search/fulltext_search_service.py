@@ -12,7 +12,7 @@ from sqlalchemy import and_, func, not_, or_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import select
 
-from src.core.database import get_db
+from src.core.database import get_db_sync
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.search_schemas import (
     SearchFilter,
@@ -80,7 +80,7 @@ class FullTextSearchService:
         # Use provided db session or create a new one
         should_close_db = False
         if db is None:
-            db = next(get_db())
+            db = next(get_db_sync())
             should_close_db = True
 
         try:
@@ -487,7 +487,7 @@ class FullTextSearchService:
     def create_search_indexes(self, db: Session = None):
         """Create necessary full-text search indexes"""
         if not db:
-            db = next(get_db())
+            db = next(get_db_sync())
 
         try:
             # Create GIN index for full-text search
@@ -528,7 +528,7 @@ class FullTextSearchService:
     def update_document_search_vector(self, document_id: str, db: Session = None):
         """Update the search vector for a specific document"""
         if not db:
-            db = next(get_db())
+            db = next(get_db_sync())
 
         try:
             update_query = text(
@@ -559,7 +559,7 @@ class FullTextSearchService:
     ) -> Dict[str, Any]:
         """Get search analytics data"""
         try:
-            with next(get_db()) as db:
+            with next(get_db_sync()) as db:
                 # This is a placeholder - would need search query tracking table
                 # For now, return document statistics
                 stats_query = text(

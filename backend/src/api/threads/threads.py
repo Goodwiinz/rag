@@ -959,8 +959,8 @@ def _format_message_response(message) -> ChatMessageResponse:
                 ),
                 document_type=c.document_type
                 or (
-                    c.document.type.value
-                    if hasattr(c, "document") and c.document and c.document.type
+                    c.document.document_type.value
+                    if hasattr(c, "document") and c.document and c.document.document_type
                     else None
                 ),
             )
@@ -978,8 +978,8 @@ def _format_message_response(message) -> ChatMessageResponse:
                 document_title=a.document.title
                 if hasattr(a, "document") and a.document
                 else None,
-                document_type=a.document.type.value
-                if hasattr(a, "document") and a.document and a.document.type
+                document_type=a.document.document_type.value
+                if hasattr(a, "document") and a.document and a.document.document_type
                 else None,
                 mime_type=a.document.mime_type
                 if hasattr(a, "document") and a.document

@@ -60,6 +60,11 @@ services:
       - AZURE_OPENAI_CHAT_API_KEY=${AZURE_OPENAI_CHAT_API_KEY:-}
       - AZURE_OPENAI_EMBEDDING_API_KEY=${AZURE_OPENAI_EMBEDDING_API_KEY:-}
 
+      # Cohere Reranking Configuration
+      - COHERE_RERANK_ENDPOINT=${COHERE_RERANK_ENDPOINT:-}
+      - COHERE_RERANK_API_KEY=${COHERE_RERANK_API_KEY:-}
+      - COHERE_RERANK_MODEL=${COHERE_RERANK_MODEL:-}
+
       # Embedding Configuration
       - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-sentence_transformers}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
@@ -221,7 +226,7 @@ services:
     build:
       context: ./backend
       dockerfile: docker/Dockerfile.simple
-    command: celery -A src.tasks.celery_app worker --loglevel=debug --concurrency=${WORKER_CONCURRENCY:-4} --hostname=worker@rag-celery-worker-dev
+    command: celery -A src.tasks.celery_app worker --loglevel=debug --concurrency=${WORKER_CONCURRENCY:-4} --hostname=worker@rag-celery-worker-dev --queues=celery,document_processing,text_processing,vector_processing,entity_processing,graph_processing
     environment:
       # Database Configuration
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag_dev
