@@ -20,10 +20,13 @@ from .thread_message_search_service import (
     ThreadSearchResult,
     ThreadSearchSortOrder,
 )
+from .stream_service import SSEEvent, StreamService
 from .thread_summarization_service import ThreadSummarizationService
 
 __all__ = [
     "ChatService",
+    "SSEEvent",
+    "StreamService",
     "ThreadEventService",
     "ThreadSummarizationService",
     "ThreadMessageSearchService",
