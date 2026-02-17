@@ -39,8 +39,24 @@ export class APIErrorClass extends Error {
 }
 
 // Base Configuration
+const normalizeApiBaseUrl = (rawBaseUrl?: string): string => {
+  const trimmed = (rawBaseUrl || '').trim();
+
+  // Default to Next.js rewrite path to avoid CORS/mixed-content issues.
+  if (!trimmed) return '/api/v1';
+
+  // If already versioned, keep as-is.
+  if (/\/api\/v[0-9]+\/?$/.test(trimmed)) {
+    return trimmed.replace(/\/$/, '');
+  }
+
+  return `${trimmed.replace(/\/$/, '')}/api/v1`;
+};
+
 export const API_CONFIG = {
-  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1',
+  BASE_URL: normalizeApiBaseUrl(
+    process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL
+  ),
   API_VERSION: 'v1',
   TIMEOUT_MS: 30000,
   RETRY_ATTEMPTS: 3,

@@ -1030,23 +1030,18 @@ export const useChatStore = create<ChatStore>()(
       initializeDefaultWorkspace: async () => {
         try {
           console.log('[ChatStore] Initializing default workspace...');
-          // Load workspaces first - MUST happen before stale ID check
-          await get().loadWorkspaces();
+          const { currentWorkspaceId } = get();
+          const workspace = await workspaceService.getOrCreateDefaultWorkspace();
 
-          const { workspaces, currentWorkspaceId } = get();
+          // Keep local workspace list in sync with bootstrap result.
+          set((state) => {
+            if (!state.workspaces.some(w => w.id === workspace.id)) {
+              state.workspaces.unshift(workspace);
+            }
+          });
 
-          // Now check if current workspace is valid AFTER loading workspaces
-          if (currentWorkspaceId && workspaces.some(w => w.id === currentWorkspaceId)) {
-            console.log('[ChatStore] Workspace already initialized:', currentWorkspaceId);
-            // Reset retry counter on successful validation
-            set((s) => {
-              s.reinitRetryCount = 0;
-            });
-            return;
-          }
-
-          // Clear stale IDs if workspace doesn't exist in loaded workspaces
-          if (currentWorkspaceId) {
+          // Clear stale IDs if current workspace no longer exists.
+          if (currentWorkspaceId && currentWorkspaceId !== workspace.id) {
             console.warn('[ChatStore] Clearing stale workspace ID:', currentWorkspaceId);
             set((s) => {
               s.currentWorkspaceId = null;
@@ -1055,26 +1050,7 @@ export const useChatStore = create<ChatStore>()(
             });
           }
 
-          let workspace: Workspace;
-
-          if (workspaces.length > 0) {
-            // Use first workspace
-            workspace = workspaces[0];
-            console.log('[ChatStore] Using existing workspace:', workspace.id, workspace.name);
-          } else {
-            // Create default workspace
-            console.log('[ChatStore] Creating default workspace...');
-            const created = await get().createWorkspace({
-              name: 'My Workspace',
-              description: 'Default workspace for Terminal Observatory',
-              is_public: false,
-            });
-            if (!created) {
-              throw new Error('Failed to create default workspace');
-            }
-            workspace = created;
-            console.log('[ChatStore] Created workspace:', workspace.id, workspace.name);
-          }
+          console.log('[ChatStore] Using workspace:', workspace.id, workspace.name);
 
           // Set current workspace (this will trigger loadConversations)
           get().setCurrentWorkspace(workspace.id);

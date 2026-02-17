@@ -163,7 +163,13 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
                       cx="50%"
                       cy="50%"
                       outerRadius={40}
-                      label={({ range, percentage }) => `${range}: ${percentage}%`}
+                      label={({ payload, percent }) => {
+                        const range = (payload as { range?: string } | undefined)?.range || 'N/A';
+                        const percentage =
+                          (payload as { percentage?: number } | undefined)?.percentage ??
+                          ((percent ?? 0) * 100).toFixed(0);
+                        return `${range}: ${percentage}%`;
+                      }}
                     >
                       {metrics.answerRelevancy.distribution.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -211,7 +217,13 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
                       cx="50%"
                       cy="50%"
                       outerRadius={40}
-                      label={({ range, percentage }) => `${range}: ${percentage}%`}
+                      label={({ payload, percent }) => {
+                        const range = (payload as { range?: string } | undefined)?.range || 'N/A';
+                        const percentage =
+                          (payload as { percentage?: number } | undefined)?.percentage ??
+                          ((percent ?? 0) * 100).toFixed(0);
+                        return `${range}: ${percentage}%`;
+                      }}
                     >
                       {metrics.faithfulness.distribution.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -259,7 +271,13 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
                       cx="50%"
                       cy="50%"
                       outerRadius={40}
-                      label={({ range, percentage }) => `${range}: ${percentage}%`}
+                      label={({ payload, percent }) => {
+                        const range = (payload as { range?: string } | undefined)?.range || 'N/A';
+                        const percentage =
+                          (payload as { percentage?: number } | undefined)?.percentage ??
+                          ((percent ?? 0) * 100).toFixed(0);
+                        return `${range}: ${percentage}%`;
+                      }}
                     >
                       {metrics.contextualRelevancy.distribution.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

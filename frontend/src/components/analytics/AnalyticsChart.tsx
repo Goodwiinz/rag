@@ -148,6 +148,10 @@ export function AnalyticsChart({
   }, [processedData]);
 
   const renderChart = () => {
+    const tooltipFormatter = format?.tooltip
+      ? (value: number | undefined) => format.tooltip?.(value ?? 0) ?? ''
+      : undefined;
+
     const commonProps = {
       data: processedData,
       margin: { top: 5, right: 30, left: 20, bottom: 5 },
@@ -176,7 +180,7 @@ export function AnalyticsChart({
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                 }}
-                formatter={format?.tooltip}
+                formatter={tooltipFormatter}
               />
             )}
             {showLegend && <Legend />}
@@ -217,7 +221,7 @@ export function AnalyticsChart({
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                 }}
-                formatter={format?.tooltip}
+                formatter={tooltipFormatter}
               />
             )}
             {showLegend && <Legend />}
@@ -278,7 +282,7 @@ export function AnalyticsChart({
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                 }}
-                formatter={format?.tooltip}
+                formatter={tooltipFormatter}
               />
             )}
             {showLegend && <Legend />}
@@ -305,7 +309,7 @@ export function AnalyticsChart({
               cx="50%"
               cy="50%"
               labelLine={false}
-              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
               outerRadius={100}
               fill="#8884d8"
               dataKey="value"
@@ -324,7 +328,7 @@ export function AnalyticsChart({
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                 }}
-                formatter={format?.tooltip}
+                formatter={tooltipFormatter}
               />
             )}
             {showLegend && <Legend />}
@@ -339,7 +343,7 @@ export function AnalyticsChart({
               cx="50%"
               cy="50%"
               labelLine={false}
-              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
               innerRadius={60}
               outerRadius={100}
               fill="#8884d8"
@@ -359,7 +363,7 @@ export function AnalyticsChart({
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                 }}
-                formatter={format?.tooltip}
+                formatter={tooltipFormatter}
               />
             )}
             {showLegend && <Legend />}
