@@ -2,7 +2,7 @@
 fastapi==0.104.1
 # starlette>=0.47.2  # Removed to avoid conflict with fastapi 0.104.1 which requires starlette<0.28.0
 uvicorn[standard]==0.24.0
-gunicorn==22.0.0
+gunicorn==25.1.0
 pydantic>=2.6.1,<3.0.0
 pydantic-settings>=2.1.0,<3.0.0
 email-validator==2.1.0
