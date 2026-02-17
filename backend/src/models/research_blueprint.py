@@ -29,6 +29,10 @@ class ResearchBlueprint(BaseModel):
             kwargs["version"] = 1
         if "is_immutable" not in kwargs:
             kwargs["is_immutable"] = False
+        if "steps" not in kwargs:
+            kwargs["steps"] = []
+        if "parameters" not in kwargs:
+            kwargs["parameters"] = {}
         super().__init__(**kwargs)
 
     # Relationships

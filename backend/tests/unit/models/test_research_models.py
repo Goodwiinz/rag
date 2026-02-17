@@ -145,6 +145,8 @@ class TestResearchBlueprint:
         )
         assert bp.version == 1
         assert bp.is_immutable is False
+        assert bp.steps == []
+        assert bp.parameters == {}
 
     def test_tablename(self):
         assert ResearchBlueprint.__tablename__ == "research_blueprints"
