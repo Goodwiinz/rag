@@ -2,6 +2,7 @@
 Authentication API endpoints
 """
 
+import logging
 from datetime import timedelta
 from typing import Optional
 
@@ -16,7 +17,14 @@ from src.core.database import get_db
 from src.core.dependencies import get_current_user, is_self_or_admin, require_admin
 from src.core.security import auth_rate_limiter, get_client_ip
 from src.models.user import User, UserRole
-from src.services.security.auth_service import AuthService, get_auth_service
+from src.services.security.auth_service import (
+    AuthenticationError,
+    AuthService,
+    RegistrationError,
+    get_auth_service,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -101,8 +109,16 @@ async def register(
             "user": user.to_dict(exclude_sensitive=True),
         }
 
-    except Exception as e:
+    except RegistrationError as e:
+        # Return specific error for registration issues (e.g. weak password)
+        # Note: This may leak "user exists" but is needed for UX
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -142,11 +158,18 @@ async def login(
 
         return token_data
 
-    except Exception as e:
+    except AuthenticationError:
+        # Return generic error message to prevent enumeration/leakage
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
+            detail="Invalid email or password",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
         )
 
 
