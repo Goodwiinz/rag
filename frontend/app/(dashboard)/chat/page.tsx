@@ -1,65 +1,78 @@
 'use client';
 
 import {
-    ChatSettings,
-    CitationPanel,
-    Model,
-    RAGToggle,
+  ChatSettings,
+  CitationPanel,
+  Model,
+  RAGToggle,
 } from '@/components/chat';
 import { cn } from '@/lib/utils';
-import apiClient from '@/services/apiClient';
 import {
-    buildRAGSystemPrompt,
-    getModelAwareHistory,
-    getModelSize,
-    getRAGConfigForModel,
-    RAGContextItem,
-    ragService,
+  buildRAGSystemPrompt,
+  getModelAwareHistory,
+  getModelSize,
+  getRAGConfigForModel,
+  RAGContextItem,
+  ragService,
 } from '@/services/ragService';
 import { workspaceService } from '@/services/workspaceService';
 import { useChatStore } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
 import {
-    CitationCreate,
-    ChatMessage as DBChatMessage,
-    Conversation as DBConversation,
-    MessageRole,
-    Thread,
-    Workspace,
+  CitationCreate,
+  ChatMessage as DBChatMessage,
+  Conversation as DBConversation,
+  MessageRole,
+  Thread,
+  Workspace,
 } from '@/types/workspace';
 import { Citation } from '@/utils/citationParser';
-import type { InitProgressReport, MLCEngine } from "@mlc-ai/web-llm";
-import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import type { InitProgressReport, MLCEngine } from '@mlc-ai/web-llm';
+import {
+  AnimatePresence,
+  motion,
+  useMotionValue,
+  useSpring,
+  useTransform,
+} from 'framer-motion';
 import dynamic from 'next/dynamic';
 import {
-    Activity,
-    ArrowDown,
-    ArrowUp,
-    BookOpen,
-    Check,
-    ChevronDown,
-    Copy,
-    Cpu,
-    FileText,
-    Loader2,
-    Mic,
-    Paperclip,
-    Radio,
-    RefreshCw,
-    Satellite,
-    Shield,
-    Sparkles,
-    Square,
-    Zap,
+  Activity,
+  ArrowDown,
+  ArrowUp,
+  BookOpen,
+  Check,
+  ChevronDown,
+  Copy,
+  Cpu,
+  FileText,
+  Loader2,
+  Mic,
+  Paperclip,
+  Radio,
+  RefreshCw,
+  Satellite,
+  Shield,
+  Sparkles,
+  Square,
+  Zap,
 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 // Lazy load CitationRenderer to reduce initial bundle size
-const CitationRenderer = dynamic(() => import('@/components/chat/CitationRenderer').then(mod => mod.CitationRenderer), {
-  loading: () => <div className="h-20 w-full animate-pulse bg-white/5 rounded-lg"></div>,
-  ssr: false
-});
+const CitationRenderer = dynamic(
+  () =>
+    import('@/components/chat/CitationRenderer').then(
+      (mod) => mod.CitationRenderer
+    ),
+  {
+    loading: () => (
+      <div className="h-20 w-full animate-pulse bg-white/5 rounded-lg"></div>
+    ),
+    ssr: false,
+  }
+);
 
 // ============================================
 // HELPERS
@@ -156,11 +169,19 @@ function extractTitleFromSnippet(snippet?: string): string | null {
  * - Database format: { document_id, external_reference_id, document_title, snippet, score }
  * - Parser format: { documentId, externalReferenceId, title, score, content, source }
  */
-function normalizeCitation(citation: DBCitation | Citation | Record<string, any>): Citation {
+function normalizeCitation(
+  citation: DBCitation | Citation | Record<string, any>
+): Citation {
   // Handle both snake_case (from DB) and camelCase (from API response)
-  const documentId = (citation as any).documentId || (citation as any).document_id;
-  const externalReferenceId = (citation as any).externalReferenceId || (citation as any).external_reference_id;
-  const snippet = (citation as any).content || (citation as any).snippet || (citation as any).snippet_preview;
+  const documentId =
+    (citation as any).documentId || (citation as any).document_id;
+  const externalReferenceId =
+    (citation as any).externalReferenceId ||
+    (citation as any).external_reference_id;
+  const snippet =
+    (citation as any).content ||
+    (citation as any).snippet ||
+    (citation as any).snippet_preview;
 
   return {
     // Only set documentId if it's a valid non-empty value
@@ -168,7 +189,11 @@ function normalizeCitation(citation: DBCitation | Citation | Record<string, any>
     // Support external references (e.g., arXiv paper IDs)
     externalReferenceId: externalReferenceId || undefined,
     // Extract title from snippet if document_title is missing
-    title: (citation as any).title || (citation as any).document_title || extractTitleFromSnippet(snippet) || 'Unknown Document',
+    title:
+      (citation as any).title ||
+      (citation as any).document_title ||
+      extractTitleFromSnippet(snippet) ||
+      'Unknown Document',
     score: (citation as any).score ?? 0,
     content: snippet,
     source: (citation as any).source || (citation as any).document_type,
@@ -203,19 +228,25 @@ const AVAILABLE_MODELS: ExtendedModel[] = [
   {
     id: 'gpt-4o-mini',
     name: 'GPT-4O-MINI',
-    description: 'OpenAI flagship mini model with superior reasoning capabilities',
+    description:
+      'OpenAI flagship mini model with superior reasoning capabilities',
     size: 'Cloud',
     parameters: 'Cloud API',
     ram: 'N/A',
     speed: 'Very Fast',
     accuracy: 95,
-    features: ['Advanced Reasoning', 'Code Generation', 'Multimodal', 'Function Calling'],
+    features: [
+      'Advanced Reasoning',
+      'Code Generation',
+      'Multimodal',
+      'Function Calling',
+    ],
     tags: ['openai', 'cloud', 'flagship'],
     isRecommended: true,
     isFeatured: true,
     isCloud: true,
     provider: 'openai',
-    benchmarks: { reasoning: 94, coding: 92, math: 91, language: 96 }
+    benchmarks: { reasoning: 94, coding: 92, math: 91, language: 96 },
   },
   {
     id: 'Llama-3.2-1B-Instruct-q4f32_1-MLC',
@@ -229,7 +260,7 @@ const AVAILABLE_MODELS: ExtendedModel[] = [
     features: ['Text Synthesis', 'Query Processing', 'Compression'],
     tags: ['lightweight', 'fast', 'efficient'],
     isRecommended: true,
-    benchmarks: { reasoning: 72, coding: 65, math: 70, language: 82 }
+    benchmarks: { reasoning: 72, coding: 65, math: 70, language: 82 },
   },
   {
     id: 'Llama-3.2-3B-Instruct-q4f32_1-MLC',
@@ -244,7 +275,7 @@ const AVAILABLE_MODELS: ExtendedModel[] = [
     tags: ['balanced', 'versatile', 'flagship'],
     isRecommended: true,
     isFeatured: true,
-    benchmarks: { reasoning: 81, coding: 78, math: 79, language: 88 }
+    benchmarks: { reasoning: 81, coding: 78, math: 79, language: 88 },
   },
   {
     id: 'gemma-2-2b-it-q4f16_1-MLC',
@@ -257,7 +288,7 @@ const AVAILABLE_MODELS: ExtendedModel[] = [
     accuracy: 82,
     features: ['Multilingual', 'Code Analysis', 'Translation'],
     tags: ['multilingual', 'google', 'efficient'],
-    benchmarks: { reasoning: 79, coding: 80, math: 76, language: 91 }
+    benchmarks: { reasoning: 79, coding: 80, math: 76, language: 91 },
   },
   {
     id: 'Phi-3.5-mini-instruct-q4f16_1-MLC',
@@ -270,7 +301,7 @@ const AVAILABLE_MODELS: ExtendedModel[] = [
     accuracy: 86,
     features: ['Instruction Parsing', 'Reasoning Engine', 'Code Synthesis'],
     tags: ['microsoft', 'instruction-tuned', 'reliable'],
-    benchmarks: { reasoning: 85, coding: 83, math: 82, language: 87 }
+    benchmarks: { reasoning: 85, coding: 83, math: 82, language: 87 },
   },
   {
     id: 'Qwen2-1.5B-Instruct-q4f16_1-MLC',
@@ -284,7 +315,7 @@ const AVAILABLE_MODELS: ExtendedModel[] = [
     features: ['Bilingual', 'Fast Processing', 'Query Response'],
     tags: ['lightweight', 'bilingual', 'alibaba'],
     isRecommended: true,
-    benchmarks: { reasoning: 76, coding: 71, math: 74, language: 86 }
+    benchmarks: { reasoning: 76, coding: 71, math: 74, language: 86 },
   },
 ];
 
@@ -294,7 +325,8 @@ const DEFAULT_SETTINGS: ChatSettings = {
   topP: 0.9,
   frequencyPenalty: 0,
   presencePenalty: 0,
-  systemPrompt: 'You are an advanced AI assistant operating within the Terminal Observatory. Provide precise, well-structured responses.',
+  systemPrompt:
+    'You are an advanced AI assistant operating within the Terminal Observatory. Provide precise, well-structured responses.',
   systemPromptTemplate: 'default',
   streamResponses: true,
   autoSave: true,
@@ -317,7 +349,8 @@ const _STARTER_PROMPTS = [
   {
     icon: BookOpen,
     title: 'Summarize Research',
-    prompt: 'Summarize the key findings from the recent papers on RAG optimization',
+    prompt:
+      'Summarize the key findings from the recent papers on RAG optimization',
   },
   {
     icon: Zap,
@@ -345,6 +378,8 @@ function ChatMessage({
   index,
   modelName,
   isTyping,
+  isStreaming,
+  streamingContent,
   onRetry,
   onCitationClick,
 }: {
@@ -352,6 +387,8 @@ function ChatMessage({
   index: number;
   modelName?: string;
   isTyping?: boolean;
+  isStreaming?: boolean;
+  streamingContent?: string;
   onRetry?: () => void;
   onCitationClick?: (citations: Citation[], clickedCitation: Citation) => void;
 }) {
@@ -378,7 +415,7 @@ function ChatMessage({
       transition={{
         duration: 0.4,
         delay: index * 0.03,
-        ease: [0.25, 0.46, 0.45, 0.94]
+        ease: [0.25, 0.46, 0.45, 0.94],
       }}
       className={cn(
         'group relative mb-4',
@@ -407,7 +444,7 @@ function ChatMessage({
           <>
             <div className="flex items-center gap-2 px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)]">
               <span className="text-[var(--phosphor-green)] font-bold text-[9px]">
-                {isTyping ? 'STREAMING' : 'RECEIVED'}
+                {isTyping || isStreaming ? 'STREAMING' : 'RECEIVED'}
               </span>
             </div>
             {modelName && (
@@ -425,19 +462,27 @@ function ChatMessage({
         <span className="text-[var(--terminal-text-dim)]">{timestamp}</span>
 
         {/* Quick Actions */}
-        <div className={cn(
-          "flex items-center gap-1 transition-all duration-200",
-          "opacity-0 group-hover:opacity-100"
-        )}>
+        <div
+          className={cn(
+            'flex items-center gap-1 transition-all duration-200',
+            'opacity-0 group-hover:opacity-100'
+          )}
+        >
           <button
             onClick={handleCopy}
             className={cn(
-              "p-1 rounded hover:bg-[var(--terminal-elevated)] transition-all border border-transparent hover:border-[var(--terminal-border)]",
-              copied ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]"
+              'p-1 rounded hover:bg-[var(--terminal-elevated)] transition-all border border-transparent hover:border-[var(--terminal-border)]',
+              copied
+                ? 'text-[var(--phosphor-green)]'
+                : 'text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]'
             )}
-            title={copied ? "Copied!" : "Copy message"}
+            title={copied ? 'Copied!' : 'Copy message'}
           >
-            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? (
+              <Check className="w-3.5 h-3.5" />
+            ) : (
+              <Copy className="w-3.5 h-3.5" />
+            )}
           </button>
           {isUser && onRetry && (
             <button
@@ -461,19 +506,47 @@ function ChatMessage({
         )}
       >
         <div className="absolute inset-0 bg-[linear-gradient(rgba(18,18,18,0)_50%,rgba(0,0,0,0.2)_50%)] z-0 pointer-events-none bg-[length:100%_2px] opacity-10" />
-        
+
         <div className="relative p-4 sm:p-5 z-10">
-          {isTyping && !message.content ? (
+          {isStreaming && !streamingContent ? (
+            /* Streaming: waiting for first token - show pulsing cursor */
+            <div
+              className="text-[14px] leading-relaxed text-[var(--terminal-text)]"
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            >
+              <span className="inline-block w-2 h-4 bg-[var(--phosphor-green)] animate-pulse ml-0.5" />
+            </div>
+          ) : isStreaming && streamingContent ? (
+            /* Streaming: rendering incoming tokens with cursor */
+            <div
+              className="text-[14px] leading-relaxed text-[var(--terminal-text)]"
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            >
+              <span className="whitespace-pre-wrap">{streamingContent}</span>
+              <span className="inline-block w-2 h-4 bg-[var(--phosphor-green)] animate-pulse ml-0.5" />
+            </div>
+          ) : isTyping && !message.content ? (
             <div
               className="flex items-center gap-3 text-[var(--phosphor-green)] text-sm"
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
               <div className="flex items-center gap-1.5">
-                <span className="w-1 h-1 rounded-full bg-[var(--phosphor-green)] animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1 h-1 rounded-full bg-[var(--phosphor-green)] animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1 h-1 rounded-full bg-[var(--phosphor-green)] animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span
+                  className="w-1 h-1 rounded-full bg-[var(--phosphor-green)] animate-bounce"
+                  style={{ animationDelay: '0ms' }}
+                />
+                <span
+                  className="w-1 h-1 rounded-full bg-[var(--phosphor-green)] animate-bounce"
+                  style={{ animationDelay: '150ms' }}
+                />
+                <span
+                  className="w-1 h-1 rounded-full bg-[var(--phosphor-green)] animate-bounce"
+                  style={{ animationDelay: '300ms' }}
+                />
               </div>
-              <span className="opacity-70 text-[10px] tracking-wider uppercase">Processing...</span>
+              <span className="opacity-70 text-[10px] tracking-wider uppercase">
+                Processing...
+              </span>
             </div>
           ) : (
             <div
@@ -491,7 +564,10 @@ function ChatMessage({
                   citations={message.citations as Citation[]}
                   onCitationClick={(citation) => {
                     if (onCitationClick && message.citations) {
-                      onCitationClick(message.citations as Citation[], citation);
+                      onCitationClick(
+                        message.citations as Citation[],
+                        citation
+                      );
                     }
                   }}
                 />
@@ -555,15 +631,20 @@ function ModelSelector({
           'bg-[var(--terminal-surface)] border-[var(--terminal-border)]',
           'hover:border-[var(--phosphor-green)]/30',
           'active:scale-[0.98]',
-          isOpen && 'border-[var(--phosphor-green)]/50 bg-[var(--phosphor-green)]/5',
+          isOpen &&
+            'border-[var(--phosphor-green)]/50 bg-[var(--phosphor-green)]/5',
           isLoading && 'opacity-50 cursor-not-allowed'
         )}
         style={{ fontFamily: "'JetBrains Mono', monospace" }}
       >
-        <Cpu className={cn(
-          "w-3.5 h-3.5 transition-colors",
-          isOpen ? "text-[var(--phosphor-green)] animate-pulse" : "text-[var(--phosphor-green)]"
-        )} />
+        <Cpu
+          className={cn(
+            'w-3.5 h-3.5 transition-colors',
+            isOpen
+              ? 'text-[var(--phosphor-green)] animate-pulse'
+              : 'text-[var(--phosphor-green)]'
+          )}
+        />
         <span className="text-[var(--terminal-text)] text-xs">
           {selectedModel?.name || 'SELECT MODEL'}
         </span>
@@ -705,7 +786,8 @@ function ChatInput({
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
+      textareaRef.current.style.height =
+        Math.min(textareaRef.current.scrollHeight, 200) + 'px';
     }
   }, [value]);
 
@@ -728,50 +810,54 @@ function ChatInput({
       <div className="max-w-4xl mx-auto">
         <motion.div
           className={cn(
-            "relative rounded-xl overflow-visible backdrop-blur-xl transition-all duration-300",
-            "bg-[var(--terminal-surface)] border border-[var(--terminal-border)] shadow-2xl shadow-black/50",
-            isFocused && "border-[var(--phosphor-green)]/30 shadow-[0_0_20px_-5px_rgba(0,255,159,0.05)] ring-1 ring-[var(--phosphor-green)]/5"
+            'relative rounded-xl overflow-visible backdrop-blur-xl transition-all duration-300',
+            'bg-[var(--terminal-surface)] border border-[var(--terminal-border)] shadow-2xl shadow-black/50',
+            isFocused &&
+              'border-[var(--phosphor-green)]/30 shadow-[0_0_20px_-5px_rgba(0,255,159,0.05)] ring-1 ring-[var(--phosphor-green)]/5'
           )}
         >
           {/* Top Bar: Model Selector, RAG Toggle & Status */}
           <div className="flex items-center justify-between px-4 py-1.5 bg-[var(--terminal-elevated)]/50 border-b border-[var(--terminal-border)] rounded-t-xl">
-             <div className="flex items-center gap-3">
-               <ModelSelector
-                  models={models}
-                  selectedModelId={selectedModel}
-                  onModelChange={onModelChange}
-                  isLoading={isModelLoading}
-                />
-               {/* RAG Toggle - Show for local models only */}
-               {selectedModel && !models.find(m => m.id === selectedModel)?.isCloud && (
-                 <RAGToggle
-                   enabled={enableRAG}
-                   onToggle={onRAGToggle}
-                   isLoading={isRAGLoading}
-                   disabled={isLoading}
-                 />
-               )}
-             </div>
-             <div className="flex items-center gap-3">
-               {/* RAG loading indicator */}
-               {isRAGLoading && (
-                 <span
-                   className="text-[9px] text-[var(--phosphor-green)] animate-pulse"
-                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                 >
-                   RETRIEVING...
-                 </span>
-               )}
-               <span
-                 className={cn(
-                   "text-[9px] transition-colors",
-                   isNearLimit ? "text-[var(--amber-gold)]" : "text-[var(--terminal-text-dim)]"
-                 )}
-                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
-               >
-                 {charCount}/{maxChars}
-               </span>
-             </div>
+            <div className="flex items-center gap-3">
+              <ModelSelector
+                models={models}
+                selectedModelId={selectedModel}
+                onModelChange={onModelChange}
+                isLoading={isModelLoading}
+              />
+              {/* RAG Toggle - Show for local models only */}
+              {selectedModel &&
+                !models.find((m) => m.id === selectedModel)?.isCloud && (
+                  <RAGToggle
+                    enabled={enableRAG}
+                    onToggle={onRAGToggle}
+                    isLoading={isRAGLoading}
+                    disabled={isLoading}
+                  />
+                )}
+            </div>
+            <div className="flex items-center gap-3">
+              {/* RAG loading indicator */}
+              {isRAGLoading && (
+                <span
+                  className="text-[9px] text-[var(--phosphor-green)] animate-pulse"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  RETRIEVING...
+                </span>
+              )}
+              <span
+                className={cn(
+                  'text-[9px] transition-colors',
+                  isNearLimit
+                    ? 'text-[var(--amber-gold)]'
+                    : 'text-[var(--terminal-text-dim)]'
+                )}
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                {charCount}/{maxChars}
+              </span>
+            </div>
           </div>
 
           <div className="p-3 sm:p-4">
@@ -792,7 +878,7 @@ function ChatInput({
               }}
               disabled={isDisabled}
             />
-            
+
             <div className="flex items-center justify-between mt-2">
               <div className="flex items-center gap-1">
                 <button
@@ -884,11 +970,17 @@ function WelcomeState({
 
   // Smooth spring physics for the tilt
   const springConfig = { damping: 25, stiffness: 150 };
-  const rotateX = useSpring(useTransform(y, [-100, 100], [10, -10]), springConfig);
-  const rotateY = useSpring(useTransform(x, [-100, 100], [-10, 10]), springConfig);
+  const rotateX = useSpring(
+    useTransform(y, [-100, 100], [10, -10]),
+    springConfig
+  );
+  const rotateY = useSpring(
+    useTransform(x, [-100, 100], [-10, 10]),
+    springConfig
+  );
 
   return (
-    <div 
+    <div
       className="flex-1 flex flex-col items-center justify-center p-8 perspective-1000"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -897,13 +989,13 @@ function WelcomeState({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8 }}
-        style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
+        style={{ rotateX, rotateY, transformStyle: 'preserve-3d' }}
         className="text-center max-w-2xl relative"
       >
         {/* Orbital decoration */}
         <div className="relative mb-12 flex items-center justify-center h-64 w-64 mx-auto transform-gpu">
           {/* Outer Ring - Counter Rotate */}
-          <motion.div 
+          <motion.div
             style={{ translateZ: 20 }}
             className="absolute inset-0 flex items-center justify-center"
           >
@@ -911,7 +1003,7 @@ function WelcomeState({
           </motion.div>
 
           {/* Inner Ring - Rotate */}
-          <motion.div 
+          <motion.div
             style={{ translateZ: 40 }}
             className="absolute inset-0 flex items-center justify-center"
           >
@@ -919,32 +1011,43 @@ function WelcomeState({
           </motion.div>
 
           {/* Core Container */}
-          <motion.div 
+          <motion.div
             style={{ translateZ: 60 }}
             className="relative w-24 h-24 flex items-center justify-center"
           >
             {/* Satellite Icon with Float */}
             <Satellite className="w-12 h-12 text-[#00ff9f] float-gentle drop-shadow-[0_0_15px_rgba(0,255,159,0.3)]" />
-            
+
             {/* Scanning Beam Effect */}
             <motion.div
               animate={{ top: ['0%', '100%', '0%'], opacity: [0, 1, 0] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
               className="absolute left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#00ff9f] to-transparent w-full"
             />
           </motion.div>
-          
+
           {/* Radar Pings - Background */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-             <div className="w-full h-full rounded-full border border-[#00ff9f]/5 animate-ping" style={{ animationDuration: '3s' }} />
+            <div
+              className="w-full h-full rounded-full border border-[#00ff9f]/5 animate-ping"
+              style={{ animationDuration: '3s' }}
+            />
           </div>
         </div>
 
         <motion.div style={{ translateZ: 30 }}>
-          <h2 className="text-xl text-[#e0e0e8] tracking-wider mb-2" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-            {selectedModel ? 'NEURAL LINK ESTABLISHED' : 'AWAITING NEURAL CORE SELECTION'}
+          <h2
+            className="text-xl text-[#e0e0e8] tracking-wider mb-2"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
+            {selectedModel
+              ? 'NEURAL LINK ESTABLISHED'
+              : 'AWAITING NEURAL CORE SELECTION'}
           </h2>
-          <p className="text-sm text-[#3a3a4a] text-center max-w-md mx-auto" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+          <p
+            className="text-sm text-[#3a3a4a] text-center max-w-md mx-auto"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
             {selectedModel
               ? 'Ready to receive transmissions. Enter your query below.'
               : 'Select a neural core from the command bar to initialize the interface.'}
@@ -960,18 +1063,44 @@ function WelcomeState({
             className="mt-8 grid grid-cols-2 gap-4 max-w-lg mx-auto"
           >
             {[
-              { icon: Zap, label: 'RAPID PROCESSING', desc: 'Sub-second response latency' },
-              { icon: Shield, label: 'LOCAL ONLY', desc: 'All data stays on device' },
-              { icon: Cpu, label: 'NEURAL INFERENCE', desc: 'Advanced language model' },
-              { icon: Activity, label: 'REAL-TIME STREAM', desc: 'Live response generation' },
+              {
+                icon: Zap,
+                label: 'RAPID PROCESSING',
+                desc: 'Sub-second response latency',
+              },
+              {
+                icon: Shield,
+                label: 'LOCAL ONLY',
+                desc: 'All data stays on device',
+              },
+              {
+                icon: Cpu,
+                label: 'NEURAL INFERENCE',
+                desc: 'Advanced language model',
+              },
+              {
+                icon: Activity,
+                label: 'REAL-TIME STREAM',
+                desc: 'Live response generation',
+              },
             ].map((item, idx) => (
               <div
                 key={idx}
                 className="p-4 rounded-lg border border-[#1a1a28] bg-[#0d0d14]/50 text-left hover:border-[#00ff9f]/20 transition-all group backdrop-blur-sm"
               >
                 <item.icon className="w-5 h-5 text-[#00ff9f] mb-2 group-hover:scale-110 transition-transform" />
-                <h3 className="text-xs text-[#e0e0e8] mb-1" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{item.label}</h3>
-                <p className="text-[10px] text-[#3a3a4a]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{item.desc}</p>
+                <h3
+                  className="text-xs text-[#e0e0e8] mb-1"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  {item.label}
+                </h3>
+                <p
+                  className="text-[10px] text-[#3a3a4a]"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  {item.desc}
+                </p>
               </div>
             ))}
           </motion.div>
@@ -1050,14 +1179,18 @@ function ModelLoadingProgress({
 function ChatPageContent() {
   // Core state
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [activeConversationId, setActiveConversationId] = useState<
+    string | null
+  >(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [selectedModel, setSelectedModel] = useState<string>('');
 
   // Database state
   const [_workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [dbConversation, setDbConversation] = useState<DBConversation | null>(null);
+  const [dbConversation, setDbConversation] = useState<DBConversation | null>(
+    null
+  );
   const [_activeThread, setActiveThread] = useState<Thread | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
@@ -1088,17 +1221,32 @@ function ChatPageContent() {
 
   // Citation panel state
   const [isCitationPanelOpen, setIsCitationPanelOpen] = useState(false);
-  const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[]>([]);
-  const [activeCitationId, setActiveCitationId] = useState<string | undefined>(undefined);
+  const [citationPanelCitations, setCitationPanelCitations] = useState<
+    Citation[]
+  >([]);
+  const [activeCitationId, setActiveCitationId] = useState<string | undefined>(
+    undefined
+  );
 
   // Auth
   const { isAuthenticated, token } = useAuthStore();
 
   // Get currentThreadId and setCurrentThread from chat store to sync with sidebar
-  const currentThreadIdFromStore = useChatStore((state) => state.currentThreadId);
+  const currentThreadIdFromStore = useChatStore(
+    (state) => state.currentThreadId
+  );
   const setCurrentThread = useChatStore((state) => state.setCurrentThread);
   const storeMessages = useChatStore((state) => state.messages);
   const addMessageToStore = useChatStore((state) => state.addMessageToStore);
+
+  // Streaming state from store (for cloud model SSE streaming)
+  const storeStreamMessage = useChatStore((state) => state.streamMessage);
+  const storeStopStreaming = useChatStore((state) => state.stopStreaming);
+  const storeIsStreaming = useChatStore((state) => state.isStreaming);
+  const storeStreamingContent = useChatStore((state) => state.streamingContent);
+  const _storeStreamingCitations = useChatStore(
+    (state) => state.streamingCitations
+  );
 
   // Navigation detection
   const _pathname = usePathname();
@@ -1126,9 +1274,15 @@ function ChatPageContent() {
       }
     };
 
-    window.addEventListener('populate-chat-input', handlePopulateChatInput as EventListener);
+    window.addEventListener(
+      'populate-chat-input',
+      handlePopulateChatInput as EventListener
+    );
     return () => {
-      window.removeEventListener('populate-chat-input', handlePopulateChatInput as EventListener);
+      window.removeEventListener(
+        'populate-chat-input',
+        handlePopulateChatInput as EventListener
+      );
     };
   }, []);
 
@@ -1155,8 +1309,13 @@ function ChatPageContent() {
     const targetThreadId = threadFromUrl || threadFromStorage;
 
     if (targetThreadId) {
-      console.log('[Chat] Thread switch requested:', targetThreadId, 'source:', threadFromUrl ? 'URL' : 'sessionStorage');
-      const targetConv = conversations.find(c => c.id === targetThreadId);
+      console.log(
+        '[Chat] Thread switch requested:',
+        targetThreadId,
+        'source:',
+        threadFromUrl ? 'URL' : 'sessionStorage'
+      );
+      const targetConv = conversations.find((c) => c.id === targetThreadId);
 
       if (targetConv) {
         if (targetConv.id !== activeConversationId) {
@@ -1167,149 +1326,221 @@ function ChatPageContent() {
           console.log('[Chat] Switched to thread:', targetConv.title);
         }
       } else {
-        console.log('[Chat] Thread not found in conversations:', targetThreadId);
+        console.log(
+          '[Chat] Thread not found in conversations:',
+          targetThreadId
+        );
       }
 
       // Clear sessionStorage (URL param stays for bookmarking/sharing)
       sessionStorage.removeItem('activeThreadId');
     }
-  }, [searchParams, conversations, isInitializing, activeConversationId, setCurrentThread]);
+  }, [
+    searchParams,
+    conversations,
+    isInitializing,
+    activeConversationId,
+    setCurrentThread,
+  ]);
 
   // Sync with Zustand store's currentThreadId (triggered by sidebar clicks via useChatPersistence)
   // This ensures the chat page updates when sidebar selection changes the store
   useEffect(() => {
-    if (!currentThreadIdFromStore || isInitializing || conversations.length === 0) {
+    if (
+      !currentThreadIdFromStore ||
+      isInitializing ||
+      conversations.length === 0
+    ) {
       return;
     }
 
     // Only update if the store's thread is different from our local state
     if (currentThreadIdFromStore !== activeConversationId) {
-      console.log('[Chat] Store thread changed:', currentThreadIdFromStore, '(local:', activeConversationId, ')');
+      console.log(
+        '[Chat] Store thread changed:',
+        currentThreadIdFromStore,
+        '(local:',
+        activeConversationId,
+        ')'
+      );
 
       // Try to find the thread in local conversations first
-      const targetConv = conversations.find(c => c.id === currentThreadIdFromStore);
+      const targetConv = conversations.find(
+        (c) => c.id === currentThreadIdFromStore
+      );
 
       if (targetConv) {
-        console.log('[Chat] Found thread in local state, syncing:', targetConv.title);
+        console.log(
+          '[Chat] Found thread in local state, syncing:',
+          targetConv.title
+        );
         setActiveConversationId(targetConv.id);
         setMessages(targetConv.messages);
       } else {
         // Thread not in local conversations, try to load from store messages
         const messagesFromStore = storeMessages[currentThreadIdFromStore];
         if (messagesFromStore && messagesFromStore.length > 0) {
-          console.log('[Chat] Loading messages from store for thread:', currentThreadIdFromStore);
+          console.log(
+            '[Chat] Loading messages from store for thread:',
+            currentThreadIdFromStore
+          );
           setActiveConversationId(currentThreadIdFromStore);
           // Map store messages to UI format using normalizeCitation
-          setMessages(messagesFromStore.map((dbMsg) => ({
-            id: dbMsg.id,
-            role: dbMsg.role === MessageRole.USER ? 'user' as const : 'assistant' as const,
-            content: dbMsg.content,
-            timestamp: new Date(dbMsg.created_at).getTime(),
-            citations: dbMsg.citations?.map(normalizeCitation),
-          })));
+          setMessages(
+            messagesFromStore.map((dbMsg) => ({
+              id: dbMsg.id,
+              role:
+                dbMsg.role === MessageRole.USER
+                  ? ('user' as const)
+                  : ('assistant' as const),
+              content: dbMsg.content,
+              timestamp: new Date(dbMsg.created_at).getTime(),
+              citations: dbMsg.citations?.map(normalizeCitation),
+            }))
+          );
         } else {
           // Thread exists but no messages yet - still switch to it
-          console.log('[Chat] Switching to thread with no messages:', currentThreadIdFromStore);
+          console.log(
+            '[Chat] Switching to thread with no messages:',
+            currentThreadIdFromStore
+          );
           setActiveConversationId(currentThreadIdFromStore);
           setMessages([]);
         }
       }
     }
-  }, [currentThreadIdFromStore, conversations, isInitializing, activeConversationId, storeMessages]);
+  }, [
+    currentThreadIdFromStore,
+    conversations,
+    isInitializing,
+    activeConversationId,
+    storeMessages,
+  ]);
 
   // Map DB messages to UI messages
-  const mapDbMessageToUiMessage = useCallback((dbMsg: DBChatMessage): Message => {
-    return {
-      id: dbMsg.id,
-      role: dbMsg.role === MessageRole.USER ? 'user' : 'assistant',
-      content: dbMsg.content,
-      timestamp: new Date(dbMsg.created_at).getTime(),
-      // Use normalizeCitation to handle both DB and API citation formats
-      citations: dbMsg.citations?.map(normalizeCitation),
-    };
-  }, []);
+  const mapDbMessageToUiMessage = useCallback(
+    (dbMsg: DBChatMessage): Message => {
+      return {
+        id: dbMsg.id,
+        role: dbMsg.role === MessageRole.USER ? 'user' : 'assistant',
+        content: dbMsg.content,
+        timestamp: new Date(dbMsg.created_at).getTime(),
+        // Use normalizeCitation to handle both DB and API citation formats
+        citations: dbMsg.citations?.map(normalizeCitation),
+      };
+    },
+    []
+  );
 
   // Load threads and messages from database
-  const loadThreadsFromDb = useCallback(async (conversationId: string, _isRetry = false): Promise<boolean> => {
-    try {
-      console.log('[Chat] Loading threads from database for conversation:', conversationId);
-      const threadResponse = await workspaceService.listThreads(conversationId, { limit: 50 });
+  const loadThreadsFromDb = useCallback(
+    async (conversationId: string, _isRetry = false): Promise<boolean> => {
+      try {
+        console.log(
+          '[Chat] Loading threads from database for conversation:',
+          conversationId
+        );
+        const threadResponse = await workspaceService.listThreads(
+          conversationId,
+          { limit: 50 }
+        );
 
-      // Map threads to UI conversations
-      const uiConversations: Conversation[] = await Promise.all(
-        threadResponse.threads.map(async (thread) => {
-          // Load messages for each thread
-          const msgResponse = await workspaceService.listMessages(thread.id, { limit: 100 });
-          const uiMessages = msgResponse.messages.map(mapDbMessageToUiMessage);
+        // Map threads to UI conversations
+        const uiConversations: Conversation[] = await Promise.all(
+          threadResponse.threads.map(async (thread) => {
+            // Load messages for each thread
+            const msgResponse = await workspaceService.listMessages(thread.id, {
+              limit: 100,
+            });
+            const uiMessages = msgResponse.messages.map(
+              mapDbMessageToUiMessage
+            );
 
-          return {
-            id: thread.id,
-            title: thread.title || 'New Chat',
-            messages: uiMessages,
-            createdAt: new Date(thread.created_at).getTime(),
-            updatedAt: new Date(thread.updated_at).getTime(),
-            threadId: thread.id,
-            conversationId: conversationId,
-          };
-        })
-      );
+            return {
+              id: thread.id,
+              title: thread.title || 'New Chat',
+              messages: uiMessages,
+              createdAt: new Date(thread.created_at).getTime(),
+              updatedAt: new Date(thread.updated_at).getTime(),
+              threadId: thread.id,
+              conversationId: conversationId,
+            };
+          })
+        );
 
-      setConversations(uiConversations);
-      console.log('[Chat] Loaded', uiConversations.length, 'threads from database');
+        setConversations(uiConversations);
+        console.log(
+          '[Chat] Loaded',
+          uiConversations.length,
+          'threads from database'
+        );
 
-      // Restore active thread - check sessionStorage first, then use first conversation
-      if (uiConversations.length > 0) {
-        // Only set state if we haven't already done so
-        // This prevents React Strict Mode double-execution from overwriting correct state
-        if (hasRestoredThreadRef.current) {
-          console.log('[Chat] Skipping thread restore (already done, preventing Strict Mode duplicate)');
-          return true;
-        }
-
-        let selectedConv = uiConversations[0];
-        const savedThreadId = sessionStorage.getItem('activeThreadId');
-
-        if (savedThreadId) {
-          const savedConv = uiConversations.find(c => c.id === savedThreadId);
-          if (savedConv) {
-            selectedConv = savedConv;
-            console.log('[Chat] Restored thread from sessionStorage:', savedConv.title);
+        // Restore active thread - check sessionStorage first, then use first conversation
+        if (uiConversations.length > 0) {
+          // Only set state if we haven't already done so
+          // This prevents React Strict Mode double-execution from overwriting correct state
+          if (hasRestoredThreadRef.current) {
+            console.log(
+              '[Chat] Skipping thread restore (already done, preventing Strict Mode duplicate)'
+            );
+            return true;
           }
-          // Clear the sessionStorage after using it
-          sessionStorage.removeItem('activeThreadId');
+
+          let selectedConv = uiConversations[0];
+          const savedThreadId = sessionStorage.getItem('activeThreadId');
+
+          if (savedThreadId) {
+            const savedConv = uiConversations.find(
+              (c) => c.id === savedThreadId
+            );
+            if (savedConv) {
+              selectedConv = savedConv;
+              console.log(
+                '[Chat] Restored thread from sessionStorage:',
+                savedConv.title
+              );
+            }
+            // Clear the sessionStorage after using it
+            sessionStorage.removeItem('activeThreadId');
+          }
+
+          hasRestoredThreadRef.current = true;
+          setActiveConversationId(selectedConv.id);
+          setMessages(selectedConv.messages);
+          // Sync with Zustand store for sidebar highlighting
+          setCurrentThread(selectedConv.id);
+          console.log('[Chat] Active thread:', selectedConv.title);
+        }
+        return true;
+      } catch (error: any) {
+        console.error('[Chat] Failed to load threads from database:', error);
+
+        // Handle 404 - conversation not found (stale data)
+        if (error?.response?.status === 404 || error?.status_code === 404) {
+          console.warn(
+            '[Chat] Conversation not found (404) - clearing stale data'
+          );
+          // Clear stale localStorage data
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('default-workspace-id');
+            localStorage.removeItem('default-conversation-id');
+          }
+          return false; // Signal to caller to retry with fresh data
         }
 
-        hasRestoredThreadRef.current = true;
-        setActiveConversationId(selectedConv.id);
-        setMessages(selectedConv.messages);
-        // Sync with Zustand store for sidebar highlighting
-        setCurrentThread(selectedConv.id);
-        console.log('[Chat] Active thread:', selectedConv.title);
+        throw error;
       }
-      return true;
-    } catch (error: any) {
-      console.error('[Chat] Failed to load threads from database:', error);
-
-      // Handle 404 - conversation not found (stale data)
-      if (error?.response?.status === 404 || error?.status_code === 404) {
-        console.warn('[Chat] Conversation not found (404) - clearing stale data');
-        // Clear stale localStorage data
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('default-workspace-id');
-          localStorage.removeItem('default-conversation-id');
-        }
-        return false; // Signal to caller to retry with fresh data
-      }
-
-      throw error;
-    }
-  }, [mapDbMessageToUiMessage, setCurrentThread]);
+    },
+    [mapDbMessageToUiMessage, setCurrentThread]
+  );
 
   // Initialize workspace and conversation from database
   useEffect(() => {
     const initializeFromDb = async () => {
       if (!isAuthenticated || !token) {
-        console.log('[Chat] Not authenticated, skipping database initialization');
+        console.log(
+          '[Chat] Not authenticated, skipping database initialization'
+        );
         setIsInitializing(false);
         return;
       }
@@ -1325,7 +1556,9 @@ function ChatPageContent() {
         console.log('[Chat] Workspace:', ws.name);
 
         // Get or create default conversation
-        const conv = await workspaceService.getOrCreateDefaultConversation(ws.id);
+        const conv = await workspaceService.getOrCreateDefaultConversation(
+          ws.id
+        );
         setDbConversation(conv);
         console.log('[Chat] DB Conversation:', conv.title);
 
@@ -1377,13 +1610,17 @@ function ChatPageContent() {
             return;
           } catch (retryError) {
             console.error('[Chat] Retry failed:', retryError);
-            setInitError('Failed to create new chat session. Please refresh the page.');
+            setInitError(
+              'Failed to create new chat session. Please refresh the page.'
+            );
             setIsInitializing(false);
             return;
           }
         }
 
-        setInitError(error instanceof Error ? error.message : 'Failed to load chat data');
+        setInitError(
+          error instanceof Error ? error.message : 'Failed to load chat data'
+        );
       } finally {
         setIsInitializing(false);
       }
@@ -1402,12 +1639,12 @@ function ChatPageContent() {
     }
   }, [activeConversationId, conversations]);
 
-  // Auto-scroll when new messages arrive
+  // Auto-scroll when new messages arrive or streaming content updates
   useEffect(() => {
     if (!showScrollButton) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, showScrollButton]);
+  }, [messages, storeStreamingContent, showScrollButton]);
 
   // Handle scroll to detect if user scrolled up
   const handleScroll = useCallback(() => {
@@ -1444,8 +1681,10 @@ function ChatPageContent() {
     setIsModelLoading(true);
     try {
       if (!engineRef.current) {
-        const { CreateMLCEngine } = await import("@mlc-ai/web-llm");
-        engineRef.current = await CreateMLCEngine(modelId, { initProgressCallback });
+        const { CreateMLCEngine } = await import('@mlc-ai/web-llm');
+        engineRef.current = await CreateMLCEngine(modelId, {
+          initProgressCallback,
+        });
       } else {
         await engineRef.current.reload(modelId);
       }
@@ -1464,7 +1703,14 @@ function ChatPageContent() {
 
   // Send message
   const handleSubmit = async () => {
-    if (!input.trim() || isLoading || isModelLoading || !selectedModel) return;
+    if (
+      !input.trim() ||
+      isLoading ||
+      storeIsStreaming ||
+      isModelLoading ||
+      !selectedModel
+    )
+      return;
 
     const model = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
     const isCloudModel = model?.isCloud;
@@ -1494,7 +1740,10 @@ function ChatPageContent() {
       try {
         // Create new thread in database with dynamic title
         const dynamicTitle = generateConversationTitle(input);
-        console.log('[Chat] Creating new thread in database with title:', dynamicTitle);
+        console.log(
+          '[Chat] Creating new thread in database with title:',
+          dynamicTitle
+        );
         const newThread = await workspaceService.createThread({
           conversation_id: dbConversation.id,
           title: dynamicTitle,
@@ -1526,8 +1775,8 @@ function ChatPageContent() {
       }
     }
 
-    // Save user message to database
-    if (currentThreadId && isAuthenticated) {
+    // Save user message to database (skip for cloud models -- streaming endpoint persists it)
+    if (currentThreadId && isAuthenticated && !isCloudModel) {
       try {
         const savedUserMessage = await workspaceService.createMessage({
           thread_id: currentThreadId,
@@ -1546,108 +1795,51 @@ function ChatPageContent() {
       let assistantMessage = '';
 
       if (isCloudModel) {
-        // Use backend API for cloud models (GPT-4o mini via Azure OpenAI)
-        const data = await apiClient.post<{
-          message: { role: string; content: string };
-          model: string;
-          usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
-          finish_reason: string;
-          timestamp: string;
-          rag_enabled: boolean;
-          retrieved_contexts?: Array<{
-            document_id: string;
-            title: string;
-            content: string;
-            score: number;
-            source?: string;
-          }>;
-        }>('/chat/completions', {
-          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
-          model: selectedModel,
-          temperature: settings.temperature,
-          max_tokens: settings.maxTokens,
-          system_prompt: settings.systemPrompt,
-          use_rag: true,
-          max_context_docs: 5,
-        });
-        assistantMessage = data.message?.content || 'No response from the model.';
+        // Use SSE streaming for cloud models (GPT-4o mini via Azure OpenAI)
+        // streamMessage handles the full lifecycle: stream tokens, then loadMessages on completion.
+        // The virtual streaming message is rendered in the message list via storeIsStreaming/storeStreamingContent.
+        // After streaming completes (message_done), the store refreshes messages from DB,
+        // and we sync local state below via the effect that watches storeMessages.
+        console.log(
+          '[Chat] Starting SSE stream for cloud model, thread:',
+          currentThreadId
+        );
+        await storeStreamMessage(input.trim(), currentThreadId || undefined);
 
-        // Helper to check if a string is a valid UUID
-        const isValidUUID = (str: string): boolean => {
-          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          return uuidRegex.test(str);
-        };
+        // After streaming completes, the store has refreshed messages via loadMessages.
+        // Sync the store messages back to local state for display.
+        if (currentThreadId) {
+          const updatedStoreMessages =
+            useChatStore.getState().messages[currentThreadId] || [];
+          if (updatedStoreMessages.length > 0) {
+            const refreshedMessages: Message[] = updatedStoreMessages.map(
+              (dbMsg) => ({
+                id: dbMsg.id,
+                role:
+                  dbMsg.role === MessageRole.USER
+                    ? ('user' as const)
+                    : ('assistant' as const),
+                content: dbMsg.content,
+                timestamp: new Date(dbMsg.created_at).getTime(),
+                citations: dbMsg.citations?.map(normalizeCitation),
+              })
+            );
+            setMessages(refreshedMessages);
 
-        // Extract citations from retrieved contexts and normalize to parser format
-        // Properly distinguish between database document IDs (UUIDs) and external references (e.g., arXiv IDs)
-        const citations: Citation[] = (data.retrieved_contexts || []).map((ctx: any) => {
-          const docId = ctx.document_id;
-          const isUUID = docId && isValidUUID(docId);
-          return normalizeCitation({
-            document_id: isUUID ? docId : undefined, // Only set if valid UUID
-            external_reference_id: isUUID ? undefined : docId, // External ref for non-UUIDs
-            document_title: ctx.title,
-            snippet: ctx.content,
-            score: ctx.score,
-            document_type: ctx.source,
-          });
-        });
-
-        // Create database-formatted citations for persistence
-        // Support both UUID document_ids and external references (e.g., arXiv IDs)
-        const dbCitations: CitationCreate[] = (data.retrieved_contexts || [])
-          .filter((ctx: any) => ctx.document_id) // Must have some identifier
-          .map((ctx: any) => {
-            const docId = ctx.document_id;
-            const isUUID = isValidUUID(docId);
-            return {
-              document_id: isUUID ? docId : undefined, // Only set if valid UUID
-              external_reference_id: isUUID ? undefined : docId, // External ref for non-UUIDs
-              document_title: ctx.title,
-              document_type: ctx.source,
-              snippet: ctx.content,
-              score: ctx.score,
-            };
-          });
-
-        // Save assistant message to database with citations
-        if (currentThreadId && isAuthenticated) {
-          try {
-            const savedMessage = await workspaceService.createMessage({
-              thread_id: currentThreadId,
-              content: assistantMessage,
-              role: MessageRole.ASSISTANT,
-              citations: dbCitations.length > 0 ? dbCitations : undefined,
-            });
-            console.log('[Chat] Saved assistant message to database with', dbCitations.length, 'citations');
-            // Sync to Zustand store so layout's citation panel can read it
-            addMessageToStore(currentThreadId, savedMessage);
-          } catch (error) {
-            console.error('[Chat] Failed to save assistant message:', error);
+            // Update conversation
+            setConversations((prev) =>
+              prev.map((conv) =>
+                conv.id === currentConversationId
+                  ? {
+                      ...conv,
+                      messages: refreshedMessages,
+                      updatedAt: Date.now(),
+                    }
+                  : conv
+              )
+            );
           }
         }
-
-        // Update messages with assistant response
-        const finalMessages: Message[] = [
-          ...newMessages,
-          {
-            role: 'assistant',
-            content: assistantMessage,
-            timestamp: Date.now(),
-            citations: citations.length > 0 ? citations : undefined,
-          },
-        ];
-
-        setMessages(finalMessages);
-
-        // Update conversation
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.id === currentConversationId
-              ? { ...conv, messages: finalMessages, updatedAt: Date.now() }
-              : conv
-          )
-        );
       } else {
         // Use local WebLLM engine for browser-based models
         let ragContexts: RAGContextItem[] = [];
@@ -1674,14 +1866,25 @@ function ChatPageContent() {
             if (ragResult && ragResult.contexts.length > 0) {
               ragContexts = ragResult.contexts;
               // Phase 2: Pass modelSize for adaptive prompt building
-              systemPrompt = buildRAGSystemPrompt(settings.systemPrompt, ragContexts, modelSize);
+              systemPrompt = buildRAGSystemPrompt(
+                settings.systemPrompt,
+                ragContexts,
+                modelSize
+              );
               setLastRAGContexts(ragContexts);
-              console.log(`[RAG] Retrieved ${ragContexts.length} contexts in ${ragResult.retrievalTimeMs.toFixed(0)}ms`);
+              console.log(
+                `[RAG] Retrieved ${ragContexts.length} contexts in ${ragResult.retrievalTimeMs.toFixed(0)}ms`
+              );
             } else {
-              console.log('[RAG] No relevant context found, proceeding without RAG');
+              console.log(
+                '[RAG] No relevant context found, proceeding without RAG'
+              );
             }
           } catch (error) {
-            console.error('[RAG] Retrieval failed, falling back to no-context mode:', error);
+            console.error(
+              '[RAG] Retrieval failed, falling back to no-context mode:',
+              error
+            );
           } finally {
             setIsRAGLoading(false);
           }
@@ -1689,7 +1892,10 @@ function ChatPageContent() {
 
         // Debug: Log the system prompt to verify RAG context is included
         console.log('[RAG] System prompt length:', systemPrompt.length);
-        console.log('[RAG] System prompt preview:', systemPrompt.substring(0, 500) + '...');
+        console.log(
+          '[RAG] System prompt preview:',
+          systemPrompt.substring(0, 500) + '...'
+        );
 
         // Phase 2: Trim conversation history based on model size
         const trimmedHistory = getModelAwareHistory(
@@ -1718,13 +1924,16 @@ function ChatPageContent() {
               content: assistantMessage,
               timestamp: Date.now(),
               // Show citations while streaming if RAG was used
-              citations: ragContexts.length > 0 ? ragContexts.map((ctx) => ({
-                documentId: ctx.documentId,
-                title: ctx.title,
-                score: ctx.score,
-                content: ctx.content,
-                source: ctx.source || ctx.documentType,
-              })) : undefined,
+              citations:
+                ragContexts.length > 0
+                  ? ragContexts.map((ctx) => ({
+                      documentId: ctx.documentId,
+                      title: ctx.title,
+                      score: ctx.score,
+                      content: ctx.content,
+                      source: ctx.source || ctx.documentType,
+                    }))
+                  : undefined,
             },
           ]);
         }
@@ -1758,7 +1967,11 @@ function ChatPageContent() {
               role: MessageRole.ASSISTANT,
               citations: dbCitations.length > 0 ? dbCitations : undefined,
             });
-            console.log('[Chat] Saved local model response to database with', dbCitations.length, 'citations');
+            console.log(
+              '[Chat] Saved local model response to database with',
+              dbCitations.length,
+              'citations'
+            );
             // Sync to Zustand store so layout's citation panel can read it
             addMessageToStore(currentThreadId, savedMessage);
 
@@ -1770,7 +1983,9 @@ function ChatPageContent() {
                   assistantMessage,
                   ragContexts
                 );
-                console.log(`[RAG] Persisted ${citationIds.length} citations for message ${savedMessage.id}`);
+                console.log(
+                  `[RAG] Persisted ${citationIds.length} citations for message ${savedMessage.id}`
+                );
               } catch (citError) {
                 console.error('[RAG] Failed to persist citations:', citError);
               }
@@ -1786,7 +2001,8 @@ function ChatPageContent() {
             role: 'assistant',
             content: assistantMessage,
             timestamp: Date.now(),
-            citations: localModelCitations.length > 0 ? localModelCitations : undefined,
+            citations:
+              localModelCitations.length > 0 ? localModelCitations : undefined,
           },
         ];
 
@@ -1803,7 +2019,9 @@ function ChatPageContent() {
       }
     } catch (err) {
       console.error('Failed to send message:', err);
-      const errorMessage = 'Error: ' + (err instanceof Error ? err.message : 'Failed to get response');
+      const errorMessage =
+        'Error: ' +
+        (err instanceof Error ? err.message : 'Failed to get response');
 
       setMessages([
         ...newMessages,
@@ -1820,6 +2038,10 @@ function ChatPageContent() {
 
   const handleStop = () => {
     setIsLoading(false);
+    // Also stop SSE streaming if active (for cloud models)
+    if (storeIsStreaming) {
+      storeStopStreaming();
+    }
   };
 
   const handlePromptSelect = (prompt: string) => {
@@ -1844,7 +2066,7 @@ function ChatPageContent() {
           onScroll={handleScroll}
           className="h-full overflow-y-auto terminal-scrollbar"
         >
-          {/* Authentication Required State */ }
+          {/* Authentication Required State */}
           {!isAuthenticated ? (
             <div className="h-full flex flex-col items-center justify-center p-8">
               <div className="text-center">
@@ -1909,18 +2131,29 @@ function ChatPageContent() {
                 </button>
               </motion.div>
             </div>
-          ) : messages.length === 0 ? (
-            <WelcomeState onPromptSelect={handlePromptSelect} selectedModel={selectedModel} />
+          ) : messages.length === 0 && !storeIsStreaming ? (
+            <WelcomeState
+              onPromptSelect={handlePromptSelect}
+              selectedModel={selectedModel}
+            />
           ) : (
             <div className="max-w-4xl mx-auto pt-4 px-4 pb-6">
               <AnimatePresence>
                 {messages.map((message, index) => (
                   <ChatMessage
-                    key={index}
+                    key={message.id || `msg-${index}`}
                     message={message}
                     index={index}
-                    modelName={message.role === 'assistant' ? currentModel?.name : undefined}
-                    isTyping={index === messages.length - 1 && isLoading && message.role === 'assistant'}
+                    modelName={
+                      message.role === 'assistant'
+                        ? currentModel?.name
+                        : undefined
+                    }
+                    isTyping={
+                      index === messages.length - 1 &&
+                      isLoading &&
+                      message.role === 'assistant'
+                    }
                     onCitationClick={(citations, clickedCitation) => {
                       setCitationPanelCitations(citations);
                       setActiveCitationId(clickedCitation.documentId);
@@ -1928,6 +2161,27 @@ function ChatPageContent() {
                     }}
                   />
                 ))}
+
+                {/* Virtual streaming assistant message (shown during SSE streaming) */}
+                {storeIsStreaming && (
+                  <ChatMessage
+                    key="streaming-message"
+                    message={{
+                      role: 'assistant',
+                      content: '',
+                      timestamp: Date.now(),
+                    }}
+                    index={messages.length}
+                    modelName={currentModel?.name}
+                    isStreaming={true}
+                    streamingContent={storeStreamingContent}
+                    onCitationClick={(citations, clickedCitation) => {
+                      setCitationPanelCitations(citations);
+                      setActiveCitationId(clickedCitation.documentId);
+                      setIsCitationPanelOpen(true);
+                    }}
+                  />
+                )}
               </AnimatePresence>
               <div ref={messagesEndRef} />
             </div>
@@ -1947,7 +2201,9 @@ function ChatPageContent() {
                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
               >
                 <ArrowDown className="w-4 h-4" />
-                <span className="hidden sm:inline tracking-wider">NEW MESSAGES</span>
+                <span className="hidden sm:inline tracking-wider">
+                  NEW MESSAGES
+                </span>
               </motion.button>
             </div>
           )}
@@ -1960,7 +2216,7 @@ function ChatPageContent() {
         onChange={setInput}
         onSubmit={handleSubmit}
         onStop={handleStop}
-        isLoading={isLoading}
+        isLoading={isLoading || storeIsStreaming}
         isModelLoading={isModelLoading}
         selectedModel={selectedModel}
         models={AVAILABLE_MODELS}
@@ -1989,16 +2245,18 @@ function ChatPageContent() {
 // Wrapper component with Suspense boundary for useSearchParams
 export default function ChatPage() {
   return (
-    <Suspense fallback={
-      <div className="flex-1 flex flex-col items-center justify-center p-8">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-[var(--phosphor-green)] animate-spin mx-auto mb-4" />
-          <p className="text-sm font-mono text-[var(--terminal-text-muted)]">
-            Loading chat...
-          </p>
+    <Suspense
+      fallback={
+        <div className="flex-1 flex flex-col items-center justify-center p-8">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 text-[var(--phosphor-green)] animate-spin mx-auto mb-4" />
+            <p className="text-sm font-mono text-[var(--terminal-text-muted)]">
+              Loading chat...
+            </p>
+          </div>
         </div>
-      </div>
-    }>
+      }
+    >
       <ChatPageContent />
     </Suspense>
   );
