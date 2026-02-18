@@ -52,6 +52,12 @@ from src.api.research import (
     project_chat_router,
     projects_router,
 )
+from src.api.research_engine import (
+    research_engine_blueprints_router,
+    research_engine_projects_router,
+    research_engine_runs_router,
+    research_engine_steps_router,
+)
 from src.api.search import (
     knowledge_graph_router,
     multi_agent_search_router,
@@ -335,6 +341,10 @@ app.include_router(citations_router)  # Research Assistant citations endpoints
 app.include_router(projects_router)  # Research Assistant projects endpoints
 app.include_router(project_chat_router)  # Project-Chat integration endpoints
 app.include_router(drafts_router)  # Research Assistant drafts endpoints
+app.include_router(research_engine_projects_router, prefix="/api/v1")  # Research Engine projects
+app.include_router(research_engine_blueprints_router, prefix="/api/v1")  # Research Engine blueprints
+app.include_router(research_engine_runs_router, prefix="/api/v1")  # Research Engine runs
+app.include_router(research_engine_steps_router, prefix="/api/v1")  # Research Engine steps
 app.include_router(
     thread_search_router, prefix="/api/v2"
 )  # Thread and message full-text search
