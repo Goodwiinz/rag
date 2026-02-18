@@ -30,6 +30,11 @@ export interface RunStepEvent {
     passed: boolean;
     details?: string;
   }>;
+  mode?: string;
+  output?: string;
+  sources?: string[];
+  prompt?: string;
+  error_message?: string;
   timestamp: string;
 }
 

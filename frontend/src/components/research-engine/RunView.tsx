@@ -377,24 +377,13 @@ function buildStepsFromEvents(events: RunStepEvent[]): StepData[] {
       stepName: evt.step_name ?? existing?.stepName ?? `Step ${idx + 1}`,
       stepType: evt.step_type ?? existing?.stepType ?? 'unknown',
       status: stepStatus,
-      mode:
-        ((evt as Record<string, unknown>).mode as StepData['mode']) ??
-        existing?.mode,
+      mode: (evt.mode as StepData['mode']) ?? existing?.mode,
       tokenCount: evt.token_count ?? existing?.tokenCount ?? 0,
       qualityMarks: evt.quality_marks ?? existing?.qualityMarks ?? [],
-      output:
-        ((evt as Record<string, unknown>).output as string | undefined) ??
-        existing?.output,
-      sources:
-        ((evt as Record<string, unknown>).sources as string[] | undefined) ??
-        existing?.sources,
-      prompt:
-        ((evt as Record<string, unknown>).prompt as string | undefined) ??
-        existing?.prompt,
-      errorMessage:
-        ((evt as Record<string, unknown>).error_message as
-          | string
-          | undefined) ?? existing?.errorMessage,
+      output: evt.output ?? existing?.output,
+      sources: evt.sources ?? existing?.sources,
+      prompt: evt.prompt ?? existing?.prompt,
+      errorMessage: evt.error_message ?? existing?.errorMessage,
     };
 
     stepMap.set(idx, merged);
