@@ -6,10 +6,11 @@ import { listTemplates } from '@/services/researchEngineService';
 import type { BlueprintStepDef } from '@/services/researchEngineService';
 
 interface Template {
-  id: string;
+  slug: string;
   name: string;
   description?: string;
-  steps: BlueprintStepDef[];
+  step_count: number;
+  steps?: BlueprintStepDef[];
   parameters?: Record<string, unknown>;
 }
 
@@ -26,8 +27,8 @@ export function TemplateSelector({ onSelect }: TemplateSelectorProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = (await listTemplates()) as { data?: Template[] };
-      setTemplates(res.data ?? []);
+      const res = (await listTemplates()) as Template[];
+      setTemplates(res ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load templates');
     } finally {
@@ -88,7 +89,7 @@ export function TemplateSelector({ onSelect }: TemplateSelectorProps) {
         {/* Template cards */}
         {templates.map((tpl) => (
           <button
-            key={tpl.id}
+            key={tpl.slug}
             onClick={() => onSelect(tpl)}
             className="group bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-5 text-left hover:border-[#00d4ff]/50 transition-colors"
           >
@@ -104,7 +105,7 @@ export function TemplateSelector({ onSelect }: TemplateSelectorProps) {
               </p>
             )}
             <div className="text-xs text-gray-600 font-mono">
-              {tpl.steps.length} step{tpl.steps.length !== 1 ? 's' : ''}
+              {tpl.step_count} step{tpl.step_count !== 1 ? 's' : ''}
             </div>
           </button>
         ))}

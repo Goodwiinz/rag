@@ -30,7 +30,7 @@ class WorkflowEngine:
             run_paused, run_complete, run_failed
         """
         steps = blueprint.get("steps", [])
-        context: Dict[str, Any] = {}
+        context: Dict[str, Any] = dict(blueprint.get("parameters") or {})
 
         yield {"event": "run_start", "run_id": str(run_id), "total_steps": len(steps)}
 

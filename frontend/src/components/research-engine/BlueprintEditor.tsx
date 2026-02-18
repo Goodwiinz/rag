@@ -30,10 +30,11 @@ interface Blueprint {
 }
 
 interface TemplateData {
-  id: string;
+  slug: string;
   name: string;
   description?: string;
-  steps: BlueprintStepDef[];
+  step_count: number;
+  steps?: BlueprintStepDef[];
   parameters?: Record<string, unknown>;
 }
 
@@ -86,10 +87,9 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
     setLoading(true);
     setError(null);
     try {
-      const projectRes = (await getProject(projectId)) as {
-        data?: ResearchProject & { blueprint_id?: string };
-      };
-      const proj = projectRes.data;
+      const proj = (await getProject(projectId)) as
+        | (ResearchProject & { blueprint_id?: string })
+        | undefined;
       if (!proj) {
         setError('Project not found');
         return;
@@ -99,15 +99,15 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
       // Try to load existing blueprint
       if (proj.blueprint_id) {
         try {
-          const bpRes = (await getBlueprint(proj.blueprint_id)) as {
-            data?: Blueprint;
-          };
-          if (bpRes.data) {
-            setBlueprint(bpRes.data);
-            setBlueprintName(bpRes.data.name);
-            setSteps(bpRes.data.steps.map(withKey));
-            setGlobalParams(bpRes.data.parameters);
-            setGlobalParamsText(JSON.stringify(bpRes.data.parameters, null, 2));
+          const bp = (await getBlueprint(proj.blueprint_id)) as
+            | Blueprint
+            | undefined;
+          if (bp) {
+            setBlueprint(bp);
+            setBlueprintName(bp.name);
+            setSteps(bp.steps.map(withKey));
+            setGlobalParams(bp.parameters);
+            setGlobalParamsText(JSON.stringify(bp.parameters, null, 2));
             return;
           }
         } catch {
@@ -132,7 +132,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
     setShowTemplateSelector(false);
     if (template) {
       setBlueprintName(template.name);
-      setSteps(template.steps.map(withKey));
+      setSteps((template.steps ?? []).map(withKey));
       const params = template.parameters ?? {};
       setGlobalParams(params);
       setGlobalParamsText(JSON.stringify(params, null, 2));
@@ -190,14 +190,14 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
     setError(null);
     try {
       const cleanSteps = steps.map(({ _key, ...rest }) => rest);
-      const res = (await createBlueprint(projectId, {
+      const bp = (await createBlueprint(projectId, {
         name: blueprintName.trim(),
         steps: cleanSteps,
         parameters: globalParams,
-      })) as { data?: Blueprint };
+      })) as Blueprint | undefined;
 
-      if (res.data) {
-        setBlueprint(res.data);
+      if (bp) {
+        setBlueprint(bp);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save blueprint');
@@ -212,11 +212,11 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
     setStarting(true);
     setError(null);
     try {
-      const res = (await startRun(blueprint.id, globalParams)) as {
-        data?: { id: string };
-      };
-      if (res.data?.id) {
-        router.push(`/research-engine/runs/${res.data.id}`);
+      const run = (await startRun(blueprint.id, globalParams)) as
+        | { id: string }
+        | undefined;
+      if (run?.id) {
+        router.push(`/research-engine/runs/${run.id}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start run');
