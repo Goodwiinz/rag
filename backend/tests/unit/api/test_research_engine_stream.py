@@ -2,7 +2,7 @@
 Unit tests for the Research Engine SSE streaming endpoint.
 
 Tests cover:
-- POST /runs/{run_id}/stream returns 200 with SSE content-type
+- GET /runs/{run_id}/stream returns 200 with SSE content-type
 - 404 returned for non-existent run
 - 409 returned for run not in PENDING or PAUSED status
 - Proper SSE headers (Cache-Control, X-Accel-Buffering)
@@ -12,6 +12,7 @@ Tests cover:
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -39,6 +40,7 @@ def _make_run(**overrides):
     run.started_at = overrides.get("started_at", None)
     run.completed_at = overrides.get("completed_at", None)
     run.total_tokens = overrides.get("total_tokens", 0)
+    run.reproducibility_manifest = overrides.get("reproducibility_manifest", None)
     run.created_at = overrides.get("created_at", now)
     run.updated_at = overrides.get("updated_at", now)
     return run
@@ -60,48 +62,39 @@ def _make_blueprint(**overrides):
 def _mock_db_returning(run_result=None, blueprint_result=None, project_result=None):
     """Build an AsyncMock DB that returns expected query results.
 
-    For the stream endpoint flow:
-    - Query 1: get run
-    - Query 2: get blueprint (ownership check)
-    - Query 3: get project (ownership check)
-    - Query 4: get blueprint (for streaming)
-    - Query 5: get last completed step (for paused runs)
+    After C2 fix, _get_owned_run uses a single JOIN query that returns
+    the run directly (or None if not owned). For the stream endpoint:
+    - Query 1: _get_owned_run (single JOIN) → run_result
+    - Query 2: get blueprint (for streaming) → blueprint_result
+    - Query 3: get last completed step (for paused runs)
     """
     db = AsyncMock()
     results = []
 
+    # Query 1: _get_owned_run JOIN query
     run_mock = Mock()
     run_mock.scalars.return_value.first.return_value = run_result
     results.append(run_mock)
 
     if run_result is not None:
-        # Ownership check: blueprint lookup
-        bp_own_mock = Mock()
-        bp_own_mock.scalars.return_value.first.return_value = blueprint_result
-        results.append(bp_own_mock)
+        # Only add more results for streamable statuses
+        streamable = {"pending", "paused"}
+        if run_result.status in streamable:
+            # Query 2: Blueprint lookup for streaming
+            bp_stream_mock = Mock()
+            bp_stream_mock.scalars.return_value.first.return_value = blueprint_result
+            results.append(bp_stream_mock)
 
-        if blueprint_result is not None:
-            # Ownership check: project lookup
-            proj_mock = Mock()
-            proj_result_obj = project_result if project_result is not None else Mock()
-            proj_mock.scalars.return_value.first.return_value = proj_result_obj
-            results.append(proj_mock)
-
-            # Only add more results for streamable statuses
-            streamable = {"pending", "paused"}
-            if run_result.status in streamable:
-                # Blueprint lookup for streaming
-                bp_stream_mock = Mock()
-                bp_stream_mock.scalars.return_value.first.return_value = blueprint_result
-                results.append(bp_stream_mock)
-
-                # Step query for paused runs
-                if run_result.status == "paused":
-                    step_mock = Mock()
-                    step_mock.scalars.return_value.first.return_value = None
-                    results.append(step_mock)
+            # Query 3: Step query for paused runs
+            if run_result.status == "paused":
+                step_mock = Mock()
+                step_mock.scalars.return_value.first.return_value = None
+                results.append(step_mock)
 
     db.execute = AsyncMock(side_effect=results)
+    # commit/refresh are no-ops in tests
+    db.commit = AsyncMock()
+    db.refresh = AsyncMock()
     return db
 
 
@@ -131,9 +124,19 @@ def mock_current_user():
 def stream_client(stream_app, mock_current_user):
     """TestClient with auth override on the minimal app."""
     stream_app.dependency_overrides[get_current_user] = lambda: mock_current_user
-    with TestClient(stream_app) as c:
-        yield c
-    stream_app.dependency_overrides.clear()
+
+    @asynccontextmanager
+    async def _no_lifespan(_app):
+        yield
+
+    original_lifespan = stream_app.router.lifespan_context
+    stream_app.router.lifespan_context = _no_lifespan
+    try:
+        with TestClient(stream_app) as c:
+            yield c
+    finally:
+        stream_app.router.lifespan_context = original_lifespan
+        stream_app.dependency_overrides.clear()
 
 
 # ============================================================================
@@ -145,7 +148,7 @@ class TestStreamEndpointSuccess:
     """Test successful SSE streaming responses."""
 
     def _patch_engine_and_get(self, stream_app, stream_client, run_id, mock_engine_run):
-        """Helper to patch WorkflowEngine + StepExecutor and make GET request."""
+        """Patch engine classes and collect a bounded SSE response snapshot."""
         with patch(
             "src.api.research_engine.runs.WorkflowEngine"
         ) as mock_engine_cls, patch(
@@ -159,10 +162,28 @@ class TestStreamEndpointSuccess:
             engine.run = mock_engine_run
             mock_engine_cls.return_value = engine
 
-            response = stream_client.get(
-                f"/api/v1/research-engine/runs/{run_id}/stream"
-            )
-        return response
+            with stream_client.stream(
+                "GET", f"/api/v1/research-engine/runs/{run_id}/stream"
+            ) as response:
+                chunks = []
+                for chunk in response.iter_text():
+                    chunks.append(chunk)
+                    body = "".join(chunks)
+                    if any(
+                        marker in body
+                        for marker in (
+                            "event: run_complete",
+                            "event: run_failed",
+                            "event: run_paused",
+                        )
+                    ):
+                        break
+
+                return SimpleNamespace(
+                    status_code=response.status_code,
+                    headers=response.headers,
+                    text="".join(chunks),
+                )
 
     def test_stream_returns_200_with_sse_content_type(
         self, stream_app, stream_client

@@ -2,7 +2,8 @@ name: "Data Extraction"
 description: "Extract structured data from the RAG store according to a user-defined schema, validate against the schema and source grounding, and export as a JSON dataset."
 parameters:
   query: ""
-  source: rag_store
+  sources:
+    - rag_store
   extraction_schema: {}
   max_documents: 20
 
@@ -11,7 +12,8 @@ steps:
     name: "RAG Store Search"
     description: "Search the internal RAG document store for documents matching the query."
     parameters:
-      source: rag_store
+      sources:
+        - rag_store
       max_results: 20
     model_id: null
     mode: deterministic

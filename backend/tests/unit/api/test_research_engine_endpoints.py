@@ -5,7 +5,7 @@ Tests cover:
 - GET /api/v1/research-engine/projects — List projects (200)
 - POST /api/v1/research-engine/projects without name — 422
 - GET /api/v1/research-engine/blueprints/templates — List templates (200, >= 3)
-- POST /api/v1/research-engine/blueprints/{blueprint_id}/runs — Start run (202)
+- POST /api/v1/research-engine/blueprints/{blueprint_id}/runs — Start run (201)
 """
 
 import uuid
@@ -230,8 +230,8 @@ class TestStartRun:
     """Tests for POST /api/v1/research-engine/blueprints/{blueprint_id}/runs."""
 
     @patch("src.api.research_engine.runs.select")
-    def test_start_run_returns_202(self, mock_select, client, mock_db, mock_current_user):
-        """Starting a run should return 202 Accepted."""
+    def test_start_run_returns_201(self, mock_select, client, mock_db, mock_current_user):
+        """Starting a run should return 201 Created."""
         blueprint_id = uuid.uuid4()
         blueprint = _make_mock_blueprint(id=blueprint_id, version=1)
         run = _make_mock_run(blueprint_id=blueprint_id, blueprint_version=1)
@@ -264,7 +264,7 @@ class TestStartRun:
             json={},
         )
 
-        assert response.status_code == 202
+        assert response.status_code == 201
         body = response.json()
         assert body["status"] == "pending"
         assert "id" in body
