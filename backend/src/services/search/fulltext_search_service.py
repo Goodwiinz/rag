@@ -6,6 +6,7 @@ import logging
 import re
 import time
 import uuid
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import and_, func, not_, or_, text
@@ -560,10 +561,11 @@ class FullTextSearchService:
         """Get search analytics data"""
         try:
             with next(get_db_sync()) as db:
-                # This is a placeholder - would need search query tracking table
-                # For now, return document statistics
-                stats_query = text(
-                    """
+                # Calculate cutoff date in Python to avoid SQL injection/syntax issues
+                cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+                # Use bind parameter for date comparison
+                query_str = """
                     SELECT
                         COUNT(*) as total_documents,
                         AVG(file_size_bytes) as avg_file_size,
@@ -572,21 +574,17 @@ class FullTextSearchService:
                     FROM documents
                     WHERE is_deleted = false
                         AND processing_status = :completed_status
-                        AND created_at >= NOW() - INTERVAL ':days days'
+                        AND created_at >= :cutoff_date
                 """
-                )
 
                 if organization_id:
-                    stats_query = text(
-                        stats_query.compile().string
-                        + " AND organization_id = :organization_id"
-                    )
+                    query_str += " AND organization_id = :organization_id"
 
                 result = db.execute(
-                    text(stats_query.compile().string),
+                    text(query_str),
                     {
                         "completed_status": ProcessingStatus.COMPLETED.name,
-                        "days": days,
+                        "cutoff_date": cutoff_date,
                         "organization_id": organization_id,
                     },
                 )
