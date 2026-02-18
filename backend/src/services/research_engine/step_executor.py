@@ -2,11 +2,21 @@
 
 import hashlib
 from dataclasses import dataclass, field
+from string import Template
 from typing import Any, Dict, List, Optional
 
 from src.services.research_engine.connectors.base import SourceConnector, SourceDocument
 from src.services.research_engine.providers.base import LLMProvider, LLMRequest, LLMResponse
 from src.services.research_engine.verification import QualityMark
+
+
+def _safe_render(template_str: str, context: Dict[str, Any]) -> str:
+    """Render a template string safely using string.Template.
+
+    Uses $variable syntax and safe_substitute to avoid format string injection
+    from untrusted context values.
+    """
+    return Template(template_str).safe_substitute(context)
 
 
 @dataclass
@@ -55,8 +65,8 @@ class StepExecutor:
         """Search across configured source connectors."""
         params = step_def.get("params", {})
         sources = params.get("sources", [])
-        query_template = params.get("query_template", "{query}")
-        query = query_template.format(**context)
+        query_template = params.get("query_template", "$query")
+        query = _safe_render(query_template, context)
 
         all_sources: List[SourceDocument] = []
         for source_name in sources:
@@ -114,7 +124,7 @@ class StepExecutor:
         if provider is None:
             raise ValueError(f"No provider found for model_id: {model_id}")
 
-        system_prompt = system_prompt_template.format(**context)
+        system_prompt = _safe_render(system_prompt_template, context)
 
         request = LLMRequest(
             prompt=str(context),

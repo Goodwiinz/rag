@@ -199,8 +199,8 @@ class StepResponse(BaseModel):
     inputs_hash: Optional[str] = None
     outputs_hash: Optional[str] = None
     full_prompt: Optional[str] = None
-    model_id: str
-    model_version: str
+    model_id: Optional[str] = None
+    model_version: Optional[str] = None
     temperature: float
     seed: Optional[int] = None
     output: Optional[Dict[str, Any]] = None
@@ -223,12 +223,12 @@ class SourceResponse(BaseModel):
     id: UUID
     run_id: UUID
     connector_type: str
-    external_id: str
+    external_id: Optional[str] = None
     title: str
     authors: Optional[List[str]] = None
-    abstract: str
-    url: str
-    content_hash: str
+    abstract: Optional[str] = None
+    url: Optional[str] = None
+    content_hash: Optional[str] = None
 
 
 # ============================================================================
@@ -245,6 +245,6 @@ class EvidenceResponse(BaseModel):
     step_id: UUID
     source_id: UUID
     claim_text: str
-    confidence: float
+    confidence: Optional[float] = None
     grounding_status: GroundingStatus
-    page_reference: str
+    page_reference: Optional[str] = None

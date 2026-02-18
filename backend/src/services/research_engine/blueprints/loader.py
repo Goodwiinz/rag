@@ -43,7 +43,9 @@ class BlueprintLoader:
 
         Raises FileNotFoundError if the template does not exist.
         """
-        path = self._templates_dir / f"{slug}.yaml"
+        path = (self._templates_dir / f"{slug}.yaml").resolve()
+        if not str(path).startswith(str(self._templates_dir.resolve())):
+            raise ValueError(f"Invalid template slug: {slug}")
         if not path.exists():
             raise FileNotFoundError(f"Blueprint template not found: {slug}")
         with open(path, "r") as f:

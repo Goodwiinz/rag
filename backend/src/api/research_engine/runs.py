@@ -12,13 +12,47 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
 from src.models.research_blueprint import ResearchBlueprint
+from src.models.research_project import ResearchProject
 from src.models.research_run import ResearchRun, RunStatus
+from src.models.research_step import ResearchStep
 from src.models.user import User
 from src.schemas.research_engine import RunCreate, RunResponse
+from src.services.research_engine.connectors import (
+    ArxivConnector,
+    SemanticScholarConnector,
+)
 from src.services.research_engine.engine import WorkflowEngine
 from src.services.research_engine.step_executor import StepExecutor
 
 logger = logging.getLogger(__name__)
+
+
+async def _verify_run_ownership(
+    run: ResearchRun,
+    user_id: UUID,
+    db: AsyncSession,
+) -> None:
+    """Verify the authenticated user owns the project this run belongs to."""
+    bp_query = select(ResearchBlueprint).where(
+        ResearchBlueprint.id == run.blueprint_id
+    )
+    bp_result = await db.execute(bp_query)
+    blueprint = bp_result.scalars().first()
+    if not blueprint:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Blueprint not found",
+        )
+    proj_query = select(ResearchProject).where(
+        ResearchProject.id == blueprint.project_id,
+        ResearchProject.owner_id == user_id,
+    )
+    proj_result = await db.execute(proj_query)
+    if not proj_result.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Run not found",
+        )
 
 router = APIRouter(
     prefix="/research-engine",
@@ -74,6 +108,7 @@ async def start_run(
 )
 async def get_run(
     run_id: UUID,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RunResponse:
     """Get run status."""
@@ -85,6 +120,7 @@ async def get_run(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Run not found",
         )
+    await _verify_run_ownership(run, current_user.id, db)
     return RunResponse.model_validate(run)
 
 
@@ -94,6 +130,7 @@ async def get_run(
 )
 async def pause_run(
     run_id: UUID,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RunResponse:
     """Pause a running run."""
@@ -105,6 +142,7 @@ async def pause_run(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Run not found",
         )
+    await _verify_run_ownership(run, current_user.id, db)
     if run.status != RunStatus.RUNNING.value:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -122,6 +160,7 @@ async def pause_run(
 )
 async def resume_run(
     run_id: UUID,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RunResponse:
     """Resume a paused run."""
@@ -133,6 +172,7 @@ async def resume_run(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Run not found",
         )
+    await _verify_run_ownership(run, current_user.id, db)
     if run.status != RunStatus.PAUSED.value:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -149,6 +189,7 @@ async def resume_run(
 )
 async def get_manifest(
     run_id: UUID,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get reproducibility manifest for a completed run."""
@@ -160,6 +201,7 @@ async def get_manifest(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Run not found",
         )
+    await _verify_run_ownership(run, current_user.id, db)
     if run.status != RunStatus.COMPLETED.value:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -168,7 +210,7 @@ async def get_manifest(
     return run.reproducibility_manifest or {}
 
 
-@router.post(
+@router.get(
     "/runs/{run_id}/stream",
 )
 async def stream_run(
@@ -190,6 +232,8 @@ async def stream_run(
             detail="Run not found",
         )
 
+    await _verify_run_ownership(run, current_user.id, db)
+
     # Only pending or paused runs can be streamed
     streamable = {RunStatus.PENDING.value, RunStatus.PAUSED.value}
     if run.status not in streamable:
@@ -210,18 +254,39 @@ async def stream_run(
             detail="Blueprint not found",
         )
 
+    # Convert ORM object to dict for the engine (C3 fix)
+    blueprint_dict = {
+        "steps": blueprint.steps or [],
+        "parameters": blueprint.parameters or {},
+    }
+
+    # Determine start_from for paused runs (I3 fix)
+    start_from = 0
+    if run.status == RunStatus.PAUSED.value:
+        step_query = (
+            select(ResearchStep)
+            .where(ResearchStep.run_id == run_id)
+            .order_by(ResearchStep.step_index.desc())
+        )
+        step_result = await db.execute(step_query)
+        last_step = step_result.scalars().first()
+        if last_step is not None:
+            start_from = last_step.step_index + 1
+
+    # Build connectors and providers
+    connectors = {
+        "arxiv": ArxivConnector(),
+        "semantic_scholar": SemanticScholarConnector(),
+    }
+    providers: dict = {}
+
     async def event_generator():
         """Yield SSE-formatted events from the workflow engine."""
-        executor = StepExecutor(providers={}, connectors={})
-        engine = WorkflowEngine(executor=executor)
-
-        start_from = 0
-        if run.status == RunStatus.PAUSED.value:
-            # Resume from the next step after the last completed one
-            start_from = 0  # Engine handles resume internally
+        executor = StepExecutor(providers=providers, connectors=connectors)
+        engine = WorkflowEngine(step_executor=executor)
 
         async for event in engine.run(
-            blueprint=blueprint,
+            blueprint=blueprint_dict,
             run_id=run_id,
             start_from_step=start_from,
         ):

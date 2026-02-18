@@ -25,7 +25,7 @@ class ArxivConnector(SourceConnector):
             "sortOrder": "descending",
         }
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
             response = await client.get(
                 "http://export.arxiv.org/api/query",
                 params=params,

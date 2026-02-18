@@ -57,8 +57,16 @@ def _make_blueprint(**overrides):
     return bp
 
 
-def _mock_db_returning(run_result=None, blueprint_result=None):
-    """Build an AsyncMock DB that returns run then blueprint on execute."""
+def _mock_db_returning(run_result=None, blueprint_result=None, project_result=None):
+    """Build an AsyncMock DB that returns expected query results.
+
+    For the stream endpoint flow:
+    - Query 1: get run
+    - Query 2: get blueprint (ownership check)
+    - Query 3: get project (ownership check)
+    - Query 4: get blueprint (for streaming)
+    - Query 5: get last completed step (for paused runs)
+    """
     db = AsyncMock()
     results = []
 
@@ -66,10 +74,32 @@ def _mock_db_returning(run_result=None, blueprint_result=None):
     run_mock.scalars.return_value.first.return_value = run_result
     results.append(run_mock)
 
-    if blueprint_result is not None:
-        bp_mock = Mock()
-        bp_mock.scalars.return_value.first.return_value = blueprint_result
-        results.append(bp_mock)
+    if run_result is not None:
+        # Ownership check: blueprint lookup
+        bp_own_mock = Mock()
+        bp_own_mock.scalars.return_value.first.return_value = blueprint_result
+        results.append(bp_own_mock)
+
+        if blueprint_result is not None:
+            # Ownership check: project lookup
+            proj_mock = Mock()
+            proj_result_obj = project_result if project_result is not None else Mock()
+            proj_mock.scalars.return_value.first.return_value = proj_result_obj
+            results.append(proj_mock)
+
+            # Only add more results for streamable statuses
+            streamable = {"pending", "paused"}
+            if run_result.status in streamable:
+                # Blueprint lookup for streaming
+                bp_stream_mock = Mock()
+                bp_stream_mock.scalars.return_value.first.return_value = blueprint_result
+                results.append(bp_stream_mock)
+
+                # Step query for paused runs
+                if run_result.status == "paused":
+                    step_mock = Mock()
+                    step_mock.scalars.return_value.first.return_value = None
+                    results.append(step_mock)
 
     db.execute = AsyncMock(side_effect=results)
     return db
@@ -114,6 +144,26 @@ def stream_client(stream_app, mock_current_user):
 class TestStreamEndpointSuccess:
     """Test successful SSE streaming responses."""
 
+    def _patch_engine_and_get(self, stream_app, stream_client, run_id, mock_engine_run):
+        """Helper to patch WorkflowEngine + StepExecutor and make GET request."""
+        with patch(
+            "src.api.research_engine.runs.WorkflowEngine"
+        ) as mock_engine_cls, patch(
+            "src.api.research_engine.runs.StepExecutor"
+        ), patch(
+            "src.api.research_engine.runs.ArxivConnector"
+        ), patch(
+            "src.api.research_engine.runs.SemanticScholarConnector"
+        ):
+            engine = Mock()
+            engine.run = mock_engine_run
+            mock_engine_cls.return_value = engine
+
+            response = stream_client.get(
+                f"/api/v1/research-engine/runs/{run_id}/stream"
+            )
+        return response
+
     def test_stream_returns_200_with_sse_content_type(
         self, stream_app, stream_client
     ):
@@ -129,16 +179,9 @@ class TestStreamEndpointSuccess:
             yield {"event": "run_start", "run_id": str(run_id), "total_steps": 1}
             yield {"event": "run_complete", "run_id": str(run_id), "context": {}}
 
-        with patch(
-            "src.api.research_engine.runs.WorkflowEngine"
-        ) as mock_engine_cls:
-            engine = Mock()
-            engine.run = mock_engine_run
-            mock_engine_cls.return_value = engine
-
-            response = stream_client.post(
-                f"/api/v1/research-engine/runs/{run_id}/stream"
-            )
+        response = self._patch_engine_and_get(
+            stream_app, stream_client, run_id, mock_engine_run
+        )
 
         assert response.status_code == 200
         assert "text/event-stream" in response.headers["content-type"]
@@ -158,16 +201,9 @@ class TestStreamEndpointSuccess:
         async def mock_engine_run(blueprint, run_id, start_from_step=0):
             yield {"event": "run_complete", "run_id": str(run_id), "context": {}}
 
-        with patch(
-            "src.api.research_engine.runs.WorkflowEngine"
-        ) as mock_engine_cls:
-            engine = Mock()
-            engine.run = mock_engine_run
-            mock_engine_cls.return_value = engine
-
-            response = stream_client.post(
-                f"/api/v1/research-engine/runs/{run_id}/stream"
-            )
+        response = self._patch_engine_and_get(
+            stream_app, stream_client, run_id, mock_engine_run
+        )
 
         assert response.headers.get("cache-control") == "no-cache"
         assert response.headers.get("x-accel-buffering") == "no"
@@ -192,16 +228,9 @@ class TestStreamEndpointSuccess:
             }
             yield {"event": "run_complete", "run_id": str(run_id), "context": {}}
 
-        with patch(
-            "src.api.research_engine.runs.WorkflowEngine"
-        ) as mock_engine_cls:
-            engine = Mock()
-            engine.run = mock_engine_run
-            mock_engine_cls.return_value = engine
-
-            response = stream_client.post(
-                f"/api/v1/research-engine/runs/{run_id}/stream"
-            )
+        response = self._patch_engine_and_get(
+            stream_app, stream_client, run_id, mock_engine_run
+        )
 
         body = response.text
         assert "event: run_start" in body
@@ -222,16 +251,9 @@ class TestStreamEndpointSuccess:
         async def mock_engine_run(blueprint, run_id, start_from_step=0):
             yield {"event": "run_complete", "run_id": str(run_id), "context": {}}
 
-        with patch(
-            "src.api.research_engine.runs.WorkflowEngine"
-        ) as mock_engine_cls:
-            engine = Mock()
-            engine.run = mock_engine_run
-            mock_engine_cls.return_value = engine
-
-            response = stream_client.post(
-                f"/api/v1/research-engine/runs/{run_id}/stream"
-            )
+        response = self._patch_engine_and_get(
+            stream_app, stream_client, run_id, mock_engine_run
+        )
 
         assert response.status_code == 200
         stream_app.dependency_overrides.pop(get_db, None)
@@ -253,7 +275,7 @@ class TestStreamEndpointErrors:
 
         stream_app.dependency_overrides[get_db] = lambda: db
 
-        response = stream_client.post(
+        response = stream_client.get(
             f"/api/v1/research-engine/runs/{run_id}/stream"
         )
         assert response.status_code == 404
@@ -263,12 +285,14 @@ class TestStreamEndpointErrors:
         self, stream_app, stream_client
     ):
         run_id = uuid.uuid4()
-        mock_run = _make_run(id=run_id, status="completed")
-        db = _mock_db_returning(run_result=mock_run)
+        bp_id = uuid.uuid4()
+        mock_run = _make_run(id=run_id, blueprint_id=bp_id, status="completed")
+        mock_bp = _make_blueprint(id=bp_id)
+        db = _mock_db_returning(run_result=mock_run, blueprint_result=mock_bp)
 
         stream_app.dependency_overrides[get_db] = lambda: db
 
-        response = stream_client.post(
+        response = stream_client.get(
             f"/api/v1/research-engine/runs/{run_id}/stream"
         )
         assert response.status_code == 409
@@ -278,12 +302,14 @@ class TestStreamEndpointErrors:
         self, stream_app, stream_client
     ):
         run_id = uuid.uuid4()
-        mock_run = _make_run(id=run_id, status="failed")
-        db = _mock_db_returning(run_result=mock_run)
+        bp_id = uuid.uuid4()
+        mock_run = _make_run(id=run_id, blueprint_id=bp_id, status="failed")
+        mock_bp = _make_blueprint(id=bp_id)
+        db = _mock_db_returning(run_result=mock_run, blueprint_result=mock_bp)
 
         stream_app.dependency_overrides[get_db] = lambda: db
 
-        response = stream_client.post(
+        response = stream_client.get(
             f"/api/v1/research-engine/runs/{run_id}/stream"
         )
         assert response.status_code == 409
@@ -293,12 +319,14 @@ class TestStreamEndpointErrors:
         self, stream_app, stream_client
     ):
         run_id = uuid.uuid4()
-        mock_run = _make_run(id=run_id, status="running")
-        db = _mock_db_returning(run_result=mock_run)
+        bp_id = uuid.uuid4()
+        mock_run = _make_run(id=run_id, blueprint_id=bp_id, status="running")
+        mock_bp = _make_blueprint(id=bp_id)
+        db = _mock_db_returning(run_result=mock_run, blueprint_result=mock_bp)
 
         stream_app.dependency_overrides[get_db] = lambda: db
 
-        response = stream_client.post(
+        response = stream_client.get(
             f"/api/v1/research-engine/runs/{run_id}/stream"
         )
         assert response.status_code == 409
