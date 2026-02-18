@@ -23,10 +23,17 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual Environment
+# Virtual Environments
+.venv/
+.ven/
 venv/
 env/
 ENV/
+**/.venv/
+**/.ven/
+**/venv/
+**/env/
+**/ENV/
 
 # IDE
 .vscode/
