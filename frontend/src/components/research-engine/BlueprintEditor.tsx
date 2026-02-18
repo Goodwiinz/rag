@@ -37,6 +37,17 @@ interface TemplateData {
   parameters?: Record<string, unknown>;
 }
 
+let _stepKeyCounter = 0;
+function nextStepKey(): string {
+  return `step_${Date.now()}_${_stepKeyCounter++}`;
+}
+
+type StepWithKey = BlueprintStepDef & { _key: string };
+
+function withKey(step: BlueprintStepDef): StepWithKey {
+  return { ...step, _key: nextStepKey() };
+}
+
 const DEFAULT_STEP: BlueprintStepDef = {
   type: 'search',
   name: '',
@@ -58,7 +69,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
 
   // Editor state
   const [blueprintName, setBlueprintName] = useState('');
-  const [steps, setSteps] = useState<BlueprintStepDef[]>([]);
+  const [steps, setSteps] = useState<StepWithKey[]>([]);
   const [globalParams, setGlobalParams] = useState<Record<string, unknown>>({});
   const [globalParamsText, setGlobalParamsText] = useState('{}');
   const [globalParamsError, setGlobalParamsError] = useState<string | null>(
@@ -94,7 +105,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
           if (bpRes.data) {
             setBlueprint(bpRes.data);
             setBlueprintName(bpRes.data.name);
-            setSteps(bpRes.data.steps);
+            setSteps(bpRes.data.steps.map(withKey));
             setGlobalParams(bpRes.data.parameters);
             setGlobalParamsText(JSON.stringify(bpRes.data.parameters, null, 2));
             return;
@@ -121,7 +132,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
     setShowTemplateSelector(false);
     if (template) {
       setBlueprintName(template.name);
-      setSteps([...template.steps]);
+      setSteps(template.steps.map(withKey));
       const params = template.parameters ?? {};
       setGlobalParams(params);
       setGlobalParamsText(JSON.stringify(params, null, 2));
@@ -148,7 +159,9 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
   };
 
   const handleStepChange = (index: number, updated: BlueprintStepDef) => {
-    setSteps((prev) => prev.map((s, i) => (i === index ? updated : s)));
+    setSteps((prev) =>
+      prev.map((s, i) => (i === index ? { ...updated, _key: s._key } : s))
+    );
   };
 
   const handleMoveStep = (index: number, direction: -1 | 1) => {
@@ -166,7 +179,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
   };
 
   const handleAddStep = () => {
-    setSteps((prev) => [...prev, { ...DEFAULT_STEP }]);
+    setSteps((prev) => [...prev, withKey({ ...DEFAULT_STEP })]);
   };
 
   const handleSave = async () => {
@@ -176,9 +189,10 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
     setSaving(true);
     setError(null);
     try {
+      const cleanSteps = steps.map(({ _key, ...rest }) => rest);
       const res = (await createBlueprint(projectId, {
         name: blueprintName.trim(),
-        steps,
+        steps: cleanSteps,
         parameters: globalParams,
       })) as { data?: Blueprint };
 
@@ -343,7 +357,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
           ) : (
             steps.map((step, idx) => (
               <StepCard
-                key={idx}
+                key={step._key}
                 step={step}
                 index={idx}
                 totalSteps={steps.length}

@@ -173,7 +173,7 @@ export function RunView({ runId }: RunViewProps) {
 
                   // Update run status from terminal events
                   if (
-                    currentEventType === 'run_completed' ||
+                    currentEventType === 'run_complete' ||
                     currentEventType === 'run_failed'
                   ) {
                     fetchRun();
@@ -361,9 +361,9 @@ function buildStepsFromEvents(events: RunStepEvent[]): StepData[] {
 
     const stepStatus = (() => {
       switch (evt.event) {
-        case 'step_started':
+        case 'step_start':
           return 'running' as const;
-        case 'step_completed':
+        case 'step_complete':
           return 'complete' as const;
         case 'step_error':
           return 'error' as const;

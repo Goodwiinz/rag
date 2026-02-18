@@ -27,7 +27,7 @@ class SemanticScholarConnector(SourceConnector):
         if self.api_key:
             headers["x-api-key"] = self.api_key
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.get(
                 "https://api.semanticscholar.org/graph/v1/paper/search",
                 params=params,

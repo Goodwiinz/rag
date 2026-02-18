@@ -114,14 +114,9 @@ def execute_research_workflow(run_id: str):
         }
 
         # Run the async engine from the synchronous Celery worker
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            events = loop.run_until_complete(
-                _run_engine(engine, blueprint_dict, UUID(run_id))
-            )
-        finally:
-            loop.close()
+        events = asyncio.run(
+            _run_engine(engine, blueprint_dict, UUID(run_id))
+        )
 
         # Process events
         total_tokens = 0

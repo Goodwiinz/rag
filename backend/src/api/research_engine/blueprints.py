@@ -79,6 +79,7 @@ async def create_blueprint(
 )
 async def get_blueprint(
     blueprint_id: UUID,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BlueprintResponse:
     """Get a single blueprint."""

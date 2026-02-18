@@ -9,7 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
+from src.core.dependencies import get_current_user
 from src.models.research_step import ResearchStep
+from src.models.user import User
 from src.schemas.research_engine import StepResponse
 
 logger = logging.getLogger(__name__)
@@ -26,6 +28,7 @@ router = APIRouter(
 )
 async def list_steps(
     run_id: UUID,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> List[StepResponse]:
     """List steps for a run, ordered by step_index."""
@@ -45,6 +48,7 @@ async def list_steps(
 )
 async def get_step(
     step_id: UUID,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StepResponse:
     """Get a single step."""
