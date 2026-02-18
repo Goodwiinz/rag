@@ -13,6 +13,7 @@ import {
   Network,
   Search,
   Settings,
+  Sparkles,
   TrendingUp,
 } from 'lucide-react';
 
@@ -41,6 +42,7 @@ export const mainNavigation: NavigationItem[] = [
   { name: 'Search Analytics', href: '/search-analytics', icon: TrendingUp },
   { name: 'ArXiv', href: '/arxiv', icon: Database },
   { name: 'Monitoring', href: '/monitoring', icon: Monitor },
+  { name: 'Research Engine', href: '/research-engine', icon: Sparkles },
 ];
 
 export const bottomNavigation: NavigationItem[] = [
