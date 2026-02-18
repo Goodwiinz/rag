@@ -27,37 +27,23 @@ router = APIRouter(
 
 async def _verify_run_access(
     run_id: UUID, user_id: UUID, db: AsyncSession
-) -> ResearchRun:
-    """Verify user owns the project for this run. Returns the run."""
-    run_query = select(ResearchRun).where(ResearchRun.id == run_id)
-    run_result = await db.execute(run_query)
-    run = run_result.scalars().first()
-    if not run:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Run not found",
+) -> None:
+    """Verify user owns the project for this run via a single JOIN query."""
+    query = (
+        select(ResearchRun.id)
+        .join(ResearchBlueprint, ResearchBlueprint.id == ResearchRun.blueprint_id)
+        .join(ResearchProject, ResearchProject.id == ResearchBlueprint.project_id)
+        .where(
+            ResearchRun.id == run_id,
+            ResearchProject.owner_id == user_id,
         )
-    bp_query = select(ResearchBlueprint).where(
-        ResearchBlueprint.id == run.blueprint_id
     )
-    bp_result = await db.execute(bp_query)
-    blueprint = bp_result.scalars().first()
-    if not blueprint:
+    result = await db.execute(query)
+    if not result.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Run not found",
         )
-    proj_query = select(ResearchProject).where(
-        ResearchProject.id == blueprint.project_id,
-        ResearchProject.owner_id == user_id,
-    )
-    proj_result = await db.execute(proj_query)
-    if not proj_result.scalars().first():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Run not found",
-        )
-    return run
 
 
 @router.get(
@@ -90,8 +76,17 @@ async def get_step(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StepResponse:
-    """Get a single step."""
-    query = select(ResearchStep).where(ResearchStep.id == step_id)
+    """Get a single step with ownership verification in one query."""
+    query = (
+        select(ResearchStep)
+        .join(ResearchRun, ResearchRun.id == ResearchStep.run_id)
+        .join(ResearchBlueprint, ResearchBlueprint.id == ResearchRun.blueprint_id)
+        .join(ResearchProject, ResearchProject.id == ResearchBlueprint.project_id)
+        .where(
+            ResearchStep.id == step_id,
+            ResearchProject.owner_id == current_user.id,
+        )
+    )
     result = await db.execute(query)
     step = result.scalars().first()
     if not step:
@@ -99,5 +94,4 @@ async def get_step(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Step not found",
         )
-    await _verify_run_access(step.run_id, current_user.id, db)
     return StepResponse.model_validate(step)

@@ -1,6 +1,7 @@
 """Step executor for research engine workflow steps."""
 
 import hashlib
+import re
 from dataclasses import dataclass, field
 from string import Template
 from typing import Any, Dict, List, Optional
@@ -11,12 +12,26 @@ from src.services.research_engine.verification import QualityMark
 
 
 def _safe_render(template_str: str, context: Dict[str, Any]) -> str:
-    """Render a template string safely using string.Template.
+    """Render template strings safely.
 
-    Uses $variable syntax and safe_substitute to avoid format string injection
-    from untrusted context values.
+    Supports both `$variable` and `{variable}` placeholders while avoiding
+    arbitrary expression evaluation.
     """
-    return Template(template_str).safe_substitute(context)
+    if not template_str:
+        return ""
+
+    rendered = Template(template_str).safe_substitute(context)
+
+    # Support legacy `{variable}` placeholders in YAML templates.
+    brace_pattern = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+
+    def repl(match: re.Match[str]) -> str:
+        key = match.group(1)
+        if key in context:
+            return str(context[key])
+        return match.group(0)
+
+    return brace_pattern.sub(repl, rendered)
 
 
 @dataclass
@@ -68,8 +83,11 @@ class StepExecutor:
     ) -> StepResult:
         """Search across configured source connectors."""
         params = self._get_params(step_def)
-        sources = params.get("sources", [])
+        sources = list(params.get("sources", []) or [])
+        if not sources and params.get("source"):
+            sources = [params["source"]]
         query_template = params.get("query_template", "$query")
+        max_results = int(params.get("max_results", 50))
         query = _safe_render(query_template, context)
 
         all_sources: List[SourceDocument] = []
@@ -77,7 +95,7 @@ class StepExecutor:
             connector = self.connectors.get(source_name)
             if connector is None:
                 continue
-            results = await connector.search(query)
+            results = await connector.search(query, max_results=max_results)
             all_sources.extend(results)
 
         return StepResult(
@@ -120,9 +138,11 @@ class StepExecutor:
         """Execute a step that requires LLM completion."""
         params = self._get_params(step_def)
         model_id = step_def.get("model_id") or params.get("model_id", "")
-        system_prompt_template = params.get("system_prompt_template", "")
-        temperature = params.get("temperature", 0.0)
-        seed = params.get("seed", 42)
+        system_prompt_template = step_def.get("system_prompt_template") or params.get(
+            "system_prompt_template", ""
+        )
+        temperature = float(step_def.get("temperature", params.get("temperature", 0.0)))
+        seed = step_def.get("seed", params.get("seed", 42))
 
         provider = self.providers.get(model_id)
         if provider is None:
