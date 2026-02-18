@@ -93,4 +93,15 @@ async def get_blueprint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Blueprint not found",
         )
+    # Verify ownership through project
+    proj_query = select(ResearchProject).where(
+        ResearchProject.id == blueprint.project_id,
+        ResearchProject.owner_id == current_user.id,
+    )
+    proj_result = await db.execute(proj_query)
+    if not proj_result.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Blueprint not found",
+        )
     return BlueprintResponse.model_validate(blueprint)

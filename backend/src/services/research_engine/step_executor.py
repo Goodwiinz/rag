@@ -59,11 +59,15 @@ class StepExecutor:
             raise ValueError(f"Unknown step type: {step_type}")
         return await handler(step_def, context)
 
+    def _get_params(self, step_def: Dict) -> Dict:
+        """Get step parameters, checking both 'params' and 'parameters' keys."""
+        return step_def.get("params") or step_def.get("parameters") or {}
+
     async def _execute_search(
         self, step_def: Dict, context: Dict
     ) -> StepResult:
         """Search across configured source connectors."""
-        params = step_def.get("params", {})
+        params = self._get_params(step_def)
         sources = params.get("sources", [])
         query_template = params.get("query_template", "$query")
         query = _safe_render(query_template, context)
@@ -114,8 +118,8 @@ class StepExecutor:
         self, step_def: Dict, context: Dict
     ) -> StepResult:
         """Execute a step that requires LLM completion."""
-        params = step_def.get("params", {})
-        model_id = params.get("model_id", "")
+        params = self._get_params(step_def)
+        model_id = step_def.get("model_id") or params.get("model_id", "")
         system_prompt_template = params.get("system_prompt_template", "")
         temperature = params.get("temperature", 0.0)
         seed = params.get("seed", 42)

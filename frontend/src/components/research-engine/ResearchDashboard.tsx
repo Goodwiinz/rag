@@ -26,8 +26,8 @@ export function ResearchDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const res = (await listProjects()) as { data?: ResearchProject[] };
-      setProjects(res.data ?? []);
+      const res = (await listProjects()) as ResearchProject[];
+      setProjects(res ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load projects');
     } finally {
@@ -37,8 +37,8 @@ export function ResearchDashboard() {
 
   const fetchTemplates = useCallback(async () => {
     try {
-      const res = (await listTemplates()) as { data?: Template[] };
-      setTemplates(res.data ?? []);
+      const res = (await listTemplates()) as Template[];
+      setTemplates(res ?? []);
     } catch {
       // Templates are non-critical; silently ignore
     }
