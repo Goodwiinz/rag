@@ -308,10 +308,12 @@ def hash_sensitive_data(data: str) -> str:
 
 
 def verify_sensitive_data_hash(data: str, hashed: str) -> bool:
-    """Verify sensitive data against its hash"""
+    """Verify sensitive data against its hash using constant-time comparison"""
     import hashlib
 
-    return hashlib.sha256(data.encode()).hexdigest() == hashed
+    return secrets.compare_digest(
+        hashlib.sha256(data.encode()).hexdigest(), hashed
+    )
 
 
 class RateLimiter:
