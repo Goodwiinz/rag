@@ -3,6 +3,7 @@ import { APIResponse } from '@/types/api';
 import {
   SearchRequest,
   SearchResult,
+  SourceReference,
   QueryHistory,
   QuerySuggestions,
   QueryProcessingSession,
@@ -11,6 +12,73 @@ import {
   GraphData,
   GraphFilters,
 } from '@/types/search';
+
+type BackendSearchResponse = {
+  search_id?: string;
+  query?: string;
+  results?: Array<{
+    document_id: string;
+    title: string;
+    content_preview?: string;
+    relevance_score?: number;
+    document_type?: string;
+  }>;
+  search_time_ms?: number;
+  total_results?: number;
+};
+
+type SearchError = {
+  message?: string;
+  error?: {
+    status_code?: number;
+  };
+  response?: {
+    status?: number;
+  };
+};
+
+const SUPPORTED_FILE_TYPES: ReadonlySet<NonNullable<SourceReference['file_type']>> = new Set([
+  'pdf',
+  'txt',
+  'jpg',
+  'png',
+  'mp3',
+  'mp4',
+]);
+
+const isSupportedFileType = (value: string): value is NonNullable<SourceReference['file_type']> => {
+  return SUPPORTED_FILE_TYPES.has(value as NonNullable<SourceReference['file_type']>);
+};
+
+const isNotFoundSearchError = (error: unknown): error is SearchError => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const candidate = error as SearchError;
+  return candidate.error?.status_code === 404 || candidate.response?.status === 404;
+};
+
+const mapDocumentTypeToFileType = (documentType?: string): NonNullable<SourceReference['file_type']> => {
+  const normalized = documentType?.toLowerCase();
+  if (normalized && isSupportedFileType(normalized)) {
+    return normalized;
+  }
+
+  return 'txt';
+};
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message;
+  }
+
+  return 'Search failed';
+};
 
 export class SearchService {
   private readonly basePath = '/search';
@@ -23,7 +91,7 @@ export class SearchService {
       // Transform request to match backend expectations
       const backendRequest = {
         query: request.query,
-        search_type: 'fulltext', // Default to fulltext search
+        search_type: 'hybrid', // Default to hybrid search
         limit: request.limit || 10,
         offset: request.offset || 0,
         filters: request.filters ? {
@@ -40,13 +108,20 @@ export class SearchService {
         include_snippets: true,
       };
 
-      const response = await apiClient.post(`${this.basePath}/`, backendRequest) as {
-        search_id?: string;
-        query?: string;
-        results?: Array<{ document_id: string; title: string; content_preview?: string; relevance_score?: number; document_type?: string }>;
-        search_time_ms?: number;
-        total_results?: number;
-      };
+      let response: BackendSearchResponse;
+
+      try {
+        response = await apiClient.post(`${this.basePath}/hybrid`, backendRequest) as BackendSearchResponse;
+      } catch (error: unknown) {
+        if (!isNotFoundSearchError(error)) {
+          throw error;
+        }
+
+        response = await apiClient.post(`${this.basePath}/`, {
+          ...backendRequest,
+          search_type: 'fulltext',
+        }) as BackendSearchResponse;
+      }
 
       // Transform backend response to match frontend expectations
       const transformedResult: SearchResult = {
@@ -54,12 +129,12 @@ export class SearchService {
         query: response.query || request.query,
         answer: {
           text: '',
-          sources: response.results?.map((r: any) => ({
+          sources: response.results?.map((r) => ({
             document_id: r.document_id,
             document_title: r.title,
             snippet: r.content_preview || '',
             confidence: r.relevance_score || 0,
-            file_type: r.document_type?.toLowerCase() as any,
+            file_type: mapDocumentTypeToFileType(r.document_type),
           })) || [],
           confidence: 0,
           answer_type: 'factual' as const,
@@ -88,12 +163,12 @@ export class SearchService {
         data: transformedResult,
         message: 'Search completed successfully',
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Search service error:', error);
       return {
         success: false,
         data: null as any,
-        message: error.message || 'Search failed',
+        message: getErrorMessage(error),
       };
     }
   }
